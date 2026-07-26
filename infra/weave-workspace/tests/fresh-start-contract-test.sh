@@ -6,7 +6,6 @@ set -euo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="${ROOT_DIR}/fresh-start.sh"
 PYTHON_SCRIPT="${ROOT_DIR}/fresh-start.py"
-INFRA_MAIN="${ROOT_DIR}/01-infrastructure/main.tf"
 TMP_DIR="$(mktemp -d)"
 MOCK_BIN="${TMP_DIR}/bin"
 ALLOWLIST="${TMP_DIR}/targets.json"
@@ -25,12 +24,14 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 for label in \
   environment scope stack generation namespace component data-class fresh-start-eligible \
   spec-commit spec-digest candidate-commit candidate-manifest-digest; do
-  grep -Rq "com.massimotter.weave.${label}" "${ROOT_DIR}/01-infrastructure" ||
+  grep -Fq "com.massimotter.weave.${label}" "${ROOT_DIR}/compose.yaml" ||
     { echo "missing creation-time ownership label ${label}" >&2; exit 1; }
+  grep -Fq "\"com.massimotter.weave.${label}\"" "${ROOT_DIR}/scripts/compose_runtime.py" ||
+    { echo "missing external-resource ownership label ${label}" >&2; exit 1; }
 done
-grep -Fq 'org.opencontainers.image.revision' "${ROOT_DIR}/01-infrastructure/modules/keycloak/main.tf"
-grep -Fq 'contains(["persistent-dogfood", "prod"]' "${INFRA_MAIN}"
-grep -Fq 'can(regex("@sha256:[0-9a-f]{64}$", image))' "${INFRA_MAIN}"
+grep -Fq 'org.opencontainers.image.revision' "${ROOT_DIR}/keycloak/Dockerfile.identity-ops"
+grep -Fq 'profile == "test"' "${ROOT_DIR}/scripts/compose_env.py"
+grep -Fq 'PUBLISHED_DIGEST_IMAGE_RE' "${ROOT_DIR}/scripts/compose_env.py"
 grep -Fq 'Fresh Start is forbidden for prod' "${PYTHON_SCRIPT}"
 grep -Fq "DELETE_OLD_WEAVE:{digest}" "${PYTHON_SCRIPT}"
 grep -Fq 'canonical_json_bytes' "${PYTHON_SCRIPT}"

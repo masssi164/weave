@@ -11,7 +11,6 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import java.net.URI;
-import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -29,6 +28,7 @@ class KeycloakIdentityAdminClientTest {
     IdentityInvitationProperties properties = new IdentityInvitationProperties();
     properties.keycloak().setBaseUrl(URI.create("https://identity.internal"));
     properties.keycloak().setRealm("weave");
+    properties.keycloak().setOrganizationId("organization-1");
 
     RestClient.Builder builder = RestClient.builder().baseUrl(properties.keycloak().baseUrl());
     provider = MockRestServiceServer.bindTo(builder).build();
@@ -37,6 +37,14 @@ class KeycloakIdentityAdminClientTest {
 
   @Test
   void resolvesOrganizationByStableAliasOnce() {
+    IdentityInvitationProperties properties = new IdentityInvitationProperties();
+    properties.keycloak().setBaseUrl(URI.create("https://identity.internal"));
+    properties.keycloak().setRealm("weave");
+    properties.keycloak().setOrganizationId("");
+    RestClient.Builder builder = RestClient.builder().baseUrl(properties.keycloak().baseUrl());
+    provider = MockRestServiceServer.bindTo(builder).build();
+    client = new KeycloakIdentityAdminClient(properties, new ObjectMapper(), builder.build());
+
     provider
         .expect(
             once(),
@@ -57,69 +65,36 @@ class KeycloakIdentityAdminClientTest {
   }
 
   @Test
-  void projectsProductCapabilitiesToCanonicalFlatGroupsWithoutWalkingChildren() {
+  void assignsRolesOnlyThroughNativeOrganizationGroups() {
     provider
         .expect(
             requestTo(
-                "https://identity.internal/admin/realms/weave" + "/clients?clientId=weave-app"))
+                "https://identity.internal/admin/realms/weave"
+                    + "/organizations/organization-1/members/subject-1/groups"
+                    + "?briefRepresentation=true"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/organizations/organization-1/groups?search=members&exact=true"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(
             withSuccess(
                 """
-                [{"id":"client-uuid","clientId":"weave-app"}]
+                [{"id":"group-uuid","name":"members","path":"/members"}]
                 """,
                 MediaType.APPLICATION_JSON));
     provider
         .expect(
             requestTo(
                 "https://identity.internal/admin/realms/weave"
-                    + "/clients/client-uuid/roles/member"))
-        .andExpect(method(HttpMethod.GET))
-        .andRespond(
-            withSuccess(
-                """
-                {"id":"role-uuid","name":"member"}
-                """,
-                MediaType.APPLICATION_JSON));
-    provider
-        .expect(
-            requestTo(
-                "https://identity.internal/admin/realms/weave"
-                    + "/users/subject-1/role-mappings/clients/client-uuid"))
-        .andExpect(method(HttpMethod.POST))
-        .andRespond(withStatus(HttpStatus.NO_CONTENT));
-    provider
-        .expect(
-            requestTo(
-                "https://identity.internal/admin/realms/weave"
-                    + "/groups?search=weave-weaver-runtime&exact=true"))
-        .andExpect(method(HttpMethod.GET))
-        .andRespond(
-            withSuccess(
-                """
-                [{"id":"group-uuid","name":"weave-weaver-runtime","path":"/weave-weaver-runtime"}]
-                """,
-                MediaType.APPLICATION_JSON));
-    provider
-        .expect(
-            requestTo(
-                "https://identity.internal/admin/realms/weave"
-                    + "/users/subject-1/groups/group-uuid"))
+                    + "/organizations/organization-1/groups/group-uuid/members/subject-1"))
         .andExpect(method(HttpMethod.PUT))
         .andRespond(withStatus(HttpStatus.NO_CONTENT));
 
-    client.applyRoleAndCapabilities(
-        "subject-1", "member", List.of("agent-runtime.entitled"));
-
-    provider.verify();
-  }
-
-  @Test
-  void rejectsUnknownProductCapabilityBeforeCallingKeycloak() {
-    assertThatThrownBy(() -> client.validateCapabilities(List.of("provider.raw-group")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Unsupported product capability")
-        .hasMessageNotContaining("weave-weaver-runtime");
+    client.applyRole("subject-1", "member");
 
     provider.verify();
   }

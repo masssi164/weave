@@ -60,7 +60,7 @@ class ProviderHealthActuatorMetricsTest {
                 .andExpect(jsonPath("$.availableTags[?(@.tag == 'status')].values",
                         contains(hasItems("available", "degraded", "unavailable"))));
 
-        mockMvc.perform(get("/api/v1/admin/provider-capability-health"))
+        mockMvc.perform(get("/api/admin/provider-capability-health"))
                 .andExpect(status().isUnauthorized());
 
         verify(nextcloudFilesAdapter, never()).healthProbe();

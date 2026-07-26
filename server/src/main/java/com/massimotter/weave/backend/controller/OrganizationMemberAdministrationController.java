@@ -6,6 +6,7 @@ import com.massimotter.weave.backend.model.identity.MemberOffboardingRequest;
 import com.massimotter.weave.backend.model.identity.OrganizationMemberPageResponse;
 import com.massimotter.weave.backend.model.identity.OrganizationMemberResponse;
 import com.massimotter.weave.backend.model.identity.OrganizationMemberUpdateRequest;
+import com.massimotter.weave.backend.model.identity.WeaverEntitlementUpdateRequest;
 import com.massimotter.weave.backend.service.OrganizationMemberAdministrationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -83,6 +85,19 @@ public class OrganizationMemberAdministrationController {
       @RequestHeader("Idempotency-Key") String idempotencyKey,
       @AuthenticationPrincipal Jwt jwt) {
     return service.update(
+        organizationId, memberHandle, request, expectedVersion, idempotencyKey, jwt);
+  }
+
+  @PutMapping("/{memberHandle}/capabilities/weaver")
+  @Operation(operationId = "updateOrganizationMemberWeaverEntitlement")
+  public OrganizationMemberResponse updateWeaverEntitlement(
+      @PathVariable String organizationId,
+      @PathVariable String memberHandle,
+      @Valid @RequestBody WeaverEntitlementUpdateRequest request,
+      @RequestHeader("If-Match") String expectedVersion,
+      @RequestHeader("Idempotency-Key") String idempotencyKey,
+      @AuthenticationPrincipal Jwt jwt) {
+    return service.updateWeaverEntitlement(
         organizationId, memberHandle, request, expectedVersion, idempotencyKey, jwt);
   }
 

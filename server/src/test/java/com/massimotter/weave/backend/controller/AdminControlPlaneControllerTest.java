@@ -29,7 +29,9 @@ import java.time.Instant;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
 import com.massimotter.weave.backend.service.InMemoryOrganizationBootstrapRepository;
 import com.massimotter.weave.backend.service.OrganizationBootstrapRepository;
+import com.massimotter.weave.backend.service.ProductProfileOverrideRepository;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -104,6 +106,12 @@ class AdminControlPlaneControllerTest {
     @MockitoBean
     private WorkspaceCapabilityService workspaceCapabilityService;
 
+    @MockitoBean
+    private ProductProfileOverrideRepository productProfileOverrideRepository;
+
+    @MockitoBean
+    private MigrationRunEvidenceRepository migrationRunEvidenceRepository;
+
     @Autowired
     private ProviderSelectionRepository providerSelectionRepository;
 
@@ -125,8 +133,8 @@ class AdminControlPlaneControllerTest {
                 "Keycloak federation and brokering contract for upstream LDAP, Active Directory, OIDC, and SAML sources",
                 "issuer, subject, role, and group claims issued by Keycloak",
                 List.of("admin"),
-                List.of("weave-board-editors"),
-                List.of("workspace-admin", "group:weave-board-editors"),
+                List.of("/admins"),
+                List.of("workspace-admin", "group:/admins"),
                 List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure"),
                 true,
                 true,
@@ -136,10 +144,10 @@ class AdminControlPlaneControllerTest {
                 "weave-dogfood",
                 "organization",
                 List.of("https://auth.example.invalid/realms/weave"),
-                List.of("weave-board-editors"),
+                List.of("/admins"),
                 List.of("admin"),
                 List.of("context_admin"),
-                List.of("role_claim:admin", "group_claim:weave-board-editors"),
+                List.of("role_claim:admin", "group_claim:/admins"),
                 List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure"),
                 List.of(new EffectivePolicyDenyResponse("agent-runtime.entitled", "Agent Runtime Control requires current Keycloak entitlement", "deny-by-default-capability-policy")),
                 List.of("member-visible states remain available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later"),
@@ -379,7 +387,7 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.subject").value("admin-123"))
                 .andExpect(jsonPath("$.organization").value("weave-dogfood"))
                 .andExpect(jsonPath("$.capabilityGrants[*]", hasItems("admin.policy.edit", "admin.provider.configure")))
-                .andExpect(jsonPath("$.providerRoleMappings[*]", hasItems("role_claim:admin", "group_claim:weave-board-editors")))
+                .andExpect(jsonPath("$.providerRoleMappings[*]", hasItems("role_claim:admin", "group_claim:/admins")))
                 .andExpect(jsonPath("$.denies[0].capability").value("agent-runtime.entitled"))
                 .andExpect(jsonPath("$.denyByDefault").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
@@ -396,7 +404,7 @@ class AdminControlPlaneControllerTest {
                   "subject": "alice@example.com",
                   "organizationId": "weave-dogfood",
                   "roles": ["member"],
-                  "groups": ["weave-board-editors"],
+                  "groups": ["/members"],
                   "requestedCapabilities": ["chat.send", "boards.update_task", "admin.provider.configure", "agent-runtime.entitled"],
                   "reason": "preview before provider change with Bearer secret-token and client_secret"
                 }
@@ -412,10 +420,11 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.unknownInputsFailClosed").value(false))
                 .andExpect(jsonPath("$.agentRuntimeEntitlementRequired").value(true))
-                .andExpect(jsonPath("$.grantedCapabilities[*]", hasItems("chat.send", "boards.update_task")))
+                .andExpect(jsonPath("$.grantedCapabilities[*]", hasItems("chat.send")))
                 .andExpect(jsonPath("$.deniedInputs").isEmpty())
                 .andExpect(jsonPath("$.capabilityStates[*].state", hasItems("ready", "disabled", "policy-blocked")))
                 .andExpect(jsonPath("$.capabilityStates[?(@.capability == 'agent-runtime.entitled')].reasonCode", hasItems("agent-runtime-entitlement-required")))
+                .andExpect(jsonPath("$.capabilityStates[?(@.capability == 'boards.update_task')].state", hasItems("policy-blocked")))
                 .andExpect(jsonPath("$.capabilityStates[?(@.capability == 'admin.provider.configure')].state", hasItems("policy-blocked")))
                 .andExpect(content().string(not(containsString("alice@example.com"))))
                 .andExpect(content().string(not(containsString("secret-token"))))
@@ -447,13 +456,13 @@ class AdminControlPlaneControllerTest {
         mockMvc.perform(post("/api/admin/policies/effective/simulations")
                         .with(memberJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roles\":[\"admin\"],\"groups\":[\"weave-board-editors\"],\"requestedCapabilities\":[\"admin.provider.configure\"]}"))
+                        .content("{\"roles\":[\"admin\"],\"groups\":[\"/admins\"],\"requestedCapabilities\":[\"admin.provider.configure\"]}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
                 .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
                 .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true))
                 .andExpect(content().string(not(containsString("admin.provider.configure"))))
-                .andExpect(content().string(not(containsString("weave-board-editors"))))
+                .andExpect(content().string(not(containsString("/admins"))))
                 .andExpect(content().string(not(containsString("keycloak-realm"))));
     }
 

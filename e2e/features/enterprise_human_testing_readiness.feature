@@ -3,14 +3,6 @@ Feature: Enterprise dogfood readiness is proven across users and delivery gates
   owned by testApp. Interactive Flutter and accessibility evidence is captured
   only on a physical device through the production system-browser flow.
 
-  @human-ready-legacy-upgrade
-  Scenario: Legacy first-run state cannot return the obsolete screen
-    Given a signed-in client is upgraded with former first-run preferences and secure state
-    When application bootstrap restores the organization and session
-    Then the member enters the normal application shell
-    And legacy state is ignored or removed
-    And no first-run route copy provider or server endpoint exists
-
   @human-ready-dogfood-deployment
   Scenario: Persistent dogfood deployment is non-destructive and idempotent
     Given isolated collaboration evidence is green for the candidate
@@ -28,7 +20,7 @@ Feature: Enterprise dogfood readiness is proven across users and delivery gates
 
   @human-ready-physical-voiceover
   Scenario: Physical iPhone VoiceOver acceptance closes the final gate
-    Given the current candidate is installed over the obsolete iPhone build
+    Given the current candidate is installed on the physical acceptance iPhone
     When the human tester completes the common member tasks with VoiceOver on a physical iPhone
     Then labels headings focus order errors Dynamic Type and touch targets pass
     And force quit refresh and session upgrade pass

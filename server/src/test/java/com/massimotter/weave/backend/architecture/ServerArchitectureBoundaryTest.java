@@ -218,6 +218,22 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
+    void retiredApplicationCompatibilityRoutesAndConfigurationFallbacksStayAbsent()
+            throws IOException {
+        assertThat(sourceEndingWith(Path.of("controller", "WorkspaceController.java")).text())
+                .doesNotContain("/api/v1/organization")
+                .doesNotContain("/api/v1/workspace");
+        assertThat(sourceEndingWith(Path.of("controller", "ChatController.java")).text())
+                .doesNotContain("/api/v1/chat")
+                .doesNotContain("/api/v1/admin/chat");
+        assertThat(sourceEndingWith(Path.of("controller", "AdminControlPlaneController.java")).text())
+                .doesNotContain("/api/v1/admin");
+        assertThat(sourceEndingWith(
+                Path.of("controller", "ProviderCapabilityHealthController.java")).text())
+                .doesNotContain("/api/v1/admin");
+    }
+
+    @Test
     void filesWebDavWriteMethodsRouteThroughFacadeUseCases() throws IOException {
         JavaSource filesWebDavController = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("controller", "FilesWebDavController.java")))
@@ -319,7 +335,7 @@ class ServerArchitectureBoundaryTest {
                 .contains("CanonicalChatJpaAuthority")
                 .contains("MatrixSynapseChatSouthboundAdapter")
                 .contains("SynapseBackedCanonicalChatAdapter")
-                .contains("requireJpa(properties)")
+                .doesNotContain("WEAVE_CHAT_STORAGE_MODE")
                 .doesNotContain("JdbcTemplate")
                 .doesNotContain("JdbcCanonicalChatStore");
         assertThat(canonicalAdapter.text())
@@ -367,6 +383,36 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
+    void serverCompositionContainsNoJpaEntityOrSpringDataRepositoryDeclaration()
+            throws IOException {
+        assertThat(productionSources())
+                .allSatisfy(source -> assertThat(source.text())
+                        .as(source.path().toString())
+                        .doesNotContain("@Entity")
+                        .doesNotContain("extends JpaRepository"));
+    }
+
+    @Test
+    void productionDataAccessUsesJpaWithoutNativeSqlOrJdbcEscapeHatches()
+            throws IOException {
+        List<JavaSource> persistence = persistenceSources();
+        List<JavaSource> dataAccessSources = java.util.stream.Stream.concat(
+                        productionSources().stream(),
+                        persistence.stream())
+                .toList();
+
+        assertThat(dataAccessSources)
+                .allSatisfy(source -> assertThat(source.text())
+                        .as(source.path().toString())
+                        .doesNotContain("createNativeQuery(")
+                        .doesNotContain("nativeQuery = true")
+                        .doesNotContain("nativeQuery=true")
+                        .doesNotContain("JdbcTemplate")
+                        .doesNotContain("NamedParameterJdbcTemplate")
+                        .doesNotContain("org.springframework.jdbc.core"));
+    }
+
+    @Test
     void matrixProtocolCoreBoundaryDefinesRustJniAndFlutterBridgeTarget() throws IOException {
         JavaSource matrixCore = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("matrix", "MatrixProtocolCoreService.java")))
@@ -406,6 +452,18 @@ class ServerArchitectureBoundaryTest {
                 .filter(source -> source.path().endsWith(suffix))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static List<JavaSource> persistenceSources() throws IOException {
+        Path persistenceRoot = Files.isDirectory(Path.of("src/main/java"))
+                ? Path.of("../weave-persistence-jpa/src/main/java")
+                : Path.of("weave-persistence-jpa/src/main/java");
+        try (var paths = Files.walk(persistenceRoot)) {
+            return paths
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .map(ServerArchitectureBoundaryTest::readSource)
+                    .toList();
+        }
     }
 
     private static JavaSource readSource(Path path) {

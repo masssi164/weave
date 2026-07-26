@@ -12,3 +12,8 @@ services:
   backend:
     environment:
       WEAVE_RELEASE_POSTURE: test
+    volumes:
+      - type: bind
+        source: ${WEAVE_SECRET_ROOT:-./.generated/test/secrets}/identity-bootstrap-owner-token
+        target: /run/secrets/weave/bootstrap-owner-token
+        read_only: true

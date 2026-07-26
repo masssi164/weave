@@ -15,7 +15,7 @@ MARKERS = (
     "MCP_CALENDAR_CATALOG_GUARDED",
     "MCP_CHAT_CATALOG_GUARDED",
     "MCP_PROVIDER_NEUTRAL_OUTPUT",
-    "MCP_RUNTIME_CONTEXT_ACTIVE",
+    "MCP_STANDARD_SERVER_PROJECTION_ACTIVE",
     "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED",
     "MCP_LEGACY_RUNTIME_REMOVED",
 )
@@ -128,9 +128,18 @@ def main() -> int:
         "SCOPE_files.read",
     )
     require(
-        "infra/weave-workspace/01-infrastructure/modules/mcp/main.tf",
-        '"WEAVE_OIDC_ISSUER_URI=${var.oidc_issuer_uri}"',
-        "127.0.0.1",
+        "infra/weave-workspace/scripts/render_config.py",
+        '"WEAVE_OIDC_ISSUER_URI": issuer',
+        '"WEAVE_MCP_REQUIRED_SCOPES": "mcp.tools,files.read"',
+        '"WEAVE_MCP_EXCHANGE_CLIENT_JWK_FILE": "/run/secrets/weave/mcp-private-jwk.json"',
+        '"WEAVE_MCP_BACKEND_FILES_URI": "http://backend:8080/dav/files"',
+        '"WEAVE_MCP_EXCHANGE_SCOPES": "files.read"',
+    )
+    require(
+        "infra/weave-workspace/compose.yaml",
+        "${WEAVE_GENERATED_ROOT:-./.generated/dev}/mcp/public.env",
+        '"127.0.0.1:${WEAVE_MCP_HOST_PORT:-48085}:8091"',
+        "/run/secrets/weave/mcp-private-jwk.json",
     )
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpJsonRpcController.java")
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/CanonicalMcpFeatures.java")

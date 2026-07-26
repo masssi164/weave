@@ -17,6 +17,10 @@ dependencies {
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     implementation libs.springdoc.webmvc.api
     implementation libs.jcs
+    implementation(libs.aws.s3) {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+    implementation libs.aws.url.connection.client
     implementation project(':weave-application-core')
     implementation project(':weave-files-core')
     implementation project(':weave-persistence-jpa')

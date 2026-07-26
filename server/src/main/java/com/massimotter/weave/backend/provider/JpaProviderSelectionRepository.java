@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.provider;
 
-import com.massimotter.weave.backend.persistence.jpa.provider.ProviderSelectionEntity;
+import com.massimotter.weave.backend.persistence.jpa.provider.ProviderSelectionJpaEntity;
 import com.massimotter.weave.backend.persistence.jpa.provider.ProviderSelectionJpaRepository;
 import java.util.List;
 import java.util.Locale;
@@ -46,7 +46,7 @@ public class JpaProviderSelectionRepository implements ProviderSelectionReposito
         return "portable-jpa-hibernate-validated";
     }
 
-    private ProviderSelection toDomain(ProviderSelectionEntity entity) {
+    private ProviderSelection toDomain(ProviderSelectionJpaEntity entity) {
         return new ProviderSelection(
                 entity.category(),
                 entity.providerKey(),
@@ -60,8 +60,8 @@ public class JpaProviderSelectionRepository implements ProviderSelectionReposito
                 entity.lossyMappingNotes());
     }
 
-    private ProviderSelectionEntity toEntity(ProviderSelection selection) {
-        return new ProviderSelectionEntity(
+    private ProviderSelectionJpaEntity toEntity(ProviderSelection selection) {
+        return new ProviderSelectionJpaEntity(
                 selection.category(),
                 selection.providerKey(),
                 selection.choiceModel(),

@@ -148,7 +148,6 @@ These packages must not absorb unrelated identity, federation, member UI, provid
 - `./gradlew :server:test` and `./gradlew :server:check`: passed, including Flyway V010 in H2 PostgreSQL mode; the ordered SQL migration corpus and V010 columns/constraints also passed against a disposable container using the production `postgres:15` pin.
 - Vendored SDK provenance reconstruction: passed; the three checksummed patches reproduce all five intentional source/packaging differences from Matrix Rust SDK 0.18.0.
 - Five focused vendored crypto regressions passed in a disposable upstream-complete crate tree, including immediate first unwedge and cooldown persistence across manager recreation.
-- `bash infra/weave-workspace/tests/isolated-e2e-chat-provider-proof-test.sh`: passed, including callback replay and semantic-mismatch fail-closed assertions.
 - Disposable Synapse compatibility probes for pinned `1.136.0` and candidate `1.156.0`: passed against room version `10` and the same Application Service registration/profile; both injected one callback outage and observed a stable same-transaction retry without retaining raw provider evidence.
 - Root `./gradlew check --no-daemon --console=plain`: passed. This covered 269 mapped acceptance scenarios, the Flutter suite, 34 shared Rust core tests, server, MCP, OpenTofu validation, infrastructure fixtures, documentation, release evidence, independent Live Stack outcome fixtures, and support-safety checks.
 

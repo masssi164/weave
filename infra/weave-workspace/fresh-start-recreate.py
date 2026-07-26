@@ -9,7 +9,6 @@ import importlib.util
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -17,31 +16,9 @@ from typing import Any, NoReturn
 
 SCRIPT_ROOT = Path(__file__).resolve().parent
 REPOSITORY_ROOT = SCRIPT_ROOT.parents[1]
-INFRASTRUCTURE_ROOT = SCRIPT_ROOT / "01-infrastructure"
-IDENTITY_ROOT = SCRIPT_ROOT / "02-keycloak-setup"
 LABEL_PREFIX = "com.massimotter.weave."
 ROTATED_ENVIRONMENT_SECRETS = (
-    "TF_VAR_db_admin_password",
-    "TF_VAR_backend_db_password",
-    "TF_VAR_keycloak_admin_password",
-    "TF_VAR_keycloak_db_password",
-    "TF_VAR_mas_db_password",
-    "TF_VAR_synapse_db_password",
-    "TF_VAR_nextcloud_db_password",
-    "TF_VAR_nextcloud_admin_password",
-    "TF_VAR_nextcloud_backend_actor_token",
-    "TF_VAR_matrix_mas_client_secret",
-    "TF_VAR_identity_admin_client_secret",
-    "TF_VAR_agent_runtime_admin_client_secret",
-    "TF_VAR_identity_events_hmac_secret",
-    "TF_VAR_mas_encryption_secret",
-    "TF_VAR_mas_matrix_secret",
-    "TF_VAR_matrix_chat_appservice_as_token",
-    "TF_VAR_matrix_chat_appservice_hs_token",
-    "TF_VAR_synapse_registration_shared_secret",
-    "TF_VAR_synapse_macaroon_secret_key",
-    "TF_VAR_synapse_form_secret",
-    "TF_VAR_identity_bootstrap_owner_token_host_path",
+    "WEAVE_IDENTITY_ROTATION_EPOCH",
 )
 
 
@@ -176,11 +153,6 @@ def archive_previous_generation(archive: Path) -> list[str]:
     archived: list[str] = []
     exact_sources = (
         SCRIPT_ROOT / ".generated",
-        INFRASTRUCTURE_ROOT / ".generated",
-        INFRASTRUCTURE_ROOT / "terraform.tfstate",
-        INFRASTRUCTURE_ROOT / "terraform.tfstate.backup",
-        IDENTITY_ROOT / "terraform.tfstate",
-        IDENTITY_ROOT / "terraform.tfstate.backup",
     )
     for source in exact_sources:
         if not source.exists():
@@ -189,12 +161,6 @@ def archive_previous_generation(archive: Path) -> list[str]:
         target.parent.mkdir(parents=True, exist_ok=True)
         source.rename(target)
         archived.append(str(source.relative_to(SCRIPT_ROOT)))
-    for state_root in (INFRASTRUCTURE_ROOT, IDENTITY_ROOT):
-        for state_backup in sorted(state_root.glob("terraform.tfstate.*.backup")):
-            target = archive / state_backup.relative_to(SCRIPT_ROOT)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            state_backup.rename(target)
-            archived.append(str(state_backup.relative_to(SCRIPT_ROOT)))
     return archived
 
 
@@ -208,20 +174,22 @@ def recreate_environment(
         {
             "WEAVE_LOCAL_CREDENTIAL_STATE_FILE": "none",
             "WEAVE_LOCAL_TLS_STATE_DIR": "none",
-            "TF_VAR_deployment_environment": plan["environment"],
-            "TF_VAR_resource_stack": plan["stack"],
-            "TF_VAR_resource_generation": plan["targetGeneration"],
-            "TF_VAR_candidate_commit": plan["candidateCommit"],
-            "TF_VAR_candidate_manifest_digest": f"sha256:{candidate_digest}",
-            "TF_VAR_identity_bootstrap_owner_enabled": "true",
-            "TF_VAR_weave_backend_image": image_reference(candidate, "server"),
-            "TF_VAR_weave_mcp_server_image": image_reference(
+            "WEAVE_RESOURCE_STACK": plan["stack"],
+            "WEAVE_RESOURCE_GENERATION": plan["targetGeneration"],
+            "WEAVE_CANDIDATE_COMMIT": plan["candidateCommit"],
+            "WEAVE_CANDIDATE_MANIFEST_DIGEST": f"sha256:{candidate_digest}",
+            "WEAVE_BACKEND_IMAGE": image_reference(candidate, "server"),
+            "WEAVE_MCP_IMAGE": image_reference(
                 candidate, "mcp-server"
+            ),
+            "WEAVE_IDENTITY_OPS_IMAGE": image_reference(
+                candidate, "identity-ops"
             ),
         }
     )
+    profile = "test" if plan["environment"] in {"test", "persistent-dogfood"} else "dev"
     subprocess.run(
-        ["bash", str(SCRIPT_ROOT / "install.sh")],
+        ["bash", str(SCRIPT_ROOT / "install.sh"), profile],
         cwd=SCRIPT_ROOT,
         env=environment,
         check=True,

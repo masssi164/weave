@@ -29,7 +29,7 @@ import java.util.UUID;
 
 /** Per-cell private_key_jwt, client credentials, and MCP Streamable HTTP proof. */
 final class WorkloadMcpJourney {
-  private static final Set<String> MCP_SCOPES = Set.of("mcp:tools", "files.read");
+  private static final Set<String> MCP_SCOPES = Set.of("mcp.tools", "files.read");
 
   private final ProductFlowEnvironment environment;
   private final JsonHttpClient http;
@@ -146,7 +146,7 @@ final class WorkloadMcpJourney {
                 "client_assertion_type",
                     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
                 "client_assertion", assertion.serialize(),
-                "scope", "mcp:tools files.read"),
+                "scope", "mcp.tools files.read"),
             Set.of(200));
     String accessToken = token.path("access_token").asString("").trim();
     if (accessToken.isEmpty()

@@ -153,7 +153,8 @@ def main() -> None:
     assert "no-new-privileges:true" in compose and "cap_drop:" in compose
     assert "/var/run/docker.sock" not in compose
     assert "sudo" not in runtime
-    assert "WEAVE_TEST_USERS_FILE" in runtime and "mode-0600" in runtime
+    assert "WEAVE_TEST_USERS_FILE" not in runtime
+    assert "test-users.json" not in runtime
     source = MODULE_PATH.read_text(encoding="utf-8")
     assert "/opt/keycloak/bin/kcadm.sh" in source
     assert '"resourceType": "Organizations"' in source
@@ -165,8 +166,8 @@ def main() -> None:
     assert '"grant_type": "client_credentials"' in source
     assert '"client_secret":' not in source
     assert '"token.endpoint.auth.method": "client_secret_basic"' in source
-    assert '"set-password"' in source
-    assert 'organizations/{organization_id}/groups/{by_path[group_path]}/members/{created_user' in source
+    assert '"set-password"' not in source
+    assert "reset-password" not in source
     assert '"map-org-group-role"' in source
     assert "if parent is None:" in source and "Parent groups are deliberately created" in source
     assert '"id": staged["id"], "name": staged["name"]' in source
@@ -184,21 +185,9 @@ def main() -> None:
     assert 'desired.get("clientPolicies") != []' in source
     assert 'choices=("plan", "apply", "verify")' in source
     assert '"verification found a non-empty plan"' in source
-    generator = (ROOT / "scripts/create_test_users_file.py").read_text(encoding="utf-8")
-    assert "secrets.token_urlsafe(32)" in generator
-    assert "weave-test-member" in generator and "weave-dev-member" not in generator
-    assert '"roles": ["member"]' in generator
-    assert '"groups": ["/capabilities/weaver"]' in generator
+    assert not (ROOT / "scripts/create_test_users_file.py").exists()
+    assert not (ROOT / "keycloak/test-users.schema.json").exists()
     with tempfile.TemporaryDirectory() as temporary:
-        fixture = Path(temporary) / "test-users.json"
-        command = ["python3", str(ROOT / "scripts/create_test_users_file.py"), "--output", str(fixture)]
-        first = subprocess.run(command, check=True, text=True, stdout=subprocess.PIPE)
-        original = fixture.read_bytes()
-        secret = json.loads(original)[0]["secret"]
-        second = subprocess.run(command, check=True, text=True, stdout=subprocess.PIPE)
-        assert fixture.read_bytes() == original
-        assert fixture.stat().st_mode & 0o777 == 0o600
-        assert secret not in first.stdout and secret not in second.stdout
         credential = Path(temporary) / "credential"
         credential.write_text("not-a-real-secret\n", encoding="utf-8")
         credential.chmod(0o644)

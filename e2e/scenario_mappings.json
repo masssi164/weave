@@ -290,7 +290,7 @@
           ]
         },
         {
-          "path": "client/test/features/onboarding/consume_member_handoff_test.dart",
+          "path": "client/test/features/onboarding/discover_organization_access_test.dart",
           "fragments": [
             "ready_for_sso",
             "recoverable_error",
@@ -415,20 +415,20 @@
           ]
         },
         {
-          "path": "infra/weave-workspace/restore-private-backup.sh",
+          "path": "infra/weave-workspace/audit-private-backup-identity.sh",
           "fragments": [
-            "PRIVATE_DOGFOOD_RESTORE",
+            "PRIVATE_IDENTITY_AUDIT",
             "identityRestorableForRecordedMember",
-            "soleRestoredDisposableBootstrapIdentity"
+            "soleDisposableBootstrapIdentity"
           ]
         },
         {
           "path": ".github/workflows/dogfood-pending-identity-recovery.yml",
           "fragments": [
-            "retire-restored-test-bootstrap",
-            "retire-lost-pending-identity",
-            "humanTestingReady:false",
-            "two-install-dogfood-deployment-required"
+            "Pending-identity retirement is guarded.",
+            "acknowledge-recovery-is-guarded",
+            "test-profile Identity Ops authority",
+            "isolated backup/restore rehearsal"
           ]
         }
       ]
@@ -839,7 +839,7 @@
           "path": "docs/admin-provisioned-first-use.md",
           "fragments": [
             "## Agent Runtime Control policy",
-            "Keycloak group membership is the sole coarse entitlement source",
+            "Exact native Keycloak Organization membership `/capabilities/weaver` is the sole self-hosted coarse entitlement source",
             "profile generation is audited"
           ]
         },
@@ -1034,7 +1034,7 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
           "fragments": [
             "meetingCapsuleCreateAndReadStayFailClosedWithoutProviderLeakage",
-            "/api/v1/chat/conversations/channel-general/meeting-capsules",
+            "/api/chat/conversations/channel-general/meeting-capsules",
             "meeting-backend-capability-unavailable",
             "liveKitProviderDetailsExposed",
             "matrixE2eeClaimedForMedia"
@@ -1069,7 +1069,7 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
           "fragments": [
             "decisionLedgerCreateAndReadUseSourceLinkedLifecycleRecords",
-            "/api/v1/chat/conversations/channel-general/decisions",
+            "/api/chat/conversations/channel-general/decisions",
             "source-linked",
             "DECISION_LEDGER_RECORD_CREATED"
           ]
@@ -1367,7 +1367,7 @@
     },
     {
       "tag": "@weave-sprint8-domain-control-plane-evidence",
-      "scenario": "Admin validates domains, dry-runs identity, checks portability, and members see provider-neutral states",
+      "scenario": "Admin validates domains, reviews Identity Ops readiness, checks portability, and members see provider-neutral states",
       "feature": "e2e/features/sprint_8_domain_control_plane.feature",
       "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
       "evidenceMarkers": [
@@ -1431,7 +1431,7 @@
             "Product-ready definition",
             "Domain registry version",
             "Migration contract version",
-            "Keycloak dry-run sample",
+            "Keycloak Identity Ops evidence",
             "Calls/MatrixRTC readiness artifact",
             "ARC workload identity and lifecycle proof",
             "Weaver/OpenClaw upstream provenance",
@@ -3907,7 +3907,7 @@
         {
           "path": "specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json",
           "fragments": [
-            "weave-weaver-runtime",
+            "WEAVE-SPEC-0011-weaver-runtime-governance",
             "agent-runtime.entitled"
           ]
         },
@@ -4236,14 +4236,14 @@
           ]
         },
         {
-          "path": "server/src/main/resources/db/migration/V001__weave_baseline.sql",
+          "path": "weave-persistence-jpa/src/main/resources/db/migration/V001__weave_baseline.sql",
           "fragments": [
             "weave_provider_selections",
             "weave_provider_selection_notes"
           ]
         },
         {
-          "path": "server/src/main/resources/db/migration/V001__weave_baseline.sql",
+          "path": "weave-persistence-jpa/src/main/resources/db/migration/V001__weave_baseline.sql",
           "fragments": [
             "weave_product_profile_overrides",
             "accessibility_preferences_json"
@@ -4284,7 +4284,7 @@
           ]
         },
         {
-          "path": "server/src/main/resources/db/migration/V001__weave_baseline.sql",
+          "path": "weave-persistence-jpa/src/main/resources/db/migration/V001__weave_baseline.sql",
           "fragments": [
             "weave_audit_events",
             "uq_weave_audit_events_idempotency"
@@ -4325,7 +4325,7 @@
           ]
         },
         {
-          "path": "server/src/main/resources/db/migration/V001__weave_baseline.sql",
+          "path": "weave-persistence-jpa/src/main/resources/db/migration/V001__weave_baseline.sql",
           "fragments": [
             "weave_migration_run_evidence",
             "primary key (run_id, domain_key)"
@@ -5509,11 +5509,11 @@
     },
     {
       "tag": "@mcp-runtime-approved-discovery",
-      "scenario": "Runtime-approved MCP context is active while domain catalogs stay guarded",
+      "scenario": "Runtime-approved MCP workload reaches the standard Server projection while other catalogs stay guarded",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_RUNTIME_CONTEXT_ACTIVE"
+        "MCP_STANDARD_SERVER_PROJECTION_ACTIVE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -5839,71 +5839,6 @@
         "MATRIX_E2EE_CLIENT_FAILS_CLOSED"
       ],
       "evidenceMode": "offline-spec"
-    },
-    {
-      "tag": "@matrix-synapse-durable-collaboration",
-      "scenario": "Encrypted collaboration is committed by the selected Chat provider",
-      "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "infra/weave-workspace/isolated-e2e-chat-provider-proof.sh",
-      "evidenceMarkers": [
-        "MATRIX_SYNAPSE_PROVIDER_PERSISTENCE_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "runtimeSources": [
-        "live-stack-e2e"
-      ]
-    },
-    {
-      "tag": "@matrix-synapse-outage-idempotency",
-      "scenario": "A Chat provider outage cannot expose or duplicate a message",
-      "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "infra/weave-workspace/isolated-e2e-chat-provider-proof.sh",
-      "evidenceMarkers": [
-        "MATRIX_SYNAPSE_PROVIDER_EXACTLY_ONCE_RESULT",
-        "MATRIX_SYNAPSE_PROVIDER_REPLAY_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "runtimeSources": [
-        "live-stack-e2e"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "tools/multi_user_e2e_evidence.py",
-          "fragments": [
-            "providerPersistence",
-            "southboundProviderAdapterVerified"
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@human-ready-legacy-upgrade",
-      "scenario": "Legacy first-run state cannot return the obsolete screen",
-      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "client/test/core/router/app_router_test.dart",
-      "evidenceMarkers": [
-        "LEGACY_FIRST_RUN_UPGRADE_RESULT"
-      ],
-      "evidenceMode": "offline-spec",
-      "additionalEvidence": [
-        {
-          "path": "client/test/architecture/obsolete_member_entry_contract_test.dart",
-          "fragments": [
-            "firstRunStatusProvider",
-            "FirstRunScreen",
-            "/api/onboarding/status",
-            "Erststart-Status"
-          ]
-        },
-        {
-          "path": "tools/obsolete_first_run_contract_check.py",
-          "fragments": [
-            "OBSOLETE_FIRST_RUN_CONTRACT_REMOVED",
-            "server/src/main",
-            "/api/onboarding/status"
-          ]
-        }
-      ]
     },
     {
       "tag": "@human-ready-dogfood-deployment",

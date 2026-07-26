@@ -26,8 +26,7 @@ import org.springframework.security.web.access.expression.WebExpressionAuthoriza
 /** Exact interactive-admin OIDC boundary; this chain never grants MCP workload access. */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnExpression(
-        "'${weave.agent-runtime.storage.mode:disabled}' == 'jpa'"
-                + " && '${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
+        "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.policy.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.state-store.enabled:false}' == 'true'")
@@ -79,7 +78,7 @@ public class AgentRuntimeAdminSecurityConfiguration {
                 .build();
     }
 
-    private Collection<GrantedAuthority> authorities(Jwt jwt) {
+  Collection<GrantedAuthority> authorities(Jwt jwt) {
         LinkedHashSet<GrantedAuthority> authorities = new LinkedHashSet<>();
         Collection<GrantedAuthority> scopes = new JwtGrantedAuthoritiesConverter().convert(jwt);
         if (scopes != null) {

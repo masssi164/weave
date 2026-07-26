@@ -4,9 +4,9 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface AuditEventJpaRepository extends JpaRepository<AuditEventEntity, Long> {
-  Optional<AuditEventEntity> findByTenantIdAndIdempotencyKey(
+public interface AuditEventJpaRepository extends JpaRepository<AuditEventJpaEntity, Long> {
+  Optional<AuditEventJpaEntity> findByTenantIdAndIdempotencyKey(
       String tenantId, String idempotencyKey);
 
-  List<AuditEventEntity> findAllByOrderBySequenceIdAsc();
+  List<AuditEventJpaEntity> findAllByOrderBySequenceIdAsc();
 }

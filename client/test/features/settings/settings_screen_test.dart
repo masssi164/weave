@@ -528,12 +528,7 @@ void main() {
     testWidgets(
       'keeps all editable identity and provider URLs out of workspace health',
       (tester) async {
-        final store = InMemoryPreferencesStore(
-          buildStoredConfiguration(
-            nextcloudBaseUrl: 'https://cloud.custom.internal',
-            backendApiBaseUrl: 'https://backend.custom.internal',
-          ),
-        );
+        final store = InMemoryPreferencesStore(buildStoredConfiguration());
         final container = ProviderContainer.test(
           overrides: [
             preferencesStoreProvider.overrideWith((ref) => store),

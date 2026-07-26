@@ -15,7 +15,7 @@ import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
 from compose_env import ContractError, load_context  # noqa: E402
-from compose_runtime import resource_inventory, test_user_volume, validate_adoption_receipt  # noqa: E402
+from compose_runtime import resource_inventory, validate_adoption_receipt  # noqa: E402
 from render_config import _image_digest, _render_desired  # noqa: E402
 
 
@@ -166,7 +166,8 @@ def main() -> None:
                 else:
                     os.environ[name] = value
         runtime_source = (ROOT / "scripts/compose_runtime.py").read_text(encoding="utf-8")
-        assert 'context.root / ".generated/test/test-users.json"' in runtime_source
+        assert "WEAVE_TEST_USERS_FILE" not in runtime_source
+        assert "test-users.json" not in runtime_source
         invalid = root / "invalid.env"
         invalid.write_text((root / "test.env").read_text().replace("WEAVE_ENVIRONMENT=test", "WEAVE_ENVIRONMENT=dogfood"))
         try:
@@ -175,27 +176,6 @@ def main() -> None:
             pass
         else:
             raise AssertionError("legacy profile value was accepted")
-        private_users = root / "users.json"
-        private_users.write_text("[]\n", encoding="utf-8")
-        os.chmod(private_users, 0o600)
-        test.env["WEAVE_TEST_USERS_FILE"] = str(private_users)
-        assert test_user_volume(test)[0] == "--volume"
-        symlink = root / "users-link.json"
-        symlink.symlink_to(private_users)
-        test.env["WEAVE_TEST_USERS_FILE"] = str(symlink)
-        try:
-            test_user_volume(test)
-        except ContractError:
-            pass
-        else:
-            raise AssertionError("symlinked test-user file was accepted")
-        prod.env["WEAVE_TEST_USERS_FILE"] = ""
-        try:
-            test_user_volume(prod)
-        except ContractError:
-            pass
-        else:
-            raise AssertionError("prod accepted an explicitly configured test-user file input")
         test.env["WEAVE_GENERATED_ROOT"] = str(root / "generated")
         candidate = "b" * 40
         receipt = test.generated_root / "adoption/adoption-receipt.json"

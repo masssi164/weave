@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.service.migration;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.persistence.jpa.migration.MigrationRunEvidenceEntity;
+import com.massimotter.weave.backend.persistence.jpa.migration.MigrationRunEvidenceJpaEntity;
 import com.massimotter.weave.backend.persistence.jpa.migration.MigrationRunEvidenceId;
 import com.massimotter.weave.backend.persistence.jpa.migration.MigrationRunEvidenceJpaRepository;
 import java.time.Instant;
@@ -63,8 +63,8 @@ public class JpaMigrationRunEvidenceRepository implements MigrationRunEvidenceRe
         return "portable-jpa-hibernate-validated";
     }
 
-    private MigrationRunEvidenceEntity toEntity(MigrationRunEvidence value) {
-        return new MigrationRunEvidenceEntity(
+    private MigrationRunEvidenceJpaEntity toEntity(MigrationRunEvidence value) {
+        return new MigrationRunEvidenceJpaEntity(
                 new MigrationRunEvidenceId(value.runId(), value.domainKey()),
                 value.lifecycle(),
                 json(value.objectCounts()),
@@ -79,7 +79,7 @@ public class JpaMigrationRunEvidenceRepository implements MigrationRunEvidenceRe
                 value.expiresAt());
     }
 
-    private MigrationRunEvidence toDomain(MigrationRunEvidenceEntity value) {
+    private MigrationRunEvidence toDomain(MigrationRunEvidenceJpaEntity value) {
         return new MigrationRunEvidence(
                 value.id().runId(),
                 value.id().domainKey(),

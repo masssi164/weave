@@ -13,9 +13,7 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(AgentRuntimeProfileSigningProperties.class)
-@ConditionalOnExpression(
-        "'${weave.agent-runtime.storage.mode:disabled}' == 'jpa'"
-                + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'")
+@ConditionalOnExpression("'${weave.agent-runtime.profile-signing.enabled:false}' == 'true'")
 public class AgentRuntimeProfileSigningConfiguration {
 
     @Bean

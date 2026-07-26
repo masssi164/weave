@@ -77,7 +77,7 @@ class SpringAiMcpTransportTest {
         .andExpect(jsonPath("$.resource", is(RESOURCE)))
         .andExpect(
             jsonPath("$.authorization_servers[0]", is("https://auth.weave.test/realms/weave")))
-        .andExpect(jsonPath("$.scopes_supported[0]", is("mcp:tools")))
+        .andExpect(jsonPath("$.scopes_supported[0]", is("mcp.tools")))
         .andExpect(jsonPath("$.scopes_supported[1]", is("files.read")));
   }
 
@@ -124,7 +124,7 @@ class SpringAiMcpTransportTest {
             header()
                 .string(
                     HttpHeaders.WWW_AUTHENTICATE,
-                    containsString("scope=\"mcp:tools files.read\"")));
+                    containsString("scope=\"mcp.tools files.read\"")));
     verify(exchange, never()).exchange(any(), anyString(), any());
   }
 
@@ -206,7 +206,7 @@ class SpringAiMcpTransportTest {
     boolean wrongAudience = "wrong-audience".equals(tokenValue);
     boolean extraAudience = "extra-audience".equals(tokenValue);
     String clientId = human ? "weave-app" : CELL;
-    String scope = insufficient ? "mcp:tools" : "mcp:tools files.read";
+    String scope = insufficient ? "mcp.tools" : "mcp.tools files.read";
     return Jwt.withTokenValue(tokenValue)
         .header("alg", "RS256")
         .header("typ", "at+jwt")

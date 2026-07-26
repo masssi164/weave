@@ -6,6 +6,28 @@ RUN mkdir -p /mnt/rootfs \
     && rm -rf /mnt/rootfs/var/cache/dnf
 
 FROM ${WEAVE_KEYCLOAK_BASE}
+ARG WEAVE_IMAGE_CREATED=unbound
+ARG WEAVE_IMAGE_REVISION=unbound
+ARG WEAVE_IMAGE_VERSION=unbound
+ARG WEAVE_SPEC_DIGEST=unbound
+ARG WEAVE_SBOM_REFERENCE=unbound
+ARG WEAVE_PROVENANCE_REFERENCE=unbound
+
+LABEL org.opencontainers.image.title="Weave Identity Ops" \
+      org.opencontainers.image.description="Rootless stock-Keycloak desired-state reconciliation through official kcadm.sh operations" \
+      org.opencontainers.image.source="https://github.com/masssi164/weave" \
+      org.opencontainers.image.revision="${WEAVE_IMAGE_REVISION}" \
+      org.opencontainers.image.version="${WEAVE_IMAGE_VERSION}" \
+      org.opencontainers.image.created="${WEAVE_IMAGE_CREATED}" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.vendor="Weave" \
+      com.massimotter.weave.spec-digest="${WEAVE_SPEC_DIGEST}" \
+      com.massimotter.weave.module="identity-ops" \
+      com.massimotter.weave.runtime-user="1000:1000" \
+      com.massimotter.weave.dependency-platform="keycloak-26.7-kcadm-python3" \
+      com.massimotter.weave.sbom-reference="${WEAVE_SBOM_REFERENCE}" \
+      com.massimotter.weave.provenance-reference="${WEAVE_PROVENANCE_REFERENCE}"
+
 COPY --from=python-root /mnt/rootfs /
 COPY --chown=1000:1000 identity_ops.py /opt/weave/identity_ops.py
 USER 1000:1000

@@ -5,7 +5,7 @@ import static java.util.Objects.requireNonNull;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.persistence.jpa.audit.AuditEventEntity;
+import com.massimotter.weave.backend.persistence.jpa.audit.AuditEventJpaEntity;
 import com.massimotter.weave.backend.persistence.jpa.audit.AuditEventJpaRepository;
 import java.util.List;
 import java.util.Map;
@@ -64,8 +64,8 @@ public class JpaAuditEventPublisher implements AuditEventPublisher {
         return "portable-jpa-hibernate-validated";
     }
 
-    private AuditEventEntity toEntity(AuditEvent event) {
-        return new AuditEventEntity(
+    private AuditEventJpaEntity toEntity(AuditEvent event) {
+        return new AuditEventJpaEntity(
                 event.tenantId(),
                 event.contextId(),
                 event.actorRef(),
@@ -77,7 +77,7 @@ public class JpaAuditEventPublisher implements AuditEventPublisher {
                 payloadJson(event.payload()));
     }
 
-    private AuditEvent toDomain(AuditEventEntity entity) {
+    private AuditEvent toDomain(AuditEventJpaEntity entity) {
         return new AuditEvent(
                 entity.tenantId(),
                 entity.contextId(),

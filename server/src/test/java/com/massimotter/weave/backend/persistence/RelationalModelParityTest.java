@@ -34,6 +34,15 @@ class RelationalModelParityTest {
     void flywayManifestEntitiesAndRepositoriesAreInExactParity()
             throws IOException {
         Path repositoryRoot = repositoryRoot();
+        Path migrations = repositoryRoot.resolve(
+                "weave-persistence-jpa/src/main/resources/db/migration");
+        try (var files = Files.list(migrations)) {
+            assertThat(files
+                    .filter(path -> path.toString().endsWith(".sql"))
+                    .map(path -> path.getFileName().toString())
+                    .toList())
+                    .containsExactly("V001__weave_baseline.sql");
+        }
         JsonNode model = relationalModel(repositoryRoot);
         Set<String> flywayTables = currentFlywayTables(repositoryRoot);
         Set<String> manifestTables = new LinkedHashSet<>();

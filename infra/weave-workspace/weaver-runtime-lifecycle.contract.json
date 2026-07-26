@@ -40,7 +40,7 @@
     },
     "mcp": {
       "audience": "https://api.weave.test/mcp",
-      "requiredBaseScope": "mcp:tools",
+      "requiredBaseScope": "mcp.tools",
       "domainScopesFromCurrentRuntimeProfile": true,
       "edgeClientId": "weave-mcp-server",
       "accessTokenType": "at+jwt",

@@ -87,16 +87,4 @@ class MatrixFacadeClientStateServicePersistenceTest {
         return new JpaMatrixFacadeClientStateStore(identities, revocations);
     }
 
-    private MatrixFacadeClientStateStore stateStore(
-            DriverManagerDataSource dataSource) {
-        MatrixIdentityProjectionJpaRepository identities =
-                com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
-                        dataSource,
-                        MatrixIdentityProjectionJpaRepository.class);
-        MatrixRevokedSessionJpaRepository revocations =
-                com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
-                        dataSource,
-                        MatrixRevokedSessionJpaRepository.class);
-        return new JpaMatrixFacadeClientStateStore(identities, revocations);
-    }
 }

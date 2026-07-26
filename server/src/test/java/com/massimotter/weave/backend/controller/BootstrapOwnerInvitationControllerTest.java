@@ -42,7 +42,6 @@ class BootstrapOwnerInvitationControllerTest {
             "pending",
             "pending",
             "owner",
-            List.of(),
             Instant.parse("2026-07-27T10:00:00Z"),
             Instant.parse("2026-07-26T10:00:00Z"),
             Instant.parse("2026-07-26T10:00:00Z"));

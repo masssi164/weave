@@ -108,7 +108,7 @@ class FilesWebDavClientTest {
         URI.create("https://api.weave.test/mcp"),
         URI.create("https://api.weave.test/.well-known/oauth-protected-resource/mcp"),
         URI.create("https://auth.weave.test/realms/weave"),
-        List.of("mcp:tools", "files.read"),
+        List.of("mcp.tools", "files.read"),
         URI.create(base + "/token"),
         "weave-mcp-server",
         Path.of("/tmp/not-read.jwk"),

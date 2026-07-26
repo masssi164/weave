@@ -4042,6 +4042,28 @@ class HealthResponse {
   };
 }
 
+class IdentitySessionReconcileResponse {
+  const IdentitySessionReconcileResponse({
+    required this.sessionRefreshRequired,
+    required this.state,
+  });
+
+  factory IdentitySessionReconcileResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => IdentitySessionReconcileResponse(
+    sessionRefreshRequired: json["sessionRefreshRequired"] as bool,
+    state: json["state"] as String,
+  );
+
+  final bool sessionRefreshRequired;
+  final String state;
+
+  Map<String, dynamic> toJson() => {
+    "sessionRefreshRequired": _openApiJsonValue(sessionRefreshRequired),
+    "state": _openApiJsonValue(state),
+  };
+}
+
 class InventorySummary {
   const InventorySummary({
     this.channels,
@@ -4569,7 +4591,6 @@ class MeetingCapsulesResponse {
 
 class MemberInvitationRequest {
   const MemberInvitationRequest({
-    this.capabilities,
     this.displayName,
     required this.email,
     required this.role,
@@ -4577,21 +4598,16 @@ class MemberInvitationRequest {
 
   factory MemberInvitationRequest.fromJson(Map<String, dynamic> json) =>
       MemberInvitationRequest(
-        capabilities: (json["capabilities"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
         displayName: json["displayName"] as String?,
         email: json["email"] as String,
         role: json["role"] as String,
       );
 
-  final List<String>? capabilities;
   final String? displayName;
   final String email;
   final String role;
 
   Map<String, dynamic> toJson() => {
-    "capabilities": _openApiJsonValue(capabilities),
     "displayName": _openApiJsonValue(displayName),
     "email": _openApiJsonValue(email),
     "role": _openApiJsonValue(role),
@@ -4600,7 +4616,6 @@ class MemberInvitationRequest {
 
 class MemberInvitationResponse {
   const MemberInvitationResponse({
-    this.capabilities,
     this.createdAt,
     this.displayName,
     this.email,
@@ -4615,9 +4630,6 @@ class MemberInvitationResponse {
 
   factory MemberInvitationResponse.fromJson(Map<String, dynamic> json) =>
       MemberInvitationResponse(
-        capabilities: (json["capabilities"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
         createdAt: json["createdAt"] as String?,
         displayName: json["displayName"] as String?,
         email: json["email"] as String?,
@@ -4630,7 +4642,6 @@ class MemberInvitationResponse {
         updatedAt: json["updatedAt"] as String?,
       );
 
-  final List<String>? capabilities;
   final String? createdAt;
   final String? displayName;
   final String? email;
@@ -4643,7 +4654,6 @@ class MemberInvitationResponse {
   final String? updatedAt;
 
   Map<String, dynamic> toJson() => {
-    "capabilities": _openApiJsonValue(capabilities),
     "createdAt": _openApiJsonValue(createdAt),
     "displayName": _openApiJsonValue(displayName),
     "email": _openApiJsonValue(email),
@@ -5580,25 +5590,18 @@ class OrganizationManifestResponse {
 }
 
 class OrganizationMemberUpdateRequest {
-  const OrganizationMemberUpdateRequest({
-    this.agentRuntimeEntitled,
-    this.enabled,
-    required this.role,
-  });
+  const OrganizationMemberUpdateRequest({this.enabled, required this.role});
 
   factory OrganizationMemberUpdateRequest.fromJson(Map<String, dynamic> json) =>
       OrganizationMemberUpdateRequest(
-        agentRuntimeEntitled: json["agentRuntimeEntitled"] as bool?,
         enabled: json["enabled"] as bool?,
         role: json["role"] as String,
       );
 
-  final bool? agentRuntimeEntitled;
   final bool? enabled;
   final String role;
 
   Map<String, dynamic> toJson() => {
-    "agentRuntimeEntitled": _openApiJsonValue(agentRuntimeEntitled),
     "enabled": _openApiJsonValue(enabled),
     "role": _openApiJsonValue(role),
   };
@@ -7775,6 +7778,17 @@ class WeaveProject {
     "providerRefs": _openApiJsonValue(providerRefs),
     "visibility": _openApiJsonValue(visibility),
   };
+}
+
+class WeaverEntitlementUpdateRequest {
+  const WeaverEntitlementUpdateRequest({this.entitled});
+
+  factory WeaverEntitlementUpdateRequest.fromJson(Map<String, dynamic> json) =>
+      WeaverEntitlementUpdateRequest(entitled: json["entitled"] as bool?);
+
+  final bool? entitled;
+
+  Map<String, dynamic> toJson() => {"entitled": _openApiJsonValue(entitled)};
 }
 
 class WorkspaceCapabilitiesResponse {

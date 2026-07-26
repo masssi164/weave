@@ -29,7 +29,7 @@ class RuntimeProfileSigningKeyCliTest {
         assertThat(initialized.status()).isZero();
         assertThat(initialized.errors()).isEmpty();
         JsonNode state = new ObjectMapper().readTree(initialized.output());
-        assertThat(state.path("activeKeyId").asString()).startsWith("rpk_");
+        assertThat(state.path("activeKeyId").asText()).startsWith("rpk_");
         assertThat(state.path("keys").get(0).path("privateMaterialPresent").asBoolean()).isTrue();
         assertThat(initialized.output())
                 .doesNotContain("privateKey")
@@ -38,8 +38,8 @@ class RuntimeProfileSigningKeyCliTest {
 
         Invocation status = invoke("--action=status", "--root=" + temporary);
         assertThat(status.status()).isZero();
-        assertThat(new ObjectMapper().readTree(status.output()).path("activeKeyId").asString())
-                .isEqualTo(state.path("activeKeyId").asString());
+        assertThat(new ObjectMapper().readTree(status.output()).path("activeKeyId").asText())
+                .isEqualTo(state.path("activeKeyId").asText());
     }
 
     @Test

@@ -4,6 +4,6 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ProviderSelectionJpaRepository
-    extends JpaRepository<ProviderSelectionEntity, String> {
-  List<ProviderSelectionEntity> findAllByOrderByCategoryAsc();
+    extends JpaRepository<ProviderSelectionJpaEntity, String> {
+  List<ProviderSelectionJpaEntity> findAllByOrderByCategoryAsc();
 }

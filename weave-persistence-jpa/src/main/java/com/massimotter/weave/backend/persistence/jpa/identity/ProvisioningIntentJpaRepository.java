@@ -6,14 +6,10 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ProvisioningIntentJpaRepository
-    extends JpaRepository<ProvisioningIntentEntity, UUID> {
-  Optional<ProvisioningIntentEntity> findByProviderInvitationId(String providerInvitationId);
+    extends JpaRepository<ProvisioningIntentJpaEntity, UUID> {
+  Optional<ProvisioningIntentJpaEntity> findByProviderInvitationId(String providerInvitationId);
 
-  List<ProvisioningIntentEntity>
+  List<ProvisioningIntentJpaEntity>
       findByTenantIdAndOrganizationIdAndInvitedEmailIgnoreCaseAndStatusOrderByCreatedAtDesc(
           String tenantId, String organizationId, String invitedEmail, String status);
-
-  List<ProvisioningIntentEntity>
-      findByOrganizationIdAndInvitedEmailSha256AndStatusOrderByCreatedAtDesc(
-          String organizationId, String invitedEmailSha256, String status);
 }

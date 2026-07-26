@@ -60,10 +60,10 @@ class FirstPartyIdentityContractTest {
     }
 
     @Test
-    void keepsVersionedWorkspaceCapabilitiesPathAsCompatibilityAlias() throws Exception {
+    void rejectsRemovedVersionedWorkspaceCapabilitiesPath() throws Exception {
         mockMvc.perform(get("/api/v1/workspace/capabilities")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer valid-contract"))
-                .andExpect(status().isOk());
+                .andExpect(status().isNotFound());
     }
 
     @ParameterizedTest

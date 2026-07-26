@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.security.device;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.persistence.jpa.security.DeviceCredentialEntity;
+import com.massimotter.weave.backend.persistence.jpa.security.DeviceCredentialJpaEntity;
 import com.massimotter.weave.backend.persistence.jpa.security.DeviceCredentialJpaRepository;
 import java.util.List;
 import java.util.Optional;
@@ -47,8 +47,8 @@ public class JpaDeviceCredentialRepository implements DeviceCredentialRepository
         return credential;
     }
 
-    private DeviceCredentialEntity toEntity(DeviceCredential value) {
-        return new DeviceCredentialEntity(
+    private DeviceCredentialJpaEntity toEntity(DeviceCredential value) {
+        return new DeviceCredentialJpaEntity(
                 value.credentialId(),
                 value.domain(),
                 value.tenantId(),
@@ -64,7 +64,7 @@ public class JpaDeviceCredentialRepository implements DeviceCredentialRepository
                 value.revokedAt());
     }
 
-    private DeviceCredential toDomain(DeviceCredentialEntity value) {
+    private DeviceCredential toDomain(DeviceCredentialJpaEntity value) {
         return new DeviceCredential(
                 value.credentialId(),
                 value.domain(),

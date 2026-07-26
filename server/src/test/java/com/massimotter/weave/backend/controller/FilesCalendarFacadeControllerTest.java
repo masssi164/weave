@@ -29,6 +29,8 @@ import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.files.application.FilesLockService;
+import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
 import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
 import com.massimotter.weave.backend.security.device.DeviceCredentialRepository;
@@ -141,6 +143,12 @@ class FilesCalendarFacadeControllerTest {
 
     @MockitoBean
     private AuditEventPublisher auditEventPublisher;
+
+    @MockitoBean
+    private FilesLockService filesLockService;
+
+    @MockitoBean
+    private FilesMutationIntentService filesMutationIntentService;
 
     @BeforeEach
     void allowContextAccess() {
@@ -975,8 +983,8 @@ class FilesCalendarFacadeControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                 .claim("aud", java.util.List.of("weave-app"))
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                .claim("groups", java.util.List.of("weave-calendar-editors", "weave-meeting-hosts")))
+                .claim("resource_access", java.util.Map.of(
+                        "weave-app", java.util.Map.of("roles", java.util.List.of("admin")))))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
@@ -988,7 +996,7 @@ class FilesCalendarFacadeControllerTest {
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("resource_access", java.util.Map.of(
                                 "weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                        .claim("groups", java.util.List.of("weave-meeting-hosts")))
+                        .claim("groups", java.util.List.of("/members")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 

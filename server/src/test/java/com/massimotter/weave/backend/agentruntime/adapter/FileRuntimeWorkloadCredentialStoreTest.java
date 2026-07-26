@@ -61,7 +61,7 @@ class FileRuntimeWorkloadCredentialStoreTest {
         JsonNode publicJwks = mapper.readTree(first.publicJwks());
         assertThat(publicJwks.path("keys").size()).isEqualTo(1);
         assertThat(publicJwks.path("keys").get(0).has("d")).isFalse();
-        assertThat(publicJwks.path("keys").get(0).path("alg").asString()).isEqualTo("PS256");
+        assertThat(publicJwks.path("keys").get(0).path("alg").asText()).isEqualTo("PS256");
 
         Path secret = secretPath();
         assertThat(Files.readString(secret)).contains("\"d\"").contains("\"qi\"");

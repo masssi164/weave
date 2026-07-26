@@ -24,7 +24,7 @@ void main() {
     'activation and OIDC Authorization Code with PKCE use the system browser',
     (tester) async {
       final serverConfiguration = ServerConfiguration(
-        providerType: OidcProviderType.keycloak,
+        providerType: OidcProviderType.oidc,
         oidcIssuerUrl: config.issuerUrl,
         oidcClientRegistration: OidcClientRegistration.manual(
           clientId: config.clientId,

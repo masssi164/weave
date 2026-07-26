@@ -1,9 +1,7 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.port.StaleRuntimeCellException;
 import jakarta.persistence.Column;
@@ -11,8 +9,10 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -28,7 +28,22 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 @Entity
-@Table(name = "weave_agent_runtime_cells")
+@Table(
+        name = "weave_agent_runtime_cells",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "weave_agent_runtime_person_unique",
+                        columnNames = {"organization_ref", "person_ref"}),
+                @UniqueConstraint(
+                        name = "weave_agent_runtime_workload_subject_unique",
+                        columnNames = {"workload_issuer", "workload_subject"}),
+                @UniqueConstraint(
+                        name = "weave_agent_runtime_workload_client_unique",
+                        columnNames = {"workload_issuer", "workload_client_id"})
+        },
+        indexes = @Index(
+                name = "weave_agent_runtime_reconcile",
+                columnList = "desired_state, observed_state, lease_expires_at"))
 class RuntimeCellJpaEntity {
 
     @Id
@@ -121,36 +136,36 @@ class RuntimeCellJpaEntity {
     protected RuntimeCellJpaEntity() {
     }
 
-    static RuntimeCellJpaEntity from(RuntimeCell cell) {
+    static RuntimeCellJpaEntity fromRow(
+            RuntimeCellPersistenceMapper.RuntimeCellRow row) {
         RuntimeCellJpaEntity entity = new RuntimeCellJpaEntity();
-        entity.recordId = cell.recordId();
-        entity.organizationRef = cell.organizationRef();
-        entity.personRef = cell.personRef();
-        entity.memberIssuer = cell.memberBinding().issuer();
-        entity.memberSubject = cell.memberBinding().subject();
-        entity.cellRef = cell.cellRef();
-        entity.workloadIssuer = cell.workloadBinding().issuer();
-        entity.workloadSubject = cell.workloadBinding().subject();
-        entity.workloadClientId = cell.workloadBinding().clientId();
-        entity.workloadAuthenticationMethod =
-                cell.workloadBinding().authenticationMethod();
-        entity.workloadCredentialRef = cell.workloadBinding().credentialRef();
-        entity.entitlementState = cell.entitlementState();
-        entity.entitlementRevision = cell.entitlementRevision();
-        entity.desiredState = cell.desiredState();
-        entity.observedState = cell.observedState();
-        entity.runtimeProfileId = cell.runtimeProfileId();
-        entity.runtimeProfileHash = cell.runtimeProfileHash();
-        entity.workspaceRevision = cell.workspaceRevision();
-        entity.workspaceManifestRef = cell.workspaceManifestRef();
-        entity.runtimeStateStoreRef = cell.runtimeStateStoreRef();
-        entity.fencingEpoch = cell.fencingEpoch();
-        entity.leaseId = cell.leaseId();
-        entity.leaseExpiresAt = RuntimePersistenceTime.utc(cell.leaseExpiresAt());
-        entity.version = cell.version();
-        entity.auditRef = cell.auditRef();
-        entity.createdAt = RuntimePersistenceTime.utc(cell.createdAt());
-        entity.updatedAt = RuntimePersistenceTime.utc(cell.updatedAt());
+        entity.recordId = row.recordId();
+        entity.organizationRef = row.organizationRef();
+        entity.personRef = row.personRef();
+        entity.memberIssuer = row.memberIssuer();
+        entity.memberSubject = row.memberSubject();
+        entity.cellRef = row.cellRef();
+        entity.workloadIssuer = row.workloadIssuer();
+        entity.workloadSubject = row.workloadSubject();
+        entity.workloadClientId = row.workloadClientId();
+        entity.workloadAuthenticationMethod = row.workloadAuthenticationMethod();
+        entity.workloadCredentialRef = row.workloadCredentialRef();
+        entity.entitlementState = row.entitlementState();
+        entity.entitlementRevision = row.entitlementRevision();
+        entity.desiredState = row.desiredState();
+        entity.observedState = row.observedState();
+        entity.runtimeProfileId = row.runtimeProfileId();
+        entity.runtimeProfileHash = row.runtimeProfileHash();
+        entity.workspaceRevision = row.workspaceRevision();
+        entity.workspaceManifestRef = row.workspaceManifestRef();
+        entity.runtimeStateStoreRef = row.runtimeStateStoreRef();
+        entity.fencingEpoch = row.fencingEpoch();
+        entity.leaseId = row.leaseId();
+        entity.leaseExpiresAt = RuntimePersistenceTime.utc(row.leaseExpiresAt());
+        entity.version = row.version();
+        entity.auditRef = row.auditRef();
+        entity.createdAt = RuntimePersistenceTime.utc(row.createdAt());
+        entity.updatedAt = RuntimePersistenceTime.utc(row.updatedAt());
         return entity;
     }
 
@@ -273,19 +288,19 @@ class RuntimeCellJpaEntity {
         return version;
     }
 
-    RuntimeCell toDomain() {
-        return new RuntimeCell(
+    RuntimeCellPersistenceMapper.RuntimeCellRow toRow() {
+        return new RuntimeCellPersistenceMapper.RuntimeCellRow(
                 recordId,
                 organizationRef,
                 personRef,
-                new RuntimeMemberBinding(memberIssuer, memberSubject),
+                memberIssuer,
+                memberSubject,
                 cellRef,
-                new RuntimeWorkloadBinding(
-                        workloadIssuer,
-                        workloadSubject,
-                        workloadClientId,
-                        workloadAuthenticationMethod,
-                        workloadCredentialRef),
+                workloadIssuer,
+                workloadSubject,
+                workloadClientId,
+                workloadAuthenticationMethod,
+                workloadCredentialRef,
                 entitlementState,
                 entitlementRevision,
                 desiredState,

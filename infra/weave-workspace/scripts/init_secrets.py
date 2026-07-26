@@ -45,6 +45,7 @@ TEXT_SECRETS = (
     "matrix-appservice-as-token",
     "matrix-appservice-hs-token",
 )
+TEST_ONLY_SECRETS = ("identity-bootstrap-owner-token",)
 PROD_ONLY_SECRETS = ("smtp-username", "smtp-password")
 RSA_JWKS = (
     ("keycloak-weave-backend-jwk.json", "weave-backend-current"),
@@ -205,6 +206,8 @@ def _generate_tls(context: ComposeContext) -> None:
 
 def _validate_existing(context: ComposeContext) -> None:
     required = list(TEXT_SECRETS) + [name for name, _ in RSA_JWKS] + [name for name, _ in PEM_KEYS]
+    if context.profile == "test":
+        required.extend(TEST_ONLY_SECRETS)
     if context.profile == "prod":
         required.extend(PROD_ONLY_SECRETS)
     for name in required:
@@ -245,6 +248,9 @@ def initialize(context: ComposeContext) -> None:
         return
     for name in TEXT_SECRETS:
         _atomic_write(context.secret_root / name, _random_secret())
+    if context.profile == "test":
+        for name in TEST_ONLY_SECRETS:
+            _atomic_write(context.secret_root / name, _random_secret())
     for name, kid in RSA_JWKS:
         path = context.secret_root / name
         if not path.exists():

@@ -39,7 +39,6 @@ import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.domainfacade.CanonicalDomainDefinition;
-import com.massimotter.weave.backend.service.migration.InMemoryMigrationRunEvidenceRepository;
 import com.massimotter.weave.backend.service.migration.MigrationRunEvidence;
 import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
 import java.nio.charset.StandardCharsets;
@@ -58,7 +57,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -79,19 +77,13 @@ public class AdminControlPlaneService {
             "coming_later");
     private static final Set<String> SIMULATION_ROLES = Set.of("owner", "admin", "operator", "member", "guest");
     private static final Set<String> SIMULATION_GROUPS = Set.of(
-            "weave-calendar-editors",
-            "weave-board-editors",
-            "weave-meeting-hosts",
-            "weave-document-editors",
-            "weave-decision-recorders",
-            "weave-weaver-runtime");
+            "/owners",
+            "/admins",
+            "/members",
+            "/guests",
+            "/capabilities/weaver");
     private static final Map<String, List<String>> SIMULATION_GROUP_CAPABILITIES = Map.of(
-            "weave-calendar-editors", List.of("calendar.manage_events"),
-            "weave-board-editors", List.of("boards.update_task"),
-            "weave-meeting-hosts", List.of("meetings.host"),
-            "weave-document-editors", List.of("documents.edit"),
-            "weave-decision-recorders", List.of("decisions.record"),
-            "weave-weaver-runtime", List.of("agent-runtime.entitled"));
+            "/capabilities/weaver", List.of("agent-runtime.entitled"));
     private static final Set<String> SIMULATION_KNOWN_CAPABILITIES = Set.of(
             "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
             "boards.read", "boards.update_task", "meetings.join", "meetings.host", "documents.view", "documents.edit",
@@ -119,28 +111,17 @@ public class AdminControlPlaneService {
             ProviderSelectionRepository providerSelectionRepository,
             OrganizationBootstrapRepository organizationBootstrapRepository,
             AuditEventPublisher auditEventPublisher,
-            ObjectProvider<ProductProfileOverrideRepository> productProfileOverrideRepository,
-            ObjectProvider<MigrationRunEvidenceRepository> migrationRunEvidenceRepository) {
-        this.providerRegistry = providerRegistry;
-        this.workspaceCapabilityService = workspaceCapabilityService;
-        this.providerSelectionRepository = providerSelectionRepository;
-        this.productProfileOverrideRepository = productProfileOverrideRepository.getIfAvailable();
-        this.organizationBootstrapRepository = organizationBootstrapRepository;
-        this.auditEventPublisher = auditEventPublisher;
-        this.migrationRunEvidenceRepository = migrationRunEvidenceRepository.getIfAvailable(InMemoryMigrationRunEvidenceRepository::new);
-        this.clock = Clock.systemUTC();
-    }
-
-    AdminControlPlaneService(
-            ProviderRegistry providerRegistry,
-            WorkspaceCapabilityService workspaceCapabilityService,
-            ProviderSelectionRepository providerSelectionRepository,
-            OrganizationBootstrapRepository organizationBootstrapRepository,
-            AuditEventPublisher auditEventPublisher,
-            Clock clock) {
-        this(providerRegistry, workspaceCapabilityService, providerSelectionRepository,
-                organizationBootstrapRepository, auditEventPublisher, clock, null,
-                new InMemoryMigrationRunEvidenceRepository());
+            ProductProfileOverrideRepository productProfileOverrideRepository,
+            MigrationRunEvidenceRepository migrationRunEvidenceRepository) {
+        this(
+                providerRegistry,
+                workspaceCapabilityService,
+                providerSelectionRepository,
+                organizationBootstrapRepository,
+                auditEventPublisher,
+                Clock.systemUTC(),
+                productProfileOverrideRepository,
+                migrationRunEvidenceRepository);
     }
 
     AdminControlPlaneService(
@@ -152,16 +133,20 @@ public class AdminControlPlaneService {
             Clock clock,
             ProductProfileOverrideRepository productProfileOverrideRepository,
             MigrationRunEvidenceRepository migrationRunEvidenceRepository) {
-        this.providerRegistry = providerRegistry;
-        this.workspaceCapabilityService = workspaceCapabilityService;
-        this.providerSelectionRepository = providerSelectionRepository;
-        this.productProfileOverrideRepository = productProfileOverrideRepository;
-        this.organizationBootstrapRepository = organizationBootstrapRepository;
-        this.auditEventPublisher = auditEventPublisher;
-        this.migrationRunEvidenceRepository = migrationRunEvidenceRepository == null
-                ? new InMemoryMigrationRunEvidenceRepository()
-                : migrationRunEvidenceRepository;
-        this.clock = clock;
+        this.providerRegistry = java.util.Objects.requireNonNull(providerRegistry, "providerRegistry");
+        this.workspaceCapabilityService = java.util.Objects.requireNonNull(
+                workspaceCapabilityService, "workspaceCapabilityService");
+        this.providerSelectionRepository = java.util.Objects.requireNonNull(
+                providerSelectionRepository, "providerSelectionRepository");
+        this.productProfileOverrideRepository = java.util.Objects.requireNonNull(
+                productProfileOverrideRepository, "productProfileOverrideRepository");
+        this.organizationBootstrapRepository = java.util.Objects.requireNonNull(
+                organizationBootstrapRepository, "organizationBootstrapRepository");
+        this.auditEventPublisher = java.util.Objects.requireNonNull(
+                auditEventPublisher, "auditEventPublisher");
+        this.migrationRunEvidenceRepository = java.util.Objects.requireNonNull(
+                migrationRunEvidenceRepository, "migrationRunEvidenceRepository");
+        this.clock = java.util.Objects.requireNonNull(clock, "clock");
     }
 
     public AdminControlPlaneResponse overview(Jwt jwt) {
@@ -813,7 +798,7 @@ public class AdminControlPlaneService {
         profileCapabilities.put("member-default", List.of(
                 "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read"));
         profileCapabilities.put("guest-deny-default", List.of());
-        profileCapabilities.put("group:weave-weaver-runtime", List.of("agent-runtime.entitled"));
+        profileCapabilities.put("group:/capabilities/weaver", List.of("agent-runtime.entitled"));
         return new CapabilityWhitelistResponse(
                 policy.denyByDefault(),
                 false,
@@ -1715,7 +1700,8 @@ public class AdminControlPlaneService {
     }
 
     private boolean safeSimulationInputToken(String value) {
-        return value != null && value.matches("[a-z][a-z0-9_.:-]*");
+        return value != null
+                && value.matches("(?:[a-z][a-z0-9_.:-]*|(?:/[a-z][a-z0-9_.:-]*)+)");
     }
 
     private EffectivePolicySimulationResponse.CapabilityState simulationState(

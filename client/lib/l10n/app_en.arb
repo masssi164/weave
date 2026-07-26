@@ -4,18 +4,6 @@
   "@appTitle": {
     "description": "Application title shown in the app bar and system task switcher"
   },
-  "welcomeTitle": "Welcome to Weave",
-  "@welcomeTitle": {
-    "description": "Main heading on the welcome screen"
-  },
-  "welcomeSubtitle": "Join your organization through an invite or sign-in handoff. Provider setup stays with your admins.",
-  "@welcomeSubtitle": {
-    "description": "Subtitle text below the welcome heading"
-  },
-  "continueButton": "Join your organization",
-  "@continueButton": {
-    "description": "Label for the primary CTA on the welcome screen"
-  },
   "setupTitle": "Organization access",
   "@setupTitle": {
     "description": "Title for the setup flow screen"
@@ -4367,7 +4355,7 @@
   "@setupMemberHandoffTitle": {
     "description": "Title for the normal member handoff-first setup screen"
   },
-  "setupMemberHandoffDescription": "Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.",
+  "setupMemberHandoffDescription": "Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you for technical service settings.",
   "@setupMemberHandoffDescription": {
     "description": "Description for the normal member handoff-first setup screen"
   },
@@ -4446,6 +4434,10 @@
   "memberHandoffErrorGuidance": "The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.",
   "@memberHandoffErrorGuidance": {
     "description": "Support-safe guidance when member handoff consumption fails"
+  },
+  "memberHandoffSignInRetryGuidance": "Sign-in did not complete. Try again in the system browser or ask your workspace admin to verify your access.",
+  "@memberHandoffSignInRetryGuidance": {
+    "description": "Support-safe guidance after sign-in from a consumed member handoff fails"
   },
   "memberHandoffTlsErrorGuidance": "Weave could not reach the workspace start configuration over trusted TLS. For local dogfood, install and fully trust the Weave Local Development CA on this iPhone, or ask your admin for a publicly trusted organization sign-in link.",
   "@memberHandoffTlsErrorGuidance": {

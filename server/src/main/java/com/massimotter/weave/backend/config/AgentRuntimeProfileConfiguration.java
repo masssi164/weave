@@ -12,13 +12,11 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustBundle
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustKeyProvider;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileVerifier;
 import java.time.Clock;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jpa")
 public class AgentRuntimeProfileConfiguration {
 
     @Bean

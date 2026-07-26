@@ -43,7 +43,7 @@ public class WorkspaceController {
         this.organizationManifestService = organizationManifestService;
     }
 
-    @GetMapping({"/api/organization/manifest", "/api/v1/organization/manifest"})
+    @GetMapping("/api/organization/manifest")
     @Operation(
             summary = "Get authenticated organization manifest",
             description = "Returns the support-safe org manifest consumed by Weave Client after org URL discovery and SSO. Provider setup, endpoint rotation, diagnostics, policy authoring, and whitelisting remain owned by the Organization/Admin Console.",
@@ -64,7 +64,7 @@ public class WorkspaceController {
         return organizationManifestService.manifestFor(jwt);
     }
 
-    @GetMapping({"/api/workspace/capabilities", "/api/v1/workspace/capabilities"})
+    @GetMapping("/api/workspace/capabilities")
     @Operation(
             summary = "Get workspace capability readiness",
             description = "Returns the backend-owned workspace capability snapshot consumed by the Weave client.",
@@ -83,7 +83,7 @@ public class WorkspaceController {
         return workspaceCapabilityService.snapshot(jwt);
     }
 
-    @GetMapping({"/api/workspace/capability-policy", "/api/v1/workspace/capability-policy"})
+    @GetMapping("/api/workspace/capability-policy")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(
             summary = "Get workspace capability policy",
@@ -103,7 +103,7 @@ public class WorkspaceController {
         return workspaceCapabilityService.policySnapshot(jwt);
     }
 
-    @GetMapping({"/api/workspace/release-readiness", "/api/v1/workspace/release-readiness"})
+    @GetMapping("/api/workspace/release-readiness")
     @Operation(
             summary = "Get workspace readiness",
             description = "Returns an operator-facing snapshot of the backend-owned core dependencies and remaining setup actions.",
@@ -122,7 +122,7 @@ public class WorkspaceController {
         return workspaceReleaseReadinessService.snapshot(jwt);
     }
 
-    @GetMapping({"/api/workspace/home", "/api/v1/workspace/home"})
+    @GetMapping("/api/workspace/home")
     @Operation(
             summary = "Get Weave Home daily-work snapshot",
             description = "Returns the backend-owned, support-safe daily work loop consumed by Weave Home.",

@@ -16,6 +16,8 @@ import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.files.adapter.FilesAuthorityJpaTestFactory;
+import com.massimotter.weave.backend.files.application.FilesLockService;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileListing;
@@ -37,6 +39,7 @@ import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import com.massimotter.weave.backend.service.files.WebDavSearchRequest;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -48,6 +51,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
@@ -69,6 +73,12 @@ class FilesFacadeServiceTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(ContextAuthorizationTestConfiguration.class);
+    private FilesLockService filesLockService;
+
+    @BeforeEach
+    void createIsolatedLockBoundary() {
+        filesLockService = mock(FilesLockService.class);
+    }
 
     @AfterEach
     void clearSecurityContext() {
@@ -470,6 +480,10 @@ class FilesFacadeServiceTest {
 
     @Test
     void webDavLockBlocksConflictingWritesUntilMatchingUnlock() {
+        filesLockService = new FilesLockService(
+                FilesAuthorityJpaTestFactory.create(
+                        JpaTestDatabase.entityFirstDataSource("files-facade-lock")),
+                java.time.Clock.systemUTC());
         // FILES_WEBDAV_LOCK_CONFLICT
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
         StubAdapter adapter = new StubAdapter(true);
@@ -730,6 +744,8 @@ class FilesFacadeServiceTest {
                 new com.massimotter.weave.backend.security.device.DeviceCredentialService(
                         new com.massimotter.weave.backend.security.device.InMemoryDeviceCredentialRepository()),
                 auditEventPublisher,
+                filesLockService,
+                null,
                 (McpWorkloadAuthorizationService) null,
                 (McpExchangedTokenPolicy) null);
     }
@@ -748,7 +764,7 @@ class FilesFacadeServiceTest {
     }
 
     private Jwt jwt() {
-        return jwtWithRolesAndGroups(List.of("member"), List.of("weave-file-uploaders"));
+        return jwtWithRolesAndGroups(List.of("member"), List.of("/members"));
     }
 
     private Jwt jwtWithRolesAndGroups(List<String> roles, List<String> groups) {

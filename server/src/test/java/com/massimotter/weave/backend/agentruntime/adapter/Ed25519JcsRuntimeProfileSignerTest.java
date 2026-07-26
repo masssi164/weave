@@ -37,15 +37,15 @@ class Ed25519JcsRuntimeProfileSignerTest {
         JsonNode header = JSON.readTree(headerBytes);
         JsonNode payload = JSON.readTree(payloadBytes);
 
-        assertThat(header.path("alg").asString()).isEqualTo("EdDSA");
-        assertThat(header.path("typ").asString()).isEqualTo("weave.runtime-profile+jws");
-        assertThat(header.path("kid").asString()).isEqualTo("runtime-profile-key-1");
-        assertThat(header.path("contractVersion").asString()).isEqualTo(RuntimeProfile.VERSION);
-        assertThat(payload.path("profileVersion").asString()).isEqualTo(RuntimeProfile.VERSION);
+        assertThat(header.path("alg").asText()).isEqualTo("EdDSA");
+        assertThat(header.path("typ").asText()).isEqualTo("weave.runtime-profile+jws");
+        assertThat(header.path("kid").asText()).isEqualTo("runtime-profile-key-1");
+        assertThat(header.path("contractVersion").asText()).isEqualTo(RuntimeProfile.VERSION);
+        assertThat(payload.path("profileVersion").asText()).isEqualTo(RuntimeProfile.VERSION);
         assertThat(payload.path("zeroDurableCellBytes").asBoolean()).isTrue();
-        assertThat(payload.path("workloadIdentity").path("clientId").asString())
+        assertThat(payload.path("workloadIdentity").path("clientId").asText())
                 .isEqualTo("weaver-cell-example");
-        assertThat(payload.path("mcp").path("servers").get(0).path("grantType").asString())
+        assertThat(payload.path("mcp").path("servers").get(0).path("grantType").asText())
                 .isEqualTo("client_credentials");
         assertThat(payloadBytes).isEqualTo(new JsonCanonicalizer(
                 new String(payloadBytes, StandardCharsets.UTF_8)).getEncodedUTF8());

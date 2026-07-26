@@ -4,12 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.exc.UnrecognizedPropertyException;
 import tools.jackson.databind.json.JsonMapper;
 
 class MemberInvitationRequestTest {
 
     private final JsonMapper mapper =
-            JsonMapper.builder().findAndAddModules().build();
+            JsonMapper.builder()
+                    .findAndAddModules()
+                    .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                    .build();
 
     @Test
     void acceptsOneCanonicalRoleWithoutProviderGroupInput() throws Exception {
@@ -37,8 +42,6 @@ class MemberInvitationRequestTest {
                 }
                 """,
                 MemberInvitationRequest.class))
-                .hasRootCauseInstanceOf(IllegalArgumentException.class)
-                .hasRootCauseMessage(
-                        "Unknown member invitation property; send one canonical role only");
+                .isInstanceOf(UnrecognizedPropertyException.class);
     }
 }

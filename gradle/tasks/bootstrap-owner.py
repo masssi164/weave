@@ -83,7 +83,7 @@ def support_safe_result(response: dict[str, object], email: str) -> dict[str, ob
             "Owner bootstrap returned an incomplete invitation projection: "
             + ", ".join(missing)
         )
-    if response["requestedRole"] != "owner" or response.get("capabilities") not in ([], None):
+    if response["requestedRole"] != "owner" or "capabilities" in response:
         raise ValueError("Owner bootstrap returned an invalid authority projection")
     return {
         "schema": "weave-owner-bootstrap-evidence-v1",
@@ -94,7 +94,6 @@ def support_safe_result(response: dict[str, object], email: str) -> dict[str, ob
         "lifecycleStatus": response["lifecycleStatus"],
         "provisioningStatus": response["provisioningStatus"],
         "requestedRole": response["requestedRole"],
-        "capabilities": [],
     }
 
 

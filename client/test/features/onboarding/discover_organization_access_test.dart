@@ -158,7 +158,7 @@ void main() {
     );
     expect(
       saved.serviceEndpoints.nextcloudBaseUrl.toString(),
-      'https://api.weave.test:44443/api/dav/files',
+      'https://api.weave.test:44443/dav/files',
     );
     final evidence =
         jsonDecode(evidenceStore.strings[lastHandoffConsumedStorageKey]!)
@@ -329,7 +329,7 @@ void main() {
     );
     expect(
       saved.serviceEndpoints.nextcloudBaseUrl.toString(),
-      'https://api.weave.example/api/dav/files',
+      'https://api.weave.example/dav/files',
     );
   });
 
@@ -447,8 +447,8 @@ Map<String, Object> _manifest({
   'oidc': <String, Object>{'issuer': issuer, 'clientId': 'weave-app'},
   'protocols': <String, Object>{
     'matrixClientServerBaseUrl': matrixClientServerBaseUrl,
-    'filesWebDavBaseUrl': '$controlPlaneBaseUrl/dav/files',
-    'calendarCalDavBaseUrl': '$controlPlaneBaseUrl/caldav',
+    'filesWebDavBaseUrl': _protocolUrl(controlPlaneBaseUrl, '/dav/files'),
+    'calendarCalDavBaseUrl': _protocolUrl(controlPlaneBaseUrl, '/caldav'),
   },
   'releasePosture': 'dogfood',
   'domains': <Map<String, Object>>[
@@ -468,3 +468,6 @@ Map<String, Object> _manifest({
   ],
   'recoveryActions': <Object>[],
 };
+
+String _protocolUrl(String controlPlaneBaseUrl, String path) =>
+    Uri.parse(controlPlaneBaseUrl).replace(path: path).toString();

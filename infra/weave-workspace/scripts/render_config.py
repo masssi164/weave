@@ -552,7 +552,14 @@ def _backend_env(context: ComposeContext) -> str:
         "WEAVE_WORKSPACE_CALENDAR_ENABLED": "true",
         "WEAVE_WORKSPACE_CALENDAR_READINESS": "ready",
         "WEAVE_MATRIX_FEDERATION_ENABLED": "false",
+        "WEAVE_IDENTITY_BOOTSTRAP_OWNER_ENABLED": (
+            "true" if context.isolated_namespace is not None else "false"
+        ),
     }
+    if context.profile == "test":
+        values["WEAVE_IDENTITY_BOOTSTRAP_OWNER_TOKEN_FILE"] = (
+            "/run/secrets/weave/bootstrap-owner-token"
+        )
     if host_dev:
         values["SPRING_CONFIG_IMPORT"] = f"configtree:{context.generated_root / 'backend/configtree'}/"
     else:
@@ -577,14 +584,13 @@ def _mcp_env(context: ComposeContext) -> str:
         "WEAVE_MCP_RESOURCE_URI": f"{env['WEAVE_API_ORIGIN']}/mcp",
         "WEAVE_MCP_RESOURCE_METADATA_URI": f"{env['WEAVE_API_ORIGIN']}/.well-known/oauth-protected-resource/mcp",
         "WEAVE_MCP_AUTHORIZATION_SERVER": issuer,
-        "WEAVE_MCP_REQUIRED_SCOPES": "mcp.tools,calendar.read",
+        "WEAVE_MCP_REQUIRED_SCOPES": "mcp.tools,files.read",
         "WEAVE_MCP_TOKEN_URI": "http://keycloak:8080/realms/weave/protocol/openid-connect/token",
         "WEAVE_MCP_EXCHANGE_CLIENT_ID": "weave-mcp-server",
-        "WEAVE_MCP_EXCHANGE_CLIENT_KEY_FILE": "/run/secrets/weave/mcp-private-jwk.json",
-        "WEAVE_MCP_EXCHANGE_CLIENT_KEY_ID": "weave-mcp-server-current",
+        "WEAVE_MCP_EXCHANGE_CLIENT_JWK_FILE": "/run/secrets/weave/mcp-private-jwk.json",
         "WEAVE_MCP_BACKEND_RESOURCE_URI": env["WEAVE_API_URL"],
-        "WEAVE_MCP_BACKEND_CONTEXT_URI": "http://backend:8080/api/internal/agent-runtime/mcp-context",
-        "WEAVE_MCP_EXCHANGE_SCOPES": "calendar.read",
+        "WEAVE_MCP_BACKEND_FILES_URI": "http://backend:8080/dav/files",
+        "WEAVE_MCP_EXCHANGE_SCOPES": "files.read",
     }
     return "".join(f"{key}={value}\n" for key, value in sorted(values.items()))
 

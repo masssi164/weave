@@ -884,7 +884,7 @@ function normalizeControlPlane(
     organization: {
       id: controlPlane.organizationId ?? "weave-dogfood",
       displayName: controlPlane.organizationName ?? "Weave Dogfood",
-      manifestUrl: "/api/v1/organization/manifest",
+      manifestUrl: "/api/organization/manifest",
       authIssuerUrl: adminConsoleConfig.oidcIssuerUrl,
     },
     providerConfigSource:

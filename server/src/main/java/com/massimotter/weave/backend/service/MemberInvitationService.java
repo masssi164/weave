@@ -120,7 +120,7 @@ public class MemberInvitationService {
     return create(
         tenantId,
         organizationId,
-        new MemberInvitationRequest(email, request.displayName(), "owner", List.of()),
+        new MemberInvitationRequest(email, request.displayName(), "owner"),
         idempotencyKey,
         BOOTSTRAP_ISSUER,
         BOOTSTRAP_SUBJECT);
@@ -169,11 +169,11 @@ public class MemberInvitationService {
   }
 
   /** First-login fallback for a missed Keycloak event; never used to authorize the request. */
-  public void reconcileAuthenticated(Jwt jwt) {
+  public boolean reconcileAuthenticated(Jwt jwt) {
     OrganizationIdentityContext actor = OrganizationIdentityContextFactory.fromJwt(jwt);
     String email = jwt.getClaimAsString("email");
     if (email == null || !Boolean.TRUE.equals(jwt.getClaims().get("email_verified"))) {
-      return;
+      return false;
     }
 
     String organizationId = keycloak.configuredOrganizationId();
@@ -182,32 +182,15 @@ public class MemberInvitationService {
             actor.organizationId(), organizationId, normalizeEmail(email));
     if (matches.size() != 1
         || !keycloak.isOrganizationMember(organizationId, actor.subject())) {
-      return;
+      return false;
     }
     apply(matches.getFirst(), actor.subject());
-  }
-
-  public void applyMembershipEvent(String organizationId, String subject, String emailHash) {
-    List<ProvisioningIntent> matches =
-        intents.findPendingByEmailHash(organizationId, emailHash.toLowerCase(Locale.ROOT));
-    if (matches.size() != 1) {
-      if (matches.isEmpty()) {
-        return;
-      }
-      throw new IllegalStateException("Provisioning intent correlation is ambiguous");
-    }
-    apply(matches.getFirst(), subject);
-  }
-
-  public boolean recordMembershipEventOnce(String eventId, Instant occurredAt) {
-    return intents.recordEventOnce(eventId, occurredAt);
+    return true;
   }
 
   private MemberInvitationResponse existingBootstrapInvitation(
       String organizationId, String email, ProvisioningIntent intent) {
-    if (!"owner".equals(intent.requestedRole())
-        || !intent.requestedCapabilities().isEmpty()
-        || intent.providerInvitationId() == null) {
+    if (!"owner".equals(intent.requestedRole()) || intent.providerInvitationId() == null) {
       throw bootstrapConflict();
     }
 
@@ -230,16 +213,6 @@ public class MemberInvitationService {
       String idempotencyKey,
       String actorIssuer,
       String actorSubject) {
-    try {
-      keycloak.validateCapabilities(request.capabilities());
-    } catch (IllegalArgumentException invalidCapability) {
-      throw new ApiErrorException(
-          HttpStatus.BAD_REQUEST,
-          "member-invitation-capability-unsupported",
-          "The invitation contains an unsupported product capability.",
-          Map.of());
-    }
-
     String email = normalizeEmail(request.email());
     List<ProvisioningIntent> existing =
         intents.findPendingByEmail(tenantId, organizationId, email);
@@ -260,7 +233,6 @@ public class MemberInvitationService {
             email,
             sha256(email),
             request.role(),
-            request.capabilities(),
             null,
             actorIssuer,
             actorSubject,
@@ -301,8 +273,7 @@ public class MemberInvitationService {
       return;
     }
     try {
-      keycloak.applyRoleAndCapabilities(
-          subject, intent.requestedRole(), intent.requestedCapabilities());
+      keycloak.applyRole(subject, intent.requestedRole());
       ProvisioningIntent applied = intents.save(intent.applied(subject, clock.instant()));
       publish(AuditAction.MEMBER_INVITATION_ACCEPTED, applied, subject);
     } catch (RuntimeException providerFailure) {

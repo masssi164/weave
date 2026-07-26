@@ -8,7 +8,7 @@ REPOSITORY_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
 readonly REPOSITORY_ROOT
 readonly SERVER_IMAGE="${REPOSITORY_ROOT}/server/Dockerfile"
 readonly MCP_IMAGE="${REPOSITORY_ROOT}/weave-mcp-server/Dockerfile"
-readonly IDENTITY_OPS_IMAGE="${REPOSITORY_ROOT}/infra/identity-ops/Dockerfile"
+readonly IDENTITY_OPS_IMAGE="${REPOSITORY_ROOT}/infra/weave-workspace/keycloak/Dockerfile.identity-ops"
 readonly WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/candidate-images.yml"
 
 fail() {
@@ -45,7 +45,7 @@ contains "${SERVER_IMAGE}" 'USER 10001:10001'
 contains "${SERVER_IMAGE}" 'com.massimotter.weave.module="server"'
 contains "${MCP_IMAGE}" 'USER 10001:10001'
 contains "${MCP_IMAGE}" 'com.massimotter.weave.module="weave-mcp-server"'
-contains "${IDENTITY_OPS_IMAGE}" 'USER 65532:65532'
+contains "${IDENTITY_OPS_IMAGE}" 'USER 1000:1000'
 contains "${IDENTITY_OPS_IMAGE}" 'com.massimotter.weave.module="identity-ops"'
 
 contains "${WORKFLOW}" 'tag_sha=sha-$GITHUB_SHA'

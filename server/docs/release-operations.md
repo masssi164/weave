@@ -63,7 +63,7 @@ Use `401` for missing or invalid tokens. Use `403` when the token is authenticat
 
 `/api/workspace/release-readiness` is the backend-owned operator snapshot for the core workspace. It rolls auth, Matrix chat, and Nextcloud files into one response and lists the exact remaining setup actions when the workspace is still degraded or blocked.
 
-The older `/api/v1/workspace/capabilities` and `/api/v1/workspace/release-readiness` paths remain compatibility aliases while clients migrate to the canonical non-versioned workspace routes.
+Only the canonical `/api/workspace/capabilities` and `/api/workspace/release-readiness` paths exist after the Fresh Start; no alternate versioned application routes are retained.
 
 ## Minimum operator checks
 

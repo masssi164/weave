@@ -830,118 +830,6 @@ def capture_generated_secret(filename: str, value: object) -> None:
     os.chmod(target, 0o600)
 
 
-def provision_test_users(kcadm: Kcadm, desired: dict[str, Any], path: Path) -> int:
-    if not path.exists():
-        return 0
-    realm = str(desired["realm"]["name"])
-    metadata = path.lstat()
-    if path.is_symlink() or not path.is_file() or metadata.st_mode & 0o777 != 0o600:
-        raise IdentityOpsError("mounted test-user file must remain a regular mode-0600 file")
-    value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, list):
-        raise IdentityOpsError("test-user file must contain a JSON array")
-    created = 0
-    for item in value:
-        if not isinstance(item, dict) or not all(
-            isinstance(item.get(name), str) and item[name]
-            for name in ("username", "secret")
-        ):
-            raise IdentityOpsError("each test user requires non-empty username and secret")
-        for name in ("email", "firstName", "lastName"):
-            if name in item and (not isinstance(item[name], str) or not item[name]):
-                raise IdentityOpsError(f"optional test-user {name} must be a non-empty string")
-        for name in ("roles", "groups"):
-            if name in item and (
-                not isinstance(item[name], list)
-                or any(not isinstance(value, str) or not value for value in item[name])
-            ):
-                raise IdentityOpsError(f"optional test-user {name} must be an array of non-empty strings")
-        observed_users = kcadm.call("get", "users", "-r", realm, "-q", f"username={item['username']}", "-q", "exact=true") or []
-        created_user = exact(observed_users, item["username"], "test user")
-        newly_created = created_user is None
-        if created_user is None:
-            user_payload: dict[str, Any] = {
-                "username": item["username"],
-                "enabled": True,
-                "emailVerified": bool(item.get("email")),
-            }
-            if item.get("email"):
-                user_payload["email"] = item["email"]
-            for name in ("firstName", "lastName"):
-                if item.get(name):
-                    user_payload[name] = item[name]
-            kcadm.call("create", "users", "-r", realm, payload=user_payload)
-            kcadm.call(
-                "set-password",
-                "-r", realm,
-                "--username", item["username"],
-                "--new-password", item["secret"],
-            )
-            created_user = exact(
-                kcadm.call("get", "users", "-r", realm, "-q", f"username={item['username']}", "-q", "exact=true") or [],
-                item["username"],
-                "test user",
-            )
-        if created_user is None:
-            raise IdentityOpsError("test user readback failed")
-        if newly_created:
-            created += 1
-
-        organizations = desired.get("organizations", [])
-        if len(organizations) != 1:
-            raise IdentityOpsError("test users require exactly one canonical organization")
-        organization_candidates = kcadm.call("get", "organizations", "-r", realm) or []
-        organization = exact(
-            [value for value in organization_candidates if value.get("alias") == organizations[0]["alias"]],
-            organizations[0]["key"],
-            "canonical organization",
-        )
-        if organization is None:
-            raise IdentityOpsError("canonical organization is unavailable for test users")
-        organization_id = str(organization["id"])
-        members = kcadm.call(
-            "get", f"organizations/{organization_id}/members", "-r", realm,
-            "-q", f"username={item['username']}", "-q", "exact=true",
-        ) or []
-        if not any(str(member.get("id")) == str(created_user["id"]) for member in members):
-            kcadm.call(
-                "create",
-                f"organizations/{organization_id}/members",
-                "-r", realm,
-                payload=str(created_user["id"]),
-            )
-
-        configured_groups = desired.get("organizationGroups", [])
-        requested_paths = set(item.get("groups", []))
-        for role_name in item.get("roles", []):
-            candidates = [
-                group["path"]
-                for group in configured_groups
-                if any(
-                    role_ref == role_name or role_ref.rsplit(":", 1)[-1] == role_name
-                    for role_ref in group.get("roleRefs", [])
-                )
-            ]
-            if len(candidates) != 1:
-                raise IdentityOpsError(f"test-user role must resolve to one native organization group: {role_name}")
-            requested_paths.add(candidates[0])
-        if requested_paths:
-            groups = kcadm.call(
-                "get", f"organizations/{organization_id}/groups", "-r", realm,
-                "-q", "populateHierarchy=true", "-q", "briefRepresentation=false",
-            ) or []
-            by_path = {group["_path"]: str(group["id"]) for group in flatten_groups(groups)}
-            for group_path in sorted(requested_paths):
-                if group_path not in by_path:
-                    raise IdentityOpsError(f"test-user organization group does not exist: {group_path}")
-                kcadm.call(
-                    "update",
-                    f"organizations/{organization_id}/groups/{by_path[group_path]}/members/{created_user['id']}",
-                    "-r", realm,
-                )
-    return created
-
-
 def probe_client_credentials(server: str, realm: str, clients: list[dict[str, Any]]) -> None:
     token_url = f"{server}/realms/{realm}/protocol/openid-connect/token"
     for client in clients:
@@ -1020,7 +908,6 @@ def main() -> int:
     parser.add_argument("--bootstrap-client", default="weave-identity-ops-bootstrap")
     parser.add_argument("--password-file", type=Path, default=Path("/run/secrets/keycloak-bootstrap-admin-password"))
     parser.add_argument("--kcadm", default="/opt/keycloak/bin/kcadm.sh")
-    parser.add_argument("--test-users", type=Path, default=Path("/run/weave/test-users.json"))
     parser.add_argument("--rotation-epoch", default=os.environ.get("WEAVE_IDENTITY_ROTATION_EPOCH") or None)
     args = parser.parse_args()
     kcadm: Kcadm | None = None
@@ -1044,7 +931,6 @@ def main() -> int:
             second_empty = not second
             if second:
                 raise IdentityOpsError("readback did not converge to an empty second plan")
-            provision_test_users(kcadm, desired, args.test_users)
             probe_client_credentials(args.server, desired["realm"]["name"], desired.get("clients", []))
         elif args.command == "verify" and operations:
             raise IdentityOpsError("verification found a non-empty plan")

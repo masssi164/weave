@@ -329,7 +329,6 @@ class MatrixApplicationServiceControllerTest {
             ChatE2eCallbackReplayTap callbackReplayTap) {
         ChatRuntimeProperties properties = new ChatRuntimeProperties(
                 "matrix-synapse",
-                new ChatRuntimeProperties.Storage("jpa"),
                 new ChatRuntimeProperties.Matrix(
                         "http://matrix.internal:8008",
                         "matrix.internal",

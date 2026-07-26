@@ -18,8 +18,6 @@ public final class OperationIntentJpaTestFactory {
                 JpaTestDatabase.repository(
                         dataSource,
                         OperationOutboxJpaRepository.class),
-                new OperationIntentLeaseNativeRepository(
-                        JpaTestDatabase.entityManager(dataSource)),
                 tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
                 JpaTestDatabase.transactionManager(dataSource));
     }

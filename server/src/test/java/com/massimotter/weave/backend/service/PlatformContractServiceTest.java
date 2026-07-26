@@ -89,8 +89,8 @@ class PlatformContractServiceTest {
         var config = service.config();
         var status = service.status("nextcloud-route-test");
 
-        assertThat(config.protocols().filesWebDavBaseUrl()).isEqualTo("https://api.weave.test/api/dav/files");
-        assertThat(config.protocols().calendarCalDavBaseUrl()).isEqualTo("https://api.weave.test/api/caldav");
+        assertThat(config.protocols().filesWebDavBaseUrl()).isEqualTo("https://api.weave.test/dav/files");
+        assertThat(config.protocols().calendarCalDavBaseUrl()).isEqualTo("https://api.weave.test/caldav");
         assertThat(status.nextcloud().readiness()).isEqualTo("ready");
         assertThat(status.nextcloud().message()).contains("Nextcloud");
     }

@@ -1,12 +1,23 @@
 name: ${WEAVE_COMPOSE_PROJECT:-weave-dev}
 
+x-weave-resource-labels: &weave-resource-labels
+  com.massimotter.weave.managed: "true"
+  com.massimotter.weave.environment: ${WEAVE_RESOURCE_ENVIRONMENT:-dev}
+  com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+  com.massimotter.weave.stack: ${WEAVE_RESOURCE_STACK:-weave}
+  com.massimotter.weave.generation: ${WEAVE_RESOURCE_GENERATION:-fresh-v1}
+  com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
+  com.massimotter.weave.fresh-start-eligible: "true"
+  com.massimotter.weave.spec-commit: ${WEAVE_SPEC_COMMIT:-0000000000000000000000000000000000000000}
+  com.massimotter.weave.spec-digest: ${WEAVE_SPEC_DIGEST:-sha256:0000000000000000000000000000000000000000000000000000000000000000}
+  com.massimotter.weave.candidate-commit: ${WEAVE_CANDIDATE_COMMIT:-0000000000000000000000000000000000000000}
+  com.massimotter.weave.candidate-manifest-digest: ${WEAVE_CANDIDATE_MANIFEST_DIGEST:-sha256:0000000000000000000000000000000000000000000000000000000000000000}
+
 x-weave-service: &weave-service
   restart: unless-stopped
   labels:
-    com.massimotter.weave.managed: "true"
-    com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
-    com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
-    com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+    <<: *weave-resource-labels
+    com.massimotter.weave.data-class: runtime-ephemeral
   networks:
     weave:
 
@@ -18,6 +29,10 @@ x-core-profiles: &core-profiles
 services:
   postgres:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: postgres
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles: *core-profiles
     image: ${WEAVE_POSTGRES_IMAGE:-postgres:16.9-alpine}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-db
@@ -44,10 +59,10 @@ services:
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-postgres-reconcile
     restart: "no"
     labels:
-      com.massimotter.weave.managed: "true"
-      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
-      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
-      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: postgres
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
       com.massimotter.weave.one-shot: "true"
     depends_on:
       postgres:
@@ -86,6 +101,10 @@ services:
 
   caddy:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: gateway
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles: *core-profiles
     image: ${WEAVE_CADDY_IMAGE:-caddy:2.10.0-alpine}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-proxy
@@ -127,6 +146,10 @@ services:
 
   keycloak:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: identity
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles: *core-profiles
     image: ${WEAVE_KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7.0}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-keycloak
@@ -231,14 +254,18 @@ services:
     networks:
       weave:
     labels:
-      com.massimotter.weave.managed: "true"
-      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
-      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
-      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: identity-ops
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
       com.massimotter.weave.one-shot: "true"
 
   mailpit:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: mail
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles:
       - dev
       - test
@@ -266,6 +293,10 @@ services:
 
   mas:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: matrix-auth
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles: *core-profiles
     image: ${WEAVE_MAS_IMAGE:-ghcr.io/element-hq/matrix-authentication-service:1.15.0}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mas
@@ -315,10 +346,10 @@ services:
     restart: "no"
     user: "0:0"
     labels:
-      com.massimotter.weave.managed: "true"
-      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
-      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
-      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: chat
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
       com.massimotter.weave.one-shot: "true"
     entrypoint:
       - /bin/sh
@@ -348,6 +379,10 @@ services:
 
   synapse:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: chat
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles: *core-profiles
     image: ${WEAVE_SYNAPSE_IMAGE:-matrixdotorg/synapse:v1.136.0}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-synapse
@@ -383,6 +418,10 @@ services:
 
   nextcloud:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: files-calendar
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles: *core-profiles
     image: ${WEAVE_NEXTCLOUD_IMAGE:-nextcloud:31.0.7-apache}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-nextcloud
@@ -420,6 +459,10 @@ services:
 
   backend:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: server
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles:
       - test
       - prod
@@ -495,10 +538,10 @@ services:
     networks:
       weave:
     labels:
-      com.massimotter.weave.managed: "true"
-      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
-      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
-      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: mcp
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
       com.massimotter.weave.one-shot: "true"
 
   mcp-keycloak-connectivity-check:
@@ -527,14 +570,18 @@ services:
     networks:
       weave:
     labels:
-      com.massimotter.weave.managed: "true"
-      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
-      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
-      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: mcp
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
       com.massimotter.weave.one-shot: "true"
 
   mcp:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: mcp
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles:
       - test
       - prod

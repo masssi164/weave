@@ -42,6 +42,16 @@ VOLUME_KEYS = (
     "WEAVE_SYNAPSE_DATA_VOLUME",
     "WEAVE_MATRIX_APPSERVICE_VOLUME",
 )
+RESOURCE_METADATA = {
+    "WEAVE_CADDY_DATA_VOLUME": ("gateway", "tls-sensitive"),
+    "WEAVE_CADDY_CONFIG_VOLUME": ("gateway", "configuration-sensitive"),
+    "WEAVE_DB_DATA_VOLUME": ("postgres", "database-sensitive"),
+    "WEAVE_KEYCLOAK_DATA_VOLUME": ("identity", "identity-sensitive"),
+    "WEAVE_MAILPIT_DATA_VOLUME": ("mail", "activation-sensitive"),
+    "WEAVE_NEXTCLOUD_DATA_VOLUME": ("files-calendar", "collaboration-sensitive"),
+    "WEAVE_SYNAPSE_DATA_VOLUME": ("chat", "collaboration-sensitive"),
+    "WEAVE_MATRIX_APPSERVICE_VOLUME": ("chat-appservice", "credential-sensitive"),
+}
 
 
 def script(context: ComposeContext, name: str) -> None:
@@ -55,12 +65,37 @@ def compose(context: ComposeContext, *arguments: str, capture: bool = False) -> 
     return run((*context.compose_base_command, *arguments), context, capture=capture)
 
 
-def labels(context: ComposeContext) -> dict[str, str]:
+def resource_metadata(context: ComposeContext, kind: str, name: str) -> tuple[str, str]:
+    if kind == "network" and name == context.env["WEAVE_DOCKER_NETWORK"]:
+        return "network", "connectivity"
+    matches = [
+        metadata
+        for key, metadata in RESOURCE_METADATA.items()
+        if kind == "volume" and context.env[key] == name
+    ]
+    if len(matches) != 1:
+        raise ContractError(f"no unique resource metadata for Docker {kind} {name}")
+    return matches[0]
+
+
+def labels(context: ComposeContext, kind: str, name: str) -> dict[str, str]:
+    component, data_class = resource_metadata(context, kind, name)
     return {
         "com.massimotter.weave.managed": "true",
-        "com.massimotter.weave.environment": context.profile,
-        "com.massimotter.weave.namespace": context.env["WEAVE_RESOURCE_PREFIX"],
+        "com.massimotter.weave.environment": context.env["WEAVE_RESOURCE_ENVIRONMENT"],
         "com.massimotter.weave.scope": context.env["WEAVE_STACK_SCOPE"],
+        "com.massimotter.weave.stack": context.env["WEAVE_RESOURCE_STACK"],
+        "com.massimotter.weave.generation": context.env["WEAVE_RESOURCE_GENERATION"],
+        "com.massimotter.weave.namespace": context.env["WEAVE_RESOURCE_PREFIX"],
+        "com.massimotter.weave.component": component,
+        "com.massimotter.weave.data-class": data_class,
+        "com.massimotter.weave.fresh-start-eligible": "true",
+        "com.massimotter.weave.spec-commit": context.env["WEAVE_SPEC_COMMIT"],
+        "com.massimotter.weave.spec-digest": context.env["WEAVE_SPEC_DIGEST"],
+        "com.massimotter.weave.candidate-commit": context.env["WEAVE_CANDIDATE_COMMIT"],
+        "com.massimotter.weave.candidate-manifest-digest": context.env[
+            "WEAVE_CANDIDATE_MANIFEST_DIGEST"
+        ],
     }
 
 
@@ -81,7 +116,10 @@ def inspect_resource(context: ComposeContext, kind: str, name: str) -> tuple[boo
     if inspected.returncode != 0:
         return False, False
     observed = json.loads(inspected.stdout) or {}
-    owned = all(observed.get(key) == value for key, value in labels(context).items())
+    owned = all(
+        observed.get(key) == value
+        for key, value in labels(context, kind, name).items()
+    )
     return True, owned
 
 
@@ -182,7 +220,7 @@ def ensure_resource(context: ComposeContext, kind: str, name: str) -> None:
             return
         raise ContractError(f"refusing unowned existing Docker {kind} {name}")
     command = ["docker", kind, "create"]
-    for key, value in sorted(labels(context).items()):
+    for key, value in sorted(labels(context, kind, name).items()):
         command.extend(("--label", f"{key}={value}"))
     command.append(name)
     subprocess.run(command, check=True, stdout=subprocess.DEVNULL)
@@ -205,6 +243,19 @@ def prepare(context: ComposeContext) -> None:
             os.chown(evidence_root, runtime_uid, runtime_gid)
         except PermissionError as error:
             raise ContractError("Identity Ops evidence directory is not writable by the rootless runtime uid/gid") from error
+    for path in (
+        context.secret_root / "agent-runtime/workloads",
+        context.secret_root / "agent-runtime/profile-signing",
+    ):
+        path.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(path, 0o700)
+        if path.stat().st_uid != runtime_uid or path.stat().st_gid != runtime_gid:
+            try:
+                os.chown(path, runtime_uid, runtime_gid)
+            except PermissionError as error:
+                raise ContractError(
+                    "Agent Runtime SecretRef directory is not writable by the rootless runtime uid/gid"
+                ) from error
 
 
 def normalized_config(context: ComposeContext, emit: bool) -> None:
@@ -226,31 +277,7 @@ def normalized_config(context: ComposeContext, emit: bool) -> None:
         print(json.dumps(model, indent=2, sort_keys=True))
 
 
-def test_user_volume(context: ComposeContext) -> tuple[str, ...]:
-    if context.profile == "prod" and "WEAVE_TEST_USERS_FILE" in context.env:
-        raise ContractError("prod rejects WEAVE_TEST_USERS_FILE before Identity Ops mutation")
-    supplied = context.env.get("WEAVE_TEST_USERS_FILE", "")
-    if context.profile == "test" and not supplied:
-        supplied = str(context.root / ".generated/test/test-users.json")
-    if not supplied:
-        return ()
-    supplied_path = Path(supplied).expanduser()
-    try:
-        supplied_metadata = supplied_path.lstat()
-    except FileNotFoundError as error:
-        raise ContractError("WEAVE_TEST_USERS_FILE is unavailable") from error
-    if stat.S_ISLNK(supplied_metadata.st_mode) or not stat.S_ISREG(supplied_metadata.st_mode):
-        raise ContractError("WEAVE_TEST_USERS_FILE must be a regular non-symlink file")
-    path = supplied_path.resolve()
-    metadata = path.stat()
-    if stat.S_IMODE(metadata.st_mode) != 0o600 or metadata.st_uid != os.getuid():
-        raise ContractError("WEAVE_TEST_USERS_FILE must be owner-controlled mode-0600")
-    json.loads(path.read_text(encoding="utf-8"))
-    return ("--volume", f"{path}:/run/weave/test-users.json:ro")
-
-
 def identity_ops(context: ComposeContext, action: str) -> None:
-    test_users = test_user_volume(context)
     prepare(context)
     compose(context, "stop", "keycloak")
     compose(
@@ -277,7 +304,6 @@ def identity_ops(context: ComposeContext, action: str) -> None:
         "run",
         "--rm",
         "--no-deps",
-        *test_users,
         "identity-ops",
         command,
     )
@@ -322,7 +348,6 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
     elif command == "adoption-check":
         print(json.dumps(adoption_status(context), indent=2, sort_keys=True))
     elif command == "up":
-        test_user_volume(context)
         script(context, "init_secrets.py")
         script(context, "render_config.py")
         prepare(context)

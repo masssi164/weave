@@ -9,6 +9,7 @@ java {
 
 dependencies {
     api project(':weave-application-core')
+    api project(':weave-files-core')
     api platform(libs.spring.boot.bom)
     api 'jakarta.persistence:jakarta.persistence-api'
     api 'org.springframework.data:spring-data-jpa'

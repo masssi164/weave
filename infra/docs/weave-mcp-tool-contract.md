@@ -16,7 +16,7 @@ production-ready Weaver or autonomous-action claim.
   reconciliation.
 - The cell uses the MCP Client Credentials extension
   `io.modelcontextprotocol/oauth-client-credentials`. It presents a short-lived RFC 9068
-  `at+jwt` access token with the exact MCP audience, the `weaver-runtime` role, `mcp:tools`, and
+  `at+jwt` access token with the exact MCP audience, the `weaver-runtime` role, `mcp.tools`, and
   only the domain scopes granted by its current RuntimeProfile.
 - The edge publishes OAuth Protected Resource Metadata at
   `/.well-known/oauth-protected-resource/mcp`. Missing bearer tokens receive a discoverable

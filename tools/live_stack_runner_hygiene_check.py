@@ -10,7 +10,6 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/live-stack-e2e.yml"
 DOGFOOD_DEPLOY_WORKFLOW = ROOT / ".github/workflows/test-stack-deploy.yml"
 DOGFOOD_MEMBER_WORKFLOW = ROOT / ".github/workflows/dogfood-member.yml"
-DOGFOOD_RECOVERY_WORKFLOW = ROOT / ".github/workflows/dogfood-pending-identity-recovery.yml"
 IOS_DOGFOOD_WORKFLOW = ROOT / ".github/workflows/ios-dogfood.yml"
 PERSISTENT_RESOURCE_GUARD = ROOT / "tools/persistent_dogfood_resource_guard.sh"
 TEST_APP = ROOT / "gradle/tasks/test-app.sh"
@@ -25,7 +24,6 @@ def main() -> int:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     deployment = DOGFOOD_DEPLOY_WORKFLOW.read_text(encoding="utf-8")
     member = DOGFOOD_MEMBER_WORKFLOW.read_text(encoding="utf-8")
-    recovery = DOGFOOD_RECOVERY_WORKFLOW.read_text(encoding="utf-8")
     ios = IOS_DOGFOOD_WORKFLOW.read_text(encoding="utf-8")
     guard = PERSISTENT_RESOURCE_GUARD.read_text(encoding="utf-8")
     test_app = TEST_APP.read_text(encoding="utf-8")
@@ -44,7 +42,7 @@ def main() -> int:
     positions = [workflow.index(step) for step in ordered_steps]
     require(positions == sorted(positions), "product-flow stages are misordered")
 
-    for document in (workflow, deployment, member, recovery, ios):
+    for document in (workflow, deployment, member, ios):
         require(
             "group: weave-live-mac-mini-exclusive" in document,
             "all Mac runner mutators must share the exclusive lock",
@@ -66,7 +64,7 @@ def main() -> int:
     )
     require(
         "./gradlew --no-daemon testApp" in workflow
-        and "WEAVE_TEST_APP_EVIDENCE_PATH" in workflow,
+        and "WEAVE_TEST_APP_OUTPUT_ROOT" in workflow,
         "the workflow must use the one authoritative Fresh product-flow task",
     )
     for marker in (
@@ -107,11 +105,12 @@ def main() -> int:
         require(forbidden not in workflow, f"obsolete credential lane remains: {forbidden}")
 
     require(
-        "prepare-product-flow" in test_app
-        and "product-flow context contains a human credential file" in test_app
-        and "WEAVE_REMOVE_VOLUMES=true" in test_app
+        "prepare_test_app_context.py" in test_app
+        and "WEAVE_E2E_STACK_SCOPE=isolated" in test_app
+        and "cleanup_test_app_runtime.py" in test_app
+        and "teardown.sh" in test_app
         and "trap cleanup EXIT" in test_app,
-        "testApp must own credential rejection and exact cleanup",
+        "testApp must own isolated context creation and exact cleanup",
     )
     print("live-stack-runner-hygiene: ok product-flow=credential-free cleanup=exact")
     return 0

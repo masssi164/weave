@@ -64,8 +64,8 @@ Capability readiness is intentionally conservative:
 
 Boards remains a Weave product facade. OpenProject is the first provider-backed workspace-sync engine, not the visible product UX. Runtime defaults are fail-closed and local-workspace unless explicitly configured by infra/operator env.
 
-- `WEAVE_BOARDS_RUNTIME_ENABLED`: enables authenticated Boards workspace routes, defaults to `false`; `WEAVE_BOARDS_WORKSPACE_RUNTIME_ENABLED` is accepted only as a workspace-name compatibility alias.
-- `WEAVE_BOARDS_PROVIDER`: backend provider, defaults to `local-workspace`; `WEAVE_BOARDS_WORKSPACE_PROVIDER` is accepted only as a workspace-name compatibility alias. Legacy preview env names are not runtime fallbacks.
+- `WEAVE_BOARDS_RUNTIME_ENABLED`: enables authenticated Boards workspace routes and defaults to `false`.
+- `WEAVE_BOARDS_PROVIDER`: selects the backend provider and defaults to `local-workspace`.
 - `WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED`: OpenProject provider runtime gate, defaults to `false`.
 - `WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED`: OpenProject workspace-sync gate, defaults to `false`.
 - `WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED`: Context/Space authorization gate for provider references, defaults to `false`; must be `true` before OpenProject workspace-sync is reachable.
@@ -96,7 +96,7 @@ The app never sends raw Nextcloud credentials to this backend. Files operations 
 - `WEAVE_NEXTCLOUD_FILES_ACTOR_MODEL`: backend-to-Nextcloud token model, currently only `backend-service-account`; other values fail closed until implemented.
 - `WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME`: backend-owned Nextcloud actor username for WebDAV calls. Blank keeps the facade unavailable.
 - `WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN`: backend-owned Nextcloud app password/token for WebDAV calls. Blank keeps the facade unavailable.
-- `WEAVE_NEXTCLOUD_FILES_APP_PASSWORD`: compatibility alias used when `WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN` is blank.
+- `WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN`: provider actor token supplied through the canonical SecretRef wiring.
 - `WEAVE_NEXTCLOUD_FILES_WEBDAV_ROOT_PATH`: Nextcloud WebDAV files root path, defaults to `/remote.php/dav/files`.
 
 If the actor model, username, or token is missing, files endpoints fail closed with `nextcloud-adapter-not-configured`. The northbound WebDAV facade implements listing with quota, folder creation, upload, download, delete, guarded copy/move, and lock/unlock behavior. Provider-native sharing is not part of that member data plane.

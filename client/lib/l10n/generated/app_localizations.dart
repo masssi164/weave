@@ -104,24 +104,6 @@ abstract class AppLocalizations {
   /// **'Weave'**
   String get appTitle;
 
-  /// Main heading on the welcome screen
-  ///
-  /// In en, this message translates to:
-  /// **'Welcome to Weave'**
-  String get welcomeTitle;
-
-  /// Subtitle text below the welcome heading
-  ///
-  /// In en, this message translates to:
-  /// **'Join your organization through an invite or sign-in handoff. Provider setup stays with your admins.'**
-  String get welcomeSubtitle;
-
-  /// Label for the primary CTA on the welcome screen
-  ///
-  /// In en, this message translates to:
-  /// **'Join your organization'**
-  String get continueButton;
-
   /// Title for the setup flow screen
   ///
   /// In en, this message translates to:
@@ -5742,7 +5724,7 @@ abstract class AppLocalizations {
   /// Description for the normal member handoff-first setup screen
   ///
   /// In en, this message translates to:
-  /// **'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.'**
+  /// **'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you for technical service settings.'**
   String get setupMemberHandoffDescription;
 
   /// Organization access input label
@@ -5846,6 +5828,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.'**
   String get memberHandoffErrorGuidance;
+
+  /// Support-safe guidance after sign-in from a consumed member handoff fails
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in did not complete. Try again in the system browser or ask your workspace admin to verify your access.'**
+  String get memberHandoffSignInRetryGuidance;
 
   /// Support-safe guidance when member handoff consumption fails because platform config TLS trust is missing
   ///

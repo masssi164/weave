@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.matrix;
 
-import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixE2eeSnapshotEntity;
+import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixE2eeSnapshotJpaEntity;
 import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixE2eeSnapshotJpaRepository;
 import java.time.Clock;
 import java.util.Optional;
@@ -35,7 +35,7 @@ public class MatrixE2eeSnapshotStore {
         if (repository == null) {
             return;
         }
-        repository.saveAndFlush(new MatrixE2eeSnapshotEntity(
+        repository.saveAndFlush(new MatrixE2eeSnapshotJpaEntity(
                 tenantId, sequence, payloadJson, clock.instant()));
     }
 

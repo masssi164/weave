@@ -16,6 +16,7 @@ include 'weave-application-core',
         'weave-persistence-jpa',
         'weave-runtime-provider-adapters',
         'weave-runtime-security-adapters',
+        'infra',
         'server',
         'weave-mcp-server',
         'weave-product-e2e'

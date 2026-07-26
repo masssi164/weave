@@ -11,7 +11,7 @@ ServerConfiguration buildTestConfiguration({
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
   String matrixHomeserverUrl = 'https://api.home.internal',
-  String nextcloudBaseUrl = 'https://files.home.internal',
+  String nextcloudBaseUrl = 'https://api.home.internal/dav/files',
   String backendApiBaseUrl = 'https://api.home.internal/api',
 }) {
   return ServerConfiguration(
@@ -31,7 +31,7 @@ String encodeTestConfiguration({
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
   String matrixHomeserverUrl = 'https://api.home.internal',
-  String nextcloudBaseUrl = 'https://files.home.internal',
+  String nextcloudBaseUrl = 'https://api.home.internal/dav/files',
   String? backendApiBaseUrl = 'https://api.home.internal/api',
 }) {
   final json = <String, Object?>{
@@ -53,7 +53,7 @@ Map<String, Object> buildStoredConfiguration({
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
   String matrixHomeserverUrl = 'https://api.home.internal',
-  String nextcloudBaseUrl = 'https://files.home.internal',
+  String nextcloudBaseUrl = 'https://api.home.internal/dav/files',
   String? backendApiBaseUrl = 'https://api.home.internal/api',
 }) {
   return {

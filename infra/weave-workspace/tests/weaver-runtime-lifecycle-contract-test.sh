@@ -38,7 +38,7 @@ jq -e '
   and .identity.soleRealmRole == "weaver-runtime"
   and .identity.clientRolesAllowed == false
   and .identity.profileFetch.soleScope == "agent-runtime.profile.read"
-  and .identity.mcp.requiredBaseScope == "mcp:tools"
+  and .identity.mcp.requiredBaseScope == "mcp.tools"
   and .identity.mcp.domainScopesFromCurrentRuntimeProfile == true
   and .identity.mcp.accessTokenType == "at+jwt"
   and .identity.mcp.clientCredentialsExtension == "io.modelcontextprotocol/oauth-client-credentials"

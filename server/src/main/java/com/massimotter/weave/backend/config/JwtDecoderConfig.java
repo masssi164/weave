@@ -74,8 +74,7 @@ public class JwtDecoderConfig {
 
     @Bean("agentRuntimeAdminJwtDecoder")
     @ConditionalOnExpression(
-            "'${weave.agent-runtime.storage.mode:disabled}' == 'jpa'"
-                    + " && '${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
+            "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
                     + " && '${weave.agent-runtime.policy.enabled:false}' == 'true'"
                     + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'"
                     + " && '${weave.agent-runtime.state-store.enabled:false}' == 'true'")
@@ -94,7 +93,6 @@ public class JwtDecoderConfig {
     }
 
     @Bean("agentRuntimeProfileJwtDecoder")
-    @ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jpa")
     JwtDecoder agentRuntimeProfileJwtDecoder(
             OAuth2ResourceServerProperties resourceServerProperties,
             PlatformContractProperties platform) {

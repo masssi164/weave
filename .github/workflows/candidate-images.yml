@@ -25,13 +25,30 @@ jobs:
     name: Test, attest, and publish exact candidate
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    env:
+      WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/canonical-weave-specs
     outputs:
       server_digest: ${{ steps.server.outputs.digest }}
       mcp_digest: ${{ steps.mcp.outputs.digest }}
+      identity_ops_digest: ${{ steps.identity_ops.outputs.digest }}
 
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@v5
+
+      - name: Resolve pinned specification corpus
+        id: spec
+        run: |
+          set -euo pipefail
+          echo "commit=$(jq -er '.specCorpus.gitCommit | select(test(\"^[0-9a-f]{40}$\"))' specs/weave-specs.lock.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out pinned Weave Specification Corpus
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ github.repository_owner }}/weave-specs
+          ref: ${{ steps.spec.outputs.commit }}
+          path: canonical-weave-specs
+          persist-credentials: false
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -130,8 +147,8 @@ jobs:
         id: identity_ops
         uses: docker/build-push-action@v7
         with:
-          context: .
-          file: infra/identity-ops/Dockerfile
+          context: infra/weave-workspace/keycloak
+          file: Dockerfile.identity-ops
           platforms: linux/amd64
           push: true
           provenance: mode=max
@@ -189,8 +206,8 @@ jobs:
             "${IDENTITY_OPS_IMAGE}@${{ steps.identity_ops.outputs.digest }}" \
             "Weave Identity Ops" \
             "identity-ops" \
-            "65532:65532" \
-            "alpine-3.22.1-opentofu-1.10.6-keycloak-provider"
+            "1000:1000" \
+            "keycloak-26.7-kcadm-python3"
 
       - name: Resolve exact OCI attestation digests
         shell: bash
@@ -259,6 +276,8 @@ jobs:
     env:
       WEAVE_TEST_APP_SERVER_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-server@${{ needs.build-candidate.outputs.server_digest }}
       WEAVE_TEST_APP_MCP_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-mcp-server@${{ needs.build-candidate.outputs.mcp_digest }}
+      WEAVE_TEST_APP_IDENTITY_OPS_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-identity-ops@${{ needs.build-candidate.outputs.identity_ops_digest }}
+      WEAVE_TEST_APP_OUTPUT_ROOT: ${{ github.workspace }}/weave/build/test-app
       WEAVE_TEST_APP_RUN_ID: candidate-${{ github.run_id }}-${{ github.run_attempt }}
       WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
       WEAVE_CANDIDATE_EVIDENCE_REF: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -266,6 +285,22 @@ jobs:
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@v5
+        with:
+          path: weave
+
+      - name: Resolve pinned specification corpus
+        id: spec
+        working-directory: weave
+        run: |
+          echo "commit=$(jq -er '.specCorpus.gitCommit | select(test(\"^[0-9a-f]{40}$\"))' specs/weave-specs.lock.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out pinned Weave Specification Corpus
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ github.repository_owner }}/weave-specs
+          ref: ${{ steps.spec.outputs.commit }}
+          path: weave-specs
+          persist-credentials: false
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -288,6 +323,7 @@ jobs:
           password: ${{ github.token }}
 
       - name: Run the isolated Fresh product proof
+        working-directory: weave
         run: ./gradlew --no-daemon testApp
 
       - name: Upload support-safe Fresh evidence
@@ -296,8 +332,7 @@ jobs:
         with:
           name: fresh-product-proof-${{ github.sha }}
           path: |
-            build/test-app/*/identity-manifest.json
-            build/test-app/*/test-app-product-flow.json
-            build/test-app/*/test-app-teardown.json
+            weave/build/test-app/*/weave-test-app-evidence.json
+            weave/build/test-app/*/teardown-evidence.json
           if-no-files-found: warn
           retention-days: 30

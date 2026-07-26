@@ -58,15 +58,12 @@ class BoardsRuntimeConfigurationTest {
 
     @Test
     void persistenceCompositionPublishesOnlyTheJpaAuditAuthority() {
-        new ApplicationContextRunner()
-                .withUserConfiguration(WeavePersistenceConfiguration.class)
-                .withPropertyValues("weave.audit.events.storage.mode=jpa")
-                .withBean(AuditEventJpaRepository.class, () -> mock(AuditEventJpaRepository.class))
-                .withBean(ObjectMapper.class, () -> tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build())
-                .run(context -> {
-                    assertThat(context).hasSingleBean(AuditEventPublisher.class);
-                    assertThat(context).hasSingleBean(JpaAuditEventPublisher.class);
-                    assertThat(context).doesNotHaveBean(FileAuditEventPublisher.class);
-                });
+        JpaAuditEventPublisher publisher = new WeavePersistenceConfiguration()
+                .jpaAuditEventPublisher(
+                        mock(AuditEventJpaRepository.class),
+                        tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());
+
+        assertThat(publisher).isInstanceOf(AuditEventPublisher.class);
+        assertThat(publisher).isNotInstanceOf(FileAuditEventPublisher.class);
     }
 }

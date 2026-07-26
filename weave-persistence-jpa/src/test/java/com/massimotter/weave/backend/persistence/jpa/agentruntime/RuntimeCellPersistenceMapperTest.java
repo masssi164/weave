@@ -1,4 +1,4 @@
-package com.massimotter.weave.backend.persistence.jpa.agentruntime;
+package com.massimotter.weave.backend.agentruntime.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -7,12 +7,10 @@ import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
-import org.mapstruct.factory.Mappers;
 
 class RuntimeCellPersistenceMapperTest {
 
-  private final RuntimeCellPersistenceMapper mapper =
-      Mappers.getMapper(RuntimeCellPersistenceMapper.class);
+  private final RuntimeCellPersistenceMapper mapper = RuntimeCellPersistenceMapper.INSTANCE;
 
   @Test
   void mapsEveryCanonicalFieldThroughTheFlattenedJpaRepresentation() {
@@ -36,7 +34,7 @@ class RuntimeCellPersistenceMapperTest {
             "audit:1",
             now);
 
-    RuntimeCellEntity entity = mapper.toEntity(domain);
+    RuntimeCellJpaEntity entity = mapper.toEntity(domain);
     RuntimeCell restored = mapper.toDomain(entity);
 
     assertThat(restored).isEqualTo(domain);

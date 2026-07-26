@@ -206,7 +206,7 @@ class ChatControllerTest {
                 }
                 """;
 
-        mockMvc.perform(post("/api/v1/chat/conversations/channel-general/decisions")
+        mockMvc.perform(post("/api/chat/conversations/channel-general/decisions")
                         .with(workspaceJwt("member"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
@@ -221,7 +221,7 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$..roomId").doesNotExist())
                 .andExpect(jsonPath("$..providerUrl").doesNotExist());
 
-        mockMvc.perform(get("/api/v1/chat/conversations/channel-general/decisions")
+        mockMvc.perform(get("/api/chat/conversations/channel-general/decisions")
                         .with(workspaceJwt("member")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.backgroundRoomReadingEnabled").value(false))
@@ -247,7 +247,7 @@ class ChatControllerTest {
                 }
                 """;
 
-        mockMvc.perform(post("/api/v1/chat/conversations/channel-general/meeting-capsules")
+        mockMvc.perform(post("/api/chat/conversations/channel-general/meeting-capsules")
                         .with(workspaceJwt("member"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
@@ -264,7 +264,7 @@ class ChatControllerTest {
                 .andExpect(content().string(not(containsString("livekit://"))))
                 .andExpect(content().string(not(containsString("access_token"))));
 
-        mockMvc.perform(get("/api/v1/chat/conversations/channel-general/meeting-capsules")
+        mockMvc.perform(get("/api/chat/conversations/channel-general/meeting-capsules")
                         .with(workspaceJwt("member")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.failClosed").value(true))

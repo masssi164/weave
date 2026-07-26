@@ -46,6 +46,8 @@ class OrganizationAccess {
 
   String get organizationLabel =>
       handoff?.organizationSlug ?? organizationOrigin.host;
+
+  String get workspaceLabel => handoff?.workspaceSlug ?? organizationLabel;
 }
 
 class OrganizationAccessParser {

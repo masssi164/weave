@@ -34,13 +34,18 @@ import org.springframework.web.util.UriUtils;
  */
 @Component
 public class KeycloakIdentityAdminClient {
-  private static final String PRODUCT_CLIENT_ID = "weave-app";
+  private static final Map<String, String> ROLE_GROUP_PATHS =
+      Map.of(
+          "owner", "/owners",
+          "admin", "/admins",
+          "member", "/members",
+          "guest", "/guests");
+  private static final String WEAVER_GROUP_PATH = "/capabilities/weaver";
 
   private final IdentityInvitationProperties properties;
   private final ObjectMapper objectMapper;
   private final RestClient restClient;
   private volatile String resolvedOrganizationId;
-  private volatile String resolvedProductClientUuid;
 
   public KeycloakIdentityAdminClient(
       IdentityInvitationProperties properties,
@@ -236,15 +241,21 @@ public class KeycloakIdentityAdminClient {
       String organizationId,
       String subject,
       String role,
-      List<String> requestedCapabilities,
       boolean enabled) {
     requireMember(organizationId, subject);
-    if (!List.of("owner", "admin", "member", "guest").contains(role)) {
+    if (!ROLE_GROUP_PATHS.containsKey(role)) {
       throw new IllegalArgumentException("Unsupported Weave product role");
     }
-    setExactProductRole(subject, role);
-    setExactCapabilities(subject, requestedCapabilities);
+    setExactProductRole(organizationId, subject, role);
     setEnabled(subject, enabled);
+    return requireMember(organizationId, subject);
+  }
+
+  public ProviderMember setWeaverEntitlement(
+      String organizationId, String subject, boolean entitled) {
+    requireMember(organizationId, subject);
+    setOrganizationGroupMembership(
+        organizationId, subject, WEAVER_GROUP_PATH, entitled);
     return requireMember(organizationId, subject);
   }
 
@@ -265,8 +276,6 @@ public class KeycloakIdentityAdminClient {
   public void offboard(String organizationId, String subject) {
     requireMember(organizationId, subject);
     revokeSessions(organizationId, subject);
-    removeAllProductRoles(subject);
-    setExactCapabilities(subject, List.of());
     request(
         HttpMethod.DELETE,
         adminPath(
@@ -277,57 +286,26 @@ public class KeycloakIdentityAdminClient {
     setEnabled(subject, false);
   }
 
-  /** Fails before an invitation is issued when a product capability has no exact projection. */
-  public void validateCapabilities(List<String> capabilities) {
-    projectedGroupNames(capabilities);
-  }
-
-  public void applyRoleAndCapabilities(
-      String subject, String role, List<String> requestedCapabilities) {
-    String productClientUuid = productClientUuid();
-    JsonNode roleRepresentation =
-        json(
-            request(
-                HttpMethod.GET,
-                adminPath("/clients/" + path(productClientUuid) + "/roles/" + path(role)),
-                null,
-                null,
-                200));
-    request(
-        HttpMethod.POST,
-        adminPath("/users/" + path(subject) + "/role-mappings/clients/" + path(productClientUuid)),
-        "[" + roleRepresentation + "]",
-        MediaType.APPLICATION_JSON,
-        204);
-
-    for (String groupName : projectedGroupNames(requestedCapabilities)) {
-      String canonicalPath = canonicalGroupPath(groupName);
-      JsonNode group =
-          exactlyOne(
-              values(
-                      json(
-                          request(
-                              HttpMethod.GET,
-                              adminPath("/groups?search=" + query(groupName) + "&exact=true"),
-                              null,
-                              null,
-                              200)))
-                  .filter(candidate -> canonicalPath.equals(candidate.path("path").asString()))
-                  .toList(),
-              "canonical group " + canonicalPath);
-      request(
-          HttpMethod.PUT,
-          adminPath("/users/" + path(subject) + "/groups/" + path(group.path("id").asString())),
-          null,
-          null,
-          204);
+  public void applyRole(String subject, String role) {
+    if (!ROLE_GROUP_PATHS.containsKey(role)) {
+      throw new IllegalArgumentException("Unsupported Weave product role");
     }
+    setExactProductRole(configuredOrganizationId(), subject, role);
   }
 
   private ProviderMember toMember(String organizationId, JsonNode user) {
     String subject = requiredUser(user, "id");
-    List<String> roles = productRoles(subject);
-    List<String> capabilities = projectedCapabilities(subject);
+    Set<String> groupPaths = organizationMemberGroupPaths(organizationId, subject);
+    List<String> roles =
+        ROLE_GROUP_PATHS.entrySet().stream()
+            .filter(entry -> groupPaths.contains(entry.getValue()))
+            .map(Map.Entry::getKey)
+            .sorted()
+            .toList();
+    List<String> capabilities =
+        groupPaths.contains(WEAVER_GROUP_PATH)
+            ? List.of("agent-runtime.entitled")
+            : List.of();
     String firstName = user.path("firstName").asString("");
     String lastName = user.path("lastName").asString("");
     String displayName = (firstName + " " + lastName).trim();
@@ -340,155 +318,73 @@ public class KeycloakIdentityAdminClient {
         user.path("enabled").asBoolean(true));
   }
 
-  private List<String> productRoles(String subject) {
+  private void setExactProductRole(String organizationId, String subject, String role) {
+    String requestedPath = ROLE_GROUP_PATHS.get(role);
+    Set<String> currentPaths = organizationMemberGroupPaths(organizationId, subject);
+    for (String groupPath : ROLE_GROUP_PATHS.values()) {
+      boolean requested = requestedPath.equals(groupPath);
+      boolean current = currentPaths.contains(groupPath);
+      if (requested != current) {
+        setOrganizationGroupMembership(organizationId, subject, groupPath, requested);
+      }
+    }
+  }
+
+  private Set<String> organizationMemberGroupPaths(String organizationId, String subject) {
     return values(
             json(
                 request(
                     HttpMethod.GET,
                     adminPath(
-                        "/users/"
+                        "/organizations/"
+                            + path(organizationId)
+                            + "/members/"
                             + path(subject)
-                            + "/role-mappings/clients/"
-                            + path(productClientUuid())),
+                            + "/groups?briefRepresentation=true"),
                     null,
                     null,
                     200)))
-        .map(role -> role.path("name").asString(""))
-        .filter(List.of("owner", "admin", "member", "guest")::contains)
-        .distinct()
-        .sorted()
-        .toList();
+        .map(group -> group.path("path").asString(""))
+        .filter(groupPath -> !groupPath.isBlank())
+        .collect(java.util.stream.Collectors.toUnmodifiableSet());
   }
 
-  private List<String> projectedCapabilities(String subject) {
-    Set<String> groupPaths =
-        values(
-                json(
-                    request(
-                        HttpMethod.GET,
-                        adminPath("/users/" + path(subject) + "/groups?briefRepresentation=true"),
-                        null,
-                        null,
-                        200)))
-            .map(group -> group.path("path").asString(""))
-            .collect(java.util.stream.Collectors.toSet());
-    return properties.keycloak().capabilityGroupProjections().entrySet().stream()
-        .filter(entry -> groupPaths.contains(canonicalGroupPath(entry.getValue())))
-        .map(Map.Entry::getKey)
-        .sorted()
-        .toList();
-  }
-
-  private void setExactProductRole(String subject, String role) {
-    removeAllProductRoles(subject);
-    JsonNode roleRepresentation =
-        json(
-            request(
-                HttpMethod.GET,
-                adminPath(
-                    "/clients/"
-                        + path(productClientUuid())
-                        + "/roles/"
-                        + path(role)),
-                null,
-                null,
-                200));
+  private void setOrganizationGroupMembership(
+      String organizationId, String subject, String groupPath, boolean member) {
+    JsonNode group = resolveOrganizationGroup(organizationId, groupPath);
     request(
-        HttpMethod.POST,
+        member ? HttpMethod.PUT : HttpMethod.DELETE,
         adminPath(
-            "/users/"
-                + path(subject)
-                + "/role-mappings/clients/"
-                + path(productClientUuid())),
-        "[" + roleRepresentation + "]",
-        MediaType.APPLICATION_JSON,
+            "/organizations/"
+                + path(organizationId)
+                + "/groups/"
+                + path(group.path("id").asString())
+                + "/members/"
+                + path(subject)),
+        null,
+        null,
         204);
   }
 
-  private void removeAllProductRoles(String subject) {
-    List<JsonNode> assigned =
+  private JsonNode resolveOrganizationGroup(String organizationId, String groupPath) {
+    String leaf = groupPath.substring(groupPath.lastIndexOf('/') + 1);
+    return exactlyOne(
         values(
                 json(
                     request(
                         HttpMethod.GET,
                         adminPath(
-                            "/users/"
-                                + path(subject)
-                                + "/role-mappings/clients/"
-                                + path(productClientUuid())),
+                            "/organizations/"
+                                + path(organizationId)
+                                + "/groups?search="
+                                + query(leaf)
+                                + "&exact=true"),
                         null,
                         null,
                         200)))
-            .filter(
-                role ->
-                    List.of("owner", "admin", "member", "guest")
-                        .contains(role.path("name").asString("")))
-            .toList();
-    if (!assigned.isEmpty()) {
-      request(
-          HttpMethod.DELETE,
-          adminPath(
-              "/users/"
-                  + path(subject)
-                  + "/role-mappings/clients/"
-                  + path(productClientUuid())),
-          assigned.toString(),
-          MediaType.APPLICATION_JSON,
-          204);
-    }
-  }
-
-  private void setExactCapabilities(String subject, List<String> requestedCapabilities) {
-    List<String> requestedGroupNames = projectedGroupNames(requestedCapabilities);
-    Map<String, String> groupIds = new java.util.LinkedHashMap<>();
-    for (String groupName : properties.keycloak().capabilityGroupProjections().values()) {
-      String canonicalPath = canonicalGroupPath(groupName);
-      JsonNode group =
-          exactlyOne(
-              values(
-                      json(
-                          request(
-                              HttpMethod.GET,
-                              adminPath("/groups?search=" + query(groupName) + "&exact=true"),
-                              null,
-                              null,
-                              200)))
-                  .filter(candidate -> canonicalPath.equals(candidate.path("path").asString()))
-                  .toList(),
-              "canonical group " + canonicalPath);
-      groupIds.put(groupName, group.path("id").asString());
-    }
-    Set<String> currentGroupIds =
-        values(
-                json(
-                    request(
-                        HttpMethod.GET,
-                        adminPath("/users/" + path(subject) + "/groups?briefRepresentation=true"),
-                        null,
-                        null,
-                        200)))
-            .map(group -> group.path("id").asString(""))
-            .filter(value -> !value.isBlank())
-            .collect(java.util.stream.Collectors.toSet());
-    for (Map.Entry<String, String> group : groupIds.entrySet()) {
-      boolean requested = requestedGroupNames.contains(group.getKey());
-      boolean current = currentGroupIds.contains(group.getValue());
-      if (requested && !current) {
-        request(
-            HttpMethod.PUT,
-            adminPath("/users/" + path(subject) + "/groups/" + path(group.getValue())),
-            null,
-            null,
-            204);
-      } else if (!requested && current) {
-        request(
-            HttpMethod.DELETE,
-            adminPath("/users/" + path(subject) + "/groups/" + path(group.getValue())),
-            null,
-            null,
-            204);
-      }
-    }
+            .filter(candidate -> groupPath.equals(candidate.path("path").asString()))
+            .toList(),
+        "organization group " + groupPath);
   }
 
   private void setEnabled(String subject, boolean enabled) {
@@ -507,29 +403,6 @@ public class KeycloakIdentityAdminClient {
         user.toString(),
         MediaType.APPLICATION_JSON,
         204);
-  }
-
-  private String productClientUuid() {
-    String cached = resolvedProductClientUuid;
-    if (cached != null) {
-      return cached;
-    }
-    JsonNode productClient =
-        exactlyOne(
-            values(
-                    json(
-                        request(
-                            HttpMethod.GET,
-                            adminPath("/clients?clientId=" + query(PRODUCT_CLIENT_ID)),
-                            null,
-                            null,
-                            200)))
-                .filter(client -> PRODUCT_CLIENT_ID.equals(client.path("clientId").asString()))
-                .toList(),
-            "product client");
-    String resolved = productClient.path("id").asString();
-    resolvedProductClientUuid = resolved;
-    return resolved;
   }
 
   private List<ProviderInvitation> list(String organizationId, String email) {
@@ -676,47 +549,6 @@ public class KeycloakIdentityAdminClient {
   private String invitationPath(String organizationId, String invitationId) {
     return adminPath(
         "/organizations/" + path(organizationId) + "/invitations/" + path(invitationId));
-  }
-
-  private List<String> projectedGroupNames(List<String> capabilities) {
-    if (capabilities == null || capabilities.isEmpty()) {
-      return List.of();
-    }
-    Set<String> requested = new LinkedHashSet<>();
-    for (String capability : capabilities) {
-      if (capability == null || capability.isBlank()) {
-        throw new IllegalArgumentException("A product capability identifier is required");
-      }
-      requested.add(capability.trim().toLowerCase(Locale.ROOT));
-    }
-
-    var projections = properties.keycloak().capabilityGroupProjections();
-    return requested.stream()
-        .map(
-            capability -> {
-              String groupName = projections.get(capability);
-              if (groupName == null || groupName.isBlank()) {
-                throw new IllegalArgumentException(
-                    "Unsupported product capability in identity invitation");
-              }
-              canonicalGroupPath(groupName);
-              return groupName;
-            })
-        .distinct()
-        .toList();
-  }
-
-  private static String canonicalGroupPath(String configuredGroupName) {
-    if (configuredGroupName == null || configuredGroupName.isBlank()) {
-      throw new IllegalStateException("A configured Keycloak capability group is required");
-    }
-    String normalized = configuredGroupName.trim();
-    if (normalized.startsWith("/")
-        || normalized.contains("/")
-        || !normalized.matches("[a-z0-9][a-z0-9._-]{0,159}")) {
-      throw new IllegalStateException("Configured Keycloak capability group must be flat");
-    }
-    return "/" + normalized;
   }
 
   private static String[] splitName(String displayName) {

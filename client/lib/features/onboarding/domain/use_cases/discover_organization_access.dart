@@ -375,6 +375,14 @@ class AppStartDiscoveryClient {
       json['controlPlaneBaseUrl'],
       fieldName: 'controlPlaneBaseUrl',
     );
+    final controlPlaneSegments = controlPlaneBaseUrl.pathSegments
+        .where((segment) => segment.trim().isNotEmpty)
+        .toList(growable: false);
+    if (controlPlaneSegments.isEmpty || controlPlaneSegments.last != 'api') {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: controlPlaneBaseUrl must end in /api.',
+      );
+    }
     final matrixClientServerBaseUrl = _uri(
       protocols['matrixClientServerBaseUrl'],
       fieldName: 'protocols.matrixClientServerBaseUrl',
@@ -395,9 +403,15 @@ class AppStartDiscoveryClient {
       protocols['calendarCalDavBaseUrl'],
       fieldName: 'protocols.calendarCalDavBaseUrl',
     );
-    _requireFacadePath(filesWebDavBaseUrl, '/dav/files', 'filesWebDavBaseUrl');
-    _requireFacadePath(
+    _requireFacade(
+      filesWebDavBaseUrl,
+      expectedMatrixFacadeUrl,
+      '/dav/files',
+      'filesWebDavBaseUrl',
+    );
+    _requireFacade(
       calendarCalDavBaseUrl,
+      expectedMatrixFacadeUrl,
       '/caldav',
       'calendarCalDavBaseUrl',
     );
@@ -431,10 +445,15 @@ class AppStartDiscoveryClient {
     }
   }
 
-  void _requireFacadePath(Uri uri, String suffix, String fieldName) {
-    if (!uri.path.endsWith(suffix) && !uri.path.contains('$suffix/')) {
+  void _requireFacade(
+    Uri uri,
+    Uri expectedOrigin,
+    String path,
+    String fieldName,
+  ) {
+    if (_apiOrigin(uri) != expectedOrigin || uri.path != path) {
       throw AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: protocols.$fieldName must use the Weave $suffix facade.',
+        'WEAVE-APP-START-DISCOVERY-INVALID: protocols.$fieldName must use the canonical Weave $path facade.',
       );
     }
   }

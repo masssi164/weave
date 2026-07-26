@@ -4541,62 +4541,6 @@
       ]
     },
     {
-      "tag": "@matrix-synapse-durable-collaboration",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member",
-        "operator"
-      ],
-      "domains": [
-        "chat",
-        "operator-release"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "direct provider acknowledgement",
-        "opaque encrypted events",
-        "backend restart",
-        "provider restart",
-        "outsider denial"
-      ]
-    },
-    {
-      "tag": "@matrix-synapse-outage-idempotency",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member",
-        "operator"
-      ],
-      "domains": [
-        "chat",
-        "admin-health-ops",
-        "operator-release"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "provider outage containment",
-        "invisible pending event",
-        "exactly-once retry",
-        "provider callback replay"
-      ]
-    },
-    {
-      "tag": "@human-ready-legacy-upgrade",
-      "suiteId": "v0-1-dogfood-release-spine",
-      "personas": [
-        "member"
-      ],
-      "domains": [
-        "spaces"
-      ],
-      "testLevel": "offline-contract",
-      "assertionFocus": [
-        "legacy storage upgrade",
-        "session preservation",
-        "obsolete first-run architecture absent"
-      ]
-    },
-    {
       "tag": "@human-ready-dogfood-deployment",
       "suiteId": "member-live-critical-path",
       "personas": [

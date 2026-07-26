@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# shellcheck disable=SC2154
 
 set -euo pipefail
 
 REPOSITORY_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly REPOSITORY_ROOT
 readonly WORKSPACE_ROOT="${REPOSITORY_ROOT}/infra/weave-workspace"
-readonly IDENTITY_LIFECYCLE="${WORKSPACE_ROOT}/isolated-e2e-identities.sh"
-readonly INSTALL_SCRIPT="${WORKSPACE_ROOT}/install.sh"
-readonly TEARDOWN_SCRIPT="${WORKSPACE_ROOT}/teardown.sh"
+readonly CONTEXT_HELPER="${REPOSITORY_ROOT}/gradle/scripts/prepare_test_app_context.py"
+readonly RUNTIME_CLEANUP="${REPOSITORY_ROOT}/gradle/scripts/cleanup_test_app_runtime.py"
+readonly COMPOSE="${WORKSPACE_ROOT}/compose.sh"
+readonly TEARDOWN="${WORKSPACE_ROOT}/teardown.sh"
 
 RUN_ID="${WEAVE_TEST_APP_RUN_ID:-}"
 OUTPUT_ROOT="${WEAVE_TEST_APP_OUTPUT_ROOT:-${REPOSITORY_ROOT}/build/test-app}"
 SERVER_IMAGE="${WEAVE_TEST_APP_SERVER_IMAGE:-}"
 MCP_IMAGE="${WEAVE_TEST_APP_MCP_IMAGE:-}"
+IDENTITY_OPS_IMAGE="${WEAVE_TEST_APP_IDENTITY_OPS_IMAGE:-}"
+KEYCLOAK_IMAGE="${WEAVE_TEST_APP_KEYCLOAK_IMAGE:-}"
+LOCAL_SERVER_TAG=""
+LOCAL_MCP_TAG=""
 STACK_PREPARED=false
 
 log() { printf '%s\n' "$*"; }
@@ -24,35 +28,12 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
 }
 
-file_mode() {
-  local path="$1"
-  if stat -c '%a' "${path}" >/dev/null 2>&1; then
-    stat -c '%a' "${path}"
-  else
-    stat -f '%Lp' "${path}"
-  fi
-}
-
-public_origin() {
-  local host="$1"
-  local port="${TF_VAR_proxy_host_port}"
-  if [[ "${port}" == "443" ]]; then
-    printf 'https://%s' "${host}"
-  else
-    printf 'https://%s:%s' "${host}" "${port}"
-  fi
-}
-
 image_label() {
-  local image="$1"
-  local label="$2"
-  docker image inspect --format "{{ index .Config.Labels \"${label}\" }}" "${image}"
+  docker image inspect --format "{{ index .Config.Labels \"$2\" }}" "$1"
 }
 
 validate_runtime_image() {
-  local image="$1"
-  local expected_title="$2"
-  local expected_platform="$3"
+  local image="$1" expected_title="$2" expected_platform="$3"
   [[ "$(image_label "${image}" org.opencontainers.image.title)" == "${expected_title}" ]] ||
     fail "${expected_title} image title label is invalid"
   [[ "$(image_label "${image}" org.opencontainers.image.revision)" == "${candidate_commit}" ]] ||
@@ -64,35 +45,25 @@ validate_runtime_image() {
 }
 
 cleanup() {
-  local primary_status="$?"
-  local cleanup_status=0
+  local primary_status="$?" cleanup_status=0
   trap - EXIT INT TERM
   set +e
-
-  if [[ "${STACK_PREPARED}" == "true" && -f "${WEAVE_E2E_STARTUP_ENV_PATH:-}" ]]; then
-    if [[ -f "${WEAVE_E2E_STACK_BOOTSTRAP_ENV:-}" ]]; then
-      # shellcheck disable=SC1090
-      source "${WEAVE_E2E_STACK_BOOTSTRAP_ENV}"
+  if [[ "${STACK_PREPARED}" == "true" ]]; then
+    WEAVE_TEARDOWN_EVIDENCE_FILE="${WEAVE_TEST_APP_TEARDOWN_EVIDENCE_PATH}" \
+      bash "${TEARDOWN}" test \
+        --env-file "${WEAVE_ENV_FILE}" \
+        --isolated \
+        --evidence-file "${WEAVE_TEST_APP_TEARDOWN_EVIDENCE_PATH}" ||
+      cleanup_status=$?
+    if ((cleanup_status == 0)); then
+      python3 "${RUNTIME_CLEANUP}" \
+        --repository-root "${REPOSITORY_ROOT}" \
+        --namespace "${WEAVE_E2E_RUN_NAMESPACE}" ||
+        cleanup_status=$?
     fi
-    # Reload last so immutable namespace, ownership, candidate, and port bindings
-    # cannot be redirected by generated bootstrap state.
-    # shellcheck disable=SC1090
-    source "${WEAVE_E2E_STARTUP_ENV_PATH}"
-    WEAVE_TEARDOWN_EVIDENCE_FILE="${WEAVE_E2E_OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/test-app-teardown.json" \
-      WEAVE_E2E_IDENTITY_MANIFEST_PATH="${WEAVE_E2E_IDENTITY_MANIFEST_PATH}" \
-      WEAVE_E2E_STACK_SCOPE=isolated \
-      WEAVE_REMOVE_VOLUMES=true \
-      WEAVE_CONFIRM_DESTRUCTIVE_RESET="${TF_VAR_tenant_slug}" \
-      bash "${TEARDOWN_SCRIPT}" || cleanup_status=$?
   fi
-
-  if [[ -n "${SERVER_IMAGE}" ]]; then
-    docker image rm "${SERVER_IMAGE}" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "${MCP_IMAGE}" ]]; then
-    docker image rm "${MCP_IMAGE}" >/dev/null 2>&1 || true
-  fi
-
+  [[ -z "${LOCAL_SERVER_TAG}" ]] || docker image rm "${LOCAL_SERVER_TAG}" >/dev/null 2>&1 || true
+  [[ -z "${LOCAL_MCP_TAG}" ]] || docker image rm "${LOCAL_MCP_TAG}" >/dev/null 2>&1 || true
   if ((primary_status != 0)); then
     exit "${primary_status}"
   fi
@@ -105,76 +76,56 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-for command in bash docker git java jq openssl python3 shasum tofu; do
+for command in bash docker git java jq openssl python3 shasum; do
   require_command "${command}"
 done
 docker info >/dev/null 2>&1 || fail "Docker daemon is not reachable"
 [[ -x "${REPOSITORY_ROOT}/gradlew" ]] || fail "Gradle wrapper is unavailable"
 [[ "${OUTPUT_ROOT}" == /* ]] || fail "WEAVE_TEST_APP_OUTPUT_ROOT must be absolute"
-if [[ -z "${SERVER_IMAGE}" && -z "${MCP_IMAGE}" ]]; then
-  [[ -z "$(git -C "${REPOSITORY_ROOT}" status --porcelain=v1 --untracked-files=all)" ]] ||
-    fail "local testApp image builds require a clean worktree so OCI revision labels identify exact source"
-elif [[ -n "${SERVER_IMAGE}" && -n "${MCP_IMAGE}" ]]; then
-  [[ "${SERVER_IMAGE}" =~ @sha256:[0-9a-f]{64}$ ]] ||
-    fail "WEAVE_TEST_APP_SERVER_IMAGE must be digest-pinned"
-  [[ "${MCP_IMAGE}" =~ @sha256:[0-9a-f]{64}$ ]] ||
-    fail "WEAVE_TEST_APP_MCP_IMAGE must be digest-pinned"
-else
-  fail "Server and MCP testApp image overrides must be supplied together"
-fi
-
-if [[ -z "${RUN_ID}" ]]; then
-  RUN_ID="test-app-$(date -u +%Y%m%dT%H%M%SZ)-$$-$(openssl rand -hex 4)"
-fi
-[[ "${RUN_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{7,159}$ ]] ||
-  fail "WEAVE_TEST_APP_RUN_ID is invalid"
+[[ -f "${CONTEXT_HELPER}" ]] || fail "Fresh testApp context helper is unavailable"
 
 candidate_commit="${WEAVE_CANDIDATE_COMMIT:-$(git -C "${REPOSITORY_ROOT}" rev-parse HEAD)}"
 [[ "${candidate_commit}" =~ ^[0-9a-f]{40}$ ]] ||
-  fail "the candidate commit must be a lowercase 40-character Git object ID"
-candidate_evidence_ref="${WEAVE_CANDIDATE_EVIDENCE_REF:-https://github.com/masssi164/weave/commit/${candidate_commit}}"
+  fail "the candidate commit must be an exact lowercase Git object ID"
+[[ -z "$(git -C "${REPOSITORY_ROOT}" status --porcelain=v1 --untracked-files=all)" ]] ||
+  fail "testApp requires a clean worktree so every runtime artifact identifies exact source"
+
+if [[ -z "${RUN_ID}" ]]; then
+  RUN_ID="testapp-$(date -u +%Y%m%d%H%M%S)-$$"
+fi
+[[ "${RUN_ID}" =~ ^[a-z0-9][a-z0-9-]{5,39}$ ]] ||
+  fail "WEAVE_TEST_APP_RUN_ID must match [a-z0-9][a-z0-9-]{5,39}"
 
 mkdir -p "${OUTPUT_ROOT}"
 chmod 700 "${OUTPUT_ROOT}"
-integration_variables="$(
-  WEAVE_E2E_STACK_SCOPE=isolated \
-    WEAVE_CANDIDATE_COMMIT="${candidate_commit}" \
-    WEAVE_CANDIDATE_EVIDENCE_REF="${candidate_evidence_ref}" \
-    bash "${IDENTITY_LIFECYCLE}" prepare-product-flow \
-      --run-id "${RUN_ID}" \
-      --output-root "${OUTPUT_ROOT}"
+context="$(
+  python3 "${CONTEXT_HELPER}" \
+    --repository-root "${REPOSITORY_ROOT}" \
+    --output-root "${OUTPUT_ROOT}" \
+    --run-id "${RUN_ID}"
 )"
-eval "${integration_variables}"
-export WEAVE_E2E_OUTPUT_ROOT
-export WEAVE_E2E_RUN_NAMESPACE
-export WEAVE_E2E_STARTUP_ENV_PATH
-export WEAVE_E2E_IDENTITY_MANIFEST_PATH
-export WEAVE_TEST_APP_EVIDENCE_PATH
-export WEAVE_E2E_STACK_BOOTSTRAP_ENV
-export WEAVE_TEARDOWN_OWNERSHIP_FILE
-# shellcheck disable=SC1090
-source "${WEAVE_E2E_STARTUP_ENV_PATH}"
-STACK_PREPARED=true
-
-run_root="${WEAVE_E2E_OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}"
-[[ ! -e "${run_root}/credentials.env" ]] ||
-  fail "product-flow context contains a human credential file"
-[[ "${TF_VAR_identity_bootstrap_owner_enabled}" == "true" ]] ||
-  fail "protected owner bootstrap was not enabled for the empty realm"
-[[ "${TF_VAR_isolated_e2e_context_memberships}" == "[]" ]] ||
-  fail "product-flow context must not seed static human memberships"
+eval "${context}"
+export WEAVE_E2E_RUN_ID WEAVE_E2E_RUN_NAMESPACE WEAVE_ENV_FILE
+export WEAVE_PROXY_HTTP_HOST_PORT WEAVE_PROXY_HTTPS_HOST_PORT
+export WEAVE_KEYCLOAK_HOST_PORT WEAVE_KEYCLOAK_MANAGEMENT_HOST_PORT
+export WEAVE_MAILPIT_WEB_HOST_PORT WEAVE_MAS_HOST_PORT WEAVE_SYNAPSE_HOST_PORT
+export WEAVE_NEXTCLOUD_HOST_PORT WEAVE_BACKEND_HOST_PORT WEAVE_MCP_HOST_PORT
+export WEAVE_E2E_STACK_SCOPE=isolated
+export WEAVE_CANDIDATE_COMMIT="${candidate_commit}"
 
 spec_lock="${REPOSITORY_ROOT}/specs/weave-specs.lock.json"
-[[ -f "${spec_lock}" ]] || fail "the repository specification lock is unavailable"
+[[ -f "${spec_lock}" ]] || fail "the pinned specification lock is unavailable"
 spec_digest="sha256:$(shasum -a 256 "${spec_lock}" | awk '{print $1}')"
+
 if [[ -z "${SERVER_IMAGE}" && -z "${MCP_IMAGE}" ]]; then
-  SERVER_IMAGE="weave-backend:test-app-${WEAVE_E2E_RUN_NAMESPACE}"
-  MCP_IMAGE="weave-mcp-server:test-app-${WEAVE_E2E_RUN_NAMESPACE}"
-  log "Building the exact Server and MCP runtime artifacts for the isolated product proof."
+  LOCAL_SERVER_TAG="weave-backend:test-app-${WEAVE_E2E_RUN_NAMESPACE}"
+  LOCAL_MCP_TAG="weave-mcp-server:test-app-${WEAVE_E2E_RUN_NAMESPACE}"
+  SERVER_IMAGE="${LOCAL_SERVER_TAG}"
+  MCP_IMAGE="${LOCAL_MCP_TAG}"
+  log "Building Server and MCP from the exact candidate."
   "${REPOSITORY_ROOT}/gradlew" --no-daemon --max-workers=2 \
     :server:bootJar \
     :weave-mcp-server:bootJar
-
   image_created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   image_version="test-app-${candidate_commit:0:12}"
   common_build_args=(
@@ -196,77 +147,83 @@ if [[ -z "${SERVER_IMAGE}" && -z "${MCP_IMAGE}" ]]; then
     --file "${REPOSITORY_ROOT}/weave-mcp-server/Dockerfile" \
     "${REPOSITORY_ROOT}"
 elif [[ -n "${SERVER_IMAGE}" && -n "${MCP_IMAGE}" ]]; then
-  log "Pulling the exact digest-pinned Server and MCP candidate images."
+  [[ "${SERVER_IMAGE}" =~ @sha256:[0-9a-f]{64}$ ]] ||
+    fail "WEAVE_TEST_APP_SERVER_IMAGE must be digest-pinned"
+  [[ "${MCP_IMAGE}" =~ @sha256:[0-9a-f]{64}$ ]] ||
+    fail "WEAVE_TEST_APP_MCP_IMAGE must be digest-pinned"
   docker pull "${SERVER_IMAGE}"
   docker pull "${MCP_IMAGE}"
 else
-  fail "Server and MCP testApp image overrides must be supplied together"
+  fail "Server and MCP image overrides must be supplied together"
 fi
-readonly SERVER_IMAGE MCP_IMAGE
-validate_runtime_image \
-  "${SERVER_IMAGE}" \
-  "Weave Server" \
-  "java21-spring-boot-4.1"
+validate_runtime_image "${SERVER_IMAGE}" "Weave Server" "java21-spring-boot-4.1"
 validate_runtime_image \
   "${MCP_IMAGE}" \
   "Weave MCP Server" \
   "java21-spring-boot-4.1-spring-ai-2.0"
 
-export TF_VAR_weave_backend_image="${SERVER_IMAGE}"
-export TF_VAR_weave_mcp_server_image="${MCP_IMAGE}"
-log "Starting one exact, disposable, ownership-labelled Weave stack."
-bash "${INSTALL_SCRIPT}"
+if [[ -z "${IDENTITY_OPS_IMAGE}" ]]; then
+  IDENTITY_OPS_IMAGE="$(
+    python3 "${WORKSPACE_ROOT}/scripts/build_identity_ops_image.py" \
+      --root "${WORKSPACE_ROOT}" \
+      --candidate-commit "${candidate_commit}" |
+      tail -n 1
+  )"
+else
+  [[ "${IDENTITY_OPS_IMAGE}" =~ @sha256:[0-9a-f]{64}$ ]] ||
+    fail "WEAVE_TEST_APP_IDENTITY_OPS_IMAGE must be digest-pinned"
+  docker pull "${IDENTITY_OPS_IMAGE}"
+fi
+if [[ -z "${KEYCLOAK_IMAGE}" ]]; then
+  KEYCLOAK_IMAGE="$(
+    python3 "${WORKSPACE_ROOT}/scripts/build_keycloak_image.py" \
+      --root "${REPOSITORY_ROOT}" \
+      --candidate-commit "${candidate_commit}"
+  )"
+else
+  [[ "${KEYCLOAK_IMAGE}" =~ @sha256:[0-9a-f]{64}$ ]] ||
+    fail "WEAVE_TEST_APP_KEYCLOAK_IMAGE must be digest-pinned"
+  docker pull "${KEYCLOAK_IMAGE}"
+fi
 
-[[ -f "${WEAVE_E2E_STACK_BOOTSTRAP_ENV}" && ! -L "${WEAVE_E2E_STACK_BOOTSTRAP_ENV}" ]] ||
-  fail "the exact isolated bootstrap environment is unavailable"
-# shellcheck disable=SC1090
-source "${WEAVE_E2E_STACK_BOOTSTRAP_ENV}"
-# shellcheck disable=SC1090
-source "${WEAVE_E2E_STARTUP_ENV_PATH}"
-export TF_VAR_weave_backend_image="${SERVER_IMAGE}"
-export TF_VAR_weave_mcp_server_image="${MCP_IMAGE}"
+export WEAVE_BACKEND_IMAGE
+WEAVE_BACKEND_IMAGE="$(docker image inspect "${SERVER_IMAGE}" --format '{{.Id}}')"
+export WEAVE_MCP_IMAGE
+WEAVE_MCP_IMAGE="$(docker image inspect "${MCP_IMAGE}" --format '{{.Id}}')"
+export WEAVE_IDENTITY_OPS_IMAGE
+WEAVE_IDENTITY_OPS_IMAGE="$(docker image inspect "${IDENTITY_OPS_IMAGE}" --format '{{.Id}}')"
+export WEAVE_KEYCLOAK_IMAGE
+WEAVE_KEYCLOAK_IMAGE="$(docker image inspect "${KEYCLOAK_IMAGE}" --format '{{.Id}}')"
 
-domain="${TF_VAR_tenant_domain:-weave.test}"
-api_host="${TF_VAR_api_subdomain:-api}.${domain}"
-auth_host="${TF_VAR_auth_subdomain:-auth}.${domain}"
-api_origin="$(public_origin "${api_host}")"
-issuer="$(public_origin "${auth_host}")/realms/${TF_VAR_tenant_slug}"
-mcp_endpoint="${api_origin}/mcp"
-mailpit_api="http://127.0.0.1:${TF_VAR_mailpit_web_host_port}/api/v1"
-infra_generated="${WORKSPACE_ROOT}/01-infrastructure/.generated/isolated/${WEAVE_E2E_RUN_NAMESPACE}"
-ca_file="${infra_generated}/caddy/certs/weave-local-ca.pem"
-leaf_file="${infra_generated}/caddy/certs/weave.test.pem"
-credential_root="${infra_generated}/agent-runtime/credentials"
-bootstrap_token="${TF_VAR_identity_bootstrap_owner_token_host_path:-}"
-hosts_file="${run_root}/hosts"
+log "Starting one exact, disposable Compose test stack."
+STACK_PREPARED=true
+bash "${COMPOSE}" test up
+bash "${WORKSPACE_ROOT}/operator-check.sh" test
 
-for required_file in "${ca_file}" "${leaf_file}" "${bootstrap_token}"; do
-  [[ -f "${required_file}" && ! -L "${required_file}" ]] ||
-    fail "an exact isolated TLS or bootstrap SecretRef input is unavailable"
+for required in \
+  "${WEAVE_TEST_APP_TLS_ROOT}/ca.pem" \
+  "${WEAVE_TEST_APP_TLS_ROOT}/cert.pem" \
+  "${WEAVE_TEST_APP_SECRET_ROOT}/identity-bootstrap-owner-token"; do
+  [[ -f "${required}" && ! -L "${required}" ]] ||
+    fail "an exact TLS or bootstrap SecretRef input is unavailable"
 done
-[[ -d "${credential_root}" && ! -L "${credential_root}" ]] ||
-  fail "the isolated workload credential root is unavailable"
-[[ "$(file_mode "${bootstrap_token}")" == "600" ]] ||
-  fail "owner bootstrap SecretRef permissions are not private"
+[[ -d "${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads" ]] ||
+  fail "the isolated workload SecretRef root is unavailable"
 
-umask 077
-printf '127.0.0.1 %s %s\n' "${api_host}" "${auth_host}" >"${hosts_file}"
-chmod 600 "${hosts_file}"
-
-log "Running invitation, real Chromium activation, PKCE, ARC, WebDAV, and MCP."
+log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
 "${REPOSITORY_ROOT}/gradlew" \
   --no-daemon \
   --max-workers=2 \
   "-Dweave.e2e.run-id=${RUN_ID}" \
-  "-Dweave.e2e.api-origin=${api_origin}" \
-  "-Dweave.e2e.issuer=${issuer}" \
-  "-Dweave.e2e.mailpit-api=${mailpit_api}" \
-  "-Dweave.e2e.mcp-endpoint=${mcp_endpoint}" \
-  "-Dweave.e2e.ca-certificate=${ca_file}" \
-  "-Dweave.e2e.tls-leaf-certificate=${leaf_file}" \
-  "-Dweave.e2e.hosts-file=${hosts_file}" \
-  "-Dweave.e2e.bootstrap-owner-token=${bootstrap_token}" \
-  "-Dweave.e2e.workload-credential-root=${credential_root}" \
+  "-Dweave.e2e.api-origin=${WEAVE_TEST_APP_API_ORIGIN}" \
+  "-Dweave.e2e.issuer=${WEAVE_TEST_APP_ISSUER}" \
+  "-Dweave.e2e.mailpit-api=${WEAVE_TEST_APP_MAILPIT_API}" \
+  "-Dweave.e2e.mcp-endpoint=${WEAVE_TEST_APP_MCP_ENDPOINT}" \
+  "-Dweave.e2e.ca-certificate=${WEAVE_TEST_APP_TLS_ROOT}/ca.pem" \
+  "-Dweave.e2e.tls-leaf-certificate=${WEAVE_TEST_APP_TLS_ROOT}/cert.pem" \
+  "-Dweave.e2e.hosts-file=${WEAVE_TEST_APP_HOSTS_FILE}" \
+  "-Dweave.e2e.bootstrap-owner-token=${WEAVE_TEST_APP_SECRET_ROOT}/identity-bootstrap-owner-token" \
+  "-Dweave.e2e.workload-credential-root=${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads" \
   "-Dweave.e2e.evidence-file=${WEAVE_TEST_APP_EVIDENCE_PATH}" \
   "-Dweave.e2e.convergence-timeout=${WEAVE_TEST_APP_CONVERGENCE_TIMEOUT:-PT3M}" \
   :weave-product-e2e:productFlow
@@ -284,8 +241,8 @@ jq -e '
   .actionLinksIncluded == false and
   .supportSafe == true
 ' "${WEAVE_TEST_APP_EVIDENCE_PATH}" >/dev/null ||
-  fail "the product-flow evidence does not satisfy the Fresh acceptance contract"
-! grep -Eq 'login-actions/action-token|client_assertion|access_token|refresh_token|password' \
+  fail "the Fresh product-flow evidence is incomplete"
+! grep -Eqi 'login-actions/action-token|client_assertion|access_token|refresh_token|password' \
   "${WEAVE_TEST_APP_EVIDENCE_PATH}" ||
   fail "the product-flow evidence contains credential material"
 

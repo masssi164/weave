@@ -3318,6 +3318,30 @@
         },
         "type": "object"
       },
+      "IdentitySessionReconcileResponse": {
+        "description": "Provider-neutral result of authenticated identity-session reconciliation.",
+        "properties": {
+          "sessionRefreshRequired": {
+            "description": "Whether the caller must refresh its already-issued OIDC token before domain bootstrap.",
+            "example": false,
+            "type": "boolean"
+          },
+          "state": {
+            "description": "Closed reconciliation state. Access changes require one OIDC token refresh.",
+            "enum": [
+              "access_updated",
+              "unchanged"
+            ],
+            "example": "unchanged",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sessionRefreshRequired",
+          "state"
+        ],
+        "type": "object"
+      },
       "InventorySummary": {
         "properties": {
           "channels": {
@@ -3717,17 +3741,6 @@
       },
       "MemberInvitationRequest": {
         "properties": {
-          "capabilities": {
-            "items": {
-              "maxLength": 160,
-              "minLength": 0,
-              "pattern": "[a-z][a-z0-9-]*(?:[._:-][a-z0-9-]+)*",
-              "type": "string"
-            },
-            "maxItems": 32,
-            "minItems": 0,
-            "type": "array"
-          },
           "displayName": {
             "maxLength": 200,
             "minLength": 0,
@@ -3753,12 +3766,6 @@
       },
       "MemberInvitationResponse": {
         "properties": {
-          "capabilities": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -4524,9 +4531,6 @@
       },
       "OrganizationMemberUpdateRequest": {
         "properties": {
-          "agentRuntimeEntitled": {
-            "type": "boolean"
-          },
           "enabled": {
             "type": "boolean"
           },
@@ -6286,6 +6290,14 @@
         },
         "type": "object"
       },
+      "WeaverEntitlementUpdateRequest": {
+        "properties": {
+          "entitled": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "WorkspaceCapabilitiesResponse": {
         "description": "Workspace capability snapshot exposed to Weave clients.",
         "properties": {
@@ -7372,6 +7384,85 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/OrganizationMemberUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization members"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/members/{memberHandle}/capabilities/weaver": {
+      "put": {
+        "operationId": "updateOrganizationMemberWeaverEntitlement",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "memberHandle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeaverEntitlementUpdateRequest"
               }
             }
           },
@@ -9726,56 +9817,6 @@
         ]
       }
     },
-    "/api/internal/keycloak/events": {
-      "post": {
-        "operationId": "accept",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-Weave-Event-Id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Weave-Event-Signature",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Weave-Event-Timestamp",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "format": "byte",
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "HTTP 204"
-          }
-        },
-        "tags": [
-          "keycloak-membership-event-controller"
-        ]
-      }
-    },
     "/api/interop/slack/events": {
       "post": {
         "operationId": "slackEvent",
@@ -10000,7 +10041,7 @@
     },
     "/api/interop/status": {
       "get": {
-        "operationId": "status_2",
+        "operationId": "getInteropStatus",
         "responses": {
           "401": {
             "content": {
@@ -10191,7 +10232,7 @@
     },
     "/api/office/capabilities": {
       "get": {
-        "operationId": "capabilities_1",
+        "operationId": "getOfficeCapabilities",
         "responses": {
           "200": {
             "content": {
@@ -10381,7 +10422,7 @@
     },
     "/api/platform/status": {
       "get": {
-        "operationId": "status_1",
+        "operationId": "getPlatformStatus",
         "responses": {
           "200": {
             "content": {
@@ -10652,676 +10693,6 @@
         ]
       }
     },
-    "/api/v1/admin/audit/events": {
-      "get": {
-        "operationId": "listAdminAuditEventsV1",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/AdminAuditEventResponse"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Read support-safe admin/provider audit events",
-        "tags": [
-          "Admin control plane"
-        ]
-      }
-    },
-    "/api/v1/admin/chat/migration-preflights": {
-      "post": {
-        "description": "Creates a support-safe, audited dry-run report for Chat provider replacement. Destructive apply is intentionally unavailable in this contract.",
-        "operationId": "createChatMigrationPreflightV1",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChatMigrationPreflightRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Dry-run a future Chat provider replacement",
-        "tags": [
-          "Chat domain"
-        ]
-      }
-    },
-    "/api/v1/admin/chat/readiness": {
-      "get": {
-        "description": "Returns support-safe Chat provider mapping and readiness diagnostics for admins/operators.",
-        "operationId": "getAdminChatReadinessV1",
-        "responses": {
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Get admin Chat readiness",
-        "tags": [
-          "Chat domain"
-        ]
-      }
-    },
-    "/api/v1/admin/control-plane": {
-      "get": {
-        "operationId": "getAdminControlPlaneV1",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminControlPlaneResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Read the support-safe organization control-plane overview",
-        "tags": [
-          "Admin control plane"
-        ]
-      }
-    },
-    "/api/v1/admin/organizations/bootstrap": {
-      "post": {
-        "operationId": "bootstrapOrganizationV1",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OrganizationBootstrapRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/OrganizationBootstrapResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Bootstrap or bind an organization with immutable identity recovery administrators",
-        "tags": [
-          "Admin control plane"
-        ]
-      }
-    },
-    "/api/v1/admin/policies/capability-whitelist": {
-      "get": {
-        "operationId": "getCapabilityWhitelistV1",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/CapabilityWhitelistResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Read deny-by-default capability whitelist policy",
-        "tags": [
-          "Admin control plane"
-        ]
-      },
-      "patch": {
-        "operationId": "updateCapabilityWhitelistV1",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CapabilityWhitelistUpdateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/CapabilityWhitelistResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Record a support-safe capability whitelist policy update",
-        "tags": [
-          "Admin control plane"
-        ]
-      }
-    },
-    "/api/v1/admin/policies/effective": {
-      "get": {
-        "operationId": "getEffectivePolicyV1",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/EffectivePolicyResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Explain the effective capability policy for the authenticated subject",
-        "tags": [
-          "Admin control plane"
-        ]
-      }
-    },
-    "/api/v1/admin/policies/effective/simulations": {
-      "post": {
-        "operationId": "simulateEffectivePolicyV1",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EffectivePolicySimulationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/EffectivePolicySimulationResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Simulate effective capability policy before provider/realm changes",
-        "tags": [
-          "Admin control plane"
-        ]
-      }
-    },
-    "/api/v1/admin/provider-capability-health": {
-      "get": {
-        "operationId": "getProviderCapabilityHealthV1",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProviderCapabilityHealthResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Read cached support-safe provider capability health",
-        "tags": [
-          "Admin provider health"
-        ]
-      }
-    },
-    "/api/v1/admin/providers/readiness-tests": {
-      "post": {
-        "operationId": "testProviderReadinessV1",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProviderReadinessTestRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProviderReadinessTestResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Run a backend-owned support-safe provider readiness test contract",
-        "tags": [
-          "Admin control plane"
-        ]
-      }
-    },
-    "/api/v1/admin/providers/replacements/dry-run": {
-      "post": {
-        "operationId": "dryRunProviderReplacementV1",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProviderReplacementDryRunRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProviderReplacementDryRunResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Dry-run a provider replacement before activation",
-        "tags": [
-          "Admin control plane"
-        ]
-      }
-    },
-    "/api/v1/admin/providers/selections": {
-      "post": {
-        "operationId": "selectProviderV1",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProviderSelectionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProviderSelectionResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Apply or dry-run an Admin Console selected provider mapping",
-        "tags": [
-          "Admin control plane"
-        ]
-      }
-    },
     "/api/v1/agent-runtime/runtime-profiles/{profileHash}": {
       "get": {
         "operationId": "runtimeProfileV1",
@@ -11372,103 +10743,16 @@
         ]
       }
     },
-    "/api/v1/chat/conversations/{conversationId}/decisions": {
-      "get": {
-        "operationId": "decisionsV1",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "conversationId",
-            "required": true,
-            "schema": {
-              "maxLength": 128,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/DecisionLedgerRecordsResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Read channel Decision Ledger records",
-        "tags": [
-          "Chat domain"
-        ]
-      },
+    "/api/v1/identity/session/reconcile": {
       "post": {
-        "operationId": "createDecisionV1",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "conversationId",
-            "required": true,
-            "schema": {
-              "maxLength": 128,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DecisionLedgerCreateRequest"
-              }
-            }
-          },
-          "required": true
-        },
+        "description": "Idempotently applies one verified pending invitation intent to the current native organization member. An access_updated result requires exactly one OIDC refresh before product-domain bootstrap.",
+        "operationId": "reconcileIdentitySessionV1",
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DecisionLedgerRecordResponse"
+                  "$ref": "#/components/schemas/IdentitySessionReconcileResponse"
                 }
               }
             },
@@ -11476,7 +10760,7 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -11486,7 +10770,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
@@ -11494,15 +10778,25 @@
             },
             "description": "HTTP 403"
           },
-          "503": {
+          "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "HTTP 503"
+            "description": "HTTP 409"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 502"
           }
         },
         "security": [
@@ -11510,454 +10804,9 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "Create a channel Decision Ledger record",
+        "summary": "Reconcile authenticated invitation access",
         "tags": [
-          "Chat domain"
-        ]
-      }
-    },
-    "/api/v1/chat/conversations/{conversationId}/meeting-capsules": {
-      "get": {
-        "operationId": "meetingCapsulesV1",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "conversationId",
-            "required": true,
-            "schema": {
-              "maxLength": 128,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/MeetingCapsulesResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Read channel Meeting Capsules",
-        "tags": [
-          "Chat domain"
-        ]
-      },
-      "post": {
-        "operationId": "createMeetingCapsuleV1",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "conversationId",
-            "required": true,
-            "schema": {
-              "maxLength": 128,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MeetingCapsuleCreateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/MeetingCapsuleResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Create a channel Meeting Capsule",
-        "tags": [
-          "Chat domain"
-        ]
-      }
-    },
-    "/api/v1/chat/readiness": {
-      "get": {
-        "operationId": "getChatReadinessV1",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatReadiness"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Read member-safe Weave Chat readiness",
-        "tags": [
-          "Chat domain"
-        ]
-      }
-    },
-    "/api/v1/organization/manifest": {
-      "get": {
-        "description": "Returns the support-safe org manifest consumed by Weave Client after org URL discovery and SSO. Provider setup, endpoint rotation, diagnostics, policy authoring, and whitelisting remain owned by the Organization/Admin Console.",
-        "operationId": "organizationManifestV1",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/OrganizationManifestResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Get authenticated organization manifest",
-        "tags": [
-          "Workspace"
-        ]
-      }
-    },
-    "/api/v1/workspace/capabilities": {
-      "get": {
-        "description": "Returns the backend-owned workspace capability snapshot consumed by the Weave client.",
-        "operationId": "capabilitiesV1",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkspaceCapabilitiesResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Get workspace capability readiness",
-        "tags": [
-          "Workspace"
-        ]
-      }
-    },
-    "/api/v1/workspace/capability-policy": {
-      "get": {
-        "description": "Returns an admin/operator support-safe snapshot of IDM role/group intake, profile mapping, deny-by-default posture, and Weaver-disabled-by-default policy state.",
-        "operationId": "capabilityPolicyV1",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkspaceCapabilityPolicyResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Get workspace capability policy",
-        "tags": [
-          "Workspace"
-        ]
-      }
-    },
-    "/api/v1/workspace/home": {
-      "get": {
-        "description": "Returns the backend-owned, support-safe daily work loop consumed by Weave Home.",
-        "operationId": "homeV1",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkspaceHomeResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Get Weave Home daily-work snapshot",
-        "tags": [
-          "Workspace"
-        ]
-      }
-    },
-    "/api/v1/workspace/release-readiness": {
-      "get": {
-        "description": "Returns an operator-facing snapshot of the backend-owned core dependencies and remaining setup actions.",
-        "operationId": "releaseReadinessV1",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkspaceReleaseReadinessResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Get workspace readiness",
-        "tags": [
-          "Workspace"
+          "Identity session"
         ]
       }
     },
@@ -12262,6 +11111,10 @@
     {
       "description": "Guest identity and explicit access policy contracts.",
       "name": "Guest Access"
+    },
+    {
+      "description": "Authenticated, provider-neutral identity bootstrap.",
+      "name": "Identity session"
     },
     {
       "description": "Authenticated caller introspection endpoints.",

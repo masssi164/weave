@@ -63,7 +63,11 @@ def main() -> int:
         "obsolete credential-based Flutter identity provisioning remains in the live lane",
     )
 
-    require("workflow_run:" in deployment and "- Live Stack Product Flow" in deployment, "persistent deployment is not downstream of the isolated product flow")
+    require(
+        "workflow_run:" in deployment
+        and "- Live Stack Product Flow" in deployment,
+        "persistent deployment is not downstream of the isolated product flow",
+    )
     require("ref: ${{ env.CANDIDATE_SHA }}" in deployment, "persistent deployment does not check out exact evidence candidate")
     require(
         'git merge-base --is-ancestor "$CANDIDATE_SHA" origin/dogfood' in deployment,
@@ -104,36 +108,35 @@ def main() -> int:
     )
     require(
         "bash ./smoke-test.sh" not in deployment
-        and deployment.count("bash ./operator-check.sh") == 2,
+        and deployment.count("./operator-check.sh test") == 2,
         "persistent dogfood must use non-destructive operator checks without the automation-user smoke suite",
     )
-    require(deployment.count("./install.sh") == 2, "persistent candidate must be installed exactly twice")
-    ordered(
-        deployment,
-        (
-            "Run requested persistent member operation before baseline",
-            "Capture persistent dogfood state before candidate deployment",
-            "      - name: Run requested persistent member operation\n",
-        ),
-        "persistent dogfood member lifecycle",
+    require(
+        deployment.count("./compose.sh test up") == 2,
+        "persistent candidate must be applied through the canonical Compose task exactly twice",
     )
     require(
-        "inputs.dogfood_member_operation != 'status'" in deployment
-        and './dogfood-member.sh "$DOGFOOD_MEMBER_OPERATION"' in deployment,
-        "explicit persistent member recovery operations do not run before the online baseline gate",
+        "./compose.sh test adoption-check" in deployment
+        and "./adoption-rehearsal.sh test" in deployment
+        and "WEAVE_ADOPTION_RECEIPT" in deployment,
+        "persistent resource adoption is not guarded by private restore evidence",
     )
     ordered(
         deployment,
         (
-            "persistent-dogfood-observation.sh capture",
-            "Apply the same candidate a second time non-destructively",
-            "persistent-dogfood-observation.sh compare",
-            "collect-provider-health",
-            "dogfood_deployment_evidence.py assemble",
+            "Apply and verify the persistent test profile",
+            "Prove repeatability and an empty second identity plan",
+            "Generate support-safe diagnostics",
+            "Upload persistent test evidence",
         ),
         "persistent dogfood deployment",
     )
-    require("/actuator/metrics" in deployment and "providerProbeTriggered=false" not in deployment, "deployment must collect cached metrics through Actuator without fabricating a result")
+    require(
+        ".operationCount == 0" in deployment
+        and "composeModelStable:true" in deployment
+        and "identitySecondPlanEmpty:true" in deployment,
+        "persistent deployment does not prove Compose and Identity Ops convergence",
+    )
 
     require("workflow_run:" in ios and "- Test Stack Deploy" in ios, "iOS distribution is not downstream of deployment")
     require('gh run download "$deployment_run_id" --name weave-test-stack-evidence' in ios, "iOS candidate is not read from deployment evidence")

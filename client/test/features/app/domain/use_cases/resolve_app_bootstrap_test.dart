@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
-import 'package:weave/features/app/domain/ports/client_upgrade_port.dart';
 import 'package:weave/features/app/domain/ports/identity_session_port.dart';
 import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
 import 'package:weave/features/app/domain/use_cases/reconcile_identity_session.dart';
@@ -91,25 +90,10 @@ class _FakeServerConfigurationPort implements ServerConfigurationPort {
   }
 }
 
-class _FakeClientUpgradePort implements ClientUpgradePort {
-  Object? error;
-  var invocationCount = 0;
-
-  @override
-  Future<void> removeObsoleteAuthenticatedState() async {
-    invocationCount += 1;
-    final cleanupError = error;
-    if (cleanupError != null) {
-      throw cleanupError;
-    }
-  }
-}
-
 ResolveAppBootstrap _buildUseCase({
   required _FakeAppAuthPort authPort,
   required _FakeServerConfigurationPort serverConfigurationPort,
   _FakeIdentitySessionPort? identitySessionPort,
-  ClientUpgradePort? clientUpgradePort,
 }) {
   final sessionPort = identitySessionPort ?? _FakeIdentitySessionPort();
   return ResolveAppBootstrap(
@@ -119,7 +103,6 @@ ResolveAppBootstrap _buildUseCase({
       identitySessionPort: sessionPort,
     ),
     serverConfigurationPort: serverConfigurationPort,
-    clientUpgradePort: clientUpgradePort,
   );
 }
 
@@ -159,14 +142,12 @@ void main() {
         ..restoreSessionHandler = (_) async =>
             AuthState.authenticated(buildTestAuthSession());
       final identitySessionPort = _FakeIdentitySessionPort();
-      final clientUpgradePort = _FakeClientUpgradePort();
       final useCase = _buildUseCase(
         authPort: authPort,
         identitySessionPort: identitySessionPort,
         serverConfigurationPort: _FakeServerConfigurationPort(
           configuration: buildTestConfiguration(),
         ),
-        clientUpgradePort: clientUpgradePort,
       );
 
       final state = await useCase.call();
@@ -174,7 +155,6 @@ void main() {
       expect(state.phase, BootstrapPhase.ready);
       expect(identitySessionPort.calls, 1);
       expect(identitySessionPort.lastAccessToken, 'access-token');
-      expect(clientUpgradePort.invocationCount, 1);
     });
 
     test('refreshes restored access exactly once before ready', () async {
@@ -196,26 +176,6 @@ void main() {
       expect(state.phase, BootstrapPhase.ready);
       expect(identitySessionPort.calls, 1);
       expect(authPort.refreshCalls, 1);
-    });
-
-    test('does not block an authenticated launch when cleanup fails', () async {
-      final authPort = _FakeAppAuthPort()
-        ..restoreSessionHandler = (_) async =>
-            AuthState.authenticated(buildTestAuthSession());
-      final clientUpgradePort = _FakeClientUpgradePort()
-        ..error = StateError('Secure storage is temporarily unavailable.');
-      final useCase = _buildUseCase(
-        authPort: authPort,
-        serverConfigurationPort: _FakeServerConfigurationPort(
-          configuration: buildTestConfiguration(),
-        ),
-        clientUpgradePort: clientUpgradePort,
-      );
-
-      final state = await useCase.call();
-
-      expect(state.phase, BootstrapPhase.ready);
-      expect(clientUpgradePort.invocationCount, 1);
     });
 
     test('maps auth failures to bootstrap storage errors', () async {

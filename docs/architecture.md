@@ -55,7 +55,7 @@ Design evidence for these seams comes from established interoperability contract
 
 ## Organization discovery and manifest contract
 
-The member setup path is intentionally small: a person opens an invite/deep link or enters an organization auth URL, completes SSO, and then the Weave Client fetches `/api/v1/organization/manifest` with the authenticated Weave token. The manifest is the client handoff from organization discovery/auth to member work state.
+The member setup path is intentionally small: a person opens an invite/deep link or enters an organization auth URL, completes SSO, and then the Weave Client fetches `/api/organization/manifest` with the authenticated Weave token. The manifest is the client handoff from organization discovery/auth to member work state.
 
 The manifest may contain the organization display name, the organization auth URL, client-owned responsibilities, Admin Console-owned responsibilities, and effective member capability states. Those states are limited to `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later` and are derived from backend capability policy/readiness without exposing provider internals. In plain contract language: available, disabled by policy, not configured, degraded, unavailable, or coming later. The manifest must be support-safe: provider setup, endpoint rotation, diagnostics, and whitelisting are never member-client responsibilities and must not appear as raw provider URLs, secrets, raw downstream errors, or admin-only diagnostics.
 

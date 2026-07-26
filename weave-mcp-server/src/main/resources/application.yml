@@ -36,7 +36,7 @@ weave:
     resource-uri: ${WEAVE_MCP_RESOURCE_URI:https://api.weave.test/mcp}
     resource-metadata-uri: ${WEAVE_MCP_RESOURCE_METADATA_URI:https://api.weave.test/.well-known/oauth-protected-resource/mcp}
     authorization-server: ${WEAVE_MCP_AUTHORIZATION_SERVER:https://auth.weave.test/realms/weave}
-    required-scopes: ${WEAVE_MCP_REQUIRED_SCOPES:mcp:tools,files.read}
+    required-scopes: ${WEAVE_MCP_REQUIRED_SCOPES:mcp.tools,files.read}
     token-uri: ${WEAVE_MCP_TOKEN_URI:https://auth.weave.test/realms/weave/protocol/openid-connect/token}
     exchange-client-id: ${WEAVE_MCP_EXCHANGE_CLIENT_ID:weave-mcp-server}
     exchange-client-jwk-file: ${WEAVE_MCP_EXCHANGE_CLIENT_JWK_FILE:/run/secrets/weave/mcp-client-private.jwk}

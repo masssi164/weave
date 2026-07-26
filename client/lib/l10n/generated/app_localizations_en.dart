@@ -12,16 +12,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appTitle => 'Weave';
 
   @override
-  String get welcomeTitle => 'Welcome to Weave';
-
-  @override
-  String get welcomeSubtitle =>
-      'Join your organization through an invite or sign-in handoff. Provider setup stays with your admins.';
-
-  @override
-  String get continueButton => 'Join your organization';
-
-  @override
   String get setupTitle => 'Organization access';
 
   @override
@@ -3533,7 +3523,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get setupMemberHandoffDescription =>
-      'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.';
+      'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you for technical service settings.';
 
   @override
   String get setupOrganizationUriLabel =>
@@ -3596,6 +3586,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get memberHandoffErrorGuidance =>
       'The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.';
+
+  @override
+  String get memberHandoffSignInRetryGuidance =>
+      'Sign-in did not complete. Try again in the system browser or ask your workspace admin to verify your access.';
 
   @override
   String get memberHandoffTlsErrorGuidance =>

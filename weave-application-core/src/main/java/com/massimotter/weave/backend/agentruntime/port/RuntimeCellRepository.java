@@ -9,50 +9,40 @@ import java.util.Set;
 import java.util.UUID;
 
 public interface RuntimeCellRepository {
-  RuntimeCell insert(RuntimeCell cell);
+    RuntimeCell insert(RuntimeCell cell);
 
-  Optional<RuntimeCell> findByPerson(String organizationRef, String personRef);
+    Optional<RuntimeCell> findByPerson(String organizationRef, String personRef);
 
-  Optional<RuntimeCell> findByCellRef(String cellRef);
+    Optional<RuntimeCell> findByCellRef(String cellRef);
 
-  Optional<RuntimeCell> findByWorkload(String workloadIssuer, String workloadSubject);
+    Optional<RuntimeCell> findByWorkload(String workloadIssuer, String workloadSubject);
 
-  List<RuntimeCell> findAll();
+    List<RuntimeCell> findAll();
 
-  RuntimeCell acquireLease(String cellRef, UUID leaseId, Instant now, Instant expiresAt);
+    RuntimeCell acquireLease(String cellRef, UUID leaseId, Instant now, Instant expiresAt);
 
-  RuntimeCell renewLease(
-      String cellRef, UUID leaseId, long fencingEpoch, Instant now, Instant expiresAt);
+    RuntimeCell renewLease(String cellRef, UUID leaseId, long fencingEpoch, Instant now, Instant expiresAt);
 
-  RuntimeCell observe(
-      String cellRef,
-      UUID leaseId,
-      long fencingEpoch,
-      RuntimeCellState observedState,
-      String auditRef,
-      Instant now);
+    RuntimeCell observe(String cellRef, UUID leaseId, long fencingEpoch, RuntimeCellState observedState,
+            String auditRef, Instant now);
 
-  RuntimeCell bindEntitlement(
-      String organizationRef,
-      String personRef,
-      long expectedVersion,
-      String entitlementRevision,
-      String auditRef,
-      Instant now);
+    RuntimeCell bindEntitlement(
+            String organizationRef,
+            String personRef,
+            long expectedVersion,
+            String entitlementRevision,
+            String auditRef,
+            Instant now);
 
-  RuntimeCell transitionDesiredState(
-      String organizationRef,
-      String personRef,
-      long expectedVersion,
-      Set<RuntimeCellState> allowedFrom,
-      RuntimeCellState desiredState,
-      String auditRef,
-      Instant now);
+    RuntimeCell transitionDesiredState(
+            String organizationRef,
+            String personRef,
+            long expectedVersion,
+            Set<RuntimeCellState> allowedFrom,
+            RuntimeCellState desiredState,
+            String auditRef,
+            Instant now);
 
-  RuntimeCell revoke(
-      String organizationRef,
-      String personRef,
-      String entitlementRevision,
-      String auditRef,
-      Instant now);
+    RuntimeCell revoke(
+            String organizationRef, String personRef, String entitlementRevision, String auditRef, Instant now);
 }

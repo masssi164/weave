@@ -116,7 +116,7 @@ class ProviderCapabilityHealthControllerTest {
 
     @Test
     void operatorsCanExportOnlyTheCachedSupportSafeSnapshot() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/provider-capability-health").with(workspaceJwt("operator")))
+        mockMvc.perform(get("/api/admin/provider-capability-health").with(workspaceJwt("operator")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.schemaVersion").value("provider-capability-health-v1"))
                 .andExpect(jsonPath("$.supportSafe").value(true))

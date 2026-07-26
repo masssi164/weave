@@ -47,7 +47,7 @@ public record McpWorkloadProperties(
     }
     exchangeScopes = exactScopes(exchangeScopes, "exchangeScopes");
     if (!requiredScopes.containsAll(exchangeScopes)
-        || exchangeScopes.contains("mcp:tools")
+        || exchangeScopes.contains("mcp.tools")
         || exchangeScopes.contains("agent-runtime.profile.read")) {
       throw new IllegalArgumentException(
           "exchangeScopes must be a domain-only subset of requiredScopes");

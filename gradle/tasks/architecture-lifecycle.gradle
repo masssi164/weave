@@ -89,9 +89,9 @@ tasks.register('freshStartPlan', Exec) {
     }
 }
 
-tasks.register('freshStartApply', Exec) {
+tasks.register('freshStartDeleteApprovedTargets', Exec) {
     group = 'weave operations'
-    description = 'Apply one reviewed Fresh Start manifest; never plans, expands, or infers targets.'
+    description = 'Internal Fresh Start phase: delete only the targets in one reviewed manifest.'
     workingDir rootProject.projectDir
     outputs.upToDateWhen { false }
     doFirst {
@@ -120,9 +120,10 @@ tasks.register('freshStartApply', Exec) {
     }
 }
 
-tasks.register('freshStartRecreate', Exec) {
+tasks.register('freshStartRecreateTargetGeneration', Exec) {
     group = 'weave operations'
-    description = 'Recreate an applied Fresh Start from exact candidate images and rotate generated secrets/state.'
+    description = 'Internal Fresh Start phase: recreate the target generation from exact candidate images.'
+    dependsOn 'freshStartDeleteApprovedTargets'
     workingDir rootProject.projectDir
     outputs.upToDateWhen { false }
     doFirst {
@@ -149,10 +150,10 @@ tasks.register('freshStartRecreate', Exec) {
     }
 }
 
-tasks.register('freshStart') {
+tasks.register('freshStartApply') {
     group = 'weave operations'
-    description = 'Compatibility lifecycle entrypoint; executes only a preplanned, separately approved Fresh Start apply.'
-    dependsOn 'freshStartApply'
+    description = 'Apply one approved Fresh Start plan and recreate its complete target generation.'
+    dependsOn 'freshStartRecreateTargetGeneration'
 }
 
 tasks.register('dogfoodCandidateCheck', Exec) {
@@ -257,7 +258,7 @@ tasks.register('bootstrapOwner', Exec) {
             '--api-base-url', requiredProperty('bootstrapApiBaseUrl'),
             '--token-file', optionalProperty(
                 'bootstrapOwnerTokenFile',
-                file('infra/weave-workspace/01-infrastructure/.generated/identity/bootstrap-owner.token').absolutePath
+                file('infra/weave-workspace/.generated/dev/identity/bootstrap-owner.token').absolutePath
             ),
             '--email', requiredProperty('bootstrapOwnerEmail'),
             '--display-name', optionalProperty('bootstrapOwnerDisplayName', ''),

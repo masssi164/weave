@@ -294,15 +294,15 @@ Agent Runtime Control remains fail-closed without current entitlement, signed pr
 
 ## Agent Runtime Control integration
 
-The old issue-#266 v1 projection is superseded by Agent Runtime Control. Weave now issues a
-support-safe signed RuntimeProfile v2 only from current Keycloak entitlement, organization policy,
-and an authoritative server-owned cell binding. Generated OpenClaw configuration is ephemeral
+Agent Runtime Control issues only a support-safe signed RuntimeProfile v2 from current Keycloak
+entitlement, organization policy, and an authoritative server-owned cell binding. Generated
+OpenClaw configuration is ephemeral
 implementation output. Portable workspace files remain on WebDAV, runtime state remains encrypted
 outside the cell, and the cell owns zero durable bytes.
 
 The default posture remains fail-closed:
 
-- Agent Runtime Control is optional and disabled without a current entitlement group;
+- Agent Runtime Control is optional and disabled without current exact `/capabilities/weaver` organization membership;
 - profile signing, portable JPA persistence, external encrypted state, and workload identity must all be
   configured before the administrative controller exists;
 - a dedicated cell workload client must match the immutable Keycloak subject/client binding;

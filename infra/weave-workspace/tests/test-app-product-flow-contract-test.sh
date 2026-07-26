@@ -7,7 +7,9 @@ set -euo pipefail
 REPOSITORY_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
 readonly REPOSITORY_ROOT
 readonly LIFECYCLE="${REPOSITORY_ROOT}/gradle/tasks/test-app.sh"
-readonly IDENTITY_CONTEXT="${REPOSITORY_ROOT}/infra/weave-workspace/isolated-e2e-identities.sh"
+readonly CONTEXT_HELPER="${REPOSITORY_ROOT}/gradle/scripts/prepare_test_app_context.py"
+readonly RUNTIME_CLEANUP="${REPOSITORY_ROOT}/gradle/scripts/cleanup_test_app_runtime.py"
+readonly SECRET_INITIALIZER="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/init_secrets.py"
 readonly GRADLE_TASKS="${REPOSITORY_ROOT}/gradle/tasks/architecture-lifecycle.gradle"
 readonly MODULE_BUILD="${REPOSITORY_ROOT}/weave-product-e2e/build.gradle"
 readonly MODULE_TASKS="${REPOSITORY_ROOT}/weave-product-e2e/gradle/tasks/product-flow.gradle"
@@ -27,26 +29,30 @@ absent() {
 }
 
 bash -n "${LIFECYCLE}"
-bash -n "${IDENTITY_CONTEXT}"
+python3 -m py_compile "${CONTEXT_HELPER}" "${RUNTIME_CLEANUP}"
 
 contains "${GRADLE_TASKS}" "tasks.register('testApp', Exec)"
 contains "${GRADLE_TASKS}" "commandLine 'bash', 'gradle/tasks/test-app.sh'"
-contains "${LIFECYCLE}" 'prepare-product-flow'
+contains "${LIFECYCLE}" 'prepare_test_app_context.py'
+contains "${LIFECYCLE}" 'cleanup_test_app_runtime.py'
+contains "${LIFECYCLE}" 'compose.sh'
+contains "${LIFECYCLE}" 'WEAVE_E2E_STACK_SCOPE=isolated'
 contains "${LIFECYCLE}" ':weave-product-e2e:productFlow'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_SERVER_IMAGE must be digest-pinned'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_MCP_IMAGE must be digest-pinned'
-contains "${LIFECYCLE}" 'local testApp image builds require a clean worktree'
+contains "${LIFECYCLE}" 'testApp requires a clean worktree'
 contains "${LIFECYCLE}" 'status --porcelain=v1 --untracked-files=all'
 contains "${LIFECYCLE}" 'validate_runtime_image'
 contains "${LIFECYCLE}" 'org.opencontainers.image.revision'
 contains "${LIFECYCLE}" 'com.massimotter.weave.spec-digest'
-contains "${LIFECYCLE}" 'WEAVE_REMOVE_VOLUMES=true'
-contains "${LIFECYCLE}" 'test-app-teardown.json'
-contains "${IDENTITY_CONTEXT}" 'write_startup_environment '\''[]'\'' true'
-contains "${IDENTITY_CONTEXT}" 'product-flow preparation refuses a human credential env'
-contains "${IDENTITY_CONTEXT}" 'directKeycloakUserMutation:false'
-contains "${IDENTITY_CONTEXT}" 'credentialsIncluded:false'
+contains "${CONTEXT_HELPER}" 'teardown-evidence.json'
+contains "${SECRET_INITIALIZER}" 'identity-bootstrap-owner-token'
+contains "${CONTEXT_HELPER}" 'weave-test-app-evidence.json'
+contains "${RUNTIME_CLEANUP}" 'invalid isolated namespace'
 absent "${LIFECYCLE}" 'reset-password'
+absent "${LIFECYCLE}" 'isolated-e2e-identities.sh'
+absent "${LIFECYCLE}" 'test-users.json'
+absent "${LIFECYCLE}" 'WEAVE_TEST_USERS_FILE'
 absent "${LIFECYCLE}" 'WEAVE_E2E_AUTHOR_PASSWORD'
 absent "${LIFECYCLE}" 'WEAVE_E2E_COLLABORATOR_PASSWORD'
 absent "${LIFECYCLE}" 'WEAVE_E2E_OUTSIDER_PASSWORD'

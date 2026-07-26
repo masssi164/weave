@@ -4,7 +4,7 @@ import java.time.Instant;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface MatrixRevokedSessionJpaRepository
-    extends JpaRepository<MatrixRevokedSessionEntity, String> {
+    extends JpaRepository<MatrixRevokedSessionJpaEntity, String> {
 
   boolean existsBySessionHashAndExpiresAtAfter(String sessionHash, Instant observedAt);
 

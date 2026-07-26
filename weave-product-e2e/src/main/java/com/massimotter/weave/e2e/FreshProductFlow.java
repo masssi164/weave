@@ -97,7 +97,7 @@ public final class FreshProductFlow {
               List.of("openid", "profile", "email", "weave:workspace"),
               ownerEmail,
               ownerPassword);
-      ownerSession = awaitAuthority(browser, ownerSession, "workspace-owners", "owner");
+      ownerSession = awaitAuthority(browser, ownerSession, "/owners", "owner");
 
       Instant memberInvitedAt = Instant.now();
       inviteMember(organizationId, memberEmail, ownerSession.accessToken());
@@ -116,9 +116,11 @@ public final class FreshProductFlow {
               List.of("openid", "profile", "email", "weave:workspace"),
               memberEmail,
               memberPassword);
+      assignWeaverEntitlement(
+          organizationId, memberEmail, ownerSession.accessToken());
       memberSession =
           awaitAuthority(
-              browser, memberSession, "weave-weaver-runtime", "agent-runtime.entitled");
+              browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
       proveMemberApi(memberSession.accessToken());
 
       adminSession =
@@ -194,7 +196,6 @@ public final class FreshProductFlow {
     request.put("email", email);
     request.put("displayName", "Weave E2E Member");
     request.put("role", "member");
-    request.putArray("capabilities").add("agent-runtime.entitled");
     JsonNode invitation =
         http.json(
             "invite entitled member through Weave",
@@ -209,9 +210,57 @@ public final class FreshProductFlow {
             request,
             Set.of(201));
     if (!"member".equals(invitation.path("requestedRole").asString())
-        || !strings(invitation.path("capabilities"))
-            .equals(Set.of("agent-runtime.entitled"))) {
+        || invitation.has("capabilities")) {
       throw new ProductFlowException("member invitation projection is invalid");
+    }
+  }
+
+  private void assignWeaverEntitlement(
+      String organizationId, String email, String accessToken) {
+    JsonNode page =
+        http.json(
+            "list organization members for Weaver assignment",
+            "GET",
+            environment.api(
+                "/api/admin/organizations/"
+                    + encodeSegment(organizationId)
+                    + "/members?size=100"),
+            bearer(accessToken, Map.of()),
+            null,
+            Set.of(200));
+    JsonNode member = null;
+    for (JsonNode candidate : page.path("items")) {
+      if (email.equalsIgnoreCase(candidate.path("email").asString())) {
+        if (member != null) {
+          throw new ProductFlowException("member projection is ambiguous");
+        }
+        member = candidate;
+      }
+    }
+    if (member == null) {
+      throw new ProductFlowException("activated member is missing");
+    }
+    ObjectNode request = http.mapper().createObjectNode();
+    request.put("entitled", true);
+    JsonNode updated =
+        http.json(
+            "assign native Weaver organization capability",
+            "PUT",
+            environment.api(
+                "/api/admin/organizations/"
+                    + encodeSegment(organizationId)
+                    + "/members/"
+                    + encodeSegment(requiredText(member, "memberHandle"))
+                    + "/capabilities/weaver"),
+            bearer(
+                accessToken,
+                Map.of(
+                    "If-Match", requiredText(member, "version"),
+                    "Idempotency-Key", "test-app-weaver-" + runHash())),
+            request,
+            Set.of(200));
+    if (!strings(updated.path("capabilities")).equals(Set.of("agent-runtime.entitled"))) {
+      throw new ProductFlowException("native Weaver capability assignment did not converge");
     }
   }
 
@@ -257,7 +306,7 @@ public final class FreshProductFlow {
     if (!"weave-admin-console".equals(claims.path("azp").asString())
         || !audiences.equals(Set.of(environment.apiOrigin().resolve("/api").toString()))
         || !scopes.contains("agent-runtime.admin")
-        || !strings(claims.path("groups")).contains("workspace-owners")) {
+        || !strings(claims.path("groups")).contains("/owners")) {
       throw new ProductFlowException("Agent Runtime admin token is not exact");
     }
   }

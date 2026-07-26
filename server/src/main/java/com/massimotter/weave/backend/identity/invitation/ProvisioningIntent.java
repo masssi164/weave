@@ -1,7 +1,6 @@
 package com.massimotter.weave.backend.identity.invitation;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 /** Temporary work state. It is never a membership or request-authorization source. */
@@ -12,7 +11,6 @@ public record ProvisioningIntent(
         String invitedEmail,
         String invitedEmailSha256,
         String requestedRole,
-        List<String> requestedCapabilities,
         String providerInvitationId,
         String invitedByIssuer,
         String invitedBySubject,
@@ -24,14 +22,9 @@ public record ProvisioningIntent(
         Instant createdAt,
         Instant updatedAt) {
 
-    public ProvisioningIntent {
-        requestedCapabilities =
-                requestedCapabilities == null ? List.of() : List.copyOf(requestedCapabilities);
-    }
-
     public ProvisioningIntent withProviderInvitation(String providerId, Instant now) {
         return new ProvisioningIntent(intentId, tenantId, organizationId, invitedEmail, invitedEmailSha256, requestedRole,
-                requestedCapabilities, providerId, invitedByIssuer, invitedBySubject, auditCorrelation,
+                providerId, invitedByIssuer, invitedBySubject, auditCorrelation,
                 status, appliedSubject, failureCode, expiresAt, createdAt, now);
     }
 
@@ -49,7 +42,7 @@ public record ProvisioningIntent(
 
     private ProvisioningIntent transition(ProvisioningIntentStatus next, String subject, String failure, Instant now) {
         return new ProvisioningIntent(intentId, tenantId, organizationId, invitedEmail, invitedEmailSha256, requestedRole,
-                requestedCapabilities, providerInvitationId, invitedByIssuer, invitedBySubject, auditCorrelation,
+                providerInvitationId, invitedByIssuer, invitedBySubject, auditCorrelation,
                 next, subject, failure, expiresAt, createdAt, now);
     }
 }

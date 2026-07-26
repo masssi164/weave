@@ -18,7 +18,9 @@ for file in \
   [[ -f "${ROOT_DIR}/${file}" ]] || fail "Missing Compose authority file: ${file}"
 done
 
-if find "${ROOT_DIR}/01-infrastructure" "${ROOT_DIR}/02-keycloak-setup" -type f -print -quit 2>/dev/null | grep -q .; then
+if find "${ROOT_DIR}/01-infrastructure" "${ROOT_DIR}/02-keycloak-setup" \
+  -type f \( -name '*.tf' -o -name '*.tofu' -o -name '.terraform.lock.hcl' \) \
+  -print -quit 2>/dev/null | grep -q .; then
   fail "Executable OpenTofu authority files were not retired"
 fi
 [[ ! -e "${ROOT_DIR}/docker-compose.yml" ]] || fail "Legacy parallel Compose model was not retired"
@@ -37,7 +39,6 @@ require "${ROOT_DIR}/compose.test.yaml" 'WEAVE_RELEASE_POSTURE: test'
 require "${ROOT_DIR}/compose.prod.yaml" 'WEAVE_RELEASE_POSTURE: prod'
 require "${ROOT_DIR}/scripts/compose_env.py" 'PROFILES = ("dev", "test", "prod")'
 require "${ROOT_DIR}/scripts/compose_env.py" 'refusing to deploy {profile} from an example environment file'
-require "${ROOT_DIR}/scripts/compose_runtime.py" 'prod rejects WEAVE_TEST_USERS_FILE before Identity Ops mutation'
 require "${ROOT_DIR}/scripts/compose_runtime.py" 'persistent-adoption'
 require "${ROOT_DIR}/scripts/compose_runtime.py" 'WEAVE_ADOPTION_RECEIPT'
 require "${ROOT_DIR}/scripts/compose_runtime.py" 'resource inventory is incomplete or ambiguous'
@@ -52,18 +53,18 @@ require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'ordinary reconciliation re
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_MATRIX_FEDERATION_ENABLED'
-require "${REPO_ROOT}/settings.gradle" "include 'infra',"
-require "${REPO_ROOT}/settings.gradle" "'weave-application-core',"
+require "${REPO_ROOT}/settings.gradle" "include 'weave-application-core',"
 require "${REPO_ROOT}/settings.gradle" "'weave-persistence-jpa',"
 require "${REPO_ROOT}/settings.gradle" "'weave-runtime-security-adapters',"
 require "${REPO_ROOT}/settings.gradle" "'weave-runtime-provider-adapters',"
+require "${REPO_ROOT}/settings.gradle" "'infra',"
 require "${REPO_ROOT}/settings.gradle" "'server',"
 require "${REPO_ROOT}/settings.gradle" "'weave-mcp-server'"
 require "${REPO_ROOT}/infra/build.gradle" 'apply from: "$projectDir/gradle/tasks/environment-profiles.gradle"'
 require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" '"identity${profileTitle}${operationTitle}"'
 require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" "'identityOpsImageBuild'"
 require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" "'keycloakStockImageResolve'"
-require "${REPO_ROOT}/server/build.gradle" 'apply from: "$projectDir/gradle/tasks/development.gradle"'
+require "${REPO_ROOT}/server/build.gradle" 'apply from: "${projectDir}/gradle/tasks/development.gradle"'
 require "${REPO_ROOT}/server/gradle/tasks/development.gradle" "'serverDevH2Test'"
 require "${REPO_ROOT}/server/gradle/tasks/development.gradle" "'serverPostgresIntegrationTest'"
 require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'WEAVE_TEST_BACKUP_ROOT'
@@ -73,6 +74,9 @@ require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'WEAVE_ADOPTION_R
 reject "${REPO_ROOT}/build.gradle" 'gradle/tasks/environment-profiles.gradle'
 
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_CREATE_TEST_USER'
+reject "${ROOT_DIR}/scripts/compose_runtime.py" 'WEAVE_TEST_USERS_FILE'
+reject "${ROOT_DIR}/keycloak/identity_ops.py" 'WEAVE_TEST_USERS_FILE'
+reject "${ROOT_DIR}/keycloak/identity_ops.py" 'set-password'
 reject "${ROOT_DIR}/compose.yaml" '/var/run/docker.sock'
 reject "${ROOT_DIR}/compose.yaml" 'OpenProject'
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_IDENTITY_EVENTS_HMAC_SECRET'

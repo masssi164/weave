@@ -37,7 +37,7 @@ public class OpenStandardsGatewayStepDefinitions {
             "remote.php",
             "files.weave.test",
             "matrix.weave.test",
-            "Authorization",
+            "Authorization:",
             "Bearer ",
             "access_token",
             "refresh_token",
@@ -224,7 +224,7 @@ public class OpenStandardsGatewayStepDefinitions {
                         .claim("aud", List.of("weave-app"))
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                        .claim("groups", List.of("weave-file-uploaders")))
+                        .claim("groups", List.of("/members")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
@@ -236,7 +236,7 @@ public class OpenStandardsGatewayStepDefinitions {
                 .claim("aud", List.of("weave-app"))
                 .claim("weave_tenant_id", "tenant-default")
                 .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                .claim("groups", List.of("weave-file-uploaders"))
+                .claim("groups", List.of("/members"))
                 .build();
     }
 

@@ -18,8 +18,8 @@ class ChatRuntimeContractTest {
         String configuration = Files.readString(resource);
 
         assertThat(configuration)
-                .contains("${WEAVE_CHAT_PROVIDER:in-memory-test}")
-                .contains("${WEAVE_CHAT_STORAGE_MODE:jpa}")
+                .contains("${WEAVE_CHAT_PROVIDER:matrix-synapse}")
+                .doesNotContain("WEAVE_CHAT_STORAGE_MODE")
                 .contains("${WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL:}")
                 .contains("${WEAVE_CHAT_MATRIX_SERVER_NAME:}")
                 .contains("${WEAVE_CHAT_MATRIX_APPSERVICE_ID:weave-chat-synapse}")

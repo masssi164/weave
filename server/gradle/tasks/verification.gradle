@@ -1,3 +1,10 @@
+tasks.withType(Test).configureEach {
+    // The suite intentionally boots many isolated Spring/JPA contexts. Keep one
+    // bounded fork while providing enough heap for the complete architecture gate.
+    maxParallelForks = 1
+    maxHeapSize = '1g'
+}
+
 tasks.named('test') {
     dependsOn tasks.named('buildMatrixRustCoreJni')
     useJUnitPlatform {
@@ -55,6 +62,8 @@ tasks.register('postgresJpaTest', Test) {
         includeTestsMatching '*AdminControlPlaneServiceTest'
         includeTestsMatching '*JpaProductProfileOverrideRepositoryTest'
         includeTestsMatching '*JpaMigrationRunEvidenceRepositoryTest'
+        includeTestsMatching '*JpaOperationIntentRepositoryPostgresTest'
+        includeTestsMatching '*FilesMutationIntentServicePostgresTest'
     }
     useJUnitPlatform()
 }

@@ -1,46 +1,40 @@
-name: Live Stack E2E
+name: Live Stack Product Flow
 
 on:
   push:
-    branches:
-      - dogfood
+    branches: [dogfood]
   pull_request:
-    branches:
-      - dogfood
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
+    branches: [dogfood]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       enable_run_scoped_e2e:
-        description: "Run only with run-scoped containers, networks, volumes, state, ports, users, Simulator, and cleanup"
+        description: Run the isolated Fresh product proof
         required: true
         default: false
         type: boolean
       weave_backend_image:
-        description: "Backend image source; published ghcr.io inputs must be exact @sha256 refs, while local refs are rebuilt and candidate-labelled"
+        description: Optional exact Weave Server image digest
         required: false
-        default: "weave-backend:live-stack-ci"
+        type: string
       weave_mcp_server_image:
-        description: "MCP image source; published ghcr.io inputs must be exact @sha256 refs, while local refs are rebuilt and candidate-labelled"
+        description: Optional exact Weave MCP Server image digest
         required: false
-        default: "weave-mcp-server:live-stack-ci"
+        type: string
   workflow_call:
     inputs:
       enable_run_scoped_e2e:
         type: boolean
         required: false
-        default: false
+        default: true
       weave_backend_image:
         type: string
         required: false
-        default: "weave-backend:live-stack-ci"
+        default: ""
       weave_mcp_server_image:
         type: string
         required: false
-        default: "weave-mcp-server:live-stack-ci"
+        default: ""
 
 permissions:
   contents: read
@@ -52,1083 +46,129 @@ concurrency:
 
 jobs:
   isolation-gate:
-    name: Require run-scoped E2E isolation
+    name: Require isolated Fresh product proof
     runs-on: ubuntu-latest
     steps:
-      - name: Fail closed without run-scoped runtime approval
+      - name: Fail closed without explicit isolation
         env:
           ENABLE_RUN_SCOPED_E2E: ${{ github.event_name != 'workflow_dispatch' || inputs.enable_run_scoped_e2e }}
-          REQUESTED_SOURCE_REF: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          if [[ "$ENABLE_RUN_SCOPED_E2E" != "true" ]]; then
-            echo "::error::Live Stack E2E requires explicit approval for run-scoped containers, networks, volumes, state, ports, users, Simulator, and cleanup." >&2
+          [[ "$ENABLE_RUN_SCOPED_E2E" == "true" ]] || {
+            echo "::error::The destructive product proof requires explicit isolated-run approval."
             exit 1
-          fi
-          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && \
-                "$REQUESTED_SOURCE_REF" != dev && \
-                "$REQUESTED_SOURCE_REF" != dogfood ]]; then
-            echo "::error::Manual Live Stack E2E requires the protected dev or dogfood ref; feature-branch trees are PR evidence, not release-lane candidates." >&2
-            exit 1
-          fi
+          }
 
   live-stack-e2e:
-    name: Bootstrap Stack And Run App E2E
+    name: Invitation, OIDC, WebDAV, ARC, and MCP
     needs: isolation-gate
-    runs-on:
-      - self-hosted
-      - macOS
-      - ARM64
-      - weave-live
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
     timeout-minutes: 75
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
-      WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'weave-backend:live-stack-ci' }}
-      WEAVE_MCP_IMAGE: ${{ inputs.weave_mcp_server_image || github.event.inputs.weave_mcp_server_image || 'weave-mcp-server:live-stack-ci' }}
-      WEAVE_ENVIRONMENT: test
-      WEAVE_STACK_SCOPE: isolated
-      WEAVE_TENANT_DOMAIN: weave.test
-      WEAVE_RUNNER_HYGIENE: 'true'
-      WEAVE_REMOVE_VOLUMES: 'true'
-      WEAVE_E2E_STACK_SCOPE: isolated
-      WEAVE_E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      REQUESTED_SERVER_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || '' }}
+      REQUESTED_MCP_IMAGE: ${{ inputs.weave_mcp_server_image || github.event.inputs.weave_mcp_server_image || '' }}
       WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
-      WEAVE_CANDIDATE_EVIDENCE_REF: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-    defaults:
-      run:
-        shell: bash
+      WEAVE_TEST_APP_RUN_ID: live-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
-      - name: Verify run-scoped live runtime host
+      - name: Verify bounded runner
         run: |
           set -euo pipefail
-          echo "runner=${RUNNER_NAME:-unknown}"
-          if [[ "${RUNNER_NAME:-}" != "${EXPECTED_RUNNER_NAME}" ]]; then
-            echo "::error::Run-scoped Live Stack E2E must run on ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}." >&2
+          [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER_NAME" ]] || {
+            echo "::error::Expected $EXPECTED_RUNNER_NAME; got ${RUNNER_NAME:-unknown}."
             exit 1
-          fi
-          if [[ -n "${WEAVE_ENV_FILE:-}" ]]; then
-            echo "::error::Run-scoped Live Stack E2E must materialize its own reviewed test environment after checkout." >&2
-            exit 1
-          fi
-
-      - name: Remove stale runner-owned Weave outputs
-        run: |
-          set -euo pipefail
-          checkout_root="${GITHUB_WORKSPACE%/}/weave"
-          remove_runner_output() {
-            local path="$1"
-            case "$path" in
-              "$checkout_root"/*|"${RUNNER_TEMP%/}"/weave-live-stack-*)
-                rm -rf -- "$path"
-                ;;
-              *)
-                echo "::error::Refusing to remove non-runner-owned path: $path" >&2
-                exit 1
-                ;;
-            esac
           }
-          for path in \
-            "$checkout_root/.gradle" \
-            "$checkout_root/build" \
-            "$checkout_root/client/.dart_tool" \
-            "$checkout_root/client/build" \
-            "$checkout_root/server/build" \
-            "$checkout_root/weave-mcp-server/build" \
-            "$RUNNER_TEMP/weave-live-stack-acceptance-evidence" \
-            "$RUNNER_TEMP/weave-live-stack-e2e.log" \
-            "$RUNNER_TEMP/weave-live-stack-docker-config" \
-            "$RUNNER_TEMP/weave-live-stack-identities" \
-            "$RUNNER_TEMP/weave-live-stack-emergency-reserve" \
-            "$RUNNER_TEMP/weave-live-stack-emergency-reserve-released"; do
-            remove_runner_output "$path"
-          done
-          available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
-          minimum_kib=$((10 * 1024 * 1024))
-          runner_tool_cache="${RUNNER_TOOL_CACHE:-}"
-          if [ -z "$runner_tool_cache" ] || [ "$runner_tool_cache" = "/" ] || [[ "$runner_tool_cache" != /* ]]; then
-            echo "::error::RUNNER_TOOL_CACHE must name an absolute, non-root dedicated runner tool-cache directory." >&2
-            exit 1
-          fi
-          flutter_tool_cache="${runner_tool_cache%/}/flutter"
-          if (( available_kib < minimum_kib )) && [ -d "$flutter_tool_cache" ]; then
-            echo "Reclaiming the restorable dedicated-runner Flutter tool cache for live-test headroom."
-            rm -rf -- "$flutter_tool_cache"
-          fi
-          df -h "$RUNNER_TEMP"
 
-      - name: Check out weave
+      - name: Check out Weave
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: weave
           fetch-depth: 0
 
-      - name: Materialize run-scoped test environment
-        working-directory: weave/infra/weave-workspace
-        run: |
-          set -euo pipefail
-          source_env="$PWD/environments/test.env.example"
-          runtime_root="${RUNNER_TEMP%/}/weave-live-stack-identities"
-          runtime_env="$runtime_root/reviewed-test.env"
-          [[ -f "$source_env" && ! -L "$source_env" ]] || {
-            echo "::error::The versioned test environment template is missing or is a symlink." >&2
-            exit 1
-          }
-          case "$runtime_env" in
-            "${RUNNER_TEMP%/}"/weave-live-stack-identities/*) ;;
-            *)
-              echo "::error::The reviewed test environment escaped its runner-owned namespace." >&2
-              exit 1
-              ;;
-          esac
-          mkdir -p "$runtime_root"
-          chmod 700 "$runtime_root"
-          install -m 600 "$source_env" "$runtime_env"
-          [[ -f "$runtime_env" && ! -L "$runtime_env" ]] || {
-            echo "::error::The reviewed run-scoped test environment is not a regular private file." >&2
-            exit 1
-          }
-          echo "WEAVE_ENV_FILE=$runtime_env" >> "$GITHUB_ENV"
-
       - name: Resolve pinned specification corpus
-        id: spec-corpus
+        id: spec
         working-directory: weave
         run: |
           set -euo pipefail
-          spec_commit="$(jq -er '.specCorpus.gitCommit | select(type == "string" and test("^[0-9a-f]{40}$"))' specs/weave-specs.lock.json)"
-          echo "commit=$spec_commit" >>"$GITHUB_OUTPUT"
+          echo "commit=$(jq -er '.specCorpus.gitCommit | select(test(\"^[0-9a-f]{40}$\"))' specs/weave-specs.lock.json)" >> "$GITHUB_OUTPUT"
 
       - name: Check out pinned Weave Specification Corpus
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: ${{ github.repository_owner }}/weave-specs
-          ref: ${{ steps.spec-corpus.outputs.commit }}
+          ref: ${{ steps.spec.outputs.commit }}
           path: weave-specs
-          ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
           persist-credentials: false
 
-      - name: Prepare acceptance evidence directory
-        run: |
-          set -euo pipefail
-          evidence_dir="$RUNNER_TEMP/weave-live-stack-acceptance-evidence"
-          test_log="$RUNNER_TEMP/weave-live-stack-e2e.log"
-          mkdir -p "$evidence_dir"
-          : > "$test_log"
-          echo "WEAVE_ACCEPTANCE_EVIDENCE_DIR=$evidence_dir" >> "$GITHUB_ENV"
-          echo "WEAVE_ACCEPTANCE_TEST_LOG=$test_log" >> "$GITHUB_ENV"
-
-      - name: Resolve the protected dev image source
-        working-directory: weave
-        run: |
-          set -euo pipefail
-          git fetch --no-tags --prune origin \
-            '+refs/heads/dev:refs/remotes/origin/dev'
-          python3 tools/candidate_source_mapping.py \
-            --repository . \
-            --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
-            --github-env "$GITHUB_ENV" \
-            --output "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/candidate-source-mapping.json"
-
-      - name: Prepare three disposable identity profiles
-        working-directory: weave/infra/weave-workspace
-        run: |
-          set -euo pipefail
-          integration_variables="$(
-            WEAVE_E2E_OUTPUT_ROOT="$RUNNER_TEMP/weave-live-stack-identities" \
-              ./isolated-e2e-identities.sh prepare --run-id "$WEAVE_E2E_RUN_ID"
-          )"
-          printf '%s\n' "$integration_variables" >> "$GITHUB_ENV"
-          printf '%s\n' "$integration_variables" | sed -E 's#=(.*credentials.*)$#=[private-runner-path]#' \
-            >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Configure Docker auth without macOS Keychain
-        env:
-          GHCR_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if [ -z "${DOCKER_HOST:-}" ] && [ -S "$HOME/.orbstack/run/docker.sock" ]; then
-            echo "DOCKER_HOST=unix://$HOME/.orbstack/run/docker.sock" >> "$GITHUB_ENV"
-            export DOCKER_HOST="unix://$HOME/.orbstack/run/docker.sock"
-          fi
-          export WEAVE_DOCKER_AUTH_CONFIG="$RUNNER_TEMP/weave-live-stack-docker-config"
-          mkdir -p "$WEAVE_DOCKER_AUTH_CONFIG"
-          chmod 700 "$WEAVE_DOCKER_AUTH_CONFIG"
-          auth_b64="$(printf '%s' "${GITHUB_ACTOR}:${GHCR_TOKEN}" | base64 | tr -d '\n')"
-          cat > "$WEAVE_DOCKER_AUTH_CONFIG/config.json" <<EOF
-          {"auths":{"ghcr.io":{"auth":"${auth_b64}"}}}
-          EOF
-          chmod 600 "$WEAVE_DOCKER_AUTH_CONFIG/config.json"
-          echo "WEAVE_DOCKER_AUTH_CONFIG=$WEAVE_DOCKER_AUTH_CONFIG" >> "$GITHUB_ENV"
-          docker --config "$WEAVE_DOCKER_AUTH_CONFIG" info >/dev/null
-          docker compose version >/dev/null
-
-      - name: Capture persistent dogfood resource baseline
-        run: |
-          set -euo pipefail
-          bash weave/tools/persistent_dogfood_resource_guard.sh \
-            capture "${RUNNER_TEMP%/}/weave-live-stack-persistent-dogfood-resources"
-
-      - name: Remove orphaned live-runner Buildx resources
-        run: bash weave/tools/cleanup_orphaned_buildx.sh
-
-      - name: Set up Java
-        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+      - name: Set up Java 21
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
+          cache: gradle
 
-      - name: Verify runner disk headroom
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3 # v4.4.2
+
+      - name: Verify runtime prerequisites
         run: |
           set -euo pipefail
-          available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
-          minimum_kib=$((10 * 1024 * 1024))
-          df -h "$RUNNER_TEMP"
-          if (( available_kib < minimum_kib )); then
-            echo "::error::Live Stack E2E requires at least 10 GiB free after stale-output cleanup and before tool and image setup; only $((available_kib / 1024)) MiB is available." >&2
-            echo "Runner-owned tool cache sizes:" >&2
-            du -sh "$RUNNER_TOOL_CACHE"/* 2>/dev/null | sort -h >&2 || true
-            exit 1
+          for command in docker git java jq openssl python3 shasum; do
+            command -v "$command" >/dev/null
+          done
+          docker info >/dev/null
+          if [[ -n "$REQUESTED_SERVER_IMAGE" || -n "$REQUESTED_MCP_IMAGE" ]]; then
+            [[ -n "$REQUESTED_SERVER_IMAGE" && -n "$REQUESTED_MCP_IMAGE" ]]
+            [[ "$REQUESTED_SERVER_IMAGE" == *@sha256:* ]]
+            [[ "$REQUESTED_MCP_IMAGE" == *@sha256:* ]]
           fi
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+      - name: Capture persistent dogfood resources
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/weave-fresh-proof"
+          tools/persistent_dogfood_resource_guard.sh capture \
+            "$RUNNER_TEMP/weave-fresh-proof/persistent-resources.txt"
+
+      - name: Run the credential-free Fresh product proof
+        working-directory: weave
+        env:
+          WEAVE_TEST_APP_OUTPUT_ROOT: ${{ runner.temp }}/weave-fresh-proof
+          WEAVE_TEST_APP_SERVER_IMAGE: ${{ env.REQUESTED_SERVER_IMAGE }}
+          WEAVE_TEST_APP_MCP_IMAGE: ${{ env.REQUESTED_MCP_IMAGE }}
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon testApp
+
+      - name: Verify persistent dogfood preservation
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          tools/persistent_dogfood_resource_guard.sh verify \
+            "$RUNNER_TEMP/weave-fresh-proof/persistent-resources.txt"
+          evidence="$(find "$RUNNER_TEMP/weave-fresh-proof" -name weave-test-app-evidence.json -type f -print -quit)"
+          [[ -n "$evidence" ]]
+          jq -e '
+            .schemaVersion == "weave.test-app-product-flow/v1" and
+            .activation == "keycloak-required-actions-real-chromium" and
+            .humanOAuth == "authorization_code_pkce_s256" and
+            .workloadOAuth == "client_credentials_private_key_jwt" and
+            .mcpTool == "files.search" and
+            .credentialsIncluded == false and
+            .actionLinksIncluded == false and
+            .supportSafe == true
+          ' "$evidence" >/dev/null
+
+      - name: Upload support-safe product-flow evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          flutter-version: '3.44.4'
-          channel: stable
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-      - name: Build Java runtime artifacts
-        working-directory: weave
-        run: ./gradlew --no-daemon --max-workers=1 clean :server:bootJar :weave-mcp-server:bootJar
-
-      - name: Ensure local Weave hostnames resolve on the runner
-        run: |
-          set -euo pipefail
-          hosts=(weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test)
-          missing=()
-          for host in "${hosts[@]}"; do
-            if ! dscacheutil -q host -a name "$host" | grep -q 'ip_address:'; then
-              missing+=("$host")
-            fi
-          done
-
-          if (( ${#missing[@]} > 0 )); then
-            line="127.0.0.1 ${missing[*]}"
-            if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-              printf '%s\n' "$line" | sudo tee -a /etc/hosts >/dev/null
-              sudo dscacheutil -flushcache || true
-            else
-              echo "::error::Runner cannot resolve required Weave hostnames and passwordless sudo is unavailable. Configure weave.test DNS for this runner or add this fallback /etc/hosts line before rerunning: $line" >&2
-              exit 1
-            fi
-          fi
-
-          for host in "${hosts[@]}"; do
-            resolved="$(dscacheutil -q host -a name "$host" || true)"
-            printf '%s\n' "$resolved"
-            printf '%s\n' "$resolved" | grep -q 'ip_address:' || {
-              echo "::error::Runner still cannot resolve $host" >&2
-              exit 1
-            }
-          done
-
-      - name: Prepare backend image
-        run: |
-          set -euo pipefail
-          source_ref="${WEAVE_BACKEND_IMAGE}"
-          if [[ "$source_ref" == ghcr.io/* ]]; then
-            [[ "$source_ref" =~ @sha256:[0-9a-f]{64}$ ]] || {
-              echo "::error::Published backend input must be an exact digest reference." >&2
-              exit 1
-            }
-            echo "Pulling published backend image for live-stack evidence."
-            docker --config "${WEAVE_DOCKER_AUTH_CONFIG}" pull "$source_ref"
-          else
-            echo "Building backend runtime image from CI-built server JAR artifact."
-            docker buildx build --load \
-              --label "org.opencontainers.image.revision=$WEAVE_IMAGE_SOURCE_COMMIT" \
-              -t "$source_ref" -f weave/server/Dockerfile weave
-          fi
-          revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$source_ref")"
-          image_id="$(docker image inspect --format '{{.Id}}' "$source_ref")"
-          [[ "$revision" == "$WEAVE_IMAGE_SOURCE_COMMIT" && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-            echo "::error::Backend image is not bound to the protected dev source candidate." >&2
-            exit 1
-          }
-          echo "WEAVE_BACKEND_IMAGE=$image_id" >>"$GITHUB_ENV"
-
-      - name: Prepare MCP server image
-        run: |
-          set -euo pipefail
-          source_ref="${WEAVE_MCP_IMAGE}"
-          if [[ "$source_ref" == ghcr.io/* ]]; then
-            [[ "$source_ref" =~ @sha256:[0-9a-f]{64}$ ]] || {
-              echo "::error::Published MCP input must be an exact digest reference." >&2
-              exit 1
-            }
-            echo "Pulling published MCP server image for live-stack evidence."
-            docker --config "${WEAVE_DOCKER_AUTH_CONFIG}" pull "$source_ref"
-          else
-            echo "Building MCP server runtime image from CI-built weave-mcp-server JAR artifact."
-            docker buildx build --load \
-              --label "org.opencontainers.image.revision=$WEAVE_IMAGE_SOURCE_COMMIT" \
-              -t "$source_ref" -f weave/weave-mcp-server/Dockerfile weave
-          fi
-          revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$source_ref")"
-          image_id="$(docker image inspect --format '{{.Id}}' "$source_ref")"
-          [[ "$revision" == "$WEAVE_IMAGE_SOURCE_COMMIT" && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-            echo "::error::MCP image is not bound to the protected dev source candidate." >&2
-            exit 1
-          }
-          echo "WEAVE_MCP_IMAGE=$image_id" >>"$GITHUB_ENV"
-
-      - name: Resolve the approved stock Keycloak image
-        run: |
-          set -euo pipefail
-          evidence="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/stock-keycloak-image.json"
-          image_id="$(python3 weave/infra/weave-workspace/scripts/build_keycloak_image.py \
-            --root weave \
-            --candidate-commit "$WEAVE_IMAGE_SOURCE_COMMIT" \
-            --output "$evidence")"
-          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-            echo "::error::Stock Keycloak did not resolve to an immutable local image ID." >&2
-            exit 1
-          }
-          echo "WEAVE_KEYCLOAK_IMAGE=$image_id" >>"$GITHUB_ENV"
-
-      - name: Build the exact-candidate Identity Ops image
-        run: |
-          set -euo pipefail
-          evidence="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/identity-ops-image.json"
-          image_id="$(python3 weave/infra/weave-workspace/scripts/build_identity_ops_image.py \
-            --root weave/infra/weave-workspace \
-            --candidate-commit "$WEAVE_IMAGE_SOURCE_COMMIT" \
-            --output "$evidence")"
-          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-            echo "::error::Identity Ops build did not return an immutable image ID." >&2
-            exit 1
-          }
-          echo "WEAVE_IDENTITY_OPS_IMAGE=$image_id" >>"$GITHUB_ENV"
-
-      - name: Bind immutable images to source and lane evidence
-        working-directory: weave
-        run: |
-          set -euo pipefail
-          python3 tools/candidate_source_mapping.py \
-            --repository . \
-            --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
-            --image "backend=$WEAVE_BACKEND_IMAGE" \
-            --image "mcp=$WEAVE_MCP_IMAGE" \
-            --image "keycloak=$WEAVE_KEYCLOAK_IMAGE" \
-            --image "identity-ops=$WEAVE_IDENTITY_OPS_IMAGE" \
-            --output "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/candidate-source-mapping.json"
-
-      - name: Clean up stale stack state before bootstrap
-        working-directory: weave/infra/weave-workspace
-        run: |
-          set -euo pipefail
-          # shellcheck disable=SC1090
-          source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          env -u WEAVE_TEARDOWN_EVIDENCE_FILE bash ./teardown.sh test --isolated
-
-      - name: Release Buildx cache before stack tests
-        run: bash weave/tools/cleanup_orphaned_buildx.sh
-
-      - name: Bootstrap local stack
-        working-directory: weave/infra/weave-workspace
-        run: |
-          set -euo pipefail
-          # shellcheck disable=SC1090
-          source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          ./compose.sh test secrets-init
-          ./compose.sh test render
-          ./compose.sh test config >"$WEAVE_ACCEPTANCE_EVIDENCE_DIR/compose-model.json"
-          ./compose.sh test up
-          ./compose.sh test identity-verify
-          cp "$WEAVE_GENERATED_ROOT/identity-ops/identity-ops.json" \
-            "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/identity-ops-verification.json"
-
-      - name: Verify local test hostnames resolve on the runner
-        run: |
-          set -euo pipefail
-          for host in weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test; do
-            dscacheutil -q host -a name "$host" | grep -q 'ip_address:' || {
-              echo "Runner cannot resolve $host to loopback" >&2
-              exit 1
-            }
-          done
-
-      - name: Verify stack readiness before Flutter work
-        working-directory: weave/infra/weave-workspace
-        run: |
-          set -euo pipefail
-          # shellcheck disable=SC1090
-          source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          bash ./operator-check.sh test
-
-      - name: Provision real Keycloak identities and verify runtime ReBAC
-        working-directory: weave/infra/weave-workspace
-        run: |
-          set -euo pipefail
-          ./isolated-e2e-identities.sh provision --run-id "$WEAVE_E2E_RUN_ID" \
-            2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
-
-      - name: Prove missing-capability expired-token and revoked-session denials
-        working-directory: weave
-        env:
-          WEAVE_E2E_STACK_SCOPE: isolated
-        run: |
-          set -euo pipefail
-          infra/weave-workspace/isolated-e2e-authorization-probes.sh \
-            --run-id "$WEAVE_E2E_RUN_ID" \
-            --output-root "$WEAVE_E2E_OUTPUT_ROOT" \
-            --credentials-env "$WEAVE_E2E_CREDENTIAL_ENV_PATH" \
-            --startup-env "$WEAVE_E2E_STARTUP_ENV_PATH" \
-            --identity-manifest "$WEAVE_E2E_IDENTITY_MANIFEST_PATH" \
-            --stack-bootstrap-env "$WEAVE_E2E_STACK_BOOTSTRAP_ENV" \
-            --authorization-evidence "$WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH" \
-            2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
-          test -s "$WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH"
-          cp "$WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH" \
-            "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-authorization.json"
-          {
-            echo "WEAVE_E2E_MISSING_CAPABILITY_VERIFIED=true"
-            echo "WEAVE_E2E_EXPIRED_TOKEN_VERIFIED=true"
-            echo "WEAVE_E2E_REVOKED_SESSION_VERIFIED=true"
-          } >> "$GITHUB_ENV"
-
-      - name: Expose generated local CA to Rust Matrix tests
-        run: |
-          set -euo pipefail
-          CA_FILE="${WEAVE_GENERATED_ROOT:?}/tls/ca.pem"
-          LEAF_FILE="${WEAVE_GENERATED_ROOT:?}/tls/cert.pem"
-          if [ ! -s "$CA_FILE" ]; then
-            echo "::error::Weave local CA certificate not found at $CA_FILE"
-            exit 1
-          fi
-          if [ ! -s "$LEAF_FILE" ]; then
-            echo "::error::Weave local leaf certificate not found at $LEAF_FILE"
-            exit 1
-          fi
-          openssl verify -CAfile "$CA_FILE" "$LEAF_FILE"
-          echo "WEAVE_MATRIX_EXTRA_ROOT_CERTIFICATE_PATH=$CA_FILE" >> "$GITHUB_ENV"
-          echo "WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED=true" >> "$GITHUB_ENV"
-
-      - name: Install Flutter dependencies
-        working-directory: weave/client
-        run: flutter pub get
-
-      - name: Generate l10n
-        working-directory: weave/client
-        run: flutter gen-l10n
-
-      - name: Boot an isolated iPhone Simulator and trust the local CA
-        run: |
-          set -euo pipefail
-          runtime_id="$(
-            xcrun simctl list runtimes -j | jq -r '
-              [.runtimes[]
-                | select(.isAvailable == true and (.identifier | contains(".iOS-")))]
-              | sort_by(.version | split(".") | map(tonumber))
-              | last
-              | .identifier // empty'
-          )"
-          device_type="$(
-            xcrun simctl list devicetypes -j | jq -r '
-              [.devicetypes[] | select(.name | startswith("iPhone"))]
-              | first
-              | .identifier // empty'
-          )"
-          [[ -n "$runtime_id" && -n "$device_type" ]] || {
-            echo "::error::No available iOS runtime and iPhone device type are installed on the disposable runner." >&2
-            exit 1
-          }
-          simulator_name="Weave E2E ${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          simulator_udid="$(xcrun simctl create "$simulator_name" "$device_type" "$runtime_id")"
-          [[ "$simulator_udid" =~ ^[0-9A-Fa-f-]{36}$ ]] || {
-            echo "::error::The isolated iPhone Simulator could not be created." >&2
-            exit 1
-          }
-          echo "WEAVE_E2E_SIMULATOR_UDID=$simulator_udid" >> "$GITHUB_ENV"
-          xcrun simctl boot "$simulator_udid"
-          open -g -a Simulator --args -CurrentDeviceUDID "$simulator_udid"
-          xcrun simctl bootstatus "$simulator_udid" -b
-          xcrun simctl keychain "$simulator_udid" add-root-cert "$WEAVE_MATRIX_EXTRA_ROOT_CERTIFICATE_PATH"
-          echo "WEAVE_INTEGRATION_TEST_DEVICE=$simulator_udid" >> "$GITHUB_ENV"
-          echo "WEAVE_MULTI_USER_TEST_DEVICE=$simulator_udid" >> "$GITHUB_ENV"
-          echo "iPhone Simulator functional lane: ${simulator_udid}" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Enable bounded iOS Simulator VM-service discovery
-        run: |
-          set -euo pipefail
-          vm_service_shim="$GITHUB_WORKSPACE/weave/tools/ios-simulator-xcrun"
-          test -x "$vm_service_shim/xcrun"
-          echo "$vm_service_shim" >> "$GITHUB_PATH"
-
-      - name: Verify live test disk headroom and reserve recovery space
-        run: |
-          set -euo pipefail
-          available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
-          minimum_kib=$((5 * 1024 * 1024))
-          reserve="$RUNNER_TEMP/weave-live-stack-emergency-reserve"
-          released_marker="$RUNNER_TEMP/weave-live-stack-emergency-reserve-released"
-          rm -f "$reserve" "$released_marker"
-          df -h "$RUNNER_TEMP"
-          if (( available_kib < minimum_kib )); then
-            echo "::error::Live Stack E2E requires at least 5 GiB before allocating its 1 GiB recovery reserve, preserving 4 GiB for native tests; only $((available_kib / 1024)) MiB is available." >&2
-            exit 1
-          fi
-          mkfile 1g "$reserve"
-          test "$(stat -f '%z' "$reserve")" -eq $((1024 * 1024 * 1024))
-          echo "WEAVE_RUNNER_EMERGENCY_RESERVE=$reserve" >> "$GITHUB_ENV"
-          echo "WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED=$released_marker" >> "$GITHUB_ENV"
-
-      - name: Run live stack integration tests
-        id: live_tests
-        working-directory: weave/client
-        run: |
-          set -euo pipefail
-          export WEAVE_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:?}"
-          reserve="${WEAVE_RUNNER_EMERGENCY_RESERVE:?}"
-          released_marker="${WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED:?}"
-          calendar_outage_state="${WEAVE_E2E_OUTPUT_ROOT:?}/${WEAVE_E2E_RUN_NAMESPACE:?}/calendar-outage-state.json"
-          monitor_pid=""
-          calendar_outage_restored=false
-          release_reserve() {
-            if [ -n "$monitor_pid" ]; then
-              kill "$monitor_pid" >/dev/null 2>&1 || true
-              wait "$monitor_pid" >/dev/null 2>&1 || true
-            fi
-            rm -f "$reserve"
-          }
-          restore_calendar_outage() {
-            local command_status
-            if [ ! -s "$calendar_outage_state" ]; then
-              return 0
-            fi
-            set +e
-            WEAVE_E2E_CALENDAR_OUTAGE_STATE_FILE="$calendar_outage_state" \
-              ../infra/weave-workspace/isolated-e2e-calendar-outage.sh restore \
-                --state-file "$calendar_outage_state" \
-                --startup-env "$WEAVE_E2E_STARTUP_ENV_PATH" \
-                --stack-bootstrap-env "$WEAVE_E2E_STACK_BOOTSTRAP_ENV" \
-                2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
-            command_status=${PIPESTATUS[0]}
-            set -e
-            if [ "$command_status" -eq 0 ]; then
-              cp "$calendar_outage_state" \
-                "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-calendar-outage.json"
-              calendar_outage_restored=true
-            fi
-            return "$command_status"
-          }
-          capture_matrix_to_device_snapshot() (
-            set -euo pipefail
-            local phase="$1"
-            local output="$2"
-            local private_response="$RUNNER_TEMP/weave-matrix-to-device-${phase}-private-response.json"
-            trap 'rm -f -- "$private_response"' EXIT
-            if [[ ! -s "${WEAVE_E2E_STARTUP_ENV_PATH:-}" ]]; then
-              jq -n '{contractVersion:"matrix-to-device-proof-v1",status:"unavailable",supportSafe:true}' > "$output"
-              return 0
-            fi
-            # shellcheck disable=SC1090
-            source "$WEAVE_E2E_STARTUP_ENV_PATH"
-            local proof_token_path="${WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH:-}"
-            if [[ "${WEAVE_CHAT_E2E_PROOF_ENABLED:-false}" != "true" || \
-                  ! -f "$proof_token_path" || -L "$proof_token_path" ]]; then
-              jq -n '{contractVersion:"matrix-to-device-proof-v1",status:"unavailable",supportSafe:true}' > "$output"
-              return 0
-            fi
-            local proof_token status
-            proof_token="$(<"$proof_token_path")"
-            status="$(curl --silent --show-error \
-              --output "$private_response" --write-out '%{http_code}' \
-              --connect-timeout 3 --max-time 10 \
-              --header "Authorization: Bearer $proof_token" \
-              "http://127.0.0.1:${WEAVE_BACKEND_HOST_PORT:-48084}/api/internal/e2e/chat/provider-proof/matrix-e2ee" \
-              2>/dev/null || true)"
-            unset proof_token
-            if [[ "$status" != "200" ]]; then
-              rm -f -- "$private_response"
-              jq -n --arg status "$status" '
-                {
-                  contractVersion:"matrix-to-device-proof-v1",
-                  status:"unavailable",
-                  httpStatus: (if ($status | test("^[0-9]{3}$")) then ($status | tonumber) else 0 end),
-                  supportSafe:true
-                }
-              ' > "$output"
-              return 0
-            fi
-            python3 ../tools/validate_matrix_to_device_evidence.py \
-              --input "$private_response" \
-              --output "$output"
-          )
-          finalize_tests() {
-            local original_status=$? restore_status=0
-            trap - EXIT INT TERM
-            if [ "$calendar_outage_restored" != true ] && [ -s "$calendar_outage_state" ]; then
-              restore_calendar_outage || restore_status=$?
-            fi
-            release_reserve
-            if [ "$original_status" -eq 0 ] && [ "$restore_status" -ne 0 ]; then
-              original_status=$restore_status
-            fi
-            exit "$original_status"
-          }
-          trap finalize_tests EXIT
-          trap 'exit 130' INT
-          trap 'exit 143' TERM
-          (
-            while [ -e "$reserve" ]; do
-              available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
-              if (( available_kib < 2 * 1024 * 1024 )); then
-                rm -f "$reserve"
-                : > "$released_marker"
-                exit 0
-              fi
-              sleep 2
-            done
-          ) &
-          monitor_pid=$!
-          # shellcheck disable=SC1090
-          source "$WEAVE_E2E_CREDENTIAL_ENV_PATH"
-          export WEAVE_TEST_USERNAME="$WEAVE_E2E_AUTHOR_USERNAME"
-          export WEAVE_TEST_PASSWORD="$WEAVE_E2E_AUTHOR_PASSWORD"
-          set +e
-          make integration-test 2>&1 | tee "$WEAVE_ACCEPTANCE_TEST_LOG"
-          single_user_status=${PIPESTATUS[0]}
-          matrix_before_collaboration_status=0
-          capture_matrix_to_device_snapshot \
-            before-collaboration \
-            "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-matrix-to-device-before-collaboration.json" || \
-            matrix_before_collaboration_status=$?
-          WEAVE_E2E_EXECUTION_MODE=collaboration \
-            make integration-multi-user-e2e 2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
-          collaboration_status=${PIPESTATUS[0]}
-          matrix_after_collaboration_status=0
-          capture_matrix_to_device_snapshot \
-            after-collaboration \
-            "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-matrix-to-device-after-collaboration.json" || \
-            matrix_after_collaboration_status=$?
-
-          WEAVE_E2E_CALENDAR_OUTAGE_STATE_FILE="$calendar_outage_state" \
-            ../infra/weave-workspace/isolated-e2e-calendar-outage.sh begin \
-              --state-file "$calendar_outage_state" \
-              --startup-env "$WEAVE_E2E_STARTUP_ENV_PATH" \
-              --stack-bootstrap-env "$WEAVE_E2E_STACK_BOOTSTRAP_ENV" \
-              2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
-          calendar_outage_begin_status=${PIPESTATUS[0]}
-
-          calendar_containment_status=1
-          if [ "$calendar_outage_begin_status" -eq 0 ]; then
-            WEAVE_E2E_EXECUTION_MODE=calendar-failure-containment \
-              make integration-multi-user-e2e 2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
-            calendar_containment_status=${PIPESTATUS[0]}
-          fi
-          set -e
-
-          calendar_outage_restore_status=0
-          if restore_calendar_outage; then
-            calendar_outage_restore_status=0
-          else
-            calendar_outage_restore_status=$?
-          fi
-
-          multi_user_status=0
-          for status in \
-            "$collaboration_status" \
-            "$matrix_before_collaboration_status" \
-            "$matrix_after_collaboration_status" \
-            "$calendar_outage_begin_status" \
-            "$calendar_containment_status" \
-            "$calendar_outage_restore_status"; do
-            if [ "$status" -ne 0 ]; then
-              multi_user_status=1
-            fi
-          done
-          {
-            echo "WEAVE_SINGLE_USER_TEST_STATUS=$single_user_status"
-            echo "WEAVE_COLLABORATION_TEST_STATUS=$collaboration_status"
-            echo "WEAVE_MATRIX_BEFORE_COLLABORATION_STATUS=$matrix_before_collaboration_status"
-            echo "WEAVE_MATRIX_AFTER_COLLABORATION_STATUS=$matrix_after_collaboration_status"
-            echo "WEAVE_CALENDAR_OUTAGE_BEGIN_STATUS=$calendar_outage_begin_status"
-            echo "WEAVE_CALENDAR_CONTAINMENT_STATUS=$calendar_containment_status"
-            echo "WEAVE_CALENDAR_OUTAGE_RESTORE_STATUS=$calendar_outage_restore_status"
-            echo "WEAVE_MULTI_USER_TEST_STATUS=$multi_user_status"
-          } >> "$GITHUB_ENV"
-          if [ -e "$released_marker" ]; then
-            echo "::error::Live Stack E2E consumed its emergency disk reserve; increase durable runner headroom before retrying." >&2
-            exit 1
-          fi
-          if [ "$single_user_status" -ne 0 ] || [ "$multi_user_status" -ne 0 ]; then
-            echo "::error::Live provider tests failed; cleanup and support-safe evidence collection will continue." >&2
-            exit 1
-          fi
-
-      - name: Capture support-safe Matrix to-device path evidence
-        if: always()
-        working-directory: weave/infra/weave-workspace
-        run: |
-          set -euo pipefail
-          output="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-matrix-to-device.json"
-          private_response="$RUNNER_TEMP/weave-matrix-to-device-private-response.json"
-          trap 'rm -f -- "$private_response"' EXIT
-          if [[ ! -s "${WEAVE_E2E_STARTUP_ENV_PATH:-}" ]]; then
-            jq -n '{contractVersion:"matrix-to-device-proof-v1",status:"unavailable",supportSafe:true}' > "$output"
-            exit 0
-          fi
-          # shellcheck disable=SC1090
-          source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          proof_token_path="${WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH:-}"
-          if [[ "${WEAVE_CHAT_E2E_PROOF_ENABLED:-false}" != "true" || \
-                ! -f "$proof_token_path" || -L "$proof_token_path" ]]; then
-            jq -n '{contractVersion:"matrix-to-device-proof-v1",status:"unavailable",supportSafe:true}' > "$output"
-            exit 0
-          fi
-          proof_token="$(<"$proof_token_path")"
-          status="$(curl --silent --show-error \
-            --output "$private_response" --write-out '%{http_code}' \
-            --connect-timeout 3 --max-time 10 \
-            --header "Authorization: Bearer $proof_token" \
-            "http://127.0.0.1:${WEAVE_BACKEND_HOST_PORT:-48084}/api/internal/e2e/chat/provider-proof/matrix-e2ee" \
-            2>/dev/null || true)"
-          unset proof_token
-          if [[ "$status" != "200" ]]; then
-            rm -f -- "$private_response"
-            jq -n --arg status "$status" '
-              {
-                contractVersion:"matrix-to-device-proof-v1",
-                status:"unavailable",
-                httpStatus: (if ($status | test("^[0-9]{3}$")) then ($status | tonumber) else 0 end),
-                supportSafe:true
-              }
-            ' > "$output"
-            exit 0
-          fi
-          python3 ../../tools/validate_matrix_to_device_evidence.py \
-            --input "$private_response" \
-            --output "$output"
-
-      - name: Prove durable Matrix Synapse collaboration behind the Weave facade
-        id: provider_proof
-        if: always()
-        working-directory: weave/infra/weave-workspace
-        run: |
-          set -euo pipefail
-          provider_evidence="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-chat-provider.json"
-          if [[ ! -s "${WEAVE_E2E_CREDENTIAL_ENV_PATH:-}" || \
-                ! -s "${WEAVE_E2E_STARTUP_ENV_PATH:-}" || \
-                ! -s "${WEAVE_E2E_IDENTITY_MANIFEST_PATH:-}" ]]; then
-            jq -n \
-              --arg candidateCommit "$GITHUB_SHA" \
-              '{
-                contractVersion:"matrix-synapse-provider-proof-v1",
-                status:"unavailable",
-                candidateCommit:$candidateCommit,
-                prerequisiteState:"missing",
-                supportSafe:true
-              }' > "$provider_evidence"
-            echo "WEAVE_CHAT_PROVIDER_PROOF_STATUS=1" >> "$GITHUB_ENV"
-            echo "::error::Matrix/Synapse provider proof prerequisites are unavailable; support-safe evidence was retained." >&2
-            exit 1
-          fi
-          set +e
-          ./isolated-e2e-chat-provider-proof.sh \
-            --run-id "$WEAVE_E2E_RUN_ID" \
-            --candidate-commit "$GITHUB_SHA" \
-            --credentials-env "$WEAVE_E2E_CREDENTIAL_ENV_PATH" \
-            --startup-env "$WEAVE_E2E_STARTUP_ENV_PATH" \
-            --identity-manifest "$WEAVE_E2E_IDENTITY_MANIFEST_PATH" \
-            --output "$provider_evidence" \
-            2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
-          provider_status=${PIPESTATUS[0]}
-          set -e
-          if [[ ! -s "$provider_evidence" ]]; then
-            jq -n \
-              --arg candidateCommit "$GITHUB_SHA" \
-              '{
-                contractVersion:"matrix-synapse-provider-proof-v1",
-                status:"failed",
-                candidateCommit:$candidateCommit,
-                supportSafe:true
-              }' > "$provider_evidence"
-            provider_status=1
-          fi
-          echo "WEAVE_CHAT_PROVIDER_PROOF_STATUS=$provider_status" >> "$GITHUB_ENV"
-          exit "$provider_status"
-
-      - name: Clean disposable identities and retain only hashed evidence
-        id: disposable_cleanup
-        if: always()
-        working-directory: weave/infra/weave-workspace
-        run: |
-          set -euo pipefail
-          calendar_outage_state="${WEAVE_E2E_OUTPUT_ROOT:?}/${WEAVE_E2E_RUN_NAMESPACE:?}/calendar-outage-state.json"
-          if [[ -s "$calendar_outage_state" ]]; then
-            if ! jq -e '
-              .state == "restored" and
-              .recoveryRequired == false and
-              .cachedHealth == {calendarStatus:2,filesStatus:2}
-            ' "$calendar_outage_state" >/dev/null; then
-              WEAVE_E2E_CALENDAR_OUTAGE_STATE_FILE="$calendar_outage_state" \
-                ./isolated-e2e-calendar-outage.sh restore \
-                  --state-file "$calendar_outage_state" \
-                  --startup-env "$WEAVE_E2E_STARTUP_ENV_PATH" \
-                  --stack-bootstrap-env "$WEAVE_E2E_STACK_BOOTSTRAP_ENV" \
-                  2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
-            fi
-            jq -e '
-              .state == "restored" and
-              .recoveryRequired == false and
-              .cachedHealth == {calendarStatus:2,filesStatus:2}
-            ' "$calendar_outage_state" >/dev/null
-            cp "$calendar_outage_state" \
-              "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-calendar-outage.json"
-          fi
-          keycloak_container="${WEAVE_E2E_RUN_NAMESPACE:?}-keycloak"
-          if [[ -s "${WEAVE_E2E_CREDENTIAL_ENV_PATH:-}" && \
-                -s "${WEAVE_E2E_STARTUP_ENV_PATH:-}" && \
-                -s "${WEAVE_E2E_STACK_BOOTSTRAP_ENV:-}" ]] && \
-              docker container inspect "$keycloak_container" >/dev/null 2>&1; then
-            ./isolated-e2e-identities.sh cleanup --run-id "$WEAVE_E2E_RUN_ID" \
-              2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
-          else
-            echo "ISOLATED_E2E_IDENTITIES state=cleanup-not-required providerRuntimeCreated=false supportSafe=true" \
-              | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
-          fi
-          [[ -s "${WEAVE_E2E_IDENTITY_MANIFEST_PATH:-}" ]] && \
-            cp "$WEAVE_E2E_IDENTITY_MANIFEST_PATH" "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-identities.json"
-          [[ -s "${WEAVE_E2E_CLEANUP_EVIDENCE_PATH:-}" ]] && \
-            cp "$WEAVE_E2E_CLEANUP_EVIDENCE_PATH" "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-cleanup.json"
-
-      - name: Generate live stack acceptance evidence
-        if: always()
-        working-directory: weave/client
-        run: |
-          set -euo pipefail
-          dart run tool/acceptance_contract.dart guard \
-            --root .. \
-            --features e2e/features \
-            --mapping e2e/scenario_mappings.json \
-            --out "$WEAVE_ACCEPTANCE_EVIDENCE_DIR" \
-            --test-log "$WEAVE_ACCEPTANCE_TEST_LOG" \
-            --append-summary "$GITHUB_STEP_SUMMARY" \
-            --source live-stack-e2e \
-            --lane dogfood-candidate-live-evidence \
-            --commit "$GITHUB_SHA" \
-            --run-id "$GITHUB_RUN_ID" \
-            --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-
-      - name: Generate support-safe failure diagnostics
-        if: failure()
-        env:
-          WEAVE_LIVE_STACK_FAILURE_DIAGNOSTICS_DIR: ${{ env.WEAVE_ACCEPTANCE_EVIDENCE_DIR }}/failure-diagnostics
-          WEAVE_LIVE_STACK_SUPPORT_BUNDLE_LOG_LINES: '80'
-        run: |
-          set -euo pipefail
-          # shellcheck disable=SC1090
-          source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          bash weave/infra/weave-workspace/live-stack-failure-diagnostics.sh "$WEAVE_LIVE_STACK_FAILURE_DIAGNOSTICS_DIR"
-
-      - name: Destroy stack and scrub stale resources
-        id: stack_teardown
-        if: always()
-        working-directory: weave/infra/weave-workspace
-        run: |
-          set -euo pipefail
-          if [[ -s "${WEAVE_E2E_STARTUP_ENV_PATH:-}" ]]; then
-            # shellcheck disable=SC1090
-            source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          fi
-          : "${WEAVE_E2E_RUN_NAMESPACE:?missing isolated E2E namespace}"
-          : "${WEAVE_E2E_OUTPUT_ROOT:?missing isolated E2E output root}"
-          : "${WEAVE_GENERATED_ROOT:?missing isolated generated root}"
-          if ! docker container inspect "${WEAVE_E2E_RUN_NAMESPACE}-db" >/dev/null 2>&1 && \
-             ! docker network inspect "${WEAVE_E2E_RUN_NAMESPACE}_network" >/dev/null 2>&1; then
-            echo "ISOLATED_STACK_TEARDOWN status=not-required runtimeCreated=false supportSafe=true"
-            exit 0
-          fi
-          case "${WEAVE_E2E_STARTUP_ENV_PATH:-}" in
-            "$WEAVE_E2E_OUTPUT_ROOT/$WEAVE_E2E_RUN_NAMESPACE/"*) ;;
-            *)
-              echo "::error::The startup environment is not owned by the exact isolated namespace." >&2
-              exit 1
-              ;;
-          esac
-          if [[ ! -f "$WEAVE_E2E_STARTUP_ENV_PATH" || -L "$WEAVE_E2E_STARTUP_ENV_PATH" ]]; then
-            echo "::error::The exact run-scoped startup environment is unavailable for Compose cleanup." >&2
-            exit 1
-          fi
-          # shellcheck disable=SC1090
-          source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          [[ "${WEAVE_E2E_STACK_SCOPE:?}" == isolated ]]
-          WEAVE_TEARDOWN_EVIDENCE_FILE="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-stack-teardown.json" \
-            WEAVE_CANDIDATE_COMMIT="$GITHUB_SHA" \
-            WEAVE_E2E_STACK_SCOPE=isolated \
-            WEAVE_E2E_IDENTITY_MANIFEST_PATH="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-identities.json" \
-            WEAVE_REMOVE_VOLUMES=true \
-            WEAVE_CONFIRM_DESTRUCTIVE_RESET="$WEAVE_E2E_RUN_NAMESPACE" \
-            bash ./teardown.sh test --isolated
-
-      - name: Verify persistent dogfood resources were preserved
-        id: persistent_preservation
-        if: always()
-        run: |
-          set -euo pipefail
-          bash weave/tools/persistent_dogfood_resource_guard.sh \
-            verify "${RUNNER_TEMP%/}/weave-live-stack-persistent-dogfood-resources"
-
-      - name: Record independent live phase outcomes
-        if: always()
-        env:
-          WEAVE_LIVE_TEST_STEP_OUTCOME: ${{ steps.live_tests.outcome }}
-          WEAVE_PROVIDER_PROOF_STEP_OUTCOME: ${{ steps.provider_proof.outcome }}
-          WEAVE_IDENTITY_CLEANUP_STEP_OUTCOME: ${{ steps.disposable_cleanup.outcome }}
-          WEAVE_STACK_TEARDOWN_STEP_OUTCOME: ${{ steps.stack_teardown.outcome }}
-          WEAVE_PERSISTENT_PRESERVATION_STEP_OUTCOME: ${{ steps.persistent_preservation.outcome }}
-        run: |
-          set -euo pipefail
-          output="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/live-phase-outcomes.json"
-          step_status() {
-            case "$1" in
-              success) echo 0 ;;
-              failure) echo 1 ;;
-              skipped) echo 2 ;;
-              cancelled) echo 3 ;;
-              *) echo 1 ;;
-            esac
-          }
-          python3 weave/tools/live_phase_outcomes.py \
-            --output "$output" \
-            --candidate-commit "$GITHUB_SHA" \
-            --workflow-run-id "$GITHUB_RUN_ID" \
-            --run-index "$GITHUB_RUN_ATTEMPT" \
-            --observed-at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            --outcome "single-user-appshell-e2ee|${WEAVE_SINGLE_USER_TEST_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
-            --outcome "three-identity-collaboration|${WEAVE_COLLABORATION_TEST_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
-            --outcome "matrix-before-collaboration|${WEAVE_MATRIX_BEFORE_COLLABORATION_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
-            --outcome "matrix-after-collaboration|${WEAVE_MATRIX_AFTER_COLLABORATION_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
-            --outcome "calendar-outage-begin|${WEAVE_CALENDAR_OUTAGE_BEGIN_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
-            --outcome "calendar-failure-containment|${WEAVE_CALENDAR_CONTAINMENT_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
-            --outcome "calendar-outage-recovery|${WEAVE_CALENDAR_OUTAGE_RESTORE_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
-            --outcome "provider-persistence-exactly-once|${WEAVE_CHAT_PROVIDER_PROOF_STATUS:-1}|$WEAVE_PROVIDER_PROOF_STEP_OUTCOME" \
-            --outcome "identity-cleanup|$(step_status "$WEAVE_IDENTITY_CLEANUP_STEP_OUTCOME")|$WEAVE_IDENTITY_CLEANUP_STEP_OUTCOME" \
-            --outcome "stack-teardown|$(step_status "$WEAVE_STACK_TEARDOWN_STEP_OUTCOME")|$WEAVE_STACK_TEARDOWN_STEP_OUTCOME" \
-            --outcome "persistent-dogfood-preservation|$(step_status "$WEAVE_PERSISTENT_PRESERVATION_STEP_OUTCOME")|$WEAVE_PERSISTENT_PRESERVATION_STEP_OUTCOME"
-
-      - name: Aggregate two-pass human-testing automation evidence
-        if: always()
-        working-directory: weave
-        env:
-          WEAVE_PERSISTENT_PRESERVATION_STEP_OUTCOME: ${{ steps.persistent_preservation.outcome }}
-        run: |
-          set -o pipefail
-          set +e
-          python3 tools/multi_user_e2e_evidence.py \
-            --candidate-commit "$GITHUB_SHA" \
-            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-            --test-log "$WEAVE_ACCEPTANCE_TEST_LOG" \
-            --identity-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-identities.json" \
-            --authorization-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-authorization.json" \
-            --calendar-outage-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-calendar-outage.json" \
-            --chat-provider-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-chat-provider.json" \
-            --cleanup-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-cleanup.json" \
-            --stack-teardown-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-stack-teardown.json" \
-            --output "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/human-testing-automated-evidence.json" \
-            --require-passed 2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
-          aggregate_status=${PIPESTATUS[0]}
-          set -e
-          final_status=0
-          if [[ "${WEAVE_SINGLE_USER_TEST_STATUS:-1}" != 0 ]]; then
-            echo "::error::The existing live AppShell/provider suite failed." >&2
-            final_status=1
-          fi
-          if [[ "${WEAVE_MULTI_USER_TEST_STATUS:-1}" != 0 || "$aggregate_status" != 0 ]]; then
-            echo "::error::Three-user collaboration or provider persistence is blocked or failed; inspect the support-safe evidence artifact." >&2
-            final_status=1
-          fi
-          if [[ "${WEAVE_CHAT_PROVIDER_PROOF_STATUS:-1}" != 0 ]]; then
-            echo "::error::The independent Matrix/Synapse provider proof failed or was unavailable." >&2
-            final_status=1
-          fi
-          if [[ "${WEAVE_PERSISTENT_PRESERVATION_STEP_OUTCOME:-failure}" != success ]]; then
-            echo "::error::Persistent dogfood resource preservation failed or was unavailable." >&2
-            final_status=1
-          fi
-          exit "$final_status"
-
-      - name: Upload live stack acceptance evidence
-        if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: weave-live-stack-acceptance-evidence
-          path: ${{ env.WEAVE_ACCEPTANCE_EVIDENCE_DIR }}
-          if-no-files-found: error
+          name: weave-fresh-product-proof-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/weave-fresh-proof/*/weave-test-app-evidence.json
+            ${{ runner.temp }}/weave-fresh-proof/*/teardown-evidence.json
+            ${{ runner.temp }}/weave-fresh-proof/persistent-resources.txt
+          if-no-files-found: warn
           retention-days: 30
-
-      - name: Scrub current runner-owned Weave outputs
-        if: always()
-        env:
-          WEAVE_LIVE_JOB_STATUS: ${{ job.status }}
-        run: |
-          set -euo pipefail
-          simulator_cleanup_status=0
-          if [[ -n "${WEAVE_E2E_SIMULATOR_UDID:-}" ]]; then
-            if [[ "$WEAVE_E2E_SIMULATOR_UDID" =~ ^[0-9A-Fa-f-]{36}$ ]]; then
-              xcrun simctl shutdown "$WEAVE_E2E_SIMULATOR_UDID" >/dev/null 2>&1 || true
-              xcrun simctl delete "$WEAVE_E2E_SIMULATOR_UDID" >/dev/null 2>&1 || simulator_cleanup_status=1
-            else
-              echo "::error::Refusing to delete an invalid simulator identifier." >&2
-              simulator_cleanup_status=1
-            fi
-          fi
-          checkout_root="${GITHUB_WORKSPACE%/}/weave"
-          remove_runner_output() {
-            local path="$1"
-            case "$path" in
-              "$checkout_root"/*|"${RUNNER_TEMP%/}"/weave-live-stack-*)
-                rm -rf -- "$path"
-                ;;
-              *)
-                echo "::error::Refusing to remove non-runner-owned path: $path" >&2
-                exit 1
-                ;;
-            esac
-          }
-          for path in \
-            "$checkout_root/.gradle" \
-            "$checkout_root/build" \
-            "$checkout_root/client/.dart_tool" \
-            "$checkout_root/client/build" \
-            "$checkout_root/server/build" \
-            "$checkout_root/weave-mcp-server/build" \
-            "${WEAVE_ACCEPTANCE_EVIDENCE_DIR:-$RUNNER_TEMP/weave-live-stack-acceptance-evidence}" \
-            "${WEAVE_ACCEPTANCE_TEST_LOG:-$RUNNER_TEMP/weave-live-stack-e2e.log}" \
-            "${WEAVE_DOCKER_AUTH_CONFIG:-$RUNNER_TEMP/weave-live-stack-docker-config}" \
-            "$RUNNER_TEMP/weave-live-stack-identities" \
-            "${WEAVE_RUNNER_EMERGENCY_RESERVE:-$RUNNER_TEMP/weave-live-stack-emergency-reserve}" \
-            "${WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED:-$RUNNER_TEMP/weave-live-stack-emergency-reserve-released}"; do
-            remove_runner_output "$path"
-          done
-          if [[ "$WEAVE_LIVE_JOB_STATUS" == success ]]; then
-            echo "Preserving the attested immutable image set for the locked downstream dogfood deployment."
-          else
-            for image_ref in \
-              "${WEAVE_BACKEND_IMAGE:-}" \
-              "${WEAVE_MCP_IMAGE:-}" \
-              "${WEAVE_KEYCLOAK_IMAGE:-}" \
-              "${WEAVE_IDENTITY_OPS_IMAGE:-}"; do
-              [[ "$image_ref" =~ ^sha256:[0-9a-f]{64}$ ]] || continue
-              docker image rm "$image_ref" >/dev/null 2>&1 || true
-            done
-          fi
-          df -h "$RUNNER_TEMP"
-          if (( simulator_cleanup_status != 0 )); then
-            echo "::error::The runner-owned iPhone Simulator could not be deleted." >&2
-            exit "$simulator_cleanup_status"
-          fi

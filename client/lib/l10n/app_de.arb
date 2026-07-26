@@ -1,9 +1,6 @@
 {
   "@@locale": "de",
   "appTitle": "Weave",
-  "welcomeTitle": "Willkommen bei Weave",
-  "welcomeSubtitle": "Tritt deiner Organisation über eine Einladung oder Anmelde-Übergabe bei. Anbieter-Setup bleibt bei den Admins.",
-  "continueButton": "Organisation beitreten",
   "setupTitle": "Organisationszugang",
   "setupServicesStepTitle": "Backend-API prüfen",
   "setupServicesStepDescription": "Prüfe den Weave-Backend-API-Endpunkt, der aus dem Organisations-Login abgeleitet wurde. Provider-Service-URLs bleiben in Admin-/Support-Diagnosen, nicht in der Mitglieder-Einrichtung.",
@@ -1088,7 +1085,7 @@
   "@setupMemberHandoffTitle": {
     "description": "Title for the normal member handoff-first setup screen"
   },
-  "setupMemberHandoffDescription": "Öffne den Einladungslink, /join-Link oder die Organisations-Anmelde-URL, die dein Admin gesendet hat. Weave bereitet deinen Workspace aus dem Organisationsmanifest vor, ohne dass du Anbieter-Endpunkte bearbeiten musst.",
+  "setupMemberHandoffDescription": "Öffne den Einladungslink, /join-Link oder die Organisations-Anmelde-URL, die dein Admin gesendet hat. Weave bereitet deinen Workspace aus dem Organisationsmanifest vor, ohne dich nach technischen Service-Einstellungen zu fragen.",
   "@setupMemberHandoffDescription": {
     "description": "Description for the normal member handoff-first setup screen"
   },
@@ -1167,6 +1164,10 @@
   "memberHandoffErrorGuidance": "Die Einladung ist möglicherweise abgelaufen, unvollständig oder noch nicht bereit. Bitte deinen Workspace-Admin um eine neue Einladung oder Organisations-Anmelde-URL.",
   "@memberHandoffErrorGuidance": {
     "description": "Support-safe guidance when member handoff consumption fails"
+  },
+  "memberHandoffSignInRetryGuidance": "Die Anmeldung wurde nicht abgeschlossen. Versuche es erneut im Systembrowser oder bitte deinen Workspace-Admin, deinen Zugriff zu prüfen.",
+  "@memberHandoffSignInRetryGuidance": {
+    "description": "Support-safe guidance after sign-in from a consumed member handoff fails"
   },
   "memberHandoffTlsErrorGuidance": "Weave konnte die Startkonfiguration des Workspaces nicht über vertrauenswürdiges TLS erreichen. Für lokales Dogfood installiere die Weave Local Development CA auf diesem iPhone und aktiviere volles Vertrauen, oder bitte deinen Admin um eine öffentlich vertrauenswürdige Organisations-Anmelde-URL.",
   "@memberHandoffTlsErrorGuidance": {

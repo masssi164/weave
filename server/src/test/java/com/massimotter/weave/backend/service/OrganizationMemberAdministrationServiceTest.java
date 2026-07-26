@@ -16,6 +16,7 @@ import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminCl
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.ProviderMember;
 import com.massimotter.weave.backend.model.identity.OrganizationMemberResponse;
 import com.massimotter.weave.backend.model.identity.OrganizationMemberUpdateRequest;
+import com.massimotter.weave.backend.model.identity.WeaverEntitlementUpdateRequest;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -101,7 +102,7 @@ class OrganizationMemberAdministrationServiceTest {
                 service.update(
                     ORGANIZATION_ID,
                     current.memberHandle(),
-                    new OrganizationMemberUpdateRequest("member", false, true),
+                    new OrganizationMemberUpdateRequest("member", true),
                     current.version(),
                     "idempotency-owner-demotion-0001",
                     jwt("admin")))
@@ -113,13 +114,23 @@ class OrganizationMemberAdministrationServiceTest {
             });
 
     verify(keycloak, never())
-        .updateMember(anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.anyBoolean());
+        .updateMember(
+            anyString(),
+            anyString(),
+            anyString(),
+            org.mockito.ArgumentMatchers.anyBoolean());
   }
 
   @Test
-  void accessUpdateIsIdempotentAuditedAndUsesOnlyCanonicalCapabilities() {
+  void roleUpdateIsIdempotentAuditedAndPreservesTheIndependentWeaverEntitlement() {
     ProviderMember target =
-        member("subject-member", "member@example.test", "Member", "member", true);
+        new ProviderMember(
+            "subject-member",
+            "member@example.test",
+            "Member",
+            List.of("member"),
+            List.of("agent-runtime.entitled"),
+            true);
     ProviderMember owner =
         member("subject-owner", "owner@example.test", "Owner", "owner", true);
     ProviderMember updated =
@@ -135,7 +146,6 @@ class OrganizationMemberAdministrationServiceTest {
             KEYCLOAK_ORGANIZATION_ID,
             target.subject(),
             "admin",
-            List.of("agent-runtime.entitled"),
             true))
         .thenReturn(updated);
     when(operations.claim(
@@ -154,7 +164,7 @@ class OrganizationMemberAdministrationServiceTest {
         service.update(
             ORGANIZATION_ID,
             current.memberHandle(),
-            new OrganizationMemberUpdateRequest("admin", true, true),
+            new OrganizationMemberUpdateRequest("admin", true),
             '"' + current.version() + '"',
             "idempotency-access-update-0001",
             jwt("owner"));
@@ -166,7 +176,7 @@ class OrganizationMemberAdministrationServiceTest {
           assertThat(event.action().wireName()).isEqualTo("identity.member_access.updated");
           assertThat(event.payload())
               .containsEntry("memberHandle", current.memberHandle())
-              .containsEntry("agentRuntimeEntitled", true);
+              .containsEntry("enabled", true);
           assertThat(event.toString()).doesNotContain(target.subject(), target.email());
         });
     verify(operations)
@@ -174,6 +184,63 @@ class OrganizationMemberAdministrationServiceTest {
             org.mockito.ArgumentMatchers.eq(ORGANIZATION_ID),
             org.mockito.ArgumentMatchers.eq("idempotency-access-update-0001"),
             org.mockito.ArgumentMatchers.contains("\"role\":\"admin\""));
+  }
+
+  @Test
+  void weaverEntitlementUsesItsOwnIdempotentAuditedCapabilityOperation() {
+    ProviderMember target =
+        member("subject-member", "member@example.test", "Member", "member", true);
+    ProviderMember owner =
+        member("subject-owner", "owner@example.test", "Owner", "owner", true);
+    ProviderMember entitled =
+        new ProviderMember(
+            target.subject(),
+            target.email(),
+            target.displayName(),
+            target.roles(),
+            List.of("agent-runtime.entitled"),
+            true);
+    when(keycloak.members(KEYCLOAK_ORGANIZATION_ID)).thenReturn(List.of(target, owner));
+    when(keycloak.setWeaverEntitlement(
+            KEYCLOAK_ORGANIZATION_ID, target.subject(), true))
+        .thenReturn(entitled);
+    when(operations.claim(
+            org.mockito.ArgumentMatchers.eq(ORGANIZATION_ID),
+            org.mockito.ArgumentMatchers.eq("idempotency-weaver-update-0001"),
+            org.mockito.ArgumentMatchers.eq("weaver-entitlement-update"),
+            org.mockito.ArgumentMatchers.anyString()))
+        .thenReturn(Optional.empty());
+    OrganizationMemberResponse current =
+        service.get(
+            ORGANIZATION_ID,
+            references.member(ORGANIZATION_ID, target.subject()),
+            jwt("owner"));
+
+    OrganizationMemberResponse response =
+        service.updateWeaverEntitlement(
+            ORGANIZATION_ID,
+            current.memberHandle(),
+            new WeaverEntitlementUpdateRequest(true),
+            current.version(),
+            "idempotency-weaver-update-0001",
+            jwt("owner"));
+
+    assertThat(response.role()).isEqualTo("member");
+    assertThat(response.capabilities()).containsExactly("agent-runtime.entitled");
+    assertThat(audit.events()).singleElement().satisfies(
+        event -> {
+          assertThat(event.action().wireName()).isEqualTo("identity.member_access.updated");
+          assertThat(event.payload())
+              .containsEntry("capability", "agent-runtime.entitled")
+              .containsEntry("organizationGroupPath", "/capabilities/weaver")
+              .containsEntry("entitled", true);
+          assertThat(event.toString()).doesNotContain(target.subject(), target.email());
+        });
+    verify(operations)
+        .complete(
+            org.mockito.ArgumentMatchers.eq(ORGANIZATION_ID),
+            org.mockito.ArgumentMatchers.eq("idempotency-weaver-update-0001"),
+            org.mockito.ArgumentMatchers.contains("agent-runtime.entitled"));
   }
 
   @Test

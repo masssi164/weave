@@ -2,7 +2,6 @@ package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeWorkloadTokenPolicy;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -17,7 +16,6 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jpa")
 public class AgentRuntimeProfileSecurityConfiguration {
     public static final String PROFILE_PATH = "/api/v1/agent-runtime/runtime-profiles/**";
     public static final String TRUST_PATH = "/api/v1/agent-runtime/trust/jwks.json";

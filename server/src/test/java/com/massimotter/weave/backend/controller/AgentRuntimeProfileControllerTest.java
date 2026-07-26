@@ -54,7 +54,6 @@ import org.springframework.test.web.servlet.MockMvc;
         OAuth2ResourceServerProperties.class
 })
 @TestPropertySource(properties = {
-        "weave.agent-runtime.storage.mode=jpa",
         "weave.platform.api-base-url=https://api.weave.test/api"
 })
 class AgentRuntimeProfileControllerTest {
@@ -174,7 +173,7 @@ class AgentRuntimeProfileControllerTest {
                         .subject(SUBJECT)
                         .issuedAt(Instant.parse("2026-07-20T10:00:00Z"))
                         .expiresAt(Instant.parse("2026-07-20T10:01:00Z"))
-                        .audience(List.of(RESOURCE, CLIENT))
+                        .audience(List.of(RESOURCE))
                         .claim("jti", "workload-jti")
                         .claim("client_id", CLIENT)
                         .claim("azp", CLIENT)

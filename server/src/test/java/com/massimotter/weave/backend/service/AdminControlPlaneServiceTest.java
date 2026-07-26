@@ -44,7 +44,9 @@ class AdminControlPlaneServiceTest {
                 new InMemoryProviderSelectionRepository(),
                 new InMemoryOrganizationBootstrapRepository(),
                 auditPublisher,
-                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC),
+                mock(ProductProfileOverrideRepository.class),
+                new InMemoryMigrationRunEvidenceRepository());
         CapabilityWhitelistUpdateRequest request = new CapabilityWhitelistUpdateRequest(
                 "workspace-admin",
                 List.of("admin.policy.edit", "admin.provider.configure"),
@@ -111,7 +113,7 @@ class AdminControlPlaneServiceTest {
                 "issuer+subject:https://auth.example.invalid/realms/weave#member-123",
                 "weave-dogfood",
                 List.of("member"),
-                List.of("weave-board-editors"),
+                List.of("/members"),
                 List.of("chat.send", "boards.update_task", "admin.provider.configure", "agent-runtime.entitled"),
                 "simulate before #233 dry-run/apply with Bearer operator-token and secretref://weave/provider/keycloak");
 
@@ -120,7 +122,7 @@ class AdminControlPlaneServiceTest {
         assertThat(adminResponse.supportSafe()).isTrue();
         assertThat(adminResponse.unknownInputsFailClosed()).isFalse();
         assertThat(adminResponse.agentRuntimeEntitlementRequired()).isTrue();
-        assertThat(adminResponse.grantedCapabilities()).containsExactly("boards.update_task", "chat.send");
+        assertThat(adminResponse.grantedCapabilities()).containsExactly("chat.send");
         assertThat(adminResponse.capabilityStates()).extracting(state -> state.state())
                 .containsOnly("ready", "disabled", "policy-blocked");
         assertThat(adminResponse.capabilityStates()).filteredOn(state -> state.capability().equals("agent-runtime.entitled"))
@@ -129,6 +131,10 @@ class AdminControlPlaneServiceTest {
                     assertThat(state.state()).isEqualTo("disabled");
                     assertThat(state.reasonCode()).isEqualTo("agent-runtime-entitlement-required");
                 });
+        assertThat(adminResponse.capabilityStates())
+                .filteredOn(state -> state.capability().equals("boards.update_task"))
+                .singleElement()
+                .satisfies(state -> assertThat(state.state()).isEqualTo("policy-blocked"));
         assertThat(auditPublisher.events()).hasSize(1);
         assertThat(auditPublisher.events()).allSatisfy(event -> {
             assertThat(event.action()).isEqualTo(AuditAction.EFFECTIVE_POLICY_SIMULATED);
@@ -219,7 +225,9 @@ class AdminControlPlaneServiceTest {
                 selectionRepository,
                 new InMemoryOrganizationBootstrapRepository(),
                 new InMemoryAuditEventPublisher(),
-                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
+                mock(ProductProfileOverrideRepository.class),
+                new InMemoryMigrationRunEvidenceRepository());
 
         var response = service.overview(jwt("admin"));
 
@@ -346,7 +354,9 @@ class AdminControlPlaneServiceTest {
                 selectionRepository,
                 new InMemoryOrganizationBootstrapRepository(),
                 new InMemoryAuditEventPublisher(),
-                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
+                mock(ProductProfileOverrideRepository.class),
+                new InMemoryMigrationRunEvidenceRepository());
 
         var response = service.overview(jwt("admin"));
 
@@ -404,7 +414,9 @@ class AdminControlPlaneServiceTest {
                 new InMemoryProviderSelectionRepository(),
                 new InMemoryOrganizationBootstrapRepository(),
                 auditPublisher,
-                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC),
+                mock(ProductProfileOverrideRepository.class),
+                new InMemoryMigrationRunEvidenceRepository());
     }
 
     private DriverManagerDataSource migratedDataSource() {

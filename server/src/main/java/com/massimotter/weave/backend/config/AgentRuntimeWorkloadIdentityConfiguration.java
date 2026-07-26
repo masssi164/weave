@@ -4,7 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAgentRuntimeWorkloadIdentityAdmin;
-import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeEntitlementAuthority;
+import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeIdentityAuthority;
 import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeControlService;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeWorkloadReconciliationService;
@@ -32,9 +32,7 @@ import org.springframework.context.annotation.Configuration;
   AgentRuntimeWorkloadIdentityProperties.class,
   AgentRuntimeEntitlementProperties.class
 })
-@ConditionalOnExpression(
-    "'${weave.agent-runtime.storage.mode:disabled}' == 'jpa'"
-        + " && '${weave.agent-runtime.workload-identity.enabled:false}' == 'true'")
+@ConditionalOnExpression("'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'")
 public class AgentRuntimeWorkloadIdentityConfiguration {
 
   @Bean
@@ -71,13 +69,13 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
   }
 
   @Bean
-  KeycloakRuntimeEntitlementAuthority runtimeEntitlementAuthority(
+  KeycloakRuntimeIdentityAuthority runtimeIdentityAuthority(
       AgentRuntimeWorkloadIdentityProperties properties,
       AgentRuntimeEntitlementProperties entitlement,
       @Qualifier("keycloakAgentRuntimeEntitlementAccessTokenProvider")
           KeycloakAdminAccessTokenProvider accessTokens,
       ObjectMapper objectMapper) {
-    return new KeycloakRuntimeEntitlementAuthority(
+    return new KeycloakRuntimeIdentityAuthority(
         properties.entitlementSettings(entitlement), accessTokens, objectMapper);
   }
 

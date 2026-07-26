@@ -13,6 +13,7 @@ import com.massimotter.weave.backend.model.identity.MemberLifecycleOperationResp
 import com.massimotter.weave.backend.model.identity.OrganizationMemberPageResponse;
 import com.massimotter.weave.backend.model.identity.OrganizationMemberResponse;
 import com.massimotter.weave.backend.model.identity.OrganizationMemberUpdateRequest;
+import com.massimotter.weave.backend.model.identity.WeaverEntitlementUpdateRequest;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -117,16 +118,12 @@ public class OrganizationMemberAdministrationService {
         resolveMember(keycloakOrganizationId, organizationId, memberHandle);
     requireVersion(organizationId, current, expectedVersion);
     requireLastOwnerSafe(keycloakOrganizationId, current, request.role(), request.enabled());
-    List<String> capabilities =
-        request.agentRuntimeEntitled() ? List.of(AGENT_RUNTIME_CAPABILITY) : List.of();
     String requestHash =
         sha256(
             "update\u001f"
                 + memberHandle
                 + '\u001f'
                 + request.role()
-                + '\u001f'
-                + request.agentRuntimeEntitled()
                 + '\u001f'
                 + request.enabled()
                 + '\u001f'
@@ -143,7 +140,6 @@ public class OrganizationMemberAdministrationService {
             keycloakOrganizationId,
             current.subject(),
             request.role(),
-            capabilities,
             request.enabled());
     OrganizationMemberResponse response = response(organizationId, updated);
     publish(
@@ -153,9 +149,51 @@ public class OrganizationMemberAdministrationService {
         idempotencyKey,
         Map.of(
             "role", response.role(),
-            "enabled", response.enabled(),
-            "agentRuntimeEntitled",
-                response.capabilities().contains(AGENT_RUNTIME_CAPABILITY)));
+            "enabled", response.enabled()));
+    operations.complete(organizationId, idempotencyKey, write(response));
+    return response;
+  }
+
+  public synchronized OrganizationMemberResponse updateWeaverEntitlement(
+      String organizationId,
+      String memberHandle,
+      WeaverEntitlementUpdateRequest request,
+      String expectedVersion,
+      String idempotencyKey,
+      Jwt jwt) {
+    OrganizationIdentityContext actor = requireOrganization(organizationId, jwt);
+    String keycloakOrganizationId = keycloak.configuredOrganizationId();
+    ProviderMember current =
+        resolveMember(keycloakOrganizationId, organizationId, memberHandle);
+    requireVersion(organizationId, current, expectedVersion);
+    String requestHash =
+        sha256(
+            "weaver-entitlement\u001f"
+                + memberHandle
+                + '\u001f'
+                + request.entitled()
+                + '\u001f'
+                + normalizeVersion(expectedVersion));
+    var replay =
+        operations.claim(
+            organizationId, idempotencyKey, "weaver-entitlement-update", requestHash);
+    if (replay.isPresent()) {
+      return read(replay.get(), OrganizationMemberResponse.class);
+    }
+
+    ProviderMember updated =
+        keycloak.setWeaverEntitlement(
+            keycloakOrganizationId, current.subject(), request.entitled());
+    OrganizationMemberResponse response = response(organizationId, updated);
+    publish(
+        actor,
+        memberHandle,
+        AuditAction.MEMBER_ACCESS_UPDATED,
+        idempotencyKey,
+        Map.of(
+            "capability", AGENT_RUNTIME_CAPABILITY,
+            "organizationGroupPath", "/capabilities/weaver",
+            "entitled", request.entitled()));
     operations.complete(organizationId, idempotencyKey, write(response));
     return response;
   }

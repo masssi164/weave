@@ -35,12 +35,12 @@ void main() {
 
       expect(find.text('Organization access'), findsOneWidget);
       expect(
-        find.text('Weave server address, completion link, or QR content'),
+        find.text('Server URI, invitation link, or QR payload'),
         findsOneWidget,
       );
       expect(find.text('Continue to organization'), findsOneWidget);
       expect(find.bySemanticsLabel('Weave logo'), findsOneWidget);
-      expect(find.textContaining('same organization check'), findsOneWidget);
+      expect(find.textContaining('same Weave address'), findsOneWidget);
       for (final leakedTerm in [
         'Operator',
         'OIDC Issuer URL',

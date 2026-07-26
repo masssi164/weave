@@ -32,11 +32,11 @@ import org.testcontainers.utility.DockerImageName;
 /** Shared JPA bootstrap for focused H2 and Testcontainers PostgreSQL adapter tests. */
 public final class JpaTestDatabase {
   /*
-   * The server test suite creates persistence contexts concurrently. Keep a
-   * generous bounded cache so one test cannot close another test's in-memory
-   * database while it is still executing.
+   * Server test forks are intentionally serial. Retain only the small number of
+   * contexts a focused test may use concurrently and close older Hibernate
+   * factories before they can accumulate across the full suite.
    */
-  private static final int MAX_CACHED_CONTEXTS = 128;
+  private static final int MAX_CACHED_CONTEXTS = 2;
   private static final Map<DataSource, Context> CONTEXTS = new IdentityHashMap<>();
   private static final Deque<DataSource> CONTEXT_ORDER = new ArrayDeque<>();
 
@@ -91,6 +91,22 @@ public final class JpaTestDatabase {
         .locations("classpath:db/migration")
         .load()
         .migrate();
+    return dataSource;
+  }
+
+  /**
+   * Creates a database from the entity model for H2 feedback and from the reviewed migration for
+   * the authoritative PostgreSQL gate.
+   *
+   * <p>This is the normal repository-test entrypoint: H2 exercises the code-first model, while
+   * {@code postgresJpaTest} proves that the deployment baseline remains equivalent.
+   */
+  public static synchronized DriverManagerDataSource entityFirstDataSource(String semanticName) {
+    if (Boolean.getBoolean("weave.test.postgres")) {
+      return migratedDataSource(semanticName);
+    }
+    DriverManagerDataSource dataSource = dataSource(semanticName);
+    register(dataSource, create(dataSource, "create"));
     return dataSource;
   }
 
@@ -155,21 +171,14 @@ public final class JpaTestDatabase {
     if (existing != null) {
       return existing;
     }
-    while (CONTEXTS.size() >= MAX_CACHED_CONTEXTS) {
-      DataSource oldest = CONTEXT_ORDER.removeFirst();
-      Context removed = CONTEXTS.remove(oldest);
-      if (removed != null) {
-        removed.entityManagerFactory().close();
-      }
-    }
-    Context created = create(dataSource);
-    CONTEXTS.put(dataSource, created);
-    CONTEXT_ORDER.addLast(dataSource);
+    Context created = create(dataSource, "none");
+    register(dataSource, created);
     return created;
   }
 
-  private static Context create(DataSource dataSource) {
-    LocalContainerEntityManagerFactoryBean factory = entityManagerFactory(dataSource, "none");
+  private static Context create(DataSource dataSource, String schemaAction) {
+    LocalContainerEntityManagerFactoryBean factory =
+        entityManagerFactory(dataSource, schemaAction);
     EntityManagerFactory entityManagerFactory = factory.getObject();
     if (entityManagerFactory == null) {
       throw new IllegalStateException("test EntityManagerFactory was not created");
@@ -178,6 +187,18 @@ public final class JpaTestDatabase {
     EntityManager entityManager =
         SharedEntityManagerCreator.createSharedEntityManager(entityManagerFactory);
     return new Context(entityManager, entityManagerFactory, transactions);
+  }
+
+  private static void register(DataSource dataSource, Context context) {
+    while (CONTEXTS.size() >= MAX_CACHED_CONTEXTS) {
+      DataSource oldest = CONTEXT_ORDER.removeFirst();
+      Context removed = CONTEXTS.remove(oldest);
+      if (removed != null) {
+        removed.entityManagerFactory().close();
+      }
+    }
+    CONTEXTS.put(dataSource, context);
+    CONTEXT_ORDER.addLast(dataSource);
   }
 
   private static LocalContainerEntityManagerFactoryBean entityManagerFactory(

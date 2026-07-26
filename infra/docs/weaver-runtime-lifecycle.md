@@ -12,7 +12,7 @@ service-account subject recorded by ARC. Tokens carry the sole realm role `weave
 client roles, and an exact resource-specific scope set:
 
 - only `agent-runtime.profile.read` for `https://api.weave.test/api/v1/agent-runtime`;
-- `mcp:tools` plus the current RuntimeProfile's allowed domain scopes for
+- `mcp.tools` plus the current RuntimeProfile's allowed domain scopes for
   `https://api.weave.test/mcp`.
 
 Human clients and generic service accounts have no MCP path. A cell never receives a member token or the `weave-mcp-server` credential. The MCP edge exchanges rather than relays the incoming workload token and every receiving domain revalidates current cell binding, entitlement, member authorization, policy, arguments, expiry, and revocation.

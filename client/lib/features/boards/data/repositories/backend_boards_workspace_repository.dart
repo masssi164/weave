@@ -173,7 +173,7 @@ class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
   }
 
   Uri _boardsWorkspaceUri() =>
-      weaveApiUri(_apiBaseUrl, const ['api', 'boards', 'workspace']);
+      weaveApiUri(_apiBaseUrl, const ['boards', 'workspace']);
 
   Uri _taskMoveUri(String taskId) =>
       _apiUri(['boards', 'tasks', taskId, 'move']);
@@ -188,5 +188,5 @@ class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
       _apiUri(['boards', 'tasks', taskId, 'decision-links']);
 
   Uri _apiUri(List<String> tailSegments) =>
-      weaveApiUri(_apiBaseUrl, ['api', ...tailSegments]);
+      weaveApiUri(_apiBaseUrl, tailSegments);
 }

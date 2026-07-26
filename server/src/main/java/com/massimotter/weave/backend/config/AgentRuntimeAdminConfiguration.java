@@ -19,8 +19,7 @@ import org.springframework.context.annotation.Configuration;
 /** Builds the lifecycle graph only when every authoritative control-plane adapter is present. */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnExpression(
-        "'${weave.agent-runtime.storage.mode:disabled}' == 'jpa'"
-                + " && '${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
+        "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.policy.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.state-store.enabled:false}' == 'true'")

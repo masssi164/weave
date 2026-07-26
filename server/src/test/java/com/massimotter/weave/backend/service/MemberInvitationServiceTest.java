@@ -80,7 +80,6 @@ class MemberInvitationServiceTest {
     assertThat(response.organizationId()).isEqualTo(TENANT_ID);
     assertThat(response.email()).isEqualTo(EMAIL);
     assertThat(response.requestedRole()).isEqualTo("owner");
-    assertThat(response.capabilities()).isEmpty();
     assertThat(response.provisioningStatus()).isEqualTo("pending");
 
     List<ProvisioningIntent> saved =

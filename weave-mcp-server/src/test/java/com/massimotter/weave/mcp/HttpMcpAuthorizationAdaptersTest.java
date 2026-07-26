@@ -134,7 +134,7 @@ class HttpMcpAuthorizationAdaptersTest {
         URI.create(MCP_RESOURCE),
         URI.create("https://api.weave.test/.well-known/oauth-protected-resource/mcp"),
         URI.create(ISSUER),
-        List.of("mcp:tools", "files.read"),
+        List.of("mcp.tools", "files.read"),
         URI.create(base + tokenPath),
         EDGE,
         jwkFile.toAbsolutePath(),
@@ -151,7 +151,7 @@ class HttpMcpAuthorizationAdaptersTest {
         ISSUER,
         SUBJECT,
         CLIENT,
-        Set.of("mcp:tools", "files.read"),
+        Set.of("mcp.tools", "files.read"),
         now,
         now.plusSeconds(45),
         "cell-jti");

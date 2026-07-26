@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.PlatformConfigResponse;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
@@ -46,8 +47,8 @@ public class PlatformContractService {
                 new PlatformConfigResponse.Oidc(oidcIssuerUrl(), securityProperties.clientId()),
                 new PlatformConfigResponse.Protocols(
                         platformProperties.matrixHomeserverUrl(),
-                        joinUrlPath(platformProperties.apiBaseUrl(), "/dav/files"),
-                        joinUrlPath(platformProperties.apiBaseUrl(), "/caldav")),
+                        joinUrlPath(apiOrigin(), "/dav/files"),
+                        joinUrlPath(apiOrigin(), "/caldav")),
                 releasePosture(),
                 List.of(
                         domain("platform-identity", true, List.of(
@@ -94,6 +95,17 @@ public class PlatformContractService {
             return configuredIssuer;
         }
         return joinUrlPath(platformProperties.authBaseUrl(), "/realms/weave");
+    }
+
+    private String apiOrigin() {
+        URI apiBaseUrl = URI.create(platformProperties.apiBaseUrl());
+        String scheme = apiBaseUrl.getScheme();
+        if ((scheme == null
+                        || (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https")))
+                || apiBaseUrl.getHost() == null) {
+            throw new IllegalStateException("weave.platform.api-base-url must be an absolute HTTP(S) URL");
+        }
+        return scheme + "://" + apiBaseUrl.getRawAuthority();
     }
 
     private String joinUrlPath(String baseUrl, String path) {

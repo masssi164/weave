@@ -50,10 +50,10 @@ Feature: MCP domain facade boundary
     And only a server-owned service-account to cell to RuntimeProfile v2 binding may enter the transport
 
   @mcp-runtime-approved-discovery
-  Scenario: Runtime-approved MCP context is active while domain catalogs stay guarded
+  Scenario: Runtime-approved MCP workload reaches the standard Server projection while other catalogs stay guarded
     Given ARC has a current workload binding and RuntimeProfile v2
-    When the bound cell initializes the MCP transport
-    Then the edge resolves its current backend authorization context
+    When the bound cell initializes MCP and invokes the Files search tool
+    Then the edge exchanges its workload token and calls the standard WebDAV projection
     And no domain tool is advertised before its catalog, authorization, and evidence gates are implemented
     And no obsolete member runtime profile or approved-tools compatibility path is exposed
 
