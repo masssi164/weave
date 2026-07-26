@@ -610,7 +610,7 @@ public class KeycloakIdentityAdminClient {
   public static final class KeycloakAdminException extends RuntimeException {
     private final int status;
 
-    KeycloakAdminException(int status, String message) {
+    public KeycloakAdminException(int status, String message) {
       super(message + " with sanitized status " + status);
       this.status = status;
     }

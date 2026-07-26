@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.exception;
 
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.KeycloakAdminException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolationException;
@@ -33,6 +34,21 @@ public class ApiExceptionHandler {
                 exception.code(),
                 exception.getMessage(),
                 exception.details());
+    }
+
+    @ExceptionHandler(KeycloakAdminException.class)
+    public void handleIdentityAdministrationFailure(
+            KeycloakAdminException exception,
+            HttpServletRequest request,
+            HttpServletResponse response)
+            throws IOException {
+        errorResponseWriter.write(
+                request,
+                response,
+                HttpStatus.BAD_GATEWAY,
+                "identity-administration-failed",
+                "Identity administration is temporarily unavailable.",
+                Map.of("providerStatus", exception.status()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -32,13 +32,17 @@ final class JsonHttpClient {
   private final JsonMapper mapper;
 
   JsonHttpClient(Path caCertificate) {
-    this.mapper = JsonMapper.builder().build();
-    this.client =
+    this(
         HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .followRedirects(HttpClient.Redirect.NEVER)
             .sslContext(sslContext(caCertificate))
-            .build();
+            .build());
+  }
+
+  JsonHttpClient(HttpClient client) {
+    this.mapper = JsonMapper.builder().build();
+    this.client = java.util.Objects.requireNonNull(client, "client");
   }
 
   JsonMapper mapper() {
@@ -135,7 +139,10 @@ final class JsonHttpClient {
       }
       if (!expectedStatuses.contains(response.statusCode())) {
         throw new ProductFlowException(
-            operation + " failed with HTTP " + response.statusCode());
+            operation
+                + " failed with HTTP "
+                + response.statusCode()
+                + safeFailureReference(response));
       }
       return new Response(response.statusCode(), response.headers().map(), response.body());
     } catch (InterruptedException interrupted) {
@@ -143,6 +150,47 @@ final class JsonHttpClient {
       throw new ProductFlowException(operation + " was interrupted", interrupted);
     } catch (IOException failure) {
       throw new ProductFlowException(operation + " transport failed", failure);
+    }
+  }
+
+  private String safeFailureReference(HttpResponse<byte[]> response) {
+    StringBuilder reference = new StringBuilder();
+    try {
+      JsonNode error = mapper.readTree(response.body());
+      appendSafeText(reference, " code=", error.path("code").asString(""), "[a-z0-9][a-z0-9-]{0,79}");
+      JsonNode providerStatus = error.path("details").path("providerStatus");
+      if (providerStatus.isIntegralNumber()
+          && providerStatus.asInt() >= 100
+          && providerStatus.asInt() <= 599) {
+        reference.append(" providerStatus=").append(providerStatus.asInt());
+      }
+      appendSafeText(
+          reference,
+          " requestId=",
+          error.path("requestId").asString(""),
+          "[A-Za-z0-9][A-Za-z0-9._:-]{0,127}");
+    } catch (RuntimeException ignored) {
+      // Non-Weave or malformed payloads are deliberately omitted from diagnostics.
+    }
+    if (reference.indexOf("requestId=") < 0) {
+      response
+          .headers()
+          .firstValue("X-Request-Id")
+          .ifPresent(
+              requestId ->
+                  appendSafeText(
+                      reference,
+                      " requestId=",
+                      requestId,
+                      "[A-Za-z0-9][A-Za-z0-9._:-]{0,127}"));
+    }
+    return reference.toString();
+  }
+
+  private static void appendSafeText(
+      StringBuilder target, String prefix, String value, String allowedPattern) {
+    if (value != null && value.matches(allowedPattern)) {
+      target.append(prefix).append(value);
     }
   }
 
