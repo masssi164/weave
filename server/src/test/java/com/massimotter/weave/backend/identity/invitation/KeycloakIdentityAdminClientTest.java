@@ -100,12 +100,13 @@ class KeycloakIdentityAdminClientTest {
   }
 
   @Test
-  void treatsOnlyServiceAccountsAsAnEmptyHumanRealm() {
+  void checksBootstrapEmptinessThroughTheAuthorizedOrganizationProjection() {
     provider
         .expect(
             requestTo(
                 "https://identity.internal/admin/realms/weave"
-                    + "/users?first=0&max=100&briefRepresentation=true"))
+                    + "/organizations/organization-1/members"
+                    + "?first=0&max=100&briefRepresentation=true"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(
             withSuccess(
@@ -129,12 +130,13 @@ class KeycloakIdentityAdminClientTest {
   }
 
   @Test
-  void detectsAHumanAmongServiceAccounts() {
+  void detectsAHumanInTheOrganizationProjection() {
     provider
         .expect(
             requestTo(
                 "https://identity.internal/admin/realms/weave"
-                    + "/users?first=0&max=100&briefRepresentation=true"))
+                    + "/organizations/organization-1/members"
+                    + "?first=0&max=100&briefRepresentation=true"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(
             withSuccess(

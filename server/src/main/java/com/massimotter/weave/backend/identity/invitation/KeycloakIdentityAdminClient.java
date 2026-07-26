@@ -87,12 +87,15 @@ public class KeycloakIdentityAdminClient {
   }
 
   /**
-   * Returns whether the realm contains a person rather than a client service account.
+   * Returns whether the configured organization contains a person.
    *
-   * <p>The bounded pagination fails closed if an unexpectedly large service-account inventory
-   * prevents a complete determination.
+   * <p>Fresh Weave admits people only through the configured organization. Reading its member
+   * projection keeps this check inside the organization-specific FGAP boundary; the identity
+   * administration client intentionally has no realm-wide {@code query-users} permission. The
+   * bounded pagination fails closed if the complete projection cannot be determined.
    */
   public boolean hasHumanUsers() {
+    String organizationId = configuredOrganizationId();
     int pageSize = 100;
     for (int first = 0; first < 1_000; first += pageSize) {
       List<JsonNode> users =
@@ -101,7 +104,9 @@ public class KeycloakIdentityAdminClient {
                       request(
                           HttpMethod.GET,
                           adminPath(
-                              "/users?first="
+                              "/organizations/"
+                                  + path(organizationId)
+                                  + "/members?first="
                                   + first
                                   + "&max="
                                   + pageSize
