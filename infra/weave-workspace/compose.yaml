@@ -173,11 +173,13 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_MANAGEMENT_PORT: "9000"
       KC_PROXY_HEADERS: xforwarded
+      KC_TRUSTSTORE_PATHS: /opt/weave/trust/ca.pem
     secrets:
       - keycloak-db-password
       - keycloak-bootstrap-admin-password
     volumes:
       - ./scripts/run-keycloak.sh:/opt/weave/run-keycloak.sh:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/opt/weave/trust/ca.pem:ro
       - keycloak-data:/opt/keycloak/data
     ports:
       - "127.0.0.1:${WEAVE_KEYCLOAK_HOST_PORT:-48080}:8080"
