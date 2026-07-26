@@ -26,6 +26,8 @@ class IdentityOpsError(RuntimeError):
 
 def classify_kcadm_failure(diagnostic: str) -> str:
     normalized = diagnostic.casefold()
+    if "conflicting policy" in normalized and "already exists" in normalized:
+        return "authorization-name-conflict"
     if "reset-password" in normalized and (
         "scope" in normalized or "not found" in normalized
     ):
@@ -100,7 +102,7 @@ IDENTITY_ADMIN_FGAP_CONTRACT = {
         },
         {
             "key": "admin-permission:identity-users-deny-credential-mutation",
-            "name": "weave-identity-admin deny credential mutation",
+            "name": "weave-identity-admin credential mutation denied",
             "resourceType": "Users",
             "resourceRefs": [],
             "allResources": True,
@@ -1288,6 +1290,118 @@ def probe_client_credentials(server: str, realm: str, clients: list[dict[str, An
             )
 
 
+def credential_mutation_probe_status(
+    server: str,
+    realm: str,
+    account_id: str,
+    access_token: str,
+) -> int:
+    # Keycloak 26.7 authorizes reset-password before validating this deliberately
+    # incomplete representation. A 403 therefore proves the FGAP deny without
+    # creating or changing a credential.
+    endpoint = (
+        f"{server}/admin/realms/{urllib.parse.quote(realm, safe='')}"
+        f"/users/{urllib.parse.quote(account_id, safe='')}/reset-password"
+    )
+    request = urllib.request.Request(
+        endpoint,
+        data=b"{}",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        },
+        method="PUT",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            response.read(4096)
+            return response.status
+    except urllib.error.HTTPError as error:
+        error.read(4096)
+        return error.code
+    except urllib.error.URLError as error:
+        raise IdentityOpsError(
+            "identity-admin credential-denial probe failed; response withheld"
+        ) from error
+
+
+def probe_identity_admin_credential_denial(
+    kcadm: Kcadm,
+    server: str,
+    realm: str,
+    clients: list[dict[str, Any]],
+) -> None:
+    desired_client = exact(
+        [
+            client
+            for client in clients
+            if client.get("key") == "client:weave-identity-admin"
+        ],
+        "client:weave-identity-admin",
+        "desired identity administration client",
+    )
+    if desired_client is None:
+        raise IdentityOpsError("identity administration client is missing from desired state")
+    secret_ref = desired_client.get("secretRef")
+    filename = SECRET_REF_FILES.get(str(secret_ref))
+    if (
+        filename is None
+        or desired_client.get("authenticationMethod") != "client_secret_basic"
+        or desired_client.get("serviceAccountsEnabled") is not True
+    ):
+        raise IdentityOpsError(
+            "identity administration client cannot perform the credential-denial probe"
+        )
+    observed_client = exact(
+        kcadm.call(
+            "get",
+            "clients",
+            "-r",
+            realm,
+            "-q",
+            f"clientId={desired_client['clientId']}",
+        )
+        or [],
+        "client:weave-identity-admin",
+        "identity administration client",
+    )
+    if observed_client is None:
+        raise IdentityOpsError("identity administration client was not materialized")
+    account = kcadm.call(
+        "get",
+        f"clients/{observed_client['id']}/service-account-user",
+        "-r",
+        realm,
+    ) or {}
+    account_id = account.get("id")
+    if not isinstance(account_id, str) or not account_id:
+        raise IdentityOpsError(
+            "identity administration service account has no stable identifier"
+        )
+    status, token_response = client_credentials_token_response(
+        server,
+        realm,
+        str(desired_client["clientId"]),
+        private_value(secret_path(filename)),
+    )
+    access_token = token_response.get("access_token")
+    if status != 200 or not isinstance(access_token, str) or not access_token:
+        raise IdentityOpsError(
+            "identity administration token is unavailable for the credential-denial probe"
+        )
+    probe_status = credential_mutation_probe_status(
+        server,
+        realm,
+        account_id,
+        access_token,
+    )
+    if probe_status != 403:
+        raise IdentityOpsError(
+            "identity administration credential mutation was not denied; "
+            f"httpStatus={probe_status}, response withheld"
+        )
+
+
 def client_credentials_are_rejected(server: str, client_id: str, secret: str) -> bool:
     try:
         status, body = client_credentials_token_response(
@@ -1387,6 +1501,12 @@ def main() -> int:
                     f"remaining={remaining}"
                 )
             probe_client_credentials(args.server, desired["realm"]["name"], desired.get("clients", []))
+            probe_identity_admin_credential_denial(
+                kcadm,
+                args.server,
+                desired["realm"]["name"],
+                desired.get("clients", []),
+            )
         elif args.command == "verify" and operations:
             raise IdentityOpsError("verification found a non-empty plan")
         remove_temporary_authority(

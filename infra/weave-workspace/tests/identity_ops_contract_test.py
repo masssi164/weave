@@ -166,6 +166,35 @@ def main() -> None:
         )
         == "positive-policy-required"
     )
+    assert (
+        identity_ops.classify_kcadm_failure(
+            "Conflicting policy [Policy with name [duplicate] already exists]"
+        )
+        == "authorization-name-conflict"
+    )
+
+    def forbidden_credential_probe(request: object, **_kwargs: object) -> None:
+        assert request.method == "PUT"
+        assert request.data == b"{}"
+        assert request.headers["Authorization"] == "Bearer test-only"
+        raise identity_ops.urllib.error.HTTPError(
+            request.full_url,
+            403,
+            "Forbidden",
+            {},
+            io.BytesIO(b'{"error":"forbidden"}'),
+        )
+
+    identity_ops.urllib.request.urlopen = forbidden_credential_probe
+    try:
+        assert identity_ops.credential_mutation_probe_status(
+            "http://keycloak:8080",
+            "weave",
+            "service-account-id",
+            "test-only",
+        ) == 403
+    finally:
+        identity_ops.urllib.request.urlopen = original_urlopen
 
     class RejectedKcadm:
         def call(self, *_arguments: str, payload: object = None) -> object:
@@ -413,6 +442,8 @@ def main() -> None:
     assert '"token.endpoint.auth.method": "client_secret_basic"' in source
     assert '"set-password"' not in source
     assert 'kcadm.call("reset-password"' not in source
+    assert "probe_identity_admin_credential_denial(" in source
+    assert "probe_status != 403" in source
     assert '"map-org-group-role"' in source
     assert "organization_group_create_operation(group, group_root, flat_groups)" in source
     assert '"id": staged["id"], "name": staged["name"]' not in source

@@ -1,7 +1,7 @@
 tasks.register('serverDevH2Test') {
     group = 'verification'
     description = 'Run the host-development Spring Boot test lane with H2 and Hibernate mapping validation.'
-    dependsOn tasks.named('devH2IntegrationTest')
+    dependsOn tasks.named('test')
 }
 
 def registerServerCommandTask = { String taskName, List<String> args, String taskDescription ->
@@ -35,5 +35,5 @@ tasks.named('serverDevHostSmoke') {
 tasks.register('serverPostgresIntegrationTest') {
     group = 'verification'
     description = 'Run the PostgreSQL-backed Spring Boot integration and migration test lane.'
-    dependsOn tasks.named('postgresIntegrationTest')
+    dependsOn tasks.named('postgresJpaTest')
 }
