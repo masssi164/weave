@@ -43,13 +43,16 @@ public class ApiExceptionHandler {
             HttpServletRequest request,
             HttpServletResponse response)
             throws IOException {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("providerStatus", exception.status());
+        details.put("providerOperation", exception.operation());
         errorResponseWriter.write(
                 request,
                 response,
                 HttpStatus.BAD_GATEWAY,
                 "identity-administration-failed",
                 "Identity administration is temporarily unavailable.",
-                Map.of("providerStatus", exception.status()));
+                Map.copyOf(details));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -171,6 +171,11 @@ final class JsonHttpClient {
           "[a-z0-9][a-z0-9-]{0,79}");
       appendSafeText(
           reference,
+          " providerOperation=",
+          error.path("details").path("providerOperation").asString(""),
+          "[a-z0-9][a-z0-9-]{0,79}");
+      appendSafeText(
+          reference,
           " requestId=",
           error.path("requestId").asString(""),
           "[A-Za-z0-9][A-Za-z0-9._:-]{0,127}");

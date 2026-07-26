@@ -33,7 +33,9 @@ class ApiExceptionHandlerTest {
             HttpStatus.BAD_GATEWAY,
             "identity-administration-failed",
             "Identity administration is temporarily unavailable.",
-            Map.of("providerStatus", 403));
+            Map.of(
+                "providerStatus", 403,
+                "providerOperation", "identity-administration"));
   }
 
   @Test

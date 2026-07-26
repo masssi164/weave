@@ -493,7 +493,8 @@ public class KeycloakIdentityAdminClient {
                   (ignored, providerResponse) -> {
                     throw new KeycloakAdminException(
                         providerResponse.getStatusCode().value(),
-                        "Keycloak administration operation failed");
+                        "Keycloak administration operation failed",
+                        operationCode(method, uri));
                   })
               .toEntity(String.class);
       return response.getBody() == null ? "" : response.getBody();
@@ -606,6 +607,25 @@ public class KeycloakIdentityAdminClient {
     return UriUtils.encodeQueryParam(value == null ? "" : value, StandardCharsets.UTF_8);
   }
 
+  private static String operationCode(HttpMethod method, String uri) {
+    if (uri.contains("/members/invite-user")) {
+      return "invitation-create";
+    }
+    if (uri.contains("/invitations")) {
+      return method == HttpMethod.GET ? "invitation-inventory" : "invitation-lifecycle";
+    }
+    if (uri.contains("/members?")) {
+      return "member-inventory";
+    }
+    if (uri.contains("/organizations?")) {
+      return "organization-inventory";
+    }
+    if (uri.contains("/groups")) {
+      return "organization-group";
+    }
+    return "identity-administration";
+  }
+
   public record ProviderInvitation(
       String providerInvitationId,
       String email,
@@ -629,14 +649,24 @@ public class KeycloakIdentityAdminClient {
 
   public static final class KeycloakAdminException extends RuntimeException {
     private final int status;
+    private final String operation;
 
     public KeycloakAdminException(int status, String message) {
+      this(status, message, "identity-administration");
+    }
+
+    public KeycloakAdminException(int status, String message, String operation) {
       super(message + " with sanitized status " + status);
       this.status = status;
+      this.operation = operation;
     }
 
     public int status() {
       return status;
+    }
+
+    public String operation() {
+      return operation;
     }
   }
 }
