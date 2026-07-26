@@ -31,6 +31,7 @@ COMMANDS = (
     "identity-apply",
     "identity-verify",
 )
+RUNTIME_ROOT_SERVICES = ("caddy", "mailpit", "mcp")
 ADOPTION_RECEIPT_MAX_AGE = timedelta(hours=6)
 VOLUME_KEYS = (
     "WEAVE_CADDY_DATA_VOLUME",
@@ -362,6 +363,7 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
             "--wait",
             "--wait-timeout",
             "600",
+            *RUNTIME_ROOT_SERVICES,
         )
     elif command == "down":
         compose(context, "down", *extra)
