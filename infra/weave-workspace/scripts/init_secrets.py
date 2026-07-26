@@ -37,13 +37,17 @@ TEXT_SECRETS = (
     "keycloak-weave-agent-runtime-admin",
     "keycloak-nextcloud",
     "keycloak-matrix-mas",
-    "mas-encryption-secret",
     "mas-matrix-secret",
     "synapse-registration-shared-secret",
     "synapse-macaroon-secret-key",
     "synapse-form-secret",
     "matrix-appservice-as-token",
     "matrix-appservice-hs-token",
+)
+HEX_SECRETS = (
+    # MAS requires exactly 32 bytes encoded as 64 lowercase hexadecimal
+    # characters for database/cookie encryption.
+    "mas-encryption-secret",
 )
 TEST_ONLY_SECRETS = ("identity-bootstrap-owner-token",)
 PROD_ONLY_SECRETS = ("smtp-username", "smtp-password")
@@ -87,6 +91,10 @@ def _atomic_write(path: Path, payload: bytes) -> None:
 
 def _random_secret() -> bytes:
     return base64.urlsafe_b64encode(secrets.token_bytes(48)).rstrip(b"=") + b"\n"
+
+
+def _random_hex_secret() -> bytes:
+    return secrets.token_hex(32).encode("ascii") + b"\n"
 
 
 def _read_der_length(value: bytes, offset: int) -> tuple[int, int]:
@@ -205,13 +213,17 @@ def _generate_tls(context: ComposeContext) -> None:
 
 
 def _validate_existing(context: ComposeContext) -> None:
-    required = list(TEXT_SECRETS) + [name for name, _ in RSA_JWKS] + [name for name, _ in PEM_KEYS]
+    required = list(TEXT_SECRETS) + list(HEX_SECRETS) + [name for name, _ in RSA_JWKS] + [name for name, _ in PEM_KEYS]
     if context.profile == "test":
         required.extend(TEST_ONLY_SECRETS)
     if context.profile == "prod":
         required.extend(PROD_ONLY_SECRETS)
     for name in required:
         _assert_private_file(context.secret_root / name)
+    for name in HEX_SECRETS:
+        value = (context.secret_root / name).read_text(encoding="ascii").strip()
+        if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+            raise ContractError(f"secret must be a 32-byte lowercase hex value: {name}")
     appservice_tokens = tuple(
         (context.secret_root / name).read_bytes().strip()
         for name in ("matrix-appservice-as-token", "matrix-appservice-hs-token")
@@ -248,6 +260,8 @@ def initialize(context: ComposeContext) -> None:
         return
     for name in TEXT_SECRETS:
         _atomic_write(context.secret_root / name, _random_secret())
+    for name in HEX_SECRETS:
+        _atomic_write(context.secret_root / name, _random_hex_secret())
     if context.profile == "test":
         for name in TEST_ONLY_SECRETS:
             _atomic_write(context.secret_root / name, _random_secret())
