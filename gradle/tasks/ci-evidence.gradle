@@ -65,11 +65,11 @@ tasks.register('ciSummary') {
     group = 'verification'
     description = 'Write the sanitized CI evidence summary to build/evidence/ci-summary.json.'
     doLast {
-        writeCiSummary(null)
+        project.ext.writeCiSummary.call(null)
     }
 }
 
-void writeCiSummary(Throwable buildFailure) {
+ext.writeCiSummary = { Throwable buildFailure ->
     def evidenceDir = layout.buildDirectory.dir('evidence').get().asFile
     evidenceDir.mkdirs()
     def evidenceFile = new File(evidenceDir, 'ci-summary.json')
@@ -120,7 +120,9 @@ void writeCiSummary(Throwable buildFailure) {
             'raw provider errors'
         ]
     ]
-    evidenceFile.text = JsonOutput.prettyPrint(JsonOutput.toJson(summary)) + System.lineSeparator()
+    evidenceFile.text = groovy.json.JsonOutput.prettyPrint(
+        groovy.json.JsonOutput.toJson(summary)
+    ) + System.lineSeparator()
     logger.lifecycle("Wrote sanitized CI evidence summary to ${project.relativePath(evidenceFile)}")
 }
 

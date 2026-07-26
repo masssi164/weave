@@ -78,7 +78,7 @@ gradle.buildFinished { result ->
     }
     def evidenceTaskPresent = gradle.taskGraph.allTasks.any { it.name == 'ci' }
     if (evidenceRequested || evidenceTaskPresent) {
-        writeCiSummary(result.failure)
+        project.ext.writeCiSummary.call(result.failure)
     }
 }
 
