@@ -153,6 +153,34 @@ def main() -> None:
         raise AssertionError("kcadm failure was silently accepted")
     finally:
         identity_ops.subprocess.run = original_run
+
+    class RejectedKcadm:
+        def call(self, *_arguments: str, payload: object = None) -> object:
+            assert payload == {"secret": "must-not-leak"}
+            raise identity_ops.IdentityOpsError(
+                "kcadm operation failed, httpStatus=400, output withheld"
+            )
+
+    try:
+        identity_ops.apply_operations(
+            RejectedKcadm(),
+            "weave",
+            [
+                identity_ops.Operation(
+                    "create",
+                    "admin-permission:identity-users",
+                    "clients/admin/authz/resource-server/permission/scope",
+                    None,
+                    {"secret": "must-not-leak"},
+                )
+            ],
+        )
+    except identity_ops.IdentityOpsError as error:
+        assert "action=create" in str(error)
+        assert "key=admin-permission:identity-users" in str(error)
+        assert "must-not-leak" not in str(error)
+    else:
+        raise AssertionError("failed semantic operation lost its support-safe context")
     observed = identity_ops.marked_payload("client:weave-app", payload, list_values=False)
     assert identity_ops.is_current("client:weave-app", payload, observed, list_values=False)
     assert not identity_ops.is_current("client:other", payload, observed, list_values=False)

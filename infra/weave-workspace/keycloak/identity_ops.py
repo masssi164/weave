@@ -1109,63 +1109,84 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
 
 def apply_operations(kcadm: Kcadm, realm: str, operations: list[Operation]) -> None:
     for operation in operations:
-        if operation.action == "remove-role":
-            kcadm.call(
-                "remove-roles",
-                "-r", realm,
-                "--uusername", str(operation.payload["username"]),
-                "--cclientid", str(operation.payload["clientId"]),
-                "--rolename", str(operation.payload["roleName"]),
-            )
-            continue
-        if operation.action == "rotate-secret":
-            generated = kcadm.call(
-                "create",
-                f"clients/{operation.resource_id}/client-secret",
-                "-r",
-                realm,
-                "-o",
-            )
-            value = generated.get("value") if isinstance(generated, dict) else None
-            capture_generated_secret(str(operation.payload["filename"]), value)
-            continue
-        if operation.action == "add-role":
-            kcadm.call(
-                "add-roles",
-                "-r", realm,
-                "--uusername", str(operation.payload["username"]),
-                "--cclientid", str(operation.payload["clientId"]),
-                "--rolename", str(operation.payload["roleName"]),
-            )
-            continue
-        if operation.action in {"map-org-group-role", "map-client-scope-role"}:
-            kcadm.call("create", operation.endpoint, "-r", realm, payload=operation.payload)
-            continue
-        if operation.action == "remove-client-scope-role":
-            kcadm.call("delete", operation.endpoint, "-r", realm, payload=operation.payload)
-            continue
-        realm_arguments = () if operation.endpoint == "realms" or operation.endpoint.startswith("realms/") else ("-r", realm)
-        if operation.action == "create":
-            output_arguments = ("-o",) if operation.endpoint == "clients" else ()
-            created = kcadm.call(
-                "create",
-                operation.endpoint,
-                *realm_arguments,
-                *output_arguments,
-                payload=operation.payload,
-            )
-            if operation.endpoint == "clients":
-                client_id = operation.payload.get("clientId")
-                filename = SECRET_CLIENT_FILES.get(str(client_id))
-                created_id = created.get("id") if isinstance(created, dict) else None
-                if filename and created_id:
-                    generated = kcadm.call("get", f"clients/{created_id}/client-secret", "-r", realm) or {}
-                    capture_generated_secret(filename, generated.get("value"))
-        else:
-            endpoint = operation.endpoint
-            if operation.resource_id and not endpoint.endswith(operation.resource_id):
-                endpoint = f"{endpoint}/{operation.resource_id}"
-            kcadm.call("update", endpoint, *realm_arguments, payload=operation.payload)
+        try:
+            apply_operation(kcadm, realm, operation)
+        except IdentityOpsError as error:
+            raise IdentityOpsError(
+                f"identity operation failed action={operation.action}, key={operation.key}; {error}"
+            ) from error
+
+
+def apply_operation(kcadm: Kcadm, realm: str, operation: Operation) -> None:
+    if operation.action == "remove-role":
+        kcadm.call(
+            "remove-roles",
+            "-r", realm,
+            "--uusername", str(operation.payload["username"]),
+            "--cclientid", str(operation.payload["clientId"]),
+            "--rolename", str(operation.payload["roleName"]),
+        )
+        return
+    if operation.action == "rotate-secret":
+        generated = kcadm.call(
+            "create",
+            f"clients/{operation.resource_id}/client-secret",
+            "-r",
+            realm,
+            "-o",
+        )
+        value = generated.get("value") if isinstance(generated, dict) else None
+        capture_generated_secret(str(operation.payload["filename"]), value)
+        return
+    if operation.action == "add-role":
+        kcadm.call(
+            "add-roles",
+            "-r", realm,
+            "--uusername", str(operation.payload["username"]),
+            "--cclientid", str(operation.payload["clientId"]),
+            "--rolename", str(operation.payload["roleName"]),
+        )
+        return
+    if operation.action in {"map-org-group-role", "map-client-scope-role"}:
+        kcadm.call("create", operation.endpoint, "-r", realm, payload=operation.payload)
+        return
+    if operation.action == "remove-client-scope-role":
+        kcadm.call("delete", operation.endpoint, "-r", realm, payload=operation.payload)
+        return
+    realm_arguments = (
+        ()
+        if operation.endpoint == "realms" or operation.endpoint.startswith("realms/")
+        else ("-r", realm)
+    )
+    if operation.action == "create":
+        output_arguments = ("-o",) if operation.endpoint == "clients" else ()
+        created = kcadm.call(
+            "create",
+            operation.endpoint,
+            *realm_arguments,
+            *output_arguments,
+            payload=operation.payload,
+        )
+        if operation.endpoint == "clients":
+            client_id = operation.payload.get("clientId")
+            filename = SECRET_CLIENT_FILES.get(str(client_id))
+            created_id = created.get("id") if isinstance(created, dict) else None
+            if filename and created_id:
+                generated = (
+                    kcadm.call(
+                        "get",
+                        f"clients/{created_id}/client-secret",
+                        "-r",
+                        realm,
+                    )
+                    or {}
+                )
+                capture_generated_secret(filename, generated.get("value"))
+        return
+    endpoint = operation.endpoint
+    if operation.resource_id and not endpoint.endswith(operation.resource_id):
+        endpoint = f"{endpoint}/{operation.resource_id}"
+    kcadm.call("update", endpoint, *realm_arguments, payload=operation.payload)
 
 
 def capture_generated_secret(filename: str, value: object) -> None:
