@@ -267,6 +267,7 @@ def main() -> None:
     assert 'desired.get("clientPolicies") != []' in source
     assert 'choices=("plan", "apply", "verify")' in source
     assert '"verification found a non-empty plan"' in source
+    assert '"readback did not converge to an empty second plan; "' in source
     assert not (ROOT / "scripts/create_test_users_file.py").exists()
     assert not (ROOT / "keycloak/test-users.schema.json").exists()
     with tempfile.TemporaryDirectory() as temporary:

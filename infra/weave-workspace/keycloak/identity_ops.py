@@ -1053,7 +1053,14 @@ def main() -> int:
             second = operations
             second_empty = not second
             if second:
-                raise IdentityOpsError("readback did not converge to an empty second plan")
+                remaining = ",".join(
+                    f"{operation.action}:{operation.key}"
+                    for operation in second
+                )
+                raise IdentityOpsError(
+                    "readback did not converge to an empty second plan; "
+                    f"remaining={remaining}"
+                )
             probe_client_credentials(args.server, desired["realm"]["name"], desired.get("clients", []))
         elif args.command == "verify" and operations:
             raise IdentityOpsError("verification found a non-empty plan")
