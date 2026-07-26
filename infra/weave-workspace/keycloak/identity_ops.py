@@ -995,39 +995,13 @@ def capture_generated_secret(filename: str, value: object) -> None:
     os.chmod(target, 0o600)
 
 
-def probe_client_credentials(server: str, realm: str, clients: list[dict[str, Any]]) -> None:
+def client_credentials_token_response(
+    server: str,
+    realm: str,
+    client_id: str,
+    secret: str,
+) -> tuple[int, dict[str, Any]]:
     token_url = f"{server}/realms/{realm}/protocol/openid-connect/token"
-    for client in clients:
-        secret_ref = client.get("secretRef")
-        if secret_ref not in SECRET_REF_FILES:
-            continue
-        if client.get("authenticationMethod") != "client_secret_basic":
-            raise IdentityOpsError(f"{client['key']} token probe requires client_secret_basic")
-        client_id = client["clientId"]
-        secret = private_value(secret_path(SECRET_REF_FILES[secret_ref]))
-        authorization = base64.b64encode(f"{client_id}:{secret}".encode("utf-8")).decode("ascii")
-        request = urllib.request.Request(
-            token_url,
-            data=urllib.parse.urlencode({"grant_type": "client_credentials"}).encode("ascii"),
-            headers={
-                "Authorization": f"Basic {authorization}",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=15) as response:
-                if response.status != 200:
-                    raise IdentityOpsError(f"HTTP Basic token probe failed for {client_id}")
-                body = json.loads(response.read())
-        except (urllib.error.URLError, json.JSONDecodeError) as error:
-            raise IdentityOpsError(f"HTTP Basic token probe failed for {client_id}; response withheld") from error
-        if not isinstance(body.get("access_token"), str):
-            raise IdentityOpsError(f"HTTP Basic token probe returned no access token for {client_id}")
-
-
-def client_credentials_are_rejected(server: str, client_id: str, secret: str) -> bool:
-    token_url = f"{server}/realms/master/protocol/openid-connect/token"
     authorization = base64.b64encode(f"{client_id}:{secret}".encode("utf-8")).decode("ascii")
     request = urllib.request.Request(
         token_url,
@@ -1039,19 +1013,70 @@ def client_credentials_are_rejected(server: str, client_id: str, secret: str) ->
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=15):
-            return False
+        with urllib.request.urlopen(request, timeout=15) as response:
+            body = json.loads(response.read())
+            if not isinstance(body, dict):
+                raise IdentityOpsError(
+                    f"client credentials response is malformed for {client_id}"
+                )
+            return response.status, body
     except urllib.error.HTTPError as error:
         try:
             body = json.loads(error.read(4096))
-        except json.JSONDecodeError:
-            return False
+        except json.JSONDecodeError as parse_error:
+            raise IdentityOpsError(
+                f"client credentials error response is malformed for {client_id}; response withheld"
+            ) from parse_error
+        if not isinstance(body, dict):
+            raise IdentityOpsError(
+                f"client credentials error response is malformed for {client_id}; response withheld"
+            )
+        return error.code, body
+    except (urllib.error.URLError, json.JSONDecodeError) as error:
+        raise IdentityOpsError(
+            f"client credentials request failed for {client_id}; response withheld"
+        ) from error
+
+
+def probe_client_credentials(server: str, realm: str, clients: list[dict[str, Any]]) -> None:
+    for client in clients:
+        secret_ref = client.get("secretRef")
+        if secret_ref not in SECRET_REF_FILES:
+            continue
+        if client.get("authenticationMethod") != "client_secret_basic":
+            raise IdentityOpsError(f"{client['key']} token probe requires client_secret_basic")
+        client_id = client["clientId"]
+        secret = private_value(secret_path(SECRET_REF_FILES[secret_ref]))
+        status, body = client_credentials_token_response(
+            server,
+            realm,
+            str(client_id),
+            secret,
+        )
+        if client.get("serviceAccountsEnabled") is True:
+            if status != 200 or not isinstance(body.get("access_token"), str):
+                raise IdentityOpsError(
+                    f"service-account client credentials probe failed for {client_id}; response withheld"
+                )
+        elif status not in {400, 401} or body.get("error") != "unauthorized_client":
+            raise IdentityOpsError(
+                f"non-service client unexpectedly accepted client credentials for {client_id}"
+            )
+
+
+def client_credentials_are_rejected(server: str, client_id: str, secret: str) -> bool:
+    try:
+        status, body = client_credentials_token_response(
+            server,
+            "master",
+            client_id,
+            secret,
+        )
         return (
-            error.code in {400, 401}
-            and isinstance(body, dict)
+            status in {400, 401}
             and body.get("error") == "invalid_client"
         )
-    except urllib.error.URLError:
+    except IdentityOpsError:
         return False
 
 

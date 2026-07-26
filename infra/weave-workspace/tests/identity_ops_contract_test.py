@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import subprocess
 import sys
@@ -91,6 +92,51 @@ def main() -> None:
         ["config", "credentials"],
         ["get", "clients"],
     ]
+
+    original_urlopen = identity_ops.urllib.request.urlopen
+
+    class TokenResponse:
+        status = 200
+
+        def __enter__(self) -> "TokenResponse":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"access_token":"test-only"}'
+
+    identity_ops.urllib.request.urlopen = lambda *_args, **_kwargs: TokenResponse()
+    try:
+        assert identity_ops.client_credentials_token_response(
+            "http://keycloak:8080",
+            "weave",
+            "service-client",
+            "test-secret",
+        ) == (200, {"access_token": "test-only"})
+    finally:
+        identity_ops.urllib.request.urlopen = original_urlopen
+
+    def rejected_urlopen(request: object, **_kwargs: object) -> None:
+        raise identity_ops.urllib.error.HTTPError(
+            request.full_url,
+            400,
+            "Bad Request",
+            {},
+            io.BytesIO(b'{"error":"unauthorized_client"}'),
+        )
+
+    identity_ops.urllib.request.urlopen = rejected_urlopen
+    try:
+        assert identity_ops.client_credentials_token_response(
+            "http://keycloak:8080",
+            "weave",
+            "human-client",
+            "test-secret",
+        ) == (400, {"error": "unauthorized_client"})
+    finally:
+        identity_ops.urllib.request.urlopen = original_urlopen
 
     class FailedResult:
         returncode = 1
@@ -314,6 +360,8 @@ def main() -> None:
     assert '"Authorization": f"Basic {authorization}"' in source
     assert '"grant_type": "client_credentials"' in source
     assert '"client_secret":' not in source
+    assert 'body.get("error") != "unauthorized_client"' in source
+    assert 'client.get("serviceAccountsEnabled") is True' in source
     assert '"token.endpoint.auth.method": "client_secret_basic"' in source
     assert '"set-password"' not in source
     assert "reset-password" not in source
