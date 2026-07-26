@@ -23,7 +23,11 @@ class JsonHttpClientTest {
               {
                 "code":"identity-administration-failed",
                 "message":"secret provider response",
-                "details":{"providerStatus":403,"providerPayload":"do-not-leak"},
+                "details":{
+                  "providerStatus":403,
+                  "failureCategory":"oauth2-client",
+                  "providerPayload":"do-not-leak"
+                },
                 "requestId":"request-123"
               }
               """
@@ -53,6 +57,7 @@ class JsonHttpClientTest {
               "identity operation failed with HTTP 502"
                   + " code=identity-administration-failed"
                   + " providerStatus=403"
+                  + " failureCategory=oauth2-client"
                   + " requestId=request-123")
           .hasMessageNotContaining("secret")
           .hasMessageNotContaining("providerPayload")

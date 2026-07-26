@@ -91,4 +91,41 @@ public class ApiExceptionHandler {
                 "invalid-request-body",
                 "Request body could not be parsed.");
     }
+
+    @ExceptionHandler(Exception.class)
+    public void handleUnexpected(
+            Exception exception, HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
+        errorResponseWriter.write(
+                request,
+                response,
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "internal-server-error",
+                "The request could not be completed.",
+                Map.of("failureCategory", failureCategory(exception)));
+    }
+
+    private static String failureCategory(Throwable failure) {
+        Throwable current = failure;
+        boolean componentStateSeen = false;
+        for (int depth = 0; current != null && depth < 12; depth++) {
+            String type = current.getClass().getName();
+            if (type.startsWith("org.springframework.security.oauth2.")) {
+                return "oauth2-client";
+            }
+            if (type.startsWith("org.springframework.dao.")
+                    || type.startsWith("org.hibernate.")
+                    || type.startsWith("org.postgresql.")) {
+                return "persistence";
+            }
+            if (type.startsWith("tools.jackson.")) {
+                return "provider-projection";
+            }
+            if (current instanceof IllegalStateException) {
+                componentStateSeen = true;
+            }
+            current = current.getCause();
+        }
+        return componentStateSeen ? "component-state" : "unexpected";
+    }
 }
