@@ -428,7 +428,7 @@ policy:
       allow_insecure_uris: {insecure}
 upstream_oauth2:
   providers:
-    - id: keycloak
+    - id: 01J0000000WEAVEKEYC10AKMAS
       issuer: {env['WEAVE_AUTH_URL']}/realms/weave
       human_name: Weave Identity
       client_id: matrix-mas
