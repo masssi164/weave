@@ -424,6 +424,8 @@ def main() -> None:
     assert "/opt/keycloak/bin/kcadm.sh" in source
     assert '"resourceType": "Organizations"' in source
     assert '"resourceType": "Users"' in source
+    assert "expected_resource_names = {resource_type}" in source
+    assert 'wanted["resources"] = sorted(requested_resource_ids)' in source
     assert '"reset-password"' in source
     assert '"scopes": ["view", "manage"]' in source
     assert '"scopes": ["view", "manage", "manage-group-membership"]' in source

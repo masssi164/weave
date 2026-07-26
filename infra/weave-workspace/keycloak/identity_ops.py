@@ -682,13 +682,19 @@ def plan_identity_admin_fgap(
             organization = organizations_by_key.get(resource_refs[0])
             if organization is None:
                 continue
-            resource_ids = {str(organization["id"])}
+            requested_resource_ids = {str(organization["id"])}
+            expected_resource_names = requested_resource_ids
         elif resource_type == "Users":
             if not all_resources or resource_refs:
                 raise IdentityOpsError(
                     "identity admin Users FGAP must use the declared all-Users lifecycle boundary"
                 )
-            resource_ids = set()
+            requested_resource_ids = set()
+            # Keycloak materializes an all-resource permission against the
+            # built-in resource-type sentinel. Its relationship name is the
+            # resource type even though the create/update representation must
+            # omit explicit resource IDs.
+            expected_resource_names = {resource_type}
         else:
             raise IdentityOpsError(
                 f"unsupported identity admin FGAP resource type: {resource_type}"
@@ -706,8 +712,8 @@ def plan_identity_admin_fgap(
             "scopes": list(contract["scopes"]),
             "policies": sorted(policy_names),
         }
-        if resource_ids:
-            wanted["resources"] = sorted(resource_ids)
+        if requested_resource_ids:
+            wanted["resources"] = sorted(requested_resource_ids)
         if permission is None:
             operations.append(
                 Operation(
@@ -732,7 +738,7 @@ def plan_identity_admin_fgap(
         )
         if (
             observed_resource_type != resource_type
-            or observed_resources != resource_ids
+            or observed_resources != expected_resource_names
             or observed_scopes != set(contract["scopes"])
             or observed_policies_for_permission != policy_names
         ):
