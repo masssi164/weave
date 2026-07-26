@@ -357,6 +357,9 @@ def main() -> None:
     assert '"query-organizations"' in source
     assert "identity_admin_role_delta(observed_names, expected)" in source
     assert '"remove-role"' in source and '"remove-roles"' in source
+    assert "scope-mappings/clients/" in source
+    assert "identity_admin_role_delta(" in source
+    assert '"remove-client-scope-role"' in source
     assert '"Authorization": f"Basic {authorization}"' in source
     assert '"grant_type": "client_credentials"' in source
     assert '"client_secret":' not in source

@@ -824,6 +824,63 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
             )
 
         if grant["clientKey"] == "client:weave-identity-admin":
+            scope_mapping_endpoint = (
+                f"clients/{client['id']}/scope-mappings/clients/{realm_management['id']}"
+            )
+            scope_mappings = kcadm.call(
+                "get",
+                scope_mapping_endpoint,
+                "-r",
+                realm_name,
+            ) or []
+            observed_scope_names = {item.get("name") for item in scope_mappings}
+            missing_scope_roles, retired_scope_roles = identity_admin_role_delta(
+                observed_scope_names,
+                expected,
+            )
+            for retired_role in sorted(retired_scope_roles):
+                mapped_role = exact(
+                    [item for item in scope_mappings if item.get("name") == retired_role],
+                    f"{grant['key']}:scope:{retired_role}",
+                    "client role scope mapping",
+                )
+                if mapped_role is not None:
+                    operations.append(
+                        Operation(
+                            "remove-client-scope-role",
+                            f"{grant['key']}:scope:{retired_role}",
+                            scope_mapping_endpoint,
+                            None,
+                            [mapped_role],
+                        )
+                    )
+            if missing_scope_roles:
+                realm_management_roles = kcadm.call(
+                    "get",
+                    f"clients/{realm_management['id']}/roles",
+                    "-r",
+                    realm_name,
+                ) or []
+                for role_name in sorted(missing_scope_roles):
+                    role = exact(
+                        [item for item in realm_management_roles if item.get("name") == role_name],
+                        f"builtin-role:realm-management:{role_name}",
+                        "realm-management role",
+                    )
+                    if role is None:
+                        raise IdentityOpsError(
+                            f"required realm-management role is unavailable: {role_name}"
+                        )
+                    operations.append(
+                        Operation(
+                            "map-client-scope-role",
+                            f"{grant['key']}:scope:{role_name}",
+                            scope_mapping_endpoint,
+                            None,
+                            [role],
+                        )
+                    )
+
             fgap = desired.get("fineGrainedAdminPermissions") or {}
             subject_policy = exact(
                 [
@@ -959,6 +1016,9 @@ def apply_operations(kcadm: Kcadm, realm: str, operations: list[Operation]) -> N
             continue
         if operation.action in {"map-org-group-role", "map-client-scope-role"}:
             kcadm.call("create", operation.endpoint, "-r", realm, payload=operation.payload)
+            continue
+        if operation.action == "remove-client-scope-role":
+            kcadm.call("delete", operation.endpoint, "-r", realm, payload=operation.payload)
             continue
         realm_arguments = () if operation.endpoint == "realms" or operation.endpoint.startswith("realms/") else ("-r", realm)
         if operation.action == "create":
