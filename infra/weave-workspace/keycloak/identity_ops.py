@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -74,13 +75,22 @@ class Operation:
 
 
 class Kcadm:
+    REAUTHENTICATION_INTERVAL_SECONDS = 30
+
     def __init__(self, executable: str, config: Path) -> None:
         self.executable = executable
         self.config = config
+        self._authentication: tuple[str, str, str] | None = None
+        self._authenticated_at: float | None = None
 
     def call(self, *arguments: str, payload: Any = None) -> Any:
         if len(arguments) < 2:
             raise IdentityOpsError("kcadm operation requires a command and endpoint")
+        if arguments[:2] != ("config", "credentials"):
+            self._reauthenticate_if_due()
+        return self._execute(*arguments, payload=payload)
+
+    def _execute(self, *arguments: str, payload: Any = None) -> Any:
         if arguments[0] in {"config", "create", "get", "update", "delete"}:
             command = [
                 self.executable,
@@ -113,10 +123,24 @@ class Kcadm:
         return json.loads(output) if output else None
 
     def authenticate(self, server: str, client: str, secret: str) -> None:
-        self.call(
+        self._execute(
             "config", "credentials", "--server", server, "--realm", "master",
             "--client", client, "--secret", secret,
         )
+        self._authentication = (server, client, secret)
+        self._authenticated_at = time.monotonic()
+
+    def _reauthenticate_if_due(self) -> None:
+        if self._authentication is None or self._authenticated_at is None:
+            return
+        if time.monotonic() - self._authenticated_at < self.REAUTHENTICATION_INTERVAL_SECONDS:
+            return
+        server, client, secret = self._authentication
+        self._execute(
+            "config", "credentials", "--server", server, "--realm", "master",
+            "--client", client, "--secret", secret,
+        )
+        self._authenticated_at = time.monotonic()
 
 
 def marker(key: str, payload: dict[str, Any], *, list_values: bool) -> dict[str, Any]:

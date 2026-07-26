@@ -74,6 +74,24 @@ def main() -> None:
         "/opt/keycloak/bin/kcadm.sh", "config", "credentials", "--config"
     ]
 
+    calls.clear()
+    timestamps = iter((10.0, 41.0, 42.0))
+    original_monotonic = identity_ops.time.monotonic
+    identity_ops.time.monotonic = lambda: next(timestamps)
+    identity_ops.subprocess.run = fake_run
+    try:
+        client = identity_ops.Kcadm("/opt/keycloak/bin/kcadm.sh", Path("/tmp/test.config"))
+        client.authenticate("http://keycloak:8080", "bootstrap", "withheld")
+        client.call("get", "clients", "-r", "weave")
+    finally:
+        identity_ops.subprocess.run = original_run
+        identity_ops.time.monotonic = original_monotonic
+    assert [call[1:3] for call in calls] == [
+        ["config", "credentials"],
+        ["config", "credentials"],
+        ["get", "clients"],
+    ]
+
     class FailedResult:
         returncode = 1
         stdout = ""
