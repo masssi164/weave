@@ -10,6 +10,7 @@ readonly CONTEXT_HELPER="${REPOSITORY_ROOT}/gradle/scripts/prepare_test_app_cont
 readonly RUNTIME_CLEANUP="${REPOSITORY_ROOT}/gradle/scripts/cleanup_test_app_runtime.py"
 readonly COMPOSE="${WORKSPACE_ROOT}/compose.sh"
 readonly TEARDOWN="${WORKSPACE_ROOT}/teardown.sh"
+readonly FAILURE_DIAGNOSTICS="${WORKSPACE_ROOT}/live-stack-failure-diagnostics.sh"
 
 RUN_ID="${WEAVE_TEST_APP_RUN_ID:-}"
 OUTPUT_ROOT="${WEAVE_TEST_APP_OUTPUT_ROOT:-${REPOSITORY_ROOT}/build/test-app}"
@@ -49,6 +50,13 @@ cleanup() {
   trap - EXIT INT TERM
   set +e
   if [[ "${STACK_PREPARED}" == "true" ]]; then
+    if ((primary_status != 0)) && [[ -x "${FAILURE_DIAGNOSTICS}" ]]; then
+      WEAVE_PROFILE=test \
+        WEAVE_RESOURCE_PREFIX="${WEAVE_E2E_RUN_NAMESPACE}" \
+        bash "${FAILURE_DIAGNOSTICS}" \
+          "${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/failure-diagnostics" ||
+        log "WEAVE_TEST_APP_LIFECYCLE_WARNING support-safe failure diagnostics did not complete"
+    fi
     WEAVE_TEARDOWN_EVIDENCE_FILE="${WEAVE_TEST_APP_TEARDOWN_EVIDENCE_PATH}" \
       bash "${TEARDOWN}" test \
         --env-file "${WEAVE_ENV_FILE}" \
