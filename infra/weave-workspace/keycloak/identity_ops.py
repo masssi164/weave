@@ -285,6 +285,44 @@ def flatten_groups(groups: list[dict[str, Any]], parent: str = "") -> list[dict[
     return flattened
 
 
+def organization_group_create_operation(
+    group: dict[str, Any],
+    group_root: str,
+    flat_groups: list[dict[str, Any]],
+) -> Operation | None:
+    key = str(group["key"])
+    wanted = {"name": str(group["path"]).rsplit("/", 1)[-1]}
+    parent_ref = group.get("parentGroupRef")
+    if parent_ref is None:
+        return Operation(
+            "create",
+            key,
+            group_root,
+            None,
+            marked_payload(key, wanted, list_values=True),
+        )
+    parent = next(
+        (
+            item for item in flat_groups
+            if (item.get("attributes") or {}).get("weave.semantic-key") == [parent_ref]
+        ),
+        None,
+    )
+    if parent is None:
+        # The declared parent is created in an earlier convergence round.
+        return None
+    # Keycloak owns the generated child identifier. The canonical child-create
+    # operation binds the parent through the endpoint and sends only the desired
+    # child name; it is never a staging or ID-based move operation.
+    return Operation(
+        "create",
+        key,
+        f"{group_root}/{parent['id']}/children",
+        None,
+        wanted,
+    )
+
+
 def role_mapping(
     role_ref: str,
     roles_by_key: dict[str, dict[str, Any]],
@@ -547,61 +585,16 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
         wanted = {"name": group["path"].rsplit("/", 1)[-1]}
         observed = exact([item for item in flat_groups if item["_path"] == group["path"]], key, "organization group")
         if observed is None:
-            parent_ref = group.get("parentGroupRef")
-            if parent_ref:
-                parent = next(
-                    (
-                        item for item in flat_groups
-                        if (item.get("attributes") or {}).get("weave.semantic-key") == [parent_ref]
-                    ),
-                    None,
-                )
-                if parent is None:
-                    # Parent groups are deliberately created in an earlier convergence round.
-                    continue
-                staged = next(
-                    (
-                        item for item in flat_groups
-                        if (item.get("attributes") or {}).get("weave.semantic-key") == [key]
-                    ),
-                    None,
-                )
-                if staged is None:
-                    # Keycloak 26.7's direct organization child creation path
-                    # can block. Stage the managed resource at organization
-                    # top level, then use the native ID-based move operation
-                    # in the next idempotent convergence round.
-                    operations.append(
-                        Operation(
-                            "create",
-                            key,
-                            group_root,
-                            None,
-                            marked_payload(key, wanted, list_values=True),
-                        )
-                    )
-                else:
-                    operations.append(
-                        Operation(
-                            "create",
-                            key,
-                            f"{group_root}/{parent['id']}/children",
-                            None,
-                            {"id": staged["id"], "name": staged["name"]},
-                        )
-                    )
-            else:
-                operations.append(
-                    Operation(
-                        "create",
-                        key,
-                        group_root,
-                        None,
-                        marked_payload(key, wanted, list_values=True),
-                    )
-                )
+            create_operation = organization_group_create_operation(group, group_root, flat_groups)
+            if create_operation is not None:
+                operations.append(create_operation)
             continue
-        if not is_current(key, wanted, observed, list_values=True):
+        if group.get("parentGroupRef") is None and not is_current(
+            key,
+            wanted,
+            observed,
+            list_values=True,
+        ):
             operations.append(Operation("update", key, group_root, str(observed["id"]), marked_payload(key, wanted, list_values=True)))
         for role_ref in group.get("roleRefs", []):
             resolved = role_mapping(role_ref, roles_by_key, clients_by_key)

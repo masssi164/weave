@@ -101,6 +101,38 @@ def main() -> None:
         ("parent", "/people"),
         ("child", "/people/members"),
     ]
+    child_create = identity_ops.organization_group_create_operation(
+        {
+            "key": "organization-group:weave-primary:capabilities-weaver",
+            "path": "/capabilities/weaver",
+            "parentGroupRef": "organization-group:weave-primary:capabilities",
+        },
+        "organizations/organization-id/groups",
+        [
+            {
+                "id": "capabilities-id",
+                "attributes": {
+                    "weave.semantic-key": [
+                        "organization-group:weave-primary:capabilities"
+                    ]
+                },
+            }
+        ],
+    )
+    assert child_create is not None
+    assert child_create.endpoint == (
+        "organizations/organization-id/groups/capabilities-id/children"
+    )
+    assert child_create.payload == {"name": "weaver"}
+    assert identity_ops.organization_group_create_operation(
+        {
+            "key": "organization-group:weave-primary:capabilities-weaver",
+            "path": "/capabilities/weaver",
+            "parentGroupRef": "organization-group:weave-primary:capabilities",
+        },
+        "organizations/organization-id/groups",
+        [],
+    ) is None
     owner, mapped_role = identity_ops.role_mapping(
         "role:member",
         {"role:member": {"id": "role-id", "name": "member", "_scope": "client", "_clientKey": "client:app"}},
@@ -169,9 +201,9 @@ def main() -> None:
     assert '"set-password"' not in source
     assert "reset-password" not in source
     assert '"map-org-group-role"' in source
-    assert "if parent is None:" in source and "Parent groups are deliberately created" in source
-    assert '"id": staged["id"], "name": staged["name"]' in source
-    assert "Stage the managed resource at organization" in source
+    assert "organization_group_create_operation(group, group_root, flat_groups)" in source
+    assert '"id": staged["id"], "name": staged["name"]' not in source
+    assert "Stage the managed resource at organization" not in source
     assert '"add-roles", "-r", realm, "--uusername", item["username"]' not in source
     renderer = (ROOT / "scripts/render_config.py").read_text(encoding="utf-8")
     assert '"weave.keycloak-desired-state/v2"' in renderer
