@@ -365,6 +365,7 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
             "600",
             *RUNTIME_ROOT_SERVICES,
         )
+        script(context, "nextcloud_reconcile.py")
     elif command == "down":
         compose(context, "down", *extra)
     elif command in {"ps", "logs"}:

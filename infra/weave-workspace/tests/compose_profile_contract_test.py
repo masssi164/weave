@@ -170,6 +170,7 @@ def main() -> None:
         assert "test-users.json" not in runtime_source
         assert 'RUNTIME_ROOT_SERVICES = ("caddy", "mailpit", "mcp")' in runtime_source
         assert '"--wait-timeout",\n            "600",' in runtime_source
+        assert 'script(context, "nextcloud_reconcile.py")' in runtime_source
         invalid = root / "invalid.env"
         invalid.write_text((root / "test.env").read_text().replace("WEAVE_ENVIRONMENT=test", "WEAVE_ENVIRONMENT=dogfood"))
         try:
