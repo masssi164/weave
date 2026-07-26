@@ -486,7 +486,7 @@ services:
       - source: backend-db-password
         target: weave/spring.datasource.password
       - source: identity-admin-client-secret
-        target: weave/weave.identity.invitations.keycloak.client-secret
+        target: weave/spring.security.oauth2.client.registration.weave-identity-admin.client-secret
       - source: nextcloud-actor-token
         target: weave/weave.nextcloud.files.actor-token
       - source: nextcloud-actor-token

@@ -33,6 +33,8 @@ fi
 require "${ROOT_DIR}/compose.yaml" 'profiles: *core-profiles'
 require "${ROOT_DIR}/compose.yaml" 'POSTGRES_PASSWORD_FILE: /run/secrets/postgres-admin-password'
 require "${ROOT_DIR}/compose.yaml" 'SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/'
+require "${ROOT_DIR}/compose.yaml" \
+  'target: weave/spring.security.oauth2.client.registration.weave-identity-admin.client-secret'
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.managed: "true"'
 require "${ROOT_DIR}/compose.dev.yaml" 'host.docker.internal:host-gateway'
 require "${ROOT_DIR}/compose.test.yaml" 'WEAVE_RELEASE_POSTURE: test'
@@ -53,6 +55,8 @@ require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'ordinary reconciliation re
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_MATRIX_FEDERATION_ENABLED'
+require "${ROOT_DIR}/scripts/render_config.py" \
+  '"spring.security.oauth2.client.registration.weave-identity-admin.client-secret": "keycloak-weave-identity-admin"'
 require "${REPO_ROOT}/settings.gradle" "include 'weave-application-core',"
 require "${REPO_ROOT}/settings.gradle" "'weave-persistence-jpa',"
 require "${REPO_ROOT}/settings.gradle" "'weave-runtime-security-adapters',"
@@ -80,6 +84,9 @@ reject "${ROOT_DIR}/keycloak/identity_ops.py" 'set-password'
 reject "${ROOT_DIR}/compose.yaml" '/var/run/docker.sock'
 reject "${ROOT_DIR}/compose.yaml" 'OpenProject'
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_IDENTITY_EVENTS_HMAC_SECRET'
+reject "${ROOT_DIR}/compose.yaml" 'weave/weave.identity.invitations.keycloak.client-secret'
+reject "${ROOT_DIR}/scripts/render_config.py" \
+  '"weave.identity.invitations.keycloak.client-secret": "keycloak-weave-identity-admin"'
 reject "${REPO_ROOT}/server/src/main/resources/application.yml" 'WEAVE_IDENTITY_EVENTS_HMAC_SECRET'
 reject "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/config/SecurityConfig.java" '/api/internal/keycloak/events'
 

@@ -644,7 +644,7 @@ def render(context: ComposeContext) -> None:
     _write(generated / "synapse/appservice/hs-token", _read_secret(context, "matrix-appservice-hs-token") + "\n", private=True)
     if context.profile == "dev":
         host_configtree = {
-            "weave.identity.invitations.keycloak.client-secret": "keycloak-weave-identity-admin",
+            "spring.security.oauth2.client.registration.weave-identity-admin.client-secret": "keycloak-weave-identity-admin",
             "weave.nextcloud.files.actor-token": "nextcloud-actor-token",
             "weave.calendar.caldav.backend-token": "nextcloud-actor-token",
         }
