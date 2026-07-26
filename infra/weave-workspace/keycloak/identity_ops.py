@@ -309,6 +309,75 @@ def flatten_groups(groups: list[dict[str, Any]], parent: str = "") -> list[dict[
     return flattened
 
 
+def paged_get(
+    kcadm: Kcadm,
+    endpoint: str,
+    realm: str,
+    *query_arguments: str,
+) -> list[dict[str, Any]]:
+    page_size = 100
+    first = 0
+    collected: list[dict[str, Any]] = []
+    observed_ids: set[str] = set()
+    while True:
+        page = kcadm.call(
+            "get",
+            endpoint,
+            "-r",
+            realm,
+            *query_arguments,
+            "-q",
+            f"first={first}",
+            "-q",
+            f"max={page_size}",
+        ) or []
+        if not isinstance(page, list) or any(not isinstance(item, dict) for item in page):
+            raise IdentityOpsError(f"paged kcadm response is invalid for {endpoint}")
+        for item in page:
+            resource_id = item.get("id")
+            if not isinstance(resource_id, str) or not resource_id:
+                raise IdentityOpsError(f"paged kcadm response has no stable id for {endpoint}")
+            if resource_id in observed_ids:
+                raise IdentityOpsError(f"paged kcadm response repeats an id for {endpoint}")
+            observed_ids.add(resource_id)
+            collected.append(item)
+        if len(page) < page_size:
+            return collected
+        first += page_size
+
+
+def organization_group_inventory(
+    kcadm: Kcadm,
+    group_root: str,
+    realm: str,
+) -> list[dict[str, Any]]:
+    top_level = paged_get(
+        kcadm,
+        group_root,
+        realm,
+        "-q",
+        "briefRepresentation=false",
+    )
+    pending = [(item, "") for item in top_level]
+    flattened: list[dict[str, Any]] = []
+    observed_ids: set[str] = set()
+    while pending:
+        group, parent_path = pending.pop(0)
+        resource_id = str(group["id"])
+        if resource_id in observed_ids:
+            raise IdentityOpsError("organization group hierarchy repeats a provider id")
+        observed_ids.add(resource_id)
+        path = str(group.get("path") or f"{parent_path}/{group['name']}")
+        flattened.append({**group, "_path": path})
+        children = paged_get(
+            kcadm,
+            f"{group_root}/{resource_id}/children",
+            realm,
+        )
+        pending.extend((child, path) for child in children)
+    return flattened
+
+
 def organization_group_create_operation(
     group: dict[str, Any],
     group_root: str,
@@ -594,17 +663,20 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
             if not is_current(key, wanted, observed, list_values=True):
                 operations.append(Operation("update", key, "organizations", str(observed["id"]), marked_payload(key, wanted, list_values=True)))
 
+    group_inventories: dict[str, list[dict[str, Any]]] = {}
     for group in desired.get("organizationGroups", []):
         organization = organizations_by_key.get(group["organizationRef"])
         if organization is None:
             continue
         organization_id = str(organization["id"])
         group_root = f"organizations/{organization_id}/groups"
-        observed_groups = kcadm.call(
-            "get", group_root, "-r", realm_name,
-            "-q", "populateHierarchy=true", "-q", "briefRepresentation=false",
-        ) or []
-        flat_groups = flatten_groups(observed_groups)
+        if organization_id not in group_inventories:
+            group_inventories[organization_id] = organization_group_inventory(
+                kcadm,
+                group_root,
+                realm_name,
+            )
+        flat_groups = group_inventories[organization_id]
         key = group["key"]
         wanted = {"name": group["path"].rsplit("/", 1)[-1]}
         observed = exact([item for item in flat_groups if item["_path"] == group["path"]], key, "organization group")
@@ -878,7 +950,41 @@ def probe_client_credentials(server: str, realm: str, clients: list[dict[str, An
             raise IdentityOpsError(f"HTTP Basic token probe returned no access token for {client_id}")
 
 
-def remove_temporary_authority(kcadm: Kcadm, client_id: str) -> None:
+def client_credentials_are_rejected(server: str, client_id: str, secret: str) -> bool:
+    token_url = f"{server}/realms/master/protocol/openid-connect/token"
+    authorization = base64.b64encode(f"{client_id}:{secret}".encode("utf-8")).decode("ascii")
+    request = urllib.request.Request(
+        token_url,
+        data=urllib.parse.urlencode({"grant_type": "client_credentials"}).encode("ascii"),
+        headers={
+            "Authorization": f"Basic {authorization}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15):
+            return False
+    except urllib.error.HTTPError as error:
+        try:
+            body = json.loads(error.read(4096))
+        except json.JSONDecodeError:
+            return False
+        return (
+            error.code in {400, 401}
+            and isinstance(body, dict)
+            and body.get("error") == "invalid_client"
+        )
+    except urllib.error.URLError:
+        return False
+
+
+def remove_temporary_authority(
+    kcadm: Kcadm,
+    client_id: str,
+    server: str,
+    secret: str,
+) -> None:
     observed = exact(
         kcadm.call("get", "clients", "-r", "master", "-q", f"clientId={client_id}") or [],
         client_id,
@@ -886,9 +992,8 @@ def remove_temporary_authority(kcadm: Kcadm, client_id: str) -> None:
     )
     if observed is not None:
         kcadm.call("delete", f"clients/{observed['id']}", "-r", "master")
-    readback = kcadm.call("get", "clients", "-r", "master", "-q", f"clientId={client_id}") or []
-    if readback:
-        raise IdentityOpsError("temporary bootstrap authority cleanup failed")
+    if not client_credentials_are_rejected(server, client_id, secret):
+        raise IdentityOpsError("temporary bootstrap authority still grants new tokens")
 
 
 def evidence(command: str, desired: dict[str, Any], operations: list[Operation], empty_second_plan: bool | None) -> dict[str, object]:
@@ -931,8 +1036,9 @@ def main() -> int:
     temporary_authority_active = False
     try:
         desired = json.loads(args.desired.read_text(encoding="utf-8"))
+        bootstrap_secret = private_value(args.password_file)
         kcadm = Kcadm(args.kcadm, Path("/tmp/kcadm.config"))
-        kcadm.authenticate(args.server, args.bootstrap_client, private_value(args.password_file))
+        kcadm.authenticate(args.server, args.bootstrap_client, bootstrap_secret)
         temporary_authority_active = True
         operations = plan(kcadm, desired, args.rotation_epoch)
         reported_operations = list(operations)
@@ -951,7 +1057,12 @@ def main() -> int:
             probe_client_credentials(args.server, desired["realm"]["name"], desired.get("clients", []))
         elif args.command == "verify" and operations:
             raise IdentityOpsError("verification found a non-empty plan")
-        remove_temporary_authority(kcadm, args.bootstrap_client)
+        remove_temporary_authority(
+            kcadm,
+            args.bootstrap_client,
+            args.server,
+            bootstrap_secret,
+        )
         temporary_authority_active = False
         write_evidence(args.evidence, evidence(args.command, desired, reported_operations, second_empty))
         print(f"identity-ops: {args.command} complete; operations={len(reported_operations)}")
@@ -959,7 +1070,12 @@ def main() -> int:
     except (IdentityOpsError, KeyError, OSError, json.JSONDecodeError) as error:
         if temporary_authority_active and kcadm is not None:
             try:
-                remove_temporary_authority(kcadm, args.bootstrap_client)
+                remove_temporary_authority(
+                    kcadm,
+                    args.bootstrap_client,
+                    args.server,
+                    bootstrap_secret,
+                )
             except IdentityOpsError:
                 print("WEAVE_IDENTITY_OPS_ERROR temporary bootstrap authority cleanup also failed", file=sys.stderr)
         print(f"WEAVE_IDENTITY_OPS_ERROR {error}", file=sys.stderr)

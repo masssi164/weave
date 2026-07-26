@@ -119,6 +119,36 @@ def main() -> None:
         ("parent", "/people"),
         ("child", "/people/members"),
     ]
+
+    class GroupInventoryKcadm:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+
+        def call(self, *arguments: str, payload: object = None) -> object:
+            assert payload is None
+            self.calls.append(arguments)
+            endpoint = arguments[1]
+            if endpoint == "organizations/organization-id/groups":
+                return [{"id": "parent", "name": "capabilities", "path": "/capabilities"}]
+            if endpoint.endswith("/parent/children"):
+                return [{"id": "child", "name": "weaver", "path": "/capabilities/weaver"}]
+            if endpoint.endswith("/child/children"):
+                return []
+            raise AssertionError(f"unexpected organization group read: {endpoint}")
+
+    inventory_kcadm = GroupInventoryKcadm()
+    inventory = identity_ops.organization_group_inventory(
+        inventory_kcadm,
+        "organizations/organization-id/groups",
+        "weave",
+    )
+    assert [(item["id"], item["_path"]) for item in inventory] == [
+        ("parent", "/capabilities"),
+        ("child", "/capabilities/weaver"),
+    ]
+    assert all("populateHierarchy=true" not in call for call in inventory_kcadm.calls)
+    assert all("first=0" in call and "max=100" in call for call in inventory_kcadm.calls)
+
     child_create = identity_ops.organization_group_create_operation(
         {
             "key": "organization-group:weave-primary:capabilities-weaver",
@@ -222,6 +252,8 @@ def main() -> None:
     assert "organization_group_create_operation(group, group_root, flat_groups)" in source
     assert '"id": staged["id"], "name": staged["name"]' not in source
     assert "Stage the managed resource at organization" not in source
+    assert "organization_group_inventory(" in source
+    assert "client_credentials_are_rejected(server, client_id, secret)" in source
     assert '"add-roles", "-r", realm, "--uusername", item["username"]' not in source
     renderer = (ROOT / "scripts/render_config.py").read_text(encoding="utf-8")
     assert '"weave.keycloak-desired-state/v2"' in renderer
