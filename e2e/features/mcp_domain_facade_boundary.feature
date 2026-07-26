@@ -1,11 +1,11 @@
 Feature: MCP domain facade boundary
-  MCP is a workload-only protocol edge. Domain catalogs stay empty until each owning domain has a complete, independently authorized action contract.
+  MCP is a workload-only protocol edge. A domain projection opens only when its owning domain has a complete, independently authorized read or action contract.
 
   @mcp-files-facade
-  Scenario: MCP Files catalog stays empty until the Files action contract is complete
+  Scenario: MCP Files read slice projects the existing authorized WebDAV facade
     Given Files remains authoritative for its own content and authorization
     When runtime-approved MCP discovery is evaluated
-    Then no Files tool is advertised before its domain catalog and current authorization gates exist
+    Then files.search and canonical file resources use bounded WebDAV SEARCH and GET
     And no raw provider URL or unrestricted WebDAV scripting surface is exposed
 
   @mcp-calendar-facade

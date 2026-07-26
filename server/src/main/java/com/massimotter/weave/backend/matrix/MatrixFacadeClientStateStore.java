@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.matrix;
 import java.time.Instant;
 import java.util.Optional;
 
-/** Persistence port for the Matrix facade's restart-critical client state. */
+/** Persistence port for restart-critical Matrix facade client state. */
 public interface MatrixFacadeClientStateStore {
 
     Optional<IdentityProjection> identityProjection(

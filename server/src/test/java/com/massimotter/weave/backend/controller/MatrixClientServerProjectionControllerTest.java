@@ -26,6 +26,7 @@ import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateStore;
 import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
+import com.massimotter.weave.backend.testing.InMemoryMatrixFacadeClientStateStore;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +77,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiExceptionHandler.class,
         MatrixProtocolCoreService.class,
         MatrixFacadeClientStateService.class,
+        InMemoryMatrixFacadeClientStateStore.class,
         MatrixE2eeStateService.class
 })
 @TestPropertySource(properties = {
@@ -224,7 +226,7 @@ class MatrixClientServerProjectionControllerTest {
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
-        String filterId = objectMapper.readTree(filterResponse).path("filter_id").asText();
+        String filterId = objectMapper.readTree(filterResponse).path("filter_id").asString();
 
         mockMvc.perform(get("/_matrix/client/v3/user/@user_example.com:api.weave.test/filter/" + filterId)
                         .with(workspaceJwt()))
@@ -462,7 +464,7 @@ class MatrixClientServerProjectionControllerTest {
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
-        String nextBatch = objectMapper.readTree(firstSync).path("next_batch").asText();
+        String nextBatch = objectMapper.readTree(firstSync).path("next_batch").asString();
 
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .queryParam("since", nextBatch)
@@ -651,7 +653,7 @@ class MatrixClientServerProjectionControllerTest {
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
-        String version = objectMapper.readTree(created).path("version").asText();
+        String version = objectMapper.readTree(created).path("version").asString();
 
         mockMvc.perform(put("/_matrix/client/v3/room_keys/keys/{roomId}/{sessionId}",
                         "!channel-general:api.weave.test", "session-1")

@@ -1,0 +1,32 @@
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xlint:all', '-Werror']
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks.register('playwrightInstall', JavaExec) {
+    group = 'verification'
+    description = 'Install the exact Chromium build paired with the pinned Playwright Java dependency.'
+    dependsOn tasks.named('classes')
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.microsoft.playwright.CLI'
+    args 'install', '--with-deps', 'chromium'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('productFlow', JavaExec) {
+    group = 'verification'
+    description = 'Run invitation, browser activation, PKCE, ARC, MCP, and WebDAV against one isolated stack.'
+    dependsOn tasks.named('playwrightInstall'), tasks.named('classes')
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.massimotter.weave.e2e.FreshProductFlow'
+    System.properties.findAll { key, ignored -> key.toString().startsWith('weave.e2e.') }
+            .each { key, value -> systemProperty key.toString(), value.toString() }
+    def hostsFile = System.getProperty('weave.e2e.hosts-file')
+    if (hostsFile != null && !hostsFile.isBlank()) {
+        systemProperty 'jdk.net.hosts.file', hostsFile
+    }
+    outputs.upToDateWhen { false }
+}

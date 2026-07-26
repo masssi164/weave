@@ -273,17 +273,9 @@ void main() {
       );
       await tester.drag(find.byType(CustomScrollView), const Offset(0, -900));
       await tester.pumpAndSettle();
-      expect(find.text('AI agent capability governance'), findsOneWidget);
-      expect(
-        find.textContaining('Owners and admins decide which agent packages'),
-        findsOneWidget,
-      );
-      expect(find.text('Personal assistant'), findsOneWidget);
-      expect(find.text('Channel agent'), findsOneWidget);
-      expect(
-        find.text('Management unavailable until admin setup is complete'),
-        findsOneWidget,
-      );
+      expect(find.text('AI agent capability governance'), findsNothing);
+      expect(find.text('Personal assistant'), findsNothing);
+      expect(find.text('Channel agent'), findsNothing);
 
       expect(find.text('Provider categories'), findsNothing);
       expect(find.text('Server Configuration'), findsNothing);
@@ -879,14 +871,6 @@ void main() {
               supportSafe: true,
               providers: [
                 _providerStatus(
-                  module: 'identity-realm',
-                  providerKey: 'keycloak-realm',
-                  state: ProviderState.ready,
-                  enabled: true,
-                  configured: true,
-                  readOnly: false,
-                ),
-                _providerStatus(
                   module: 'files',
                   providerKey: 'nextcloud-files',
                   state: ProviderState.ready,
@@ -985,7 +969,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Identity realm: ready'), findsOneWidget);
+      expect(find.text('Identity realm: ready'), findsNothing);
       expect(find.text('Files: ready'), findsOneWidget);
       expect(find.text('Calendar: ready'), findsOneWidget);
       expect(find.text('Contacts: unconfigured'), findsOneWidget);

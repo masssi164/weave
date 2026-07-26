@@ -4,10 +4,6 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
-import sys
-import tempfile
-from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any
 
@@ -82,10 +78,10 @@ def type_for(schema: dict[str, Any] | None, *, required: bool = False) -> str:
         base = "String"
     else:
         base = "Object?"
-    if nullable and not base.endswith("?"):
-        return f"{base}?"
     if base.endswith("?"):
         return base
+    if nullable:
+        return f"{base}?"
     return base if required else f"{base}?"
 
 
@@ -149,7 +145,7 @@ def emit_class(name: str, schema: dict[str, Any]) -> list[str]:
     return lines
 
 
-def render() -> str:
+def main() -> None:
     document = json.loads(OPENAPI.read_text())
     schemas = document["components"]["schemas"]
     lines = [
@@ -177,43 +173,8 @@ def render() -> str:
         if isinstance(schema, dict) and (schema.get("type") == "object" or "properties" in schema):
             lines.extend(emit_class(name, schema))
             lines.append("")
-    return "\n".join(lines)
-
-
-def formatted(value: str) -> str:
-    with tempfile.TemporaryDirectory(prefix="weave-openapi-dart-") as temporary:
-        path = Path(temporary) / OUT.name
-        path.write_text(value)
-        subprocess.run(
-            ["dart", "format", str(path)],
-            check=True,
-            stdout=subprocess.DEVNULL,
-        )
-        return path.read_text()
-
-
-def main() -> int:
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="fail without changing files when the checked-in Dart models are stale",
-    )
-    args = parser.parse_args()
-    generated = formatted(render())
-    if args.check:
-        if not OUT.is_file() or OUT.read_text() != generated:
-            print(
-                "Flutter OpenAPI generated models are stale. "
-                "Run ./gradlew generateClientOpenApiModels and commit the result.",
-                file=sys.stderr,
-            )
-            return 1
-        return 0
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(generated)
-    print(f"Generated {OUT.relative_to(ROOT)}")
-    return 0
+    OUT.write_text("\n".join(lines))
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

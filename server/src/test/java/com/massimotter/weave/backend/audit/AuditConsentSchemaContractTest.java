@@ -13,7 +13,7 @@ class AuditConsentSchemaContractTest {
     void schemaDocumentsAuditEnvelopeConsentEventsAndWriteDisabledConnectorEnvelope() throws Exception {
         var schema = new ObjectMapper().readTree(Files.readString(Path.of("src/main/resources/contracts/audit-consent.schema.json")));
 
-        assertThat(schema.path("title").asText()).contains("Audit and Consent");
+        assertThat(schema.path("title").asString()).contains("Audit and Consent");
         assertThat(schema.path("required").toString())
                 .contains("tenant_id")
                 .contains("actor_ref")
@@ -28,7 +28,7 @@ class AuditConsentSchemaContractTest {
         assertThat(schema.path("$defs").path("connector_write_envelope")
                         .path("properties").path("provider_writes_enabled").path("const").asBoolean())
                 .isFalse();
-        assertThat(schema.path("properties").path("payload").path("description").asText())
+        assertThat(schema.path("properties").path("payload").path("description").asString())
                 .contains("Raw tokens")
                 .contains("Authorization headers")
                 .contains("raw provider errors");

@@ -132,7 +132,7 @@ jobs:
           live_runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/live-stack-e2e.yml/runs?head_sha=${CANDIDATE_SHA}&status=completed&per_page=30")"
           live_e2e_run_url="$(jq -r '[.workflow_runs[] | select(.conclusion == "success")][0].html_url // empty' <<<"$live_runs")"
           [[ -n "$live_e2e_run_url" ]] || {
-            echo "::error::No successful isolated Live Stack E2E run targets ${CANDIDATE_SHA}." >&2
+            echo "::error::No successful isolated Fresh product-flow run targets ${CANDIDATE_SHA}." >&2
             exit 1
           }
           echo "deployment_run_url=$deployment_run_url" >> "$GITHUB_OUTPUT"

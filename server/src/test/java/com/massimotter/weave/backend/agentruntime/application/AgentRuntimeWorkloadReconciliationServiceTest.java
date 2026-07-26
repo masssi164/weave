@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeWorkloadCredentialStore;
-import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeJpaTestFactory;
+import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
@@ -22,6 +22,7 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityIn
 import com.massimotter.weave.backend.config.ProviderHealthProperties;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.nio.file.Path;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -35,7 +36,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -54,6 +54,8 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
     private static final String CLIENT = "weaver-cell-example";
     private static final String SUBJECT = "service-account-example";
     private static final String ISSUER = "https://auth.weave.test/realms/weave";
+    private static final String ENTITLEMENT_REVISION = "sha256:" + "1".repeat(64);
+    private static final String REVOKED_ENTITLEMENT_REVISION = "sha256:" + "4".repeat(64);
 
     @TempDir
     Path temporary;
@@ -67,13 +69,12 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
 
     @BeforeEach
     void setUp() {
-        EmbeddedDatabase database = new EmbeddedDatabaseBuilder()
-                .setType(EmbeddedDatabaseType.H2)
-                .setName("arc-reconcile-" + UUID.randomUUID() + ";MODE=PostgreSQL")
-                .build();
-        new ResourceDatabasePopulator(new ClassPathResource(
-                "db/migration/V011__agent_runtime_control_foundation.sql"))
-                .execute(database);
+        var database =
+                com.massimotter.weave.backend.testing.JpaTestDatabase
+                        .migratedDataSource("arc-reconcile");
+        JdbcTemplate jdbc = new JdbcTemplate(database);
+        insertEntitlement(jdbc, ENTITLEMENT_REVISION, false);
+        insertEntitlement(jdbc, REVOKED_ENTITLEMENT_REVISION, true);
         cells = AgentRuntimeJpaTestFactory.create(database).cells();
         credentials = new FileRuntimeWorkloadCredentialStore(
                 temporary, new ObjectMapper(), Clock.fixed(NOW.minusSeconds(60), ZoneOffset.UTC));
@@ -93,7 +94,7 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
                 new RuntimeMemberBinding(ISSUER, "member-example"),
                 CELL,
                 binding,
-                "entitlement:1",
+                ENTITLEMENT_REVISION,
                 "workspace:1",
                 "webdav-manifest:workspace:1",
                 "runtime-state://org/example/person/example/state/1",
@@ -114,6 +115,30 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
                 meters,
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 () -> 0L);
+    }
+
+    private static void insertEntitlement(JdbcTemplate jdbc, String revision, boolean revoked) {
+        String digest = revision.substring("sha256:".length());
+        jdbc.update("""
+                insert into weave_agent_runtime_entitlements (
+                  record_id, entitlement_ref, entitlement_revision, organization_ref, person_ref,
+                  member_issuer, member_subject, source_provider, source_group_ref, capability_revision,
+                  entitlement_state, effective_at, last_observed_at, expires_at, revocation_ref,
+                  revoked_at, audit_ref, created_at, updated_at
+                ) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                UUID.randomUUID(), "entitlement:" + digest, revision,
+                ORGANIZATION, PERSON, ISSUER, "member-example", "keycloak",
+                "sha256:" + "2".repeat(64), "sha256:" + "3".repeat(64),
+                revoked ? "REVOKED" : "ENTITLED",
+                Timestamp.from(NOW.minusSeconds(60)),
+                Timestamp.from(NOW.minusSeconds(30)),
+                Timestamp.from(NOW.plusSeconds(3600)),
+                revoked ? "revocation:test" : null,
+                revoked ? Timestamp.from(NOW.minusSeconds(1)) : null,
+                "audit:entitlement",
+                Timestamp.from(NOW.minusSeconds(60)),
+                Timestamp.from(NOW.minusSeconds(30)));
     }
 
     @Test
@@ -222,7 +247,7 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
 
     @Test
     void revokedCellsDisableIdentityAndRemoveCredentialBeforeConverging() {
-        cells.revoke(ORGANIZATION, PERSON, "entitlement:revoked:2", "audit:revoke", NOW.minusSeconds(1));
+        cells.revoke(ORGANIZATION, PERSON, REVOKED_ENTITLEMENT_REVISION, "audit:revoke", NOW.minusSeconds(1));
 
         RuntimeWorkloadReconciliationReport report = service.reconcileNow("audit:revoke-reconcile");
 
@@ -340,13 +365,6 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
 
         ClientObservation observation(String providerRef) {
             return clients.get(providerRef);
-        }
-
-        @Override
-        public void requireCurrentBinding(
-                com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadBindingAuthority.CurrentBindingCommand
-                        command) {
-            // Reconciliation tests do not perform MCP admission.
         }
 
         @Override

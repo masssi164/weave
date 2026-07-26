@@ -6,14 +6,16 @@ import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeProfileSign
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigner;
 import java.security.SecureRandom;
 import java.time.Clock;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(AgentRuntimeProfileSigningProperties.class)
-@ConditionalOnProperty(name = "weave.agent-runtime.profile-signing.enabled", havingValue = "true")
+@ConditionalOnExpression(
+        "'${weave.agent-runtime.storage.mode:disabled}' == 'jpa'"
+                + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'")
 public class AgentRuntimeProfileSigningConfiguration {
 
     @Bean

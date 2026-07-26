@@ -14,8 +14,8 @@ import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationResponse;
 import com.massimotter.weave.backend.model.admin.GoLiveReadinessResponse;
-import com.massimotter.weave.backend.model.admin.IdentityProviderReadinessCardResponse;
-import com.massimotter.weave.backend.model.admin.IdentityProviderReadinessResponse;
+import com.massimotter.weave.backend.model.admin.PlatformIdentityReadinessCardResponse;
+import com.massimotter.weave.backend.model.admin.PlatformIdentityReadinessResponse;
 import com.massimotter.weave.backend.model.admin.McpServerBindingResponse;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapRequest;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapResponse;
@@ -39,6 +39,7 @@ import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.domainfacade.CanonicalDomainDefinition;
+import com.massimotter.weave.backend.service.migration.InMemoryMigrationRunEvidenceRepository;
 import com.massimotter.weave.backend.service.migration.MigrationRunEvidence;
 import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
 import java.nio.charset.StandardCharsets;
@@ -57,6 +58,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -75,16 +77,21 @@ public class AdminControlPlaneService {
             "degraded",
             "unavailable",
             "coming_later");
-    private static final Set<String> SIMULATION_ROLES = Set.of("owner", "admin", "member", "guest");
+    private static final Set<String> SIMULATION_ROLES = Set.of("owner", "admin", "operator", "member", "guest");
     private static final Set<String> SIMULATION_GROUPS = Set.of(
-            "/owners",
-            "/admins",
-            "/members",
-            "/guests",
-            "/capabilities",
-            "/capabilities/weaver");
+            "weave-calendar-editors",
+            "weave-board-editors",
+            "weave-meeting-hosts",
+            "weave-document-editors",
+            "weave-decision-recorders",
+            "weave-weaver-runtime");
     private static final Map<String, List<String>> SIMULATION_GROUP_CAPABILITIES = Map.of(
-            "/capabilities/weaver", List.of("agent-runtime.entitled"));
+            "weave-calendar-editors", List.of("calendar.manage_events"),
+            "weave-board-editors", List.of("boards.update_task"),
+            "weave-meeting-hosts", List.of("meetings.host"),
+            "weave-document-editors", List.of("documents.edit"),
+            "weave-decision-recorders", List.of("decisions.record"),
+            "weave-weaver-runtime", List.of("agent-runtime.entitled"));
     private static final Set<String> SIMULATION_KNOWN_CAPABILITIES = Set.of(
             "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
             "boards.read", "boards.update_task", "meetings.join", "meetings.host", "documents.view", "documents.edit",
@@ -112,16 +119,28 @@ public class AdminControlPlaneService {
             ProviderSelectionRepository providerSelectionRepository,
             OrganizationBootstrapRepository organizationBootstrapRepository,
             AuditEventPublisher auditEventPublisher,
-            ProductProfileOverrideRepository productProfileOverrideRepository,
-            MigrationRunEvidenceRepository migrationRunEvidenceRepository) {
+            ObjectProvider<ProductProfileOverrideRepository> productProfileOverrideRepository,
+            ObjectProvider<MigrationRunEvidenceRepository> migrationRunEvidenceRepository) {
         this.providerRegistry = providerRegistry;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.providerSelectionRepository = providerSelectionRepository;
-        this.productProfileOverrideRepository = productProfileOverrideRepository;
+        this.productProfileOverrideRepository = productProfileOverrideRepository.getIfAvailable();
         this.organizationBootstrapRepository = organizationBootstrapRepository;
         this.auditEventPublisher = auditEventPublisher;
-        this.migrationRunEvidenceRepository = migrationRunEvidenceRepository;
+        this.migrationRunEvidenceRepository = migrationRunEvidenceRepository.getIfAvailable(InMemoryMigrationRunEvidenceRepository::new);
         this.clock = Clock.systemUTC();
+    }
+
+    AdminControlPlaneService(
+            ProviderRegistry providerRegistry,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ProviderSelectionRepository providerSelectionRepository,
+            OrganizationBootstrapRepository organizationBootstrapRepository,
+            AuditEventPublisher auditEventPublisher,
+            Clock clock) {
+        this(providerRegistry, workspaceCapabilityService, providerSelectionRepository,
+                organizationBootstrapRepository, auditEventPublisher, clock, null,
+                new InMemoryMigrationRunEvidenceRepository());
     }
 
     AdminControlPlaneService(
@@ -133,31 +152,28 @@ public class AdminControlPlaneService {
             Clock clock,
             ProductProfileOverrideRepository productProfileOverrideRepository,
             MigrationRunEvidenceRepository migrationRunEvidenceRepository) {
-        this.providerRegistry = java.util.Objects.requireNonNull(providerRegistry, "providerRegistry");
-        this.workspaceCapabilityService = java.util.Objects.requireNonNull(
-                workspaceCapabilityService, "workspaceCapabilityService");
-        this.providerSelectionRepository = java.util.Objects.requireNonNull(
-                providerSelectionRepository, "providerSelectionRepository");
-        this.productProfileOverrideRepository = java.util.Objects.requireNonNull(
-                productProfileOverrideRepository, "productProfileOverrideRepository");
-        this.organizationBootstrapRepository = java.util.Objects.requireNonNull(
-                organizationBootstrapRepository, "organizationBootstrapRepository");
-        this.auditEventPublisher = java.util.Objects.requireNonNull(auditEventPublisher, "auditEventPublisher");
-        this.migrationRunEvidenceRepository = java.util.Objects.requireNonNull(
-                migrationRunEvidenceRepository, "migrationRunEvidenceRepository");
-        this.clock = java.util.Objects.requireNonNull(clock, "clock");
+        this.providerRegistry = providerRegistry;
+        this.workspaceCapabilityService = workspaceCapabilityService;
+        this.providerSelectionRepository = providerSelectionRepository;
+        this.productProfileOverrideRepository = productProfileOverrideRepository;
+        this.organizationBootstrapRepository = organizationBootstrapRepository;
+        this.auditEventPublisher = auditEventPublisher;
+        this.migrationRunEvidenceRepository = migrationRunEvidenceRepository == null
+                ? new InMemoryMigrationRunEvidenceRepository()
+                : migrationRunEvidenceRepository;
+        this.clock = clock;
     }
 
     public AdminControlPlaneResponse overview(Jwt jwt) {
         workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "overview");
         ProviderRegistryResponse registry = providerRegistry.status();
-        IdentityProviderReadinessResponse identityReadiness = identityProviderReadiness(registry, jwt);
+        PlatformIdentityReadinessResponse identityReadiness = platformIdentityReadiness(registry, jwt);
         List<SuiteDomainReadinessResponse> suiteReadiness = suiteDomainReadiness(registry);
         return new AdminControlPlaneResponse(
                 "admin-control-plane-v1",
                 organizationId(jwt),
                 organizationName(jwt),
-                "OIDC/SAML selected IDM",
+                "Keycloak platform security",
                 registry.providerConfigSource(),
                 registry.bootstrapDefaultsAreSuggestionsOnly(),
                 registry.backendOwnedFacades(),
@@ -181,7 +197,7 @@ public class AdminControlPlaneService {
                         Map.entry("audit", "/api/admin/audit/events"),
                         Map.entry("readinessTest", "/api/admin/providers/readiness-tests"),
                         Map.entry("providerReplacementDryRun", "/api/admin/providers/replacements/dry-run"),
-                        Map.entry("identityReadiness", "/api/admin/identity/readiness"),
+                        Map.entry("identityReadiness", "/api/admin/platform/identity/readiness"),
                         Map.entry("effectivePolicySimulation", "/api/admin/policies/effective/simulations"),
                         Map.entry("providerSelections", "/api/admin/providers/selections"),
                         Map.entry("suiteReadiness", "/api/admin/control-plane#suiteDomainReadiness"),
@@ -189,9 +205,9 @@ public class AdminControlPlaneService {
                         Map.entry("agentRuntimes", "/api/admin/agent-runtimes/{personRef}")));
     }
 
-    public IdentityProviderReadinessResponse identityProviderReadiness(Jwt jwt) {
-        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "identity-provider", "readiness");
-        return identityProviderReadiness(providerRegistry.status(), jwt);
+    public PlatformIdentityReadinessResponse platformIdentityReadiness(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "platform-identity-security", "readiness");
+        return platformIdentityReadiness(providerRegistry.status(), jwt);
     }
 
     public ProviderSelectionResponse selectProvider(ProviderSelectionRequest request, Jwt jwt) {
@@ -732,6 +748,9 @@ public class AdminControlPlaneService {
                         "decisions.read", "decisions.record", "manuals.read", "manuals.admin", "release_evidence.read", "release_evidence.manage",
                         "admin_control_plane.readiness_read", "admin.policy.edit", "admin.provider.configure"));
             }
+            if (roles.contains("operator")) {
+                grants.addAll(List.of("admin_control_plane.readiness_read", "operator.support_bundle.create", "release_evidence.read", "manuals.admin", "manuals.read"));
+            }
             if (roles.contains("member")) {
                 grants.addAll(List.of("chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read", "meetings.join", "documents.view", "decisions.read", "manuals.read", "release_evidence.read"));
             }
@@ -789,10 +808,12 @@ public class AdminControlPlaneService {
         profileCapabilities.put("workspace-admin", List.of(
                 "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
                 "boards.read", "boards.update_task", "admin.provider.configure", "admin.policy.edit"));
+        profileCapabilities.put("workspace-operator", List.of(
+                "admin_control_plane.readiness_read", "operator.support_bundle.create", "release_evidence.read", "manuals.admin"));
         profileCapabilities.put("member-default", List.of(
                 "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read"));
         profileCapabilities.put("guest-deny-default", List.of());
-        profileCapabilities.put("group:/capabilities/weaver", List.of("agent-runtime.entitled"));
+        profileCapabilities.put("group:weave-weaver-runtime", List.of("agent-runtime.entitled"));
         return new CapabilityWhitelistResponse(
                 policy.denyByDefault(),
                 false,
@@ -954,40 +975,24 @@ public class AdminControlPlaneService {
                 .toList();
     }
 
-    private IdentityProviderReadinessResponse identityProviderReadiness(ProviderRegistryResponse registry, Jwt jwt) {
-        var identityCategory = registry.categories().stream()
-                .filter(category -> "identity-idm".equals(category.category()))
-                .findFirst();
-        ProviderStatusResponse identityProvider = registry.providers().stream()
-                .filter(provider -> provider.module() == ProviderModule.IDENTITY_REALM)
-                .findFirst()
-                .orElse(null);
-        boolean selectedByAdmin = identityCategory.map(category -> category.selectedByAdmin()).orElse(false);
-        boolean configured = identityProvider != null && identityProvider.configured();
-        boolean enabled = identityProvider != null && identityProvider.enabled();
-        boolean failClosed = identityProvider == null || identityProvider.failClosed();
-        boolean supportSafe = identityProvider == null || identityProvider.supportSafe();
-        String providerKey = identityCategory.map(category -> category.selectedProviderKey())
-                .filter(value -> value != null && !value.isBlank())
-                .orElse(identityProvider == null ? "awaiting_admin_selection" : identityProvider.providerKey());
+    private PlatformIdentityReadinessResponse platformIdentityReadiness(ProviderRegistryResponse registry, Jwt jwt) {
+        boolean configured = jwt != null && jwt.getIssuer() != null;
+        boolean enabled = configured;
+        boolean failClosed = true;
+        boolean supportSafe = true;
         CapabilityWhitelistResponse whitelist = whitelist(jwt);
 
-        List<IdentityProviderReadinessCardResponse> cards = List.of(
+        List<PlatformIdentityReadinessCardResponse> cards = List.of(
                 readinessCard(
                         "realm-import",
-                        "Realm import readiness",
-                        !selectedByAdmin ? "admin-action-required" : configured ? "ready" : "admin-action-required",
-                        selectedByAdmin
-                                ? "Identity realm is selected in the backend control plane; Identity Ops owns plan, apply, and verification evidence."
-                                : "Identity realm provider mapping has not been selected by an admin.",
-                        selectedByAdmin && configured ? "ready" : "degraded",
-                        selectedByAdmin
-                                ? "Run the protected profile-specific Identity Ops plan and verify tasks."
-                                : "Select an identity provider mapping in Admin Console before exposing sign-in readiness.",
-                        List.of("Run the profile-specific Identity Ops plan task", "Review support-safe plan and verification evidence"),
-                        List.of("keycloak-identity-ops-plan", "keycloak-identity-ops-verify", "admin-control-plane-selection"),
+                        "Identity Ops desired-state readiness",
+                        configured ? "ready" : "admin-action-required",
+                        "Keycloak desired state is owned by Identity Ops and cannot be changed through the Weave control plane.",
+                        configured ? "ready" : "degraded",
+                        "Reconcile and verify Keycloak through the deployment-owned Identity Ops process.",
+                        List.of("Run the Identity Ops plan and verification gates"),
+                        List.of("identity-ops-desired-state"),
                         Map.of(
-                                "selectedByAdmin", selectedByAdmin,
                                 "configured", configured,
                                 "enabled", enabled,
                                 "secretsReturned", false,
@@ -995,10 +1000,10 @@ public class AdminControlPlaneService {
                 readinessCard(
                         "federation-protocol-readiness",
                         "OIDC and SAML federation readiness",
-                        selectedByAdmin && configured ? "ready" : "admin-action-required",
+                        configured ? "ready" : "admin-action-required",
                         "OIDC and SAML posture is summarized by backend contract evidence; issuer, entity, client, redirect, certificate, and secret details are redacted.",
-                        selectedByAdmin && configured ? "ready" : "degraded",
-                        "Confirm OIDC scopes and SAML attribute/nameID mappings through Identity Ops verification evidence, not frontend provider APIs.",
+                        configured ? "ready" : "degraded",
+                        "Confirm OIDC scopes and SAML attribute/nameID mappings through Identity Ops, not frontend or Server mutation APIs.",
                         List.of("Validate OIDC scope mappings", "Validate SAML immutable subject and signed assertion requirements", "Keep federation secrets as SecretRef handles only"),
                         List.of("identity-federation-contract", "secretref-boundary"),
                         Map.of(
@@ -1007,13 +1012,12 @@ public class AdminControlPlaneService {
                                 "clientDetailsRedacted", true,
                                 "samlMetadataRedacted", true,
                                 "clientSecretsReturned", false,
-                                "selectedByAdmin", selectedByAdmin,
                                 "configured", configured)),
                 readinessCard(
                         "provisioning-source-readiness",
                         "SCIM, LDAP, and AD provisioning readiness",
                         "admin-action-required",
-                        "SCIM, LDAP, and Active Directory style lifecycle sources are represented as readiness concepts; live sync connectors remain fixture-backed or coming_later until separate evidence promotes them.",
+                        "LDAP and Active Directory are configured only as Keycloak User Federation; OIDC and SAML sources are configured only as Keycloak identity brokers.",
                         "degraded",
                         "Choose the authoritative source of truth and prove immutable anchors such as SCIM externalId, Entra object ID, LDAP objectGUID, or AD objectSid before member go-live.",
                         List.of("Record source-of-truth for users and groups", "Run fixture-backed provisioning readiness checks", "Keep email addresses out of primary identity keys"),
@@ -1042,10 +1046,10 @@ public class AdminControlPlaneService {
                 readinessCard(
                         "login-readiness",
                         "Login readiness",
-                        loginReadinessState(selectedByAdmin, configured, enabled, failClosed),
+                        loginReadinessState(configured, enabled, failClosed),
                         "Member login is exposed only as product-level availability; provider endpoints and raw auth errors stay out of member flows.",
-                        selectedByAdmin && configured && enabled ? "ready" : "degraded",
-                        "Keep member sign-in fail-closed until selected provider configuration and backend readiness evidence are present.",
+                        configured && enabled ? "ready" : "degraded",
+                        "Keep member sign-in fail-closed until the fixed Keycloak issuer and backend readiness evidence are present.",
                         List.of("Verify backend auth facade readiness", "Confirm member client shows only stable capability states"),
                         List.of("member-boundary", "backend-auth-facade"),
                         Map.of(
@@ -1057,7 +1061,7 @@ public class AdminControlPlaneService {
                         "deprovisioning-readiness",
                         "Deprovisioning readiness",
                         "admin-action-required",
-                        "Offboarding is tracked before live destructive identity mutation: access, sessions, ownership, audit, retained-admin, and content references must be reviewed support-safely.",
+                        "Offboarding revokes sessions and access projections before disabling the Keycloak user; hard deletion is unavailable.",
                         "degraded",
                         "Run a deprovisioning preview before disabling identities and keep retained owner/admin identity keys independent of email.",
                         List.of("Preview access and session revocation", "Review ownership/content references", "Verify retained admin before deprovisioning"),
@@ -1067,7 +1071,7 @@ public class AdminControlPlaneService {
                                 "sessionRevocationCovered", true,
                                 "ownershipTransferCovered", true,
                                 "contentReferenceReviewCovered", true,
-                                "liveDestructiveMutationClaimed", false,
+                                "hardDeleteAvailable", false,
                                 "providerPayloadDetailsReturned", false)),
                 readinessCard(
                         "break-glass-readiness",
@@ -1105,18 +1109,17 @@ public class AdminControlPlaneService {
                         whitelist.denyByDefault() && failClosed ? "ready" : "policy-blocked",
                         "Capability policy is the gate between provider claims and Weave product access.",
                         whitelist.denyByDefault() && failClosed ? "ready" : "policy-blocked",
-                        "Retain deny-by-default policy and last-admin recovery capabilities before Identity Ops apply.",
-                        List.of("Retain admin.policy.edit for workspace-admin", "Review policy simulation before Identity Ops apply"),
+                        "Retain deny-by-default policy and last-owner recovery capabilities before member access changes.",
+                        List.of("Retain admin.policy.edit for workspace-admin", "Review policy simulation before member access changes"),
                         List.of("capability-whitelist", "last-admin-guard"),
                         Map.of(
                                 "denyByDefault", whitelist.denyByDefault(),
                                 "failClosed", failClosed,
                                 "normalMembersMayAuthorPolicy", whitelist.normalMembersMayAuthorPolicy())));
         String overallState = aggregateIdentityReadiness(cards);
-        return new IdentityProviderReadinessResponse(
-                "identity-provider-readiness-v1",
-                "identity-idm",
-                providerKey,
+        return new PlatformIdentityReadinessResponse(
+                "platform-identity-readiness-v1",
+                "keycloak",
                 overallState,
                 supportSafe,
                 true,
@@ -1129,24 +1132,25 @@ public class AdminControlPlaneService {
                 identityNextActions(overallState),
                 Map.of(
                         "overview", "/api/admin/control-plane",
-                        "readiness", "/api/admin/identity/readiness",
+                        "readiness", "/api/admin/platform/identity/readiness",
+                        "identityOps", "operator://identity-ops",
                         "effectivePolicySimulation", "/api/admin/policies/effective/simulations"),
                 Map.ofEntries(
-                        Map.entry("contractOptional", true),
+                        Map.entry("contractOptional", false),
                         Map.entry("versionSkewSafe", true),
-                        Map.entry("memberClientMayConfigureIdentityProvider", false),
-                        Map.entry("providerDiagnosticsRedacted", true),
-                        Map.entry("selectedByAdmin", selectedByAdmin),
+                        Map.entry("memberClientMayConfigurePlatformSecurity", false),
+                        Map.entry("diagnosticsRedacted", true),
+                        Map.entry("runtimeSelectionAvailable", false),
                         Map.entry("configured", configured),
                         Map.entry("enabled", enabled),
                         Map.entry("secretsReturned", false),
-                        Map.entry("rawProviderErrorsReturned", false),
+                        Map.entry("rawKeycloakErrorsReturned", false),
                         Map.entry("liveScimSyncClaimed", false),
                         Map.entry("liveLdapAdConnectorClaimed", false),
                         Map.entry("fixtureBackedReadiness", true)));
     }
 
-    private IdentityProviderReadinessCardResponse readinessCard(
+    private PlatformIdentityReadinessCardResponse readinessCard(
             String key,
             String label,
             String state,
@@ -1156,7 +1160,7 @@ public class AdminControlPlaneService {
             List<String> nextActions,
             List<String> evidenceRefs,
             Map<String, Object> diagnostics) {
-        return new IdentityProviderReadinessCardResponse(
+        return new PlatformIdentityReadinessCardResponse(
                 key,
                 label,
                 state,
@@ -1168,11 +1172,11 @@ public class AdminControlPlaneService {
                 diagnostics);
     }
 
-    private String loginReadinessState(boolean selectedByAdmin, boolean configured, boolean enabled, boolean failClosed) {
+    private String loginReadinessState(boolean configured, boolean enabled, boolean failClosed) {
         if (!enabled) {
-            return selectedByAdmin ? "admin-action-required" : "disabled";
+            return "admin-action-required";
         }
-        if (!selectedByAdmin || !configured) {
+        if (!configured) {
             return "admin-action-required";
         }
         return failClosed ? "ready" : "policy-blocked";
@@ -1181,17 +1185,17 @@ public class AdminControlPlaneService {
     private List<String> identityNextActions(String overallState) {
         return switch (overallState) {
             case "ready" -> List.of("Monitor audit/readiness transitions and keep support bundles redacted.");
-            case "policy-blocked" -> List.of("Resolve policy blockers, unknown mappings, or last-admin guard failures before provider apply.");
-            case "disabled" -> List.of("Select an identity provider mapping or keep member flows disabled by policy.");
+            case "policy-blocked" -> List.of("Resolve policy blockers, unknown mappings, or last-owner guard failures before member lifecycle changes.");
+            case "disabled" -> List.of("Restore the fixed Keycloak platform-security runtime before allowing member sign-in.");
             default -> List.of(
-                    "Run the profile-specific Identity Ops plan and verify tasks.",
+                    "Run the Identity Ops desired-state plan and verification.",
                     "Resolve admin-action-required cards before treating sign-in as ready.",
                     "Verify member clients expose only product-level states.");
         };
     }
 
-    private String aggregateIdentityReadiness(List<IdentityProviderReadinessCardResponse> cards) {
-        List<String> states = cards.stream().map(IdentityProviderReadinessCardResponse::state).toList();
+    private String aggregateIdentityReadiness(List<PlatformIdentityReadinessCardResponse> cards) {
+        List<String> states = cards.stream().map(PlatformIdentityReadinessCardResponse::state).toList();
         if (states.contains("policy-blocked")) {
             return "policy-blocked";
         }
@@ -1539,11 +1543,11 @@ public class AdminControlPlaneService {
     }
 
     private GoLiveReadinessResponse goLiveReadiness(
-            IdentityProviderReadinessResponse identityReadiness,
+            PlatformIdentityReadinessResponse identityReadiness,
             List<SuiteDomainReadinessResponse> suiteReadiness) {
         List<String> blockers = new ArrayList<>();
         if (!"ready".equals(identityReadiness.overallState())) {
-            blockers.add("identity-idm:" + identityReadiness.overallState());
+            blockers.add("platform-identity-security:" + identityReadiness.overallState());
         }
         suiteReadiness.stream()
                 .filter(domain -> !"ready".equals(domain.adminReadiness()))
@@ -1571,7 +1575,7 @@ public class AdminControlPlaneService {
         return new ReleaseClaimControlResponse(
                 "admin-action-required",
                 "v0.1.0-rc.next",
-                "specs/weave-specs.lock.json#cffee4494b63b42b448642d4b2a6e91f5aa94af9",
+                "specs/weave-specs.lock.json#24c746c674da7d98e5c6abc1f1abac033a8774f2",
                 "merged PR release-notes labels and generated draft",
                 "support-bundle://admin-health/go-live-redacted-sample",
                 "docs/evidence/accessibility/sprint-18-manual-at-blocker.md#591",
@@ -1711,11 +1715,7 @@ public class AdminControlPlaneService {
     }
 
     private boolean safeSimulationInputToken(String value) {
-        if (value == null) {
-            return false;
-        }
-        return value.matches("[a-z][a-z0-9_.:-]*")
-                || value.matches("/[a-z0-9][a-z0-9_.:-]*(?:/[a-z0-9][a-z0-9_.:-]*)*");
+        return value != null && value.matches("[a-z][a-z0-9_.:-]*");
     }
 
     private EffectivePolicySimulationResponse.CapabilityState simulationState(
@@ -1766,16 +1766,6 @@ public class AdminControlPlaneService {
             return "identity-ref-redacted";
         }
         return safeText(trimmed);
-    }
-
-    private boolean safePrimaryIdentityKey(String value) {
-        return value != null
-                && value.length() <= MAX_BOOTSTRAP_ADMIN_KEY_LENGTH
-                && PRIMARY_IDENTITY_KEY_REGEX.matcher(value).matches();
-    }
-
-    private boolean hasText(String value) {
-        return value != null && !value.isBlank();
     }
 
     private List<String> safeCapabilities(List<String> capabilities) {

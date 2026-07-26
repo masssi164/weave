@@ -9,9 +9,12 @@ import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import com.massimotter.weave.backend.service.files.WebDavLockResult;
+import com.massimotter.weave.backend.service.files.WebDavSearchRequest;
+import com.massimotter.weave.backend.service.files.WebDavSearchResult;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -27,6 +30,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriUtils;
+import org.w3c.dom.Document;
+import org.w3c.dom.NodeList;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 @RestController
 @Hidden
@@ -53,6 +60,7 @@ public class FilesWebDavController {
             return switch (method) {
                 case "OPTIONS" -> options();
                 case "PROPFIND" -> propfind(request);
+                case "SEARCH" -> search(request);
                 case "GET" -> get(request, false);
                 case "HEAD" -> get(request, true);
                 case "PUT" -> put(request);
@@ -72,7 +80,7 @@ public class FilesWebDavController {
     private ResponseEntity<Void> options() {
         return ResponseEntity.noContent()
                 .header("DAV", "1")
-                .header(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK")
+                .header(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, SEARCH, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK")
                 .header("MS-Author-Via", "DAV")
                 .build();
     }
@@ -94,6 +102,72 @@ public class FilesWebDavController {
                 .contentType(XML)
                 .header("DAV", "1")
                 .body(multistatus(listing, includeChildren));
+    }
+
+    private ResponseEntity<String> search(HttpServletRequest request) {
+        WebDavSearchRequest search = parseSearchRequest(request);
+        WebDavSearchResult result = filesFacadeService.webDavSearch(search);
+        return ResponseEntity.status(207)
+                .contentType(XML)
+                .header("DAV", "1")
+                .body(searchMultistatus(result));
+    }
+
+    private WebDavSearchRequest parseSearchRequest(HttpServletRequest request) {
+        try {
+            byte[] body = request.getInputStream().readNBytes(65_537);
+            if (body.length == 0 || body.length > 65_536) {
+                throw invalidSearch();
+            }
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+            Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(body));
+            NodeList scopes = document.getElementsByTagNameNS("DAV:", "href");
+            NodeList literals = document.getElementsByTagNameNS("DAV:", "literal");
+            if (scopes.getLength() != 1 || literals.getLength() != 1) {
+                throw invalidSearch();
+            }
+            String href = scopes.item(0).getTextContent().trim();
+            String query = literals.item(0).getTextContent();
+            boolean canonicalIdMatch =
+                    document.getElementsByTagNameNS("urn:weave:files", "canonical-id").getLength() > 0;
+            boolean exactMatch = document.getElementsByTagNameNS("DAV:", "eq").getLength() == 1;
+            if (canonicalIdMatch != exactMatch) {
+                throw invalidSearch();
+            }
+            String rawPath = java.net.URI.create(href).getPath();
+            if (rawPath == null || !rawPath.startsWith(DAV_ROOT)) {
+                throw invalidSearch();
+            }
+            String suffix = rawPath.substring(DAV_ROOT.length());
+            String scopePath = suffix.isBlank() ? "/" : UriUtils.decode(suffix, StandardCharsets.UTF_8);
+            String limitHeader = request.getHeader("X-Weave-Search-Limit");
+            int limit = limitHeader == null || limitHeader.isBlank() ? 25 : Integer.parseInt(limitHeader);
+            return new WebDavSearchRequest(
+                    scopePath,
+                    query,
+                    limit,
+                    canonicalIdMatch
+                            ? WebDavSearchRequest.MatchField.CANONICAL_ID
+                            : WebDavSearchRequest.MatchField.DISPLAY_NAME_OR_PATH);
+        } catch (ApiErrorException exception) {
+            throw exception;
+        } catch (Exception invalid) {
+            throw invalidSearch();
+        }
+    }
+
+    private ApiErrorException invalidSearch() {
+        return new ApiErrorException(
+                HttpStatus.BAD_REQUEST,
+                "webdav-search-invalid",
+                "The WebDAV SEARCH request is outside the supported bounded basicsearch profile.",
+                Map.of("module", "files", "operation", "webdav-search"));
     }
 
     private ResponseEntity<byte[]> get(HttpServletRequest request, boolean headOnly) {
@@ -196,7 +270,7 @@ public class FilesWebDavController {
     private ResponseEntity<String> unsupportedMethod(String method) {
         return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)
                 .contentType(XML)
-                .header(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK")
+                .header(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, SEARCH, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK")
                 .header("X-Weave-Error-Code", "webdav-method-not-implemented")
                 .body(errorXml("webdav-method-not-implemented",
                         "Weave Files WebDAV does not implement " + method
@@ -291,7 +365,7 @@ public class FilesWebDavController {
     private String multistatus(WebDavPropfindListing listing, boolean includeChildren) {
         StringBuilder xml = new StringBuilder("""
                 <?xml version="1.0" encoding="UTF-8"?>
-                <d:multistatus xmlns:d="DAV:">
+                <d:multistatus xmlns:d="DAV:" xmlns:w="urn:weave:files">
                 """);
         appendFolderResponse(xml, listing.requested());
         if (includeChildren) {
@@ -307,6 +381,22 @@ public class FilesWebDavController {
         return xml.toString();
     }
 
+    private String searchMultistatus(WebDavSearchResult result) {
+        StringBuilder xml = new StringBuilder("""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <d:multistatus xmlns:d="DAV:" xmlns:w="urn:weave:files">
+                """);
+        for (WebDavPropfindResource resource : result.resources()) {
+            if ("folder".equals(resource.item().type())) {
+                appendFolderResponse(xml, resource);
+            } else {
+                appendFileResponse(xml, resource);
+            }
+        }
+        xml.append("</d:multistatus>");
+        return xml.toString();
+    }
+
     private void appendFolderResponse(StringBuilder xml, WebDavPropfindResource resource) {
         FileItemResponse item = resource.item();
         xml.append("  <d:response>\n")
@@ -316,6 +406,7 @@ public class FilesWebDavController {
                 .append("        <d:displayname>").append(escapeXml(displayName(item.path()))).append("</d:displayname>\n")
                 .append("        <d:resourcetype><d:collection/></d:resourcetype>\n");
         appendEtag(xml, resource.etag());
+        appendCanonicalId(xml, item.id());
         appendLockProperties(xml);
         xml.append("      </d:prop>\n")
                 .append("      <d:status>HTTP/1.1 200 OK</d:status>\n")
@@ -332,6 +423,7 @@ public class FilesWebDavController {
                 .append("        <d:displayname>").append(escapeXml(item.name())).append("</d:displayname>\n")
                 .append("        <d:resourcetype/>\n");
         appendEtag(xml, resource.etag());
+        appendCanonicalId(xml, item.id());
         appendLockProperties(xml);
         if (item.mimeType() != null && !item.mimeType().isBlank()) {
             xml.append("        <d:getcontenttype>").append(escapeXml(item.mimeType())).append("</d:getcontenttype>\n");
@@ -354,6 +446,12 @@ public class FilesWebDavController {
         if (etag != null && !etag.isBlank()) {
             xml.append("        <d:getetag>").append(escapeXml(etag)).append("</d:getetag>\n");
         }
+    }
+
+    private void appendCanonicalId(StringBuilder xml, String canonicalId) {
+        xml.append("        <w:canonical-id>")
+                .append(escapeXml(canonicalId))
+                .append("</w:canonical-id>\n");
     }
 
     private void appendLockProperties(StringBuilder xml) {

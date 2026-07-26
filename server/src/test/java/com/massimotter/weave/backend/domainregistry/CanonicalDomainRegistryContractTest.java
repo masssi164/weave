@@ -8,13 +8,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.Test;
 
 class CanonicalDomainRegistryContractTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final List<String> CANONICAL_DOMAINS = List.of(
-            "identity",
             "people",
             "spaces",
             "chat",
@@ -68,10 +68,13 @@ class CanonicalDomainRegistryContractTest {
         assertThat(registry.domains()).extracting(CanonicalDomainRegistryEntryResponse::key)
                 .containsExactlyElementsOf(CANONICAL_DOMAINS);
         assertThat(registry.compatibilityAliases())
-                .containsEntry("identity-idm", "identity")
                 .containsEntry("boards-tasks", "boards")
                 .containsEntry("meetings-calls", "calls")
                 .containsEntry("documents-collaboration", "documents");
+        assertThat(registry.compatibilityAliases()).doesNotContainKey("identity-idm");
+        assertThat(registry.domains())
+                .extracting(CanonicalDomainRegistryEntryResponse::key)
+                .doesNotContain("identity");
         assertThat(registry.providerNamesInMemberContractsAllowed()).isFalse();
         assertThat(providerRealityLevels(registry, "calendar"))
                 .containsEntry("weave-calendar", "contract_only")
@@ -146,11 +149,14 @@ class CanonicalDomainRegistryContractTest {
     void machineReadableRegistryResourceMatchesRuntimeRegistry() throws Exception {
         JsonNode registry = readContract("canonical-domain-registry.v1.json");
 
-        assertThat(registry.path("registry_version").asText()).isEqualTo(CanonicalDomainRegistry.REGISTRY_VERSION);
+        assertThat(registry.path("registry_version").asString()).isEqualTo(CanonicalDomainRegistry.REGISTRY_VERSION);
         assertThat(registry.path("domains")).hasSize(CANONICAL_DOMAINS.size());
-        assertThat(registry.path("domains").findValuesAsString("key")).containsExactlyElementsOf(CANONICAL_DOMAINS);
-        assertThat(registry.path("compatibility_aliases").path("boards-tasks").asText()).isEqualTo("boards");
-        assertThat(registry.path("compatibility_aliases").path("meetings-calls").asText()).isEqualTo("calls");
+        assertThat(StreamSupport.stream(registry.path("domains").spliterator(), false)
+                        .map(domain -> domain.path("key").asString())
+                        .toList())
+                .containsExactlyElementsOf(CANONICAL_DOMAINS);
+        assertThat(registry.path("compatibility_aliases").path("boards-tasks").asString()).isEqualTo("boards");
+        assertThat(registry.path("compatibility_aliases").path("meetings-calls").asString()).isEqualTo("calls");
         assertThat(registry.toString()).doesNotContain("secretref://", "Bearer ", "access_token", "client-secret");
     }
 
@@ -167,7 +173,7 @@ class CanonicalDomainRegistryContractTest {
 
         for (String schemaName : schemas) {
             JsonNode schema = readContract(schemaName);
-            assertThat(schema.path("$schema").asText()).isEqualTo("https://json-schema.org/draft/2020-12/schema");
+            assertThat(schema.path("$schema").asString()).isEqualTo("https://json-schema.org/draft/2020-12/schema");
             assertThat(schema.toString()).contains("support_safe_diagnostics");
             assertThat(schema.toString()).contains("secrets_returned");
             assertThat(schema.toString()).contains("raw_provider_payloads_returned");

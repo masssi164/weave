@@ -17,7 +17,8 @@ Weave uses layered evidence so contributors can move quickly while release claim
 | CI summary artifact | The root Gradle task graph emitted a sanitized summary of commit, branch, tool versions, gate outcomes, artifact paths, and live-E2E skip reason. | `build/evidence/ci-summary.json` from `./gradlew ci` or `./gradlew ciSummary`. |
 | Enterprise release gate contract | Release lanes, required gates, Live Stack artifact names, marker requirements, and waiver rules stay machine-checkable. | [Enterprise release foundation](enterprise-release-foundation.md), `release/enterprise-release-gates.json`, `./gradlew enterpriseReleaseGateCheck`. |
 | Beta readiness claim gates | Sprint 32 Beta claims stay scoped to the end-to-end Admin, User, governed Weaver, and foundation slice, with each claim mapped to CI, E2E, migration dry-run, accessibility smoke, and release-note evidence before promotion. | [Beta readiness slice and claim gates](beta-readiness-claim-gates.md), GitHub issues #830-#836, and the owning issue gates. |
-| Live Stack E2E | A prepared self-hosted stack can boot the app-level journey and upload acceptance evidence artifacts. | `.github/workflows/live-stack-e2e.yml` workflow runs and their uploaded artifacts. |
+| Fresh product flow | A disposable stack proves invitation, Keycloak browser activation, PKCE, WebDAV, workload OAuth, MCP, revocation, and cleanup without credential-injected Flutter builds. | `./gradlew testApp`, `.github/workflows/live-stack-e2e.yml`, and `weave-test-app-evidence.json`. |
+| Physical client auth | The production Flutter AppAuth integration opens the system browser, restores the workspace, and refreshes the session on a physical device. | `make physical-device-auth-e2e` and protected physical-device evidence. |
 
 ## Default PR validation
 
@@ -56,30 +57,45 @@ The canonical cross-stack command is:
 
 It writes `build/evidence/ci-summary.json` even when the Gradle build fails, so reviewers can inspect a sanitized task-graph summary without reconstructing evidence from chat or raw logs. Use `./gradlew ciSummary` when you only need to regenerate the summary shape for review.
 
-These checks are intentionally cheap enough for normal pull requests and do not require live credentials.
+These checks are intentionally cheap enough for normal pull requests and do
+not require human credentials.
 
 ## Live-stack and persistent test-stack evidence
 
 The live-stack path is expensive and runs on a dedicated self-hosted macOS ARM64 runner. Use it when a change affects sign-in, backend facade contracts, Matrix/files/calendar live behavior, acceptance scenarios, or integration boundaries.
 
-There are two live lanes:
+There are three deliberately separated lanes:
 
-- `Live Stack E2E` (`.github/workflows/live-stack-e2e.yml`) is disposable release-candidate evidence. It provisions three run-scoped identities, proves missing capability, expired token, wrong workspace, and revoked session through real isolated runtime paths, runs the collaboration suite twice on a fresh per-run iPhone Simulator, creates one controlled Calendar outage through the isolated Nextcloud/CalDAV provider, proves that degradation remains local to Calendar twice, restores Calendar, uploads support-safe acceptance evidence, and tears down only its namespace.
-- `Test Stack Deploy` (`.github/workflows/test-stack-deploy.yml`) is the persistent LAN dogfood
-  stack for the `dogfood` branch, executing the production-like `test` runtime profile. It starts
-  only from successful exact-candidate isolated evidence. Before adopting a pre-existing unowned
-  network or volume it creates a private backup, proves an isolated restore, and passes the
-  owner-controlled candidate-bound receipt to the runtime gate. It then applies the candidate
-  twice, runs the non-destructive operator checks, proves normalized Compose-model, Identity Ops,
-  and runtime idempotency, and leaves the verified stack running for human testing.
+- `Live Stack Product Flow` (`.github/workflows/live-stack-e2e.yml`) runs
+  `./gradlew testApp`. The bounded Java process creates owner/member invitations,
+  reads one-time activation links from Mailpit, completes Keycloak required
+  actions in Chromium, performs Authorization Code with PKCE, proves Files
+  WebDAV and workload-only MCP `files.search`, proves revocation, writes one
+  allowlisted evidence file, and tears down only its namespace.
+- `physical-device-auth-e2e` is interactive and never runs on a simulator. It
+  uses the production Flutter `flutter_appauth` client and accepts only public
+  endpoints/client ID as build arguments. The human enters credentials directly
+  in Keycloak's system-browser surface.
+- `Test Stack Deploy` (`.github/workflows/test-stack-deploy.yml`) is the persistent LAN dogfood stack for the `dogfood` branch. It starts only from successful exact-candidate isolated evidence, applies the candidate twice, runs the non-destructive operator checks without the automation-user smoke suite, proves OpenTofu and runtime idempotency plus persistent human/Mailpit/TLS/session invariants, and leaves the verified stack running for human testing.
 
 The persistent test stack is the required bridge between `dev` and `main`: a commit may be promoted to `main` only after it is contained in `dev`, contained in `dogfood`, and has a successful `Test Stack Deploy` run on `dogfood`. See [Dev/Dogfood/Main promotion flow](dev-test-main-promotion-flow.md).
 
-The disposable live-stack workflow prepares an acceptance evidence directory, runs the app-level live-stack E2E, and uploads support-safe acceptance evidence from the run. The artifact set includes `isolated-identities.json`, `isolated-authorization.json`, `isolated-calendar-outage.json`, `isolated-cleanup.json`, and `human-testing-automated-evidence.json`; the aggregator binds all five to the same namespace and hashed subjects. `live-phase-outcomes.json` records application lifecycle, collaboration, provider persistence/exactly-once proof, recovery, cleanup, and teardown independently with the exact candidate SHA, workflow-attempt run index, stable phase/category/code, observation time, and deterministic signature hash. One phase failure does not erase another phase's result, but any mandatory non-pass keeps the aggregate red. The controlled Calendar outage is always restored before disposable identity cleanup, including when the Flutter test is interrupted or fails, and the evidence gate requires restored cached Calendar and Files health. It also includes `release-evidence-manifest.json`, which names the source lane, commit, workflow run metadata, artifact list, and RC promotion rule. On failure, the same uploaded artifact may include `failure-diagnostics/` with `failure-summary.md`, `failure-summary.json`, `container-status.tsv`, `failed-markers.json`, redacted readiness output, and a redacted support-bundle reference. It must not include blindly dumped raw container logs. Do not cite a single workflow run ID as a permanent product claim; link to the workflow, the relevant docs, the manifest, and the PR evidence instead.
+The disposable workflow uploads only `weave-test-app-evidence.json`. It contains
+timestamps, hashes, protocol/result enums, the MCP tool/projection, and explicit
+`credentialsIncluded=false`, `actionLinksIncluded=false`, and
+`supportSafe=true` flags. Passwords, activation URLs, bearer tokens, client
+assertions, private keys, emails, raw client IDs, provider payloads, and raw
+logs remain outside durable evidence.
 
 The support-safe Synapse compatibility probe is separate from the full Live Stack. Run `python3 tools/synapse_compatibility_probe.py --target <supported-version> --output <private-build-path>` against each versioned target. It creates and removes one uniquely named Synapse container, injects one Application Service outage, and records only version/profile booleans plus a signature hash. A green probe does not authorize a Synapse pin change or substitute for exact-candidate collaboration, cleanup, teardown, physical-device, or distribution evidence.
 
-The single `weave-live-mac-mini` runner serializes Live Stack E2E, persistent dogfood mutation and recovery, and development-signed iPhone installation through one non-cancelling lock. Live Stack E2E remains disposable through a run-unique namespace for containers, volumes, network, ports, state, identities, credentials, and Simulator. It captures the identities of persistent dogfood Docker resources before bootstrap, verifies they are unchanged after namespace-bounded teardown, and records that preservation as an independent mandatory outcome. The runner removes stale Weave-generated outputs before checkout and requires at least 10 GiB of free space before tool and image setup. When those bounded outputs are gone but the preflight remains below 10 GiB, it removes only the restorable runner-owned Flutter tool cache; the pinned Flutter setup step reinstalls that cache before any build. Immediately before native tests it requires 5 GiB, then allocates a 1 GiB runner-owned emergency reserve so 4 GiB remains usable by the tests. Root CI owns generated-source freshness, so the live behavior lane does not repeat build-runner generation. A background monitor releases the reserve below a 2 GiB logging margin and fails the run support-safely, preserving enough space for diagnostics, targeted teardown, evidence upload, and final cleanup. The runner creates a fresh iPhone Simulator for the candidate and deletes only that simulator in the always-run finalizer, so app data and Keychain state cannot leak between runs. Flutter VM-service discovery is bounded: if Xcode's live unified-log stream misses the launch event, the runner replays only the exact event recovered from that same simulator and newly launched app process; the URI remains in memory, is never uploaded, and failure to recover it ends the lane support-safely before application assertions. It verifies the generated local certificate chain, then supplies that public CA to the isolated simulator, Rust Matrix client, and Dart live OIDC/HTTP clients as an explicit extra root for live tests only. The ephemeral PEM is encoded into the private live-test `dart-define` file so the sandboxed app never reads runner paths at runtime; both the enable flag and payload default to compiled-off/empty. Both client stacks retain platform roots, certificate-chain validation, and hostname validation; certificate callbacks are forbidden. Production and physical-device builds receive no injected root and continue to use platform trust. Current Flutter/Rust native outputs remain untouched while tests, diagnostics, and evidence generation run; cleanup occurs only after acceptance evidence upload. The cleanup boundary is limited to the per-run simulator, generated paths inside the runner's Weave checkout, the named live-stack temporary evidence/reserve files, the conditionally reclaimed Flutter tool cache, the run-namespaced Weave stack containers and volumes, and the two locally built Weave image tags. It must not prune persistent dogfood or unrelated simulators, containers, volumes, signing identities, or physical-device data.
+The self-hosted runner serializes product-flow, persistent dogfood, recovery, and
+physical distribution work. `testApp` uses a run-unique namespace for
+containers, volumes, network, ports, state, people, and workload clients. A
+persistent-dogfood guard captures owned resource identities before the run and
+verifies them unchanged afterwards. No Simulator, Flutter VM-service scraping,
+test-only certificate callback, custom OIDC HTTP driver, or credential-bearing
+Dart define belongs to this lane.
 
 ## Interpreting pass/fail states
 
@@ -87,13 +103,17 @@ The single `weave-live-mac-mini` runner serializes Live Stack E2E, persistent do
 - **Screenshot drift**: run `make marketing-screenshots`, validate `docs/assets/screenshot-evidence.json`, review the SVG diff as product copy, and commit regenerated assets if intentional.
 - **Spec contract failure**: fix missing frontmatter/lifecycle metadata, resolve implementation-ready `[NEEDS CLARIFICATION: ...]` markers, or move the spec back to `draft`/`proposed` until the product-core question is answered.
 - **Acceptance mapping failure**: update the scenario-to-test mapping or remove stale scenario claims. Do not leave product acceptance text unmapped.
-- **Live-stack contract failure**: start with `failure-diagnostics/failure-summary.md`, `container-status.tsv`, `health-checks/operator-check.txt`, and `failed-markers.json` in the uploaded evidence artifact. Treat credential, runner, or environment problems as named infrastructure blockers, not product proof. Missing required markers such as `BOARDS_RESULT` block RC promotion until a green rerun or explicit release-owner waiver exists. Operators who need deeper private debugging may rerun diagnostics on the self-hosted runner with private raw-log collection enabled, but those files stay outside uploaded/support evidence.
+- **Product-flow failure**: inspect the `testApp` Gradle/JUnit result and private
+  namespace logs on the runner. The uploaded support-safe evidence must never be
+  expanded into a raw log bundle. A missing or invalid
+  `weave-test-app-evidence.json` blocks promotion.
 - **Accessibility evidence gap**: do not promote the flow as release-ready until the automated and manual evidence in the accessibility gate is complete.
 - **Admin-provisioned first-use failure**: inspect member-visible first-use, settings, and navigation copy first. Normal members must not see provider setup diagnostics, OIDC/provider/infra setup fields, preview/scaffold/coming-soon release-scope language, or raw provider errors; move setup/readiness detail to Workspace Health for admins/operators.
 
 ## Artifact hygiene
 
-- Never commit live credentials, generated secret files, or raw logs that contain tokens/passwords.
+- Never commit human credentials, generated secret files, activation links, or
+  raw logs that contain tokens/passwords.
 - Live Stack failure artifacts must use support-safe diagnostics by default: status, readiness, failed markers, and redacted support bundles instead of raw provider/container logs.
 - Prefer redacted summaries in docs and PR bodies.
 - Use `build/evidence/ci-summary.json` for task outcomes; it must not include secrets, tokens, credential URLs, raw provider payloads, or raw provider errors.

@@ -3,108 +3,94 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCommandReceipt;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandConflictException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandRepository;
-import jakarta.persistence.PersistenceException;
+import com.massimotter.weave.backend.persistence.jpa.agentruntime.RuntimeCommandEntity;
+import com.massimotter.weave.backend.persistence.jpa.agentruntime.RuntimeCommandId;
+import com.massimotter.weave.backend.persistence.jpa.agentruntime.RuntimeCommandJpaRepository;
 import java.time.Instant;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.stereotype.Repository;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
-import static java.util.Objects.requireNonNull;
-
-/** Versioned command-receipt adapter with a durable idempotency boundary. */
-@Repository
+@Transactional(readOnly = true)
 public class JpaRuntimeCommandRepository implements RuntimeCommandRepository {
+  private final RuntimeCommandJpaRepository commands;
 
-    private final RuntimeCommandJpaRepository commands;
-    private final TransactionTemplate transactions;
+  public JpaRuntimeCommandRepository(RuntimeCommandJpaRepository commands) {
+    this.commands = java.util.Objects.requireNonNull(commands);
+  }
 
-    public JpaRuntimeCommandRepository(
-            RuntimeCommandJpaRepository commands,
-            PlatformTransactionManager transactionManager) {
-        this.commands = requireNonNull(commands, "commands");
-        this.transactions = new TransactionTemplate(
-                requireNonNull(transactionManager, "transactionManager"));
+  @Override
+  @Transactional
+  public RuntimeCommandReceipt claim(
+      String org,
+      String person,
+      String key,
+      String command,
+      String cell,
+      String audit,
+      Instant now) {
+    RuntimeCommandId id = new RuntimeCommandId(org, person, key);
+    var existing = commands.findById(id);
+    if (existing.isPresent()) return same(existing.orElseThrow(), command, cell);
+    try {
+      return map(
+          commands.saveAndFlush(
+              new RuntimeCommandEntity(
+                  org, person, key, command, "STARTED", cell, null, audit, null, now, now)));
+    } catch (DataIntegrityViolationException conflict) {
+      return same(commands.findById(id).orElseThrow(() -> conflict), command, cell);
     }
+  }
 
-    @Override
-    public RuntimeCommandReceipt claim(
-            String organizationRef,
-            String personRef,
-            String idempotencyKey,
-            String command,
-            String proposedCellRef,
-            String auditRef,
-            Instant now) {
-        RuntimeCommandId id = new RuntimeCommandId(
-                organizationRef,
-                personRef,
-                idempotencyKey);
-        RuntimeCommandJpaEntity existing = commands.findById(id).orElse(null);
-        if (existing != null) {
-            return requireSameCommand(existing, command, proposedCellRef);
-        }
-        try {
-            return transactions.execute(status -> commands.saveAndFlush(
-                            RuntimeCommandJpaEntity.started(
-                                    id,
-                                    command,
-                                    proposedCellRef,
-                                    auditRef,
-                                    now))
-                    .toDomain());
-        } catch (DataIntegrityViolationException | PersistenceException duplicateOrFailure) {
-            return transactions.execute(status -> requireSameCommand(
-                    commands.findById(id).orElseThrow(() -> duplicateOrFailure),
-                    command,
-                    proposedCellRef));
-        }
+  @Override
+  @Transactional
+  public RuntimeCommandReceipt complete(RuntimeCommandReceipt receipt, long version, Instant now) {
+    RuntimeCommandEntity entity = required(receipt);
+    if ("COMPLETED".equals(entity.status())) {
+      if (!java.util.Objects.equals(entity.runtimeVersion(), version))
+        throw new RuntimeCommandConflictException(
+            "command completion conflicts with the stored receipt");
+      return map(entity);
     }
+    if (!entity.command().equals(receipt.command()))
+      throw new RuntimeCommandConflictException(
+          "command completion conflicts with the stored receipt");
+    entity.complete(version, now);
+    return map(commands.saveAndFlush(entity));
+  }
 
-    @Override
-    public RuntimeCommandReceipt complete(
-            RuntimeCommandReceipt receipt,
-            long runtimeVersion,
-            Instant now) {
-        return transactions.execute(status -> {
-            RuntimeCommandJpaEntity command = locked(receipt);
-            if (!command.complete(receipt.command(), runtimeVersion, now)) {
-                throw new RuntimeCommandConflictException(
-                        "command completion conflicts with the stored receipt");
-            }
-            return commands.saveAndFlush(command).toDomain();
-        });
-    }
+  @Override
+  @Transactional
+  public RuntimeCommandReceipt fail(RuntimeCommandReceipt receipt, String code, Instant now) {
+    RuntimeCommandEntity entity = required(receipt);
+    if (!"COMPLETED".equals(entity.status())) entity.fail(code, now);
+    return map(commands.saveAndFlush(entity));
+  }
 
-    @Override
-    public RuntimeCommandReceipt fail(
-            RuntimeCommandReceipt receipt,
-            String failureCode,
-            Instant now) {
-        return transactions.execute(status -> {
-            RuntimeCommandJpaEntity command = locked(receipt);
-            command.fail(failureCode, now);
-            return commands.saveAndFlush(command).toDomain();
-        });
-    }
+  private RuntimeCommandEntity required(RuntimeCommandReceipt r) {
+    return commands
+        .findById(new RuntimeCommandId(r.organizationRef(), r.personRef(), r.idempotencyKey()))
+        .orElseThrow();
+  }
 
-    private RuntimeCommandJpaEntity locked(RuntimeCommandReceipt receipt) {
-        return commands.lockById(new RuntimeCommandId(
-                        receipt.organizationRef(),
-                        receipt.personRef(),
-                        receipt.idempotencyKey()))
-                .orElseThrow(() -> new IllegalStateException(
-                        "runtime command receipt is missing"));
-    }
+  private static RuntimeCommandReceipt same(RuntimeCommandEntity e, String c, String cell) {
+    if (!e.command().equals(c) || !e.cellRef().equals(cell))
+      throw new RuntimeCommandConflictException(
+          "idempotency key is already bound to another command");
+    return map(e);
+  }
 
-    private RuntimeCommandReceipt requireSameCommand(
-            RuntimeCommandJpaEntity stored,
-            String command,
-            String proposedCellRef) {
-        if (!stored.matches(command, proposedCellRef)) {
-            throw new RuntimeCommandConflictException(
-                    "idempotency key is already bound to another command");
-        }
-        return stored.toDomain();
-    }
+  private static RuntimeCommandReceipt map(RuntimeCommandEntity e) {
+    return new RuntimeCommandReceipt(
+        e.organizationRef(),
+        e.personRef(),
+        e.idempotencyKey(),
+        e.command(),
+        RuntimeCommandReceipt.Status.valueOf(e.status()),
+        e.cellRef(),
+        e.runtimeVersion(),
+        e.auditRef(),
+        e.failureCode(),
+        e.createdAt(),
+        e.updatedAt());
+  }
 }

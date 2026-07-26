@@ -1,0 +1,22 @@
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.boot:spring-boot-dependencies:${libs.versions.spring.boot.get()}"
+    }
+}
+
+dependencies {
+    implementation libs.playwright
+    implementation libs.nimbus.jose.jwt
+    implementation 'tools.jackson.core:jackson-databind'
+
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation libs.archunit.junit5
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}

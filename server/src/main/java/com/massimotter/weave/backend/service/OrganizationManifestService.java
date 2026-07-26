@@ -179,7 +179,7 @@ public class OrganizationManifestService {
 
     private Map<String, CapabilityManifestState> memberStates(WorkspaceCapabilitiesResponse capabilities) {
         Map<String, CapabilityManifestState> states = new LinkedHashMap<>();
-        states.put("idm-rbac", memberState(capabilities.shellAccess()));
+        states.put("platform-identity", memberState(capabilities.shellAccess()));
         states.put("chat-channels", memberState(capabilities.chat()));
         states.put("files-docs", memberState(capabilities.files()));
         states.put("boards-tasks", memberState(capabilities.boards()));

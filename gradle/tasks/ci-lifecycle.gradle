@@ -1,0 +1,87 @@
+tasks.register('doctor') {
+    group = 'verification'
+    description = 'Check required local build tools and pinned dependency files with actionable failures.'
+    doLast {
+        def failures = []
+        def checkCommand = { String label, List<String> args, String hint ->
+            def output = new ByteArrayOutputStream()
+            try {
+                def result = exec {
+                    commandLine execCommand(args)
+                    standardOutput = output
+                    errorOutput = output
+                    ignoreExitValue = true
+                }
+                if (result.exitValue != 0) {
+                    failures << "${label}: missing or unusable. ${hint}"
+                } else {
+                    def firstLine = output.toString('UTF-8').readLines().find { it.trim() }
+                    println "${label}: ${firstLine ?: 'ok'}"
+                }
+            } catch (Exception ignored) {
+                failures << "${label}: missing or unusable. ${hint}"
+            }
+        }
+        def checkFile = { String label, String path, String hint ->
+            if (!file(path).exists()) {
+                failures << "${label}: ${path} not found. ${hint}"
+            } else {
+                println "${label}: ${path}"
+            }
+        }
+
+        println "Gradle: ${gradle.gradleVersion} via ${gradle.gradleHomeDir ?: 'wrapper/runtime'}"
+        println "JDK: ${System.getProperty('java.version')} (${System.getProperty('java.vendor')})"
+        if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21)) {
+            failures << 'JDK: Java 21 or newer is required. Install Temurin 21+ or run with JAVA_HOME pointing at a supported JDK.'
+        }
+
+        checkFile('Gradle wrapper pin', 'gradle/wrapper/gradle-wrapper.properties', 'Restore the checked-in Gradle wrapper metadata.')
+        checkFile('Admin npm lockfile', 'admin-console/package-lock.json', 'Run npm install in admin-console only when intentionally updating dependencies, then commit the lockfile.')
+        checkFile('Admin npm dependencies', 'admin-console/node_modules/.bin/tsc', 'Run npm ci in admin-console before adminCi/ci.')
+        checkFile('Client Flutter lockfile', 'client/pubspec.lock', 'Run flutter pub get in client/ and commit the lockfile if dependencies intentionally changed.')
+        checkFile('Client Flutter dependencies', 'client/.dart_tool/package_config.json', 'Run flutter pub get in client before clientCi/ci.')
+        checkFile('MkDocs requirements pin', 'docs/requirements.txt', 'Restore pinned docs dependencies.')
+
+        checkCommand('git', ['git', '--version'], 'Install Git and ensure it is on PATH.')
+        checkCommand('bash', ['bash', '--version'], 'Install Bash and ensure it is on PATH.')
+        checkCommand('python3', ['python3', '--version'], 'Install Python 3 and ensure it is on PATH.')
+        checkCommand('flutter', ['flutter', '--version'], 'Install Flutter stable and ensure flutter is on PATH.')
+        checkCommand('dart', ['dart', '--version'], 'Install the Dart SDK or use the Dart bundled with Flutter.')
+        checkCommand('node', ['node', '--version'], 'Install Node matching the CI setup or the repo .nvm policy when added.')
+        checkCommand('npm', ['npm', '--version'], 'Install npm and run npm ci in admin-console when needed.')
+        checkCommand('tofu', ['tofu', '--version'], 'Install OpenTofu for infraStatic, matching the CI setup version.')
+        checkCommand('mkdocs', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs --version'], 'Install pinned docs dependencies with: python3 -m pip install -r docs/requirements.txt (or use build/docs-venv).')
+
+        if (!failures.isEmpty()) {
+            throw new GradleException('Doctor found problems:\n - ' + failures.join('\n - '))
+        }
+    }
+}
+
+tasks.register('ci') {
+    group = 'verification'
+    description = 'Run the canonical monorepo CI orchestration checks.'
+    dependsOn 'doctor', 'gradleStructureCheck', 'specCorpusConformance', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'humanTestingReadinessManifestTest', 'multiUserE2EEvidenceTest', 'matrixToDeviceEvidenceValidatorTest', 'synapseCompatibilityProbeTest', 'matrixRustCoreTest', 'clientCi', 'serverCi', 'mcpCi', 'testAppContract', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'liveStackRunnerHygieneCheck', 'projectReadinessEvidenceCheck'
+}
+
+['gradleStructureCheck', 'specCorpusConformance', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'spaceAnchorCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'humanTestingReadinessManifestTest', 'multiUserE2EEvidenceTest', 'matrixToDeviceEvidenceValidatorTest', 'matrixSdkVendorProvenanceCheck', 'synapseCompatibilityProbeTest', 'matrixRustCoreTest', 'clientCi', 'serverCi', 'mcpCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'liveStackRunnerHygieneCheck', 'sprint30HotPhaseCheck', 'crossDomainProviderProofCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->
+    tasks.named(taskName) {
+        mustRunAfter tasks.named('doctor')
+    }
+}
+
+gradle.buildFinished { result ->
+    def evidenceRequested = gradle.startParameter.taskNames.any { requested ->
+        requested == 'ci' || requested == ':ci' || requested.endsWith(':ci') ||
+            requested == 'check' || requested == ':check' || requested.endsWith(':check')
+    }
+    def evidenceTaskPresent = gradle.taskGraph.allTasks.any { it.name == 'ci' }
+    if (evidenceRequested || evidenceTaskPresent) {
+        writeCiSummary(result.failure)
+    }
+}
+
+tasks.named('check') {
+    dependsOn 'ci'
+}

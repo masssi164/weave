@@ -22,10 +22,10 @@ export type GeneratedAdminControlPlaneResponse = {
   "displayName"?: string;
   "generatedAt"?: string;
   "goLiveReadiness"?: GeneratedGoLiveReadinessResponse;
-  "identityProviderReadiness"?: GeneratedIdentityProviderReadinessResponse;
   "mcpServerBindings"?: GeneratedMcpServerBindingResponse[];
   "memberClientMayConfigureProviders"?: boolean;
   "organizationId"?: string;
+  "platformIdentityReadiness"?: GeneratedPlatformIdentityReadinessResponse;
   "providerConfigSource"?: string;
   "recommendedIdentityBroker"?: string;
   "secretRefs"?: GeneratedSecretRefResponse[];
@@ -168,36 +168,6 @@ export type GeneratedGoLiveReadinessResponse = {
   "supportSafe"?: boolean;
 };
 
-export type GeneratedIdentityProviderReadinessCardResponse = {
-  "diagnostics"?: Record<string, unknown>;
-  "evidenceRefs"?: string[];
-  "key"?: string;
-  "label"?: string;
-  "memberImpact"?: string;
-  "nextActions"?: string[];
-  "remediation"?: string;
-  "state"?: string;
-  "summary"?: string;
-};
-
-export type GeneratedIdentityProviderReadinessResponse = {
-  "adminApiRoutes"?: Record<string, string>;
-  "backendOwnedFacade"?: boolean;
-  "cards"?: GeneratedIdentityProviderReadinessCardResponse[];
-  "category"?: string;
-  "contractVersion"?: string;
-  "diagnostics"?: Record<string, unknown>;
-  "generatedAt"?: string;
-  "memberClientMayConfigureIdentityProvider"?: boolean;
-  "nextActions"?: string[];
-  "optionalForMemberFlows"?: boolean;
-  "overallState"?: string;
-  "providerDiagnosticsRedacted"?: boolean;
-  "providerKey"?: string;
-  "stableStates"?: string[];
-  "supportSafe"?: boolean;
-};
-
 export type GeneratedLifecycleExpectations = {
   "deleteExpectation"?: string;
   "deprovisionExpectation"?: string;
@@ -233,25 +203,6 @@ export type GeneratedMcpServerBindingResponse = {
   "transport"?: string;
 };
 
-export type GeneratedMemberInvitationRequest = {
-  "displayName"?: string;
-  "email": string;
-  "role": string;
-};
-
-export type GeneratedMemberInvitationResponse = {
-  "createdAt"?: string;
-  "displayName"?: string;
-  "email"?: string;
-  "expiresAt"?: string;
-  "lifecycleStatus"?: string;
-  "organizationId"?: string;
-  "providerInvitationId"?: string;
-  "provisioningStatus"?: string;
-  "requestedRole"?: string;
-  "updatedAt"?: string;
-};
-
 export type GeneratedNoUnaccountedDataLossReport = {
   "archiveOnlyCount"?: number;
   "knownLosses"?: string[];
@@ -263,6 +214,35 @@ export type GeneratedNoUnaccountedDataLossReport = {
   "unsupportedCount"?: number;
   "unsupportedData"?: string[];
   "vendorLockedCount"?: number;
+};
+
+export type GeneratedPlatformIdentityReadinessCardResponse = {
+  "diagnostics"?: Record<string, unknown>;
+  "evidenceRefs"?: string[];
+  "key"?: string;
+  "label"?: string;
+  "memberImpact"?: string;
+  "nextActions"?: string[];
+  "remediation"?: string;
+  "state"?: string;
+  "summary"?: string;
+};
+
+export type GeneratedPlatformIdentityReadinessResponse = {
+  "adminApiRoutes"?: Record<string, string>;
+  "backendOwnedFacade"?: boolean;
+  "cards"?: GeneratedPlatformIdentityReadinessCardResponse[];
+  "contractVersion"?: string;
+  "diagnostics"?: Record<string, unknown>;
+  "diagnosticsRedacted"?: boolean;
+  "generatedAt"?: string;
+  "memberClientMayConfigurePlatformSecurity"?: boolean;
+  "nextActions"?: string[];
+  "overallState"?: string;
+  "platformAuthority"?: string;
+  "requiredForMemberFlows"?: boolean;
+  "stableStates"?: string[];
+  "supportSafe"?: boolean;
 };
 
 export type GeneratedPortableExportImportContract = {

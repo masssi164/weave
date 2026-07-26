@@ -82,7 +82,8 @@ The MCP edge negotiates the MCP Client Credentials extension, validates the boun
 authenticates its own confidential client with a mounted private JWK and `private_key_jwt`, uses
 Keycloak Standard Token Exchange V2 to mint a reduced exact-audience backend token, and resolves
 current ARC context before Spring AI protocol dispatch. It exchanges rather than relays the bearer.
-The domain catalogs remain empty until discovery and approval/action-evidence gates are complete.
+The domain catalog is limited to the read-only Files/WebDAV slice until further discovery and
+approval/action-evidence gates are complete.
 
 ## Lifecycle, deletion, and recovery
 

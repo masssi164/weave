@@ -35,7 +35,10 @@ def main() -> int:
     require("candidate_sha:" in workflow and "deployment_run_id:" in workflow, "manual recovery dispatch must identify the exact deployed candidate")
     require("name: ios-dogfood" in workflow, "TestFlight upload is not protected by ios-dogfood environment")
     require("group: ios-dogfood" in workflow and "cancel-in-progress: true" in workflow, "superseded pending iOS candidates are not cancelled")
-    require("No successful isolated Live Stack E2E run targets" in workflow, "iOS distribution does not require exact-candidate isolated E2E")
+    require(
+        "No successful isolated Fresh product-flow run targets" in workflow,
+        "iOS distribution does not require the exact-candidate Fresh product flow",
+    )
     require("Test Stack Deploy ${DEPLOYMENT_RUN_ID} is not successful" in workflow, "iOS distribution does not verify the deployment result")
     require("xcrun altool --upload-app" in workflow, "TestFlight workflow does not upload through Apple tooling")
     require("credentialsIncluded:false" in workflow, "distribution evidence does not deny credential inclusion")

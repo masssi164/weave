@@ -145,7 +145,7 @@ public class WorkspaceCapabilityService {
                 status(
                         workspaceCapabilityProperties.shellAccess(),
                         shellAccessReadiness,
-                        "identity/IDM",
+                        "platform identity",
                         List.of(),
                         policy,
                         "Weave SSO shell access is available."),
@@ -232,10 +232,10 @@ public class WorkspaceCapabilityService {
         requireCapability(jwt, "admin_control_plane.readiness_read", "workspace-capability-policy", "read");
         EffectivePolicy policy = effectivePolicy(jwt);
         return new WorkspaceCapabilityPolicyResponse(
-                "identity/IDM",
-                "OIDC/SAML selected IDM",
-                "OIDC/SAML adapter contract; Keycloak is only the dogfood default, not product truth",
-                "OIDC role claims plus group claims from the selected IDM",
+                "platform identity and security",
+                "Keycloak",
+                "Keycloak federation and brokering contract for upstream LDAP, Active Directory, OIDC, and SAML sources",
+                "issuer, subject, role, and group claims issued by Keycloak",
                 policy.roles(),
                 policy.groups(),
                 policy.profileKeys(),

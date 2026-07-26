@@ -1,16 +1,17 @@
 {
   "@@locale": "de",
   "appTitle": "Weave",
+  "welcomeTitle": "Willkommen bei Weave",
+  "welcomeSubtitle": "Tritt deiner Organisation über eine Einladung oder Anmelde-Übergabe bei. Anbieter-Setup bleibt bei den Admins.",
+  "continueButton": "Organisation beitreten",
   "setupTitle": "Organisationszugang",
-  "setupProviderStepTitle": "Provider-Kategorien konfigurieren",
-  "setupProviderStepDescription": "Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Agent Runtime Control als Produktkategorien sichtbar, bevor Mitglieder beitreten.",
   "setupServicesStepTitle": "Backend-API prüfen",
   "setupServicesStepDescription": "Prüfe den Weave-Backend-API-Endpunkt, der aus dem Organisations-Login abgeleitet wurde. Provider-Service-URLs bleiben in Admin-/Support-Diagnosen, nicht in der Mitglieder-Einrichtung.",
   "providerCategorySummaryTitle": "Provider-Kategorien",
   "@providerCategorySummaryTitle": {
     "description": "Titel der Provider-Kategorien-Zusammenfassung für Admins in Einrichtung und Workspace Health"
   },
-  "providerCategorySummaryDescription": "Weave betrachtet zuerst Zusammenarbeits-Kategorien. Die Provider-Namen unten sind aktuelle Dogfood-Auswahlen für Admins/Operatoren, keine mitgliederseitigen Produktnamen.",
+  "providerCategorySummaryDescription": "Keycloak ist die feste Plattform-Identity-Authority. Die übrigen Zeilen sind Zusammenarbeits-Kategorien; ihre Provider-Namen sind Admin-/Operator-Auswahlen und keine mitgliederseitigen Produktnamen.",
   "@providerCategorySummaryDescription": {
     "description": "Beschreibung der Provider-Kategorien und Dogfood-Standards"
   },
@@ -22,6 +23,10 @@
   "@providerCategoryStatusCurrentDefault": {
     "description": "Status-Pille für eine Provider-Kategorie mit aktueller Dogfood-Auswahl"
   },
+  "platformIdentityStatusFixedAuthority": "Feste Plattform-Authority",
+  "@platformIdentityStatusFixedAuthority": {
+    "description": "Status-Pille für die nicht auswählbare Keycloak-Plattformidentitätsgrenze"
+  },
   "providerCategoryStatusAdminSetupRequired": "Admin-Einrichtung erforderlich",
   "@providerCategoryStatusAdminSetupRequired": {
     "description": "Status-Pille für eine Provider-Kategorie, die vor Mitgliedernutzung Admin-Einrichtung benötigt"
@@ -30,13 +35,13 @@
   "@providerCategoryStatusDisabledByDefault": {
     "description": "Status-Pille für eine standardmäßig deaktivierte Provider-Kategorie"
   },
-  "providerCategoryIdentityTitle": "Identität/IDM",
-  "@providerCategoryIdentityTitle": {
-    "description": "Provider-Kategorietitel für Identität und IDM"
+  "platformIdentityTitle": "Plattformidentität",
+  "@platformIdentityTitle": {
+    "description": "Titel für die feste Plattformidentitäts- und Sicherheitsgrenze"
   },
-  "providerCategoryIdentityDetail": "Keycloak/Auth ist die aktuelle Dogfood-Auswahl; Entra ID, Authentik oder eine andere OIDC/SAML-Quelle kann auf diese Kategorie abgebildet werden.",
-  "@providerCategoryIdentityDetail": {
-    "description": "Provider-Kategoriedetail für Identität und IDM"
+  "platformIdentityDetail": "Keycloak/Auth ist die Plattform-Authority. Entra ID, Authentik/Auth0, andere OIDC/SAML-Quellen oder LDAP/AD werden vorgelagert über Keycloak-Federation oder -Brokering angebunden.",
+  "@platformIdentityDetail": {
+    "description": "Detail für die feste Keycloak-Plattformidentitätsgrenze"
   },
   "providerCategoryChatTitle": "Chat",
   "@providerCategoryChatTitle": {
@@ -166,50 +171,23 @@
   "chatCreateConversationSubmitting": "Wird erstellt…",
   "chatCreateConversationFailure": "Die verschlüsselte Unterhaltung konnte nicht erstellt werden. Deine anderen Chat-Bereiche bleiben verfügbar. Versuche es erneut, sobald die Verbindung zurück ist.",
   "chatOverviewTitle": "Weave Home",
-  "chatOverviewDescription": "Deine persönlichen Nachrichten, Favoriten, Kanäle und KI-Chats sind hier gruppiert, damit der Workspace nach Absicht startet statt als flache Raumliste.",
+  "chatOverviewDescription": "Deine persönlichen Nachrichten, Favoriten und Kanäle sind hier gruppiert, damit der Workspace nach Absicht startet statt als flache Raumliste.",
   "chatHomeHeroTitle": "Dein Organisations-Workspace",
-  "chatHomeHeroDescription": "Starte mit Nachrichten, Kanal-Workspaces und gesteuerten KI-Bereichen, die für dich tatsächlich verfügbar sind.",
+  "chatHomeHeroDescription": "Starte mit Nachrichten und Kanal-Workspaces, die für dich tatsächlich verfügbar sind.",
   "chatHomeUnreadMetric": "{count, plural, =0 {Keine ungelesene Arbeit} =1 {1 ungelesener Eintrag} other {{count} ungelesene Einträge}}",
   "chatHomeChannelsMetric": "{count, plural, =0 {Keine Kanal-Workspaces} =1 {1 Kanal-Workspace} other {{count} Kanal-Workspaces}}",
   "chatHomePeopleMetric": "{count, plural, =0 {Keine persönlichen Nachrichten} =1 {1 persönliche Nachricht} other {{count} persönliche Nachrichten}}",
-  "chatHomeAiMetricReady": "{count, plural, =1 {1 gesteuerter KI-Chat} other {{count} gesteuerte KI-Chats}}",
-  "chatHomeAiMetricDisabled": "KI durch Workspace-Policy gesteuert",
   "chatHomeContinueButton": "Nächsten Arbeitseintrag öffnen",
   "chatOverviewSectionCount": "{count, plural, =0 {0 Einträge} =1 {1 Eintrag} other {{count} Einträge}}",
   "chatFavoritesSectionTitle": "Favoriten",
-  "chatFavoritesSectionDescription": "Angepinnte Personen, Kanäle und KI-Chats, die du zuerst erreichen möchtest.",
-  "chatFavoritesSectionEmpty": "Noch keine Favoriten. Wichtige Direktnachrichten, Kanäle und KI-Chats, die als Favoriten markiert sind, bleiben hier.",
+  "chatFavoritesSectionDescription": "Angepinnte Personen und Kanäle, die du zuerst erreichen möchtest.",
+  "chatFavoritesSectionEmpty": "Noch keine Favoriten. Wichtige Direktnachrichten und Kanäle, die als Favoriten markiert sind, bleiben hier.",
   "chatPersonalMessagesSectionTitle": "Persönliche Nachrichten",
   "chatPersonalMessagesSectionDescription": "Direkte Unterhaltungen mit Personen in deinem Workspace.",
   "chatPersonalMessagesSectionEmpty": "Noch keine persönlichen Nachrichten verfügbar.",
   "chatChannelsSectionTitle": "Kanäle",
   "chatChannelsSectionDescription": "Team- und Themenräume für gemeinsame Arbeit.",
   "chatChannelsSectionEmpty": "Noch keine Kanäle verfügbar.",
-  "chatAiChatsSectionTitle": "KI-Chats",
-  "chatAiChatsSectionDescription": "Spezialisierte Assistenten- und Agentenchats haben ihren eigenen Bereich.",
-  "chatAiChatsSectionEmpty": "KI-Chats sind für diesen Arbeitsbereich nicht aktiviert. Owner oder Admins können gesteuerte Assistenten aktivieren, sobald Policy-, Einwilligungs- und Audit-Kontrollen bereit sind.",
-  "chatAgentGovernanceTitle": "Agentenchats werden von deinem Workspace gesteuert",
-  "chatAgentGovernanceDescription": "Agenten können in Weave erst helfen, wenn Owner oder Admins ein Paket aktivieren, Bereiche auswählen und Einwilligung sowie Audit sichtbar bleiben.",
-  "chatAgentContextPackTitle": "Kontextpaket vor der Aktion",
-  "chatAgentContextPackDescription": "Wenn ein Agent verfügbar ist, zeigt Weave vorab, welcher Kontext für diese Anfrage gesendet wird.",
-  "chatAgentContextPackScopedBullet": "Kontext ist auf ausgewählte Chats, Dateien, Kalendertermine, Boards oder ausdrücklich gewählte Workspace-Quellen begrenzt.",
-  "chatAgentContextPackConsentBullet": "Vor dem Start oder der Freigabe einer Agentenaktion siehst du Hinweise zu Berechtigungen.",
-  "chatAgentContextPackNoSurveillanceBullet": "Agenten lesen Räume nicht dauerhaft im Hintergrund mit.",
-  "chatAgentGovernanceAuditNote": "Agentenerstellung, Kontextzugriff, Tool-/Aktionsausführung, Freigabe und Widerruf müssen vor einer Laufzeitfreigabe auditierbar sein.",
-  "chatAgentAvailabilityPreview": "Durch Policy deaktiviert",
-  "chatAgentAvailabilityAdminSetup": "Admin-Einrichtung nötig",
-  "chatAgentAvailabilityBlocked": "Durch Policy blockiert",
-  "chatAgentPersonalAssistantTitle": "Persönlicher Assistent",
-  "chatAgentPersonalAssistantDescription": "Ein privater Assistentenchat für Entwürfe, Zusammenfassungen und Erinnerungen kann erst aktiviert werden, wenn Workspace-Policy, Einwilligung und Audit-Kontrollen bereit sind.",
-  "chatAgentChannelAgentTitle": "Kanal-Agent",
-  "chatAgentChannelAgentDescription": "Ein Helfer für einen Kanal oder Projektraum kann nur über ein von Admins freigegebenes Paket aktiviert werden.",
-  "chatAgentPersonalScope": "Nutzt nur Kontext, den du für die aktuelle Anfrage auswählst; Workspace-Policies entscheiden, welche Fähigkeiten verfügbar sind.",
-  "chatAgentPersonalBoundary": "Kein dauerhaftes Mitlesen von Räumen; ein Kontextpaket wird erst nach deinem Start oder deiner Freigabe zusammengestellt.",
-  "chatAgentPersonalAudit": "Erstellung, Kontextzugriff, Tool-Nutzung und Berechtigungsänderungen werden vor Laufzeitnutzung auditierbar.",
-  "chatAgentChannelScope": "Owner oder Admins müssen das Paket aktivieren und erlaubte Chat-, Datei-, Kalender- und Board-Bereiche auswählen.",
-  "chatAgentChannelBoundary": "Der Agent sieht benannte Bereiche und explizite Kontextpakete, nicht jede Nachricht im Workspace.",
-  "chatAgentChannelAudit": "Freigaben, Widerrufe und Aktionsversuche bleiben für Admins sichtbar, ohne Secrets in der App offenzulegen.",
-  "chatAgentStartDisabledButton": "Nicht verfügbar, bis aktiviert",
   "chatLoadingLabel": "Unterhaltungen werden geladen…",
   "chatLoadingHint": "Deine aktuellen Räume und der letzte Gesprächsstand werden geladen.",
   "chatConnectingLabel": "Verbinde mit Chat…",
@@ -416,9 +394,6 @@
   "settingsWorkspaceMatrixServerBodiesLabel": "Server-lesbare Inhalte",
   "settingsWorkspaceMatrixServerBodiesOpaque": "Nein",
   "settingsWorkspaceMatrixServerBodiesReadable": "Prüfen",
-  "settingsWorkspaceMatrixAgentWritesLabel": "Agent-Schreibzugriff",
-  "settingsWorkspaceMatrixAgentWritesBlocked": "Blockiert/fail-closed",
-  "settingsWorkspaceMatrixAgentWritesReview": "Policy prüfen",
   "settingsWorkspaceCapabilityReady": "Bereit",
   "settingsWorkspaceCapabilityDegraded": "Beeinträchtigt",
   "settingsWorkspaceCapabilityBlocked": "Blockiert",
@@ -726,16 +701,6 @@
   "chatRoomArchiveFailureMessage": "Diese Nachricht konnte gerade nicht archiviert werden.",
   "chatRoomArchivedEmptyMessage": "Archivierte Nachrichten sind in dieser Zeitleiste ausgeblendet.",
   "chatRoomArchivedEmptyGuidance": "Prüfe die archivierten Nachrichten, um eine wiederherzustellen, oder warte hier auf neue Nachrichten.",
-  "chatRoomContextPackTitle": "Kontext für diesen Raum",
-  "chatRoomContextPackDescription": "Weave nimmt nur begrenzten Kontext auf, den du hier sehen kannst, zum Beispiel diesen Raum, ausgewählte Dateien, verknüpfte Aufgaben und aktuelle Entscheidungen.",
-  "chatRoomContextPackCounts": "{includedCount, plural, =0 {Keine Quellen enthalten} =1 {1 Quelle enthalten} other {{includedCount} Quellen enthalten}}. {availableCount, plural, =0 {Keine optionalen Quellen verfügbar} =1 {1 optionale Quelle verfügbar} other {{availableCount} optionale Quellen verfügbar}}.",
-  "chatRoomContextPackNoBackgroundReading": "Kein Agent liest diesen Raum im Hintergrund mit.",
-  "chatRoomContextCurrentRoomLabel": "Aktueller Raum",
-  "chatRoomContextSelectedFilesLabel": "Ausgewählte Dateien",
-  "chatRoomContextLinkedTasksLabel": "Verknüpfte Aufgaben",
-  "chatRoomContextRecentDecisionsLabel": "Aktuelle Entscheidungen",
-  "chatRoomContextIncludedStatus": "Enthalten",
-  "chatRoomContextAvailableStatus": "Verfügbar nach Auswahl",
   "chatDecisionEvidencePanelTitle": "Entscheidungen, Risiken, Fragen und Evidenz",
   "chatDecisionEvidencePanelDescription": "Erfasse wichtige Nachrichten bewusst, damit der Raum die Gründe hinter der Arbeit behält. Nichts hier entsteht durch verstecktes Mitlesen.",
   "chatDecisionEvidenceNoBackgroundReading": "Einträge entstehen aus Nachrichtenaktionen, die du auswählst; es läuft kein automatisches dauerhaftes Mitlesen.",
@@ -1022,70 +987,6 @@
   "chatContextEvidenceHintDescription": "Entscheidungsnotizen und Links können zitiert werden, ohne Graph-Interna offenzulegen.",
   "chatContextAgentHintTitle": "Agent-Kontextpakete",
   "chatContextAgentHintDescription": "Assistenten erhalten nur das begrenzte Paket für Anfrage, Erwähnung oder Zeitplan.",
-  "agentCapabilityPolicyTitle": "Governance für KI-Agenten-Funktionen",
-  "@agentCapabilityPolicyTitle": {
-    "description": "Settings card title for AI agent capability governance"
-  },
-  "agentCapabilityPolicyAdminDescription": "Owner und Admins entscheiden, welche Agentenpakete und Verbindungen genutzt werden dürfen. Diese Funktion bleibt aus, bis Berechtigungen, Einwilligung und Audit-Kontrollen verbunden sind.",
-  "@agentCapabilityPolicyAdminDescription": {
-    "description": "Admin-facing description for AI agent capability governance"
-  },
-  "agentCapabilityPolicyUserDescription": "KI-Agentenchats sind für diesen Workspace noch nicht aktiviert. Du kannst Weave normal weiter nutzen; zuerst müssen Owner oder Admins diese Funktion freigeben.",
-  "@agentCapabilityPolicyUserDescription": {
-    "description": "Member-facing description for AI agent capability governance"
-  },
-  "agentCapabilityPolicyFailClosedNotice": "Agenten-Funktionen sind blockiert, bis Weave deine Rolle und die Workspace-Richtlinie bestätigen kann.",
-  "@agentCapabilityPolicyFailClosedNotice": {
-    "description": "Fail-closed notice when policy cannot be trusted"
-  },
-  "agentCapabilityPolicyManageDisabledButton": "Verwaltung nicht verfügbar, bis die Admin-Einrichtung abgeschlossen ist",
-  "@agentCapabilityPolicyManageDisabledButton": {
-    "description": "Disabled button label for future agent capability management"
-  },
-  "agentCapabilityPolicyAskAdminHint": "Braucht dein Team einen Agenten? Bitte Owner oder Admins, Agenten-Funktionen zu prüfen, sobald sie verfügbar sind.",
-  "@agentCapabilityPolicyAskAdminHint": {
-    "description": "Hint for non-admin users"
-  },
-  "agentCapabilityPolicyAdminStateHint": "Aktueller Zustand: durch Policy deaktiviert. Owner-/Admin-Prüfung ist erforderlich, bevor Nutzer einen Agenten starten können.",
-  "@agentCapabilityPolicyAdminStateHint": {
-    "description": "Admin state hint for disabled agent capabilities"
-  },
-  "agentCapabilityPersonalAssistantTitle": "Persönlicher Assistent",
-  "@agentCapabilityPersonalAssistantTitle": {
-    "description": "Agent capability title for personal assistant"
-  },
-  "agentCapabilityPersonalAssistantDescription": "Nutzt nur Kontext, den du für eine Anfrage auswählst, nachdem dein Workspace die Funktion aktiviert hat.",
-  "@agentCapabilityPersonalAssistantDescription": {
-    "description": "Agent capability description for personal assistant"
-  },
-  "agentCapabilityChannelAgentTitle": "Kanal-Agent",
-  "@agentCapabilityChannelAgentTitle": {
-    "description": "Agent capability title for channel agent"
-  },
-  "agentCapabilityChannelAgentDescription": "Erfordert, dass Owner oder Admins auswählen, welche Kanäle, Dateien, Kalendertermine oder Boards der Agent nutzen darf.",
-  "@agentCapabilityChannelAgentDescription": {
-    "description": "Agent capability description for channel agent"
-  },
-  "agentCapabilityAvailabilityPreviewOnly": "Admin-Einrichtung nötig",
-  "@agentCapabilityAvailabilityPreviewOnly": {
-    "description": "Agent capability availability label when admin setup is required"
-  },
-  "agentCapabilityAvailabilityAdminSetupRequired": "Admin-Einrichtung nötig",
-  "@agentCapabilityAvailabilityAdminSetupRequired": {
-    "description": "Agent capability availability label when admin setup is required"
-  },
-  "agentCapabilityAvailabilityBlocked": "Blockiert",
-  "@agentCapabilityAvailabilityBlocked": {
-    "description": "Agent capability availability label for blocked state"
-  },
-  "agentCapabilityPolicyErrorTitle": "Agenten-Funktionsrichtlinie ist nicht verfügbar.",
-  "@agentCapabilityPolicyErrorTitle": {
-    "description": "Error message for AI agent capability policy settings section"
-  },
-  "agentCapabilityPolicyLoading": "Agenten-Funktionsrichtlinie wird geprüft…",
-  "@agentCapabilityPolicyLoading": {
-    "description": "Loading message for AI agent capability policy settings section"
-  },
   "workflowPreviewTitle": "Aktive Workflows",
   "workflowPreviewDescription": "Eine lineare Ansicht der aktuellen Schritte, Verantwortlichen, Blockaden und Evidenz. Diagramme können später dazukommen; diese Ansicht muss zuerst mit Tastatur und Screenreadern funktionieren.",
   "workflowPreviewLinearViewChip": "Lineare Ansicht zuerst",
@@ -1183,71 +1084,19 @@
   "connectorPreviewTileSemanticLabel": "{name}. Status {statusLabel}. {summary} {auditSummary} {actionsState}; die App verarbeitet kein Provider-Geheimnis.",
   "channelWorkspaceStatusDisabledByPolicy": "disabled_by_policy",
   "channelWorkspaceStatusDegraded": "degraded",
-  "agentCapabilityAvailabilityDisabledByPolicy": "Durch Policy deaktiviert",
-  "chatWeaverBetaTitle": "Weaver Beta helper",
-  "@chatWeaverBetaTitle": {
-    "description": "Title for the bounded Weaver helper card in chat home"
+  "setupMemberHandoffTitle": "Über Einladung oder Organisationsanmeldung beitreten",
+  "@setupMemberHandoffTitle": {
+    "description": "Title for the normal member handoff-first setup screen"
   },
-  "chatWeaverBetaDescription": "Weaver stays inside this Weave workspace and can only use approved capabilities. Members see approved Weave actions, not internal runtime catalogs.",
-  "@chatWeaverBetaDescription": {
-    "description": "Description for bounded Weaver helper card"
-  },
-  "chatWeaverBetaConnectedState": "Connected",
-  "@chatWeaverBetaConnectedState": {
-    "description": "Weaver connection state label"
-  },
-  "chatWeaverBetaUnconnectedState": "Unconnected",
-  "@chatWeaverBetaUnconnectedState": {
-    "description": "Weaver connection state label"
-  },
-  "chatWeaverBetaEnabledState": "Weaver enabled",
-  "@chatWeaverBetaEnabledState": {
-    "description": "Weaver enabled state label"
-  },
-  "chatWeaverBetaDisabledState": "Weaver disabled",
-  "@chatWeaverBetaDisabledState": {
-    "description": "Weaver disabled state label"
-  },
-  "chatWeaverBetaCapabilityUnavailableState": "Capability unavailable",
-  "@chatWeaverBetaCapabilityUnavailableState": {
-    "description": "Weaver capability unavailable state label"
-  },
-  "chatWeaverBetaApprovalRequiredState": "Approval required for sensitive actions",
-  "@chatWeaverBetaApprovalRequiredState": {
-    "description": "Weaver approval state label"
-  },
-  "chatWeaverBetaDeniedFailedState": "Denied or failed safely",
-  "@chatWeaverBetaDeniedFailedState": {
-    "description": "Weaver denied/failed state label"
-  },
-  "chatWeaverBetaSupportSafeResult": "Results show a summary, status, and audit reference only; secrets and raw provider payloads stay out of the member view.",
-  "@chatWeaverBetaSupportSafeResult": {
-    "description": "Support-safe result note for Weaver helper"
-  },
-  "chatWeaverBetaSemanticLabel": "Weaver Beta helper. Personal helper: {personalState}. Channel helper: {channelState}. Workspace connection: {connectionState}. Results are support-safe and do not expose secrets or raw provider payloads.",
-  "@chatWeaverBetaSemanticLabel": {
-    "description": "Accessibility label for Weaver helper card",
-    "placeholders": {
-      "personalState": {
-        "type": "String"
-      },
-      "channelState": {
-        "type": "String"
-      },
-      "connectionState": {
-        "type": "String"
-      }
-    }
-  },
-  "setupMemberHandoffDescription": "Füge deinen Abschlusslink oder QR-Inhalt ein oder gib die Weave-Adresse deiner Organisation ein. Jede Option prüft vor der Anmeldung dieselben Organisationsangaben.",
+  "setupMemberHandoffDescription": "Öffne den Einladungslink, /join-Link oder die Organisations-Anmelde-URL, die dein Admin gesendet hat. Weave bereitet deinen Workspace aus dem Organisationsmanifest vor, ohne dass du Anbieter-Endpunkte bearbeiten musst.",
   "@setupMemberHandoffDescription": {
     "description": "Description for the normal member handoff-first setup screen"
   },
-  "setupOrganizationUriLabel": "Weave-Serveradresse, Abschlusslink oder QR-Inhalt",
+  "setupOrganizationUriLabel": "Server-URI, Einladungslink oder QR-Inhalt",
   "@setupOrganizationUriLabel": {
     "description": "Eingabefeld für den Organisationszugang"
   },
-  "setupOrganizationUriHelper": "Nutze den Link aus deiner E-Mail oder dem QR-Code oder gib die sichere Weave-Adresse deiner Organisation ein.",
+  "setupOrganizationUriHelper": "Füge den Link aus E-Mail oder QR-Code ein oder gib die Weave-Adresse deiner Organisation ein.",
   "@setupOrganizationUriHelper": {
     "description": "Hilfe zum Organisationszugang"
   },
@@ -1259,46 +1108,69 @@
   "@setupOrganizationContinueButton": {
     "description": "Organisationszugang auflösen"
   },
-  "setupOrganizationAccessHelp": "Abschlusslinks, QR-Inhalte und die Weave-Serveradresse verwenden dieselbe Organisationsprüfung. Der nächste Bildschirm fordert dich immer ausdrücklich zum Anmelden auf.",
+  "setupOrganizationAccessHelp": "Deine Einladungs-E-Mail und der Organisations-QR-Code enthalten dieselbe Weave-Adresse. Nach der Prüfung bietet der nächste Bildschirm immer Anmelden an.",
   "@setupOrganizationAccessHelp": {
     "description": "Erklärt gleichwertige Zugangswege"
   },
-  "memberHandoffLoadingTitle": "Organisationszugang wird geprüft",
+  "setupMemberHandoffPrimaryAction": "Ich habe eine Einladung oder einen Anmeldelink",
+  "@setupMemberHandoffPrimaryAction": {
+    "description": "Primary action label for handoff-first setup"
+  },
+  "setupMemberHandoffPrimaryGuidance": "Nutze den Link aus Browser, E-Mail oder Chat. Wenn er fehlt oder abgelaufen ist, bitte deinen Workspace-Admin um eine neue Einladung.",
+  "@setupMemberHandoffPrimaryGuidance": {
+    "description": "Guidance for using a member handoff link"
+  },
+  "setupMemberHandoffAdminNoteTitle": "Admins und Operatoren",
+  "@setupMemberHandoffAdminNoteTitle": {
+    "description": "Heading for operator-only setup note"
+  },
+  "setupMemberHandoffAdminNote": "Rohdaten zu Anbieter-Endpunkten werden im Admin- oder Operator-Recovery verwaltet, nicht im normalen Mitglieder-Onboarding.",
+  "@setupMemberHandoffAdminNote": {
+    "description": "Note explaining raw provider setup boundary"
+  },
+  "setupOpenOperatorRecoveryButton": "Operator-Recovery-Setup öffnen",
+  "@setupOpenOperatorRecoveryButton": {
+    "description": "Button that opens admin/operator raw endpoint recovery setup"
+  },
+  "setupOperatorRecoveryTitle": "Operator-Recovery-Setup",
+  "@setupOperatorRecoveryTitle": {
+    "description": "Title for the explicit operator recovery setup mode"
+  },
+  "memberHandoffLoadingTitle": "Weave-Einladung wird geöffnet",
   "@memberHandoffLoadingTitle": {
     "description": "Loading title while consuming a member handoff"
   },
-  "memberHandoffLoadingHint": "Wir rufen die Anmeldeinformationen für diese Organisation sicher ab.",
+  "memberHandoffLoadingHint": "Wir bereiten die Anmeldung für diesen Workspace vor.",
   "@memberHandoffLoadingHint": {
     "description": "Loading hint while consuming a member handoff"
   },
-  "memberHandoffReadyTitle": "Organisation bereit zur Anmeldung",
+  "memberHandoffReadyTitle": "Workspace bereit zur Anmeldung",
   "@memberHandoffReadyTitle": {
     "description": "Success title shown after a member handoff is consumed and before sign-in"
   },
-  "memberHandoffReadyGuidance": "Weave hat den Organisationszugang für {organization} vorbereitet. Die Anmeldung öffnet den sicheren Systembrowser und führt dich nach der Autorisierung zu Weave zurück.",
+  "memberHandoffReadyGuidance": "Weave hat {organization}/{workspace} aus der Einladung vorbereitet. Fahre als Nächstes mit der Workspace-Anmeldung fort.",
   "@memberHandoffReadyGuidance": {
     "description": "Success guidance shown after a member handoff is consumed and before sign-in",
     "placeholders": {
       "organization": {
         "type": "String"
+      },
+      "workspace": {
+        "type": "String"
       }
     }
   },
-  "memberHandoffErrorTitle": "Der Organisationszugang konnte nicht geprüft werden",
+  "memberHandoffErrorTitle": "Diese Weave-Einladung konnte nicht geöffnet werden",
   "@memberHandoffErrorTitle": {
     "description": "Error title when member handoff consumption fails"
   },
-  "memberHandoffErrorGuidance": "Der Link oder die Adresse ist möglicherweise unvollständig, abgelaufen oder vorübergehend nicht erreichbar. Prüfe die Eingabe und versuche es erneut oder bitte deine Organisation um einen neuen Abschlusslink.",
+  "memberHandoffErrorGuidance": "Die Einladung ist möglicherweise abgelaufen, unvollständig oder noch nicht bereit. Bitte deinen Workspace-Admin um eine neue Einladung oder Organisations-Anmelde-URL.",
   "@memberHandoffErrorGuidance": {
     "description": "Support-safe guidance when member handoff consumption fails"
   },
   "memberHandoffTlsErrorGuidance": "Weave konnte die Startkonfiguration des Workspaces nicht über vertrauenswürdiges TLS erreichen. Für lokales Dogfood installiere die Weave Local Development CA auf diesem iPhone und aktiviere volles Vertrauen, oder bitte deinen Admin um eine öffentlich vertrauenswürdige Organisations-Anmelde-URL.",
   "@memberHandoffTlsErrorGuidance": {
     "description": "Support-safe guidance when member handoff consumption fails because platform config TLS trust is missing"
-  },
-  "memberHandoffSignInRetryGuidance": "Deine Organisationsangaben sind gespeichert. Folge den Hinweisen oben und versuche dann erneut, dich anzumelden.",
-  "@memberHandoffSignInRetryGuidance": {
-    "description": "Support-sichere Wiederholungshilfe nach fehlgeschlagener Organisationsanmeldung"
   },
   "memberHandoffErrorCode": "Fehlercode: {code}",
   "@memberHandoffErrorCode": {

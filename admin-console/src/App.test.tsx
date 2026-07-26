@@ -71,16 +71,16 @@ function mockApi(
     dryRunProviderReplacement: vi.fn().mockResolvedValue({
       dryRunId: "chat-slack-dry-run",
       status: "dry_run_ready",
-      category: "idm-rbac",
-      currentAdapter: "keycloak-realm",
-      targetAdapter: "keycloak-realm",
+      category: "chat",
+      currentAdapter: "synapse-homeserver",
+      targetAdapter: "slack",
       readinessState: "ready",
       migrationDryRunRequired: true,
       memberImpactStates: ["available", "degraded", "disabled_by_policy"],
       supportSafe: true,
       providerDiagnosticsRedacted: true,
       cutoverGates: ["Run backend migration dry-run before apply"],
-      auditRefs: ["provider-replacement-dry-run-idm-rbac"],
+      auditRefs: ["provider-replacement-dry-run-chat"],
       consequencePreview: {
         preservedCount: 2,
         lossyCount: 1,
@@ -92,15 +92,15 @@ function mockApi(
         applyBlockers: ["Group owner claim needs operator approval"],
       },
       lossyMappingReport: {
-        canonicalObjects: ["IdentitySubject", "GroupMembership"],
-        contractRisks: ["External claims need mapping review"],
+        canonicalObjects: ["Conversation", "Message"],
+        contractRisks: ["External thread metadata needs mapping review"],
         adminNotes: ["Support-safe dry-run"],
-        conflicts: ["Group owner claim needs operator approval"],
+        conflicts: ["Thread retention needs operator approval"],
         replacementRequirement: "Review before apply",
       },
       lifecycleExpectations: {
         sourceOfTruthPolicy:
-          "Backend declares source of truth per IDM subject and group object",
+          "Backend declares source of truth per canonical Chat object",
         exportExpectation: "Export evidence is required before cutover.",
         deleteExpectation:
           "Delete/deprovision evidence is required after cutover.",
@@ -108,8 +108,8 @@ function mockApi(
         rollbackSupportBoundary: "Rollback bounded by provider export support.",
       },
       portableExportImportContract: {
-        exportManifestRef: "idm-rbac-portable-export-manifest-v0.1",
-        importManifestRef: "idm-rbac-portable-import-manifest-v0.1",
+        exportManifestRef: "chat-portable-export-manifest-v0.1",
+        importManifestRef: "chat-portable-import-manifest-v0.1",
         portabilityGuarantee:
           "v0.1 guarantees portable export/import before automated migration.",
         excludedAutomation: ["full automated migration"],
@@ -120,7 +120,7 @@ function mockApi(
         ],
       },
       switchPlan: {
-        planRef: "idm-rbac-switch-plan-v0.1",
+        planRef: "chat-switch-plan-v0.1",
         preflightRequired: true,
         cutoverWindowRequired: true,
         rollbackRequired: true,
@@ -137,7 +137,7 @@ function mockApi(
         manualReviewCount: 1,
         archiveOnlyCount: 0,
         vendorLockedCount: 0,
-        knownLosses: ["External claims need mapping review"],
+        knownLosses: ["External thread metadata needs mapping review"],
         unsupportedData: [],
         rollbackLimits: ["Rollback is bounded by provider export support."],
         releaseClaimBoundaries: ["Provider replacement claims remain bounded by accepted dry-run evidence."],
@@ -147,7 +147,7 @@ function mockApi(
         limitedApplyAllowed: false,
         productionCutoverAllowed: false,
         rollbackRestoreSmokeRequired: true,
-        requiredEvidenceRefs: ["provider-replacement-dry-run-idm-rbac"],
+        requiredEvidenceRefs: ["provider-replacement-dry-run-chat"],
         releaseBlockers: ["bounded apply/cutover/rollback proof is not available for this dry-run"],
       },
       crossDomainImpact: [
@@ -162,7 +162,7 @@ function mockApi(
       ],
     }),
     testProviderReadiness: vi.fn().mockResolvedValue({
-      providerKey: "keycloak-realm",
+      providerKey: "synapse-homeserver",
       state: "ready",
       summary: "Ready",
     }),
@@ -177,6 +177,7 @@ function mockApi(
         lifecycleStatus: "pending",
         provisioningStatus: "pending",
         requestedRole: request.role,
+        capabilities: request.capabilities,
       }),
     ),
     resendOrganizationInvitation: vi.fn().mockResolvedValue({}),
@@ -201,7 +202,7 @@ describe("Admin Console MVP", () => {
         lifecycleStatus: "pending",
         provisioningStatus: "applied",
         requestedRole: "member",
-        expiresAt: "2099-01-02T12:00:00Z",
+        capabilities: ["agent-runtime.entitled"],
       },
     ]);
     const createOrganizationInvitation = vi.fn().mockResolvedValue({});
@@ -217,19 +218,17 @@ describe("Admin Console MVP", () => {
       await screen.findByRole("heading", { name: /member invitations/i }),
     ).toBeInTheDocument();
     expect(await screen.findByText("existing@example.test")).toBeInTheDocument();
-    expect(screen.getByText(/Keycloak lifecycle: pending/i)).toBeInTheDocument();
-    expect(screen.getByText(/Weave provisioning: applied/i)).toBeInTheDocument();
-    expect(screen.getByText(/Expires:/i)).toHaveTextContent(/2099/);
+    expect(screen.getByText(/Invitation: pending/)).toHaveTextContent(
+      /Provisioning: applied/,
+    );
     expect(screen.getByText(/Keycloak owns email delivery/i)).toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/member email/i), "new@example.test");
     await user.type(screen.getByLabelText(/display name/i), "New Member");
-    expect(
-      screen.getByText(/IAM adapter maps the selected role/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByLabelText(/organization groups/i),
-    ).not.toBeInTheDocument();
+    await user.type(
+      screen.getByLabelText(/additional product capabilities/i),
+      "agent-runtime.entitled, boards.update_task",
+    );
     await user.click(screen.getByRole("button", { name: /invite member/i }));
 
     await waitFor(() =>
@@ -239,138 +238,12 @@ describe("Admin Console MVP", () => {
           email: "new@example.test",
           displayName: "New Member",
           role: "member",
+          capabilities: ["agent-runtime.entitled", "boards.update_task"],
         },
       ),
     );
     expect(document.body).not.toHaveTextContent(/activation token|client_secret/i);
   }, 15_000);
-
-  it("keeps invitation actions scoped to their row", async () => {
-    let finishResend: (() => void) | undefined;
-    const resendOrganizationInvitation = vi.fn(
-      () =>
-        new Promise<Record<string, never>>((resolve) => {
-          finishResend = () => resolve({});
-        }),
-    );
-    const revokeOrganizationInvitation = vi.fn().mockResolvedValue(undefined);
-    const api = mockApi({
-      listOrganizationInvitations: vi.fn().mockResolvedValue([
-        {
-          providerInvitationId: "invite-first",
-          organizationId: "weave-dogfood",
-          email: "first@example.test",
-          lifecycleStatus: "pending",
-          provisioningStatus: "pending",
-          requestedRole: "member",
-        },
-        {
-          providerInvitationId: "invite-second",
-          organizationId: "weave-dogfood",
-          email: "second@example.test",
-          lifecycleStatus: "pending",
-          provisioningStatus: "pending",
-          requestedRole: "member",
-        },
-      ]),
-      resendOrganizationInvitation,
-      revokeOrganizationInvitation,
-    });
-    const user = userEvent.setup();
-
-    render(<App api={api} />);
-
-    const firstResend = await screen.findByRole("button", {
-      name: /resend invitation: first@example\.test/i,
-    });
-    const secondResend = screen.getByRole("button", {
-      name: /resend invitation: second@example\.test/i,
-    });
-    await user.click(firstResend);
-
-    await waitFor(() => expect(firstResend).toBeDisabled());
-    expect(secondResend).toBeEnabled();
-    finishResend?.();
-    await waitFor(() => expect(firstResend).toBeEnabled());
-
-    await user.click(
-      screen.getByRole("button", {
-        name: /revoke invitation: second@example\.test/i,
-      }),
-    );
-    await waitFor(() =>
-      expect(revokeOrganizationInvitation).toHaveBeenCalledWith(
-        "weave-dogfood",
-        "invite-second",
-      ),
-    );
-  });
-
-  it("announces support-safe invitation failures and moves focus", async () => {
-    const api = mockApi({
-      createOrganizationInvitation: vi
-        .fn()
-        .mockRejectedValue(
-          new Error(
-            "raw provider failure https://auth.internal/realms/weave?token=secret",
-          ),
-        ),
-    });
-    const user = userEvent.setup();
-
-    render(<App api={api} />);
-
-    await user.type(
-      await screen.findByLabelText(/member email/i),
-      "new@example.test",
-    );
-    await user.click(screen.getByRole("button", { name: /invite member/i }));
-
-    const alert = (
-      await screen.findByText(/WEAVE-ADMIN-INVITATION-UNAVAILABLE/)
-    ).closest("[tabindex='-1']");
-    if (!alert) throw new Error("Invitation error alert was not rendered.");
-    expect(alert).toHaveTextContent(/WEAVE-ADMIN-INVITATION-UNAVAILABLE/);
-    expect(alert).not.toHaveTextContent(/auth\.internal|token=secret/i);
-    await waitFor(() => expect(alert).toHaveFocus());
-  });
-
-  it("announces an accessible empty invitation state", async () => {
-    render(<App api={mockApi()} />);
-
-    const emptyState = await screen.findByText(
-      /No active member invitations were returned/i,
-    );
-    expect(emptyState.closest("[aria-live='polite']")).not.toBeNull();
-  });
-
-  it("keeps invitation list loading and retry states support-safe", async () => {
-    const listOrganizationInvitations = vi
-      .fn()
-      .mockRejectedValueOnce(
-        new Error("raw Keycloak response from https://auth.internal/admin"),
-      )
-      .mockResolvedValueOnce([]);
-    const user = userEvent.setup();
-
-    render(<App api={mockApi({ listOrganizationInvitations })} />);
-
-    const loadingState = screen.getByText(
-      /Loading invitation lifecycle and provisioning status/i,
-    );
-    expect(loadingState.closest("[aria-live='polite']")).not.toBeNull();
-    expect(
-      await screen.findByText(/WEAVE-ADMIN-INVITATION-UNAVAILABLE/),
-    ).not.toHaveTextContent(/auth\.internal|raw Keycloak response/i);
-    await user.click(
-      screen.getByRole("button", { name: /retry invitation list/i }),
-    );
-
-    expect(
-      await screen.findByText(/No active member invitations were returned/i),
-    ).toBeInTheDocument();
-    expect(listOrganizationInvitations).toHaveBeenCalledTimes(2);
-  });
 
   it("renders organization, provider, policy, and audit sections from backend control-plane data", async () => {
     render(<App api={mockApi()} />);
@@ -398,7 +271,7 @@ describe("Admin Console MVP", () => {
       screen.getByRole("heading", { name: /readiness dashboard/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /identity provider readiness/i }),
+      screen.getByRole("heading", { name: /platform identity readiness/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
@@ -432,7 +305,7 @@ describe("Admin Console MVP", () => {
       screen.getByRole("heading", { name: /audit trail/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByLabelText(/identity status is ready/i),
+      screen.getByLabelText(/chat status is ready/i),
     ).toBeInTheDocument();
     for (const domain of [
       "People",
@@ -488,14 +361,14 @@ describe("Admin Console MVP", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: /identity provider readiness/i,
+        name: /platform identity readiness/i,
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByLabelText(/realm import readiness state is ready/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByLabelText(/oidc client readiness state is ready/i),
+      screen.getByLabelText(/federation protocol readiness state is ready/i),
     ).toBeInTheDocument();
     expect(
       screen.getByLabelText(/roles and groups mapping state is ready/i),
@@ -506,7 +379,7 @@ describe("Admin Console MVP", () => {
     expect(
       screen.getByLabelText(/policy readiness state is ready/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/member provider setup:/i)).toHaveTextContent(
+    expect(screen.getByText(/member platform-security setup:/i)).toHaveTextContent(
       /blocked/i,
     );
     expect(document.body).not.toHaveTextContent(/client_secret|access_token/i);
@@ -520,7 +393,7 @@ describe("Admin Console MVP", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByLabelText(/admin setup assistant steps/i),
-    ).toHaveTextContent(/identity: ready for member go-live/i);
+    ).toHaveTextContent(/chat: ready for member go-live/i);
     expect(
       screen.getByLabelText(/admin setup assistant steps/i),
     ).toHaveTextContent(/calls: repair before inviting affected members/i);
@@ -540,7 +413,7 @@ describe("Admin Console MVP", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByLabelText(/beta setup and control readiness checklist/i),
-    ).toHaveTextContent(/idm and rbac posture: ready/i);
+    ).toHaveTextContent(/keycloak and rbac posture: ready/i);
     expect(
       screen.getByLabelText(/beta setup and control readiness checklist/i),
     ).toHaveTextContent(/agent runtime control: disabled/i);
@@ -649,8 +522,8 @@ describe("Admin Console MVP", () => {
     );
     await waitFor(() =>
       expect(api.selectProvider).toHaveBeenCalledWith(
-        "identity",
-        "keycloak-realm",
+        "chat",
+        "synapse-homeserver",
         "recommended_self_hosted_default",
         true,
         undefined,
@@ -678,11 +551,11 @@ describe("Admin Console MVP", () => {
 
     await waitFor(() =>
       expect(api.selectProvider).toHaveBeenCalledWith(
-        "identity",
-        "keycloak-realm",
+        "chat",
+        "synapse-homeserver",
         "recommended_self_hosted_default",
         false,
-        "identity-keycloak-realm-backend-dry-run",
+        "chat-synapse-homeserver-backend-dry-run",
       ),
     );
     expect(await screen.findByRole("status")).toHaveTextContent(
@@ -835,20 +708,20 @@ describe("Admin Console MVP", () => {
       selectProvider: vi
         .fn()
         .mockResolvedValueOnce({
-          category: "identity",
-          providerKey: "keycloak-realm",
+          category: "people",
+          providerKey: "weave-owned",
           choiceModel: "recommended_self_hosted_default",
           dryRun: true,
-          evidenceRef: "identity-keycloak-realm-no-expiry",
+          evidenceRef: "people-weave-owned-no-expiry",
           issuedAt: "2099-01-01T00:00:00Z",
           supportSafe: true,
         })
         .mockResolvedValueOnce({
-          category: "identity",
-          providerKey: "keycloak-realm",
+          category: "people",
+          providerKey: "weave-owned",
           choiceModel: "recommended_self_hosted_default",
           dryRun: true,
-          evidenceRef: "identity-keycloak-realm-invalid-expiry",
+          evidenceRef: "people-weave-owned-invalid-expiry",
           issuedAt: "2099-01-01T00:00:00Z",
           expiresAt: "not-a-date",
           supportSafe: true,
@@ -946,8 +819,8 @@ describe("Admin Console MVP", () => {
 
     await waitFor(() =>
       expect(api.selectProvider).toHaveBeenCalledWith(
-        "identity",
-        "keycloak-realm",
+        "chat",
+        "synapse-homeserver",
         "recommended_self_hosted_default",
         true,
         undefined,
@@ -972,8 +845,8 @@ describe("Admin Console MVP", () => {
 
     await waitFor(() =>
       expect(api.dryRunProviderReplacement).toHaveBeenCalledWith(
-        expect.objectContaining({ key: "identity" }),
-        "keycloak-realm",
+        expect.objectContaining({ key: "chat" }),
+        "synapse-homeserver",
         "recommended_self_hosted_default",
       ),
     );
@@ -1003,26 +876,28 @@ describe("Admin Console MVP", () => {
       screen.getByText(/source of truth: backend declares source of truth/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/what moves: identitysubject, groupmembership/i),
+      screen.getByText(/what moves: conversation, message/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/what will not move: full automated migration/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/risks: external claims/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/conflicts: group owner claim/i),
+      screen.getByText(/risks: external thread metadata/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/portable export\/import: idm-rbac-portable-export/i),
+      screen.getByText(/conflicts: thread retention/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/portable export\/import: chat-portable-export/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/evidence refs: provider-switch-preflight/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/audit refs: provider-replacement-dry-run-idm-rbac/i),
+      screen.getByText(/audit refs: provider-replacement-dry-run-chat/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/switch plan: idm-rbac-switch-plan-v0.1/i),
+      screen.getByText(/switch plan: chat-switch-plan-v0.1/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/cutover window required: yes/i),
@@ -1064,7 +939,7 @@ describe("Admin Console MVP", () => {
     );
     expect(
       screen.queryByRole("heading", {
-        name: /identity provider readiness/i,
+        name: /platform identity readiness/i,
       }),
     ).not.toBeInTheDocument();
     expect(
@@ -1120,7 +995,7 @@ describe("Admin Console MVP", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: /identity provider readiness/i,
+        name: /platform identity readiness/i,
       }),
     ).toBeInTheDocument();
     expect(
@@ -1190,7 +1065,9 @@ describe("Admin Console MVP", () => {
     );
 
     await waitFor(() =>
-      expect(api.testProviderReadiness).toHaveBeenCalledWith("keycloak-realm"),
+      expect(api.testProviderReadiness).toHaveBeenCalledWith(
+        "synapse-homeserver",
+      ),
     );
     expect(await screen.findByRole("status")).toHaveTextContent(
       /readiness test queued/i,

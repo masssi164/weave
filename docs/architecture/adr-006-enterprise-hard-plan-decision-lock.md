@@ -71,15 +71,16 @@ The accepted direction is:
   contracts, never provider SDKs or provider-native APIs.
 - Open standards are northbound projections or southbound adapter seams, not raw
   provider pass-throughs.
-- Provider schemas remain adapter I/O. Canonical Weave entities are handwritten
-  from Weave domain contracts.
+- Provider schemas remain adapter I/O. Canonical Weave domain types and explicit
+  code-first JPA entities are authored from Weave-owned contracts.
 - Durable persistence and append-only ledgers own identifiers, policy, grants,
   audit, capability state, migration/switch evidence, and federation identity.
-- Strategic JSON/file runtime truth is not preserved as the target. Existing
-  file-backed defaults remain current implementation debt owned by #1019, not a
-  compatibility contract for new slices.
-- Server package/module boundaries must become enforceable before a physical
-  Gradle module split.
+- Strategic JSON/file runtime truth is not preserved as the target. Strategic
+  runtime state has one JPA authority; files remain only for deterministic
+  fixtures, explicit one-shot imports, or mounted policy and cryptographic
+  `SecretRef` material.
+- Server package/module boundaries are enforced by physical Gradle modules and
+  architecture tests.
 - Provider switching must fail closed unless canonical invariants and
   support-safe no-drift evidence exist.
 - OpenAPI is demoted to control, admin, setup, revoke, manifest, and generated
@@ -90,11 +91,11 @@ The target package and module map is:
 
 | Target area | Responsibility | Transitional repo location |
 | --- | --- | --- |
-| Domain kernel | Canonical domain entities, value objects, invariants, and use-case interfaces. | `server/src/main/java/com/massimotter/weave/backend/**/domain` |
-| Application/use cases | Product workflows over domain ports; no direct provider or projection calls. | Current `service`/`domainfacade` code only until replaced slice by slice. |
-| Projections | OpenAPI control/admin/setup/revoke/manifest convenience, WebDAV, CalDAV/iCalendar, People-domain CardDAV/vCard, Matrix Client-Server, and Spring AI MCP northbound adapters. | Current controllers and MCP modules only until projection packages exist. |
-| Persistence | Flyway/JPA-backed repositories and append-only ledgers behind domain ports. | Current JSON/file repositories only as #1019 retirement debt, temporary import, dev, or fixture-fenced evidence until strategic runtime truth is removed. |
-| Provider adapters | Southbound Keycloak, Matrix, Nextcloud, OpenProject, LiveKit, directory/contact, and future adapters. | Current provider-specific packages until #1013/#1024 gates pass. |
+| Domain kernel | Canonical domain entities, value objects, invariants, and use-case interfaces. | Framework-free `weave-application-core` and domain-specific core modules such as `weave-files-core`. |
+| Application/use cases | Product workflows over domain ports; no direct provider or projection calls. | Framework-free application modules plus Server-owned composition. |
+| Projections | OpenAPI control/admin/setup/revoke/manifest convenience, WebDAV, CalDAV/iCalendar, People-domain CardDAV/vCard, Matrix Client-Server, and Spring AI MCP northbound adapters. | Server protocol adapters and the separate `weave-mcp-server` process. |
+| Persistence | Flyway/JPA-backed repositories and append-only ledgers behind domain ports. | `weave-persistence-jpa`, composed exclusively by the Server. |
+| Provider adapters | Southbound Keycloak, Matrix, Nextcloud, OpenProject, LiveKit, directory/contact, and future adapters. | Provider and security adapter modules behind application ports. |
 | Policy, audit, credentials | Authorization, approvals, redaction, audit, credential references, and support-safe evidence. | Current `audit`, `context/authz`, identity, and readiness services. |
 | Boot wiring | Spring composition root, configuration, and profile-specific adapters. | Current server boot module. |
 
@@ -142,13 +143,13 @@ Existing work remains part of the graph rather than being duplicated:
   issue, acceptance scenario, and smallest meaningful gate.
 - Direct imports from the package examples are not allowed unless they are first
   reconciled with repo conventions, dependency policy, and the pinned corpus.
-- The first persistence work may be profile-gated for evidence and ADR-007 keeps
-  some file-backed defaults until #1019. Those defaults are current retirement
-  debt, not strategic compatibility. Production/dogfood target profiles must
-  move away from JSON/file runtime stores, with one-shot import evidence only
-  when real dogfood data requires it.
-- The first module work must add enforceable dependency checks before broad
-  package moves or physical Gradle module splits.
+- Strategic persistence is cut over to JPA for production and dogfood. H2 is a
+  code-first development feedback profile; PostgreSQL, the reviewed Fresh Start
+  Flyway baseline, and Hibernate validation form the authoritative runtime
+  contract. There is no selectable file-store fallback.
+- Physical Gradle modules and ArchUnit gates enforce dependency direction before
+  code can cross application, persistence, provider, security, transport, or MCP
+  boundaries.
 - Provider switch claims must be scoped to named providers and fixtures until
   broader conformance evidence exists.
 - OpenAPI remains useful as generated control/admin/setup/revoke/manifest

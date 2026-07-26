@@ -2,9 +2,7 @@ import type {
   GeneratedAdminAuditEventResponse,
   GeneratedAdminControlPlaneResponse,
   GeneratedCapabilityWhitelistResponse,
-  GeneratedIdentityProviderReadinessResponse,
-  GeneratedMemberInvitationRequest,
-  GeneratedMemberInvitationResponse,
+  GeneratedPlatformIdentityReadinessResponse,
   GeneratedProviderReadinessTestRequest,
   GeneratedProviderReadinessTestResponse,
 } from "./generated/openapi";
@@ -83,7 +81,7 @@ export interface ProviderCategory {
   secretRefs: string[];
 }
 
-export interface IdentityProviderReadinessCard {
+export interface PlatformIdentityReadinessCard {
   key: string;
   label: string;
   state: CapabilityState;
@@ -95,18 +93,17 @@ export interface IdentityProviderReadinessCard {
   diagnostics?: Record<string, unknown>;
 }
 
-export interface IdentityProviderReadiness {
+export interface PlatformIdentityReadiness {
   contractVersion: string;
-  category: string;
-  providerKey: string;
+  platformAuthority: string;
   overallState: CapabilityState;
   supportSafe: boolean;
-  providerDiagnosticsRedacted: boolean;
+  diagnosticsRedacted: boolean;
   backendOwnedFacade: boolean;
-  memberClientMayConfigureIdentityProvider: boolean;
-  optionalForMemberFlows: boolean;
+  memberClientMayConfigurePlatformSecurity: boolean;
+  requiredForMemberFlows: boolean;
   stableStates: CapabilityState[];
-  cards: IdentityProviderReadinessCard[];
+  cards: PlatformIdentityReadinessCard[];
   nextActions: string[];
 }
 
@@ -170,9 +167,32 @@ export interface AuditEvent {
 }
 
 export type OrganizationRole = "owner" | "admin" | "member" | "guest";
-export type CreateOrganizationInvitationRequest =
-  GeneratedMemberInvitationRequest;
-export type OrganizationInvitation = GeneratedMemberInvitationResponse;
+export type InvitationProvisioningStatus =
+  | "pending"
+  | "applied"
+  | "failed"
+  | "expired";
+
+export interface CreateOrganizationInvitationRequest {
+  email: string;
+  displayName?: string;
+  role: OrganizationRole;
+  capabilities: string[];
+}
+
+export interface OrganizationInvitation {
+  providerInvitationId: string;
+  organizationId: string;
+  email: string;
+  displayName?: string;
+  lifecycleStatus: string;
+  provisioningStatus: InvitationProvisioningStatus;
+  requestedRole: OrganizationRole;
+  capabilities: string[];
+  expiresAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export interface SuiteDomainReadiness {
   domain: string;
@@ -378,7 +398,7 @@ export interface ControlPlaneResponse {
   providerConfigSource: string;
   bootstrapDefaultsAreSuggestionsOnly: boolean;
   providerCategories: ProviderCategory[];
-  identityProviderReadiness: IdentityProviderReadiness;
+  platformIdentityReadiness: PlatformIdentityReadiness;
   suiteDomainReadiness: SuiteDomainReadiness[];
   goLiveReadiness: GoLiveReadiness;
   whitelistPolicy: WhitelistPolicy;
@@ -424,15 +444,6 @@ export class AdminApiError extends Error {
   }
 }
 
-function invitationIdempotencyKey(
-  action: "create" | "resend" | "revoke",
-): string {
-  const randomPart =
-    globalThis.crypto?.randomUUID?.() ??
-    `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  return `admin-console-invitation-${action}-${randomPart}`;
-}
-
 interface ServerControlPlaneResponse {
   organizationId?: string;
   organizationName?: string;
@@ -446,7 +457,7 @@ interface ServerControlPlaneResponse {
     secretRef?: string;
   }>;
   whitelist?: ServerWhitelistPolicy;
-  identityProviderReadiness?: ServerIdentityProviderReadiness;
+  platformIdentityReadiness?: ServerPlatformIdentityReadiness;
   suiteDomainReadiness?: ServerSuiteDomainReadiness[];
   goLiveReadiness?: ServerGoLiveReadiness;
   secretRefs?: Array<{ ref?: string; providerKey?: string }>;
@@ -522,16 +533,15 @@ interface ServerReleaseClaimControl {
   }>;
 }
 
-interface ServerIdentityProviderReadiness {
+interface ServerPlatformIdentityReadiness {
   contractVersion?: string;
-  category?: string;
-  providerKey?: string;
+  platformAuthority?: string;
   overallState?: string;
   supportSafe?: boolean;
-  providerDiagnosticsRedacted?: boolean;
+  diagnosticsRedacted?: boolean;
   backendOwnedFacade?: boolean;
-  memberClientMayConfigureIdentityProvider?: boolean;
-  optionalForMemberFlows?: boolean;
+  memberClientMayConfigurePlatformSecurity?: boolean;
+  requiredForMemberFlows?: boolean;
   stableStates?: string[];
   cards?: Array<{
     key?: string;
@@ -761,12 +771,12 @@ export class AdminControlPlaneApi {
     );
   }
 
-  async getIdentityProviderReadiness(): Promise<IdentityProviderReadiness> {
-    const response = await this.request<GeneratedIdentityProviderReadinessResponse>(
-      "/admin/identity/readiness",
+  async getPlatformIdentityReadiness(): Promise<PlatformIdentityReadiness> {
+    const response = await this.request<GeneratedPlatformIdentityReadinessResponse>(
+      "/admin/platform/identity/readiness",
     );
-    return normalizeIdentityProviderReadiness(
-      response as ServerIdentityProviderReadiness,
+    return normalizePlatformIdentityReadiness(
+      response as ServerPlatformIdentityReadiness,
     );
   }
 
@@ -818,13 +828,7 @@ export class AdminControlPlaneApi {
   ): Promise<OrganizationInvitation> {
     return this.request<OrganizationInvitation>(
       `/admin/organizations/${encodeURIComponent(organizationId)}/invitations`,
-      {
-        method: "POST",
-        headers: {
-          "Idempotency-Key": invitationIdempotencyKey("create"),
-        },
-        body: JSON.stringify(invitation),
-      },
+      { method: "POST", body: JSON.stringify(invitation) },
     );
   }
 
@@ -834,12 +838,7 @@ export class AdminControlPlaneApi {
   ): Promise<OrganizationInvitation> {
     return this.request<OrganizationInvitation>(
       `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(providerInvitationId)}/resend`,
-      {
-        method: "POST",
-        headers: {
-          "Idempotency-Key": invitationIdempotencyKey("resend"),
-        },
-      },
+      { method: "POST" },
     );
   }
 
@@ -849,12 +848,7 @@ export class AdminControlPlaneApi {
   ): Promise<void> {
     await this.request<void>(
       `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(providerInvitationId)}`,
-      {
-        method: "DELETE",
-        headers: {
-          "Idempotency-Key": invitationIdempotencyKey("revoke"),
-        },
-      },
+      { method: "DELETE" },
     );
   }
 
@@ -906,8 +900,8 @@ function normalizeControlPlane(
         controlPlane.generatedAt,
       ),
     ),
-    identityProviderReadiness: normalizeIdentityProviderReadiness(
-      controlPlane.identityProviderReadiness,
+    platformIdentityReadiness: normalizePlatformIdentityReadiness(
+      controlPlane.platformIdentityReadiness,
     ),
     suiteDomainReadiness: normalizeSuiteDomainReadiness(
       controlPlane.suiteDomainReadiness,
@@ -1025,7 +1019,7 @@ function normalizeReleaseClaimControl(
     candidateTag: claim?.candidateTag ?? "candidate-not-selected",
     pinnedSpecCorpusRef:
       claim?.pinnedSpecCorpusRef ??
-      "specs/weave-specs.lock.json#cffee4494b63b42b448642d4b2a6e91f5aa94af9",
+      "specs/weave-specs.lock.json#24c746c674da7d98e5c6abc1f1abac033a8774f2",
     releaseNotesSource:
       claim?.releaseNotesSource ??
       "release notes must be generated from merged PR metadata",
@@ -1039,56 +1033,54 @@ function normalizeReleaseClaimControl(
   };
 }
 
-function normalizeIdentityProviderReadiness(
-  readiness?: ServerIdentityProviderReadiness,
-): IdentityProviderReadiness {
+function normalizePlatformIdentityReadiness(
+  readiness?: ServerPlatformIdentityReadiness,
+): PlatformIdentityReadiness {
   const cards = (readiness?.cards ?? []).map((card) => ({
     key: card.key ?? "identity-readiness-card",
-    label: card.label ?? "Identity provider readiness",
+    label: card.label ?? "Keycloak platform identity readiness",
     state: normalizeState(card.state),
     summary:
       card.summary ??
-      "Identity readiness is provided by the backend control-plane facade.",
+      "Platform identity readiness is provided by the backend Keycloak control-plane facade.",
     memberImpact: normalizeIdentityMemberImpact(card.memberImpact),
     remediation:
       card.remediation ??
-      "Run the backend readiness contract and resolve admin-action-required items.",
+      "Run the platform-identity readiness contract and resolve admin-action-required items.",
     nextActions: card.nextActions ?? [],
     evidenceRefs: card.evidenceRefs ?? [],
     diagnostics: card.diagnostics ?? {},
   }));
   const versionSkewCards = [
     {
-      key: "identity-readiness-contract-missing",
-      label: "Identity readiness contract missing",
+      key: "platform-identity-readiness-contract-missing",
+      label: "Platform identity readiness contract missing",
       state: "admin-action-required" as CapabilityState,
       summary:
-        "The backend did not return identity readiness details; Admin Console fails closed during version skew.",
+        "The backend did not return Keycloak platform-identity readiness; Admin Console fails closed during version skew.",
       memberImpact: "degraded" as const,
       remediation:
-        "Upgrade or restart the backend control-plane facade, then run the identity readiness check again.",
+        "Upgrade or restart the backend control-plane facade, then run the platform-identity readiness check again.",
       nextActions: [
-        "Verify GET /api/admin/identity/readiness on the backend",
-        "Keep member provider setup blocked until readiness evidence exists",
+        "Verify GET /api/admin/platform/identity/readiness on the backend",
+        "Keep member platform-security setup blocked until readiness evidence exists",
       ],
       evidenceRefs: ["version-skew-fail-closed"],
     },
   ];
   return {
     contractVersion:
-      readiness?.contractVersion ?? "identity-provider-readiness-v1",
-    category: readiness?.category ?? "idm-rbac",
-    providerKey: readiness?.providerKey ?? "awaiting_admin_selection",
+      readiness?.contractVersion ?? "platform-identity-readiness-v1",
+    platformAuthority: readiness?.platformAuthority ?? "keycloak",
     overallState: normalizeState(
       readiness?.overallState ?? "admin-action-required",
     ),
     supportSafe: readiness?.supportSafe ?? false,
-    providerDiagnosticsRedacted:
-      readiness?.providerDiagnosticsRedacted ?? false,
+    diagnosticsRedacted: readiness?.diagnosticsRedacted ?? false,
     backendOwnedFacade: readiness?.backendOwnedFacade ?? true,
-    memberClientMayConfigureIdentityProvider:
-      readiness?.memberClientMayConfigureIdentityProvider ?? false,
-    optionalForMemberFlows: readiness?.optionalForMemberFlows ?? true,
+    memberClientMayConfigurePlatformSecurity:
+      readiness?.memberClientMayConfigurePlatformSecurity ?? false,
+    requiredForMemberFlows: readiness?.requiredForMemberFlows ?? true,
     stableStates: (
       readiness?.stableStates ?? [
         "ready",
@@ -1100,7 +1092,7 @@ function normalizeIdentityProviderReadiness(
     ).map(normalizeState),
     cards: cards.length > 0 ? cards : versionSkewCards,
     nextActions: readiness?.nextActions ?? [
-      "Treat missing identity readiness as admin-action-required and fail closed.",
+      "Treat missing platform-identity readiness as admin-action-required and fail closed.",
     ],
   };
 }
@@ -1772,27 +1764,14 @@ export const sampleControlPlane: ControlPlaneResponse = {
   bootstrapDefaultsAreSuggestionsOnly: true,
   providerCategories: [
     sampleDomain(
-      "identity",
-      "Identity",
-      "keycloak-realm",
+      "chat",
+      "Chat",
+      "synapse-homeserver",
       "ready",
-      "Identity and auth are backend-owned; members see only sign-in availability.",
-      [
-        "keycloak-realm",
-        "entra-id",
-        "authentik",
-        "auth0",
-        "generic-oidc",
-        "generic-saml",
-        "scim-ldap",
-      ],
+      "Conversations, messages, threads, reactions, mentions, and read state are shown through Weave facades.",
+      ["synapse-homeserver", "slack", "microsoft-teams"],
       {
-        requiredNextAction:
-          "Keep identity mapping evidence current before any provider switch.",
-        evidenceRefs: ["keycloak-identity-ops-plan", "keycloak-identity-ops-verify", "effective-policy-simulation"],
         applyGates: allApplyGatesPassed,
-        lastCheckedAt: "2026-05-24T18:00:00Z",
-        secretRefs: ["secretref://weave/provider/keycloak-realm/client-secret"],
       },
     ),
     sampleDomain(
@@ -1810,14 +1789,6 @@ export const sampleControlPlane: ControlPlaneResponse = {
       "ready",
       "Spaces are the cross-domain work context with bindings to chat, files, calendar, boards, calls, and decisions.",
       ["weave-owned"],
-    ),
-    sampleDomain(
-      "chat",
-      "Chat",
-      "synapse-homeserver",
-      "ready",
-      "Conversations, messages, threads, reactions, mentions, and read state are shown through Weave facades.",
-      ["synapse-homeserver", "slack", "microsoft-teams"],
     ),
     sampleDomain(
       "files",
@@ -1939,7 +1910,7 @@ export const sampleControlPlane: ControlPlaneResponse = {
       claimState: "admin-action-required",
       candidateTag: "v0.1.0-rc.next",
       pinnedSpecCorpusRef:
-        "specs/weave-specs.lock.json#cffee4494b63b42b448642d4b2a6e91f5aa94af9",
+        "specs/weave-specs.lock.json#24c746c674da7d98e5c6abc1f1abac033a8774f2",
       releaseNotesSource: "merged PR release-notes labels and generated draft",
       supportBundleRef: "support-bundle://admin-health/go-live-redacted-sample",
       accessibilityEvidenceRef:
@@ -1952,16 +1923,15 @@ export const sampleControlPlane: ControlPlaneResponse = {
       gates: sampleRcEvidenceGates,
     },
   },
-  identityProviderReadiness: {
-    contractVersion: "identity-provider-readiness-v1",
-    category: "idm-rbac",
-    providerKey: "keycloak-realm",
+  platformIdentityReadiness: {
+    contractVersion: "platform-identity-readiness-v1",
+    platformAuthority: "keycloak",
     overallState: "ready",
     supportSafe: true,
-    providerDiagnosticsRedacted: true,
+    diagnosticsRedacted: true,
     backendOwnedFacade: true,
-    memberClientMayConfigureIdentityProvider: false,
-    optionalForMemberFlows: true,
+    memberClientMayConfigurePlatformSecurity: false,
+    requiredForMemberFlows: true,
     stableStates: [
       "ready",
       "degraded",
@@ -1975,22 +1945,22 @@ export const sampleControlPlane: ControlPlaneResponse = {
         label: "Realm import readiness",
         state: "ready",
         summary:
-          "Identity Ops plan and verification evidence confirms realm readiness without exposing realm internals.",
+          "Backend dry-run evidence confirms realm desired-state readiness without exposing realm internals.",
         memberImpact: "ready",
         remediation:
-          "Run the profile-specific Identity Ops plan and verify tasks if drift is suspected.",
-        nextActions: ["Run Identity Ops plan and verify before apply"],
-        evidenceRefs: ["keycloak-identity-ops-plan", "keycloak-identity-ops-verify"],
+          "Run the realm dry-run again before apply if drift is suspected.",
+        nextActions: ["Run /api/admin/identity/realm/dry-run before apply"],
+        evidenceRefs: ["identity-realm-dry-run"],
       },
       {
-        key: "oidc-client-readiness",
-        label: "OIDC client readiness",
+        key: "federation-protocol-readiness",
+        label: "Federation protocol readiness",
         state: "ready",
         summary:
-          "OIDC client readiness is summarized by backend contracts; client identifiers are redacted from support views.",
+          "OIDC/SAML and LDAP/AD federation readiness is summarized by backend contracts; client and directory identifiers are redacted from support views.",
         memberImpact: "ready",
         remediation: "Keep client secrets as SecretRef handles only.",
-        nextActions: ["Validate client scopes through Identity Ops verification evidence"],
+        nextActions: ["Validate client scopes through backend dry-run output"],
         evidenceRefs: ["identity-client-contract"],
       },
       {
@@ -2048,7 +2018,7 @@ export const sampleControlPlane: ControlPlaneResponse = {
       actor: "operator@weave.test",
       createdAt: "2026-05-24T18:00:00Z",
       summary:
-        "Readiness tested for keycloak-realm; result redacted and support-safe.",
+        "Readiness tested for synapse-homeserver; result redacted and support-safe.",
     },
   ],
 };

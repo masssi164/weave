@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.matrix;
 
+import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixIdentityProjectionJpaRepository;
+import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixRevokedSessionJpaRepository;
+
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import java.time.Instant;
 import java.util.List;
@@ -7,7 +10,6 @@ import java.util.Map;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -68,13 +70,21 @@ class MatrixFacadeClientStateServicePersistenceTest {
     }
 
     private DriverManagerDataSource dataSource() {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName("org.h2.Driver");
-        dataSource.setUrl("jdbc:h2:mem:" + UUID.randomUUID()
-                + ";MODE=PostgreSQL;DATABASE_TO_UPPER=true;DB_CLOSE_DELAY=-1");
-        dataSource.setUsername("sa");
-        dataSource.setPassword("");
-        return dataSource;
+        return com.massimotter.weave.backend.testing.JpaTestDatabase
+                .dataSource("matrix-facade-state");
+    }
+
+    private MatrixFacadeClientStateStore stateStore(
+            DriverManagerDataSource dataSource) {
+        MatrixIdentityProjectionJpaRepository identities =
+                com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
+                        dataSource,
+                        MatrixIdentityProjectionJpaRepository.class);
+        MatrixRevokedSessionJpaRepository revocations =
+                com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
+                        dataSource,
+                        MatrixRevokedSessionJpaRepository.class);
+        return new JpaMatrixFacadeClientStateStore(identities, revocations);
     }
 
     private MatrixFacadeClientStateStore stateStore(

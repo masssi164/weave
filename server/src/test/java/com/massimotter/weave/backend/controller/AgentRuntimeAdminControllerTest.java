@@ -47,7 +47,7 @@ import org.springframework.test.web.servlet.MockMvc;
         AgentRuntimeAdminExceptionHandler.class
 })
 @TestPropertySource(properties = {
-        "weave.agent-runtime.storage.mode=jdbc",
+        "weave.agent-runtime.storage.mode=jpa",
         "weave.agent-runtime.workload-identity.enabled=true",
         "weave.agent-runtime.policy.enabled=true",
         "weave.agent-runtime.profile-signing.enabled=true",

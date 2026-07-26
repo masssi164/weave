@@ -139,7 +139,7 @@ Map<String, Object?> _organizationManifestJson({
       'audit organization-wide defaults and administrative changes',
     ],
     'memberCapabilityStates': {
-      'idm-rbac': 'available',
+      'platform-identity': 'available',
       'chat-channels': 'available',
       'files-docs': 'available',
       'calendar-events': 'degraded',
@@ -690,20 +690,17 @@ void main() {
               'supportSafe': true,
               'categories': [
                 {
-                  'category': 'identity-idm',
-                  'label': 'identity/IDM',
+                  'category': 'chat',
+                  'label': 'Chat',
                   'contract': {
-                    'category': 'identity-idm',
-                    'featureCapabilities': [
-                      'identity.sign_in',
-                      'identity.groups',
-                    ],
-                    'defaultAdapters': ['keycloak-realm'],
-                    'externalAdapters': ['entra-id', 'generic-oidc'],
+                    'category': 'chat',
+                    'featureCapabilities': ['chat.read', 'chat.send'],
+                    'defaultAdapters': ['matrix-chat'],
+                    'externalAdapters': ['zulip-chat'],
                     'choiceModels': [
                       {
                         'choiceModel': 'recommended_self_hosted_default',
-                        'adapters': ['keycloak-realm'],
+                        'adapters': ['matrix-chat'],
                         'adminRiskNotes': [
                           'recommended sovereign/default posture',
                         ],
@@ -711,14 +708,14 @@ void main() {
                       },
                       {
                         'choiceModel': 'external_existing_provider',
-                        'adapters': ['entra-id'],
+                        'adapters': ['zulip-chat'],
                         'adminRiskNotes': [
                           'admin records privacy and compliance risk outside member UX',
                         ],
                         'recommended': false,
                       },
                     ],
-                    'adapterModules': ['identity-realm', 'matrix-auth'],
+                    'adapterModules': ['chat'],
                     'stableMemberImpactStates': [
                       'available',
                       'disabled_by_policy',
@@ -736,18 +733,18 @@ void main() {
                   'realityLevelRemediation':
                       'Release-ready provider: keep evidence current.',
                   'policyState': 'allowed',
-                  'memberImpact': 'Sign-in is available.',
-                  'modules': ['identity-realm', 'matrix-auth'],
-                  'providerCandidates': ['keycloak', 'oidc'],
-                  'selectedProviderKey': 'keycloak-realm',
+                  'memberImpact': 'Chat is available.',
+                  'modules': ['chat'],
+                  'providerCandidates': ['matrix-chat', 'zulip-chat'],
+                  'selectedProviderKey': 'matrix-chat',
                   'choiceModel': 'recommended_self_hosted_default',
                   'selectedByAdmin': true,
                   'bootstrapSuggestionOnly': false,
                   'lossyMappingNotes': [],
                   'adapterEvidence': [
                     {
-                      'domain': 'identity-idm',
-                      'adapterKey': 'keycloak-realm',
+                      'domain': 'chat',
+                      'adapterKey': 'matrix-chat',
                       'configured': true,
                       'reachable': true,
                       'health': 'ready',
@@ -894,18 +891,18 @@ void main() {
         expect(snapshot.bootstrapDefaultsAreSuggestionsOnly, isTrue);
         expect(snapshot.adminSelectedMappingsRequired, isTrue);
         expect(snapshot.categories, hasLength(2));
-        expect(snapshot.categories.first.category, 'identity-idm');
+        expect(snapshot.categories.first.category, 'chat');
         expect(
           snapshot.categories.first.contract.featureCapabilities,
-          containsAll(['identity.sign_in', 'identity.groups']),
+          containsAll(['chat.read', 'chat.send']),
         );
         expect(
           snapshot.categories.first.contract.defaultAdapters,
-          contains('keycloak-realm'),
+          contains('matrix-chat'),
         );
         expect(
           snapshot.categories.first.contract.externalAdapters,
-          containsAll(['entra-id', 'generic-oidc']),
+          contains('zulip-chat'),
         );
         expect(
           snapshot.categories.first.contract.keepsMemberSemanticsStable,
@@ -939,13 +936,13 @@ void main() {
         );
         expect(snapshot.categories.first.memberCapabilityState, 'available');
         expect(snapshot.categories.first.memberAvailable, isTrue);
-        expect(snapshot.categories.first.selectedProviderKey, 'keycloak-realm');
+        expect(snapshot.categories.first.selectedProviderKey, 'matrix-chat');
         expect(snapshot.categories.first.selectedByAdmin, isTrue);
         expect(snapshot.categories.first.bootstrapSuggestionOnly, isFalse);
         expect(snapshot.categories.first.supportSafe, isTrue);
         expect(
           snapshot.categories.first.adapterEvidence.single.adapterKey,
-          'keycloak-realm',
+          'matrix-chat',
         );
         expect(
           snapshot.categories.first.adapterEvidence.single.configured,

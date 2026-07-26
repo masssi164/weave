@@ -9,7 +9,7 @@ on:
         required: true
         type: string
       live_e2e_run_id:
-        description: "Successful isolated three-user Live Stack E2E run ID"
+        description: "Successful isolated Fresh product-flow run ID"
         required: true
         type: string
       deployment_run_id:
@@ -178,7 +178,7 @@ jobs:
               exit 1
             fi
           }
-          verify_run "$LIVE_E2E_RUN_ID" "Live Stack E2E" true
+          verify_run "$LIVE_E2E_RUN_ID" "Live Stack Product Flow" true
           verify_run "$DEPLOYMENT_RUN_ID" "Test Stack Deploy" false
           verify_run "$IOS_RUN_ID" "iOS Dogfood" false
 
@@ -191,7 +191,7 @@ jobs:
           gh run download "$LIVE_E2E_RUN_ID" --name weave-live-stack-acceptance-evidence --dir build/evidence/live
           gh run download "$DEPLOYMENT_RUN_ID" --name weave-test-stack-evidence --dir build/evidence/deployment
           gh run download "$IOS_RUN_ID" --dir build/evidence/ios
-          test -s build/evidence/live/human-testing-automated-evidence.json
+          test -s build/evidence/live/weave-test-app-evidence.json
           test -s build/evidence/deployment/dogfood-deployment-evidence.json
           distribution="$(find build/evidence/ios -name ios-dogfood-distribution.json -type f -print -quit)"
           test -n "$distribution"

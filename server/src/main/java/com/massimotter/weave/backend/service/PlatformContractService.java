@@ -50,7 +50,7 @@ public class PlatformContractService {
                         joinUrlPath(platformProperties.apiBaseUrl(), "/caldav")),
                 releasePosture(),
                 List.of(
-                        domain("identity", true, List.of(
+                        domain("platform-identity", true, List.of(
                                 "identity.sign_in", "identity.groups", "identity.roles",
                                 "policy.read", "policy.manage")),
                         domain("chat", workspaceProperties.chat().enabled(), List.of(

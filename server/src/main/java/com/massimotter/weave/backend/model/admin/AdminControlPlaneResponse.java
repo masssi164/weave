@@ -22,7 +22,7 @@ public record AdminControlPlaneResponse(
         List<ProviderCategoryStatusResponse> categories,
         List<ProviderSelectionResponse> selectedProviderMappings,
         CapabilityWhitelistResponse whitelist,
-        IdentityProviderReadinessResponse identityProviderReadiness,
+        PlatformIdentityReadinessResponse platformIdentityReadiness,
         List<SuiteDomainReadinessResponse> suiteDomainReadiness,
         GoLiveReadinessResponse goLiveReadiness,
         List<SecretRefResponse> secretRefs,

@@ -122,7 +122,7 @@ void main() {
       // V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT
       // V01_ADMIN_HEALTH_POLICY_ENFORCEMENT
       // V01_ORG_CONTROL_PLANE_PROVIDER_FACADE
-      // V01_IDM_RBAC_CAPABILITY_POLICY
+      // V01_KEYCLOAK_RBAC_CAPABILITY_POLICY
       // V01_AGENT_RUNTIME_CONTROL_POLICY
       // V01_INFRA_CONTROL_PLANE_BOOTSTRAP
       // V01_ADMIN_CONSOLE_MVP
@@ -136,7 +136,7 @@ void main() {
       final architectureText = architecture.readAsStringSync();
 
       for (final required in <String>[
-        'identity/IDM',
+        'fixed platform-identity boundary',
         'chat',
         'files',
         'calendar',
@@ -150,7 +150,7 @@ void main() {
         'Nextcloud/Files and Calendar backing',
         'OpenProject Boards validation',
         'the MatrixRTC Calls target',
-        'IDM/RBAC capability profiles and whitelisting',
+        'Keycloak/RBAC capability profiles and whitelisting',
         'Agent Runtime Control integration',
       ]) {
         expect(productLineText, contains(required));
@@ -163,17 +163,17 @@ void main() {
         'provider secrets',
         'provider diagnostics',
         'support-safe readiness and next actions',
-        'IDM/RBAC capability profiles',
+        'Keycloak/RBAC capability profiles',
         'Agent Runtime Control policy',
       ]) {
         expect(firstUseText, contains(required));
       }
 
       for (final required in <String>[
-        'Provider categories are first-class product/admin concepts',
+        'Platform identity/security is a fixed Keycloak boundary',
         'Agent Runtime Control is entitlement-bound',
         'never raw provider setup, service endpoints, provider secrets, or diagnostics',
-        'IDM/RBAC and capability whitelisting acceptance',
+        'Keycloak/RBAC and capability whitelisting acceptance',
         'Agent Runtime Control policy evidence',
       ]) {
         expect(planText, contains(required));
@@ -181,7 +181,7 @@ void main() {
 
       for (final required in <String>[
         'The Organization/Admin Console remains the control plane',
-        'Workspace/Admin Health is organized around feature capability categories',
+        'Workspace/Admin Health is organized around replaceable collaborative feature',
         'Capability policy responses are support-safe',
         'Agent Runtime Control consumes authoritative Keycloak Organization membership `/capabilities/weaver`',
       ]) {
@@ -193,7 +193,7 @@ void main() {
         'V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT',
         'V01_ADMIN_HEALTH_POLICY_ENFORCEMENT',
         'V01_ORG_CONTROL_PLANE_PROVIDER_FACADE',
-        'V01_IDM_RBAC_CAPABILITY_POLICY',
+        'V01_KEYCLOAK_RBAC_CAPABILITY_POLICY',
         'V01_AGENT_RUNTIME_CONTROL_POLICY',
         'V01_INFRA_CONTROL_PLANE_BOOTSTRAP',
         'V01_ADMIN_CONSOLE_MVP',
@@ -220,8 +220,8 @@ void main() {
         'Drive, Node, Folder, File, Version, Share, Permission, Lock, and EditSession',
         'Calendar, Event, Attendee, Recurrence, Availability, Resource, Meeting, Participant, Recording, Captions, and MediaSession',
         'Board, List, Task, Status, Assignee, Comment, Attachment, Dependency, and CustomField',
-        'Organization, User, Group, Role, ProviderConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent',
-        'Identity/Keycloak plus Boards/Tasks/OpenProject and a Planner-like placeholder',
+        'Organization, User, Group, Role, IdentitySourceConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent',
+        'fixed Keycloak platform-identity boundary plus Boards/Tasks/OpenProject and a Planner-like placeholder',
         'The chat canonical set is Space, Conversation, Message, Thread, Reaction, Attachment, Membership, and Presence.',
       ]) {
         expect(markdown, contains(required));
@@ -347,7 +347,7 @@ void main() {
         '@weave-v01-canonical-provider-neutral-models',
         '@weave-v01-member-provider-neutral-states',
         '@weave-v01-admin-policy-decides-capabilities',
-        '@weave-v01-idm-rbac-capability-policy',
+        '@weave-v01-keycloak-rbac-capability-policy',
         '@weave-v01-agent-runtime-control-policy',
         '@weave-v01-mcp-workload-boundary',
         '@weave-v01-channel-workspace',

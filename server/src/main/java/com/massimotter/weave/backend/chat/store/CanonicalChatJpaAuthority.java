@@ -4,12 +4,14 @@ import static java.util.Objects.requireNonNull;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Composition boundary for canonical Chat persistence.
  *
- * <p>Keeping the repository set behind one adapter-owned dependency prevents
- * persistence entities from leaking into configuration or application services.
+ * <p>The adapter owns the complete repository set so persistence entities do
+ * not leak into application services or runtime configuration.
  */
 @Component
 public final class CanonicalChatJpaAuthority {
@@ -24,8 +26,8 @@ public final class CanonicalChatJpaAuthority {
     private final ChatQuarantineJpaRepository quarantines;
     private final ChatReadReceiptJpaRepository receipts;
     private final ChatChangeJpaRepository changes;
-    private final ChatCallbackClaimNativeRepository callbackClaims;
     private final PlatformTransactionManager transactionManager;
+    private final TransactionTemplate callbackClaimTransactions;
 
     CanonicalChatJpaAuthority(
             ChatConversationJpaRepository conversations,
@@ -39,7 +41,6 @@ public final class CanonicalChatJpaAuthority {
             ChatQuarantineJpaRepository quarantines,
             ChatReadReceiptJpaRepository receipts,
             ChatChangeJpaRepository changes,
-            ChatCallbackClaimNativeRepository callbackClaims,
             PlatformTransactionManager transactionManager) {
         this.conversations = requireNonNull(conversations, "conversations");
         this.memberships = requireNonNull(memberships, "memberships");
@@ -52,59 +53,56 @@ public final class CanonicalChatJpaAuthority {
         this.quarantines = requireNonNull(quarantines, "quarantines");
         this.receipts = requireNonNull(receipts, "receipts");
         this.changes = requireNonNull(changes, "changes");
-        this.callbackClaims = requireNonNull(callbackClaims, "callbackClaims");
         this.transactionManager = requireNonNull(transactionManager, "transactionManager");
+        this.callbackClaimTransactions = new TransactionTemplate(transactionManager);
+        this.callbackClaimTransactions.setPropagationBehavior(
+                TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    ChatConversationJpaRepository conversations() {
-        return conversations;
-    }
+    ChatConversationJpaRepository conversations() { return conversations; }
+    ChatMembershipJpaRepository memberships() { return memberships; }
+    ChatEventJpaRepository events() { return events; }
+    ChatOperationJpaRepository operations() { return operations; }
+    ChatOutboxJpaRepository outbox() { return outbox; }
+    ChatProviderMappingJpaRepository mappings() { return mappings; }
+    ChatBridgeLedgerJpaRepository ledger() { return ledger; }
+    ChatAppserviceTransactionJpaRepository callbacks() { return callbacks; }
+    ChatQuarantineJpaRepository quarantines() { return quarantines; }
+    ChatReadReceiptJpaRepository receipts() { return receipts; }
+    ChatChangeJpaRepository changes() { return changes; }
+    PlatformTransactionManager transactionManager() { return transactionManager; }
 
-    ChatMembershipJpaRepository memberships() {
-        return memberships;
-    }
-
-    ChatEventJpaRepository events() {
-        return events;
-    }
-
-    ChatOperationJpaRepository operations() {
-        return operations;
-    }
-
-    ChatOutboxJpaRepository outbox() {
-        return outbox;
-    }
-
-    ChatProviderMappingJpaRepository mappings() {
-        return mappings;
-    }
-
-    ChatBridgeLedgerJpaRepository ledger() {
-        return ledger;
-    }
-
-    ChatAppserviceTransactionJpaRepository callbacks() {
-        return callbacks;
-    }
-
-    ChatQuarantineJpaRepository quarantines() {
-        return quarantines;
-    }
-
-    ChatReadReceiptJpaRepository receipts() {
-        return receipts;
-    }
-
-    ChatChangeJpaRepository changes() {
-        return changes;
-    }
-
-    ChatCallbackClaimNativeRepository callbackClaims() {
-        return callbackClaims;
-    }
-
-    PlatformTransactionManager transactionManager() {
-        return transactionManager;
+    /**
+     * Claims a previously absent callback identity in its own transaction.
+     *
+     * <p>A uniqueness conflict marks only this short transaction for rollback.
+     * The caller's use-case transaction remains usable and can reconcile the
+     * row committed by the concurrent first writer. This is portable JPA and
+     * does not rely on a database-specific upsert.
+     */
+    boolean claimCallback(
+            String providerKey,
+            String transactionId,
+            String payloadDigest,
+            int eventCount,
+            String fingerprintVersion,
+            java.time.Instant receivedAt) {
+        ChatPairId id = new ChatPairId(providerKey, transactionId);
+        try {
+            callbackClaimTransactions.executeWithoutResult(status ->
+                    callbacks.saveAndFlush(ChatAppserviceTransactionJpaEntity.processing(
+                            providerKey,
+                            transactionId,
+                            payloadDigest,
+                            eventCount,
+                            fingerprintVersion,
+                            receivedAt)));
+            return true;
+        } catch (RuntimeException race) {
+            if (callbacks.existsById(id)) {
+                return false;
+            }
+            throw race;
+        }
     }
 }

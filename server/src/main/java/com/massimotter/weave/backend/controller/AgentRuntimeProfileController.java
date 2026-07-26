@@ -11,7 +11,7 @@ import com.massimotter.weave.backend.model.agentruntime.FlattenedRuntimeProfileJ
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -25,9 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/agent-runtime")
-@ConditionalOnExpression(
-        "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
-                + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'")
+@ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jpa")
 public class AgentRuntimeProfileController {
     private static final MediaType JWK_SET = MediaType.parseMediaType("application/jwk-set+json");
 

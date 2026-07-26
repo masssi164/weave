@@ -19,7 +19,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave"
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
+        "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://auth.weave.test/realms/weave/protocol/openid-connect/certs"
 })
 @AutoConfigureMockMvc
 class ProviderHealthActuatorMetricsTest {

@@ -1,96 +1,72 @@
-# ADR-007: Relational Persistence Cutover
+# ADR-007: Persistence Entity Strategy
 
-Status: accepted
+Status: superseded by `WEAVE-ADR-0016`
 
 Date: 2026-07-07
-
-Last updated: 2026-07-22
-
-Canonical authority: `WEAVE-ADR-0016` in the pinned Weave specification corpus
 
 Markers: ENTERPRISE_TARGET_PERSISTENCE_FOUNDATION, ENTERPRISE_TARGET_AUDIT_PERSISTENCE_FOUNDATION, ENTERPRISE_TARGET_MIGRATION_EVIDENCE_PERSISTENCE_FOUNDATION, ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION
 
 ## Context
 
-#1012 and #1019 require Weave-owned strategic mutable state to use one durable
-relational authority. The earlier implementation slice proved parity while retaining
-file/JDBC selectors. The accepted canonical Compose/JPA contract now closes that
-transition: strategic file/JSON stores and selectable persistence implementations are
-test fixtures or migration evidence only, never production runtime choices.
+#1012 originally introduced durable relational persistence beside historical JSON/file stores so
+parity and restart recovery could be measured before cutover. That transitional state is complete:
+the current Fresh architecture has one JPA authority for strategic runtime state. The pinned
+specification corpus keeps product/domain truth in canonical Weave domains; provider schemas
+remain adapter I/O and must not become source material for canonical entities.
 
-The pinned specification corpus remains product/domain truth. Provider schemas,
-provider identifiers, generated provider DTOs, and downstream payloads stay inside
-southbound adapters and do not define canonical entities.
+The first safe implementation targets are Admin Console provider selections, product profile overrides, support-safe audit events, and migration run evidence. They are mutable Weave-owned state or append-only evidence streams, already fenced behind repository interfaces, and low-risk enough to prove read/write parity and restart recovery before wider cutover.
 
 ## Decision
 
-- `WeavePersistenceConfiguration` is the single production persistence composition root.
-  Environment selection changes only the database: host `dev` uses H2 in PostgreSQL
-  compatibility mode; integration, `dogfood`, and `main` use PostgreSQL.
-- Spring Data JPA and the Spring-managed Hibernate `EntityManager` are the only
-  production relational entry boundary. Repository interfaces remain owned by their
-  domain/application ports. Native SQL needed for compare-and-swap, fencing, locks,
-  append-only evidence, and outbox semantics is confined to named, reviewed adapter
-  methods with static query text. The current allowlist contains only
-  `OperationIntentLeaseNativeRepository` and `ChatCallbackClaimNativeRepository`.
-  The former generic `JpaSqlExecutor`, direct Spring JDBC, and `java.sql` dependencies
-  are rejected from production sources.
-- Flyway Core is the sole schema authority. Hibernate uses `ddl-auto=validate`, Open
-  EntityManager in View is disabled, and no release profile creates, updates, or drops
-  schema objects through Hibernate.
-- `JpaProviderSelectionRepository`, `JpaProductProfileOverrideRepository`,
-  `JpaAuditEventPublisher`, `JpaMigrationRunEvidenceRepository`, device credentials,
-  provider bindings, operation intents, Files authority, Chat authority, identity
-  provisioning, and ARC control metadata all use the same relational composition.
-- Strategic file/JSON and in-memory implementations live only under explicit test or
-  evidence paths. Architecture tests reject their reintroduction into production.
-- H2 is a development/test-only dependency and is excluded from the production Boot
-  JAR. H2 proves fast mapping and behavior parity. H2 cannot satisfy a PostgreSQL or release claim.
-- Testcontainers PostgreSQL executes migration, repository, retry, lock, and concurrency
-  contracts. `dogfood` and `main` also fail startup unless their datasource URL and
-  driver are PostgreSQL.
-- RuntimeState ciphertext generations are external object-store data. PostgreSQL keeps
-  only authority metadata. That capability remains `Guarded` in release profiles until
-  the cross-store durable reconciliation/outbox evidence gate passes.
+This historical decision introduced relational persistence behind explicit repository/storage
+gates. Its Spring JDBC implementation choice is superseded by the entity-first, portable JPA
+contract in
+`../../../weave-specs/architecture/adr/0016-java-spring-and-portable-jpa-persistence.md`.
+The current implementation therefore uses:
+
+- `jpa` as the only production storage mode for strategic Weave-owned state;
+- explicit Jakarta Persistence entities and Spring Data repositories behind domain ports;
+- compile-time MapStruct mapping where persistence and domain models differ;
+- one consolidated Fresh Start Flyway baseline reviewed from the entity model;
+- Hibernate `validate` for PostgreSQL-shaped runtime profiles;
+- H2 only for fast development/unit feedback and PostgreSQL as the authoritative integration,
+  migration, concurrency, dogfood, and production database;
+- canonical relational shape authored in reviewed entities and domain constraints. Reviewed
+  Flyway SQL is a deployment/migration artifact derived from that model, never a second
+  database-first model. Provider databases, exported provider schemas, generated provider DTOs,
+  and downstream API payloads remain adapter I/O only.
 
 ## Dependency and license posture
 
 | Dependency | Use | License posture | Runtime posture |
 | --- | --- | --- | --- |
-| Flyway Core | Forward-only schema migrations | Apache-2.0 | Sole schema authority |
-| Spring Data JPA / Hibernate | Managed relational boundary and entity mapping | Apache-2.0 / LGPL-2.1 | Production relational composition |
-| PostgreSQL JDBC driver | Dogfood/main and integration database transport | BSD-2-Clause | Production runtime |
-| H2 | Host-development PostgreSQL-compatibility loop | MPL-2.0 / EPL-1.0 | Development/test only; absent from Boot JAR |
-| Testcontainers JUnit/PostgreSQL | Disposable PostgreSQL proof | MIT | Integration-test only |
+| Flyway Core | Versioned schema migrations | Apache-2.0 | Adopted for gated relational persistence |
+| Spring Data JPA / Hibernate | Entity persistence and repository implementation | Apache-2.0 / LGPL-2.1-or-later | Adopted behind domain ports |
+| PostgreSQL JDBC driver | Dogfood/production database driver beneath JPA | BSD-2-Clause | Required for authoritative runtime profiles |
+| H2 | Local/test database only | MPL 2.0 / EPL 1.0 | Test runtime only |
+| Testcontainers JUnit/PostgreSQL | PostgreSQL-compatible proof path | MIT | Test dependency, required before release-grade persistence claims |
+| MapStruct | Compile-time persistence/domain mapping | Apache-2.0 | Adopted for explicit boundary mapping |
 
 ## Consequences
 
-There is no mixed-version dual persistence path. Repository restarts, idempotency,
-support-safe error translation, and historical file-contract parity remain executable
-tests, but production cannot select the old implementation. Deployment rollback restores
-the coherent previous application and data snapshot; it does not reactivate a file store
-or compatibility reader.
+The Fresh architecture completes the production cutover for strategic relational state. JPA
+repositories now own provider selections, product-profile overrides, audit, migration evidence,
+identity provisioning, Matrix/Chat state, device credentials and Agent Runtime Control. File
+stores remain only where the accepted contract explicitly requires a mounted cryptographic or
+policy `SecretRef`; they are not alternative strategic database authorities.
 
-Audit-event retries with the same tenant/idempotency payload remain a no-op, while a
-conflicting reuse fails closed. Migration evidence retains expiry and replacement rules.
-Provider selection and product-profile state remain provider-neutral and do not leak
-provider IDs into northbound contracts.
-
-This decision completes the persistence composition portion of #1012/#1019. It does not
-by itself promote provider portability, RuntimeState, or any domain capability to
-`Ready`; those claims still require their own current evidence gates.
+Idempotency, optimistic/pessimistic concurrency, restart recovery, constraints and migration
+compatibility are exercised against authoritative PostgreSQL Testcontainers. H2 provides only
+fast entity/repository feedback. Provider-switch execution remains independently evidence-gated;
+the persistence cutover does not itself claim a live provider migration or rollback.
 
 ## Provider-switch no-drift foundation
 
-The provider-switch no-drift foundation remains executable evidence for #1025.
+The provider-switch no-drift foundation builds on the retirement and evidence work in
+#1019/#1025 without mutating live providers. `POST /api/admin/providers/replacements/dry-run`
+records a support-safe baseline snapshot from persisted provider selection and product profile
+override read models, publishes a redacted audit event, persists migration-run evidence for the
+dry-run comparison, and returns the switch plan plus read-model comparison in the Admin Control
+Plane response.
 
-`POST /api/admin/providers/replacements/dry-run` records a support-safe baseline from
-the relational provider-selection and product-profile read models, publishes a redacted
-audit event, persists migration-run evidence, and returns the switch plan plus canonical
-read-model comparison.
-
-The evidence remains dry-run-only: it omits `adminApprovalRef`, keeps
-`adminApproved=false`, and performs no provider mutation. Apply, rollback, archive,
-restore-smoke, and fidelity proof remain separate gates. This is the
-`ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION` marker, not a completed provider
-switch claim.
+The evidence remains dry-run-only: persisted migration evidence omits `adminApprovalRef`, keeps `adminApproved=false`, and leaves production provider mutation/default changes blocked until a later issue supplies approval, rollback/archive, restore-smoke, operator cutover, and release-claim evidence. This is the `ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION` marker for #1025, not final provider-switch completion.

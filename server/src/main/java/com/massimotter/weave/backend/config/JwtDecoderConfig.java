@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +19,8 @@ import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
+import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
+import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.util.StringUtils;
@@ -48,8 +51,34 @@ public class JwtDecoderConfig {
         return configuredDecoder(resourceServerProperties, validator);
     }
 
-    @Bean("agentRuntimeAdminJwtDecoder")
+    @Bean("filesMcpWorkloadJwtDecoder")
     @ConditionalOnProperty(name = "weave.agent-runtime.workload-identity.enabled", havingValue = "true")
+    JwtDecoder filesMcpWorkloadJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties) {
+        String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
+        if (!StringUtils.hasText(issuerUri)) {
+            return configuredRfc9068Decoder(
+                    resourceServerProperties,
+                    jwt -> OAuth2TokenValidatorResult.success());
+        }
+        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
+                new JwtTimestampValidator(),
+                new JwtIssuerValidator(issuerUri),
+                rfc9068AccessTokenTypeValidator(),
+                exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
+                requiredAuthorizedPartyValidator("weave-mcp-server"),
+                exactScopesValidator(Set.of("files.read")));
+        return configuredRfc9068Decoder(resourceServerProperties, validator);
+    }
+
+    @Bean("agentRuntimeAdminJwtDecoder")
+    @ConditionalOnExpression(
+            "'${weave.agent-runtime.storage.mode:disabled}' == 'jpa'"
+                    + " && '${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
+                    + " && '${weave.agent-runtime.policy.enabled:false}' == 'true'"
+                    + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'"
+                    + " && '${weave.agent-runtime.state-store.enabled:false}' == 'true'")
     JwtDecoder agentRuntimeAdminJwtDecoder(
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties) {
@@ -62,6 +91,22 @@ public class JwtDecoderConfig {
                 exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
                 requiredAuthorizedPartyValidator(AgentRuntimeAdminSecurityConfiguration.CLIENT_ID));
         return configuredDecoder(resourceServerProperties, validator);
+    }
+
+    @Bean("agentRuntimeProfileJwtDecoder")
+    @ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jpa")
+    JwtDecoder agentRuntimeProfileJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            PlatformContractProperties platform) {
+        String issuer = resourceServerProperties.getJwt().getIssuerUri();
+        OAuth2TokenValidator<Jwt> validator = StringUtils.hasText(issuer)
+                ? new DelegatingOAuth2TokenValidator<>(
+                        new JwtTimestampValidator(),
+                        new JwtIssuerValidator(issuer),
+                        rfc9068AccessTokenTypeValidator(),
+                        requiredAudienceValidator(platform.agentRuntimeControlResource()))
+                : jwt -> OAuth2TokenValidatorResult.success();
+        return configuredRfc9068Decoder(resourceServerProperties, validator);
     }
 
     static JwtDecoder configuredDecoder(
@@ -139,6 +184,22 @@ public class JwtDecoderConfig {
     static OAuth2TokenValidator<Jwt> requiredAuthorizedPartyValidator(String requiredAuthorizedParty) {
         String normalizedRequiredAuthorizedParty = requiredAuthorizedParty.trim();
         return jwt -> hasRequiredAuthorizedParty(jwt, normalizedRequiredAuthorizedParty);
+    }
+
+    static OAuth2TokenValidator<Jwt> exactScopesValidator(Set<String> requiredScopes) {
+        Set<String> expected = Set.copyOf(requiredScopes);
+        return jwt -> {
+            String claim = jwt.getClaimAsString("scope");
+            String[] values = claim == null || claim.isBlank()
+                    ? new String[0]
+                    : claim.trim().split("\\s+");
+            Set<String> actual = new java.util.LinkedHashSet<>(List.of(values));
+            if (actual.size() == values.length && actual.equals(expected)) {
+                return OAuth2TokenValidatorResult.success();
+            }
+            return OAuth2TokenValidatorResult.failure(
+                    error("invalid_token", "The token scope set is not exact."));
+        };
     }
 
     static OAuth2TokenValidator<Jwt> allowedAuthorizedPartiesValidator(List<String> allowedAuthorizedParties) {

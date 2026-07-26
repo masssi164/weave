@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
+import com.massimotter.weave.backend.controller.BootstrapOwnerInvitationController;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -33,7 +34,7 @@ public class SecurityConfig {
 
     private static final String WORKSPACE_SCOPE_AUTHORITY = "SCOPE_weave:workspace";
     private static final WebExpressionAuthorizationManager MIGRATION_CONTROL_PLANE_ACCESS =
-            new WebExpressionAuthorizationManager("hasAuthority('SCOPE_weave:workspace') and (hasRole('OWNER') or hasRole('ADMIN'))");
+            new WebExpressionAuthorizationManager("hasAuthority('SCOPE_weave:workspace') and (hasRole('OWNER') or hasRole('ADMIN') or hasRole('OPERATOR'))");
 
     private final ApiAuthenticationEntryPoint authenticationEntryPoint;
     private final ApiAccessDeniedHandler accessDeniedHandler;
@@ -68,6 +69,8 @@ public class SecurityConfig {
                         .requestMatchers("/.well-known/matrix/client", "/.well-known/weave").permitAll()
                         .requestMatchers(ChatE2eProofSecurityConfiguration.PATH).permitAll()
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/api/internal/keycloak/events").permitAll()
+                        .requestMatchers(BootstrapOwnerInvitationController.PATH).permitAll()
                         .requestMatchers("/api/migration/**").access(MIGRATION_CONTROL_PLANE_ACCESS)
                         .requestMatchers("/dav/**", "/caldav/**", "/_matrix/client/**").hasAuthority(WORKSPACE_SCOPE_AUTHORITY)
                         .requestMatchers("/api/**").hasAuthority(WORKSPACE_SCOPE_AUTHORITY)
@@ -79,7 +82,6 @@ public class SecurityConfig {
         if (deviceCredentialAuthenticationFilter != null) {
             http.addFilterBefore(deviceCredentialAuthenticationFilter, BearerTokenAuthenticationFilter.class);
         }
-
         return http.build();
     }
 
@@ -88,7 +90,7 @@ public class SecurityConfig {
         StrictHttpFirewall firewall = new StrictHttpFirewall();
         firewall.setAllowedHttpMethods(List.of(
                 "DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT",
-                "PROPFIND", "REPORT", "COPY", "MOVE", "MKCOL", "LOCK", "UNLOCK"));
+                "PROPFIND", "REPORT", "SEARCH", "COPY", "MOVE", "MKCOL", "LOCK", "UNLOCK"));
         return firewall;
     }
 

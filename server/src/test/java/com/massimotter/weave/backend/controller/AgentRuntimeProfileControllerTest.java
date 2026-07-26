@@ -36,6 +36,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -53,8 +54,7 @@ import org.springframework.test.web.servlet.MockMvc;
         OAuth2ResourceServerProperties.class
 })
 @TestPropertySource(properties = {
-        "weave.agent-runtime.workload-identity.enabled=true",
-        "weave.agent-runtime.profile-signing.enabled=true",
+        "weave.agent-runtime.storage.mode=jpa",
         "weave.platform.api-base-url=https://api.weave.test/api"
 })
 class AgentRuntimeProfileControllerTest {
@@ -77,6 +77,9 @@ class AgentRuntimeProfileControllerTest {
 
     @MockitoBean
     private RuntimeProfileTrustBundlePublisher trustBundle;
+
+    @MockitoBean(name = "agentRuntimeProfileJwtDecoder")
+    private JwtDecoder agentRuntimeProfileJwtDecoder;
 
     @Test
     void publishesCurrentPublicJwksWithoutAuthenticationAndPreventsStaleTrustCaching() throws Exception {
@@ -171,7 +174,7 @@ class AgentRuntimeProfileControllerTest {
                         .subject(SUBJECT)
                         .issuedAt(Instant.parse("2026-07-20T10:00:00Z"))
                         .expiresAt(Instant.parse("2026-07-20T10:01:00Z"))
-                        .audience(List.of(RESOURCE))
+                        .audience(List.of(RESOURCE, CLIENT))
                         .claim("jti", "workload-jti")
                         .claim("client_id", CLIENT)
                         .claim("azp", CLIENT)

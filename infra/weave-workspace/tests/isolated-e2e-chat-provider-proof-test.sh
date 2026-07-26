@@ -470,7 +470,7 @@ case "${command}" in
             $collaborator,$collaboratorContext,$collaboratorSource,
             $outsider,$outsiderContext,$outsiderSource,
             "WEAVE_CHAT_PROVIDER=matrix-synapse",
-            "WEAVE_CHAT_STORAGE_MODE=jdbc",
+            "WEAVE_CHAT_STORAGE_MODE=jpa",
             $matrixInternalBaseUrl,
             "WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE=/run/weave-chat-appservice/as-token",
             "WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE=/run/weave-chat-appservice/hs-token",

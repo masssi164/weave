@@ -92,9 +92,6 @@
           "goLiveReadiness": {
             "$ref": "#/components/schemas/GoLiveReadinessResponse"
           },
-          "identityProviderReadiness": {
-            "$ref": "#/components/schemas/IdentityProviderReadinessResponse"
-          },
           "mcpServerBindings": {
             "items": {
               "$ref": "#/components/schemas/McpServerBindingResponse"
@@ -106,6 +103,9 @@
           },
           "organizationId": {
             "type": "string"
+          },
+          "platformIdentityReadiness": {
+            "$ref": "#/components/schemas/PlatformIdentityReadinessResponse"
           },
           "providerConfigSource": {
             "type": "string"
@@ -608,6 +608,25 @@
             "type": "boolean"
           }
         },
+        "type": "object"
+      },
+      "BootstrapOwnerInvitationRequest": {
+        "properties": {
+          "displayName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "maxLength": 320,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
         "type": "object"
       },
       "BoundedApplyCutoverRollbackProof": {
@@ -3154,6 +3173,20 @@
         },
         "type": "object"
       },
+      "FlattenedRuntimeProfileJwsResponse": {
+        "properties": {
+          "payload": {
+            "type": "string"
+          },
+          "protected": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "GoLiveReadinessResponse": {
         "description": "Support-safe organization go-live readiness summary for owners/admins.",
         "properties": {
@@ -3285,144 +3318,6 @@
         },
         "type": "object"
       },
-      "IdentityProviderReadinessCardResponse": {
-        "description": "One support-safe identity provider readiness card for Workspace Health/Admin Console.",
-        "properties": {
-          "diagnostics": {
-            "additionalProperties": {},
-            "description": "Support-safe diagnostics booleans/counts/contract keys only.",
-            "type": "object"
-          },
-          "evidenceRefs": {
-            "description": "Support-safe evidence refs/codes only; no URLs, client ids, realm internals, secrets, or raw provider errors.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "key": {
-            "description": "Stable card key owned by the backend readiness facade.",
-            "type": "string"
-          },
-          "label": {
-            "description": "Accessibility-friendly card label.",
-            "type": "string"
-          },
-          "memberImpact": {
-            "description": "Member impact expressed as product-level state only.",
-            "type": "string"
-          },
-          "nextActions": {
-            "description": "Concrete next operator/admin actions.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "remediation": {
-            "description": "Immediate operator remediation copy.",
-            "type": "string"
-          },
-          "state": {
-            "description": "Stable support-safe state: ready, degraded, policy-blocked, admin-action-required, coming_later, or disabled.",
-            "type": "string"
-          },
-          "summary": {
-            "description": "Support-safe operator summary with no provider internals or raw downstream payloads.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "IdentityProviderReadinessResponse": {
-        "description": "Backend-owned, support-safe identity provider readiness facade for Workspace Health/Admin Console.",
-        "properties": {
-          "adminApiRoutes": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object"
-          },
-          "backendOwnedFacade": {
-            "type": "boolean"
-          },
-          "cards": {
-            "items": {
-              "$ref": "#/components/schemas/IdentityProviderReadinessCardResponse"
-            },
-            "type": "array"
-          },
-          "category": {
-            "type": "string"
-          },
-          "contractVersion": {
-            "type": "string"
-          },
-          "diagnostics": {
-            "additionalProperties": {},
-            "type": "object"
-          },
-          "generatedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "memberClientMayConfigureIdentityProvider": {
-            "type": "boolean"
-          },
-          "nextActions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "optionalForMemberFlows": {
-            "type": "boolean"
-          },
-          "overallState": {
-            "type": "string"
-          },
-          "providerDiagnosticsRedacted": {
-            "type": "boolean"
-          },
-          "providerKey": {
-            "type": "string"
-          },
-          "stableStates": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "supportSafe": {
-            "type": "boolean"
-          }
-        },
-        "type": "object"
-      },
-      "IdentitySessionReconcileResponse": {
-        "description": "Provider-neutral result of authenticated identity-session reconciliation.",
-        "properties": {
-          "sessionRefreshRequired": {
-            "description": "Whether the caller must refresh its already-issued OIDC token before domain bootstrap.",
-            "example": false,
-            "type": "boolean"
-          },
-          "state": {
-            "description": "Closed reconciliation state. Access changes require one OIDC token refresh.",
-            "enum": [
-              "access_updated",
-              "unchanged"
-            ],
-            "example": "unchanged",
-            "type": "string"
-          }
-        },
-        "required": [
-          "sessionRefreshRequired",
-          "state"
-        ],
-        "type": "object"
-      },
       "InventorySummary": {
         "properties": {
           "channels": {
@@ -3444,6 +3339,29 @@
           "workspaces": {
             "format": "int32",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Jwk": {
+        "properties": {
+          "alg": {
+            "type": "string"
+          },
+          "crv": {
+            "type": "string"
+          },
+          "kid": {
+            "type": "string"
+          },
+          "kty": {
+            "type": "string"
+          },
+          "use": {
+            "type": "string"
+          },
+          "x": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -3799,6 +3717,17 @@
       },
       "MemberInvitationRequest": {
         "properties": {
+          "capabilities": {
+            "items": {
+              "maxLength": 160,
+              "minLength": 0,
+              "pattern": "[a-z][a-z0-9-]*(?:[._:-][a-z0-9-]+)*",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array"
+          },
           "displayName": {
             "maxLength": 200,
             "minLength": 0,
@@ -3824,6 +3753,12 @@
       },
       "MemberInvitationResponse": {
         "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -3838,13 +3773,13 @@
             "format": "date-time",
             "type": "string"
           },
+          "invitationHandle": {
+            "type": "string"
+          },
           "lifecycleStatus": {
             "type": "string"
           },
           "organizationId": {
-            "type": "string"
-          },
-          "providerInvitationId": {
             "type": "string"
           },
           "provisioningStatus": {
@@ -3858,6 +3793,18 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "MemberOffboardingRequest": {
+        "properties": {
+          "confirmation": {
+            "pattern": "OFFBOARD_MEMBER",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmation"
+        ],
         "type": "object"
       },
       "MigrationApplyGateRequest": {
@@ -4575,6 +4522,25 @@
         },
         "type": "object"
       },
+      "OrganizationMemberUpdateRequest": {
+        "properties": {
+          "agentRuntimeEntitled": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "role": {
+            "minLength": 1,
+            "pattern": "owner|admin|member|guest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "type": "object"
+      },
       "PlatformConfigResponse": {
         "description": "Provider-neutral organization manifest consumed by Weave clients.",
         "properties": {
@@ -4608,6 +4574,117 @@
           "schemaVersion": {
             "format": "int32",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PlatformIdentityReadinessCardResponse": {
+        "description": "One support-safe Keycloak platform-security readiness card for Workspace Health/Admin Console.",
+        "properties": {
+          "diagnostics": {
+            "additionalProperties": {},
+            "description": "Support-safe diagnostics booleans/counts/contract keys only.",
+            "type": "object"
+          },
+          "evidenceRefs": {
+            "description": "Support-safe evidence refs/codes only; no URLs, client ids, realm internals, secrets, or raw provider errors.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "key": {
+            "description": "Stable card key owned by the backend readiness facade.",
+            "type": "string"
+          },
+          "label": {
+            "description": "Accessibility-friendly card label.",
+            "type": "string"
+          },
+          "memberImpact": {
+            "description": "Member impact expressed as product-level state only.",
+            "type": "string"
+          },
+          "nextActions": {
+            "description": "Concrete next operator/admin actions.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "remediation": {
+            "description": "Immediate operator remediation copy.",
+            "type": "string"
+          },
+          "state": {
+            "description": "Stable support-safe state: ready, degraded, policy-blocked, admin-action-required, coming_later, or disabled.",
+            "type": "string"
+          },
+          "summary": {
+            "description": "Support-safe operator summary with no Keycloak internals or raw downstream payloads.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PlatformIdentityReadinessResponse": {
+        "description": "Backend-owned, support-safe Keycloak platform-security readiness facade for Workspace Health/Admin Console.",
+        "properties": {
+          "adminApiRoutes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "backendOwnedFacade": {
+            "type": "boolean"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformIdentityReadinessCardResponse"
+            },
+            "type": "array"
+          },
+          "contractVersion": {
+            "type": "string"
+          },
+          "diagnostics": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "diagnosticsRedacted": {
+            "type": "boolean"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "memberClientMayConfigurePlatformSecurity": {
+            "type": "boolean"
+          },
+          "nextActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "overallState": {
+            "type": "string"
+          },
+          "platformAuthority": {
+            "type": "string"
+          },
+          "requiredForMemberFlows": {
+            "type": "boolean"
+          },
+          "stableStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportSafe": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -5089,7 +5166,7 @@
         "description": "Admin request to exercise a support-safe provider readiness contract.",
         "properties": {
           "providerKey": {
-            "example": "keycloak-realm",
+            "example": "nextcloud-files",
             "minLength": 1,
             "type": "string"
           },
@@ -5538,10 +5615,8 @@
               "contacts",
               "files",
               "forms",
-              "identity-realm",
               "issue-tracker",
               "matrix",
-              "matrix-auth",
               "meetings",
               "office",
               "release",
@@ -5740,6 +5815,17 @@
         },
         "type": "object"
       },
+      "RuntimeProfileJwkSet": {
+        "properties": {
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/Jwk"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "SecretRefResponse": {
         "description": "Support-safe reference to a provider secret. Never contains the raw secret value.",
         "properties": {
@@ -5747,7 +5833,7 @@
             "type": "boolean"
           },
           "providerKey": {
-            "example": "keycloak-realm",
+            "example": "nextcloud-files",
             "type": "string"
           },
           "purpose": {
@@ -6259,17 +6345,14 @@
       "WorkspaceCapabilityPolicyResponse": {
         "description": "Admin/operator support-safe capability policy snapshot.",
         "properties": {
-          "adapterContract": {
-            "type": "string"
-          },
           "agentRuntimeControlPosture": {
-            "type": "string"
-          },
-          "defaultIdmProvider": {
             "type": "string"
           },
           "denyByDefault": {
             "type": "boolean"
+          },
+          "federationContract": {
+            "type": "string"
           },
           "grantedCapabilities": {
             "items": {
@@ -6283,7 +6366,10 @@
             },
             "type": "array"
           },
-          "idmProviderCategory": {
+          "platformIdentityAuthority": {
+            "type": "string"
+          },
+          "platformIdentityCategory": {
             "type": "string"
           },
           "principalSource": {
@@ -6306,13 +6392,13 @@
           }
         },
         "required": [
-          "adapterContract",
           "agentRuntimeControlPosture",
-          "defaultIdmProvider",
           "denyByDefault",
+          "federationContract",
           "grantedCapabilities",
           "groups",
-          "idmProviderCategory",
+          "platformIdentityAuthority",
+          "platformIdentityCategory",
           "principalSource",
           "profileKeys",
           "roles",
@@ -6610,6 +6696,12 @@
         "bearerFormat": "JWT",
         "scheme": "bearer",
         "type": "http"
+      },
+      "owner-bootstrap-token": {
+        "description": "Rotatable SecretRef credential for the empty-realm owner invitation only.",
+        "in": "header",
+        "name": "X-Weave-Bootstrap-Token",
+        "type": "apiKey"
       }
     }
   },
@@ -6904,52 +6996,6 @@
         ]
       }
     },
-    "/api/admin/identity/readiness": {
-      "get": {
-        "operationId": "getIdentityProviderReadiness",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/IdentityProviderReadinessResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Read support-safe identity provider readiness for Workspace Health",
-        "tags": [
-          "Admin control plane"
-        ]
-      }
-    },
     "/api/admin/organizations/bootstrap": {
       "post": {
         "operationId": "bootstrapOrganization",
@@ -7085,7 +7131,7 @@
         ]
       }
     },
-    "/api/admin/organizations/{organizationId}/invitations/{invitationId}": {
+    "/api/admin/organizations/{organizationId}/invitations/{invitationHandle}": {
       "delete": {
         "operationId": "revoke",
         "parameters": [
@@ -7099,7 +7145,7 @@
           },
           {
             "in": "path",
-            "name": "invitationId",
+            "name": "invitationHandle",
             "required": true,
             "schema": {
               "type": "string"
@@ -7124,7 +7170,7 @@
         ]
       }
     },
-    "/api/admin/organizations/{organizationId}/invitations/{invitationId}/resend": {
+    "/api/admin/organizations/{organizationId}/invitations/{invitationHandle}/resend": {
       "post": {
         "operationId": "resend",
         "parameters": [
@@ -7138,7 +7184,7 @@
           },
           {
             "in": "path",
-            "name": "invitationId",
+            "name": "invitationHandle",
             "required": true,
             "schema": {
               "type": "string"
@@ -7167,6 +7213,393 @@
         },
         "tags": [
           "member-invitation-controller"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/members": {
+      "get": {
+        "operationId": "listOrganizationMembers",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization members"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/members/{memberHandle}": {
+      "get": {
+        "operationId": "getOrganizationMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "memberHandle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization members"
+        ]
+      },
+      "patch": {
+        "operationId": "updateOrganizationMemberAccess",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "memberHandle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationMemberUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization members"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/members/{memberHandle}/offboarding": {
+      "post": {
+        "operationId": "offboardOrganizationMember",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "memberHandle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberOffboardingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization members"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/members/{memberHandle}/session-revocations": {
+      "post": {
+        "operationId": "revokeOrganizationMemberSessions",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "memberHandle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "tags": [
+          "Organization members"
+        ]
+      }
+    },
+    "/api/admin/platform/identity/readiness": {
+      "get": {
+        "operationId": "getPlatformIdentityReadiness",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformIdentityReadinessResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read support-safe fixed Keycloak platform readiness",
+        "tags": [
+          "Admin control plane"
         ]
       }
     },
@@ -8019,6 +8452,62 @@
         "summary": "Create a task in the Boards/Tasks workspace with user-write authorization",
         "tags": [
           "Boards workspace"
+        ]
+      }
+    },
+    "/api/bootstrap/owner-invitation": {
+      "post": {
+        "operationId": "bootstrapOwnerInvitation",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Weave-Bootstrap-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BootstrapOwnerInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberInvitationResponse"
+                }
+              }
+            },
+            "description": "HTTP 201"
+          }
+        },
+        "security": [
+          {
+            "owner-bootstrap-token": []
+          }
+        ],
+        "summary": "Create or return the first owner invitation in an empty human realm",
+        "tags": [
+          "identity-bootstrap"
         ]
       }
     },
@@ -9237,6 +9726,56 @@
         ]
       }
     },
+    "/api/internal/keycloak/events": {
+      "post": {
+        "operationId": "accept",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Weave-Event-Id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Weave-Event-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Weave-Event-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "format": "byte",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "HTTP 204"
+          }
+        },
+        "tags": [
+          "keycloak-membership-event-controller"
+        ]
+      }
+    },
     "/api/interop/slack/events": {
       "post": {
         "operationId": "slackEvent",
@@ -9461,7 +10000,7 @@
     },
     "/api/interop/status": {
       "get": {
-        "operationId": "getInteropStatus",
+        "operationId": "status_2",
         "responses": {
           "401": {
             "content": {
@@ -9652,7 +10191,7 @@
     },
     "/api/office/capabilities": {
       "get": {
-        "operationId": "getOfficeCapabilities",
+        "operationId": "capabilities_1",
         "responses": {
           "200": {
             "content": {
@@ -9842,7 +10381,7 @@
     },
     "/api/platform/status": {
       "get": {
-        "operationId": "getPlatformStatus",
+        "operationId": "status_1",
         "responses": {
           "200": {
             "content": {
@@ -10306,52 +10845,6 @@
           }
         ],
         "summary": "Read the support-safe organization control-plane overview",
-        "tags": [
-          "Admin control plane"
-        ]
-      }
-    },
-    "/api/v1/admin/identity/readiness": {
-      "get": {
-        "operationId": "getIdentityProviderReadinessV1",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/IdentityProviderReadinessResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Read support-safe identity provider readiness for Workspace Health",
         "tags": [
           "Admin control plane"
         ]
@@ -10829,6 +11322,56 @@
         ]
       }
     },
+    "/api/v1/agent-runtime/runtime-profiles/{profileHash}": {
+      "get": {
+        "operationId": "runtimeProfileV1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profileHash",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlattenedRuntimeProfileJwsResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          }
+        },
+        "tags": [
+          "agent-runtime-profile-controller"
+        ]
+      }
+    },
+    "/api/v1/agent-runtime/trust/jwks.json": {
+      "get": {
+        "operationId": "trustBundleV1",
+        "responses": {
+          "200": {
+            "content": {
+              "application/jwk-set+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeProfileJwkSet"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          }
+        },
+        "tags": [
+          "agent-runtime-profile-controller"
+        ]
+      }
+    },
     "/api/v1/chat/conversations/{conversationId}/decisions": {
       "get": {
         "operationId": "decisionsV1",
@@ -11170,73 +11713,6 @@
         "summary": "Read member-safe Weave Chat readiness",
         "tags": [
           "Chat domain"
-        ]
-      }
-    },
-    "/api/v1/identity/session/reconcile": {
-      "post": {
-        "description": "Idempotently applies one verified pending invitation intent to the current native organization member. An access_updated result requires exactly one OIDC refresh before product-domain bootstrap.",
-        "operationId": "reconcileIdentitySessionV1",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IdentitySessionReconcileResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 409"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 502"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Reconcile authenticated invitation access",
-        "tags": [
-          "Identity session"
         ]
       }
     },
@@ -11788,10 +12264,6 @@
       "name": "Guest Access"
     },
     {
-      "description": "Authenticated, provider-neutral identity bootstrap.",
-      "name": "Identity session"
-    },
-    {
       "description": "Authenticated caller introspection endpoints.",
       "name": "Identity"
     },
@@ -11806,6 +12278,10 @@
     {
       "description": "Provider-neutral Office document collaboration facade.",
       "name": "Office facade"
+    },
+    {
+      "description": "Keycloak-backed member lifecycle through opaque Weave references.",
+      "name": "Organization members"
     },
     {
       "description": "Public platform configuration and module status endpoints.",

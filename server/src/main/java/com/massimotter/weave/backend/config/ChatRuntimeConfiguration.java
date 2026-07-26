@@ -30,6 +30,7 @@ public class ChatRuntimeConfiguration {
             ChatRuntimeProperties properties,
             CanonicalChatJpaAuthority jpa,
             ObjectMapper objectMapper) {
+        requireJpa(properties);
         return new JpaCanonicalChatStore(
                 jpa,
                 objectMapper,
@@ -54,5 +55,11 @@ public class ChatRuntimeConfiguration {
             ObjectMapper objectMapper) {
         return new SynapseBackedCanonicalChatAdapter(
                 canonicalChatStore, provider, properties.matrix(), objectMapper, Clock.systemUTC());
+    }
+
+    private void requireJpa(ChatRuntimeProperties properties) {
+        if (!properties.jpaSelected()) {
+            throw new IllegalStateException("Matrix/Synapse Chat requires WEAVE_CHAT_STORAGE_MODE=jpa.");
+        }
     }
 }

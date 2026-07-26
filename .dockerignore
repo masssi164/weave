@@ -14,3 +14,13 @@
 !weave-mcp-server/build/
 !weave-mcp-server/build/libs/
 !weave-mcp-server/build/libs/*.jar
+!infra/
+!infra/identity-ops/
+!infra/identity-ops/**
+!infra/weave-workspace/
+!infra/weave-workspace/02-keycloak-setup/
+!infra/weave-workspace/02-keycloak-setup/.terraform.lock.hcl
+!infra/weave-workspace/02-keycloak-setup/*.tf
+!infra/weave-workspace/02-keycloak-setup/modules/
+!infra/weave-workspace/02-keycloak-setup/modules/tenant-identity/
+!infra/weave-workspace/02-keycloak-setup/modules/tenant-identity/*.tf

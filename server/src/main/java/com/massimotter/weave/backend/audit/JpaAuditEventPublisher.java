@@ -1,109 +1,90 @@
 package com.massimotter.weave.backend.audit;
 
+import static java.util.Objects.requireNonNull;
+
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
-import jakarta.persistence.PersistenceException;
+import com.massimotter.weave.backend.persistence.jpa.audit.AuditEventEntity;
+import com.massimotter.weave.backend.persistence.jpa.audit.AuditEventJpaRepository;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.springframework.dao.DataAccessException;
-import org.springframework.stereotype.Repository;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.annotation.Transactional;
 
-import static java.util.Objects.requireNonNull;
-
-/**
- * Durable append-only relational audit sink for support-safe control-plane evidence.
- *
- * <p>Retries first reconcile against the unique organization/idempotency tuple. A concurrent
- * winner is read after the failed insert transaction and must be byte-for-byte equivalent at
- * the domain boundary.
- */
-@Repository
+/** Durable, append-only and idempotent JPA audit sink. */
 public class JpaAuditEventPublisher implements AuditEventPublisher {
 
-    private static final TypeReference<Map<String, Object>> AUDIT_PAYLOAD =
-            new TypeReference<>() {
-            };
+    private static final TypeReference<Map<String, Object>> AUDIT_PAYLOAD = new TypeReference<>() {
+    };
 
-    private final AuditEventJpaRepository events;
+    private final AuditEventJpaRepository repository;
     private final ObjectMapper objectMapper;
 
-    public JpaAuditEventPublisher(
-            AuditEventJpaRepository events,
-            ObjectMapper objectMapper) {
-        this.events = requireNonNull(events, "events");
-        this.objectMapper = requireNonNull(objectMapper, "objectMapper");
+    public JpaAuditEventPublisher(AuditEventJpaRepository repository, ObjectMapper objectMapper) {
+        this.repository = repository;
+        this.objectMapper = objectMapper;
     }
 
     @Override
+    @Transactional
     public void publish(AuditEvent event) {
         AuditEvent safeEvent = requireNonNull(event, "event must not be null");
-        Optional<AuditEvent> existing = findForPublication(
-                safeEvent.tenantId(),
-                safeEvent.idempotencyKey());
-        if (existing.isPresent()) {
-            requireRetryEquivalent(existing.orElseThrow(), safeEvent);
-            return;
-        }
         try {
-            events.saveAndFlush(AuditEventJpaEntity.from(
-                    safeEvent,
-                    payloadJson(safeEvent.payload())));
-        } catch (DataAccessException | PersistenceException concurrentOrUnavailable) {
-            try {
-                AuditEvent winner = findByIdempotencyKey(
-                                safeEvent.tenantId(),
-                                safeEvent.idempotencyKey())
-                        .orElseThrow(() -> new AuditRequiredException(
-                                "durable audit publication failed",
-                                concurrentOrUnavailable));
-                requireRetryEquivalent(winner, safeEvent);
-            } catch (DataAccessException | PersistenceException readFailure) {
-                throw new AuditRequiredException("durable audit publication failed", readFailure);
+            var existing = repository.findByTenantIdAndIdempotencyKey(
+                    safeEvent.tenantId(), safeEvent.idempotencyKey());
+            if (existing.isPresent()) {
+                requireRetryEquivalent(toDomain(existing.get()), safeEvent);
+                return;
             }
+            repository.saveAndFlush(toEntity(safeEvent));
+        } catch (DataIntegrityViolationException conflict) {
+            AuditEvent existing = repository.findByTenantIdAndIdempotencyKey(
+                            safeEvent.tenantId(), safeEvent.idempotencyKey())
+                    .map(this::toDomain)
+                    .orElseThrow(() -> new AuditRequiredException(
+                            "Durable audit idempotency conflict could not be reconciled.", conflict));
+            requireRetryEquivalent(existing, safeEvent);
+        } catch (DataAccessException failure) {
+            throw new AuditRequiredException("durable audit publication failed", failure);
         }
     }
 
+    @Transactional(readOnly = true)
     public List<AuditEvent> events() {
         try {
-            return events.findAllByOrderBySequenceIdAsc().stream()
-                    .map(this::toDomain)
-                    .toList();
-        } catch (DataAccessException | PersistenceException exception) {
-            throw new AuditRequiredException("durable audit read failed", exception);
+            return repository.findAllByOrderBySequenceIdAsc().stream().map(this::toDomain).toList();
+        } catch (DataAccessException failure) {
+            throw new AuditRequiredException("durable audit read failed", failure);
         }
     }
 
     public String persistencePosture() {
-        return "durable-relational-jpa-flyway";
+        return "portable-jpa-hibernate-validated";
     }
 
-    private Optional<AuditEvent> findByIdempotencyKey(
-            String tenantId,
-            String idempotencyKey) {
-        return events.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey)
-                .map(this::toDomain);
+    private AuditEventEntity toEntity(AuditEvent event) {
+        return new AuditEventEntity(
+                event.tenantId(),
+                event.contextId(),
+                event.actorRef(),
+                event.sourceRef(),
+                event.action().name(),
+                event.occurredAt(),
+                event.idempotencyKey(),
+                event.redactionLevel().name(),
+                payloadJson(event.payload()));
     }
 
-    private Optional<AuditEvent> findForPublication(
-            String tenantId,
-            String idempotencyKey) {
-        try {
-            return findByIdempotencyKey(tenantId, idempotencyKey);
-        } catch (DataAccessException | PersistenceException exception) {
-            throw new AuditRequiredException("durable audit publication failed", exception);
-        }
-    }
-
-    private AuditEvent toDomain(AuditEventJpaEntity entity) {
+    private AuditEvent toDomain(AuditEventEntity entity) {
         return new AuditEvent(
                 entity.tenantId(),
                 entity.contextId(),
                 entity.actorRef(),
                 entity.sourceRef(),
                 AuditAction.valueOf(entity.action()),
-                entity.occurredAt().toInstant(),
+                entity.occurredAt(),
                 entity.idempotencyKey(),
                 AuditRedactionLevel.valueOf(entity.redactionLevel()),
                 payload(entity.payloadJson()));
@@ -111,16 +92,15 @@ public class JpaAuditEventPublisher implements AuditEventPublisher {
 
     private void requireRetryEquivalent(AuditEvent existing, AuditEvent incoming) {
         if (!existing.equals(incoming)) {
-            throw new AuditRequiredException(
-                    "Conflicting durable audit event for idempotency key.");
+            throw new AuditRequiredException("Conflicting durable audit event for idempotency key.");
         }
     }
 
     private String payloadJson(Map<String, Object> payload) {
         try {
             return objectMapper.writeValueAsString(payload);
-        } catch (JacksonException exception) {
-            throw new AuditRequiredException("durable audit publication failed", exception);
+        } catch (JacksonException failure) {
+            throw new AuditRequiredException("durable audit publication failed", failure);
         }
     }
 
@@ -130,8 +110,8 @@ public class JpaAuditEventPublisher implements AuditEventPublisher {
         }
         try {
             return objectMapper.readValue(payloadJson, AUDIT_PAYLOAD);
-        } catch (JacksonException exception) {
-            throw new AuditRequiredException("durable audit read failed", exception);
+        } catch (JacksonException failure) {
+            throw new AuditRequiredException("durable audit read failed", failure);
         }
     }
 }

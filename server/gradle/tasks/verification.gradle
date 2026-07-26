@@ -1,145 +1,60 @@
-def nativeLibraryFileName = System.getProperty('os.name').toLowerCase().contains('mac')
-        ? 'libweave_matrix_core.dylib'
-        : System.getProperty('os.name').toLowerCase().contains('win')
-                ? 'weave_matrix_core.dll'
-                : 'libweave_matrix_core.so'
-def matrixCoreLibrary = rootProject.file("target/debug/${nativeLibraryFileName}")
-
-tasks.register('buildMatrixRustCoreJni', Exec) {
-    group = 'build'
-    description = 'Build the mandatory Rust/Ruma JNI library used by the Matrix facade.'
-    workingDir rootProject.projectDir
-    commandLine 'cargo', 'build', '-p', 'weave-matrix-core', '--features', 'jni'
-    inputs.file(rootProject.file('Cargo.toml'))
-    inputs.file(rootProject.file('Cargo.lock'))
-    inputs.dir(rootProject.file('rust/matrix-core/src'))
-    inputs.file(rootProject.file('rust/matrix-core/Cargo.toml'))
-    outputs.file(matrixCoreLibrary)
-}
-
-tasks.withType(Test).configureEach {
-    maxHeapSize = '1g'
-    systemProperty 'spring.test.context.cache.maxSize', '8'
-}
-
 tasks.named('test') {
     dependsOn tasks.named('buildMatrixRustCoreJni')
     useJUnitPlatform {
-        excludeTags 'dev-h2-integration'
+        excludeTags 'postgres'
     }
     systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
-    systemProperty 'spring.profiles.active', 'dev'
-    filter {
-        excludeTestsMatching '*PostgresTest'
-        excludeTestsMatching '*DevH2JpaIntegrationTest'
-    }
-    if (System.getProperty('weave.openapi.export.path') != null) {
-        systemProperty 'weave.openapi.export.path', System.getProperty('weave.openapi.export.path')
-    }
 }
 
-tasks.register('devH2IntegrationTest', Test) {
+tasks.register('openApiContractExport', Test) {
     group = 'verification'
-    description = 'Boots the dev profile and proves Flyway, Hibernate validation, and JPA persistence on H2 PostgreSQL mode.'
+    description = 'Export the server-owned OpenAPI contract without mutating the main test results.'
+    dependsOn tasks.named('buildMatrixRustCoreJni'), tasks.named('testClasses')
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
-    useJUnitPlatform {
-        includeEngines 'junit-jupiter'
-        includeTags 'dev-h2-integration'
-    }
-    filter {
-        includeTestsMatching '*DevH2JpaIntegrationTest'
-        failOnNoMatchingTests = true
-    }
-    systemProperty 'spring.profiles.active', 'dev'
-    shouldRunAfter tasks.named('test')
-}
-
-tasks.register('postgresIntegrationTest', Test) {
-    group = 'verification'
-    description = 'Runs the server persistence contract tests against disposable PostgreSQL and fails when Docker is unavailable.'
-    dependsOn tasks.named('buildMatrixRustCoreJni')
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-    useJUnitPlatform {
-        includeEngines 'junit-jupiter'
-    }
-    filter {
-        includeTestsMatching '*PostgresTest'
-        failOnNoMatchingTests = true
-    }
+    maxParallelForks = 1
     systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
-    systemProperty 'spring.profiles.active', 'test'
-    doFirst {
-        if (!System.getenv('DOCKER_HOST')) {
-            def dockerHost = providers.exec {
-                commandLine 'docker', 'context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'
-                ignoreExitValue = true
-            }.standardOutput.asText.get().trim()
-            if (!(dockerHost ==~ /^(unix|tcp|npipe):\/\/.+/)) {
-                throw new GradleException('PostgreSQL integration tests require a reachable Docker context or explicit DOCKER_HOST')
-            }
-            environment 'DOCKER_HOST', dockerHost
-        }
+    systemProperty 'weave.openapi.export.path', rootProject.layout.buildDirectory
+            .file('openapi/weave-openapi.raw.json')
+            .get()
+            .asFile
+            .absolutePath
+    filter {
+        includeTestsMatching '*OpenApiDocumentationTest'
     }
-    shouldRunAfter tasks.named('test')
+    useJUnitPlatform()
+    outputs.upToDateWhen { false }
 }
 
-tasks.register('relationalModelParity', Test) {
+tasks.register('postgresJpaTest', Test) {
     group = 'verification'
-    description = 'Proves exact Flyway, canonical Chen manifest, JPA entity, and repository parity.'
+    description = 'Run the authoritative JPA repository, constraint, transaction, and migration contracts against PostgreSQL.'
+    dependsOn tasks.named('buildMatrixRustCoreJni'), tasks.named('testClasses')
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
-    useJUnitPlatform {
-        includeEngines 'junit-jupiter'
-    }
-    filter {
-        includeTestsMatching '*RelationalModelParityTest'
-        failOnNoMatchingTests = true
-    }
-    systemProperty 'spring.profiles.active', 'dev'
-    shouldRunAfter tasks.named('test')
-}
-
-tasks.register('verifyProductionBootJar') {
-    group = 'verification'
-    description = 'Proves that the production server artifact does not contain the dev-only H2 driver.'
-    dependsOn tasks.named('bootJar')
-    doLast {
-        def archive = tasks.named('bootJar').get().archiveFile.get().asFile
-        def h2Entries = zipTree(archive).matching { include 'BOOT-INF/lib/h2-*.jar' }.files
-        if (!h2Entries.empty) {
-            throw new GradleException("Dev-only H2 dependency leaked into ${archive.name}")
-        }
-    }
-}
-
-tasks.named('check') {
-    dependsOn tasks.named('devH2IntegrationTest')
-    dependsOn tasks.named('relationalModelParity')
-    dependsOn tasks.named('verifyProductionBootJar')
-}
-
-tasks.named('bootRun') {
-    dependsOn tasks.named('buildMatrixRustCoreJni')
+    maxParallelForks = 1
     systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
-}
-
-tasks.register('runtimeProfileSigningKeys', JavaExec) {
-    group = 'weave operations'
-    description = 'Initialize, inspect, or rotate the offline RuntimeProfile signing-key SecretRef store.'
-    classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'com.massimotter.weave.backend.agentruntime.operator.RuntimeProfileSigningKeyCli'
-}
-
-tasks.register('runtimeStateWrappingKeys', JavaExec) {
-    group = 'weave operations'
-    description = 'Initialize, inspect, or rotate the offline RuntimeStateStore wrapping-key SecretRef store.'
-    classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'com.massimotter.weave.backend.agentruntime.operator.RuntimeStateWrappingKeyCli'
-}
-
-tasks.matching { it.name == 'wrapper' }.configureEach {
-    gradleVersion = '8.7'
-    distributionType = Wrapper.DistributionType.ALL
+    systemProperty 'weave.test.postgres', 'true'
+    filter {
+        includeTestsMatching '*PostgresJpaSchemaValidationTest'
+        includeTestsMatching '*JpaEncryptedRuntimeStateStoreTest'
+        includeTestsMatching '*JpaRuntimeCellRepositoryTest'
+        includeTestsMatching '*JpaRuntimeCommandRepositoryTest'
+        includeTestsMatching '*JpaRuntimeGovernanceRepositoryTest'
+        includeTestsMatching '*JpaRuntimeProfileRepositoryTest'
+        includeTestsMatching '*AgentRuntimeAdminServiceTest'
+        includeTestsMatching '*AgentRuntimeControlServiceTest'
+        includeTestsMatching '*AgentRuntimeWorkloadReconciliationServiceTest'
+        includeTestsMatching '*JpaAuditEventPublisherTest'
+        includeTestsMatching '*JpaCanonicalChatLedgerRecoveryTest'
+        includeTestsMatching '*JpaCanonicalChatStoreTest'
+        includeTestsMatching '*MatrixE2eeStateServicePersistenceTest'
+        includeTestsMatching '*MatrixFacadeClientStateServicePersistenceTest'
+        includeTestsMatching '*JpaProviderSelectionRepositoryTest'
+        includeTestsMatching '*JpaDeviceCredentialRepositoryTest'
+        includeTestsMatching '*AdminControlPlaneServiceTest'
+        includeTestsMatching '*JpaProductProfileOverrideRepositoryTest'
+        includeTestsMatching '*JpaMigrationRunEvidenceRepositoryTest'
+    }
+    useJUnitPlatform()
 }

@@ -799,7 +799,7 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
                 return existingCallbackStart(
                         safeProvider, safeTransaction, payloadDigest, eventCount, existing.orElseThrow());
             }
-            boolean claimed = jpa.callbackClaims().claim(
+            boolean claimed = jpa.claimCallback(
                     safeProvider,
                     safeTransaction,
                     payloadDigest,

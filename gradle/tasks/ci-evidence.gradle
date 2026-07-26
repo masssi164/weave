@@ -1,0 +1,180 @@
+ext.ciEvidenceGates = [
+    'doctor',
+    'acceptanceContract',
+    'clientCi',
+    'serverCi',
+    'adminCi',
+    'mcpCi',
+    'testAppContract',
+    'infraStatic',
+    'docsCheck',
+    'releaseNotesLabelCheck',
+    'specCorpusConformance',
+    'sprintBootstrapAudit',
+    'specContract',
+    'specContractTest',
+    'domainRegistryCheck',
+    'spaceAnchorCheck',
+    'portabilityContractCheck',
+    'productTrustClaimMatrixCheck',
+    'productRealityClaimGateCheck',
+    'weaveControlModesCheck',
+    'bootstrapFoundationCheck',
+    'sprint29HumanValidationCheck',
+    'commercialAdapterReadinessCheck',
+    'sprint30HotPhaseCheck',
+    'sprint31LanDogfoodCheck',
+    'dogfoodIosSessionContinuityCheckTest',
+    'iosDogfoodDistributionCheck',
+    'liveStackRunnerHygieneCheck',
+    'crossDomainProviderProofCheck',
+    'androidReleaseIdentityCheck',
+    'adminDependencyPolicyCheck',
+    'releaseEvidenceCheck',
+    'sprint31LanDogfoodCheck',
+    'projectReadinessEvidenceCheck',
+    'enterpriseReleaseGateCheck',
+    'humanTestingReadinessManifestTest',
+    'multiUserE2EEvidenceTest',
+    'matrixToDeviceEvidenceValidatorTest',
+    'synapseCompatibilityProbeTest',
+    'dogfoodDeploymentEvidenceTest',
+    'candidatePipelineCheck',
+    'obsoleteFirstRunContractCheck'
+]
+
+ext.safeCommandOutput = { List<String> args ->
+    def output = new ByteArrayOutputStream()
+    try {
+        def result = exec {
+            commandLine execCommand(args)
+            standardOutput = output
+            errorOutput = output
+            ignoreExitValue = true
+        }
+        if (result.exitValue != 0) {
+            return 'unavailable'
+        }
+        return output.toString('UTF-8').readLines().find { it.trim() }?.trim() ?: 'unavailable'
+    } catch (Exception ignored) {
+        return 'unavailable'
+    }
+}
+
+tasks.register('ciSummary') {
+    group = 'verification'
+    description = 'Write the sanitized CI evidence summary to build/evidence/ci-summary.json.'
+    doLast {
+        writeCiSummary(null)
+    }
+}
+
+void writeCiSummary(Throwable buildFailure) {
+    def evidenceDir = layout.buildDirectory.dir('evidence').get().asFile
+    evidenceDir.mkdirs()
+    def evidenceFile = new File(evidenceDir, 'ci-summary.json')
+    def gateSummaries = ciEvidenceGates.collect { gateName ->
+        def task = tasks.findByName(gateName)
+        def outcome = 'skipped'
+        if (task != null && task.state.executed) {
+            outcome = task.state.failure == null ? 'passed' : 'failed'
+        } else if (task != null && task.state.skipped) {
+            outcome = 'skipped'
+        }
+        [
+            name: gateName,
+            outcome: outcome,
+            artifactPaths: artifactPathsForGate(gateName)
+        ]
+    }
+    def summary = [
+        schemaVersion: 1,
+        generatedAtUtc: new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC')),
+        commit: safeCommandOutput(['git', 'rev-parse', 'HEAD']),
+        branch: safeCommandOutput(['git', 'rev-parse', '--abbrev-ref', 'HEAD']),
+        build: [
+            result: buildFailure == null ? 'passed' : 'failed',
+            failureType: buildFailure == null ? null : buildFailure.class.name
+        ],
+        toolVersions: [
+            gradle: gradle.gradleVersion,
+            java: System.getProperty('java.version'),
+            python: safeCommandOutput(['python3', '--version']),
+            flutter: safeCommandOutput(['flutter', '--version']),
+            dart: safeCommandOutput(['dart', '--version']),
+            node: safeCommandOutput(['node', '--version']),
+            npm: safeCommandOutput(['npm', '--version'])
+        ],
+        gates: gateSummaries,
+        liveE2E: [
+            outcome: 'separate-required-release-evidence',
+            reason: 'Live E2E runs on the dedicated self-hosted live runner by manual dispatch and nightly schedule; it is required for release-candidate evidence but remains outside default PR-safe ci.',
+            artifactPaths: ['weave-live-stack-acceptance-evidence']
+        ],
+        sanitized: true,
+        exclusions: [
+            'secrets',
+            'tokens',
+            'credential URLs',
+            'raw provider payloads',
+            'raw provider errors'
+        ]
+    ]
+    evidenceFile.text = JsonOutput.prettyPrint(JsonOutput.toJson(summary)) + System.lineSeparator()
+    logger.lifecycle("Wrote sanitized CI evidence summary to ${project.relativePath(evidenceFile)}")
+}
+
+List<String> artifactPathsForGate(String gateName) {
+    switch (gateName) {
+        case 'docsCheck':
+            return ['build/docs/user', 'build/docs/admin']
+        case 'specCorpusConformance':
+            return ['specs/weave-specs.lock.json', 'tools/spec_corpus_conformance_check.py']
+        case 'matrixSdkVendorProvenanceCheck':
+            return ['rust/vendor/matrix-sdk-crypto.weave-provenance.json', 'tools/matrix_sdk_vendor_provenance.py']
+        case 'synapseCompatibilityProbeTest':
+            return ['tools/synapse_compatibility_probe.py', 'tools/synapse_compatibility_probe_test.py']
+        case 'sprintBootstrapAudit':
+            return ['tools/sprint_bootstrap.py', 'tools/fixtures/sprint_bootstrap_sprint12.json', 'docs/sprint-bootstrap-and-board-flow.md']
+        case 'specContract':
+            return ['specs', '.specify/memory/constitution.md', '.specify/templates']
+        case 'specContractTest':
+            return ['tools/spec_contract_check_test.py']
+        case 'domainRegistryCheck':
+            return ['specs/0004-domain-registry/canonical-domain-registry-v1.json', 'server/src/main/resources/canonical-domain-registry-v1.json', 'tools/domain_registry_check.py']
+        case 'spaceAnchorCheck':
+            return ['docs/space-anchor-contract.md', 'specs/0005-spaces-anchor/space-anchor-fixture.json', 'tools/space_anchor_check.py']
+        case 'portabilityContractCheck':
+            return ['server/src/main/resources/contracts/portability', 'specs/0006-portability-contract', 'tools/portability_contract_check.py']
+        case 'chatProviderSwitchCheck':
+            return ['release/provider-lab/chat-switch', 'fixtures/provider-lab/chat-fixture.json', 'tools/chat_provider_switch_check.py']
+        case 'productTrustClaimMatrixCheck':
+            return ['docs/product-trust-provider-choice-claim-matrix.md', 'tools/product_trust_claim_matrix_check.py']
+        case 'productRealityClaimGateCheck':
+            return ['docs/product-reality-foundation.md', 'release/product-reality-gates.json', 'tools/product_reality_claim_gate_check.py']
+        case 'releaseEvidenceCheck':
+            return ['README.md', 'tools/fixtures/release_notes_unreleased.expected.md', 'release/sprint-29-human-validation']
+        case 'sprint31LanDogfoodCheck':
+            return ['tools/weavectl', 'tools/sprint31_lan_dogfood_check.py', 'release/sprint-31-physical-iphone-lan-dogfood', 'docs/sprint-31-iphone-lan-dogfood-runbook.md']
+        case 'dogfoodActivationMailCheckTest':
+            return ['tools/dogfood_activation_mail_check.py', 'tools/dogfood_activation_mail_check_test.py', 'tools/dogfood_member_onboarding_gate.sh']
+        case 'dogfoodIosSessionContinuityCheckTest':
+            return ['tools/dogfood_ios_session_restore_smoke.sh', 'tools/dogfood_ios_session_continuity_check.py', 'tools/dogfood_ios_session_continuity_check_test.py']
+        case 'iosDogfoodDistributionCheck':
+            return ['.github/workflows/ios-dogfood.yml', 'client/ios/Runner/Runner.entitlements', 'docs/ios-dogfood-distribution.md', 'tools/ios_dogfood_distribution_check.py']
+        case 'bootstrapFoundationCheck':
+            return ['docs/bootstrap-foundation-contract.md', 'release/bootstrap-foundation', 'tools/bootstrap_foundation_check.py']
+        case 'sprint29HumanValidationCheck':
+            return ['release/sprint-29-human-validation', 'docs/evidence/sprint-29-human-validation', 'tools/sprint29_human_validation_check.py', 'tools/sprint29_release_decision_guard.py']
+        case 'projectReadinessEvidenceCheck':
+            return ['docs/sprint-5-closure-report.md', 'e2e/scenario_mappings.json']
+        case 'enterpriseReleaseGateCheck':
+            return ['release/enterprise-release-gates.json', 'docs/enterprise-release-foundation.md']
+        case 'releaseReadinessFixtureTest':
+            return ['tools/release_readiness_check.py', 'tools/fixtures/rc_readiness/green']
+        case 'crossDomainProviderProofCheck':
+            return ['release/provider-lab/cross-domain-provider-proof', 'docs/evidence/sprint-27-cross-domain-provider-proof.md', 'tools/cross_domain_provider_proof_check.py']
+        default:
+            return []
+    }
+}

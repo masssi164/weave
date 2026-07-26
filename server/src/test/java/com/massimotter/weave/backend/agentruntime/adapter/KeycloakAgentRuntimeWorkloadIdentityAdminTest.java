@@ -92,12 +92,12 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         assertThat(client.path("standardFlowEnabled").asBoolean()).isFalse();
         assertThat(client.path("directAccessGrantsEnabled").asBoolean()).isFalse();
         assertThat(client.path("fullScopeAllowed").asBoolean()).isFalse();
-        assertThat(client.path("clientAuthenticatorType").asText()).isEqualTo("client-jwt");
-        assertThat(client.path("attributes").path("weave.arc.managed").asText())
+        assertThat(client.path("clientAuthenticatorType").asString()).isEqualTo("client-jwt");
+        assertThat(client.path("attributes").path("weave.arc.managed").asString())
                 .isEqualTo("agent-runtime-control");
-        assertThat(client.path("attributes").path("keycloak.provider-owned-default").asText())
+        assertThat(client.path("attributes").path("keycloak.provider-owned-default").asString())
                 .isEqualTo("preserved");
-        JsonNode keySet = mapper.readTree(client.path("attributes").path("jwks.string").asText());
+        JsonNode keySet = mapper.readTree(client.path("attributes").path("jwks.string").asString());
         assertThat(keySet.path("keys")).hasSize(1);
         assertThat(keySet.path("keys").get(0).has("d")).isFalse();
         assertThat(keycloak.defaultScopeNames()).containsExactly("weaver-runtime.workload");
@@ -106,21 +106,21 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         assertThat(keycloak.serviceClientMappings().size()).isZero();
         assertThat(keycloak.protocolMappers()).hasSize(2);
         assertThat(keycloak.protocolMappers())
-                .extracting(mapper -> mapper.path("name").asText())
+                .extracting(mapper -> mapper.path("name").asString())
                 .containsExactlyInAnyOrder("weave-runtime-client-id", "weave-runtime-realm-role");
         assertThat(keycloak.protocolMappers().stream()
-                        .filter(mapper -> "weave-runtime-client-id".equals(mapper.path("name").asText()))
+                        .filter(mapper -> "weave-runtime-client-id".equals(mapper.path("name").asString()))
                         .findFirst().orElseThrow()
-                        .path("config").path("claim.name").asText())
+                        .path("config").path("claim.name").asString())
                 .isEqualTo("client_id");
         JsonNode realmRoleMapper = keycloak.protocolMappers().stream()
-                        .filter(mapper -> "weave-runtime-realm-role".equals(mapper.path("name").asText()))
+                        .filter(mapper -> "weave-runtime-realm-role".equals(mapper.path("name").asString()))
                         .findFirst().orElseThrow();
-        assertThat(realmRoleMapper.path("protocolMapper").asText())
+        assertThat(realmRoleMapper.path("protocolMapper").asString())
                 .isEqualTo("oidc-usermodel-realm-role-mapper");
-        assertThat(realmRoleMapper.path("config").path("claim.name").asText())
+        assertThat(realmRoleMapper.path("config").path("claim.name").asString())
                 .isEqualTo("realm_access.roles");
-        assertThat(realmRoleMapper.path("config").path("multivalued").asText()).isEqualTo("true");
+        assertThat(realmRoleMapper.path("config").path("multivalued").asString()).isEqualTo("true");
         assertThat(keycloak.unsafeMutationWhileEnabled()).isFalse();
 
         int firstMutationCount = keycloak.mutationCount();
@@ -310,7 +310,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         }
 
         String currentJwks() {
-            return client.path("attributes").path("jwks.string").asText();
+            return client.path("attributes").path("jwks.string").asString();
         }
 
         List<String> defaultScopeNames() {
@@ -322,7 +322,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         }
 
         List<String> serviceRealmRoleNames() {
-            return serviceRealmRoles.stream().map(role -> role.path("name").asText()).toList();
+            return serviceRealmRoles.stream().map(role -> role.path("name").asString()).toList();
         }
 
         Map<String, List<ObjectNode>> serviceClientMappings() {
@@ -383,7 +383,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 if (client != null) {
                     result.add(mapper.createObjectNode()
                             .put("id", CLIENT_UUID)
-                            .put("clientId", client.path("clientId").asText()));
+                            .put("clientId", client.path("clientId").asString()));
                 }
                 respond(exchange, 200, result);
                 return;
@@ -477,13 +477,13 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             String id = suffix.startsWith("/") ? suffix.substring(1) : suffix;
             if ("DELETE".equals(method)) {
                 mutate();
-                protocolMappers.removeIf(mapper -> id.equals(mapper.path("id").asText()));
+                protocolMappers.removeIf(mapper -> id.equals(mapper.path("id").asString()));
                 respond(exchange, 204, null);
                 return;
             }
             if ("PUT".equals(method)) {
                 mutate();
-                protocolMappers.removeIf(mapper -> id.equals(mapper.path("id").asText()));
+                protocolMappers.removeIf(mapper -> id.equals(mapper.path("id").asString()));
                 ObjectNode updated = ((ObjectNode) body).deepCopy();
                 updated.put("id", id);
                 protocolMappers.add(updated);
@@ -572,8 +572,8 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             if ("DELETE".equals(method)) {
                 mutate();
                 for (JsonNode removed : body) {
-                    String name = removed.path("name").asText();
-                    roles.removeIf(role -> name.equals(role.path("name").asText()));
+                    String name = removed.path("name").asString();
+                    roles.removeIf(role -> name.equals(role.path("name").asString()));
                 }
                 respond(exchange, 204, null);
                 return;
@@ -581,8 +581,8 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             if ("POST".equals(method)) {
                 mutate();
                 for (JsonNode added : body) {
-                    String name = added.path("name").asText();
-                    if (roles.stream().noneMatch(role -> name.equals(role.path("name").asText()))) {
+                    String name = added.path("name").asString();
+                    if (roles.stream().noneMatch(role -> name.equals(role.path("name").asString()))) {
                         roles.add(((ObjectNode) added).deepCopy());
                     }
                 }

@@ -54,7 +54,7 @@ Sprint 5 defines "project-ready" for this phase as all of the following:
 
 Sprint 5 exercised the realistic composite-provider case instead of pretending Weave is either fully self-hosted or fully SaaS-only:
 
-- Organization embedding contracts classify identity/IDM, chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, decisions/evidence, manuals/help, admin health/readiness, and Weaver as provider categories.
+- Organization embedding contracts model the fixed Keycloak platform-identity boundary separately from the collaboration provider categories chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, decisions/evidence, manuals/help, admin health/readiness, and Weaver.
 - Adapter-fit contracts verify that those categories map through Weave-owned domain contracts before member UX depends on them.
 - Provider replacement dry-run evidence verifies a target adapter swap before apply, including lossy mapping, cutover gates, lifecycle expectations, audit publication, export/delete posture, and member impact.
 - Admin Console UX exposes that evidence differently by role:

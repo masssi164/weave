@@ -24,8 +24,6 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
-import com.massimotter.weave.backend.files.application.FilesLockService;
-import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
 import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
@@ -143,12 +141,6 @@ class FilesCalendarFacadeControllerTest {
 
     @MockitoBean
     private AuditEventPublisher auditEventPublisher;
-
-    @MockitoBean
-    private FilesLockService filesLockService;
-
-    @MockitoBean
-    private FilesMutationIntentService filesMutationIntentService;
 
     @BeforeEach
     void allowContextAccess() {
@@ -809,7 +801,7 @@ class FilesCalendarFacadeControllerTest {
     @Test
     void memberJwtWithoutCalendarEditorCapabilityCannotWriteEvenWhenRebacWouldAllow() throws Exception {
         mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/caldav/workspace/missing-capability.ics")
-                        .with(memberWorkspaceJwt())
+                        .with(workspaceJwtWithoutCalendarEditor())
                         .header("If-None-Match", "*")
                         .contentType("text/calendar")
                         .content("""
@@ -833,7 +825,7 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))));
 
         mockMvc.perform(post("/api/calendar/client-setup/credentials")
-                        .with(memberWorkspaceJwt())
+                        .with(workspaceJwtWithoutCalendarEditor())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"label\":\"Denied calendar\",\"clientType\":\"caldav\"}"))
                 .andExpect(status().isForbidden())
@@ -983,12 +975,12 @@ class FilesCalendarFacadeControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                 .claim("aud", java.util.List.of("weave-app"))
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin"))))
-                .claim("groups", java.util.List.of()))
+                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
+                .claim("groups", java.util.List.of("weave-calendar-editors", "weave-meeting-hosts")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
-    private org.springframework.test.web.servlet.request.RequestPostProcessor memberWorkspaceJwt() {
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithoutCalendarEditor() {
         return jwt().jwt(jwt -> jwt
                         .subject("user@example.com")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
@@ -996,7 +988,7 @@ class FilesCalendarFacadeControllerTest {
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("resource_access", java.util.Map.of(
                                 "weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                        .claim("groups", java.util.List.of()))
+                        .claim("groups", java.util.List.of("weave-meeting-hosts")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 

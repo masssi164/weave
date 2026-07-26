@@ -6,14 +6,15 @@ import java.time.Instant;
 import java.util.Optional;
 
 public interface RuntimeProfileRepository {
-    SignedRuntimeProfile activate(RuntimeCell expectedCell, SignedRuntimeProfile profile, Instant now);
+  SignedRuntimeProfile activate(
+      RuntimeCell expectedCell, SignedRuntimeProfile profile, Instant now);
 
-    Optional<SignedRuntimeProfile> findCurrentForWorkload(
-            String profileHash,
-            String workloadIssuer,
-            String workloadSubject,
-            String workloadClientId,
-            Instant now);
+  Optional<SignedRuntimeProfile> findCurrentForWorkload(
+      String profileHash,
+      String workloadIssuer,
+      String workloadSubject,
+      String workloadClientId,
+      Instant now);
 
-    void revokeCurrent(String cellRef, String revocationCode, Instant now);
+  void revokeCurrent(String cellRef, String revocationCode, Instant now);
 }

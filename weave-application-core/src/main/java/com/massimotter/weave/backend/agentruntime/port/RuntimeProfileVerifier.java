@@ -5,5 +5,5 @@ import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
 import java.time.Instant;
 
 public interface RuntimeProfileVerifier {
-    RuntimeProfile verify(SignedRuntimeProfile envelope, Instant now);
+  RuntimeProfile verify(SignedRuntimeProfile envelope, Instant now);
 }

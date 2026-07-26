@@ -26,7 +26,8 @@ import org.springframework.security.web.access.expression.WebExpressionAuthoriza
 /** Exact interactive-admin OIDC boundary; this chain never grants MCP workload access. */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnExpression(
-        "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
+        "'${weave.agent-runtime.storage.mode:disabled}' == 'jpa'"
+                + " && '${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.policy.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.state-store.enabled:false}' == 'true'")
@@ -78,7 +79,7 @@ public class AgentRuntimeAdminSecurityConfiguration {
                 .build();
     }
 
-    Collection<GrantedAuthority> authorities(Jwt jwt) {
+    private Collection<GrantedAuthority> authorities(Jwt jwt) {
         LinkedHashSet<GrantedAuthority> authorities = new LinkedHashSet<>();
         Collection<GrantedAuthority> scopes = new JwtGrantedAuthoritiesConverter().convert(jwt);
         if (scopes != null) {
@@ -98,6 +99,20 @@ public class AgentRuntimeAdminSecurityConfiguration {
                     .map(String.class::cast)
                     .map(value -> value.trim().toUpperCase(Locale.ROOT))
                     .filter(value -> value.equals("OWNER") || value.equals("ADMIN"))
+                    .forEach(roles::add);
+        }
+        Object groups = jwt.getClaims().get("groups");
+        if (groups instanceof Collection<?> values) {
+            values.stream()
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .map(String::trim)
+                    .map(value -> switch (value) {
+                        case "workspace-owners", "/workspace-owners" -> "OWNER";
+                        case "workspace-admins", "/workspace-admins" -> "ADMIN";
+                        default -> "";
+                    })
+                    .filter(value -> !value.isEmpty())
                     .forEach(roles::add);
         }
         return List.copyOf(roles);

@@ -8,7 +8,6 @@
     "scenarioMappings": "e2e/scenario_mappings.json"
   },
   "requiredDomains": [
-    "identity-idm",
     "spaces",
     "chat",
     "files",
@@ -27,8 +26,8 @@
       "id": "member-live-critical-path",
       "name": "Member live-stack critical path",
       "evidenceMode": "live-runtime",
-      "executionLane": "credentialed-live-stack",
-      "description": "Sparse release-grade runtime proof for sign-in, shell restoration, provider-owned facades, and critical member work surfaces.",
+      "executionLane": "governed-live-product-evidence",
+      "description": "Release-grade runtime proof from automated testApp and explicitly separated physical-device evidence; no credential-injected Flutter lane.",
       "scenarios": []
     },
     {
@@ -140,7 +139,7 @@
       "name": "Spec 0007 historical Agent Runtime Control conformance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Current entitlement, signed RuntimeProfile v2 desired state, empty MCP catalogs, signed decision evidence, and fail-closed policy drift.",
+      "description": "Current entitlement, signed RuntimeProfile v2 desired state, the approved read-only Files MCP slice, guarded remaining domain catalogs, signed decision evidence, and fail-closed policy drift.",
       "scenarios": []
     },
     {
@@ -220,7 +219,7 @@
       "name": "WEAVE-SPEC-0007 requirement coverage",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Requirement-category scenarios proving Agent Runtime Control lifecycle, external state, per-cell workload identity, and empty-by-default MCP catalog boundaries.",
+      "description": "Requirement-category scenarios proving Agent Runtime Control lifecycle, external state, per-cell workload identity, the approved Files read catalog, and guarded-by-default remaining MCP catalog boundaries.",
       "scenarios": []
     },
     {
@@ -280,63 +279,16 @@
         "member"
       ],
       "domains": [
-        "identity-idm",
         "spaces",
         "admin-health-ops"
       ],
       "testLevel": "live-e2e",
       "assertionFocus": [
-        "authenticated shell restore",
-        "profile facade",
-        "support-safe evidence"
-      ]
-    },
-    {
-      "tag": "@weave-live-chat-content",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member"
-      ],
-      "domains": [
-        "chat",
-        "spaces"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "canonical chat facade",
-        "send/read message",
-        "backend chat boundary"
-      ]
-    },
-    {
-      "tag": "@weave-live-matrix-e2ee",
-      "suiteId": "product-e2e-scenario-layer",
-      "personas": [
-        "admin",
-        "operator"
-      ],
-      "domains": [
-        "chat"
-      ],
-      "testLevel": "offline-contract",
-      "assertionFocus": [
-        "honest E2EE posture",
-        "non-decorative security state"
-      ]
-    },
-    {
-      "tag": "@weave-live-files-boundary",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member"
-      ],
-      "domains": [
-        "files"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "upload/list/download/cleanup",
-        "Weave-owned files boundary"
+        "Keycloak activation",
+        "system-browser Authorization Code with PKCE",
+        "workspace restoration",
+        "refresh-session continuity",
+        "no credential build arguments"
       ]
     },
     {
@@ -454,60 +406,6 @@
       ]
     },
     {
-      "tag": "@weave-live-provider-stack-readiness",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member",
-        "admin"
-      ],
-      "domains": [
-        "admin-health-ops",
-        "provider-portability"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "backend-owned readiness",
-        "member forbidden from provider registry",
-        "redacted diagnostics"
-      ]
-    },
-    {
-      "tag": "@weave-live-workspace-loop",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member"
-      ],
-      "domains": [
-        "spaces",
-        "chat",
-        "files",
-        "decisions-evidence"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "one Space identity across domains",
-        "capability states",
-        "sanitized evidence"
-      ]
-    },
-    {
-      "tag": "@weave-live-provider-reality-vertical",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member",
-        "operator"
-      ],
-      "domains": [
-        "admin-health-ops",
-        "provider-portability"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "honest provider availability",
-        "release evidence boundaries"
-      ]
-    },
-    {
       "tag": "@weave-v01-home-daily-loop",
       "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
@@ -533,7 +431,6 @@
         "member"
       ],
       "domains": [
-        "identity-idm",
         "spaces"
       ],
       "testLevel": "offline-contract",
@@ -550,7 +447,6 @@
         "operator"
       ],
       "domains": [
-        "identity-idm",
         "spaces",
         "admin-health-ops",
         "operator-release"
@@ -571,7 +467,6 @@
         "operator"
       ],
       "domains": [
-        "identity-idm",
         "admin-health-ops",
         "operator-release"
       ],
@@ -610,7 +505,6 @@
         "admin"
       ],
       "domains": [
-        "identity-idm",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -707,13 +601,12 @@
       ]
     },
     {
-      "tag": "@weave-v01-idm-rbac-capability-policy",
+      "tag": "@weave-v01-keycloak-rbac-capability-policy",
       "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
         "admin"
       ],
       "domains": [
-        "identity-idm",
         "admin-health-ops",
         "agent-runtime-control"
       ],
@@ -802,7 +695,6 @@
       ],
       "domains": [
         "boards-tasks",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -887,7 +779,6 @@
       ],
       "domains": [
         "admin-health-ops",
-        "identity-idm",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
@@ -920,7 +811,6 @@
         "member"
       ],
       "domains": [
-        "identity-idm",
         "spaces"
       ],
       "testLevel": "offline-contract",
@@ -953,7 +843,6 @@
       ],
       "domains": [
         "admin-health-ops",
-        "identity-idm",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
@@ -1004,7 +893,6 @@
       ],
       "domains": [
         "admin-health-ops",
-        "identity-idm",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
@@ -1024,7 +912,6 @@
       ],
       "domains": [
         "admin-health-ops",
-        "identity-idm",
         "provider-portability",
         "agent-runtime-control"
       ],
@@ -1075,7 +962,6 @@
         "operator"
       ],
       "domains": [
-        "identity-idm",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -1151,13 +1037,12 @@
       ]
     },
     {
-      "tag": "@sprint27-identity-provider-boundary",
+      "tag": "@sprint27-platform-identity-federation-boundary",
       "suiteId": "cross-domain-provider-proof",
       "personas": [
         "admin"
       ],
       "domains": [
-        "identity-idm",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
@@ -1208,7 +1093,6 @@
         "admin"
       ],
       "domains": [
-        "identity-idm",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -1246,7 +1130,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -1337,7 +1220,6 @@
       "domains": [
         "provider-portability",
         "admin-health-ops",
-        "identity-idm",
         "spaces"
       ],
       "testLevel": "offline-contract",
@@ -1394,7 +1276,6 @@
       ],
       "domains": [
         "admin-health-ops",
-        "identity-idm",
         "chat",
         "files",
         "calendar",
@@ -1422,7 +1303,6 @@
       "domains": [
         "admin-health-ops",
         "provider-portability",
-        "identity-idm",
         "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
@@ -1467,7 +1347,6 @@
       "domains": [
         "provider-portability",
         "admin-health-ops",
-        "identity-idm",
         "chat",
         "files"
       ],
@@ -1490,7 +1369,6 @@
       "domains": [
         "provider-portability",
         "admin-health-ops",
-        "identity-idm",
         "chat",
         "files",
         "agent-runtime-control"
@@ -1512,7 +1390,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "admin-health-ops",
         "provider-portability"
       ],
@@ -1545,7 +1422,7 @@
       ]
     },
     {
-      "tag": "@northstar-identity-rbac-provider-switch",
+      "tag": "@northstar-platform-identity-federation",
       "suiteId": "northstar-spec-decisions",
       "personas": [
         "admin",
@@ -1553,13 +1430,12 @@
         "member"
       ],
       "domains": [
-        "identity-idm",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "Identity/RBAC provider-switch proof",
-        "no unaccounted data loss"
+        "fixed Keycloak authority",
+        "upstream federation readiness"
       ]
     },
     {
@@ -1622,8 +1498,7 @@
       ],
       "domains": [
         "provider-portability",
-        "admin-health-ops",
-        "identity-idm"
+        "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -1701,13 +1576,12 @@
       ],
       "domains": [
         "provider-portability",
-        "identity-idm",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
         "no-unaccounted-data-loss classification",
-        "Identity/RBAC parity and lifecycle limits",
+        "collaboration provider lifecycle limits",
         "broad lossless/customer-ready wording rejection"
       ]
     },
@@ -1803,7 +1677,6 @@
       ],
       "domains": [
         "meetings-calls",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -1892,7 +1765,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -1943,7 +1815,6 @@
       ],
       "domains": [
         "agent-runtime-control",
-        "identity-idm",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -2029,7 +1900,6 @@
       ],
       "domains": [
         "agent-runtime-control",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2517,7 +2387,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2535,7 +2404,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2553,7 +2421,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2571,7 +2438,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2657,7 +2523,6 @@
       ],
       "domains": [
         "agent-runtime-control",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2675,7 +2540,6 @@
       ],
       "domains": [
         "agent-runtime-control",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2693,7 +2557,6 @@
       ],
       "domains": [
         "agent-runtime-control",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2711,7 +2574,6 @@
       ],
       "domains": [
         "agent-runtime-control",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2952,7 +2814,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2987,7 +2848,6 @@
       ],
       "domains": [
         "agent-runtime-control",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -3004,7 +2864,6 @@
         "operator"
       ],
       "domains": [
-        "identity-idm",
         "spaces",
         "admin-health-ops",
         "provider-portability"
@@ -3079,7 +2938,6 @@
       ],
       "domains": [
         "agent-runtime-control",
-        "identity-idm",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -3097,7 +2955,6 @@
       ],
       "domains": [
         "agent-runtime-control",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -3171,7 +3028,6 @@
         "weaver_user"
       ],
       "domains": [
-        "identity-idm",
         "files",
         "calendar",
         "chat",
@@ -3222,7 +3078,6 @@
       "domains": [
         "files",
         "calendar",
-        "identity-idm",
         "chat",
         "agent-runtime-control",
         "provider-portability",
@@ -3266,7 +3121,6 @@
         "weaver_user"
       ],
       "domains": [
-        "identity-idm",
         "spaces",
         "chat",
         "files",
@@ -3320,7 +3174,7 @@
       "testLevel": "offline-contract",
       "assertionFocus": [
         "gated audit-event persistence",
-        "file default versus JDBC opt-in",
+        "single JPA audit authority without file fallback",
         "retry-safe idempotency",
         "support-safe database failure handling"
       ]
@@ -3340,7 +3194,7 @@
       "testLevel": "offline-contract",
       "assertionFocus": [
         "gated migration-run evidence persistence",
-        "file default versus JDBC opt-in",
+        "single JPA migration-evidence authority without file fallback",
         "provider-switch evidence restart recovery",
         "expiration and support-safe database failure handling"
       ]
@@ -3434,18 +3288,17 @@
     },
     {
       "tag": "@oidc-protocol-access",
-      "suiteId": "member-live-critical-path",
+      "suiteId": "product-e2e-scenario-layer",
       "personas": [
         "member",
         "admin"
       ],
       "domains": [
-        "identity-idm",
         "files",
         "calendar",
         "chat"
       ],
-      "testLevel": "live-e2e",
+      "testLevel": "offline-contract",
       "assertionFocus": [
         "one OIDC bearer reaches all Weave protocol facades",
         "platform config points Chat at the Matrix facade",
@@ -3488,18 +3341,17 @@
     },
     {
       "tag": "@oidc-revoked-token",
-      "suiteId": "member-live-critical-path",
+      "suiteId": "product-e2e-scenario-layer",
       "personas": [
         "member",
         "admin"
       ],
       "domains": [
-        "identity-idm",
         "files",
         "calendar",
         "chat"
       ],
-      "testLevel": "live-e2e",
+      "testLevel": "offline-contract",
       "assertionFocus": [
         "invalid or revoked bearer denial",
         "support-safe errors",
@@ -3533,7 +3385,6 @@
         "operator"
       ],
       "domains": [
-        "identity-idm",
         "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
@@ -3570,7 +3421,6 @@
       ],
       "domains": [
         "agent-runtime-control",
-        "identity-idm",
         "calendar",
         "chat"
       ],
@@ -3583,16 +3433,15 @@
     },
     {
       "tag": "@webdav-device-credential",
-      "suiteId": "member-live-critical-path",
+      "suiteId": "product-e2e-scenario-layer",
       "personas": [
         "member",
         "admin"
       ],
       "domains": [
-        "identity-idm",
         "files"
       ],
-      "testLevel": "live-e2e",
+      "testLevel": "offline-contract",
       "assertionFocus": [
         "one-time Weave device secret",
         "WebDAV-only scope",
@@ -3601,16 +3450,15 @@
     },
     {
       "tag": "@caldav-device-credential",
-      "suiteId": "member-live-critical-path",
+      "suiteId": "product-e2e-scenario-layer",
       "personas": [
         "member",
         "admin"
       ],
       "domains": [
-        "identity-idm",
         "calendar"
       ],
-      "testLevel": "live-e2e",
+      "testLevel": "offline-contract",
       "assertionFocus": [
         "one-time Weave device secret",
         "CalDAV-only scope",
@@ -3619,17 +3467,16 @@
     },
     {
       "tag": "@no-provider-credentials",
-      "suiteId": "member-live-critical-path",
+      "suiteId": "product-e2e-scenario-layer",
       "personas": [
         "member",
         "admin"
       ],
       "domains": [
-        "identity-idm",
         "files",
         "calendar"
       ],
-      "testLevel": "live-e2e",
+      "testLevel": "offline-contract",
       "assertionFocus": [
         "credential list redaction",
         "provider credentials absent",
@@ -4595,8 +4442,7 @@
       ],
       "domains": [
         "files",
-        "calendar",
-        "identity-idm"
+        "calendar"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -4614,8 +4460,7 @@
       ],
       "domains": [
         "files",
-        "calendar",
-        "identity-idm"
+        "calendar"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -4633,8 +4478,7 @@
       ],
       "domains": [
         "files",
-        "calendar",
-        "identity-idm"
+        "calendar"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -4652,99 +4496,13 @@
       ],
       "domains": [
         "files",
-        "calendar",
-        "identity-idm"
+        "calendar"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
         "archive target scenario is checked in",
         "current implementation gap remains explicit",
         "completion claim is blocked until executable evidence replaces the gap marker"
-      ]
-    },
-    {
-      "tag": "@matrix-e2ee-ciphertext-only",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member"
-      ],
-      "domains": [
-        "chat",
-        "identity-idm"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "the client Rust core encrypts and decrypts",
-        "server and evidence surfaces contain ciphertext only",
-        "plaintext writes to encrypted rooms fail closed"
-      ]
-    },
-    {
-      "tag": "@matrix-e2ee-iphone-relaunch",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member"
-      ],
-      "domains": [
-        "chat",
-        "identity-idm"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "installed profile and OIDC refresh session survive relaunch",
-        "Matrix device identity remains stable",
-        "encrypted history remains decryptable after update"
-      ]
-    },
-    {
-      "tag": "@matrix-e2ee-two-device-verification",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member"
-      ],
-      "domains": [
-        "chat",
-        "identity-idm"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "two distinct devices verify through SAS",
-        "numeric and labelled emoji alternatives match",
-        "verification is accessible without server-held private keys"
-      ]
-    },
-    {
-      "tag": "@matrix-e2ee-recovery",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member"
-      ],
-      "domains": [
-        "chat",
-        "identity-idm"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "recovery restores secret storage and key backup",
-        "retained encrypted history becomes decryptable",
-        "recovery material stays out of support evidence"
-      ]
-    },
-    {
-      "tag": "@matrix-e2ee-lost-device",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member"
-      ],
-      "domains": [
-        "chat",
-        "identity-idm"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "lost device loses new key access",
-        "remaining devices keep encrypted delivery",
-        "revocation never downgrades the room"
       ]
     },
     {
@@ -4785,130 +4543,133 @@
     {
       "tag": "@matrix-synapse-durable-collaboration",
       "suiteId": "member-live-critical-path",
-      "personas": ["member", "operator"],
-      "domains": ["chat", "identity-idm", "operator-release"],
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "chat",
+        "operator-release"
+      ],
       "testLevel": "live-e2e",
-      "assertionFocus": ["direct provider acknowledgement", "opaque encrypted events", "backend restart", "provider restart", "outsider denial"]
+      "assertionFocus": [
+        "direct provider acknowledgement",
+        "opaque encrypted events",
+        "backend restart",
+        "provider restart",
+        "outsider denial"
+      ]
     },
     {
       "tag": "@matrix-synapse-outage-idempotency",
       "suiteId": "member-live-critical-path",
-      "personas": ["member", "operator"],
-      "domains": ["chat", "admin-health-ops", "operator-release"],
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "chat",
+        "admin-health-ops",
+        "operator-release"
+      ],
       "testLevel": "live-e2e",
-      "assertionFocus": ["provider outage containment", "invisible pending event", "exactly-once retry", "provider callback replay"]
-    },
-    {
-      "tag": "@human-ready-auth-shell",
-      "suiteId": "member-live-critical-path",
-      "personas": ["member"],
-      "domains": ["identity-idm", "spaces"],
-      "testLevel": "live-e2e",
-      "assertionFocus": ["three isolated identities", "independent PKCE sessions", "relaunch restoration", "all current routes"]
-    },
-    {
-      "tag": "@human-ready-home-collaboration",
-      "suiteId": "member-live-critical-path",
-      "personas": ["member"],
-      "domains": ["spaces", "admin-health-ops"],
-      "testLevel": "live-e2e",
-      "assertionFocus": ["shared recent activity", "private activity isolation", "fresh authenticated sessions"]
-    },
-    {
-      "tag": "@human-ready-chat-collaboration",
-      "suiteId": "member-live-critical-path",
-      "personas": ["member"],
-      "domains": ["chat", "identity-idm"],
-      "testLevel": "live-e2e",
-      "assertionFocus": ["cross-user encrypted messages", "ciphertext-only transport", "outsider denial"]
-    },
-    {
-      "tag": "@human-ready-files-collaboration",
-      "suiteId": "member-live-critical-path",
-      "personas": ["member"],
-      "domains": ["files", "identity-idm"],
-      "testLevel": "live-e2e",
-      "assertionFocus": ["cross-user checksum", "authorized update", "outsider denial", "artifact cleanup"]
-    },
-    {
-      "tag": "@human-ready-calendar-collaboration",
-      "suiteId": "member-live-critical-path",
-      "personas": ["member"],
-      "domains": ["calendar", "identity-idm"],
-      "testLevel": "live-e2e",
-      "assertionFocus": ["workspace event collaboration", "fresh-session observation", "outsider denial"]
-    },
-    {
-      "tag": "@human-ready-settings-profile",
-      "suiteId": "member-live-critical-path",
-      "personas": ["member"],
-      "domains": ["identity-idm", "admin-health-ops"],
-      "testLevel": "live-e2e",
-      "assertionFocus": ["profile isolation", "preference durability", "build identity", "independent logout"]
-    },
-    {
-      "tag": "@human-ready-failure-containment",
-      "suiteId": "member-live-critical-path",
-      "personas": ["member"],
-      "domains": ["calendar", "spaces", "admin-health-ops"],
-      "testLevel": "live-e2e",
-      "assertionFocus": ["domain-local degradation", "shell continuity", "accessible unavailable state"]
-    },
-    {
-      "tag": "@human-ready-authorization",
-      "suiteId": "member-live-critical-path",
-      "personas": ["member"],
-      "domains": ["identity-idm", "chat", "files", "calendar"],
-      "testLevel": "live-e2e",
-      "assertionFocus": ["missing capability", "wrong workspace", "expired token", "revoked session"]
-    },
-    {
-      "tag": "@human-ready-cleanup",
-      "suiteId": "member-live-critical-path",
-      "personas": ["operator", "member"],
-      "domains": ["identity-idm", "operator-release", "chat", "files", "calendar"],
-      "testLevel": "live-e2e",
-      "assertionFocus": ["namespace-scoped cleanup", "hashed evidence only", "persistent human unchanged"]
+      "assertionFocus": [
+        "provider outage containment",
+        "invisible pending event",
+        "exactly-once retry",
+        "provider callback replay"
+      ]
     },
     {
       "tag": "@human-ready-legacy-upgrade",
       "suiteId": "v0-1-dogfood-release-spine",
-      "personas": ["member"],
-      "domains": ["identity-idm", "spaces"],
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "spaces"
+      ],
       "testLevel": "offline-contract",
-      "assertionFocus": ["legacy storage upgrade", "session preservation", "obsolete first-run architecture absent"]
+      "assertionFocus": [
+        "legacy storage upgrade",
+        "session preservation",
+        "obsolete first-run architecture absent"
+      ]
     },
     {
       "tag": "@human-ready-dogfood-deployment",
       "suiteId": "member-live-critical-path",
-      "personas": ["operator"],
-      "domains": ["operator-release", "admin-health-ops", "identity-idm"],
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "operator-release",
+        "admin-health-ops"
+      ],
       "testLevel": "live-e2e",
-      "assertionFocus": ["two non-destructive installs", "Compose and reconciliation idempotence", "cached provider health", "persistent state invariants"]
+      "assertionFocus": [
+        "two non-destructive installs",
+        "OpenTofu idempotence",
+        "cached provider health",
+        "persistent state invariants"
+      ]
     },
     {
       "tag": "@human-ready-ios-distribution",
       "suiteId": "member-live-critical-path",
-      "personas": ["operator", "member"],
-      "domains": ["operator-release", "identity-idm"],
+      "personas": [
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "operator-release"
+      ],
       "testLevel": "live-e2e",
-      "assertionFocus": ["exact-candidate TestFlight build", "in-place upgrade", "protected approval", "blocked waiting state"]
+      "assertionFocus": [
+        "exact-candidate TestFlight build",
+        "in-place upgrade",
+        "protected approval",
+        "blocked waiting state"
+      ]
     },
     {
       "tag": "@human-ready-physical-voiceover",
       "suiteId": "member-live-critical-path",
-      "personas": ["member"],
-      "domains": ["identity-idm", "spaces", "chat", "files", "calendar"],
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "chat",
+        "files",
+        "calendar"
+      ],
       "testLevel": "live-e2e",
-      "assertionFocus": ["physical iPhone", "VoiceOver", "Dynamic Type", "touch targets", "session upgrade"]
+      "assertionFocus": [
+        "physical iPhone",
+        "VoiceOver",
+        "Dynamic Type",
+        "touch targets",
+        "session upgrade"
+      ]
     },
     {
       "tag": "@human-ready-manifest",
       "suiteId": "member-live-critical-path",
-      "personas": ["operator"],
-      "domains": ["operator-release", "admin-health-ops"],
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "operator-release",
+        "admin-health-ops"
+      ],
       "testLevel": "live-e2e",
-      "assertionFocus": ["single fail-closed manifest", "exact candidate", "explicit blockers", "main promotion denial"]
+      "assertionFocus": [
+        "single fail-closed manifest",
+        "exact candidate",
+        "explicit blockers",
+        "main promotion denial"
+      ]
     }
   ]
 }

@@ -8,7 +8,7 @@ import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateReques
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationResponse;
-import com.massimotter.weave.backend.model.admin.IdentityProviderReadinessResponse;
+import com.massimotter.weave.backend.model.admin.PlatformIdentityReadinessResponse;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapRequest;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapResponse;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestRequest;
@@ -91,13 +91,13 @@ public class AdminControlPlaneController {
         return adminControlPlaneService.simulateEffectivePolicy(request, jwt);
     }
 
-    @GetMapping({"/api/admin/identity/readiness", "/api/v1/admin/identity/readiness"})
+    @GetMapping("/api/admin/platform/identity/readiness")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
-    @Operation(operationId = "getIdentityProviderReadiness", summary = "Read support-safe identity provider readiness for Workspace Health")
-    @ApiResponse(responseCode = "200", description = "Backend-owned identity provider readiness facade.",
-            content = @Content(schema = @Schema(implementation = IdentityProviderReadinessResponse.class)))
-    public IdentityProviderReadinessResponse identityProviderReadiness(@AuthenticationPrincipal Jwt jwt) {
-        return adminControlPlaneService.identityProviderReadiness(jwt);
+    @Operation(operationId = "getPlatformIdentityReadiness", summary = "Read support-safe fixed Keycloak platform readiness")
+    @ApiResponse(responseCode = "200", description = "Backend-owned platform identity readiness.",
+            content = @Content(schema = @Schema(implementation = PlatformIdentityReadinessResponse.class)))
+    public PlatformIdentityReadinessResponse platformIdentityReadiness(@AuthenticationPrincipal Jwt jwt) {
+        return adminControlPlaneService.platformIdentityReadiness(jwt);
     }
 
     @PostMapping({"/api/admin/organizations/bootstrap", "/api/v1/admin/organizations/bootstrap"})

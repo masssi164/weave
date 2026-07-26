@@ -32,8 +32,6 @@ LEVELS = [
 ]
 OLD_LEVELS = {"configured_readiness", "live_adapter_read", "live_adapter_write"}
 REQUIRED_PROVIDERS = {
-    "keycloak": "identity",
-    "authentik": "identity",
     "matrix-synapse": "chat",
     "zulip": "chat",
     "nextcloud": "files",

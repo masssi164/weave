@@ -120,7 +120,6 @@ class ProviderRegistryControllerTest {
     }
 
     private void selectDefaultProviders() {
-        providerSelectionRepository.save(selection("identity-idm", "keycloak-realm", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("chat", "synapse-homeserver", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("files", "nextcloud-files", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("calendar", "nextcloud-caldav", "recommended_self_hosted_default"));
@@ -173,7 +172,8 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.canonicalDomainRegistry.registryVersion").value("canonical-domain-registry-v1"))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.providerNamesInMemberContractsAllowed").value(false))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.domains[*].key", hasItems(
-                        "identity", "people", "spaces", "chat", "files", "documents", "calendar", "boards", "calls", "decisions", "notifications", "health", "agent-runtime-control")))
+                        "people", "spaces", "chat", "files", "documents", "calendar", "boards", "calls", "decisions", "notifications", "health", "agent-runtime-control")))
+                .andExpect(jsonPath("$.canonicalDomainRegistry.domains[?(@.key == 'identity')]").isEmpty())
                 .andExpect(jsonPath("$.canonicalDomainRegistry.memberStates[*]", hasItems("available", "disabled_by_policy", "not_configured", "degraded", "unavailable", "coming_later")))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.adminStates[*]", hasItems("provider_not_configured", "dry_run_required", "lossy_mapping_pending", "apply_blocked", "migration_ready")))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.lossClasses[*]", hasItems("lossless_canonical", "lossy_with_report", "blocked_nonportable", "provider_unexportable")))
@@ -186,16 +186,9 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.domainAdapterRegistry.domains[?(@.domain == 'chat')].activeAdapter", hasItems("synapse-homeserver")))
                 .andExpect(jsonPath("$.domainAdapterRegistry.domains[?(@.domain == 'chat')].candidates[*].diagnostics.secretsReturned", hasItems(false)))
                 .andExpect(jsonPath("$.categories[*].category", hasItems(
-                        "identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "decisions-evidence", "manuals-help", "release-evidence", "admin-control-plane", "agent-runtime-control")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].readiness", hasItems("ready")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].selectedByAdmin", hasItems(true)))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].bootstrapSuggestionOnly", hasItems(false)))
-                .andExpect(jsonPath("$.selectedProviderMappings[*].providerKey", hasItems("keycloak-realm", "synapse-homeserver", "openproject-primary")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].contract.defaultAdapters[*]", hasItems("keycloak-realm")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].contract.externalAdapters[*]", hasItems("entra-id", "generic-oidc")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].contract.choiceModels[*].choiceModel", hasItems("recommended_self_hosted_default", "external_existing_provider", "managed_cloud_provider")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].contract.choiceModels[?(@.choiceModel == 'recommended_self_hosted_default')].recommended", hasItems(true)))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].contract.choiceModels[?(@.choiceModel == 'managed_cloud_provider')].adminRiskNotes[*]", hasItems(containsString("privacy"))))
+                        "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "decisions-evidence", "manuals-help", "release-evidence", "admin-control-plane", "agent-runtime-control")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')]").isEmpty())
+                .andExpect(jsonPath("$.selectedProviderMappings[*].providerKey", hasItems("synapse-homeserver", "openproject-primary")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'calendar')].readiness", hasItems("degraded")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'boards-tasks')].readiness", hasItems("policy_blocked")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'meetings-calls')].readiness", hasItems("misconfigured")))
@@ -218,14 +211,13 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.categories[*].diagnostics.secretsReturned", hasItems(false)))
                 .andExpect(jsonPath("$.categories[*].diagnostics.rawProviderErrorsReturned", hasItems(false)))
                 .andExpect(jsonPath("$.providers[*].module", hasItems(
-                        "identity-realm", "matrix", "matrix-auth", "files", "office", "calendar", "contacts", "forms", "boards",
+                        "matrix", "files", "office", "calendar", "contacts", "forms", "boards",
                         "meetings", "source-control", "ci", "issue-tracker", "release")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'identity-realm')]").isEmpty())
+                .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')]").isEmpty())
                 .andExpect(jsonPath("$.providers[?(@.module == 'matrix')].providerKey", hasItems("synapse-homeserver")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'matrix')].failClosed", hasItems(true)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'matrix')].supportSafe", hasItems(true)))
-                .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].providerKey", hasItems("matrix-authentication-service")))
-                .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].failClosed", hasItems(true)))
-                .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].supportSafe", hasItems(true)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].providerKey", hasItems("onlyoffice")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].supportedCapabilities[0]").isEmpty())
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].diagnostics.providerRealityLevel", hasItems("contract_only")))

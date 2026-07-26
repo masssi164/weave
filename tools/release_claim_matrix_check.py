@@ -27,7 +27,7 @@ CLAIM_MATRIX_REQUIRED_CLAIMS = [
     "Provider-neutral replacement dry-run",
     "no-unaccounted-data-loss",
     "Workload-only Agent Runtime Control target",
-    "broad autonomous AI availability",
+    "unrestricted autonomous AI",
 ]
 MEETING_REQUIRED_BOUNDARIES = [
     "LiveKit is the first replaceable southbound SFU adapter",
@@ -46,8 +46,8 @@ REQUIRED_REALITY_LEVELS = [
     "release_ready",
 ]
 FORBIDDEN_READY_CLAIMS = [
-    "broad autonomous AI availability. | Ready",
-    "broad autonomous AI availability | Ready",
+    "unrestricted autonomous AI. | Ready",
+    "unrestricted autonomous AI | Ready",
     "production provider migration. | Ready",
     "lossless migration. | Ready",
 ]

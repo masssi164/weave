@@ -1,6 +1,5 @@
 package com.massimotter.weave.backend.config;
 
-import com.massimotter.weave.backend.agentruntime.adapter.ClientSecretKeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAgentRuntimeWorkloadIdentityAdmin;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeIdentityAuthority;
 import java.net.URI;
@@ -180,8 +179,8 @@ public class AgentRuntimeWorkloadIdentityProperties {
                 accessTokenLifespanSeconds);
     }
 
-    public ClientSecretKeycloakAdminAccessTokenProvider.Settings workloadAdminTokenSettings() {
-        return new ClientSecretKeycloakAdminAccessTokenProvider.Settings(
+    public SpringSecurityKeycloakAdminAccessTokenProvider.Settings workloadAdminTokenSettings() {
+        return new SpringSecurityKeycloakAdminAccessTokenProvider.Settings(
                 keycloakAdminBaseUrl,
                 realm,
                 adminClientId,
@@ -189,8 +188,8 @@ public class AgentRuntimeWorkloadIdentityProperties {
                 timeout);
     }
 
-    public ClientSecretKeycloakAdminAccessTokenProvider.Settings entitlementTokenSettings() {
-        return new ClientSecretKeycloakAdminAccessTokenProvider.Settings(
+    public SpringSecurityKeycloakAdminAccessTokenProvider.Settings entitlementTokenSettings() {
+        return new SpringSecurityKeycloakAdminAccessTokenProvider.Settings(
                 keycloakAdminBaseUrl,
                 realm,
                 entitlementClientId,

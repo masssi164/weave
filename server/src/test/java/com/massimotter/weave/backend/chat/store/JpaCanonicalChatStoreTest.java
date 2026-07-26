@@ -564,12 +564,7 @@ class JpaCanonicalChatStoreTest {
     }
 
     private DriverManagerDataSource dataSource() {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName("org.h2.Driver");
-        dataSource.setUrl("jdbc:h2:mem:" + UUID.randomUUID()
-                + ";MODE=PostgreSQL;DATABASE_TO_UPPER=true;DB_CLOSE_DELAY=-1");
-        dataSource.setUsername("sa");
-        dataSource.setPassword("");
-        return dataSource;
+        return com.massimotter.weave.backend.testing.JpaTestDatabase
+                .dataSource("canonical-chat");
     }
 }

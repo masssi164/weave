@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeWorklo
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadReconciliationReport;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateStore;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
+import com.massimotter.weave.backend.persistence.jpa.readiness.JpaPersistenceReadinessProbe;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -12,22 +13,24 @@ import org.springframework.stereotype.Service;
 @Service
 public class LocalDependencyReadinessService {
 
-    private final PersistenceHealthProbe persistenceHealth;
+    private final JpaPersistenceReadinessProbe persistenceReadinessProbe;
     private final RuntimeStateStore runtimeStateStore;
     private final AgentRuntimeWorkloadReconciliationService workloadReconciliation;
 
     public LocalDependencyReadinessService(
-            PersistenceHealthProbe persistenceHealth,
+            Optional<JpaPersistenceReadinessProbe> persistenceReadinessProbe,
             Optional<RuntimeStateStore> runtimeStateStore,
             Optional<AgentRuntimeWorkloadReconciliationService> workloadReconciliation) {
-        this.persistenceHealth = persistenceHealth;
+        this.persistenceReadinessProbe = persistenceReadinessProbe.orElse(null);
         this.runtimeStateStore = runtimeStateStore.orElse(null);
         this.workloadReconciliation = workloadReconciliation.orElse(null);
     }
 
     public List<PlatformStatusResponse.DiagnosticCheck> checks() {
         List<PlatformStatusResponse.DiagnosticCheck> checks = new ArrayList<>();
-        checks.add(persistenceCheck());
+        if (persistenceReadinessProbe != null) {
+            checks.add(persistenceCheck());
+        }
         if (runtimeStateStore != null) {
             checks.add(runtimeStateCheck());
         }
@@ -79,7 +82,7 @@ public class LocalDependencyReadinessService {
 
     private PlatformStatusResponse.DiagnosticCheck persistenceCheck() {
         try {
-            if (persistenceHealth.ready()) {
+            if (persistenceReadinessProbe.isReady()) {
                 return new PlatformStatusResponse.DiagnosticCheck(
                         "persistence",
                         "Persistence",
@@ -89,7 +92,7 @@ public class LocalDependencyReadinessService {
                         null);
             }
         } catch (RuntimeException ignored) {
-            // Readiness responses must never disclose URLs, credentials, or driver details.
+            // Readiness responses must never disclose persistence URLs, credentials, or provider details.
         }
         return new PlatformStatusResponse.DiagnosticCheck(
                 "persistence",

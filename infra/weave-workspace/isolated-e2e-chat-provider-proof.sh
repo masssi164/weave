@@ -112,7 +112,7 @@ verify_chat_runtime() {
     --arg runId "${RUN_ID}" \
     --arg matrixInternalBaseUrl "http://${SYNAPSE_CONTAINER}:8008" '
     index("WEAVE_CHAT_PROVIDER=matrix-synapse") != null and
-    index("WEAVE_CHAT_STORAGE_MODE=jdbc") != null and
+    index("WEAVE_CHAT_STORAGE_MODE=jpa") != null and
     index("WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL=" + $matrixInternalBaseUrl) != null and
     index("WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE=/run/weave-chat-appservice/as-token") != null and
     index("WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE=/run/weave-chat-appservice/hs-token") != null and

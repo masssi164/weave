@@ -22,7 +22,7 @@ import static org.mockito.Mockito.when;
 
 class WorkspaceCapabilityServiceTest {
 
-    // V01_IDM_RBAC_CAPABILITY_POLICY
+    // V01_KEYCLOAK_RBAC_CAPABILITY_POLICY
 
     @Test
     void delegatedMcpTokenRetainsMemberCapabilitiesThroughTheWeaveAppClientRole() {
@@ -356,8 +356,8 @@ class WorkspaceCapabilityServiceTest {
 
         var policy = service.policySnapshot(jwt(List.of("admin"), List.of("/capabilities/weaver")));
 
-        assertThat(policy.defaultIdmProvider()).isEqualTo("OIDC/SAML selected IDM");
-        assertThat(policy.adapterContract()).contains("OIDC/SAML");
+        assertThat(policy.platformIdentityAuthority()).isEqualTo("Keycloak");
+        assertThat(policy.federationContract()).contains("LDAP", "OIDC", "SAML");
         assertThat(policy.roles()).containsExactly("admin");
         assertThat(policy.groups()).containsExactly("/capabilities/weaver");
         assertThat(policy.profileKeys()).contains("workspace-admin", "group:/capabilities/weaver");

@@ -5,7 +5,9 @@ Status: Sprint 28 readiness/specification evidence only. This document does not 
 Governing spec corpus references:
 
 - `domains/chat/spec.md` at corpus commit `24c746c674da7d98e5c6abc1f1abac033a8774f2`: Chat is provider-neutral; Slack and Microsoft Teams are candidate providers behind Weave-owned contracts.
-- `domains/identity-idm/spec.md`: identity, groups, guests, service principals, and deprovisioning are provider-neutral IDM concerns.
+- `platform/identity-security/spec.md`: Keycloak is the platform identity
+  authority; groups, guests, service principals, federation/brokering, and
+  deprovisioning stay behind that platform boundary.
 - `domains/admin-health-ops/spec.md`: provider readiness, diagnostics, backup/restore, support bundles, and operator evidence are admin/operator-owned.
 - `steering/provider-portability-principles.md`: unsupported, lossy, vendor-locked, archived, retained, and manual-review states must be explicit.
 

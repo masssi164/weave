@@ -1,0 +1,303 @@
+name: Candidate Images
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: candidate-images-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  SERVER_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-server
+  MCP_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-mcp-server
+  IDENTITY_OPS_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-identity-ops
+
+jobs:
+  build-candidate:
+    name: Test, attest, and publish exact candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      server_digest: ${{ steps.server.outputs.digest }}
+      mcp_digest: ${{ steps.mcp.outputs.digest }}
+
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Authenticate to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Derive immutable build identity
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          created="$(git show -s --format=%cI "$GITHUB_SHA")"
+          version="0.1.0-dev.${GITHUB_SHA:0:12}"
+          spec_digest="sha256:$(shasum -a 256 specs/weave-specs.lock.json | awk '{print $1}')"
+          {
+            echo "created=$created"
+            echo "version=$version"
+            echo "spec_digest=$spec_digest"
+            echo "tag_sha=sha-$GITHUB_SHA"
+            echo "tag_run=candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Verify JVM and PostgreSQL candidate gates
+        run: |
+          ./gradlew --no-daemon --max-workers=2 \
+            serverCi \
+            mcpCi \
+            :weave-application-core:test \
+            :weave-files-core:test \
+            :weave-persistence-jpa:test \
+            :weave-runtime-provider-adapters:test \
+            :weave-runtime-security-adapters:test \
+            :weave-product-e2e:test \
+            :server:bootJar \
+            :weave-mcp-server:bootJar
+
+      - name: Build and publish Server
+        id: server
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: server/Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: mode=max
+          sbom: true
+          tags: |
+            ${{ env.SERVER_IMAGE }}:${{ steps.identity.outputs.tag_sha }}
+            ${{ env.SERVER_IMAGE }}:${{ steps.identity.outputs.tag_run }}
+          build-args: |
+            WEAVE_IMAGE_CREATED=${{ steps.identity.outputs.created }}
+            WEAVE_IMAGE_REVISION=${{ github.sha }}
+            WEAVE_IMAGE_VERSION=${{ steps.identity.outputs.version }}
+            WEAVE_SPEC_DIGEST=${{ steps.identity.outputs.spec_digest }}
+            WEAVE_SBOM_REFERENCE=embedded-buildkit-spdx
+            WEAVE_PROVENANCE_REFERENCE=embedded-buildkit-slsa
+          cache-from: type=gha,scope=candidate-server
+          cache-to: type=gha,mode=max,scope=candidate-server
+
+      - name: Build and publish MCP Server
+        id: mcp
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: weave-mcp-server/Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: mode=max
+          sbom: true
+          tags: |
+            ${{ env.MCP_IMAGE }}:${{ steps.identity.outputs.tag_sha }}
+            ${{ env.MCP_IMAGE }}:${{ steps.identity.outputs.tag_run }}
+          build-args: |
+            WEAVE_IMAGE_CREATED=${{ steps.identity.outputs.created }}
+            WEAVE_IMAGE_REVISION=${{ github.sha }}
+            WEAVE_IMAGE_VERSION=${{ steps.identity.outputs.version }}
+            WEAVE_SPEC_DIGEST=${{ steps.identity.outputs.spec_digest }}
+            WEAVE_SBOM_REFERENCE=embedded-buildkit-spdx
+            WEAVE_PROVENANCE_REFERENCE=embedded-buildkit-slsa
+          cache-from: type=gha,scope=candidate-mcp
+          cache-to: type=gha,mode=max,scope=candidate-mcp
+
+      - name: Build and publish Identity Ops
+        id: identity_ops
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infra/identity-ops/Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: mode=max
+          sbom: true
+          tags: |
+            ${{ env.IDENTITY_OPS_IMAGE }}:${{ steps.identity.outputs.tag_sha }}
+            ${{ env.IDENTITY_OPS_IMAGE }}:${{ steps.identity.outputs.tag_run }}
+          build-args: |
+            WEAVE_IMAGE_CREATED=${{ steps.identity.outputs.created }}
+            WEAVE_IMAGE_REVISION=${{ github.sha }}
+            WEAVE_IMAGE_VERSION=${{ steps.identity.outputs.version }}
+            WEAVE_SPEC_DIGEST=${{ steps.identity.outputs.spec_digest }}
+            WEAVE_SBOM_REFERENCE=embedded-buildkit-spdx
+            WEAVE_PROVENANCE_REFERENCE=embedded-buildkit-slsa
+          cache-from: type=gha,scope=candidate-identity-ops
+          cache-to: type=gha,mode=max,scope=candidate-identity-ops
+
+      - name: Verify published OCI runtime metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_label() {
+            docker image inspect \
+              --format "{{ index .Config.Labels \"$2\" }}" \
+              "$1"
+          }
+          validate_published_image() {
+            local image="$1"
+            local title="$2"
+            local module="$3"
+            local runtime_user="$4"
+            local dependency_platform="$5"
+            docker pull "$image"
+            [[ "$(docker image inspect --format '{{.Config.User}}' "$image")" == "$runtime_user" ]]
+            [[ "$(image_label "$image" org.opencontainers.image.title)" == "$title" ]]
+            [[ "$(image_label "$image" org.opencontainers.image.revision)" == "$GITHUB_SHA" ]]
+            [[ "$(image_label "$image" com.massimotter.weave.spec-digest)" == "${{ steps.identity.outputs.spec_digest }}" ]]
+            [[ "$(image_label "$image" com.massimotter.weave.module)" == "$module" ]]
+            [[ "$(image_label "$image" com.massimotter.weave.runtime-user)" == "$runtime_user" ]]
+            [[ "$(image_label "$image" com.massimotter.weave.dependency-platform)" == "$dependency_platform" ]]
+          }
+          validate_published_image \
+            "${SERVER_IMAGE}@${{ steps.server.outputs.digest }}" \
+            "Weave Server" \
+            "server" \
+            "10001:10001" \
+            "java21-spring-boot-4.1"
+          validate_published_image \
+            "${MCP_IMAGE}@${{ steps.mcp.outputs.digest }}" \
+            "Weave MCP Server" \
+            "weave-mcp-server" \
+            "10001:10001" \
+            "java21-spring-boot-4.1-spring-ai-2.0"
+          validate_published_image \
+            "${IDENTITY_OPS_IMAGE}@${{ steps.identity_ops.outputs.digest }}" \
+            "Weave Identity Ops" \
+            "identity-ops" \
+            "65532:65532" \
+            "alpine-3.22.1-opentofu-1.10.6-keycloak-provider"
+
+      - name: Resolve exact OCI attestation digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/candidate
+          python3 gradle/tasks/oci-attestation-digests.py \
+            --image "${SERVER_IMAGE}@${{ steps.server.outputs.digest }}" \
+            --output build/candidate/server-attestations.json
+          python3 gradle/tasks/oci-attestation-digests.py \
+            --image "${MCP_IMAGE}@${{ steps.mcp.outputs.digest }}" \
+            --output build/candidate/mcp-attestations.json
+          python3 gradle/tasks/oci-attestation-digests.py \
+            --image "${IDENTITY_OPS_IMAGE}@${{ steps.identity_ops.outputs.digest }}" \
+            --output build/candidate/identity-ops-attestations.json
+
+      - name: Create immutable candidate manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_ref="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}"
+          ./gradlew createCandidateManifest \
+            "-PcandidateCommit=$GITHUB_SHA" \
+            "-PspecDigest=${{ steps.identity.outputs.spec_digest }}" \
+            "-PbuildEvidenceRef=$evidence_ref" \
+            "-PserverImage=${SERVER_IMAGE}@${{ steps.server.outputs.digest }}" \
+            "-PserverSbomDigest=$(jq -r .sbomDigest build/candidate/server-attestations.json)" \
+            "-PserverProvenanceDigest=$(jq -r .provenanceDigest build/candidate/server-attestations.json)" \
+            "-PmcpServerImage=${MCP_IMAGE}@${{ steps.mcp.outputs.digest }}" \
+            "-PmcpServerSbomDigest=$(jq -r .sbomDigest build/candidate/mcp-attestations.json)" \
+            "-PmcpServerProvenanceDigest=$(jq -r .provenanceDigest build/candidate/mcp-attestations.json)" \
+            "-PidentityOpsImage=${IDENTITY_OPS_IMAGE}@${{ steps.identity_ops.outputs.digest }}" \
+            "-PidentityOpsSbomDigest=$(jq -r .sbomDigest build/candidate/identity-ops-attestations.json)" \
+            "-PidentityOpsProvenanceDigest=$(jq -r .provenanceDigest build/candidate/identity-ops-attestations.json)" \
+            "-PcandidateManifest=$GITHUB_WORKSPACE/build/candidate/candidate-manifest.json"
+
+      - name: Upload candidate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-manifest-${{ github.sha }}
+          path: |
+            build/candidate/candidate-manifest.json
+            build/candidate/candidate-manifest.json.sha256
+            build/candidate/*-attestations.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Summarize immutable deployment inputs
+        shell: bash
+        run: |
+          {
+            echo "## Weave candidate"
+            echo
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Server: \`${SERVER_IMAGE}@${{ steps.server.outputs.digest }}\`"
+            echo "- MCP: \`${MCP_IMAGE}@${{ steps.mcp.outputs.digest }}\`"
+            echo "- Identity Ops: \`${IDENTITY_OPS_IMAGE}@${{ steps.identity_ops.outputs.digest }}\`"
+            echo "- Deployment proof: candidate manifest digest, never a tag"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  fresh-product-proof:
+    name: Fresh invitation, OIDC, MCP, provider, and cleanup proof
+    needs: build-candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      WEAVE_TEST_APP_SERVER_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-server@${{ needs.build-candidate.outputs.server_digest }}
+      WEAVE_TEST_APP_MCP_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-mcp-server@${{ needs.build-candidate.outputs.mcp_digest }}
+      WEAVE_TEST_APP_RUN_ID: candidate-${{ github.run_id }}-${{ github.run_attempt }}
+      WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
+      WEAVE_CANDIDATE_EVIDENCE_REF: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.10.6
+          tofu_wrapper: false
+
+      - name: Authenticate exact candidate pulls
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Run the isolated Fresh product proof
+        run: ./gradlew --no-daemon testApp
+
+      - name: Upload support-safe Fresh evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-product-proof-${{ github.sha }}
+          path: |
+            build/test-app/*/identity-manifest.json
+            build/test-app/*/test-app-product-flow.json
+            build/test-app/*/test-app-teardown.json
+          if-no-files-found: warn
+          retention-days: 30

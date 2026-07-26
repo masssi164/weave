@@ -18,9 +18,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
-import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,202 +30,216 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest(properties = {
-        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
-        "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://auth.weave.test/realms/weave/protocol/openid-connect/certs",
-        "weave.mcp.exchange-client-key-file=/tmp/weave-mcp-test-private-jwk.json",
-        "weave.mcp.application-core.enabled=false",
-        "management.endpoint.health.group.readiness.include=readinessState,mcpWorkloadBoundary"
-})
+@SpringBootTest(
+    properties = {
+      "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
+      "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://auth.weave.test/realms/weave/protocol/openid-connect/certs",
+      "weave.mcp.exchange-client-jwk-file=/tmp/weave-mcp-test-private.jwk"
+    })
 @AutoConfigureMockMvc
 class SpringAiMcpTransportTest {
-    // V01_MCP_WORKLOAD_BOUNDARY
-    private static final String RESOURCE = "https://api.weave.test/mcp";
-    private static final String EDGE = "weave-mcp-server";
-    private static final String CELL = "weaver-cell-test";
-    private static final String SUBJECT = "service-account-cell-subject";
-    private static final Set<String> DOMAIN_SCOPES = Set.of("calendar.read");
+  // V01_MCP_WORKLOAD_BOUNDARY
+  private static final String RESOURCE = "https://api.weave.test/mcp";
+  private static final String EDGE = "weave-mcp-server";
+  private static final String CELL = "weaver-cell-test";
+  private static final String SUBJECT = "service-account-cell-subject";
+  private static final Set<String> DOMAIN_SCOPES = Set.of("files.read");
 
-    @Autowired
-    private MockMvc mvc;
+  @Autowired private MockMvc mvc;
 
-    @MockitoBean
-    private JwtDecoder jwtDecoder;
+  @MockitoBean private JwtDecoder jwtDecoder;
 
-    @MockitoBean
-    private McpBackendTokenExchange exchange;
+  @MockitoBean private McpBackendTokenExchange exchange;
 
-    @MockitoBean
-    private McpExchangedJwtDecoder exchangedJwtDecoder;
+  private ExchangedAccessToken exchanged;
 
-    @MockitoBean
-    private McpWorkloadAuthorizationService authorization;
+  @BeforeEach
+  void authorizeBoundWorkload() {
+    when(jwtDecoder.decode(anyString())).thenAnswer(invocation -> token(invocation.getArgument(0)));
+    Instant now = Instant.now();
+    exchanged =
+        new ExchangedAccessToken(
+            "backend-token",
+            SUBJECT,
+            EDGE,
+            Set.of("https://api.weave.test/api"),
+            DOMAIN_SCOPES,
+            now,
+            now.plusSeconds(30));
+    when(exchange.exchange(any(), anyString(), eq(DOMAIN_SCOPES))).thenReturn(exchanged);
+  }
 
-    private ExchangedAccessToken exchanged;
+  @Test
+  void publishesProtectedResourceMetadataWithoutAuthentication() throws Exception {
+    mvc.perform(get(McpSecurityConfiguration.PROTECTED_RESOURCE_METADATA_PATH))
+        .andExpect(status().isOk())
+        .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")))
+        .andExpect(jsonPath("$.resource", is(RESOURCE)))
+        .andExpect(
+            jsonPath("$.authorization_servers[0]", is("https://auth.weave.test/realms/weave")))
+        .andExpect(jsonPath("$.scopes_supported[0]", is("mcp:tools")))
+        .andExpect(jsonPath("$.scopes_supported[1]", is("files.read")));
+  }
 
-    @BeforeEach
-    void authorizeBoundWorkload() {
-        when(jwtDecoder.decode(anyString())).thenAnswer(invocation -> token(invocation.getArgument(0)));
-        Instant now = Instant.now();
-        exchanged = new ExchangedAccessToken(
-                "backend-token",
-                SUBJECT,
-                EDGE,
-                Set.of("https://api.weave.test/api"),
-                DOMAIN_SCOPES,
-                now,
-                now.plusSeconds(30));
-        when(exchange.exchange(any(), anyString(), eq(DOMAIN_SCOPES))).thenReturn(exchanged);
-        when(exchangedJwtDecoder.decode("backend-token")).thenReturn(exchangedToken(now));
-        when(authorization.authorize(any())).thenReturn(new WeaverWorkloadPrincipal(
-                "https://auth.weave.test/realms/weave",
-                SUBJECT,
-                CELL,
-                EDGE,
-                "org:test",
-                "person:test",
-                new RuntimeMemberBinding("https://auth.weave.test/realms/weave", "member-subject"),
-                "cell:test",
-                "rp_test",
-                "sha256:" + "c".repeat(64),
-                "sha256:" + "d".repeat(64),
-                now.plusSeconds(30),
-                DOMAIN_SCOPES,
-                DOMAIN_SCOPES));
-    }
+  @Test
+  void missingBearerReceivesDiscoverableRfc9728Challenge() throws Exception {
+    mvc.perform(mcpInitialize(null, true))
+        .andExpect(status().isUnauthorized())
+        .andExpect(
+            header()
+                .string(
+                    HttpHeaders.WWW_AUTHENTICATE,
+                    containsString(
+                        "resource_metadata=\"https://api.weave.test/.well-known/oauth-protected-resource/mcp\"")));
+    verify(exchange, never()).exchange(any(), anyString(), any());
+  }
 
-    @Test
-    void publishesProtectedResourceMetadataWithoutAuthentication() throws Exception {
-        mvc.perform(get(McpSecurityConfiguration.PROTECTED_RESOURCE_METADATA_PATH))
-                .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")))
-                .andExpect(jsonPath("$.resource", is(RESOURCE)))
-                .andExpect(jsonPath("$.authorization_servers[0]", is("https://auth.weave.test/realms/weave")))
-                .andExpect(jsonPath("$.scopes_supported[0]", is("mcp.tools")))
-                .andExpect(jsonPath("$.scopes_supported[1]", is("calendar.read")));
-    }
+  @Test
+  void humanBearerCannotDiscoverTheMcpCatalog() throws Exception {
+    mvc.perform(mcpInitialize("human", true)).andExpect(status().isForbidden());
+    verify(exchange, never()).exchange(any(), anyString(), any());
+  }
 
-    @Test
-    void missingBearerReceivesDiscoverableRfc9728Challenge() throws Exception {
-        mvc.perform(mcpInitialize(null, true))
-                .andExpect(status().isUnauthorized())
-                .andExpect(header().string(
-                        HttpHeaders.WWW_AUTHENTICATE,
-                        containsString("resource_metadata=\"https://api.weave.test/.well-known/oauth-protected-resource/mcp\"")));
-        verify(exchange, never()).exchange(any(), anyString(), any());
-    }
+  @Test
+  void wrongAudienceWorkloadCannotDiscoverTheMcpCatalog() throws Exception {
+    mvc.perform(mcpInitialize("wrong-audience", true)).andExpect(status().isForbidden());
+    verify(exchange, never()).exchange(any(), eq("wrong-audience"), any());
+  }
 
-    @Test
-    void humanBearerCannotDiscoverTheMcpCatalog() throws Exception {
-        mvc.perform(mcpInitialize("human", true))
-                .andExpect(status().isForbidden());
-        verify(exchange, never()).exchange(any(), anyString(), any());
-    }
+  @Test
+  void additionalAudienceCannotBroadenTheMcpEdgeToken() throws Exception {
+    mvc.perform(mcpInitialize("extra-audience", true)).andExpect(status().isForbidden());
+    verify(exchange, never()).exchange(any(), eq("extra-audience"), any());
+  }
 
-    @Test
-    void workloadBearerWithWrongOrAdditionalAudienceCannotDiscoverTheCatalog() throws Exception {
-        mvc.perform(mcpInitialize("wrong-audience", true))
-                .andExpect(status().isForbidden());
-        mvc.perform(mcpInitialize("multiple-audiences", true))
-                .andExpect(status().isForbidden());
-        verify(exchange, never()).exchange(any(), anyString(), any());
-    }
+  @Test
+  void insufficientToolScopesReceiveAnOAuthScopeChallenge() throws Exception {
+    mvc.perform(mcpInitialize("insufficient", true))
+        .andExpect(status().isForbidden())
+        .andExpect(
+            header()
+                .string(
+                    HttpHeaders.WWW_AUTHENTICATE, containsString("error=\"insufficient_scope\"")))
+        .andExpect(
+            header()
+                .string(
+                    HttpHeaders.WWW_AUTHENTICATE,
+                    containsString("scope=\"mcp:tools files.read\"")));
+    verify(exchange, never()).exchange(any(), anyString(), any());
+  }
 
-    @Test
-    void insufficientToolScopesReceiveAnOAuthScopeChallenge() throws Exception {
-        mvc.perform(mcpInitialize("insufficient", true))
-                .andExpect(status().isForbidden())
-                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, containsString("error=\"insufficient_scope\"")))
-                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, containsString("scope=\"mcp.tools calendar.read\"")));
-        verify(exchange, never()).exchange(any(), anyString(), any());
-    }
+  @Test
+  void extensionNegotiationIsMandatoryForWorkloadClientCredentials() throws Exception {
+    mvc.perform(mcpInitialize("valid", false)).andExpect(status().isBadRequest());
+    verify(exchange, never()).exchange(any(), anyString(), any());
+  }
 
-    @Test
-    void extensionNegotiationIsMandatoryForWorkloadClientCredentials() throws Exception {
-        mvc.perform(mcpInitialize("valid", false))
-                .andExpect(status().isBadRequest());
-        verify(exchange, never()).exchange(any(), anyString(), any());
-    }
+  @Test
+  void boundCellIsExchangedAndDispatchedThroughTheFrameworkTransport() throws Exception {
+    mvc.perform(mcpInitialize("valid", true))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath(
+                "$['result']['capabilities']['extensions']['io.modelcontextprotocol/oauth-client-credentials']",
+                is(Map.of())));
 
-    @Test
-    void boundCellIsExchangedAndDispatchedThroughTheFrameworkTransport() throws Exception {
-        mvc.perform(mcpInitialize("valid", true))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath(
-                        "$['result']['capabilities']['extensions']['io.modelcontextprotocol/oauth-client-credentials']",
-                        is(Map.of())));
+    verify(exchange).exchange(any(McpCellWorkloadPrincipal.class), eq("valid"), eq(DOMAIN_SCOPES));
+  }
 
-        verify(exchange).exchange(any(McpCellWorkloadPrincipal.class), eq("valid"), eq(DOMAIN_SCOPES));
-        verify(exchangedJwtDecoder).decode("backend-token");
-        verify(authorization).authorize(any());
-    }
+  @Test
+  void discoversTheCuratedFilesToolAndCanonicalResourceTemplate() throws Exception {
+    var initialized =
+        mvc.perform(mcpInitialize("valid", true)).andExpect(status().isOk()).andReturn();
+    String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
 
-    private static Jwt exchangedToken(Instant now) {
-        return Jwt.withTokenValue("backend-token")
-                .header("alg", "RS256")
-                .header("typ", "at+jwt")
-                .issuer("https://auth.weave.test/realms/weave")
-                .subject(SUBJECT)
-                .audience(List.of("https://api.weave.test/api"))
-                .claim("azp", EDGE)
-                .claim("client_id", EDGE)
-                .claim("scope", "calendar.read")
-                .claim("realm_access", Map.of())
-                .claim("resource_access", Map.of())
-                .jti("exchange-jti")
-                .issuedAt(now)
-                .expiresAt(now.plusSeconds(30))
-                .build();
-    }
-
-    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder mcpInitialize(
-            String bearer,
-            boolean extension) {
-        var request = post("/mcp")
+    mvc.perform(
+            post("/mcp")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                .header("Mcp-Session-Id", sessionId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
-                .content(initializeRequest(extension));
-        return bearer == null
-                ? request
-                : request.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearer);
-    }
+                .content(
+                    """
+                                    {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                .string(containsString("\"name\":\"files.search\"")))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                .string(containsString("\"readOnlyHint\":true")))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                .string(containsString("\"destructiveHint\":false")));
 
-    private Jwt token(String tokenValue) {
-        Instant now = Instant.now().minusSeconds(1);
-        boolean human = "human".equals(tokenValue);
-        boolean insufficient = "insufficient".equals(tokenValue);
-        boolean wrongAudience = "wrong-audience".equals(tokenValue);
-        boolean multipleAudiences = "multiple-audiences".equals(tokenValue);
-        String clientId = human ? "weave-app" : CELL;
-        String scope = insufficient ? "mcp.tools" : "mcp.tools calendar.read";
-        List<String> audience = human || wrongAudience
+    mvc.perform(
+            post("/mcp")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                .header("Mcp-Session-Id", sessionId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
+                .content(
+                    """
+                                    {"jsonrpc":"2.0","id":3,"method":"resources/templates/list","params":{}}
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                .string(containsString("\"uriTemplate\":\"weave://files/{canonicalFileRef}\"")));
+  }
+
+  private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder mcpInitialize(
+      String bearer, boolean extension) {
+    var request =
+        post("/mcp")
+            .contentType(MediaType.APPLICATION_JSON)
+            .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
+            .content(initializeRequest(extension));
+    return bearer == null ? request : request.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearer);
+  }
+
+  private Jwt token(String tokenValue) {
+    Instant now = Instant.now().minusSeconds(1);
+    boolean human = "human".equals(tokenValue);
+    boolean insufficient = "insufficient".equals(tokenValue);
+    boolean wrongAudience = "wrong-audience".equals(tokenValue);
+    boolean extraAudience = "extra-audience".equals(tokenValue);
+    String clientId = human ? "weave-app" : CELL;
+    String scope = insufficient ? "mcp:tools" : "mcp:tools files.read";
+    return Jwt.withTokenValue(tokenValue)
+        .header("alg", "RS256")
+        .header("typ", "at+jwt")
+        .issuer("https://auth.weave.test/realms/weave")
+        .subject(human ? "member-subject" : SUBJECT)
+        .audience(
+            human
                 ? List.of("https://api.weave.test/api")
-                : multipleAudiences ? List.of(RESOURCE, EDGE) : List.of(RESOURCE);
-        return Jwt.withTokenValue(tokenValue)
-                .header("alg", "RS256")
-                .header("typ", "at+jwt")
-                .issuer("https://auth.weave.test/realms/weave")
-                .subject(human ? "member-subject" : SUBJECT)
-                .audience(audience)
-                .claim("client_id", clientId)
-                .claim("azp", clientId)
-                .claim("scope", scope)
-                .claim("realm_access", human
-                        ? Map.of("roles", List.of("member"))
-                        : Map.of("roles", List.of("weaver-runtime")))
-                .claim("resource_access", Map.of())
-                .jti("jti-" + tokenValue)
-                .issuedAt(now)
-                .expiresAt(now.plusSeconds(45))
-                .build();
-    }
+                : wrongAudience
+                    ? List.of("https://api.weave.test/api")
+                    : extraAudience ? List.of(RESOURCE, EDGE) : List.of(RESOURCE))
+        .claim("client_id", clientId)
+        .claim("azp", clientId)
+        .claim("scope", scope)
+        .claim(
+            "realm_access",
+            human ? Map.of("roles", List.of("member")) : Map.of("roles", List.of("weaver-runtime")))
+        .claim("resource_access", Map.of())
+        .jti("jti-" + tokenValue)
+        .issuedAt(now)
+        .expiresAt(now.plusSeconds(45))
+        .build();
+  }
 
-    private String initializeRequest(boolean extension) {
-        String extensions = extension
-                ? "\"extensions\":{\"io.modelcontextprotocol/oauth-client-credentials\":{}}"
-                : "\"extensions\":{}";
-        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{"
-                + "\"protocolVersion\":\"2025-11-25\",\"capabilities\":{" + extensions + "},"
-                + "\"clientInfo\":{\"name\":\"weave-cell-test\",\"version\":\"1.0\"}}}";
-    }
+  private String initializeRequest(boolean extension) {
+    String extensions =
+        extension
+            ? "\"extensions\":{\"io.modelcontextprotocol/oauth-client-credentials\":{}}"
+            : "\"extensions\":{}";
+    return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{"
+        + "\"protocolVersion\":\"2025-11-25\",\"capabilities\":{"
+        + extensions
+        + "},"
+        + "\"clientInfo\":{\"name\":\"weave-cell-test\",\"version\":\"1.0\"}}}";
+  }
 }

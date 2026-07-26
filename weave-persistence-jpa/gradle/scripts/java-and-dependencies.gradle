@@ -1,0 +1,25 @@
+group = 'com.massimotter.weave'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+dependencies {
+    api project(':weave-application-core')
+    api platform(libs.spring.boot.bom)
+    api 'jakarta.persistence:jakarta.persistence-api'
+    api 'org.springframework.data:spring-data-jpa'
+    api libs.mapstruct
+    annotationProcessor libs.mapstruct.processor
+
+    testImplementation platform(libs.spring.boot.bom)
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.hibernate.orm:hibernate-core'
+    testImplementation libs.archunit.junit5
+    testRuntimeOnly libs.h2.test
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}

@@ -1,0 +1,315 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: weave-backend
+  jackson:
+    deserialization:
+      # Missing optional primitive transport fields keep their fail-closed Java defaults.
+      # Required values remain explicit wrapper types with Bean Validation constraints.
+      fail-on-null-for-primitives: false
+  datasource:
+    url: ${WEAVE_PERSISTENCE_URL:}
+    username: ${WEAVE_PERSISTENCE_USERNAME:}
+    password: ${WEAVE_PERSISTENCE_PASSWORD:}
+    driver-class-name: ${WEAVE_PERSISTENCE_DRIVER:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: ${WEAVE_JPA_DDL_AUTO:validate}
+  flyway:
+    enabled: ${WEAVE_FLYWAY_ENABLED:true}
+    locations: classpath:db/migration
+  security:
+    oauth2:
+      client:
+        provider:
+          weave-identity-admin:
+            token-uri: ${WEAVE_IDENTITY_KEYCLOAK_TOKEN_URI:http://weave-keycloak:8080/realms/weave/protocol/openid-connect/token}
+        registration:
+          weave-identity-admin:
+            provider: weave-identity-admin
+            client-id: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_ID:weave-identity-admin}
+            client-secret: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_SECRET:}
+            client-authentication-method: client_secret_basic
+            authorization-grant-type: client_credentials
+      resourceserver:
+        jwt:
+          # Required for a ready auth contract. Leave blank to start in blocked mode until
+          # the backend can validate JWT iss, exp, nbf, and signature against the public issuer.
+          # Canonical local/dev issuer: https://auth.weave.test/realms/weave
+          issuer-uri: ${WEAVE_OIDC_ISSUER_URI:}
+          # Optional. Use when the backend must fetch signing keys through an internal/private route
+          # while preserving the public issuer URI in token validation.
+          jwk-set-uri: ${WEAVE_OIDC_JWK_SET_URI:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Infra binds the backend management port to loopback and blocks /actuator/*
+        # at Caddy. Metrics remain a local operator surface, not a product endpoint.
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+weave:
+  agent-runtime:
+    # ARC remains inert unless JPA plus the Keycloak workload-identity adapter are
+    # selected explicitly. Long-lived credentials are SecretRefs, never env values.
+    storage:
+      mode: ${WEAVE_AGENT_RUNTIME_STORAGE_MODE:jpa}
+    state-store:
+      # Runtime cells have no durable volume. The dogfood adapter envelope-encrypts
+      # every generation before PostgreSQL and requires a separately mounted key root.
+      enabled: ${WEAVE_AGENT_RUNTIME_STATE_STORE_ENABLED:false}
+      wrapping-key-root: ${WEAVE_AGENT_RUNTIME_STATE_WRAPPING_KEY_ROOT:}
+      chunk-size: ${WEAVE_AGENT_RUNTIME_STATE_CHUNK_SIZE:1MB}
+      maximum-generation-size: ${WEAVE_AGENT_RUNTIME_STATE_MAXIMUM_GENERATION_SIZE:64MB}
+    profile-signing:
+      # The server never bootstraps a missing trust root. Initialize and rotate
+      # the mounted SecretRef state explicitly so incomplete restores fail closed.
+      enabled: ${WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_ENABLED:false}
+      secret-root: ${WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_SECRET_ROOT:}
+      key-lifetime: ${WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_KEY_LIFETIME:P365D}
+      trust-overlap: ${WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_TRUST_OVERLAP:10m}
+      maximum-profile-ttl: ${WEAVE_AGENT_RUNTIME_PROFILE_TTL:5m}
+    policy:
+      # Strict, secret-free server-owned RuntimeProfile policy. Requests never
+      # supply model, Matrix, MCP, sandbox, workspace, or CredentialRef grants.
+      enabled: ${WEAVE_AGENT_RUNTIME_POLICY_ENABLED:false}
+      file: ${WEAVE_AGENT_RUNTIME_POLICY_FILE:}
+    entitlement:
+      # Keycloak group membership is authoritative. This configuration carries
+      # no cell path, container, provider credential, or tool implementation.
+      enabled: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_ENABLED:false}
+      enabled-groups: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_GROUPS:weave-weaver-runtime}
+      allowed-capabilities: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CAPABILITIES:calendar.read}
+    workload-identity:
+      enabled: ${WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED:false}
+      keycloak-admin-base-url: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_ADMIN_BASE_URL:}
+      issuer: ${WEAVE_AGENT_RUNTIME_ISSUER:}
+      realm: ${WEAVE_AGENT_RUNTIME_REALM:weave}
+      organization-ref: ${WEAVE_AGENT_RUNTIME_ORGANIZATION_REF:tenant-default}
+      keycloak-organization-id: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_ORGANIZATION_ID:}
+      admin-client-id: ${WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID:weave-agent-runtime-admin}
+      admin-credential-ref: ${WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF:}
+      entitlement-client-id: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CLIENT_ID:weave-identity-admin}
+      entitlement-credential-ref: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_REF:}
+      secret-root: ${WEAVE_AGENT_RUNTIME_SECRET_ROOT:}
+      timeout: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_TIMEOUT:10s}
+      entitlement-observation-ttl: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_OBSERVATION_TTL:5m}
+      workload-role: weaver-runtime
+      default-client-scopes: ${WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES:weaver-runtime.workload}
+      optional-client-scopes: ${WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES:agent-runtime.profile.read,mcp:tools,calendar.read}
+      access-token-lifespan-seconds: ${WEAVE_AGENT_RUNTIME_ACCESS_TOKEN_LIFESPAN_SECONDS:60}
+  chat:
+    # Canonical chat has one durable JPA authority. Isolated tests may override
+    # this with the explicit memory mode.
+    provider: ${WEAVE_CHAT_PROVIDER:in-memory-test}
+    storage:
+      mode: ${WEAVE_CHAT_STORAGE_MODE:jpa}
+    e2e-proof:
+      # Isolated disposable stacks only. Persistent dogfood leaves this false and
+      # does not mount the independent proof token.
+      enabled: ${WEAVE_CHAT_E2E_PROOF_ENABLED:false}
+      token-file: ${WEAVE_CHAT_E2E_PROOF_TOKEN_FILE:}
+      run-id: ${WEAVE_CHAT_E2E_PROOF_RUN_ID:}
+      stack-scope: ${WEAVE_E2E_STACK_SCOPE:}
+    matrix:
+      internal-base-url: ${WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL:}
+      server-name: ${WEAVE_CHAT_MATRIX_SERVER_NAME:}
+      appservice-id: ${WEAVE_CHAT_MATRIX_APPSERVICE_ID:weave-chat-synapse}
+      virtual-user-prefix: ${WEAVE_CHAT_MATRIX_VIRTUAL_USER_PREFIX:_weave_}
+      as-token-file: ${WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE:}
+      hs-token-file: ${WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE:}
+      connect-timeout: ${WEAVE_CHAT_MATRIX_CONNECT_TIMEOUT:5s}
+      request-timeout: ${WEAVE_CHAT_MATRIX_REQUEST_TIMEOUT:10s}
+      readiness-cache-ttl: ${WEAVE_CHAT_MATRIX_READINESS_CACHE_TTL:60s}
+      callback-max-bytes: ${WEAVE_CHAT_MATRIX_CALLBACK_MAX_BYTES:1048576}
+      callback-max-events: ${WEAVE_CHAT_MATRIX_CALLBACK_MAX_EVENTS:100}
+  platform:
+    public-base-url: ${WEAVE_PUBLIC_BASE_URL:https://weave.test}
+    api-base-url: ${WEAVE_API_BASE_URL:https://api.weave.test/api}
+    auth-base-url: ${WEAVE_AUTH_BASE_URL:https://auth.weave.test}
+    matrix-homeserver-url: ${WEAVE_MATRIX_HOMESERVER_URL:}
+    files-product-url: ${WEAVE_FILES_PRODUCT_URL:https://weave.test/files}
+    calendar-product-url: ${WEAVE_CALENDAR_PRODUCT_URL:https://weave.test/calendar}
+    nextcloud-base-url: ${WEAVE_NEXTCLOUD_PUBLIC_BASE_URL:${WEAVE_NEXTCLOUD_BASE_URL:https://files.weave.test}}
+    release-posture: ${WEAVE_RELEASE_POSTURE:dogfood}
+    targets:
+      mobile: ${WEAVE_TARGET_MOBILE:true}
+      desktop: ${WEAVE_TARGET_DESKTOP:true}
+      web: ${WEAVE_TARGET_WEB:false}
+  security:
+    # JWT aud names the backend resource; azp/client_id binds the direct first-party app.
+    required-audience: ${WEAVE_OIDC_REQUIRED_AUDIENCE:https://api.weave.test/api}
+    client-id: ${WEAVE_CLIENT_ID:weave-app}
+    device-credentials:
+      # Shipped runtime uses the durable JPA authority. Memory is test/dev only.
+      storage:
+        mode: ${WEAVE_DEVICE_CREDENTIAL_STORAGE_MODE:jpa}
+  nextcloud:
+    files:
+      base-url: ${WEAVE_NEXTCLOUD_BASE_URL:https://files.weave.test}
+      webdav-root-path: ${WEAVE_NEXTCLOUD_FILES_WEBDAV_ROOT_PATH:/remote.php/dav/files}
+      # MVP backend-owned actor seam. Leave username/token blank to fail closed with
+      # nextcloud-adapter-not-configured instead of exposing caller credentials.
+      actor-model: ${WEAVE_NEXTCLOUD_FILES_ACTOR_MODEL:backend-service-account}
+      actor-username: ${WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME:}
+      actor-token: ${WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN:${WEAVE_NEXTCLOUD_FILES_APP_PASSWORD:}}
+  calendar:
+    caldav:
+      # Northbound Weave-owned CalDAV profile/discovery host. Do not point member-native
+      # setup profiles at a downstream provider URL.
+      public-base-url: ${WEAVE_CALDAV_PUBLIC_BASE_URL:https://calendar.weave.test}
+      # Calendar product operations stay on /api; this backend actor is the only component
+      # that talks to Nextcloud CalDAV. The first safe slice targets a backend-owned
+      # workspace calendar; private per-user templates containing {user} fail closed until
+      # a delegated/sharing access model is contracted. Leave credentials blank to fail
+      # safely with a normalized nextcloud-adapter-not-configured error until wired.
+      base-url: ${WEAVE_CALDAV_BASE_URL:${WEAVE_NEXTCLOUD_BASE_URL:https://files.weave.test}}
+      calendar-path-template: ${WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE:/remote.php/dav/calendars/${WEAVE_CALDAV_BACKEND_USERNAME:weave-backend}/personal/}
+      auth-mode: ${WEAVE_CALDAV_AUTH_MODE:BASIC}
+      backend-username: ${WEAVE_CALDAV_BACKEND_USERNAME:}
+      backend-token: ${WEAVE_CALDAV_BACKEND_TOKEN:}
+      request-timeout-seconds: ${WEAVE_CALDAV_REQUEST_TIMEOUT_SECONDS:10}
+  matrix:
+    facade:
+      # Stable Weave-owned Matrix server name. It identifies the northbound projection,
+      # not a southbound homeserver and must not change during provider replacement.
+      server-name: ${WEAVE_MATRIX_FACADE_SERVER_NAME:api.weave.test}
+      base-url: ${WEAVE_MATRIX_FACADE_BASE_URL:https://api.weave.test}
+    # Backend diagnostics must remain E2EE-compatible: the backend never inspects
+    # encrypted Matrix message bodies. These validation flags are false until real
+    # encrypted-room, device verification, recovery, lost-device, multi-device, and
+    # accessibility gates are proven by Matrix-native client/smoke/E2E flows.
+    federation-enabled: ${WEAVE_MATRIX_FEDERATION_ENABLED:false}
+    e2ee:
+      storage:
+        # Public keys, envelopes, and encrypted backups use the shared JPA unit.
+        mode: ${WEAVE_MATRIX_E2EE_STORAGE_MODE:jpa}
+      encrypted-rooms-validated: ${WEAVE_MATRIX_E2EE_ENCRYPTED_ROOMS_VALIDATED:false}
+      device-verification-validated: ${WEAVE_MATRIX_E2EE_DEVICE_VERIFICATION_VALIDATED:false}
+      key-backup-validated: ${WEAVE_MATRIX_E2EE_KEY_BACKUP_VALIDATED:false}
+      lost-device-recovery-validated: ${WEAVE_MATRIX_E2EE_LOST_DEVICE_RECOVERY_VALIDATED:false}
+      multi-device-validated: ${WEAVE_MATRIX_E2EE_MULTI_DEVICE_VALIDATED:false}
+      accessibility-reviewed: ${WEAVE_MATRIX_E2EE_ACCESSIBILITY_REVIEWED:false}
+      status-source: ${WEAVE_MATRIX_E2EE_STATUS_SOURCE:backend_runtime_flags_only}
+    backend-boundary:
+      agent-participation: ${WEAVE_MATRIX_AGENT_PARTICIPATION_POLICY:blocked_until_explicit_consent_audit_and_matrix_device_trust_are_implemented}
+      connector-write-policy: ${WEAVE_MATRIX_CONNECTOR_WRITE_POLICY:fail_closed_until_audit_consent_and_matrix_e2ee_client_identity_are_implemented}
+  workspace:
+    shell-access:
+      enabled: ${WEAVE_WORKSPACE_SHELL_ACCESS_ENABLED:true}
+    chat:
+      enabled: ${WEAVE_WORKSPACE_CHAT_ENABLED:true}
+      dependency-url: ${WEAVE_MATRIX_BASE_URL:https://matrix.weave.test}
+      readiness: ${WEAVE_WORKSPACE_CHAT_READINESS:}
+    files:
+      enabled: ${WEAVE_WORKSPACE_FILES_ENABLED:true}
+      dependency-url: ${WEAVE_NEXTCLOUD_BASE_URL:https://files.weave.test}
+      readiness: ${WEAVE_WORKSPACE_FILES_READINESS:}
+    calendar:
+      enabled: ${WEAVE_WORKSPACE_CALENDAR_ENABLED:false}
+      dependency-url: ${WEAVE_CALDAV_BASE_URL:${WEAVE_NEXTCLOUD_BASE_URL:https://files.weave.test}}
+      readiness: ${WEAVE_WORKSPACE_CALENDAR_READINESS:}
+    boards:
+      enabled: ${WEAVE_WORKSPACE_BOARDS_ENABLED:false}
+      readiness: ${WEAVE_WORKSPACE_BOARDS_READINESS:}
+    agent-runtime-control:
+      enabled: ${WEAVE_WORKSPACE_AGENT_RUNTIME_CONTROL_ENABLED:false}
+      readiness: ${WEAVE_WORKSPACE_AGENT_RUNTIME_CONTROL_READINESS:}
+  boards:
+    runtime-enabled: ${WEAVE_BOARDS_RUNTIME_ENABLED:${WEAVE_BOARDS_WORKSPACE_RUNTIME_ENABLED:false}}
+    provider: ${WEAVE_BOARDS_PROVIDER:${WEAVE_BOARDS_WORKSPACE_PROVIDER:local-workspace}}
+    openproject:
+      provider-runtime-enabled: ${WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED:false}
+      read-sync-enabled: ${WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED:false}
+      context-authorization-enabled: ${WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED:false}
+      audit-consent-enabled: ${WEAVE_BOARDS_OPENPROJECT_AUDIT_CONSENT_ENABLED:false}
+      provider-writes-enabled: ${WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED:false}
+      auth-mode: ${WEAVE_BOARDS_OPENPROJECT_AUTH_MODE:disabled}
+  calls:
+    sfu:
+      livekit:
+        # LiveKit is the first replaceable southbound SFU adapter for the pinned
+        # MatrixRTC Profile 0 target. It never owns signaling, membership, RTC
+        # authorization, or a member API. Blank configuration fails closed.
+        enabled: ${WEAVE_LIVEKIT_ENABLED:false}
+        url: ${WEAVE_LIVEKIT_URL:}
+        api-key: ${WEAVE_LIVEKIT_API_KEY:}
+        api-secret: ${WEAVE_LIVEKIT_API_SECRET:}
+        token-endpoint: ${WEAVE_LIVEKIT_TOKEN_ENDPOINT:}
+  identity:
+    invitations:
+      storage-mode: ${WEAVE_IDENTITY_INVITATIONS_STORAGE_MODE:jpa}
+      default-lifetime: ${WEAVE_IDENTITY_INVITATIONS_DEFAULT_LIFETIME:P7D}
+      events-hmac-secret: ${WEAVE_IDENTITY_EVENTS_HMAC_SECRET:}
+      event-freshness: ${WEAVE_IDENTITY_EVENTS_FRESHNESS:5m}
+      bootstrap-owner:
+        enabled: ${WEAVE_IDENTITY_BOOTSTRAP_OWNER_ENABLED:false}
+        token-file: ${WEAVE_IDENTITY_BOOTSTRAP_OWNER_TOKEN_FILE:}
+        tenant-id: ${WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID:tenant-default}
+      keycloak:
+        base-url: ${WEAVE_IDENTITY_KEYCLOAK_BASE_URL:http://weave-keycloak:8080}
+        realm: ${WEAVE_IDENTITY_KEYCLOAK_REALM:weave}
+        organization-id: ${WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ID:}
+        organization-alias: ${WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ALIAS:weave}
+        oauth-registration-id: weave-identity-admin
+        timeout: ${WEAVE_IDENTITY_KEYCLOAK_TIMEOUT:10s}
+        reference-hmac-secret-file: ${WEAVE_IDENTITY_REFERENCE_HMAC_SECRET_FILE:}
+        # Provider projection remains backend-only. Public invitation contracts use
+        # stable product capabilities and never Keycloak group names or paths.
+        capability-group-projections:
+          calendar.manage_events: weave-calendar-editors
+          boards.update_task: weave-board-editors
+          meetings.host: weave-meeting-hosts
+          documents.edit: weave-document-editors
+          decisions.record: weave-decision-recorders
+          agent-runtime.entitled: weave-weaver-runtime
+  profile:
+    # Persistent product-profile override store for mutable fields accepted by PATCH /api/profile.
+    storage:
+      mode: ${WEAVE_PROFILE_STORAGE_MODE:jpa}
+      path: ${WEAVE_PROFILE_STORAGE_PATH:./data/profile-overrides.json}
+  provider:
+    selections:
+      # Persistent Admin Console provider selections.
+      storage:
+        mode: ${WEAVE_PROVIDER_SELECTIONS_STORAGE_MODE:jpa}
+        path: ${WEAVE_PROVIDER_SELECTIONS_STORAGE_PATH:./data/provider-selections.json}
+  audit:
+    events:
+      # Append-only support-safe audit sink for provider/control-plane apply decisions.
+      storage:
+        mode: ${WEAVE_AUDIT_EVENTS_STORAGE_MODE:jpa}
+        path: ${WEAVE_AUDIT_EVENTS_STORAGE_PATH:./data/audit-events.jsonl}
+  interop:
+    enabled: ${WEAVE_INTEROP_ENABLED:false}
+    support-bundle-redaction-mode: ${WEAVE_INTEROP_SUPPORT_BUNDLE_REDACTION_MODE:support-safe-redacted}
+    slack:
+      enabled: ${WEAVE_INTEROP_SLACK_ENABLED:false}
+      client-id: ${WEAVE_INTEROP_SLACK_CLIENT_ID:}
+      client-secret-ref: ${WEAVE_INTEROP_SLACK_CLIENT_SECRET_REF:}
+      signing-secret-ref: ${WEAVE_INTEROP_SLACK_SIGNING_SECRET_REF:}
+      token-ref: ${WEAVE_INTEROP_SLACK_TOKEN_REF:}
+      workspace-id: ${WEAVE_INTEROP_SLACK_WORKSPACE_ID:}
+      channel-id: ${WEAVE_INTEROP_SLACK_CHANNEL_ID:}
+      room-id: ${WEAVE_INTEROP_SLACK_ROOM_ID:}
+    teams:
+      enabled: ${WEAVE_INTEROP_TEAMS_ENABLED:false}
+  guest:
+    enabled: ${WEAVE_GUEST_ENABLED:false}
+  migration:
+    enabled: ${WEAVE_MIGRATION_ENABLED:false}
+    evidence:
+      # Persistent support-safe dry-run/apply evidence. Mount this path on durable storage for server restarts.
+      storage:
+        mode: ${WEAVE_MIGRATION_EVIDENCE_STORAGE_MODE:jpa}
+        path: ${WEAVE_MIGRATION_EVIDENCE_STORAGE_PATH:./data/migration-run-evidence.json}
+  connectors:
+    public-sdk-enabled: ${WEAVE_CONNECTORS_PUBLIC_SDK_ENABLED:false}

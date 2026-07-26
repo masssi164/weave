@@ -133,7 +133,7 @@ public class MigrationDryRunService {
                                 ? List.of("provider-specific reactions, pins, bot metadata, thread semantics, and encrypted/redacted history may be lossy or archive-only")
                                 : List.of(),
                         unmappableUsers > 0
-                                ? List.of("identity conflicts must resolve against IDM/RBAC mapping before cutover")
+                                ? List.of("identity conflicts must resolve against the Keycloak role/group mapping before cutover")
                                 : List.of(),
                         List.of(
                                 "conversation ids are canonicalized before target import",
