@@ -137,17 +137,37 @@ public class KeycloakIdentityAdminClient {
     }
 
     String alias = properties.keycloak().organizationAlias();
-    List<JsonNode> matches =
-        values(
-                json(
-                    request(
-                        HttpMethod.GET,
-                        adminPath("/organizations?search=" + query(alias) + "&exact=true"),
-                        null,
-                        null,
-                        200)))
-            .filter(organization -> alias.equals(organization.path("alias").asString()))
-            .toList();
+    List<JsonNode> matches = new java.util.ArrayList<>();
+    int pageSize = 100;
+    boolean inventoryComplete = false;
+    for (int first = 0; first < 1_000; first += pageSize) {
+      List<JsonNode> page =
+          values(
+                  json(
+                      request(
+                          HttpMethod.GET,
+                          adminPath(
+                              "/organizations?first="
+                                  + first
+                                  + "&max="
+                                  + pageSize
+                                  + "&briefRepresentation=true"),
+                          null,
+                          null,
+                          200)))
+              .toList();
+      page.stream()
+          .filter(organization -> alias.equals(organization.path("alias").asString()))
+          .forEach(matches::add);
+      if (page.size() < pageSize) {
+        inventoryComplete = true;
+        break;
+      }
+    }
+    if (!inventoryComplete) {
+      throw new IllegalStateException(
+          "Keycloak organization inventory exceeded the protected lookup bound");
+    }
     String resolvedId = exactlyOne(matches, "organization").path("id").asString();
     resolvedOrganizationId = resolvedId;
     return resolvedId;

@@ -50,7 +50,7 @@ class KeycloakIdentityAdminClientTest {
             once(),
             requestTo(
                 "https://identity.internal/admin/realms/weave"
-                    + "/organizations?search=weave&exact=true"))
+                    + "/organizations?first=0&max=100&briefRepresentation=true"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(
             withSuccess(
