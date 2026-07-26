@@ -148,11 +148,24 @@ def main() -> None:
         client.call("create", "organizations/org/groups/parent/children", "-r", "weave")
     except identity_ops.IdentityOpsError as error:
         assert "httpStatus=409" in str(error)
+        assert "failureCode=unclassified" in str(error)
         assert "sensitive provider detail" not in str(error)
     else:
         raise AssertionError("kcadm failure was silently accepted")
     finally:
         identity_ops.subprocess.run = original_run
+    assert (
+        identity_ops.classify_kcadm_failure(
+            "HTTP 400 Scope [reset-password] was not found for resource type Users"
+        )
+        == "reset-password-scope-rejected"
+    )
+    assert (
+        identity_ops.classify_kcadm_failure(
+            "HTTP 400 at least one positive policy is required"
+        )
+        == "positive-policy-required"
+    )
 
     class RejectedKcadm:
         def call(self, *_arguments: str, payload: object = None) -> object:

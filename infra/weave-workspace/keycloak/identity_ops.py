@@ -24,6 +24,23 @@ class IdentityOpsError(RuntimeError):
     pass
 
 
+def classify_kcadm_failure(diagnostic: str) -> str:
+    normalized = diagnostic.casefold()
+    if "reset-password" in normalized and (
+        "scope" in normalized or "not found" in normalized
+    ):
+        return "reset-password-scope-rejected"
+    if "negative" in normalized and "polic" in normalized:
+        return "negative-policy-rejected"
+    if "positive" in normalized and "polic" in normalized:
+        return "positive-policy-required"
+    if "decision" in normalized and "unanimous" in normalized:
+        return "decision-strategy-rejected"
+    if "resource type" in normalized and "users" in normalized:
+        return "users-resource-type-rejected"
+    return "unclassified"
+
+
 SECRET_REF_FILES = {
     "secretref:keycloak/weave-backend-jwk": "keycloak-weave-backend-jwk.json",
     "secretref:keycloak/weave-mcp-server-jwk": "keycloak-weave-mcp-server-jwk.json",
@@ -169,9 +186,11 @@ class Kcadm:
             diagnostic = result.stderr + "\n" + result.stdout
             status = re.search(r"(?i)HTTP(?: error)?[^0-9]{0,12}([45][0-9]{2})", diagnostic)
             status_label = status.group(1) if status else "unknown"
+            failure_code = classify_kcadm_failure(diagnostic)
             raise IdentityOpsError(
                 f"kcadm operation failed ({arguments[0]} {arguments[1]}), "
-                f"httpStatus={status_label}, exitCode={result.returncode}, output withheld"
+                f"httpStatus={status_label}, failureCode={failure_code}, "
+                f"exitCode={result.returncode}, output withheld"
             )
         output = result.stdout.strip()
         return json.loads(output) if output else None
