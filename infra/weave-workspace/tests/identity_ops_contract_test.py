@@ -317,13 +317,13 @@ def main() -> None:
         else:
             raise AssertionError("routine apply accepted stale or missing SecretRef state")
         assert identity_ops.requires_rotation("client:x", "live", expected, "rotation-2026-07") is True
-    expected_roles = {"query-organizations"}
+    expected_roles = {"query-organizations", "query-users"}
     missing, remove = identity_ops.identity_admin_role_delta(
-        {"manage-realm", "manage-organizations", "view-organizations", "query-groups", "query-users"},
+        {"manage-realm", "manage-organizations", "view-organizations", "query-groups"},
         expected_roles,
     )
-    assert remove == {"manage-realm", "manage-organizations", "view-organizations", "query-groups", "query-users"}
-    assert missing == {"query-organizations"}
+    assert remove == {"manage-realm", "manage-organizations", "view-organizations", "query-groups"}
+    assert missing == {"query-organizations", "query-users"}
     missing, remove = identity_ops.identity_admin_role_delta(expected_roles, expected_roles)
     assert not missing and not remove
     try:
@@ -353,8 +353,12 @@ def main() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
     assert "/opt/keycloak/bin/kcadm.sh" in source
     assert '"resourceType": "Organizations"' in source
-    assert '{"manage", "view"}' in source
+    assert '"resourceType": "Users"' in source
+    assert '"reset-password"' in source
+    assert '"scopes": ["view", "manage"]' in source
+    assert '"scopes": ["view", "manage", "manage-group-membership"]' in source
     assert '"query-organizations"' in source
+    assert '"query-users"' in source
     assert "identity_admin_role_delta(observed_names, expected)" in source
     assert '"remove-role"' in source and '"remove-roles"' in source
     assert "scope-mappings/clients/" in source
@@ -367,7 +371,7 @@ def main() -> None:
     assert 'client.get("serviceAccountsEnabled") is True' in source
     assert '"token.endpoint.auth.method": "client_secret_basic"' in source
     assert '"set-password"' not in source
-    assert "reset-password" not in source
+    assert 'kcadm.call("reset-password"' not in source
     assert '"map-org-group-role"' in source
     assert "organization_group_create_operation(group, group_root, flat_groups)" in source
     assert '"id": staged["id"], "name": staged["name"]' not in source

@@ -294,9 +294,13 @@ def _render_desired(baseline: dict[str, object], overlay: dict[str, object]) -> 
         if isinstance(grant, dict) and grant.get("clientKey") == "client:weave-identity-admin"
     ]
     if len(identity_grants) != 1 or identity_grants[0].get("roleRefs") != [
-        "builtin-role:realm-management:query-organizations"
+        "builtin-role:realm-management:query-organizations",
+        "builtin-role:realm-management:query-users",
     ]:
-        raise ContractError("identity admin must have only query-organizations plus declared FGAP")
+        raise ContractError(
+            "identity admin must have only the query-organizations and query-users collection "
+            "gates plus declared FGAP"
+        )
     realm_contract = desired.get("realm")
     if not isinstance(realm_contract, dict) or realm_contract.get("adminPermissionsEnabled") is not True:
         raise ContractError("desired-state v2 must enable Keycloak admin permissions")

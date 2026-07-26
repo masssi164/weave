@@ -80,7 +80,10 @@ def main() -> None:
         "serviceAccountRoleGrants": [
             {
                 "clientKey": "client:weave-identity-admin",
-                "roleRefs": ["builtin-role:realm-management:query-organizations"],
+                "roleRefs": [
+                    "builtin-role:realm-management:query-organizations",
+                    "builtin-role:realm-management:query-users",
+                ],
             }
         ],
     }

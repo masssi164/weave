@@ -91,8 +91,9 @@ public class KeycloakIdentityAdminClient {
    *
    * <p>Fresh Weave admits people only through the configured organization. Reading its member
    * projection keeps this check inside the organization-specific FGAP boundary; the identity
-   * administration client intentionally has no realm-wide {@code query-users} permission. The
-   * bounded pagination fails closed if the complete projection cannot be determined.
+   * administration client has Keycloak's query-only {@code query-users} collection gate while
+   * visibility remains constrained by the declared Users and Organizations FGAP permissions.
+   * The bounded pagination fails closed if the complete projection cannot be determined.
    */
   public boolean hasHumanUsers() {
     String organizationId = configuredOrganizationId();

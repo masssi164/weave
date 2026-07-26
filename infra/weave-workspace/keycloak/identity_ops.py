@@ -38,6 +38,60 @@ SECRET_CLIENT_FILES = {
     "nextcloud": "keycloak-nextcloud",
     "matrix-mas": "keycloak-matrix-mas",
 }
+IDENTITY_ADMIN_REALM_MANAGEMENT_ROLES = frozenset(
+    {
+        "query-organizations",
+        "query-users",
+    }
+)
+IDENTITY_ADMIN_FGAP_CONTRACT = {
+    "enabled": True,
+    "subjectPolicies": [
+        {
+            "key": "admin-policy:identity-admin",
+            "name": "weave-identity-admin user policy",
+            "policyType": "user",
+            "logic": "POSITIVE",
+            "subjectServiceAccountClientKey": "client:weave-identity-admin",
+        },
+        {
+            "key": "admin-policy:identity-admin-deny-credential-mutation",
+            "name": "weave-identity-admin deny credential mutation",
+            "policyType": "user",
+            "logic": "NEGATIVE",
+            "subjectServiceAccountClientKey": "client:weave-identity-admin",
+        },
+    ],
+    "permissions": [
+        {
+            "key": "admin-permission:identity-primary-organization",
+            "name": "weave-identity-admin primary organization",
+            "resourceType": "Organizations",
+            "resourceRefs": ["organization:weave-primary"],
+            "allResources": False,
+            "scopes": ["view", "manage"],
+            "policyRefs": ["admin-policy:identity-admin"],
+        },
+        {
+            "key": "admin-permission:identity-users",
+            "name": "weave-identity-admin users",
+            "resourceType": "Users",
+            "resourceRefs": [],
+            "allResources": True,
+            "scopes": ["view", "manage", "manage-group-membership"],
+            "policyRefs": ["admin-policy:identity-admin"],
+        },
+        {
+            "key": "admin-permission:identity-users-deny-credential-mutation",
+            "name": "weave-identity-admin deny credential mutation",
+            "resourceType": "Users",
+            "resourceRefs": [],
+            "allResources": True,
+            "scopes": ["reset-password"],
+            "policyRefs": ["admin-policy:identity-admin-deny-credential-mutation"],
+        },
+    ],
+}
 
 
 def canonical(value: object) -> bytes:
@@ -293,7 +347,6 @@ def identity_admin_role_delta(observed: set[str], expected: set[str]) -> tuple[s
         "manage-organizations",
         "view-organizations",
         "query-groups",
-        "query-users",
     }
     if unexpected - retired:
         raise IdentityOpsError("identity admin has unmanaged realm-management roles")
@@ -514,6 +567,164 @@ def permission_relationships(
             realm,
         ),
     )
+
+
+def plan_identity_admin_fgap(
+    kcadm: Kcadm,
+    realm: str,
+    fgap: dict[str, Any],
+    account: dict[str, Any],
+    organizations_by_key: dict[str, dict[str, Any]],
+) -> list[Operation]:
+    if fgap != IDENTITY_ADMIN_FGAP_CONTRACT:
+        raise IdentityOpsError(
+            "identity admin FGAP differs from the exact organization, user lifecycle, "
+            "and credential-denial contract"
+        )
+
+    admin_permissions = exact(
+        kcadm.call(
+            "get",
+            "clients",
+            "-r",
+            realm,
+            "-q",
+            "clientId=admin-permissions",
+        )
+        or [],
+        "builtin-client:admin-permissions",
+        "client",
+    )
+    if admin_permissions is None:
+        return []
+
+    operations: list[Operation] = []
+    base = f"clients/{admin_permissions['id']}/authz/resource-server"
+    observed_policies = paged_get(kcadm, f"{base}/policy/user", realm)
+    policies_by_key: dict[str, dict[str, Any]] = {}
+    policy_names_by_key: dict[str, str] = {}
+
+    for contract in fgap["subjectPolicies"]:
+        policy_name = str(contract["name"])
+        policy_names_by_key[str(contract["key"])] = policy_name
+        policy = exact(
+            [item for item in observed_policies if item.get("name") == policy_name],
+            str(contract["key"]),
+            "FGAP user policy",
+        )
+        wanted = {
+            "name": policy_name,
+            "logic": str(contract["logic"]),
+            "users": [str(account["id"])],
+        }
+        if policy is None:
+            operations.append(
+                Operation(
+                    "create",
+                    str(contract["key"]),
+                    f"{base}/policy/user",
+                    None,
+                    wanted,
+                )
+            )
+            continue
+        policies_by_key[str(contract["key"])] = policy
+        if (
+            policy.get("logic") != wanted["logic"]
+            or set(policy.get("users") or []) != {str(account["id"])}
+        ):
+            operations.append(
+                Operation(
+                    "update",
+                    str(contract["key"]),
+                    f"{base}/policy/user",
+                    str(policy["id"]),
+                    {**wanted, "id": policy["id"]},
+                )
+            )
+
+    observed_permissions = paged_get(kcadm, f"{base}/permission/scope", realm)
+    for contract in fgap["permissions"]:
+        policy_refs = [str(item) for item in contract["policyRefs"]]
+        if any(policy_ref not in policies_by_key for policy_ref in policy_refs):
+            # Referenced policies are materialized in this convergence round.
+            continue
+        policy_names = {policy_names_by_key[policy_ref] for policy_ref in policy_refs}
+        resource_type = str(contract["resourceType"])
+        resource_refs = [str(item) for item in contract["resourceRefs"]]
+        all_resources = bool(contract["allResources"])
+        if resource_type == "Organizations":
+            if all_resources or resource_refs != ["organization:weave-primary"]:
+                raise IdentityOpsError(
+                    "identity admin Organizations FGAP must target only the primary organization"
+                )
+            organization = organizations_by_key.get(resource_refs[0])
+            if organization is None:
+                continue
+            resource_ids = {str(organization["id"])}
+        elif resource_type == "Users":
+            if not all_resources or resource_refs:
+                raise IdentityOpsError(
+                    "identity admin Users FGAP must use the declared all-Users lifecycle boundary"
+                )
+            resource_ids = set()
+        else:
+            raise IdentityOpsError(
+                f"unsupported identity admin FGAP resource type: {resource_type}"
+            )
+
+        permission_name = str(contract["name"])
+        permission = exact(
+            [item for item in observed_permissions if item.get("name") == permission_name],
+            str(contract["key"]),
+            "FGAP scope permission",
+        )
+        wanted: dict[str, Any] = {
+            "name": permission_name,
+            "resourceType": resource_type,
+            "scopes": list(contract["scopes"]),
+            "policies": sorted(policy_names),
+        }
+        if resource_ids:
+            wanted["resources"] = sorted(resource_ids)
+        if permission is None:
+            operations.append(
+                Operation(
+                    "create",
+                    str(contract["key"]),
+                    f"{base}/permission/scope",
+                    None,
+                    wanted,
+                )
+            )
+            continue
+
+        permission_endpoint = f"{base}/permission/scope/{permission['id']}"
+        observed_resources, observed_scopes, observed_policies_for_permission = (
+            permission_relationships(kcadm, permission_endpoint, realm)
+        )
+        permission_config = permission.get("config")
+        observed_resource_type = permission.get("resourceType") or (
+            permission_config.get("defaultResourceType")
+            if isinstance(permission_config, dict)
+            else None
+        )
+        if (
+            observed_resource_type != resource_type
+            or observed_resources != resource_ids
+            or observed_scopes != set(contract["scopes"])
+            or observed_policies_for_permission != policy_names
+        ):
+            operations.append(
+                Operation(
+                    "update",
+                    str(contract["key"]),
+                    f"{base}/permission/scope",
+                    str(permission["id"]),
+                    {**wanted, "id": permission["id"]},
+                )
+            )
+    return operations
 
 
 def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = None) -> list[Operation]:
@@ -791,7 +1002,7 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
         observed_names = {item.get("name") for item in mappings}
         required_names = {role_ref.rsplit(":", 1)[-1] for role_ref in grant.get("roleRefs", [])}
         if grant["clientKey"] == "client:weave-identity-admin":
-            expected = {"query-organizations"}
+            expected = set(IDENTITY_ADMIN_REALM_MANAGEMENT_ROLES)
             missing_roles, retired_roles = identity_admin_role_delta(observed_names, expected)
             for retired_role in sorted(retired_roles):
                 operations.append(
@@ -881,105 +1092,18 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
                         )
                     )
 
-            fgap = desired.get("fineGrainedAdminPermissions") or {}
-            subject_policy = exact(
-                [
-                    item for item in fgap.get("subjectPolicies", [])
-                    if item.get("subjectServiceAccountClientKey") == grant["clientKey"]
-                ],
-                grant["clientKey"],
-                "FGAP subject policy",
-            )
-            if (
-                not fgap.get("enabled")
-                or subject_policy is None
-                or subject_policy.get("policyType") != "user"
-                or subject_policy.get("logic") != "POSITIVE"
-            ):
-                raise IdentityOpsError("identity admin requires a declared user-policy FGAP subject")
-            matching_permissions = [
-                item for item in fgap.get("permissions", [])
-                if subject_policy["key"] in item.get("policyRefs", [])
-            ]
-            permission_contract = exact(
-                matching_permissions,
-                subject_policy["key"],
-                "FGAP organization permission",
-            )
-            if (
-                permission_contract is None
-                or permission_contract.get("resourceType") != "Organizations"
-                or set(permission_contract.get("scopes") or []) != {"manage", "view"}
-                or len(permission_contract.get("resourceRefs") or []) != 1
-            ):
-                raise IdentityOpsError("identity admin FGAP must declare exact organization manage/view")
-            organization_ref = permission_contract["resourceRefs"][0]
-            organization = organizations_by_key.get(organization_ref)
-            admin_permissions = exact(
-                kcadm.call("get", "clients", "-r", realm_name, "-q", "clientId=admin-permissions") or [],
-                "builtin-client:admin-permissions",
-                "client",
-            )
-            if organization is None or admin_permissions is None:
-                continue
-            base = f"clients/{admin_permissions['id']}/authz/resource-server"
-            policy_name = str(subject_policy["name"])
-            policies = paged_get(kcadm, f"{base}/policy/user", realm_name)
-            policy = exact([item for item in policies if item.get("name") == policy_name], policy_name, "FGAP policy")
-            wanted_policy = {
-                "name": policy_name,
-                "logic": "POSITIVE",
-                "users": [str(account["id"])],
-            }
-            if policy is None:
-                operations.append(Operation("create", subject_policy["key"], f"{base}/policy/user", None, wanted_policy))
-            elif (
-                policy.get("logic") != "POSITIVE"
-                or set(policy.get("users") or []) != {str(account["id"])}
-            ):
-                operations.append(Operation("update", subject_policy["key"], f"{base}/policy/user", str(policy["id"]), {**wanted_policy, "id": policy["id"]}))
-
-            permission_name = str(permission_contract["name"])
-            permissions = paged_get(kcadm, f"{base}/permission/scope", realm_name)
-            permission = exact(
-                [item for item in permissions if item.get("name") == permission_name],
-                permission_name,
-                "FGAP permission",
-            )
-            wanted_permission = {
-                "name": permission_name,
-                "resourceType": "Organizations",
-                "scopes": ["manage", "view"],
-                "resources": [str(organization["id"])],
-                "policies": [policy_name],
-            }
-            if policy is None:
-                continue
-            if permission is None:
-                operations.append(Operation("create", permission_contract["key"], f"{base}/permission/scope", None, wanted_permission))
-            else:
-                permission_endpoint = f"{base}/permission/scope/{permission['id']}"
-                resources, scopes, associated_policies = permission_relationships(
+            fgap = desired.get("fineGrainedAdminPermissions")
+            if not isinstance(fgap, dict):
+                raise IdentityOpsError("identity admin requires a declared FGAP contract")
+            operations.extend(
+                plan_identity_admin_fgap(
                     kcadm,
-                    permission_endpoint,
                     realm_name,
+                    fgap,
+                    account,
+                    organizations_by_key,
                 )
-                permission_config = permission.get("config")
-                default_resource_type = (
-                    permission.get("resourceType")
-                    or (
-                        permission_config.get("defaultResourceType")
-                        if isinstance(permission_config, dict)
-                        else None
-                    )
-                )
-                if (
-                    default_resource_type != "Organizations"
-                    or scopes != {"manage", "view"}
-                    or resources != {str(organization["id"])}
-                    or associated_policies != {policy_name}
-                ):
-                    operations.append(Operation("update", permission_contract["key"], f"{base}/permission/scope", str(permission["id"]), {**wanted_permission, "id": permission["id"]}))
+            )
     return operations
 
 
