@@ -279,7 +279,7 @@ services:
       MP_SMTP_TLS_KEY: /run/mailpit/tls/key.pem
     volumes:
       - mailpit-data:/data
-      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/mailpit/tls:/run/mailpit/tls:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}:/run/mailpit/tls:ro
     ports:
       - "127.0.0.1:${WEAVE_MAILPIT_WEB_HOST_PORT:-48025}:8025"
     healthcheck:

@@ -18,6 +18,7 @@ from compose_env import ComposeContext, ContractError, compose_environment, load
 
 CORE_SERVICES = ("postgres", "keycloak", "mas", "synapse", "nextcloud", "caddy")
 APPLICATION_SERVICES = ("backend", "mcp")
+ACTIVATION_SERVICES = ("mailpit",)
 
 
 def _curl(
@@ -104,6 +105,8 @@ def check(
     member_access_token_file: Path | None = None,
 ) -> dict[str, object]:
     services = list(CORE_SERVICES)
+    if context.profile in {"dev", "test"}:
+        services.extend(ACTIVATION_SERVICES)
     if require_application:
         services.extend(APPLICATION_SERVICES)
     runtime = [_container(context, service) for service in services]
