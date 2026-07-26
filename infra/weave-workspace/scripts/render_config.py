@@ -114,6 +114,13 @@ def _origin(value: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
+def _gateway_site(value: str) -> str:
+    parsed = urlsplit(_origin(value))
+    if parsed.hostname is None or ":" in parsed.hostname:
+        raise ContractError(f"expected DNS-hosted HTTPS gateway URL: {value}")
+    return f"https://{parsed.hostname}"
+
+
 def _image_digest(context: ComposeContext) -> str:
     image = context.env["WEAVE_KEYCLOAK_IMAGE"]
     digest_match = re.fullmatch(r"(quay\.io/keycloak/keycloak)@(sha256:[0-9a-f]{64})", image)
@@ -315,6 +322,11 @@ def _caddy(context: ComposeContext) -> str:
     env = context.env
     backend = f"host.docker.internal:{env['WEAVE_HOST_DEV_BACKEND_PORT']}" if context.profile == "dev" else "backend:8080"
     mcp_handler = "respond \"MCP workload edge is not part of the host-dev dependency profile\" 503" if context.profile == "dev" else "reverse_proxy mcp:8091"
+    public_site = _gateway_site(env["WEAVE_PUBLIC_URL"])
+    api_site = _gateway_site(env["WEAVE_API_ORIGIN"])
+    auth_site = _gateway_site(env["WEAVE_AUTH_URL"])
+    matrix_site = _gateway_site(env["WEAVE_MATRIX_URL"])
+    files_site = _gateway_site(env["WEAVE_FILES_URL"])
     return f"""{{
   admin off
 }}
@@ -329,7 +341,7 @@ http:// {{
   respond \"HTTPS required\" 308
 }}
 
-{env['WEAVE_PUBLIC_URL']} {{
+{public_site} {{
   tls /certs/cert.pem /certs/key.pem
   encode zstd gzip
   @internal path /api/internal/* /actuator/*
@@ -343,7 +355,7 @@ http:// {{
   respond \"Weave product gateway\" 200
 }}
 
-{env['WEAVE_API_ORIGIN']} {{
+{api_site} {{
   tls /certs/cert.pem /certs/key.pem
   encode zstd gzip
   @internal path /api/internal/* /actuator/*
@@ -355,12 +367,12 @@ http:// {{
   reverse_proxy {backend}
 }}
 
-{env['WEAVE_AUTH_URL']} {{
+{auth_site} {{
   tls /certs/cert.pem /certs/key.pem
   reverse_proxy keycloak:8080
 }}
 
-{env['WEAVE_MATRIX_URL']} {{
+{matrix_site} {{
   tls /certs/cert.pem /certs/key.pem
   @client_well_known path /.well-known/matrix/client
   handle @client_well_known {{
@@ -376,7 +388,7 @@ http:// {{
   }}
 }}
 
-{env['WEAVE_FILES_URL']} {{
+{files_site} {{
   tls /certs/cert.pem /certs/key.pem
   reverse_proxy nextcloud:80 {{
     header_up X-Forwarded-For {{http.request.remote.host}}
