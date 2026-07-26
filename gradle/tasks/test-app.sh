@@ -211,6 +211,8 @@ bash "${WORKSPACE_ROOT}/operator-check.sh" test
 for required in \
   "${WEAVE_TEST_APP_TLS_ROOT}/ca.pem" \
   "${WEAVE_TEST_APP_TLS_ROOT}/cert.pem" \
+  "${WEAVE_TEST_APP_TLS_ROOT}/mailpit-cert.pem" \
+  "${WEAVE_TEST_APP_TLS_ROOT}/mailpit-key.pem" \
   "${WEAVE_TEST_APP_SECRET_ROOT}/identity-bootstrap-owner-token"; do
   [[ -f "${required}" && ! -L "${required}" ]] ||
     fail "an exact TLS or bootstrap SecretRef input is unavailable"

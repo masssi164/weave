@@ -173,11 +173,100 @@ def _pem(algorithm: str) -> bytes:
     return subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout
 
 
+def _generate_leaf_certificate(
+    temporary_root: Path,
+    ca_key: Path,
+    ca_cert: Path,
+    name: str,
+    hosts: list[str],
+) -> tuple[Path, Path]:
+    key = temporary_root / f"{name}-key.pem"
+    request = temporary_root / f"{name}-request.pem"
+    cert = temporary_root / f"{name}-cert.pem"
+    extension = temporary_root / f"{name}-extension.cnf"
+    extension.write_text(
+        "\n".join(
+            (
+                "basicConstraints=critical,CA:FALSE",
+                "keyUsage=critical,digitalSignature,keyEncipherment",
+                "extendedKeyUsage=serverAuth",
+                "subjectAltName=" + ",".join(f"DNS:{host}" for host in hosts),
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    subprocess.run(
+        [
+            OPENSSL,
+            "genpkey",
+            "-algorithm",
+            "RSA",
+            "-pkeyopt",
+            "rsa_keygen_bits:3072",
+            "-out",
+            key,
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+    subprocess.run(
+        [
+            OPENSSL,
+            "req",
+            "-new",
+            "-key",
+            key,
+            "-subj",
+            f"/CN={hosts[0]}",
+            "-out",
+            request,
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            OPENSSL,
+            "x509",
+            "-req",
+            "-in",
+            request,
+            "-CA",
+            ca_cert,
+            "-CAkey",
+            ca_key,
+            "-CAcreateserial",
+            "-days",
+            "397",
+            "-sha256",
+            "-extfile",
+            extension,
+            "-out",
+            cert,
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return key, cert
+
+
 def _generate_tls(context: ComposeContext) -> None:
     root = context.tls_root
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(root, 0o700)
-    paths = {name: root / name for name in ("ca.pem", "ca-key.pem", "cert.pem", "key.pem")}
+    paths = {
+        name: root / name
+        for name in (
+            "ca.pem",
+            "ca-key.pem",
+            "cert.pem",
+            "key.pem",
+            "mailpit-cert.pem",
+            "mailpit-key.pem",
+        )
+    }
     if all(path.exists() for path in paths.values()):
         for path in paths.values():
             _assert_private_file(path)
@@ -198,17 +287,31 @@ def _generate_tls(context: ComposeContext) -> None:
         temp = Path(temporary)
         ca_key = temp / "ca-key.pem"
         ca_cert = temp / "ca.pem"
-        key = temp / "key.pem"
-        request = temp / "request.pem"
-        cert = temp / "cert.pem"
-        extension = temp / "extension.cnf"
-        extension.write_text("subjectAltName=" + ",".join(f"DNS:{host}" for host in hosts) + "\n", encoding="utf-8")
         subprocess.run([OPENSSL, "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:3072", "-out", ca_key], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         subprocess.run([OPENSSL, "req", "-x509", "-new", "-key", ca_key, "-sha256", "-days", "825", "-subj", "/CN=Weave Local Compose CA", "-out", ca_cert], check=True)
-        subprocess.run([OPENSSL, "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:3072", "-out", key], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-        subprocess.run([OPENSSL, "req", "-new", "-key", key, "-subj", f"/CN={hosts[0]}", "-out", request], check=True)
-        subprocess.run([OPENSSL, "x509", "-req", "-in", request, "-CA", ca_cert, "-CAkey", ca_key, "-CAcreateserial", "-days", "397", "-sha256", "-extfile", extension, "-out", cert], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        for source, target in ((ca_key, paths["ca-key.pem"]), (ca_cert, paths["ca.pem"]), (key, paths["key.pem"]), (cert, paths["cert.pem"])):
+        gateway_key, gateway_cert = _generate_leaf_certificate(
+            temp,
+            ca_key,
+            ca_cert,
+            "gateway",
+            hosts,
+        )
+        mailpit_key, mailpit_cert = _generate_leaf_certificate(
+            temp,
+            ca_key,
+            ca_cert,
+            "mailpit",
+            ["mailpit"],
+        )
+        generated = (
+            (ca_key, paths["ca-key.pem"]),
+            (ca_cert, paths["ca.pem"]),
+            (gateway_key, paths["key.pem"]),
+            (gateway_cert, paths["cert.pem"]),
+            (mailpit_key, paths["mailpit-key.pem"]),
+            (mailpit_cert, paths["mailpit-cert.pem"]),
+        )
+        for source, target in generated:
             _atomic_write(target, source.read_bytes())
 
 
