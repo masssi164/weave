@@ -354,7 +354,15 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         normalized_config(context, emit=False)
         compose(context, "up", "-d", "postgres", "postgres-reconcile")
         identity_ops(context, "identity-apply")
-        compose(context, "up", "-d", "--remove-orphans")
+        compose(
+            context,
+            "up",
+            "-d",
+            "--remove-orphans",
+            "--wait",
+            "--wait-timeout",
+            "600",
+        )
     elif command == "down":
         compose(context, "down", *extra)
     elif command in {"ps", "logs"}:

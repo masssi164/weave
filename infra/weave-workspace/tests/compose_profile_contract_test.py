@@ -168,6 +168,7 @@ def main() -> None:
         runtime_source = (ROOT / "scripts/compose_runtime.py").read_text(encoding="utf-8")
         assert "WEAVE_TEST_USERS_FILE" not in runtime_source
         assert "test-users.json" not in runtime_source
+        assert '"--wait-timeout",\n            "600",' in runtime_source
         invalid = root / "invalid.env"
         invalid.write_text((root / "test.env").read_text().replace("WEAVE_ENVIRONMENT=test", "WEAVE_ENVIRONMENT=dogfood"))
         try:
