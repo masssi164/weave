@@ -19,5 +19,5 @@ fi
   exit 1
 }
 
-WEAVE_REMOVE_VOLUMES=false bash "${WORKSPACE}/teardown.sh"
+bash "${WORKSPACE}/compose.sh" dev down --remove-orphans
 printf '%s\n' "WEAVE_DEV_DOWN_COMPLETE persistent provider volumes were preserved."
