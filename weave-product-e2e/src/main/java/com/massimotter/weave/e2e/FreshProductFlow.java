@@ -94,10 +94,11 @@ public final class FreshProductFlow {
           browser.authorize(
               "weave-app",
               URI.create("com.massimotter.weave:/oauthredirect"),
-              List.of("openid", "profile", "email", "weave:workspace"),
+              List.of("openid", "profile", "email"),
               ownerEmail,
               ownerPassword);
       ownerSession = awaitAuthority(browser, ownerSession, "/owners", "owner");
+      validateHumanWorkspaceToken(browser.jwtPayload(ownerSession.accessToken()), "weave-app");
 
       Instant memberInvitedAt = Instant.now();
       inviteMember(organizationId, memberEmail, ownerSession.accessToken());
@@ -113,7 +114,7 @@ public final class FreshProductFlow {
           browser.authorize(
               "weave-app",
               URI.create("com.massimotter.weave:/oauthredirect"),
-              List.of("openid", "profile", "email", "weave:workspace"),
+              List.of("openid", "profile", "email"),
               memberEmail,
               memberPassword);
       assignWeaverEntitlement(
@@ -121,6 +122,7 @@ public final class FreshProductFlow {
       memberSession =
           awaitAuthority(
               browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
+      validateHumanWorkspaceToken(browser.jwtPayload(memberSession.accessToken()), "weave-app");
       proveMemberApi(memberSession.accessToken());
 
       adminSession =
@@ -301,14 +303,35 @@ public final class FreshProductFlow {
 
   private void validateAdminToken(JsonNode claims) {
     Set<String> audiences = strings(claims.path("aud"));
-    Set<String> scopes =
-        Set.of(claims.path("scope").asString("").trim().split("\\s+"));
+    Set<String> scopes = tokenScopes(claims);
     if (!"weave-admin-console".equals(claims.path("azp").asString())
         || !audiences.equals(Set.of(environment.apiOrigin().resolve("/api").toString()))
+        || !hasExactWorkspaceScope(scopes)
         || !scopes.contains("agent-runtime.admin")
         || !strings(claims.path("groups")).contains("/owners")) {
       throw new ProductFlowException("Agent Runtime admin token is not exact");
     }
+  }
+
+  private static void validateHumanWorkspaceToken(JsonNode claims, String clientId) {
+    Set<String> scopes = tokenScopes(claims);
+    if (!clientId.equals(claims.path("azp").asString()) || !hasExactWorkspaceScope(scopes)) {
+      throw new ProductFlowException("human token workspace scope is not exact");
+    }
+  }
+
+  private static boolean hasExactWorkspaceScope(Set<String> scopes) {
+    return scopes.contains("weave:workspace") && !scopes.contains("weave-workspace");
+  }
+
+  private static Set<String> tokenScopes(JsonNode claims) {
+    Set<String> result = new java.util.LinkedHashSet<>();
+    for (String scope : claims.path("scope").asString("").trim().split("\\s+")) {
+      if (!scope.isBlank()) {
+        result.add(scope);
+      }
+    }
+    return Set.copyOf(result);
   }
 
   private JsonNode provisionRuntime(String personRef, String token) {
