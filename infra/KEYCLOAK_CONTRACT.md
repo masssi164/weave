@@ -92,10 +92,15 @@ the organization action link and Keycloak's subsequent one-time `VERIFY_EMAIL` a
 the same browser session before credential setup. Neither Identity Ops nor Weave Server marks
 email as verified through an administrative API.
 
-Identity Ops verifies both sides of the delegated-administration boundary after convergence:
-the bounded service account must be able to read the exact primary organization and its own
-service-account user, while a password reset must remain forbidden. Any allow or deny probe
-failure blocks apply/readiness without retaining the token or provider response.
+Identity Ops verifies the positive delegated-administration boundary after convergence: the
+bounded service account must be able to read the exact primary organization and its own
+service-account user. Keycloak 26.7 cannot combine the required all-Users lifecycle permission
+with a realm-wide negative password-reset permission, so Weave makes no false provider-level
+deny claim. The administrative client remains Guarded behind a closed backend operation
+allowlist and an internal network boundary. Credential, required-action, impersonation,
+session-creation, and general session routes are absent; only member-bound logout after current
+organization membership verification is allowed for revocation/offboarding. A failed positive
+probe blocks apply/readiness without retaining the token or provider response.
 
 ## Session correctness
 

@@ -477,6 +477,7 @@ public class KeycloakIdentityAdminClient {
 
   private String request(
       HttpMethod method, String uri, String body, MediaType contentType, int expectedStatus) {
+    String operation = KeycloakIdentityAdminOperationPolicy.requireAllowed(method, uri);
     RestClient.RequestBodySpec request = restClient.method(method).uri(uri);
     if (contentType != null) {
       request.contentType(contentType);
@@ -495,7 +496,7 @@ public class KeycloakIdentityAdminClient {
                     throw new KeycloakAdminException(
                         providerResponse.getStatusCode().value(),
                         "Keycloak administration operation failed",
-                        operationCode(method, uri));
+                        operation);
                   })
               .toEntity(String.class);
       return response.getBody() == null ? "" : response.getBody();
@@ -606,25 +607,6 @@ public class KeycloakIdentityAdminClient {
 
   private static String query(String value) {
     return UriUtils.encodeQueryParam(value == null ? "" : value, StandardCharsets.UTF_8);
-  }
-
-  private static String operationCode(HttpMethod method, String uri) {
-    if (uri.contains("/members/invite-user")) {
-      return "invitation-create";
-    }
-    if (uri.contains("/invitations")) {
-      return method == HttpMethod.GET ? "invitation-inventory" : "invitation-lifecycle";
-    }
-    if (uri.contains("/members?")) {
-      return "member-inventory";
-    }
-    if (uri.contains("/organizations?")) {
-      return "organization-inventory";
-    }
-    if (uri.contains("/groups")) {
-      return "organization-group";
-    }
-    return "identity-administration";
   }
 
   public record ProviderInvitation(

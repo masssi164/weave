@@ -73,13 +73,6 @@ IDENTITY_ADMIN_FGAP_CONTRACT = {
             "logic": "POSITIVE",
             "subjectServiceAccountClientKey": "client:weave-identity-admin",
         },
-        {
-            "key": "admin-policy:identity-admin-deny-credential-mutation",
-            "name": "weave-identity-admin deny credential mutation",
-            "policyType": "user",
-            "logic": "NEGATIVE",
-            "subjectServiceAccountClientKey": "client:weave-identity-admin",
-        },
     ],
     "permissions": [
         {
@@ -99,15 +92,6 @@ IDENTITY_ADMIN_FGAP_CONTRACT = {
             "allResources": True,
             "scopes": ["view", "manage", "manage-group-membership"],
             "policyRefs": ["admin-policy:identity-admin"],
-        },
-        {
-            "key": "admin-permission:identity-users-deny-credential-mutation",
-            "name": "weave-identity-admin credential mutation denied",
-            "resourceType": "Users",
-            "resourceRefs": [],
-            "allResources": True,
-            "scopes": ["reset-password"],
-            "policyRefs": ["admin-policy:identity-admin-deny-credential-mutation"],
         },
     ],
 }
@@ -690,8 +674,8 @@ def plan_identity_admin_fgap(
 ) -> list[Operation]:
     if fgap != IDENTITY_ADMIN_FGAP_CONTRACT:
         raise IdentityOpsError(
-            "identity admin FGAP differs from the exact organization, user lifecycle, "
-            "and credential-denial contract"
+            "identity admin FGAP differs from the exact guarded organization and user "
+            "lifecycle contract"
         )
 
     admin_permissions = exact(
@@ -1404,41 +1388,6 @@ def probe_client_credentials(server: str, realm: str, clients: list[dict[str, An
             )
 
 
-def credential_mutation_probe_status(
-    server: str,
-    realm: str,
-    account_id: str,
-    access_token: str,
-) -> int:
-    # Keycloak 26.7 authorizes reset-password before validating this deliberately
-    # incomplete representation. A 403 therefore proves the FGAP deny without
-    # creating or changing a credential.
-    endpoint = (
-        f"{server}/admin/realms/{urllib.parse.quote(realm, safe='')}"
-        f"/users/{urllib.parse.quote(account_id, safe='')}/reset-password"
-    )
-    request = urllib.request.Request(
-        endpoint,
-        data=b"{}",
-        headers={
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-        },
-        method="PUT",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=15) as response:
-            response.read(4096)
-            return response.status
-    except urllib.error.HTTPError as error:
-        error.read(4096)
-        return error.code
-    except urllib.error.URLError as error:
-        raise IdentityOpsError(
-            "identity-admin credential-denial probe failed; response withheld"
-        ) from error
-
-
 def administration_read_probe_status(
     server: str,
     realm: str,
@@ -1467,7 +1416,7 @@ def administration_read_probe_status(
         ) from error
 
 
-def probe_identity_admin_credential_denial(
+def probe_identity_admin_authorization(
     kcadm: Kcadm,
     server: str,
     realm: str,
@@ -1493,7 +1442,7 @@ def probe_identity_admin_credential_denial(
         or desired_client.get("serviceAccountsEnabled") is not True
     ):
         raise IdentityOpsError(
-            "identity administration client cannot perform the credential-denial probe"
+            "identity administration client cannot perform the positive authorization probes"
         )
     observed_client = exact(
         kcadm.call(
@@ -1530,7 +1479,7 @@ def probe_identity_admin_credential_denial(
     access_token = token_response.get("access_token")
     if status != 200 or not isinstance(access_token, str) or not access_token:
         raise IdentityOpsError(
-            "identity administration token is unavailable for the credential-denial probe"
+            "identity administration token is unavailable for the positive authorization probes"
         )
     desired_organization = exact(
         [
@@ -1579,17 +1528,6 @@ def probe_identity_admin_credential_denial(
                 "identity administration positive authorization probe was denied; "
                 f"probe={probe_name}, httpStatus={read_status}, response withheld"
             )
-    probe_status = credential_mutation_probe_status(
-        server,
-        realm,
-        account_id,
-        access_token,
-    )
-    if probe_status != 403:
-        raise IdentityOpsError(
-            "identity administration credential mutation was not denied; "
-            f"httpStatus={probe_status}, response withheld"
-        )
 
 
 def client_credentials_are_rejected(server: str, client_id: str, secret: str) -> bool:
@@ -1691,7 +1629,7 @@ def main() -> int:
                     f"remaining={remaining}"
                 )
             probe_client_credentials(args.server, desired["realm"]["name"], desired.get("clients", []))
-            probe_identity_admin_credential_denial(
+            probe_identity_admin_authorization(
                 kcadm,
                 args.server,
                 desired["realm"]["name"],
