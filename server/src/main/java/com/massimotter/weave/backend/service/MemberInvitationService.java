@@ -205,20 +205,41 @@ public class MemberInvitationService {
   public boolean reconcileAuthenticated(Jwt jwt) {
     OrganizationIdentityContext actor = identityContexts.resolve(jwt);
     String email = jwt.getClaimAsString("email");
-    if (email == null || !Boolean.TRUE.equals(jwt.getClaims().get("email_verified"))) {
-      return false;
+    if (email == null || email.isBlank()) {
+      return reconciliationUnchanged("email-claim-unavailable");
+    }
+    if (!Boolean.TRUE.equals(jwt.getClaims().get("email_verified"))) {
+      return reconciliationUnchanged("email-not-verified");
     }
 
     String organizationId = keycloak.configuredOrganizationId();
     List<ProvisioningIntent> matches =
         intents.findPendingByEmail(
             actor.organizationId(), organizationId, normalizeEmail(email));
-    if (matches.size() != 1
-        || !keycloak.isOrganizationMember(organizationId, actor.subject())) {
-      return false;
+    if (matches.isEmpty()) {
+      return reconciliationUnchanged("pending-intent-unavailable");
+    }
+    if (matches.size() > 1) {
+      throw new ApiErrorException(
+          HttpStatus.CONFLICT,
+          "identity-session-reconciliation-ambiguous",
+          "The pending identity-session reconciliation is ambiguous.",
+          Map.of());
+    }
+    if (!keycloak.isOrganizationMember(organizationId, actor.subject())) {
+      return reconciliationUnchanged("organization-membership-unavailable");
     }
     apply(matches.getFirst(), actor.subject());
+    LOGGER.info(
+        "WEAVE_IDENTITY_SESSION_RECONCILE outcome=access-updated reason=pending-intent-applied");
     return true;
+  }
+
+  private boolean reconciliationUnchanged(String reason) {
+    LOGGER.info(
+        "WEAVE_IDENTITY_SESSION_RECONCILE outcome=unchanged reason={}",
+        reason);
+      return false;
   }
 
   private MemberInvitationResponse existingBootstrapInvitation(

@@ -23,6 +23,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,11 +31,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 @ExtendWith(MockitoExtension.class)
 class MemberInvitationServiceTest {
   private static final Instant NOW = Instant.parse("2026-07-26T10:00:00Z");
-  private static final String TENANT_ID = "tenant-dogfood";
+  private static final String TENANT_ID = "tenant-default";
   private static final String ORGANIZATION_ID = "organization-1";
   private static final String EMAIL = "owner@example.org";
   private static final String IDEMPOTENCY_KEY = "bootstrap-owner-run-0001";
@@ -230,6 +232,49 @@ class MemberInvitationServiceTest {
               assertThat(error.status()).isEqualTo(HttpStatus.BAD_GATEWAY);
               assertThat(error.code()).isEqualTo("member-invitation-provider-unavailable");
             });
+  }
+
+  @Test
+  void reconcilesOneVerifiedPendingIntentAgainstLiveOrganizationMembership() {
+    intents.save(pendingIntent("invitation-1", ProvisioningIntentStatus.PENDING));
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.isOrganizationMember(ORGANIZATION_ID, "owner-subject"))
+        .thenReturn(true);
+
+    assertThat(service.reconcileAuthenticated(authenticatedOwner())).isTrue();
+
+    verify(keycloak).applyRole("owner-subject", "owner");
+    assertThat(intents.findPendingByEmail(TENANT_ID, ORGANIZATION_ID, EMAIL))
+        .isEmpty();
+  }
+
+  @Test
+  void rejectsAmbiguousPendingIntentsInsteadOfSelectingOne() {
+    intents.save(pendingIntent("invitation-1", ProvisioningIntentStatus.PENDING));
+    intents.save(pendingIntent("invitation-2", ProvisioningIntentStatus.PENDING));
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+
+    assertThatThrownBy(() -> service.reconcileAuthenticated(authenticatedOwner()))
+        .isInstanceOfSatisfying(
+            ApiErrorException.class,
+            error -> {
+              assertThat(error.status()).isEqualTo(HttpStatus.CONFLICT);
+              assertThat(error.code())
+                  .isEqualTo("identity-session-reconciliation-ambiguous");
+            });
+
+    verify(keycloak, never()).applyRole(anyString(), anyString());
+  }
+
+  private Jwt authenticatedOwner() {
+    return Jwt.withTokenValue("owner-token")
+        .header("alg", "none")
+        .issuer("https://auth.example.test/realms/weave")
+        .subject("owner-subject")
+        .claim("email", EMAIL)
+        .claim("email_verified", true)
+        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of())))
+        .build();
   }
 
   private ProvisioningIntent pendingIntent(

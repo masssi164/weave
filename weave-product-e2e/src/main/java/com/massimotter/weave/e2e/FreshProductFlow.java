@@ -351,6 +351,12 @@ public final class FreshProductFlow {
         .contains(environment.apiOrigin().resolve("/api").toString())) {
       invalidClaims.add("audience");
     }
+    if (claims.path("email").asString("").isBlank()) {
+      invalidClaims.add("email");
+    }
+    if (!claims.path("email_verified").asBoolean(false)) {
+      invalidClaims.add("email-verified");
+    }
     if (!hasExactWorkspaceScope(scopes)) {
       invalidClaims.add("workspace-scope");
     }
