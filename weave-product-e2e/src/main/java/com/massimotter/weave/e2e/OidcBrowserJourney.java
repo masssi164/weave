@@ -243,11 +243,23 @@ final class OidcBrowserJourney implements AutoCloseable {
     }
     String refreshToken = token.path("refresh_token").asString("");
     JsonNode claims = jwtPayload(accessToken);
-    if (!environment.issuer().toString().equals(claims.path("iss").asString())
-        || !clientId.equals(claims.path("azp").asString())
-        || claims.path("sub").asString("").isBlank()
-        || claims.path("exp").asLong(0) <= Instant.now().getEpochSecond()) {
-      throw new ProductFlowException("OIDC access token claims did not match the request");
+    Set<String> invalidClaims = new TreeSet<>();
+    if (!environment.issuer().toString().equals(claims.path("iss").asString())) {
+      invalidClaims.add("issuer");
+    }
+    if (!clientId.equals(claims.path("azp").asString())) {
+      invalidClaims.add("authorized-party");
+    }
+    if (claims.path("sub").asString("").isBlank()) {
+      invalidClaims.add("subject");
+    }
+    if (claims.path("exp").asLong(0) <= Instant.now().getEpochSecond()) {
+      invalidClaims.add("expiry");
+    }
+    if (!invalidClaims.isEmpty()) {
+      throw new ProductFlowException(
+          "OIDC access token claims did not match fields="
+              + String.join(",", invalidClaims));
     }
     return new TokenSet(
         clientId,
