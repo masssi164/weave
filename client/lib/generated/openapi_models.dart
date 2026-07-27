@@ -4044,22 +4044,22 @@ class HealthResponse {
 
 class IdentitySessionReconcileResponse {
   const IdentitySessionReconcileResponse({
-    required this.sessionRefreshRequired,
+    required this.reauthorizationRequired,
     required this.state,
   });
 
   factory IdentitySessionReconcileResponse.fromJson(
     Map<String, dynamic> json,
   ) => IdentitySessionReconcileResponse(
-    sessionRefreshRequired: json["sessionRefreshRequired"] as bool,
+    reauthorizationRequired: json["reauthorizationRequired"] as bool,
     state: json["state"] as String,
   );
 
-  final bool sessionRefreshRequired;
+  final bool reauthorizationRequired;
   final String state;
 
   Map<String, dynamic> toJson() => {
-    "sessionRefreshRequired": _openApiJsonValue(sessionRefreshRequired),
+    "reauthorizationRequired": _openApiJsonValue(reauthorizationRequired),
     "state": _openApiJsonValue(state),
   };
 }

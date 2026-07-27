@@ -16,7 +16,7 @@ import 'package:weave/integrations/weave_api/data/dtos/workspace_capabilities_re
 import 'package:weave/integrations/weave_api/data/dtos/workspace_home_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/services/weave_api_uri_builder.dart';
 
-enum IdentitySessionReconcileResult { unchanged, accessUpdated }
+enum IdentitySessionReconcileResult { unchanged, reauthorizationRequired }
 
 abstract interface class WeaveApiClient {
   Future<IdentitySessionReconcileResult> reconcileIdentitySession({
@@ -95,13 +95,14 @@ class HttpWeaveApiClient implements WeaveApiClient {
     );
     final result = switch (response.state) {
       'unchanged' => IdentitySessionReconcileResult.unchanged,
-      'access_updated' => IdentitySessionReconcileResult.accessUpdated,
+      'access_updated' =>
+        IdentitySessionReconcileResult.reauthorizationRequired,
       _ => throw const AppFailure.unknown(
         'The Weave backend returned an unknown identity-session reconciliation state.',
       ),
     };
-    if (response.sessionRefreshRequired !=
-        (result == IdentitySessionReconcileResult.accessUpdated)) {
+    if (response.reauthorizationRequired !=
+        (result == IdentitySessionReconcileResult.reauthorizationRequired)) {
       throw const AppFailure.unknown(
         'The Weave backend returned an inconsistent identity-session reconciliation state.',
       );

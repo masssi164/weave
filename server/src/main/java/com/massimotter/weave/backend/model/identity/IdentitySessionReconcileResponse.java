@@ -5,23 +5,23 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "Provider-neutral result of authenticated identity-session reconciliation.")
 public record IdentitySessionReconcileResponse(
         @Schema(
-                        description = "Closed reconciliation state. Access changes require one OIDC token refresh.",
+                        description = "Closed reconciliation state. Access changes require one new OIDC Authorization Code flow with PKCE.",
                         allowableValues = {"unchanged", "access_updated"},
                         requiredMode = Schema.RequiredMode.REQUIRED,
                         example = "unchanged")
                 String state,
         @Schema(
-                        description = "Whether the caller must refresh its already-issued OIDC token before domain bootstrap.",
+                        description = "Whether the caller must obtain a new OIDC authorization before domain bootstrap.",
                         requiredMode = Schema.RequiredMode.REQUIRED,
                         example = "false")
-                boolean sessionRefreshRequired) {
+                boolean reauthorizationRequired) {
 
     public IdentitySessionReconcileResponse {
         if (!"unchanged".equals(state) && !"access_updated".equals(state)) {
             throw new IllegalArgumentException("state must be unchanged or access_updated");
         }
-        if (sessionRefreshRequired != "access_updated".equals(state)) {
-            throw new IllegalArgumentException("sessionRefreshRequired must match the reconciliation state");
+        if (reauthorizationRequired != "access_updated".equals(state)) {
+            throw new IllegalArgumentException("reauthorizationRequired must match the reconciliation state");
         }
     }
 

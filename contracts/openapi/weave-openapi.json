@@ -3321,13 +3321,13 @@
       "IdentitySessionReconcileResponse": {
         "description": "Provider-neutral result of authenticated identity-session reconciliation.",
         "properties": {
-          "sessionRefreshRequired": {
-            "description": "Whether the caller must refresh its already-issued OIDC token before domain bootstrap.",
+          "reauthorizationRequired": {
+            "description": "Whether the caller must obtain a new OIDC authorization before domain bootstrap.",
             "example": false,
             "type": "boolean"
           },
           "state": {
-            "description": "Closed reconciliation state. Access changes require one OIDC token refresh.",
+            "description": "Closed reconciliation state. Access changes require one new OIDC Authorization Code flow with PKCE.",
             "enum": [
               "access_updated",
               "unchanged"
@@ -3337,7 +3337,7 @@
           }
         },
         "required": [
-          "sessionRefreshRequired",
+          "reauthorizationRequired",
           "state"
         ],
         "type": "object"
@@ -10745,7 +10745,7 @@
     },
     "/api/v1/identity/session/reconcile": {
       "post": {
-        "description": "Idempotently applies one verified pending invitation intent to the current native organization member. An access_updated result requires exactly one OIDC refresh before product-domain bootstrap.",
+        "description": "Idempotently applies one verified pending invitation intent to the current native organization member. An access_updated result requires exactly one new OIDC Authorization Code flow with PKCE before product-domain bootstrap.",
         "operationId": "reconcileIdentitySessionV1",
         "responses": {
           "200": {

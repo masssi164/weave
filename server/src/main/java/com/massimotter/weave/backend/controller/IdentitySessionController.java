@@ -36,7 +36,7 @@ public class IdentitySessionController {
             operationId = "reconcileIdentitySession",
             summary = "Reconcile authenticated invitation access",
             description =
-                    "Idempotently applies one verified pending invitation intent to the current native organization member. An access_updated result requires exactly one OIDC refresh before product-domain bootstrap.",
+                    "Idempotently applies one verified pending invitation intent to the current native organization member. An access_updated result requires exactly one new OIDC Authorization Code flow with PKCE before product-domain bootstrap.",
             security = @SecurityRequirement(name = "bearer-jwt"))
     @ApiResponses({
         @ApiResponse(

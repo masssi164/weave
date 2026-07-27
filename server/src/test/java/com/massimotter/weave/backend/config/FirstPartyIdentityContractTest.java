@@ -107,7 +107,8 @@ class FirstPartyIdentityContractTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer bootstrap-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("unchanged"))
-                .andExpect(jsonPath("$.sessionRefreshRequired").value(false));
+                .andExpect(jsonPath("$.reauthorizationRequired").value(false))
+                .andExpect(jsonPath("$.sessionRefreshRequired").doesNotExist());
     }
 
     @Test

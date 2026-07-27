@@ -1,4 +1,4 @@
-enum IdentitySessionReconciliation { unchanged, accessUpdated }
+enum IdentitySessionReconciliation { unchanged, reauthorizationRequired }
 
 abstract interface class IdentitySessionPort {
   Future<IdentitySessionReconciliation> reconcile({

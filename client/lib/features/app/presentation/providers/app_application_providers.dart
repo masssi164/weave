@@ -61,7 +61,6 @@ final reconcileIdentitySessionProvider = Provider<ReconcileIdentitySession>((
   ref,
 ) {
   return ReconcileIdentitySession(
-    authPort: ref.watch(appAuthPortProvider),
     identitySessionPort: ref.watch(identitySessionPortProvider),
   );
 });
@@ -158,8 +157,8 @@ class _WeaveApiIdentitySessionPort implements IdentitySessionPort {
     return switch (result) {
       IdentitySessionReconcileResult.unchanged =>
         IdentitySessionReconciliation.unchanged,
-      IdentitySessionReconcileResult.accessUpdated =>
-        IdentitySessionReconciliation.accessUpdated,
+      IdentitySessionReconcileResult.reauthorizationRequired =>
+        IdentitySessionReconciliation.reauthorizationRequired,
     };
   }
 }

@@ -169,7 +169,7 @@ void main() {
           capturedRequest = request;
           return _jsonResponse({
             'state': 'access_updated',
-            'sessionRefreshRequired': true,
+            'reauthorizationRequired': true,
           });
         }),
       );
@@ -179,7 +179,7 @@ void main() {
         accessToken: 'token-123',
       );
 
-      expect(result, IdentitySessionReconcileResult.accessUpdated);
+      expect(result, IdentitySessionReconcileResult.reauthorizationRequired);
       expect(capturedRequest.method, 'POST');
       expect(
         capturedRequest.url.toString(),
@@ -196,7 +196,7 @@ void main() {
         httpClient: _RecordingHttpClient((request) async {
           return _jsonResponse({
             'state': 'unchanged',
-            'sessionRefreshRequired': true,
+            'reauthorizationRequired': true,
           });
         }),
       );

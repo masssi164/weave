@@ -107,7 +107,9 @@ public final class FreshProductFlow {
               ownerEmail,
               ownerPassword);
       validateHumanBootstrapToken(browser.jwtPayload(ownerSession.accessToken()), "weave-app");
-      ownerSession = reconcileIdentitySession(browser, ownerSession, "owner");
+      ownerSession =
+          reconcileIdentitySession(
+              browser, ownerSession, "owner", ownerEmail, ownerPassword);
       ownerSession = awaitAuthority(browser, ownerSession, "/owners", "owner");
       validateHumanWorkspaceToken(browser.jwtPayload(ownerSession.accessToken()), "weave-app");
 
@@ -138,7 +140,9 @@ public final class FreshProductFlow {
               memberEmail,
               memberPassword);
       validateHumanBootstrapToken(browser.jwtPayload(memberSession.accessToken()), "weave-app");
-      memberSession = reconcileIdentitySession(browser, memberSession, "member");
+      memberSession =
+          reconcileIdentitySession(
+              browser, memberSession, "member", memberEmail, memberPassword);
       assignWeaverEntitlement(
           organizationId, memberEmail, ownerSession.accessToken());
       memberSession =
@@ -326,7 +330,9 @@ public final class FreshProductFlow {
   private OidcBrowserJourney.TokenSet reconcileIdentitySession(
       OidcBrowserJourney browser,
       OidcBrowserJourney.TokenSet session,
-      String expectedRole) {
+      String expectedRole,
+      String email,
+      String password) {
     JsonNode response =
         http.json(
             "reconcile authenticated identity session",
@@ -336,11 +342,17 @@ public final class FreshProductFlow {
             null,
             Set.of(200));
     if (!"access_updated".equals(response.path("state").asString())
-        || !response.path("sessionRefreshRequired").asBoolean(false)) {
+        || !response.path("reauthorizationRequired").asBoolean(false)
+        || response.has("sessionRefreshRequired")) {
       throw new ProductFlowException(
           "identity session did not apply the pending " + expectedRole + " intent");
     }
-    return browser.refresh(session);
+    return browser.authorize(
+        "weave-app",
+        URI.create("com.massimotter.weave:/oauthredirect"),
+        session.requestedScopes(),
+        email,
+        password);
   }
 
   private void validateAdminToken(JsonNode claims) {
