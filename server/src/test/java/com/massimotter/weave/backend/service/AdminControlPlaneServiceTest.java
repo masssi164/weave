@@ -459,7 +459,7 @@ class AdminControlPlaneServiceTest {
                 .header("alg", "none")
                 .subject(role + "-123")
                 .issuer("https://auth.example.invalid/realms/acme")
-                .claim("weave_tenant", "weave-dogfood")
+                .claim("weave_tenant_id", "weave-dogfood")
                 .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of(role))))
                 .claim("groups", List.of())
                 .build();

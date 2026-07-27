@@ -267,7 +267,7 @@ class OrganizationMemberAdministrationServiceTest {
         .header("alg", "none")
         .issuer("https://auth.example.test/realms/weave")
         .subject(role + "-subject")
-        .claim("weave_tenant", ORGANIZATION_ID)
+        .claim("weave_tenant_id", ORGANIZATION_ID)
         .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of(role))))
         .build();
   }

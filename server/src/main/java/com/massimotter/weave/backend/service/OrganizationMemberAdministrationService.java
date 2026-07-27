@@ -38,6 +38,7 @@ public class OrganizationMemberAdministrationService {
   private final IdentityAdminOperationStore operations;
   private final AuditEventPublisher audit;
   private final ObjectMapper objectMapper;
+  private final OrganizationIdentityContextResolver identityContexts;
   private final Clock clock;
 
   @Autowired
@@ -46,8 +47,16 @@ public class OrganizationMemberAdministrationService {
       IdentityOpaqueReferenceCodec references,
       IdentityAdminOperationStore operations,
       AuditEventPublisher audit,
-      ObjectMapper objectMapper) {
-    this(keycloak, references, operations, audit, objectMapper, Clock.systemUTC());
+      ObjectMapper objectMapper,
+      OrganizationIdentityContextResolver identityContexts) {
+    this(
+        keycloak,
+        references,
+        operations,
+        audit,
+        objectMapper,
+        identityContexts,
+        Clock.systemUTC());
   }
 
   OrganizationMemberAdministrationService(
@@ -57,11 +66,30 @@ public class OrganizationMemberAdministrationService {
       AuditEventPublisher audit,
       ObjectMapper objectMapper,
       Clock clock) {
+    this(
+        keycloak,
+        references,
+        operations,
+        audit,
+        objectMapper,
+        OrganizationIdentityContextResolver.defaults(),
+        clock);
+  }
+
+  OrganizationMemberAdministrationService(
+      KeycloakIdentityAdminClient keycloak,
+      IdentityOpaqueReferenceCodec references,
+      IdentityAdminOperationStore operations,
+      AuditEventPublisher audit,
+      ObjectMapper objectMapper,
+      OrganizationIdentityContextResolver identityContexts,
+      Clock clock) {
     this.keycloak = keycloak;
     this.references = references;
     this.operations = operations;
     this.audit = audit;
     this.objectMapper = objectMapper;
+    this.identityContexts = identityContexts;
     this.clock = clock;
   }
 
@@ -268,7 +296,7 @@ public class OrganizationMemberAdministrationService {
   }
 
   private OrganizationIdentityContext requireOrganization(String organizationId, Jwt jwt) {
-    OrganizationIdentityContext actor = OrganizationIdentityContextFactory.fromJwt(jwt);
+    OrganizationIdentityContext actor = identityContexts.resolve(jwt);
     if (organizationId == null
         || organizationId.isBlank()
         || !organizationId.equals(actor.organizationId())) {

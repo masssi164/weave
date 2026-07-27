@@ -29,6 +29,7 @@ import java.time.Instant;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
 import com.massimotter.weave.backend.service.InMemoryOrganizationBootstrapRepository;
 import com.massimotter.weave.backend.service.OrganizationBootstrapRepository;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.ProductProfileOverrideRepository;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
@@ -72,6 +73,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = AdminControlPlaneController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
@@ -703,7 +705,7 @@ class AdminControlPlaneControllerTest {
                         .subject("admin-123")
                         .claim("iss", "https://auth.example.invalid/realms/weave")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("weave_tenant", "weave-dogfood")
+                        .claim("weave_tenant_id", "weave-dogfood")
                         .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin")))))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
@@ -715,7 +717,7 @@ class AdminControlPlaneControllerTest {
                         .subject("operator-123")
                         .claim("iss", "https://auth.example.invalid/realms/weave")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("weave_tenant", "weave-dogfood")
+                        .claim("weave_tenant_id", "weave-dogfood")
                         .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("operator")))))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),

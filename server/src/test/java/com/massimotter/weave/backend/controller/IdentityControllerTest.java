@@ -6,6 +6,7 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.service.ProductProfileOverrideRepository;
 import com.massimotter.weave.backend.service.ProductProfileService;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -28,7 +29,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(
         controllers = IdentityController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
-@Import({SecurityConfig.class, ApiAuthenticationEntryPoint.class, ApiAccessDeniedHandler.class, ApiErrorResponseWriter.class, ProductProfileService.class})
+@Import({
+        OrganizationIdentityContextResolver.class,
+        SecurityConfig.class,
+        ApiAuthenticationEntryPoint.class,
+        ApiAccessDeniedHandler.class,
+        ApiErrorResponseWriter.class,
+        ProductProfileService.class
+})
 @org.springframework.test.context.TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave"
 })
@@ -48,7 +56,7 @@ class IdentityControllerTest {
         mockMvc.perform(get("/api/me").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
-                        .claim("weave_tenant", "acme-prod")
+                        .claim("weave_tenant_id", "acme-prod")
                         .claim("preferred_username", "alice")
                         .claim("name", "Alice Example")
                         .claim("email", "alice@example.com")

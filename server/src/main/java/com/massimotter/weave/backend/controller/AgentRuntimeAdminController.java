@@ -10,7 +10,7 @@ import com.massimotter.weave.backend.model.agentruntime.RevokeAgentRuntimeReques
 import com.massimotter.weave.backend.model.agentruntime.StopAgentRuntimeRequest;
 import com.massimotter.weave.backend.model.agentruntime.SuspendAgentRuntimeRequest;
 import com.massimotter.weave.backend.service.OrganizationIdentityContext;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextFactory;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
@@ -46,12 +46,15 @@ public class AgentRuntimeAdminController {
 
     private final AgentRuntimeAdminService runtimes;
     private final AgentRuntimeErrorResponseWriter errors;
+    private final OrganizationIdentityContextResolver identityContexts;
 
     public AgentRuntimeAdminController(
             AgentRuntimeAdminService runtimes,
-            AgentRuntimeErrorResponseWriter errors) {
+            AgentRuntimeErrorResponseWriter errors,
+            OrganizationIdentityContextResolver identityContexts) {
         this.runtimes = runtimes;
         this.errors = errors;
+        this.identityContexts = identityContexts;
     }
 
     @GetMapping("/{personRef}")
@@ -136,7 +139,7 @@ public class AgentRuntimeAdminController {
     }
 
     private AdminContext context(JwtAuthenticationToken authentication, HttpServletRequest request) {
-        OrganizationIdentityContext identity = OrganizationIdentityContextFactory.fromJwt(authentication.getToken());
+        OrganizationIdentityContext identity = identityContexts.resolve(authentication.getToken());
         return new AdminContext(
                 identity.organizationId(), identity.primaryIdentityKey(), errors.auditRef(request));
     }

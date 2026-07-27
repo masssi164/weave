@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -108,6 +109,20 @@ public class ApiExceptionHandler {
                 HttpStatus.NOT_FOUND,
                 "not-found",
                 "The requested resource does not exist.");
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public void handleAccessDenied(
+            AccessDeniedException exception,
+            HttpServletRequest request,
+            HttpServletResponse response)
+            throws IOException {
+        errorResponseWriter.write(
+                request,
+                response,
+                HttpStatus.FORBIDDEN,
+                "forbidden",
+                "The authenticated bearer token lacks the authority required for this operation.");
     }
 
     @ExceptionHandler(Exception.class)

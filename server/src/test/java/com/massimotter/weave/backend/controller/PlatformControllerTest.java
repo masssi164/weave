@@ -10,6 +10,7 @@ import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.persistence.jpa.readiness.JpaPersistenceReadinessProbe;
 import com.massimotter.weave.backend.service.LocalDependencyReadinessService;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.PlatformContractService;
 import com.massimotter.weave.backend.service.ProviderCapabilityHealthService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
@@ -36,6 +37,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
         controllers = {PlatformController.class, HealthController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
         LocalDependencyReadinessService.class,
         PlatformContractService.class,

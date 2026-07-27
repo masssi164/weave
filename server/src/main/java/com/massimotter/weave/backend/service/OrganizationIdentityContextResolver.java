@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import java.util.Collection;
@@ -9,30 +10,64 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.stereotype.Component;
 
-public final class OrganizationIdentityContextFactory {
+/**
+ * Resolves the one canonical, deployment-configured identity context for a human request.
+ *
+ * <p>This bean is the only owner of tenant-claim precedence. Provider adapters and product
+ * services consume the canonical result and must not invent tenant aliases or local fallbacks.
+ */
+@Component
+public final class OrganizationIdentityContextResolver {
 
-    private static final List<String> WEAVE_ORG_ROLES = List.of("owner", "admin", "member", "guest");
+    private static final List<String> WEAVE_ORG_ROLES =
+            List.of("owner", "admin", "member", "guest");
+    private static final int MAX_IDENTITY_ISSUER_LENGTH =
+            com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_ISSUER_LENGTH;
+    private static final int MAX_IDENTITY_SUBJECT_LENGTH =
+            com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_SUBJECT_LENGTH;
 
-    private static final int MAX_IDENTITY_ISSUER_LENGTH = com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_ISSUER_LENGTH;
-    private static final int MAX_IDENTITY_SUBJECT_LENGTH = com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_SUBJECT_LENGTH;
+    private final ContextAuthorizationProperties properties;
 
-    private OrganizationIdentityContextFactory() {
+    @Autowired
+    public OrganizationIdentityContextResolver(
+            ObjectProvider<ContextAuthorizationProperties> propertiesProvider) {
+        this(propertiesProvider.getIfAvailable(OrganizationIdentityContextResolver::defaultProperties));
     }
 
-    public static OrganizationIdentityContext fromJwt(Jwt jwt) {
+    private OrganizationIdentityContextResolver(ContextAuthorizationProperties properties) {
+        this.properties = java.util.Objects.requireNonNull(properties, "properties");
+    }
+
+    /**
+     * Test-only convenience using the same defaults as the configuration-properties contract.
+     */
+    static OrganizationIdentityContextResolver defaults() {
+        return new OrganizationIdentityContextResolver(defaultProperties());
+    }
+
+    static OrganizationIdentityContextResolver configured(
+            ContextAuthorizationProperties properties) {
+        return new OrganizationIdentityContextResolver(properties);
+    }
+
+    private static ContextAuthorizationProperties defaultProperties() {
+        return new ContextAuthorizationProperties(
+                null, null, null, null, null, null, null, null);
+    }
+
+    public OrganizationIdentityContext resolve(Jwt jwt) {
         String subject = requireSubject(jwt);
         String issuer = issuer(jwt);
         String organizationId = firstText(
-                claim(jwt, "weave_tenant"),
-                claim(jwt, "weave_tenant_id"),
-                claim(jwt, "tenant"),
-                claim(jwt, "tenant_id"),
-                claim(jwt, "tid"),
-                claim(jwt, "org_id"),
-                "weave-dogfood");
+                claim(jwt, properties.tenantClaim()),
+                claim(jwt, properties.tenantFallbackClaim()),
+                properties.defaultTenantId());
         String primaryIdentityKey = IdentityReferences.primaryIdentityKey(issuer, subject);
         String accountId = IdentityReferences.accountId(issuer, subject);
         List<String> roles = canonicalRoles(jwt);
@@ -85,7 +120,9 @@ public final class OrganizationIdentityContextFactory {
     }
 
     private static void validateIdentitySegment(String value, String claim, int maxLength) {
-        if (value.length() > maxLength || value.indexOf('#') >= 0 || value.chars().anyMatch(Character::isWhitespace)) {
+        if (value.length() > maxLength
+                || value.indexOf('#') >= 0
+                || value.chars().anyMatch(Character::isWhitespace)) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
                     "invalid-identity-claim",
@@ -138,7 +175,7 @@ public final class OrganizationIdentityContextFactory {
             }
         }
         return values.stream()
-                .filter(OrganizationIdentityContextFactory::hasText)
+                .filter(OrganizationIdentityContextResolver::hasText)
                 .map(String::trim)
                 .sorted()
                 .toList();
@@ -149,12 +186,12 @@ public final class OrganizationIdentityContextFactory {
                 .filter(String.class::isInstance)
                 .map(String.class::cast)
                 .map(String::trim)
-                .filter(OrganizationIdentityContextFactory::hasText)
+                .filter(OrganizationIdentityContextResolver::hasText)
                 .toList();
     }
 
     private static String claim(Jwt jwt, String claimName) {
-        if (jwt == null) {
+        if (jwt == null || !hasText(claimName)) {
             return null;
         }
         Object value = jwt.getClaims().get(claimName);
@@ -167,11 +204,10 @@ public final class OrganizationIdentityContextFactory {
                 return value.trim();
             }
         }
-        return null;
+        throw new IllegalStateException("Identity tenant resolution is not configured");
     }
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
-
 }

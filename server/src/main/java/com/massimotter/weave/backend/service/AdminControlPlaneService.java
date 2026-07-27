@@ -102,6 +102,7 @@ public class AdminControlPlaneService {
     private final OrganizationBootstrapRepository organizationBootstrapRepository;
     private final AuditEventPublisher auditEventPublisher;
     private final MigrationRunEvidenceRepository migrationRunEvidenceRepository;
+    private final OrganizationIdentityContextResolver identityContexts;
     private final Clock clock;
 
     @Autowired
@@ -112,7 +113,8 @@ public class AdminControlPlaneService {
             OrganizationBootstrapRepository organizationBootstrapRepository,
             AuditEventPublisher auditEventPublisher,
             ProductProfileOverrideRepository productProfileOverrideRepository,
-            MigrationRunEvidenceRepository migrationRunEvidenceRepository) {
+            MigrationRunEvidenceRepository migrationRunEvidenceRepository,
+            OrganizationIdentityContextResolver identityContexts) {
         this(
                 providerRegistry,
                 workspaceCapabilityService,
@@ -121,7 +123,8 @@ public class AdminControlPlaneService {
                 auditEventPublisher,
                 Clock.systemUTC(),
                 productProfileOverrideRepository,
-                migrationRunEvidenceRepository);
+                migrationRunEvidenceRepository,
+                identityContexts);
     }
 
     AdminControlPlaneService(
@@ -133,6 +136,28 @@ public class AdminControlPlaneService {
             Clock clock,
             ProductProfileOverrideRepository productProfileOverrideRepository,
             MigrationRunEvidenceRepository migrationRunEvidenceRepository) {
+        this(
+                providerRegistry,
+                workspaceCapabilityService,
+                providerSelectionRepository,
+                organizationBootstrapRepository,
+                auditEventPublisher,
+                clock,
+                productProfileOverrideRepository,
+                migrationRunEvidenceRepository,
+                OrganizationIdentityContextResolver.defaults());
+    }
+
+    AdminControlPlaneService(
+            ProviderRegistry providerRegistry,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ProviderSelectionRepository providerSelectionRepository,
+            OrganizationBootstrapRepository organizationBootstrapRepository,
+            AuditEventPublisher auditEventPublisher,
+            Clock clock,
+            ProductProfileOverrideRepository productProfileOverrideRepository,
+            MigrationRunEvidenceRepository migrationRunEvidenceRepository,
+            OrganizationIdentityContextResolver identityContexts) {
         this.providerRegistry = java.util.Objects.requireNonNull(providerRegistry, "providerRegistry");
         this.workspaceCapabilityService = java.util.Objects.requireNonNull(
                 workspaceCapabilityService, "workspaceCapabilityService");
@@ -146,6 +171,8 @@ public class AdminControlPlaneService {
                 auditEventPublisher, "auditEventPublisher");
         this.migrationRunEvidenceRepository = java.util.Objects.requireNonNull(
                 migrationRunEvidenceRepository, "migrationRunEvidenceRepository");
+        this.identityContexts = java.util.Objects.requireNonNull(
+                identityContexts, "identityContexts");
         this.clock = java.util.Objects.requireNonNull(clock, "clock");
     }
 
@@ -422,7 +449,7 @@ public class AdminControlPlaneService {
             return null;
         }
         try {
-            String primaryIdentityKey = OrganizationIdentityContextFactory.fromJwt(jwt).primaryIdentityKey();
+            String primaryIdentityKey = identityContexts.resolve(jwt).primaryIdentityKey();
             return productProfileOverrideRepository.findByPrimaryIdentityKey(primaryIdentityKey);
         } catch (RuntimeException exception) {
             return null;
@@ -841,7 +868,7 @@ public class AdminControlPlaneService {
 
     public OrganizationBootstrapResponse bootstrapOrganization(OrganizationBootstrapRequest request, Jwt jwt) {
         workspaceCapabilityService.requireCapability(jwt, "admin.policy.edit", "admin-control-plane", "bootstrap-organization");
-        OrganizationIdentityContext identity = OrganizationIdentityContextFactory.fromJwt(jwt);
+        OrganizationIdentityContext identity = identityContexts.resolve(jwt);
         if (request == null || request.organizationId() == null || request.organizationId().isBlank()) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
@@ -1803,10 +1830,7 @@ public class AdminControlPlaneService {
     }
 
     private String organizationId(Jwt jwt) {
-        return claim(jwt, "weave_tenant")
-                .or(() -> claim(jwt, "tenant"))
-                .or(() -> claim(jwt, "tid"))
-                .orElse("weave-dogfood");
+        return identityContexts.resolve(jwt).organizationId();
     }
 
     private String organizationName(Jwt jwt) {

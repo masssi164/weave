@@ -45,6 +45,7 @@ public class MemberInvitationService {
   private final IdentityInvitationProperties properties;
   private final IdentityOpaqueReferenceCodec references;
   private final AuditEventPublisher audit;
+  private final OrganizationIdentityContextResolver identityContexts;
   private final Clock clock;
 
   @Autowired
@@ -53,8 +54,16 @@ public class MemberInvitationService {
       KeycloakIdentityAdminClient keycloak,
       IdentityInvitationProperties properties,
       IdentityOpaqueReferenceCodec references,
-      AuditEventPublisher audit) {
-    this(intents, keycloak, properties, references, audit, Clock.systemUTC());
+      AuditEventPublisher audit,
+      OrganizationIdentityContextResolver identityContexts) {
+    this(
+        intents,
+        keycloak,
+        properties,
+        references,
+        audit,
+        identityContexts,
+        Clock.systemUTC());
   }
 
   MemberInvitationService(
@@ -64,11 +73,30 @@ public class MemberInvitationService {
       IdentityOpaqueReferenceCodec references,
       AuditEventPublisher audit,
       Clock clock) {
+    this(
+        intents,
+        keycloak,
+        properties,
+        references,
+        audit,
+        OrganizationIdentityContextResolver.defaults(),
+        clock);
+  }
+
+  MemberInvitationService(
+      ProvisioningIntentRepository intents,
+      KeycloakIdentityAdminClient keycloak,
+      IdentityInvitationProperties properties,
+      IdentityOpaqueReferenceCodec references,
+      AuditEventPublisher audit,
+      OrganizationIdentityContextResolver identityContexts,
+      Clock clock) {
     this.intents = intents;
     this.keycloak = keycloak;
     this.properties = properties;
     this.references = references;
     this.audit = audit;
+    this.identityContexts = identityContexts;
     this.clock = clock;
   }
 
@@ -77,7 +105,7 @@ public class MemberInvitationService {
       MemberInvitationRequest request,
       String idempotencyKey,
       Jwt jwt) {
-    OrganizationIdentityContext actor = OrganizationIdentityContextFactory.fromJwt(jwt);
+    OrganizationIdentityContext actor = identityContexts.resolve(jwt);
     if (!actor.organizationId().equals(organizationId)) {
       throw notFound();
     }
@@ -132,7 +160,7 @@ public class MemberInvitationService {
   }
 
   public List<MemberInvitationResponse> list(String organizationId, Jwt jwt) {
-    OrganizationIdentityContext actor = OrganizationIdentityContextFactory.fromJwt(jwt);
+    OrganizationIdentityContext actor = identityContexts.resolve(jwt);
     if (!actor.organizationId().equals(organizationId)) {
       throw notFound();
     }
@@ -175,7 +203,7 @@ public class MemberInvitationService {
 
   /** First-login fallback for a missed Keycloak event; never used to authorize the request. */
   public boolean reconcileAuthenticated(Jwt jwt) {
-    OrganizationIdentityContext actor = OrganizationIdentityContextFactory.fromJwt(jwt);
+    OrganizationIdentityContext actor = identityContexts.resolve(jwt);
     String email = jwt.getClaimAsString("email");
     if (email == null || !Boolean.TRUE.equals(jwt.getClaims().get("email_verified"))) {
       return false;
@@ -374,7 +402,7 @@ public class MemberInvitationService {
 
   private ProvisioningIntent requireIntent(
       String organizationId, String providerId, Jwt jwt) {
-    OrganizationIdentityContext actor = OrganizationIdentityContextFactory.fromJwt(jwt);
+    OrganizationIdentityContext actor = identityContexts.resolve(jwt);
     ProvisioningIntent intent =
         intents.findByProviderInvitationId(providerId).orElseThrow(this::notFound);
     if (!intent.tenantId().equals(actor.organizationId())
@@ -387,7 +415,7 @@ public class MemberInvitationService {
 
   private String resolveProviderInvitationId(
       String organizationId, String invitationHandle, Jwt jwt) {
-    OrganizationIdentityContext actor = OrganizationIdentityContextFactory.fromJwt(jwt);
+    OrganizationIdentityContext actor = identityContexts.resolve(jwt);
     if (!organizationId.equals(actor.organizationId())) {
       throw notFound();
     }
