@@ -8,6 +8,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
@@ -246,6 +247,29 @@ class MemberInvitationServiceTest {
     verify(keycloak).applyRole("owner-subject", "owner");
     assertThat(intents.findPendingByEmail(TENANT_ID, ORGANIZATION_ID, EMAIL))
         .isEmpty();
+  }
+
+  @Test
+  void scopesCreationAndAcceptanceAuditIdempotencyKeysByLifecycleAction() {
+    ProviderInvitation providerInvitation = providerInvitation();
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL)).thenReturn(List.of());
+    when(keycloak.issue(ORGANIZATION_ID, EMAIL, "Weave Owner"))
+        .thenReturn(providerInvitation);
+    when(keycloak.isOrganizationMember(ORGANIZATION_ID, "owner-subject"))
+        .thenReturn(true);
+
+    service.bootstrapOwner(
+        new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"), IDEMPOTENCY_KEY);
+    assertThat(service.reconcileAuthenticated(authenticatedOwner())).isTrue();
+
+    assertThat(audit.events())
+        .extracting(event -> event.idempotencyKey())
+        .containsExactly(
+            IDEMPOTENCY_KEY + ":" + AuditAction.MEMBER_INVITATION_CREATED.wireName(),
+            IDEMPOTENCY_KEY + ":" + AuditAction.MEMBER_INVITATION_ACCEPTED.wireName())
+        .doesNotHaveDuplicates();
   }
 
   @Test

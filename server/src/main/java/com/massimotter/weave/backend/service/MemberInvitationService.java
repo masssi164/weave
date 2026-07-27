@@ -188,7 +188,11 @@ public class MemberInvitationService {
     ProvisioningIntent intent = requireIntent(organizationId, providerId, jwt);
     ProviderInvitation provider =
         keycloak.resend(keycloak.configuredOrganizationId(), providerId);
-    publish(AuditAction.MEMBER_INVITATION_RESENT, intent, jwt.getSubject());
+    publish(
+        AuditAction.MEMBER_INVITATION_RESENT,
+        intent,
+        jwt.getSubject(),
+        idempotencyKey);
     return response(provider, intent);
   }
 
@@ -198,7 +202,11 @@ public class MemberInvitationService {
     ProvisioningIntent intent = requireIntent(organizationId, providerId, jwt);
     keycloak.revoke(keycloak.configuredOrganizationId(), providerId);
     intents.save(intent.expired(clock.instant()));
-    publish(AuditAction.MEMBER_INVITATION_REVOKED, intent, jwt.getSubject());
+    publish(
+        AuditAction.MEMBER_INVITATION_REVOKED,
+        intent,
+        jwt.getSubject(),
+        idempotencyKey);
   }
 
   /** First-login fallback for a missed Keycloak event; never used to authorize the request. */
@@ -325,7 +333,11 @@ public class MemberInvitationService {
     ProvisioningIntent linked =
         intents.save(
             pending.withProviderInvitation(provider.providerInvitationId(), clock.instant()));
-    publish(AuditAction.MEMBER_INVITATION_CREATED, linked, actorSubject);
+    publish(
+        AuditAction.MEMBER_INVITATION_CREATED,
+        linked,
+        actorSubject,
+        idempotencyKey);
     return response(provider, linked);
   }
 
@@ -414,7 +426,11 @@ public class MemberInvitationService {
     try {
       keycloak.applyRole(subject, intent.requestedRole());
       ProvisioningIntent applied = intents.save(intent.applied(subject, clock.instant()));
-      publish(AuditAction.MEMBER_INVITATION_ACCEPTED, applied, subject);
+      publish(
+          AuditAction.MEMBER_INVITATION_ACCEPTED,
+          applied,
+          subject,
+          intent.auditCorrelation());
     } catch (RuntimeException providerFailure) {
       intents.save(intent.failed("keycloak_provisioning_failed", clock.instant()));
       throw providerFailure;
@@ -471,7 +487,11 @@ public class MemberInvitationService {
         : intent;
   }
 
-  private void publish(AuditAction action, ProvisioningIntent intent, String actor) {
+  private void publish(
+      AuditAction action,
+      ProvisioningIntent intent,
+      String actor,
+      String operationIdempotencyKey) {
     audit.publish(
         new AuditEvent(
             intent.tenantId(),
@@ -480,7 +500,7 @@ public class MemberInvitationService {
             "identity-provisioning-intent",
             action,
             clock.instant(),
-            intent.auditCorrelation(),
+            operationIdempotencyKey + ":" + action.wireName(),
             AuditRedactionLevel.SUPPORT_SAFE,
             Map.of(
                 "invitationHandle",
