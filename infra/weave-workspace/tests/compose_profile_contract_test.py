@@ -178,6 +178,12 @@ def main() -> None:
             isolated = load_context("test", ROOT, str(root / "test.env"))
             assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
             assert isolated.env["WEAVE_KEYCLOAK_IMAGE"] == local_image_id
+            assert isolated.env["WEAVE_RUNTIME_STATE_VOLUME"].endswith(
+                "_runtime_state"
+            )
+            assert isolated.env["WEAVE_RUNTIME_STATE_IMAGE"].startswith(
+                "minio/minio@sha256:"
+            )
             assert _image_digest(isolated) == local_image_id
             os.environ["WEAVE_E2E_STACK_SCOPE"] = "persistent"
             try:

@@ -460,6 +460,138 @@ services:
       retries: 60
       start_period: 30s
 
+  runtime-state:
+    <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: runtime-state
+      com.massimotter.weave.data-class: runtime-state-sensitive
+      com.massimotter.weave.protocol: s3-compatible
+    profiles:
+      - test
+    image: ${WEAVE_RUNTIME_STATE_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-runtime-state
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/runtime-state-s3-access-key
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/runtime-state-s3-secret-key
+      MC_CONFIG_DIR: /tmp/.mc
+    command:
+      - server
+      - /data
+      - --console-address
+      - :9001
+    secrets:
+      - source: runtime-state-s3-access-key
+        target: runtime-state-s3-access-key
+        mode: 0400
+      - source: runtime-state-s3-secret-key
+        target: runtime-state-s3-secret-key
+        mode: 0400
+    volumes:
+      - runtime-state-data:/data
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mc ready local
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  runtime-state-init:
+    profiles:
+      - test
+    image: ${WEAVE_RUNTIME_STATE_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-runtime-state-init
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      MC_CONFIG_DIR: /tmp/.mc
+    entrypoint:
+      - /bin/sh
+      - -euc
+    command:
+      - |
+        access_key="$$(cat /run/secrets/runtime-state-s3-access-key)"
+        secret_key="$$(cat /run/secrets/runtime-state-s3-secret-key)"
+        mc alias set runtime-state http://runtime-state:9000 "$${access_key}" "$${secret_key}" >/dev/null
+        mc mb --ignore-existing runtime-state/weave-runtime-state >/dev/null
+        mc version enable runtime-state/weave-runtime-state >/dev/null
+        mc stat runtime-state/weave-runtime-state >/dev/null
+    depends_on:
+      runtime-state:
+        condition: service_healthy
+    secrets:
+      - source: runtime-state-s3-access-key
+        target: runtime-state-s3-access-key
+        mode: 0400
+      - source: runtime-state-s3-secret-key
+        target: runtime-state-s3-secret-key
+        mode: 0400
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    networks:
+      weave:
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: runtime-state
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
+      com.massimotter.weave.one-shot: "true"
+      com.massimotter.weave.operation: bucket-initialize
+
+  agent-runtime-keys-init:
+    profiles:
+      - test
+    image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-agent-runtime-keys-init
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    network_mode: none
+    entrypoint:
+      - /bin/bash
+      - -euc
+    command:
+      - |
+        if test -s /run/secrets/agent-runtime/profile-signing/runtime-profile-signing-keys.json; then
+          java -jar /app/app.jar runtime-profile-signing-keys --action=status --root=/run/secrets/agent-runtime/profile-signing >/dev/null
+        else
+          java -jar /app/app.jar runtime-profile-signing-keys --action=initialize --root=/run/secrets/agent-runtime/profile-signing --operation-ref=compose:fresh-start:profile-signing >/dev/null
+        fi
+        if test -s /run/secrets/agent-runtime/state-wrapping/runtime-state-wrapping-keys.json; then
+          java -jar /app/app.jar runtime-state-wrapping-keys --action=status --root=/run/secrets/agent-runtime/state-wrapping >/dev/null
+        else
+          java -jar /app/app.jar runtime-state-wrapping-keys --action=initialize --root=/run/secrets/agent-runtime/state-wrapping --operation-ref=compose:fresh-start:state-wrapping >/dev/null
+        fi
+    volumes:
+      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime:/run/secrets/agent-runtime
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: agent-runtime-control
+      com.massimotter.weave.data-class: credential-sensitive
+      com.massimotter.weave.fresh-start-eligible: "false"
+      com.massimotter.weave.one-shot: "true"
+      com.massimotter.weave.operation: key-initialize
+
   backend:
     <<: *weave-service
     labels:
@@ -664,6 +796,10 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-matrix-mas
   nextcloud-actor-token:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/nextcloud-actor-token
+  runtime-state-s3-access-key:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/runtime-state-s3-access-key
+  runtime-state-s3-secret-key:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/runtime-state-s3-secret-key
 
 volumes:
   caddy-data:
@@ -690,6 +826,9 @@ volumes:
   matrix-appservice:
     external: true
     name: ${WEAVE_MATRIX_APPSERVICE_VOLUME:-weave_matrix_chat_appservice_runtime}
+  runtime-state-data:
+    external: true
+    name: ${WEAVE_RUNTIME_STATE_VOLUME:-weave_runtime_state}
 
 networks:
   weave:

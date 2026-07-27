@@ -75,6 +75,23 @@ class KeycloakRuntimeIdentityAuthorityTest {
     }
 
     @Test
+    void resolvesAndCachesTheExactConfiguredOrganizationAlias() {
+        keycloak.groups.add(group("group-1", "weaver", "/capabilities/weaver"));
+        KeycloakRuntimeIdentityAuthority aliasAuthority = new KeycloakRuntimeIdentityAuthority(
+                new KeycloakRuntimeIdentityAuthority.Settings(
+                        true, keycloak.baseUri(), URI.create(ISSUER), "org:example", "",
+                        "weave-dogfood", "weave", Duration.ofSeconds(2),
+                        Duration.ofMinutes(5), List.of("files.read")),
+                tokens, mapper, HttpClient.newHttpClient(), Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThat(aliasAuthority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
+        assertThat(aliasAuthority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
+        assertThat(keycloak.requestPaths)
+                .filteredOn(path -> path.equals("/admin/realms/weave/organizations"))
+                .hasSize(1);
+    }
+
+    @Test
     void everyObservationRevalidatesGrantRevocationAndRegrantAgainstNativeOrganizationGroups() {
         keycloak.groups.add(group("group-1", "weaver", "/capabilities/weaver"));
 
@@ -170,9 +187,9 @@ class KeycloakRuntimeIdentityAuthorityTest {
 
     private KeycloakRuntimeIdentityAuthority.Settings settings(boolean enabled) {
         return new KeycloakRuntimeIdentityAuthority.Settings(
-                enabled, keycloak.baseUri(), URI.create(ISSUER), "org:example", "org-uuid", "weave",
+                enabled, keycloak.baseUri(), URI.create(ISSUER), "org:example", "org-uuid", "", "weave",
                 Duration.ofSeconds(2),
-                Duration.ofMinutes(5), List.of("calendar.read"));
+                Duration.ofMinutes(5), List.of("files.read"));
     }
 
     private static ObserveEntitlementCommand command(String issuer) {
@@ -240,6 +257,13 @@ class KeycloakRuntimeIdentityAuthorityTest {
             }
             String path = exchange.getRequestURI().getPath();
             requestPaths.add(path);
+            if (path.equals("/admin/realms/weave/organizations")) {
+                respond(exchange, 200, mapper.writeValueAsString(
+                        mapper.createArrayNode().add(mapper.createObjectNode()
+                                .put("id", "org-uuid")
+                                .put("alias", "weave-dogfood"))));
+                return;
+            }
             if (path.equals("/admin/realms/weave/organizations/org-uuid/members")) {
                 ArrayNode members = mapper.createArrayNode();
                 if (organizationMember) {

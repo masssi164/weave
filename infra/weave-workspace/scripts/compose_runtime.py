@@ -52,6 +52,7 @@ VOLUME_KEYS = (
     "WEAVE_NEXTCLOUD_DATA_VOLUME",
     "WEAVE_SYNAPSE_DATA_VOLUME",
     "WEAVE_MATRIX_APPSERVICE_VOLUME",
+    "WEAVE_RUNTIME_STATE_VOLUME",
 )
 RESOURCE_METADATA = {
     "WEAVE_CADDY_DATA_VOLUME": ("gateway", "tls-sensitive"),
@@ -62,6 +63,7 @@ RESOURCE_METADATA = {
     "WEAVE_NEXTCLOUD_DATA_VOLUME": ("files-calendar", "collaboration-sensitive"),
     "WEAVE_SYNAPSE_DATA_VOLUME": ("chat", "collaboration-sensitive"),
     "WEAVE_MATRIX_APPSERVICE_VOLUME": ("chat-appservice", "credential-sensitive"),
+    "WEAVE_RUNTIME_STATE_VOLUME": ("runtime-state", "runtime-state-sensitive"),
 }
 RESOURCE_PROVENANCE_LABEL_PATTERNS = {
     "com.massimotter.weave.spec-commit": re.compile(r"^[0-9a-f]{40}$"),
@@ -282,7 +284,9 @@ def prepare(context: ComposeContext) -> None:
             raise ContractError("Identity Ops evidence directory is not writable by the rootless runtime uid/gid") from error
     for path in (
         context.secret_root / "agent-runtime/workloads",
+        context.secret_root / "agent-runtime/workloads/weave/keycloak",
         context.secret_root / "agent-runtime/profile-signing",
+        context.secret_root / "agent-runtime/state-wrapping",
     ):
         path.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(path, 0o700)

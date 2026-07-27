@@ -12,8 +12,32 @@ services:
   backend:
     environment:
       WEAVE_RELEASE_POSTURE: test
+    depends_on:
+      agent-runtime-keys-init:
+        condition: service_completed_successfully
+      runtime-state-init:
+        condition: service_completed_successfully
+    secrets:
+      - source: runtime-state-s3-access-key
+        target: weave/runtime-state-s3-access-key
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0400
+      - source: runtime-state-s3-secret-key
+        target: weave/runtime-state-s3-secret-key
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0400
     volumes:
       - type: bind
         source: ${WEAVE_SECRET_ROOT:-./.generated/test/secrets}/identity-bootstrap-owner-token
         target: /run/secrets/weave/bootstrap-owner-token
+        read_only: true
+      - type: bind
+        source: ${WEAVE_SECRET_ROOT:-./.generated/test/secrets}/keycloak-weave-agent-runtime-admin
+        target: /run/secrets/agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin
+        read_only: true
+      - type: bind
+        source: ${WEAVE_SECRET_ROOT:-./.generated/test/secrets}/keycloak-weave-identity-admin
+        target: /run/secrets/agent-runtime/workloads/weave/keycloak/weave-identity-admin
         read_only: true

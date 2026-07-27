@@ -56,6 +56,8 @@ REQUIRED_PRIVATE_FILES = (
     "matrix-appservice-hs-token",
     "keycloak-weave-backend-jwk.json",
     "keycloak-weave-mcp-server-jwk.json",
+    "runtime-state-s3-access-key",
+    "runtime-state-s3-secret-key",
 )
 
 
@@ -600,6 +602,51 @@ def _backend_env(context: ComposeContext) -> str:
                 "WEAVE_AGENT_RUNTIME_SECRET_ROOT": "/run/secrets/agent-runtime/workloads",
             }
         )
+    if context.profile == "test":
+        values.update(
+            {
+                "WEAVE_AGENT_RUNTIME_STATE_STORE_ENABLED": "true",
+                "WEAVE_AGENT_RUNTIME_STATE_WRAPPING_KEY_ROOT":
+                    "/run/secrets/agent-runtime/state-wrapping",
+                "WEAVE_AGENT_RUNTIME_STATE_S3_ENDPOINT": "http://runtime-state:9000",
+                "WEAVE_AGENT_RUNTIME_STATE_S3_REGION": "us-east-1",
+                "WEAVE_AGENT_RUNTIME_STATE_S3_BUCKET": "weave-runtime-state",
+                "WEAVE_AGENT_RUNTIME_STATE_S3_CREDENTIAL_REF":
+                    "secretref:runtime-state/minio",
+                "WEAVE_AGENT_RUNTIME_STATE_S3_ACCESS_KEY_FILE":
+                    "/run/secrets/weave/runtime-state-s3-access-key",
+                "WEAVE_AGENT_RUNTIME_STATE_S3_SECRET_KEY_FILE":
+                    "/run/secrets/weave/runtime-state-s3-secret-key",
+                "WEAVE_AGENT_RUNTIME_STATE_S3_PATH_STYLE_ACCESS": "true",
+                "WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_ENABLED": "true",
+                "WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_SECRET_ROOT":
+                    "/run/secrets/agent-runtime/profile-signing",
+                "WEAVE_AGENT_RUNTIME_PROFILE_TTL": "PT2M",
+                "WEAVE_AGENT_RUNTIME_POLICY_ENABLED": "true",
+                "WEAVE_AGENT_RUNTIME_POLICY_FILE": "/app/agent-runtime-policy.json",
+                "WEAVE_AGENT_RUNTIME_ENTITLEMENT_ENABLED": "true",
+                "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CAPABILITIES": "files.read",
+                "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED": "true",
+                "WEAVE_AGENT_RUNTIME_KEYCLOAK_ADMIN_BASE_URL": keycloak_base,
+                "WEAVE_AGENT_RUNTIME_ISSUER":
+                    f"{env['WEAVE_AUTH_URL']}/realms/weave",
+                "WEAVE_AGENT_RUNTIME_REALM": "weave",
+                "WEAVE_AGENT_RUNTIME_ORGANIZATION_REF": "tenant-default",
+                "WEAVE_AGENT_RUNTIME_KEYCLOAK_ORGANIZATION_ALIAS":
+                    env["WEAVE_ORGANIZATION_ALIAS"],
+                "WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID": "weave-agent-runtime-admin",
+                "WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF":
+                    "credentialref://weave/keycloak/weave-agent-runtime-admin",
+                "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CLIENT_ID": "weave-identity-admin",
+                "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_REF":
+                    "credentialref://weave/keycloak/weave-identity-admin",
+                "WEAVE_AGENT_RUNTIME_SECRET_ROOT": "/run/secrets/agent-runtime/workloads",
+                "WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES": "weaver-runtime-workload",
+                "WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES":
+                    "agent-runtime.profile.read,mcp.tools,files.read",
+                "WEAVE_AGENT_RUNTIME_ACCESS_TOKEN_LIFESPAN_SECONDS": "60",
+            }
+        )
     return "".join(f"{key}={value}\n" for key, value in sorted(values.items()))
 
 
@@ -673,12 +720,66 @@ def render(context: ComposeContext) -> None:
         _write(generated / "backend/host.env", _backend_env(context), private=False)
     _write(generated / "mcp/public.env", _mcp_env(context), private=False)
     runtime_policy = {
-        "schemaVersion": "weave.agent-runtime-policy.v2",
-        "enabled": False,
-        "reason": "Guarded until the external state store, KMS and cell orchestrator evidence gates pass",
-        "workloadScope": "mcp.tools",
-        "mcpResource": f"{context.env['WEAVE_API_ORIGIN']}/mcp",
-        "sharedRuntimeClientAllowed": False,
+        "schemaVersion": "weave.runtime-policy/v1",
+        "profileTtlSeconds": 120,
+        "workspace": {
+            "revision": "workspace-revision:1",
+            "manifestRefTemplate":
+                "webdav-manifest://{organizationRef}/{personRef}/current",
+            "runtimeStateStoreRefTemplate":
+                "runtime-state://{organizationRef}/{personRef}/state",
+        },
+        "modelPolicy": {
+            "allowedProviders": ["provider-neutral"],
+            "allowedModels": ["model-default"],
+            "fallback": [],
+            "maximumContextTokens": 32768,
+            "dataRegion": "eu",
+        },
+        "matrix": {
+            "accountRefTemplate": "matrix-account://{personRef}",
+            "homeserverRefTemplate": "matrix-homeserver://default",
+            "credentialRefTemplate":
+                "credentialref://weave/runtime/{cellRef}/matrix",
+            "allowedRooms": [],
+            "autoJoin": "off",
+        },
+        "mcp": {
+            "servers": [
+                {
+                    "serverRef": "weave-mcp",
+                    "endpoint": f"{context.env['WEAVE_API_ORIGIN']}/mcp",
+                    "requestedResource": f"{context.env['WEAVE_API_ORIGIN']}/mcp",
+                    "requiredScopes": ["files.read", "mcp.tools"],
+                    "credentialRefTemplate":
+                        "credentialref://weave/runtime/{cellRef}/{workloadClientId}/mcp",
+                    "allowedToolClasses": ["files.read"],
+                }
+            ],
+            "visibleToolClasses": ["files.read"],
+        },
+        "approvals": {
+            "pluginRouting": {
+                "enabled": True,
+                "mode": "same-chat",
+                "targetRefs": [],
+            },
+            "execMode": "ask",
+            "persistentTrustPolicy": "bounded",
+        },
+        "sandbox": {
+            "mode": "required",
+            "networkPolicy": "allowlist",
+            "allowedNetworkTargets": [
+                urlsplit(context.env["WEAVE_API_ORIGIN"]).hostname
+            ],
+            "filesystemPolicy": "workspace-only",
+            "approvedMountRefs": [],
+        },
+        "automation": {
+            "heartbeatEnabled": False,
+            "schedulePolicy": "disabled",
+        },
     }
     _write(generated / "agent-runtime-policy.json", json.dumps(runtime_policy, indent=2, sort_keys=True) + "\n", private=False)
     manifest = {

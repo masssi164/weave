@@ -17,6 +17,7 @@ public class AgentRuntimeWorkloadIdentityProperties {
     private String realm = "weave";
     private String organizationRef = "tenant-default";
     private String keycloakOrganizationId = "";
+    private String keycloakOrganizationAlias = "";
     private String adminClientId = "weave-agent-runtime-admin";
     private String adminCredentialRef = "";
     private String entitlementClientId = "weave-identity-admin";
@@ -24,8 +25,9 @@ public class AgentRuntimeWorkloadIdentityProperties {
     private Path secretRoot;
     private Duration timeout = Duration.ofSeconds(10);
     private String workloadRole = "weaver-runtime";
-    private List<String> defaultClientScopes = new ArrayList<>(List.of("weaver-runtime.workload"));
-    private List<String> optionalClientScopes = new ArrayList<>(List.of("agent-runtime.profile.read", "mcp.tools"));
+    private List<String> defaultClientScopes = new ArrayList<>(List.of("weaver-runtime-workload"));
+    private List<String> optionalClientScopes =
+            new ArrayList<>(List.of("agent-runtime.profile.read", "mcp.tools", "files.read"));
     private int accessTokenLifespanSeconds = 60;
 
     public boolean enabled() {
@@ -70,6 +72,14 @@ public class AgentRuntimeWorkloadIdentityProperties {
 
     public void setKeycloakOrganizationId(String keycloakOrganizationId) {
         this.keycloakOrganizationId = keycloakOrganizationId;
+    }
+
+    public String keycloakOrganizationAlias() {
+        return keycloakOrganizationAlias;
+    }
+
+    public void setKeycloakOrganizationAlias(String keycloakOrganizationAlias) {
+        this.keycloakOrganizationAlias = keycloakOrganizationAlias;
     }
 
     public void setRealm(String realm) {
@@ -205,6 +215,7 @@ public class AgentRuntimeWorkloadIdentityProperties {
                 issuer,
                 organizationRef,
                 keycloakOrganizationId,
+                keycloakOrganizationAlias,
                 realm,
                 timeout,
                 entitlement.observationTtl(),

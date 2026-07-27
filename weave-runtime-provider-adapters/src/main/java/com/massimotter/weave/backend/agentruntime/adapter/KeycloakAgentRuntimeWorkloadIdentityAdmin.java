@@ -1063,17 +1063,18 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             }
             defaultClientScopes = defaultClientScopes == null ? List.of() : List.copyOf(defaultClientScopes);
             if (defaultClientScopes.size() != 1
-                    || !defaultClientScopes.contains("weaver-runtime.workload")) {
+                    || !defaultClientScopes.contains("weaver-runtime-workload")) {
                 throw new IllegalArgumentException(
-                        "defaultClientScopes must contain only weaver-runtime.workload");
+                        "defaultClientScopes must contain only weaver-runtime-workload");
             }
             optionalClientScopes = optionalClientScopes == null ? List.of() : List.copyOf(optionalClientScopes);
             if (optionalClientScopes.isEmpty()
                     || optionalClientScopes.stream().anyMatch(value -> value == null || value.isBlank())
                     || new HashSet<>(optionalClientScopes).size() != optionalClientScopes.size()
-                    || !optionalClientScopes.contains("agent-runtime.profile.read")) {
+                    || !optionalClientScopes.containsAll(
+                            List.of("agent-runtime.profile.read", "mcp.tools", "files.read"))) {
                 throw new IllegalArgumentException(
-                        "optionalClientScopes must be unique and contain agent-runtime.profile.read");
+                        "optionalClientScopes must be unique and contain agent-runtime.profile.read, mcp.tools, and files.read");
             }
             if (!java.util.Collections.disjoint(defaultClientScopes, optionalClientScopes)) {
                 throw new IllegalArgumentException("default and optional client scopes must not overlap");

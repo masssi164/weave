@@ -189,6 +189,7 @@ def _isolated_overrides(profile: str, env: dict[str, str]) -> tuple[dict[str, st
             "WEAVE_NEXTCLOUD_DATA_VOLUME": f"{volume_prefix}_nextcloud_data",
             "WEAVE_SYNAPSE_DATA_VOLUME": f"{volume_prefix}_synapse_data",
             "WEAVE_MATRIX_APPSERVICE_VOLUME": f"{volume_prefix}_matrix_chat_appservice_runtime",
+            "WEAVE_RUNTIME_STATE_VOLUME": f"{volume_prefix}_runtime_state",
         }
     )
     port_names = (
@@ -372,7 +373,7 @@ def _validate_environment(profile: str, env: Mapping[str, str]) -> None:
             "WEAVE_MCP_IMAGE",
         ]
         if profile == "test":
-            image_names.append("WEAVE_MAILPIT_IMAGE")
+            image_names.extend(("WEAVE_MAILPIT_IMAGE", "WEAVE_RUNTIME_STATE_IMAGE"))
         local_candidate_images = {
             "WEAVE_BACKEND_IMAGE", "WEAVE_IDENTITY_OPS_IMAGE", "WEAVE_MCP_IMAGE"
         } if profile == "test" else set()

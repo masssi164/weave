@@ -99,6 +99,7 @@ weave:
       realm: ${WEAVE_AGENT_RUNTIME_REALM:weave}
       organization-ref: ${WEAVE_AGENT_RUNTIME_ORGANIZATION_REF:tenant-default}
       keycloak-organization-id: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_ORGANIZATION_ID:}
+      keycloak-organization-alias: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_ORGANIZATION_ALIAS:}
       admin-client-id: ${WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID:weave-agent-runtime-admin}
       admin-credential-ref: ${WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF:}
       entitlement-client-id: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CLIENT_ID:weave-identity-admin}
@@ -106,8 +107,8 @@ weave:
       secret-root: ${WEAVE_AGENT_RUNTIME_SECRET_ROOT:}
       timeout: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_TIMEOUT:10s}
       workload-role: weaver-runtime
-      default-client-scopes: ${WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES:weaver-runtime.workload}
-      optional-client-scopes: ${WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES:agent-runtime.profile.read,mcp.tools,calendar.read}
+      default-client-scopes: ${WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES:weaver-runtime-workload}
+      optional-client-scopes: ${WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES:agent-runtime.profile.read,mcp.tools,files.read}
       access-token-lifespan-seconds: ${WEAVE_AGENT_RUNTIME_ACCESS_TOKEN_LIFESPAN_SECONDS:60}
   chat:
     # Canonical chat has one durable JPA authority. Matrix/Synapse is the default

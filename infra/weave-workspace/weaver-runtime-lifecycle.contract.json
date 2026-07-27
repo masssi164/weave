@@ -92,7 +92,7 @@
     "authority": "RuntimeStateStore",
     "cellLocalCopy": "ephemeral-only",
     "webDavStorageAllowed": false,
-    "dogfoodAdapter": "postgresql-client-encrypted-generations",
+    "dogfoodAdapter": "s3-compatible-minio-client-encrypted-generations",
     "generationCipher": "AES-256-GCM",
     "dataKeyWrapping": "AES-KWP-mounted-file-key",
     "authenticatedContext": [

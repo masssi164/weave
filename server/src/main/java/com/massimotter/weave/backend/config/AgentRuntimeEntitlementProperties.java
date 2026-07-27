@@ -18,7 +18,7 @@ public record AgentRuntimeEntitlementProperties(
             throw new IllegalArgumentException(
                     "observationTtl must be between 30 seconds and 15 minutes");
         }
-        allowedCapabilities = normalized(allowedCapabilities, List.of("calendar.read"));
+        allowedCapabilities = normalized(allowedCapabilities, List.of("files.read"));
     }
 
     public static AgentRuntimeEntitlementProperties disabled() {

@@ -54,6 +54,7 @@ jq -e '
   and (.filesystem.forbiddenMounts | index("durableStateDir"))
   and .filesystem.portableWorkspace.authority == "webdav"
   and .externalRuntimeState.authority == "RuntimeStateStore"
+  and .externalRuntimeState.dogfoodAdapter == "s3-compatible-minio-client-encrypted-generations"
   and .externalRuntimeState.generationCipher == "AES-256-GCM"
   and .externalRuntimeState.dataKeyWrapping == "AES-KWP-mounted-file-key"
   and .externalRuntimeState.commit == "compare-and-swap"

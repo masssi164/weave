@@ -38,7 +38,15 @@ require "${ROOT_DIR}/compose.yaml" \
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.managed: "true"'
 require "${ROOT_DIR}/compose.dev.yaml" 'host.docker.internal:host-gateway'
 require "${ROOT_DIR}/compose.test.yaml" 'WEAVE_RELEASE_POSTURE: test'
+require "${ROOT_DIR}/compose.test.yaml" 'runtime-state-init:'
+require "${ROOT_DIR}/compose.test.yaml" 'agent-runtime-keys-init:'
 require "${ROOT_DIR}/compose.prod.yaml" 'WEAVE_RELEASE_POSTURE: prod'
+require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.protocol: s3-compatible'
+require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.data-class: runtime-state-sensitive'
+require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.operation: bucket-initialize'
+require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.operation: key-initialize'
+require "${ROOT_DIR}/compose.yaml" 'MINIO_ROOT_USER_FILE: /run/secrets/runtime-state-s3-access-key'
+require "${ROOT_DIR}/compose.yaml" 'mc version enable runtime-state/weave-runtime-state'
 require "${ROOT_DIR}/scripts/compose_env.py" 'PROFILES = ("dev", "test", "prod")'
 require "${ROOT_DIR}/scripts/compose_env.py" 'refusing to deploy {profile} from an example environment file'
 require "${ROOT_DIR}/scripts/compose_runtime.py" 'persistent-adoption'
@@ -60,6 +68,12 @@ require "${ROOT_DIR}/scripts/render_config.py" \
   '"spring.security.oauth2.client.registration.weave-identity-admin.client-secret": "keycloak-weave-identity-admin"'
 require "${ROOT_DIR}/scripts/render_config.py" \
   '"WEAVE_IDENTITY_REFERENCE_HMAC_SECRET_FILE"'
+require "${ROOT_DIR}/scripts/render_config.py" \
+  '"WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES": "weaver-runtime-workload"'
+require "${ROOT_DIR}/scripts/render_config.py" \
+  '"WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES":'
+require "${ROOT_DIR}/scripts/render_config.py" \
+  '"requiredScopes": ["files.read", "mcp.tools"]'
 require "${ROOT_DIR}/compose.yaml" \
   'file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/identity-reference-hmac-key'
 require "${ROOT_DIR}/compose.yaml" \

@@ -62,8 +62,8 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         adapter = new KeycloakAgentRuntimeWorkloadIdentityAdmin(
                 new KeycloakAgentRuntimeWorkloadIdentityAdmin.Settings(
                         keycloak.baseUri(), URI.create(ISSUER), "weave", Duration.ofSeconds(2),
-                        "weaver-runtime", List.of("weaver-runtime.workload"),
-                        List.of("agent-runtime.profile.read"), 60),
+                        "weaver-runtime", List.of("weaver-runtime-workload"),
+                        List.of("agent-runtime.profile.read", "mcp.tools", "files.read"), 60),
                 credentials,
                 () -> "admin-token",
                 mapper);
@@ -100,8 +100,9 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         JsonNode keySet = mapper.readTree(client.path("attributes").path("jwks.string").asText());
         assertThat(keySet.path("keys")).hasSize(1);
         assertThat(keySet.path("keys").get(0).has("d")).isFalse();
-        assertThat(keycloak.defaultScopeNames()).containsExactly("weaver-runtime.workload");
-        assertThat(keycloak.optionalScopeNames()).containsExactly("agent-runtime.profile.read");
+        assertThat(keycloak.defaultScopeNames()).containsExactly("weaver-runtime-workload");
+        assertThat(keycloak.optionalScopeNames())
+                .containsExactly("agent-runtime.profile.read", "mcp.tools", "files.read");
         assertThat(keycloak.serviceRealmRoleNames()).containsExactly("weaver-runtime");
         assertThat(keycloak.serviceClientMappings().size()).isZero();
         assertThat(keycloak.protocolMappers()).hasSize(2);
@@ -277,7 +278,9 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         FakeKeycloak(ObjectMapper mapper) throws IOException {
             this.mapper = mapper;
             scopes.put("scope-arc", new Scope("scope-arc", "agent-runtime.profile.read"));
-            scopes.put("scope-workload", new Scope("scope-workload", "weaver-runtime.workload"));
+            scopes.put("scope-workload", new Scope("scope-workload", "weaver-runtime-workload"));
+            scopes.put("scope-mcp-tools", new Scope("scope-mcp-tools", "mcp.tools"));
+            scopes.put("scope-files-read", new Scope("scope-files-read", "files.read"));
             scopes.put("scope-default", new Scope("scope-default", "profile"));
             scopes.put("scope-extra", new Scope("scope-extra", "offline_access"));
             server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

@@ -44,7 +44,9 @@ TEXT_SECRETS = (
     "synapse-form-secret",
     "matrix-appservice-as-token",
     "matrix-appservice-hs-token",
+    "runtime-state-s3-secret-key",
 )
+MINIO_ACCESS_KEY_SECRETS = ("runtime-state-s3-access-key",)
 HEX_SECRETS = (
     # MAS requires exactly 32 bytes encoded as 64 lowercase hexadecimal
     # characters for database/cookie encryption.
@@ -96,6 +98,10 @@ def _random_secret() -> bytes:
 
 def _random_hex_secret() -> bytes:
     return secrets.token_hex(32).encode("ascii") + b"\n"
+
+
+def _random_minio_access_key() -> bytes:
+    return secrets.token_hex(10).upper().encode("ascii") + b"\n"
 
 
 def _read_der_length(value: bytes, offset: int) -> tuple[int, int]:
@@ -317,7 +323,13 @@ def _generate_tls(context: ComposeContext) -> None:
 
 
 def _validate_existing(context: ComposeContext) -> None:
-    required = list(TEXT_SECRETS) + list(HEX_SECRETS) + [name for name, _ in RSA_JWKS] + [name for name, _ in PEM_KEYS]
+    required = (
+        list(TEXT_SECRETS)
+        + list(MINIO_ACCESS_KEY_SECRETS)
+        + list(HEX_SECRETS)
+        + [name for name, _ in RSA_JWKS]
+        + [name for name, _ in PEM_KEYS]
+    )
     if context.profile == "test":
         required.extend(TEST_ONLY_SECRETS)
     if context.profile == "prod":
@@ -328,6 +340,12 @@ def _validate_existing(context: ComposeContext) -> None:
         value = (context.secret_root / name).read_text(encoding="ascii").strip()
         if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
             raise ContractError(f"secret must be a 32-byte lowercase hex value: {name}")
+    for name in MINIO_ACCESS_KEY_SECRETS:
+        value = (context.secret_root / name).read_text(encoding="ascii").strip()
+        if not 3 <= len(value) <= 20 or any(
+            character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" for character in value
+        ):
+            raise ContractError(f"MinIO access key must be 3-20 uppercase alphanumeric characters: {name}")
     appservice_tokens = tuple(
         (context.secret_root / name).read_bytes().strip()
         for name in ("matrix-appservice-as-token", "matrix-appservice-hs-token")
@@ -364,6 +382,8 @@ def initialize(context: ComposeContext) -> None:
         return
     for name in TEXT_SECRETS:
         _atomic_write(context.secret_root / name, _random_secret())
+    for name in MINIO_ACCESS_KEY_SECRETS:
+        _atomic_write(context.secret_root / name, _random_minio_access_key())
     for name in HEX_SECRETS:
         _atomic_write(context.secret_root / name, _random_hex_secret())
     if context.profile == "test":
