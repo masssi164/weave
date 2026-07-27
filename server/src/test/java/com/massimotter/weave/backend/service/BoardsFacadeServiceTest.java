@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditRequiredException;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
@@ -371,8 +373,7 @@ class BoardsFacadeServiceTest {
                 .subject("user-123")
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin"))))
-                .claim("groups", java.util.List.of())
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();
@@ -385,8 +386,7 @@ class BoardsFacadeServiceTest {
                 .subject("user-123")
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                .claim("groups", java.util.List.of())
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();
@@ -400,8 +400,7 @@ class BoardsFacadeServiceTest {
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", tenantId)
                 .claim("weave_context_id", contextId)
-                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin"))))
-                .claim("groups", java.util.List.of())
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();

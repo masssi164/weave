@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
@@ -535,7 +537,11 @@ class FilesWebDavControllerTest {
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {
-        return jwt().authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
+        return jwt().jwt(jwt -> jwt.claim(
+                        "organization",
+                        HumanJwtTestSupport
+                                .organizationWithRole("member")))
+                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
     private ApiErrorException writePolicyRequired(String operation) {

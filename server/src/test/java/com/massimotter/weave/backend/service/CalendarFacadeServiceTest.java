@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChangeSet;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
@@ -554,8 +556,7 @@ class CalendarFacadeServiceTest {
                 .subject("user-123")
                 .claim("preferred_username", "massimo")
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("admin"))))
-                .claim("groups", List.of())
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
                 .build();
     }
 
@@ -566,8 +567,7 @@ class CalendarFacadeServiceTest {
                 .subject("user-123")
                 .claim("preferred_username", "massimo")
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                .claim("groups", List.of())
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                 .build();
     }
 

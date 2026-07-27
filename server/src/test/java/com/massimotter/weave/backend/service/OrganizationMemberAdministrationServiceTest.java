@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -268,7 +270,7 @@ class OrganizationMemberAdministrationServiceTest {
         .issuer("https://auth.example.test/realms/weave")
         .subject(role + "-subject")
         .claim("weave_tenant_id", ORGANIZATION_ID)
-        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of(role))))
+        .claim("organization", HumanJwtTestSupport.organizationWithRole(role))
         .build();
   }
 }

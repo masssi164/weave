@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.service;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.IdentityReferences;
+import com.massimotter.weave.backend.security.NativeOrganizationClaims;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -141,16 +142,7 @@ public final class OrganizationIdentityContextResolver {
     }
 
     private static List<String> clientRoles(Jwt jwt) {
-        Map<String, Object> resourceAccess = jwt == null ? null : jwt.getClaimAsMap("resource_access");
-        if (resourceAccess == null) {
-            return List.of();
-        }
-        Object client = resourceAccess.get("weave-app");
-        if (!(client instanceof Map<?, ?> clientAccess)) {
-            return List.of();
-        }
-        Object roles = clientAccess.get("roles");
-        return roles instanceof Collection<?> values ? stringValues(values) : List.of();
+        return NativeOrganizationClaims.clientRoles(jwt, "weave-app");
     }
 
     private static List<String> providerRoleMappings(List<String> roles, List<String> groups) {
@@ -162,21 +154,7 @@ public final class OrganizationIdentityContextResolver {
     }
 
     private static List<String> selectedOrganizationGroups(Jwt jwt) {
-        if (jwt == null) {
-            return List.of();
-        }
-        Object claim = jwt.getClaims().get("organization");
-        if (!(claim instanceof Map<?, ?> organizations) || organizations.size() != 1) {
-            return List.of();
-        }
-        Object selected = organizations.values().iterator().next();
-        if (!(selected instanceof Map<?, ?> organization)) {
-            return List.of();
-        }
-        Object groups = organization.get("groups");
-        return groups instanceof Collection<?> values
-                ? stringValues(values).stream().distinct().sorted().toList()
-                : List.of();
+        return NativeOrganizationClaims.groups(jwt);
     }
 
     private static List<String> stringClaims(Jwt jwt, String... claimNames) {

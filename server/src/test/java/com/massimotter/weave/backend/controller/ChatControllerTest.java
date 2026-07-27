@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.not;
@@ -372,8 +374,10 @@ class ChatControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "test")
                         .claim("weave_tenant_id", "tenant-default")
-                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of(role))))
-                        .claim("groups", groups)
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRolesAndGroups(List.of(role), groups))
                         .claim("aud", List.of("weave-app")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
@@ -383,7 +387,11 @@ class ChatControllerTest {
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"), new SimpleGrantedAuthority("ROLE_MEMBER"))
                 .jwt(jwt -> jwt
                         .subject("member-123")
-                        .claim("iss", "https://auth.example.invalid/realms/acme"));
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("member")));
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {
@@ -391,6 +399,10 @@ class ChatControllerTest {
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"), new SimpleGrantedAuthority("ROLE_ADMIN"))
                 .jwt(jwt -> jwt
                         .subject("admin-123")
-                        .claim("iss", "https://auth.example.invalid/realms/acme"));
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("admin")));
     }
 }

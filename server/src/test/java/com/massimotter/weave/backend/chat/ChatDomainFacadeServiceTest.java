@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.chat;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -301,7 +303,7 @@ class ChatDomainFacadeServiceTest {
                 .subject("member-123")
                 .claim("weave_tenant_id", "weave-dogfood")
                 .claim("weave_context_id", "context-isolated-test")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                 .build();
     }
 
@@ -312,7 +314,7 @@ class ChatDomainFacadeServiceTest {
                 .subject("admin-123")
                 .claim("weave_tenant_id", "weave-dogfood")
                 .claim("weave_context_id", "context-isolated-test")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("admin"))))
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
                 .build();
     }
 

@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
@@ -660,7 +662,7 @@ class FilesFacadeServiceTest {
                         .header("alg", "none")
                         .subject("user-123")
                         .issuer("https://auth.example.invalid/realms/acme")
-                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                         .build(),
                 null));
 
@@ -681,7 +683,7 @@ class FilesFacadeServiceTest {
                         .issuer("https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "test")
                         .claim("weave_tenant_id", "tenant-default")
-                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                         .build(),
                 null));
 
@@ -773,8 +775,10 @@ class FilesFacadeServiceTest {
                 .subject("user-123")
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", roles)))
-                .claim("groups", groups)
+                .claim(
+                        "organization",
+                        HumanJwtTestSupport
+                                .organizationWithRolesAndGroups(roles, groups))
                 .build();
     }
 

@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
@@ -65,12 +67,12 @@ class IdentityControllerTest {
                         .claim("timezone", "Europe/Berlin")
                         .claim("azp", "weave-app")
                         .claim("aud", List.of("weave-app", "account"))
-                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member", "admin"))))
                         .claim(
                                 "organization",
-                                Map.of(
-                                        "weave-dogfood",
-                                        Map.of("groups", List.of("team-alpha", "team-beta"))))
+                                HumanJwtTestSupport
+                                        .organizationWithRolesAndGroups(
+                                                List.of("admin"),
+                                                List.of("team-alpha", "team-beta")))
                         .claim("weave_context_roles", List.of("channel-admin")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
@@ -100,7 +102,11 @@ class IdentityControllerTest {
                         .claim("preferred_username", "alice")
                         .claim("name", "Alice Example")
                         .claim("email", "alice@example.com")
-                        .claim("aud", List.of("weave-app")))
+                        .claim("aud", List.of("weave-app"))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId", startsWith("acct_")))
@@ -115,12 +121,17 @@ class IdentityControllerTest {
                         .subject("operator-123")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "ops")
-                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("operator"))))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRoles(
+                                                List.of("member", "operator")))
                         .claim("aud", List.of("weave-app")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.roles").isEmpty())
-                .andExpect(jsonPath("$.providerRoleMappings").isEmpty());
+                .andExpect(jsonPath("$.roles[0]").value("member"))
+                .andExpect(jsonPath("$.roles.length()").value(1))
+                .andExpect(jsonPath("$.providerRoleMappings[1]").value("role_claim:member"));
     }
 
     @Test
@@ -130,7 +141,7 @@ class IdentityControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("email", "alice.renamed@example.com")
                         .claim("preferred_username", "alice")
-                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                         .claim("aud", List.of("weave-app")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
@@ -152,7 +163,11 @@ class IdentityControllerTest {
                         .subject("user-123")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("client_id", "weave-app")
-                        .claim("aud", List.of("weave-app")))
+                        .claim("aud", List.of("weave-app"))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.issuedFor").value("weave-app"));

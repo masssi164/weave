@@ -1,10 +1,10 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.NativeOrganizationClaims;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -90,16 +90,10 @@ public class AgentRuntimeAdminSecurityConfiguration {
 
     private List<String> roles(Jwt jwt) {
         LinkedHashSet<String> roles = new LinkedHashSet<>();
-        Map<String, Object> resourceAccess = jwt.getClaimAsMap("resource_access");
-        if (resourceAccess != null && resourceAccess.get("weave-app") instanceof Map<?, ?> clientAccess
-                && clientAccess.get("roles") instanceof Collection<?> clientRoles) {
-            clientRoles.stream()
-                    .filter(String.class::isInstance)
-                    .map(String.class::cast)
-                    .map(value -> value.trim().toUpperCase(Locale.ROOT))
-                    .filter(value -> value.equals("OWNER") || value.equals("ADMIN"))
-                    .forEach(roles::add);
-        }
+        NativeOrganizationClaims.clientRoles(jwt, "weave-app").stream()
+                .map(value -> value.toUpperCase(Locale.ROOT))
+                .filter(value -> value.equals("OWNER") || value.equals("ADMIN"))
+                .forEach(roles::add);
         return List.copyOf(roles);
     }
 }

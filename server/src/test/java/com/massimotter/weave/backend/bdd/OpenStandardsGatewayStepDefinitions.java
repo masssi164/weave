@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.bdd;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -223,8 +225,7 @@ public class OpenStandardsGatewayStepDefinitions {
                         .claim("iss", "https://auth.weave.test/realms/weave")
                         .claim("aud", List.of("weave-app"))
                         .claim("weave_tenant_id", "tenant-default")
-                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                        .claim("groups", List.of("/members")))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
@@ -235,8 +236,7 @@ public class OpenStandardsGatewayStepDefinitions {
                 .issuer("https://auth.weave.test/realms/weave")
                 .claim("aud", List.of("weave-app"))
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                .claim("groups", List.of("/members"))
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                 .build();
     }
 

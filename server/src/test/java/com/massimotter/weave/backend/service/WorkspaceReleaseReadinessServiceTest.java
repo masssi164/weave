@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
@@ -105,8 +107,7 @@ class WorkspaceReleaseReadinessServiceTest {
                 .header("alg", "none")
                 .subject(role + "-123")
                 .issuer("https://auth.example.invalid/realms/acme")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of(role))))
-                .claim("groups", List.of())
+                .claim("organization", HumanJwtTestSupport.organizationWithRole(role))
                 .build();
     }
 

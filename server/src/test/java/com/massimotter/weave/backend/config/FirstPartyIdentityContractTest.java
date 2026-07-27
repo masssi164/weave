@@ -94,7 +94,7 @@ class FirstPartyIdentityContractTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("forbidden"))
                 .andExpect(jsonPath("$.message").value(
-                        "The bearer token is authenticated but missing the required weave:workspace scope."))
+                        "The bearer token is authenticated but missing the required weave:workspace scope or selected-organization role."))
                 .andExpect(jsonPath("$.details.status").value(403))
                 .andExpect(jsonPath("$.details.path").value(endsWith(WORKSPACE_CAPABILITIES_PATH)))
                 .andExpect(jsonPath("$.requestId").value(notNullValue()))
@@ -145,11 +145,18 @@ class FirstPartyIdentityContractTest {
     }
 
     @Test
-    void grantsMethodSecurityRolesFromClientResourceAccess() throws Exception {
+    void grantsMethodSecurityRolesFromSelectedOrganizationResourceAccess() throws Exception {
         mockMvc.perform(get("/api/admin/policies/effective")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer client-admin-role"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orgRoles[0]").value("admin"));
+    }
+
+    @Test
+    void rejectsTopLevelClientRoleWithoutSelectedOrganizationRole() throws Exception {
+        mockMvc.perform(get("/api/admin/policies/effective")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer top-level-admin-role"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -175,38 +182,61 @@ class FirstPartyIdentityContractTest {
                 .andExpect(jsonPath("$.audience[0]").value(REQUIRED_AUDIENCE))
                 .andExpect(jsonPath("$.subject").value("user-123"))
                 .andExpect(jsonPath("$.primaryIdentityKey").value("issuer+subject:https://auth.weave.test/realms/weave#user-123"))
-                .andExpect(jsonPath("$.providerRoleMappings[0]").value("role_claim:member"));
+                .andExpect(jsonPath("$.providerRoleMappings[0]").value("group_claim:/members"))
+                .andExpect(jsonPath("$.providerRoleMappings[1]").value("role_claim:member"));
     }
 
     private Jwt decode(String tokenValue) {
         Jwt jwt = switch (tokenValue) {
             case "valid-contract" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
-                    Map.of("azp", FIRST_PARTY_CLIENT_ID));
+                    Map.of(
+                            "azp", FIRST_PARTY_CLIENT_ID,
+                            "organization", organizationWithRole("member")));
             case "client-id-only" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
-                    Map.of("client_id", FIRST_PARTY_CLIENT_ID));
+                    Map.of(
+                            "client_id", FIRST_PARTY_CLIENT_ID,
+                            "organization", organizationWithRole("member")));
             case "client-admin-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                    Map.of(
+                            "azp", FIRST_PARTY_CLIENT_ID,
+                            "organization", organizationWithRole("admin")));
+            case "top-level-admin-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
                     Map.of(
                             "azp", FIRST_PARTY_CLIENT_ID,
                             "resource_access", Map.of(FIRST_PARTY_CLIENT_ID, Map.of("roles", List.of("admin")))));
             case "wrong-audience" -> jwt(tokenValue, List.of("other-api"), "weave:workspace",
-                    Map.of("azp", FIRST_PARTY_CLIENT_ID));
+                    Map.of(
+                            "azp", FIRST_PARTY_CLIENT_ID,
+                            "organization", organizationWithRole("member")));
             case "missing-audience" -> jwt(tokenValue, null, "weave:workspace",
-                    Map.of("azp", FIRST_PARTY_CLIENT_ID));
+                    Map.of(
+                            "azp", FIRST_PARTY_CLIENT_ID,
+                            "organization", organizationWithRole("member")));
             case "missing-scope" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "openid profile",
-                    Map.of("azp", FIRST_PARTY_CLIENT_ID));
+                    Map.of(
+                            "azp", FIRST_PARTY_CLIENT_ID,
+                            "organization", organizationWithRole("member")));
             case "bootstrap-token" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE),
-                    "openid profile email organization",
+                    "openid profile email organization weave:workspace",
                     Map.of(
                             "azp", FIRST_PARTY_CLIENT_ID,
                             "email", "invitee@example.com",
                             "email_verified", true));
-            case "missing-authorized-party" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace", null);
+            case "missing-authorized-party" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                    Map.of("organization", organizationWithRole("member")));
             case "wrong-azp" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
-                    Map.of("azp", "other-client"));
+                    Map.of(
+                            "azp", "other-client",
+                            "organization", organizationWithRole("member")));
             case "wrong-client-id" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
-                    Map.of("client_id", "other-client"));
+                    Map.of(
+                            "client_id", "other-client",
+                            "organization", organizationWithRole("member")));
             case "conflicting-authorized-party" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
-                    Map.of("azp", FIRST_PARTY_CLIENT_ID, "client_id", "other-client"));
+                    Map.of(
+                            "azp", FIRST_PARTY_CLIENT_ID,
+                            "client_id", "other-client",
+                            "organization", organizationWithRole("member")));
             case "valid-full-token" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "openid profile weave:workspace",
                     Map.of(
                             "preferred_username", "alice",
@@ -214,7 +244,7 @@ class FirstPartyIdentityContractTest {
                             "email", "alice@example.com",
                             "azp", FIRST_PARTY_CLIENT_ID,
                             "client_id", FIRST_PARTY_CLIENT_ID,
-                            "resource_access", Map.of(FIRST_PARTY_CLIENT_ID, Map.of("roles", List.of("member")))));
+                            "organization", organizationWithRole("member")));
             default -> throw new JwtException("Unknown test token.");
         };
 
@@ -228,6 +258,15 @@ class FirstPartyIdentityContractTest {
         }
 
         return jwt;
+    }
+
+    private Map<String, Object> organizationWithRole(String role) {
+        return Map.of(
+                "weave-dogfood",
+                Map.of(
+                        "groups", List.of("/" + role + "s"),
+                        "resource_access",
+                        Map.of(FIRST_PARTY_CLIENT_ID, Map.of("roles", List.of(role)))));
     }
 
     private Jwt jwt(String tokenValue, List<String> audience, String scope, Map<String, Object> claims) {

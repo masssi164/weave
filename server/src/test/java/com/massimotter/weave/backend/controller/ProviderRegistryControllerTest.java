@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
@@ -104,9 +106,8 @@ class ProviderRegistryControllerTest {
             org.springframework.security.oauth2.jwt.Jwt jwt = invocation.getArgument(0);
             List<String> roles = jwt == null
                     ? List.of()
-                    : ((Map<String, Object>) jwt.getClaimAsMap("resource_access").get("weave-app")).getOrDefault("roles", List.of()) instanceof List<?> roleValues
-                            ? roleValues.stream().filter(String.class::isInstance).map(String.class::cast).toList()
-                            : List.of();
+                    : com.massimotter.weave.backend.security.NativeOrganizationClaims
+                            .clientRoles(jwt, "weave-app");
             boolean allowed = roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin") || role.equals("operator"));
             if (!allowed) {
                 throw new ApiErrorException(
@@ -264,7 +265,7 @@ class ProviderRegistryControllerTest {
         return jwt().jwt(jwt -> jwt
                         .subject("admin-123")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin")))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("admin")))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                         new SimpleGrantedAuthority("ROLE_ADMIN"));
@@ -274,7 +275,7 @@ class ProviderRegistryControllerTest {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member")))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

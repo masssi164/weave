@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditAction;
@@ -460,8 +462,7 @@ class AdminControlPlaneServiceTest {
                 .subject(role + "-123")
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "weave-dogfood")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of(role))))
-                .claim("groups", List.of())
+                .claim("organization", HumanJwtTestSupport.organizationWithRole(role))
                 .build();
     }
 }

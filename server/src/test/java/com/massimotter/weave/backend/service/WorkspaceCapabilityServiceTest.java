@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
@@ -35,10 +37,12 @@ class WorkspaceCapabilityServiceTest {
                 .subject("user-1")
                 .issuer("https://auth.weave.test/realms/weave")
                 .claim("azp", "weave-mcp-server")
-                .claim("resource_access", Map.of(
-                        "weave-app",
-                        Map.of("roles", List.of("member"))))
-                .claim("groups", List.of("/capabilities/weaver"))
+                .claim(
+                        "organization",
+                        HumanJwtTestSupport
+                                .organizationWithRolesAndGroups(
+                                        List.of("member"),
+                                        List.of("/members", "/capabilities/weaver")))
                 .build();
 
         assertThat(service.grantedCapabilities(delegated))
@@ -481,10 +485,10 @@ class WorkspaceCapabilityServiceTest {
                 .header("alg", "none")
                 .subject("user-1")
                 .issuer("https://auth.example.invalid/realms/acme")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", roles)))
                 .claim(
                         "organization",
-                        Map.of("weave-dogfood", Map.of("groups", groups)))
+                        HumanJwtTestSupport
+                                .organizationWithRolesAndGroups(roles, groups))
                 .build();
     }
 

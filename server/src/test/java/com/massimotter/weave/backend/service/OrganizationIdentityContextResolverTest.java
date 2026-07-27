@@ -60,9 +60,14 @@ class OrganizationIdentityContextResolverTest {
                 "organization",
                 Map.of(
                         "weave-dogfood",
-                        Map.of("groups", List.of("/members", "/capabilities/weaver"))),
+                        Map.of(
+                                "groups", List.of("/members", "/capabilities/weaver"),
+                                "resource_access",
+                                Map.of("weave-app", Map.of("roles", List.of("member"))))),
                 "groups",
                 List.of("/owners"),
+                "resource_access",
+                Map.of("weave-app", Map.of("roles", List.of("admin"))),
                 "weave_groups",
                 List.of("/admins"))));
 
@@ -71,7 +76,8 @@ class OrganizationIdentityContextResolverTest {
         assertThat(context.providerRoleMappings())
                 .containsExactly(
                         "group_claim:/capabilities/weaver",
-                        "group_claim:/members");
+                        "group_claim:/members",
+                        "role_claim:member");
     }
 
     @Test
@@ -85,6 +91,16 @@ class OrganizationIdentityContextResolverTest {
                         Map.of("groups", List.of("/owners"))))));
 
         assertThat(context.groups()).isEmpty();
+        assertThat(context.providerRoleMappings()).isEmpty();
+    }
+
+    @Test
+    void ignoresTopLevelClientRolesWithoutSelectedOrganizationProjection() {
+        OrganizationIdentityContext context = resolver.resolve(jwt(Map.of(
+                "resource_access",
+                Map.of("weave-app", Map.of("roles", List.of("owner"))))));
+
+        assertThat(context.roles()).isEmpty();
         assertThat(context.providerRoleMappings()).isEmpty();
     }
 

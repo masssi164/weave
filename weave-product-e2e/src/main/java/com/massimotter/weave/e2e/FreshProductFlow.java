@@ -305,8 +305,7 @@ public final class FreshProductFlow {
     while (Instant.now().isBefore(deadline)) {
       JsonNode claims = browser.jwtPayload(current.accessToken());
       observedGroups = organizationGroups(claims);
-      observedRoles =
-          strings(claims.path("resource_access").path("weave-app").path("roles"));
+      observedRoles = organizationRoles(claims, "weave-app");
       observedScopes = tokenScopes(claims);
       if (observedGroups.contains(group) || observedRoles.contains(role)) {
         return current;
@@ -377,7 +376,8 @@ public final class FreshProductFlow {
         || !audiences.equals(Set.of(environment.apiOrigin().resolve("/api").toString()))
         || !hasExactWorkspaceScope(scopes)
         || !scopes.contains("agent-runtime.admin")
-        || !organizationGroups(claims).contains("/owners")) {
+        || !organizationGroups(claims).contains("/owners")
+        || !organizationRoles(claims, "weave-app").contains("owner")) {
       throw new ProductFlowException("Agent Runtime admin token is not exact");
     }
   }
@@ -411,11 +411,22 @@ public final class FreshProductFlow {
     if (!claims.path("email_verified").asBoolean(false)) {
       invalidClaims.add("email-verified");
     }
-    if (workspaceAccessExpected && !hasExactWorkspaceScope(scopes)) {
+    if (!hasExactWorkspaceScope(scopes)) {
       invalidClaims.add("workspace-scope");
     }
-    if (!workspaceAccessExpected && scopes.contains("weave:workspace")) {
-      invalidClaims.add("premature-workspace-scope");
+    Set<String> organizationRoles = organizationRoles(claims, "weave-app");
+    Set<String> productRoles = Set.of("owner", "admin", "member", "guest");
+    long productRoleCount = organizationRoles.stream().filter(productRoles::contains).count();
+    if (workspaceAccessExpected && productRoleCount != 1) {
+      invalidClaims.add("selected-organization-role");
+    }
+    if (!workspaceAccessExpected && productRoleCount != 0) {
+      invalidClaims.add("premature-selected-organization-role");
+    }
+    if (strings(claims.path("resource_access").path("weave-app").path("roles"))
+        .stream()
+        .anyMatch(productRoles::contains)) {
+      invalidClaims.add("top-level-product-role");
     }
     if (!invalidClaims.isEmpty()) {
       throw new ProductFlowException(
@@ -649,15 +660,26 @@ public final class FreshProductFlow {
   }
 
   private static Set<String> organizationGroups(JsonNode claims) {
+    JsonNode selected = selectedOrganization(claims);
+    return selected == null ? Set.of() : strings(selected.path("groups"));
+  }
+
+  private static Set<String> organizationRoles(JsonNode claims, String clientId) {
+    JsonNode selected = selectedOrganization(claims);
+    return selected == null
+        ? Set.of()
+        : strings(selected.path("resource_access").path(clientId).path("roles"));
+  }
+
+  private static JsonNode selectedOrganization(JsonNode claims) {
     JsonNode organizations = claims.path("organization");
     if (!organizations.isObject() || organizations.size() != 1) {
-      return Set.of();
+      return null;
     }
-    JsonNode selected = null;
     for (JsonNode value : organizations.values()) {
-      selected = value;
+      return value;
     }
-    return selected == null ? Set.of() : strings(selected.path("groups"));
+    return null;
   }
 
   private static String requiredText(JsonNode node, String field) {

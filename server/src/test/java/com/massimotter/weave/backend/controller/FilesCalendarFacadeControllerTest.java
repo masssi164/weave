@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChangeSet;
@@ -985,8 +987,10 @@ class FilesCalendarFacadeControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                 .claim("aud", java.util.List.of("weave-app"))
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", java.util.Map.of(
-                        "weave-app", java.util.Map.of("roles", java.util.List.of("admin")))))
+                .claim(
+                        "organization",
+                        HumanJwtTestSupport
+                                .organizationWithRole("admin")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
@@ -996,9 +1000,10 @@ class FilesCalendarFacadeControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("weave_tenant_id", "tenant-default")
-                        .claim("resource_access", java.util.Map.of(
-                                "weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                        .claim("groups", java.util.List.of("/members")))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("member")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 

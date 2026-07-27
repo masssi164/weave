@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.domainfacade;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -429,7 +431,7 @@ class CanonicalDomainFacadeServicesTest {
                 .header("alg", "none")
                 .subject("member-123")
                 .claim("weave_tenant", "weave-dogfood")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                 .build();
     }
 
@@ -438,7 +440,7 @@ class CanonicalDomainFacadeServicesTest {
                 .header("alg", "none")
                 .subject("admin-123")
                 .claim("weave_tenant", "weave-dogfood")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("admin"))))
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
                 .build();
     }
 
@@ -447,7 +449,7 @@ class CanonicalDomainFacadeServicesTest {
                 .header("alg", "none")
                 .subject("guest-123")
                 .claim("weave_tenant", "weave-dogfood")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("guest"))))
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("guest"))
                 .build();
     }
 }

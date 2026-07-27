@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.bdd;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -321,8 +323,7 @@ public class OpenProjectBoardsStepDefinitions {
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-acme")
                 .claim("weave_context_id", "ctx-product-channel")
-                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin"))))
-                .claim("groups", java.util.List.of())
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();

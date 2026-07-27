@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
@@ -178,10 +180,8 @@ class AdminControlPlaneControllerTest {
             String capability = invocation.getArgument(1);
             List<String> roles = jwt == null
                     ? List.of()
-                    : ((Map<String, Object>) ((Map<String, Object>) jwt.getClaimAsMap("resource_access")).get("weave-app"))
-                            .getOrDefault("roles", List.of()) instanceof List<?> roleValues
-                                    ? roleValues.stream().filter(String.class::isInstance).map(String.class::cast).toList()
-                                    : List.of();
+                    : com.massimotter.weave.backend.security.NativeOrganizationClaims
+                            .clientRoles(jwt, "weave-app");
             boolean allowed = switch (capability) {
                 case "admin_control_plane.readiness_read" -> roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin") || role.equals("operator"));
                 case "admin.policy.edit", "admin.provider.configure" -> roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin"));
@@ -706,7 +706,7 @@ class AdminControlPlaneControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/weave")
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("weave_tenant_id", "weave-dogfood")
-                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin")))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("admin")))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                         new SimpleGrantedAuthority("ROLE_ADMIN"));
@@ -718,9 +718,14 @@ class AdminControlPlaneControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/weave")
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("weave_tenant_id", "weave-dogfood")
-                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("operator")))))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRoles(
+                                                java.util.List.of("member", "operator"))))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
+                        new SimpleGrantedAuthority("ROLE_MEMBER"),
                         new SimpleGrantedAuthority("ROLE_OPERATOR"));
     }
 
@@ -729,7 +734,7 @@ class AdminControlPlaneControllerTest {
                         .subject("user-123")
                         .claim("iss", "https://auth.example.invalid/realms/weave")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member")))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
