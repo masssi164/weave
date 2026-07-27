@@ -15,7 +15,12 @@ import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
 from compose_env import ContractError, load_context  # noqa: E402
-from compose_runtime import resource_inventory, validate_adoption_receipt  # noqa: E402
+from compose_runtime import (  # noqa: E402
+    labels,
+    resource_inventory,
+    resource_labels_match,
+    validate_adoption_receipt,
+)
 from render_config import _image_digest, _render_desired  # noqa: E402
 
 
@@ -32,6 +37,27 @@ def main() -> None:
     assert dev.profile == "dev"
     assert dev.env["WEAVE_DEPLOYMENT_CONTEXT"] == "developer"
     assert dev.compose_files[1].name == "compose.dev.yaml"
+    historical = labels(dev, "network", dev.env["WEAVE_DOCKER_NETWORK"])
+    historical.update(
+        {
+            "com.massimotter.weave.spec-commit": "1" * 40,
+            "com.massimotter.weave.spec-digest": "sha256:" + "2" * 64,
+            "com.massimotter.weave.candidate-commit": "3" * 40,
+            "com.massimotter.weave.candidate-manifest-digest": "sha256:" + "4" * 64,
+        }
+    )
+    assert resource_labels_match(
+        dev, "network", dev.env["WEAVE_DOCKER_NETWORK"], historical
+    )
+    wrong_generation = {**historical, "com.massimotter.weave.generation": "retired"}
+    assert not resource_labels_match(
+        dev, "network", dev.env["WEAVE_DOCKER_NETWORK"], wrong_generation
+    )
+    incomplete_provenance = dict(historical)
+    incomplete_provenance.pop("com.massimotter.weave.candidate-commit")
+    assert not resource_labels_match(
+        dev, "network", dev.env["WEAVE_DOCKER_NETWORK"], incomplete_provenance
+    )
     try:
         _image_digest(dev)
     except ContractError:

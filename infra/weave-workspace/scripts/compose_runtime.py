@@ -63,6 +63,12 @@ RESOURCE_METADATA = {
     "WEAVE_SYNAPSE_DATA_VOLUME": ("chat", "collaboration-sensitive"),
     "WEAVE_MATRIX_APPSERVICE_VOLUME": ("chat-appservice", "credential-sensitive"),
 }
+RESOURCE_PROVENANCE_LABEL_PATTERNS = {
+    "com.massimotter.weave.spec-commit": re.compile(r"^[0-9a-f]{40}$"),
+    "com.massimotter.weave.spec-digest": re.compile(r"^sha256:[0-9a-f]{64}$"),
+    "com.massimotter.weave.candidate-commit": re.compile(r"^[0-9a-f]{40}$"),
+    "com.massimotter.weave.candidate-manifest-digest": re.compile(r"^sha256:[0-9a-f]{64}$"),
+}
 
 
 def script(context: ComposeContext, name: str) -> None:
@@ -127,11 +133,31 @@ def inspect_resource(context: ComposeContext, kind: str, name: str) -> tuple[boo
     if inspected.returncode != 0:
         return False, False
     observed = json.loads(inspected.stdout) or {}
+    return True, resource_labels_match(context, kind, name, observed)
+
+
+def resource_labels_match(
+    context: ComposeContext,
+    kind: str,
+    name: str,
+    observed: dict[str, str],
+) -> bool:
+    """Verify stable identity and the immutable creating provenance tuple.
+
+    Persistent resources intentionally retain the spec/candidate provenance
+    from their creation. Routine deployments therefore validate the shape and
+    completeness of that immutable tuple, while requiring every stable
+    ownership label (including the contract generation) to match exactly.
+    """
     owned = all(
         observed.get(key) == value
         for key, value in labels(context, kind, name).items()
+        if key not in RESOURCE_PROVENANCE_LABEL_PATTERNS
+    ) and all(
+        pattern.fullmatch(observed.get(key, "")) is not None
+        for key, pattern in RESOURCE_PROVENANCE_LABEL_PATTERNS.items()
     )
-    return True, owned
+    return owned
 
 
 def adoption_status(context: ComposeContext) -> dict[str, object]:
