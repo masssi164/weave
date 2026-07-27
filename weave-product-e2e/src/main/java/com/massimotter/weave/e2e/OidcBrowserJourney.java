@@ -460,7 +460,40 @@ final class OidcBrowserJourney implements AutoCloseable {
   }
 
   private static ProductFlowException sanitized(String message, PlaywrightException cause) {
-    return new ProductFlowException(message, new IllegalStateException(cause.getClass().getName()));
+    return new ProductFlowException(
+        message + " category=" + browserFailureCategory(cause.getMessage()),
+        new IllegalStateException(cause.getClass().getName()));
+  }
+
+  static String browserFailureCategory(String message) {
+    if (message == null) {
+      return "playwright";
+    }
+    if (message.contains("ERR_CERT_")) {
+      return "tls";
+    }
+    if (message.contains("ERR_NAME_NOT_RESOLVED")) {
+      return "dns";
+    }
+    if (message.contains("ERR_CONNECTION_REFUSED")) {
+      return "connect-refused";
+    }
+    if (message.contains("ERR_CONNECTION_RESET")) {
+      return "connection-reset";
+    }
+    if (message.contains("ERR_INVALID_URL")) {
+      return "invalid-url";
+    }
+    if (message.contains("ERR_TOO_MANY_REDIRECTS")) {
+      return "redirect-loop";
+    }
+    if (message.contains("ERR_ABORTED")) {
+      return "navigation-aborted";
+    }
+    if (message.toLowerCase(java.util.Locale.ROOT).contains("timeout")) {
+      return "timeout";
+    }
+    return "playwright";
   }
 
   @Override
