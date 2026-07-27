@@ -300,6 +300,24 @@ def main() -> None:
     )
     assert "defaultClientScopes" not in client_without_relationships
     assert "optionalClientScopes" not in client_without_relationships
+    assert identity_ops.client_scope_payload(
+        {
+            "name": "weave:workspace",
+            "protocol": "openid-connect",
+            "includeInTokenScope": True,
+        }
+    ) == {
+        "name": "weave:workspace",
+        "protocol": "openid-connect",
+        "attributes": {"include.in.token.scope": "true"},
+    }
+    assert identity_ops.client_scope_payload(
+        {
+            "name": "weave-api-audience",
+            "protocol": "openid-connect",
+            "includeInTokenScope": False,
+        }
+    )["attributes"] == {"include.in.token.scope": "false"}
 
     class ClientScopeAssociationKcadm:
         def __init__(self) -> None:

@@ -327,6 +327,16 @@ def client_payload(client: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def client_scope_payload(scope: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": scope["name"],
+        "protocol": scope.get("protocol", "openid-connect"),
+        "attributes": {
+            "include.in.token.scope": str(scope["includeInTokenScope"]).lower(),
+        },
+    }
+
+
 def client_scope_attachment_operations(
     kcadm: Kcadm,
     realm: str,
@@ -1042,7 +1052,7 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
     scopes_by_key: dict[str, dict[str, Any]] = {}
     for scope in desired.get("clientScopes", []):
         key = scope["key"]
-        wanted = {"name": scope["name"], "protocol": scope.get("protocol", "openid-connect")}
+        wanted = client_scope_payload(scope)
         observed = exact(
             [item for item in observed_scopes if item.get("name") == scope["name"]],
             key,
