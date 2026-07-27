@@ -58,4 +58,31 @@ class OidcBrowserJourneyTest {
     assertThat(OidcBrowserJourney.statusClass(503)).isEqualTo("5xx");
     assertThat(OidcBrowserJourney.statusClass(700)).isEqualTo("other");
   }
+
+  @Test
+  void classifiesRedirectTargetsWithoutRetainingTheirUrl() {
+    String issuerResponse =
+        "https://auth.weave.test:5443/realms/weave/protocol/openid-connect/registrations";
+
+    assertThat(OidcBrowserJourney.redirectTargetClass(issuerResponse, null))
+        .isEqualTo("missing");
+    assertThat(
+            OidcBrowserJourney.redirectTargetClass(
+                issuerResponse, "/realms/weave/login-actions/registration?secret=one-time"))
+        .isEqualTo("issuer-relative");
+    assertThat(
+            OidcBrowserJourney.redirectTargetClass(
+                issuerResponse,
+                "https://auth.weave.test:5443/realms/weave/login-actions/registration"
+                    + "?secret=one-time"))
+        .isEqualTo("issuer");
+    assertThat(
+            OidcBrowserJourney.redirectTargetClass(
+                issuerResponse, "https://weave.test/after-activation?secret=one-time"))
+        .isEqualTo("other-https");
+    assertThat(
+            OidcBrowserJourney.redirectTargetClass(
+                issuerResponse, "com.massimotter.weave:/oauthredirect?secret=one-time"))
+        .isEqualTo("custom-scheme");
+  }
 }

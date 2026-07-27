@@ -86,7 +86,7 @@ final class OidcBrowserJourney implements AutoCloseable {
         browser.newContext(
             new Browser.NewContextOptions().setLocale("en-US"))) {
       Page page = context.newPage();
-      navigate(page, actionLink);
+      navigate(page, actionLink, "activation");
       boolean submitted = false;
       for (int step = 0; step < MAX_BROWSER_STEPS; step++) {
         fillIfVisible(page, "input[name='username']", username(email));
@@ -166,7 +166,7 @@ final class OidcBrowserJourney implements AutoCloseable {
           request -> captureCallback(request.url(), redirectUri, observedCallback));
       page.onFrameNavigated(
           frame -> captureCallback(frame.url(), redirectUri, observedCallback));
-      navigate(page, authorization);
+      navigate(page, authorization, "oidc");
       fillRequired(page, "input[name='username']", email, "OIDC username");
       fillRequired(page, "input[name='password']", password, "OIDC password");
       Locator login = firstVisible(page.locator("#kc-login, form button[type='submit']"));
@@ -315,12 +315,17 @@ final class OidcBrowserJourney implements AutoCloseable {
     return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
   }
 
-  private void navigate(Page page, URI target) {
+  private void navigate(Page page, URI target, String operation) {
     AtomicReference<Integer> issuerResponseStatus = new AtomicReference<>();
+    AtomicReference<String> redirectTarget = new AtomicReference<>("none");
     page.onResponse(
         response -> {
           if (isIssuerPage(response.url(), environment.issuer())) {
             issuerResponseStatus.set(response.status());
+            if (response.status() >= 300 && response.status() < 400) {
+              redirectTarget.set(
+                  redirectTargetClass(response.url(), response.headers().get("location")));
+            }
           }
         });
     try {
@@ -337,12 +342,16 @@ final class OidcBrowserJourney implements AutoCloseable {
       }
       throw sanitized(
           "browser navigation failed"
+              + " operation="
+              + operation
               + " category="
               + category
               + " pageState="
               + pageState
               + " issuerResponse="
-              + statusClass(issuerResponseStatus.get()),
+              + statusClass(issuerResponseStatus.get())
+              + " redirectTarget="
+              + redirectTarget.get(),
           failure,
           false);
     }
@@ -553,6 +562,32 @@ final class OidcBrowserJourney implements AutoCloseable {
       return "5xx";
     }
     return "other";
+  }
+
+  static String redirectTargetClass(String responseUrl, String location) {
+    if (location == null || location.isBlank()) {
+      return "missing";
+    }
+    try {
+      URI raw = URI.create(location);
+      if (!raw.isAbsolute()) {
+        return "issuer-relative";
+      }
+      URI issuer = URI.create(responseUrl);
+      URI target = issuer.resolve(raw);
+      if ("https".equalsIgnoreCase(target.getScheme())
+          && target.getHost() != null
+          && target.getHost().equalsIgnoreCase(issuer.getHost())
+          && effectivePort(target) == effectivePort(issuer)) {
+        return "issuer";
+      }
+      if ("https".equalsIgnoreCase(target.getScheme())) {
+        return "other-https";
+      }
+      return "custom-scheme";
+    } catch (RuntimeException invalid) {
+      return "invalid";
+    }
   }
 
   static String browserFailureCategory(String message) {
