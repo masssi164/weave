@@ -48,4 +48,14 @@ class OidcBrowserJourneyTest {
         .isFalse();
     assertThat(OidcBrowserJourney.isIssuerPage("about:blank", issuer)).isFalse();
   }
+
+  @Test
+  void reducesIssuerResponsesToSupportSafeStatusClasses() {
+    assertThat(OidcBrowserJourney.statusClass(null)).isEqualTo("none");
+    assertThat(OidcBrowserJourney.statusClass(204)).isEqualTo("2xx");
+    assertThat(OidcBrowserJourney.statusClass(302)).isEqualTo("3xx");
+    assertThat(OidcBrowserJourney.statusClass(400)).isEqualTo("4xx");
+    assertThat(OidcBrowserJourney.statusClass(503)).isEqualTo("5xx");
+    assertThat(OidcBrowserJourney.statusClass(700)).isEqualTo("other");
+  }
 }

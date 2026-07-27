@@ -316,6 +316,13 @@ final class OidcBrowserJourney implements AutoCloseable {
   }
 
   private void navigate(Page page, URI target) {
+    AtomicReference<Integer> issuerResponseStatus = new AtomicReference<>();
+    page.onResponse(
+        response -> {
+          if (isIssuerPage(response.url(), environment.issuer())) {
+            issuerResponseStatus.set(response.status());
+          }
+        });
     try {
       page.navigate(
           target.toString(),
@@ -323,20 +330,43 @@ final class OidcBrowserJourney implements AutoCloseable {
               .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
               .setTimeout(BROWSER_TIMEOUT_MILLIS));
     } catch (PlaywrightException failure) {
-      if ("navigation-aborted".equals(browserFailureCategory(failure.getMessage()))
-          && recoverAbortedIssuerForm(page)) {
+      String category = browserFailureCategory(failure.getMessage());
+      String pageState = abortedPageState(page);
+      if ("navigation-aborted".equals(category) && "issuer-form".equals(pageState)) {
         return;
       }
-      throw sanitized("browser navigation failed", failure);
+      throw sanitized(
+          "browser navigation failed"
+              + " category="
+              + category
+              + " pageState="
+              + pageState
+              + " issuerResponse="
+              + statusClass(issuerResponseStatus.get()),
+          failure,
+          false);
     }
   }
 
-  private boolean recoverAbortedIssuerForm(Page page) {
+  private String abortedPageState(Page page) {
     waitForPage(page);
     try {
-      return isIssuerPage(page.url()) && firstVisible(page.locator("form")) != null;
+      String rawUrl = page.url();
+      if ("about:blank".equals(rawUrl)) {
+        return "blank";
+      }
+      URI candidate = URI.create(rawUrl);
+      if (!"https".equalsIgnoreCase(candidate.getScheme())) {
+        return "custom-scheme";
+      }
+      if (!isIssuerPage(rawUrl)) {
+        return "other-origin";
+      }
+      return firstVisible(page.locator("form")) == null ? "issuer-no-form" : "issuer-form";
     } catch (PlaywrightException unstablePage) {
-      return false;
+      return "unstable";
+    } catch (RuntimeException invalidPageUrl) {
+      return "invalid";
     }
   }
 
@@ -493,9 +523,36 @@ final class OidcBrowserJourney implements AutoCloseable {
   }
 
   private static ProductFlowException sanitized(String message, PlaywrightException cause) {
+    return sanitized(message, cause, true);
+  }
+
+  private static ProductFlowException sanitized(
+      String message, PlaywrightException cause, boolean appendCategory) {
     return new ProductFlowException(
-        message + " category=" + browserFailureCategory(cause.getMessage()),
+        message
+            + (appendCategory
+                ? " category=" + browserFailureCategory(cause.getMessage())
+                : ""),
         new IllegalStateException(cause.getClass().getName()));
+  }
+
+  static String statusClass(Integer status) {
+    if (status == null) {
+      return "none";
+    }
+    if (status >= 200 && status < 300) {
+      return "2xx";
+    }
+    if (status >= 300 && status < 400) {
+      return "3xx";
+    }
+    if (status >= 400 && status < 500) {
+      return "4xx";
+    }
+    if (status >= 500 && status < 600) {
+      return "5xx";
+    }
+    return "other";
   }
 
   static String browserFailureCategory(String message) {
