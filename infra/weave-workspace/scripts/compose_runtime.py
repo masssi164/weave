@@ -389,6 +389,14 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         )
         script(context, "nextcloud_reconcile.py")
     elif command == "down":
+        if context.profile == "dev":
+            compose(
+                context,
+                "rm",
+                "--stop",
+                "--force",
+                *HOST_APPLICATION_SERVICES,
+            )
         compose(context, "down", *extra)
     elif command in {"ps", "logs"}:
         compose(context, command, *extra)

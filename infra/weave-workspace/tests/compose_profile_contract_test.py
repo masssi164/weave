@@ -176,6 +176,7 @@ def main() -> None:
         assert '"prod": ("caddy", "mcp")' in runtime_source
         assert "HOST_APPLICATION_SERVICES" in runtime_source
         assert '"rm",\n                "--stop",\n                "--force",' in runtime_source
+        assert 'elif command == "down":\n        if context.profile == "dev":' in runtime_source
         assert '"--wait-timeout",\n            "600",' in runtime_source
         assert 'script(context, "nextcloud_reconcile.py")' in runtime_source
         invalid = root / "invalid.env"
