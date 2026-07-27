@@ -97,6 +97,7 @@ public final class FreshProductFlow {
               List.of("openid", "profile", "email"),
               ownerEmail,
               ownerPassword);
+      validateHumanWorkspaceToken(browser.jwtPayload(ownerSession.accessToken()), "weave-app");
       ownerSession = reconcileIdentitySession(browser, ownerSession, "owner");
       ownerSession = awaitAuthority(browser, ownerSession, "/owners", "owner");
       validateHumanWorkspaceToken(browser.jwtPayload(ownerSession.accessToken()), "weave-app");
@@ -118,6 +119,7 @@ public final class FreshProductFlow {
               List.of("openid", "profile", "email"),
               memberEmail,
               memberPassword);
+      validateHumanWorkspaceToken(browser.jwtPayload(memberSession.accessToken()), "weave-app");
       memberSession = reconcileIdentitySession(browser, memberSession, "member");
       assignWeaverEntitlement(
           organizationId, memberEmail, ownerSession.accessToken());
@@ -335,10 +337,27 @@ public final class FreshProductFlow {
     }
   }
 
-  private static void validateHumanWorkspaceToken(JsonNode claims, String clientId) {
+  private void validateHumanWorkspaceToken(JsonNode claims, String clientId) {
     Set<String> scopes = tokenScopes(claims);
-    if (!clientId.equals(claims.path("azp").asString()) || !hasExactWorkspaceScope(scopes)) {
-      throw new ProductFlowException("human token workspace scope is not exact");
+    Set<String> invalidClaims = new java.util.TreeSet<>();
+    if (!clientId.equals(claims.path("azp").asString())) {
+      invalidClaims.add("authorized-party");
+    }
+    String explicitClientId = claims.path("client_id").asString("");
+    if (!explicitClientId.isBlank() && !clientId.equals(explicitClientId)) {
+      invalidClaims.add("client-id");
+    }
+    if (!strings(claims.path("aud"))
+        .contains(environment.apiOrigin().resolve("/api").toString())) {
+      invalidClaims.add("audience");
+    }
+    if (!hasExactWorkspaceScope(scopes)) {
+      invalidClaims.add("workspace-scope");
+    }
+    if (!invalidClaims.isEmpty()) {
+      throw new ProductFlowException(
+          "human token contract did not match fields="
+              + String.join(",", invalidClaims));
     }
   }
 
