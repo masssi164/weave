@@ -24,7 +24,7 @@ class MailpitActivationInboxTest {
                 "HTML",
                 """
                 <a href="https://auth.weave.test:5443/realms/weave/protocol/openid-connect/registrations\
-                ?client_id=weave-app&amp;token=one-time">Activate</a>
+                ?response_type&#x3D;code&#x26;client_id=account&amp;token=one-time">Activate</a>
                 """);
 
     URI result = inbox.actionLink(message);
@@ -33,7 +33,7 @@ class MailpitActivationInboxTest {
         .isEqualTo(
             URI.create(
                 "https://auth.weave.test:5443/realms/weave/protocol/openid-connect/registrations"
-                    + "?client_id=weave-app&token=one-time"));
+                    + "?response_type=code&client_id=account&token=one-time"));
   }
 
   @Test
@@ -42,24 +42,49 @@ class MailpitActivationInboxTest {
             inbox.actionLink(
                 message(
                     "https://attacker.example/realms/weave/protocol/openid-connect/registrations"
-                        + "?token=one-time")))
+                        + "?response_type=code&client_id=account&token=one-time")))
         .isNull();
     assertThat(
             inbox.actionLink(
                 message(
                     "https://auth.weave.test:6443/realms/weave/protocol/openid-connect/registrations"
-                        + "?token=one-time")))
+                        + "?response_type=code&client_id=account&token=one-time")))
         .isNull();
     assertThat(
             inbox.actionLink(
                 message(
                     "https://auth.weave.test:5443/realms/other/protocol/openid-connect/registrations"
-                        + "?token=one-time")))
+                        + "?response_type=code&client_id=account&token=one-time")))
         .isNull();
     assertThat(
             inbox.actionLink(
                 message(
                     "https://auth.weave.test:5443/realms/weave/protocol/openid-connect/registrations")))
+        .isNull();
+  }
+
+  @Test
+  void skipsMalformedCandidatesAndRequiresTheOfficialRegistrationParameters() {
+    JsonNode message =
+        mapper
+            .createArrayNode()
+            .add(
+                "https://auth.weave.test:5443/realms/weave/protocol/openid-connect/registrations"
+                    + "?response_type=code&client_id=account&token=bad%ZZ")
+            .add(
+                "https://auth.weave.test:5443/realms/weave/protocol/openid-connect/registrations"
+                    + "?response_type=code&client_id=account&token=one-time");
+
+    assertThat(inbox.actionLink(message))
+        .isEqualTo(
+            URI.create(
+                "https://auth.weave.test:5443/realms/weave/protocol/openid-connect/registrations"
+                    + "?response_type=code&client_id=account&token=one-time"));
+    assertThat(
+            inbox.actionLink(
+                message(
+                    "https://auth.weave.test:5443/realms/weave/protocol/openid-connect/registrations"
+                        + "?client_id=account&token=one-time")))
         .isNull();
   }
 

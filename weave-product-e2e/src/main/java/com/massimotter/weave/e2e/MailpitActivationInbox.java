@@ -2,6 +2,7 @@ package com.massimotter.weave.e2e;
 
 import tools.jackson.databind.JsonNode;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -90,15 +91,15 @@ final class MailpitActivationInbox {
     List<String> values = new ArrayList<>();
     collectStrings(message, values);
     for (String raw : values) {
-      String decoded =
-          raw.replace("&amp;", "&")
-              .replace("&#38;", "&")
-              .replace("=3D", "=")
-              .replace("=\r\n", "")
-              .replace("=\n", "");
+      String decoded = decodeMessageEncoding(raw);
       Matcher matcher = ACTION_LINK.matcher(decoded);
       if (matcher.find()) {
-        URI candidate = URI.create(matcher.group());
+        URI candidate;
+        try {
+          candidate = URI.create(matcher.group());
+        } catch (IllegalArgumentException malformedCandidate) {
+          continue;
+        }
         if ("https".equalsIgnoreCase(candidate.getScheme())
             && candidate.getHost() != null
             && candidate.getHost().equalsIgnoreCase(issuer.getHost())
@@ -110,6 +111,9 @@ final class MailpitActivationInbox {
                         + "/protocol/openid-connect/registrations")
             && candidate.getRawQuery() != null
             && !candidate.getRawQuery().isBlank()
+            && queryParameter(candidate, "response_type").equals("code")
+            && queryParameter(candidate, "client_id").equals("account")
+            && !queryParameter(candidate, "token").isBlank()
             && candidate.getUserInfo() == null
             && candidate.getFragment() == null) {
           return candidate;
@@ -117,6 +121,33 @@ final class MailpitActivationInbox {
       }
     }
     return null;
+  }
+
+  private static String decodeMessageEncoding(String raw) {
+    return raw.replaceAll("(?i)&amp;|&#0*38;|&#x0*26;", "&")
+        .replaceAll("(?i)&quot;|&#0*34;|&#x0*22;", "\"")
+        .replaceAll("(?i)&apos;|&#0*39;|&#x0*27;", "'")
+        .replaceAll("(?i)&#0*61;|&#x0*3d;", "=")
+        .replaceAll("(?i)=3d", "=")
+        .replace("=\r\n", "")
+        .replace("=\n", "");
+  }
+
+  private static String queryParameter(URI uri, String expectedName) {
+    for (String parameter : uri.getRawQuery().split("&")) {
+      int separator = parameter.indexOf('=');
+      String rawName = separator < 0 ? parameter : parameter.substring(0, separator);
+      String rawValue = separator < 0 ? "" : parameter.substring(separator + 1);
+      try {
+        String name = URLDecoder.decode(rawName, StandardCharsets.UTF_8);
+        if (name.equals(expectedName)) {
+          return URLDecoder.decode(rawValue, StandardCharsets.UTF_8);
+        }
+      } catch (IllegalArgumentException malformedEncoding) {
+        return "";
+      }
+    }
+    return "";
   }
 
   private static int effectivePort(URI uri) {
