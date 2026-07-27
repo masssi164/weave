@@ -299,18 +299,33 @@ public final class FreshProductFlow {
       String role) {
     Instant deadline = Instant.now().plus(environment.convergenceTimeout());
     OidcBrowserJourney.TokenSet current = initial;
+    Set<String> observedGroups = Set.of();
+    Set<String> observedRoles = Set.of();
+    Set<String> observedScopes = Set.of();
     while (Instant.now().isBefore(deadline)) {
       JsonNode claims = browser.jwtPayload(current.accessToken());
-      if (organizationGroups(claims).contains(group)
-          || strings(
-                  claims.path("resource_access").path("weave-app").path("roles"))
-              .contains(role)) {
+      observedGroups = organizationGroups(claims);
+      observedRoles =
+          strings(claims.path("resource_access").path("weave-app").path("roles"));
+      observedScopes = tokenScopes(claims);
+      if (observedGroups.contains(group) || observedRoles.contains(role)) {
         return current;
       }
       sleep();
       current = browser.refresh(current);
     }
-    throw new ProductFlowException("Keycloak role and capability projection did not converge");
+    throw new ProductFlowException(
+        "Keycloak role and capability projection did not converge"
+            + " expectedGroup="
+            + group
+            + " expectedRole="
+            + role
+            + " observedGroups="
+            + new java.util.TreeSet<>(observedGroups)
+            + " observedRoles="
+            + new java.util.TreeSet<>(observedRoles)
+            + " observedScopes="
+            + new java.util.TreeSet<>(observedScopes));
   }
 
   private void proveMemberApi(String token) {
