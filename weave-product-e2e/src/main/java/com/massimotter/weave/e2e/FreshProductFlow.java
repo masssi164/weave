@@ -81,14 +81,23 @@ public final class FreshProductFlow {
     try (OidcBrowserJourney browser = new OidcBrowserJourney(environment, http)) {
       JsonNode ownerInvitation = bootstrapOwner(ownerEmail);
       String organizationId = requiredText(ownerInvitation, "organizationId");
-      URI ownerAction =
+      MailpitActivationInbox ownerInbox =
           new MailpitActivationInbox(
-                  http,
-                  environment.mailpitApi(),
-                  environment.issuer(),
-                  environment.convergenceTimeout())
-              .awaitActivationLink(ownerEmail, startedAt.minusSeconds(5));
-      browser.activate(ownerAction, ownerEmail, ownerPassword, "Weave E2E Owner");
+              http,
+              environment.mailpitApi(),
+              environment.issuer(),
+              environment.convergenceTimeout());
+      URI ownerAction =
+          ownerInbox.awaitActivationLink(ownerEmail, startedAt.minusSeconds(5));
+      Instant ownerRegistrationStartedAt = Instant.now();
+      browser.activate(
+          ownerAction,
+          ownerEmail,
+          ownerPassword,
+          "Weave E2E Owner",
+          () ->
+              ownerInbox.awaitEmailVerificationLink(
+                  ownerEmail, ownerRegistrationStartedAt.minusSeconds(5)));
 
       OidcBrowserJourney.TokenSet ownerSession =
           browser.authorize(
@@ -104,14 +113,23 @@ public final class FreshProductFlow {
 
       Instant memberInvitedAt = Instant.now();
       inviteMember(organizationId, memberEmail, ownerSession.accessToken());
-      URI memberAction =
+      MailpitActivationInbox memberInbox =
           new MailpitActivationInbox(
-                  http,
-                  environment.mailpitApi(),
-                  environment.issuer(),
-                  environment.convergenceTimeout())
-              .awaitActivationLink(memberEmail, memberInvitedAt.minusSeconds(5));
-      browser.activate(memberAction, memberEmail, memberPassword, "Weave E2E Member");
+              http,
+              environment.mailpitApi(),
+              environment.issuer(),
+              environment.convergenceTimeout());
+      URI memberAction =
+          memberInbox.awaitActivationLink(memberEmail, memberInvitedAt.minusSeconds(5));
+      Instant memberRegistrationStartedAt = Instant.now();
+      browser.activate(
+          memberAction,
+          memberEmail,
+          memberPassword,
+          "Weave E2E Member",
+          () ->
+              memberInbox.awaitEmailVerificationLink(
+                  memberEmail, memberRegistrationStartedAt.minusSeconds(5)));
       memberSession =
           browser.authorize(
               "weave-app",

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -21,6 +22,11 @@ final class MailpitActivationInbox {
       Pattern.compile(
           "https?://[^\\s\"'<>]+/realms/[^\\s\"'<>]+"
               + "/protocol/openid-connect/registrations\\?[^\\s\"'<>]+",
+          Pattern.CASE_INSENSITIVE);
+  private static final Pattern EMAIL_VERIFICATION_LINK =
+      Pattern.compile(
+          "https?://[^\\s\"'<>]+/realms/[^\\s\"'<>]+"
+              + "/login-actions/action-token\\?[^\\s\"'<>]+",
           Pattern.CASE_INSENSITIVE);
 
   private final JsonHttpClient http;
@@ -36,6 +42,19 @@ final class MailpitActivationInbox {
   }
 
   URI awaitActivationLink(String email, Instant notBefore) {
+    return awaitLink(email, notBefore, this::actionLink, "activation");
+  }
+
+  URI awaitEmailVerificationLink(String email, Instant notBefore) {
+    return awaitLink(
+        email, notBefore, this::emailVerificationLink, "email verification");
+  }
+
+  private URI awaitLink(
+      String email,
+      Instant notBefore,
+      Function<JsonNode, URI> linkExtractor,
+      String actionName) {
     String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
     Instant deadline = Instant.now().plus(timeout);
     while (Instant.now().isBefore(deadline)) {
@@ -64,14 +83,15 @@ final class MailpitActivationInbox {
                 Map.of(),
                 null,
                 Set.of(200));
-        URI link = actionLink(message);
+        URI link = linkExtractor.apply(message);
         if (link != null) {
           return link;
         }
       }
       sleep();
     }
-    throw new ProductFlowException("activation mail did not converge within the bounded timeout");
+    throw new ProductFlowException(
+        actionName + " mail did not converge within the bounded timeout");
   }
 
   private List<JsonNode> messageArray(JsonNode payload) {
@@ -88,11 +108,37 @@ final class MailpitActivationInbox {
   }
 
   URI actionLink(JsonNode message) {
+    return link(
+        message,
+        ACTION_LINK,
+        issuer.getPath().replaceAll("/+$", "")
+            + "/protocol/openid-connect/registrations",
+        Map.of(
+            "response_type", "code",
+            "client_id", "account"),
+        "token");
+  }
+
+  URI emailVerificationLink(JsonNode message) {
+    return link(
+        message,
+        EMAIL_VERIFICATION_LINK,
+        issuer.getPath().replaceAll("/+$", "") + "/login-actions/action-token",
+        Map.of("client_id", "account"),
+        "key");
+  }
+
+  private URI link(
+      JsonNode message,
+      Pattern pattern,
+      String expectedPath,
+      Map<String, String> exactParameters,
+      String requiredTokenParameter) {
     List<String> values = new ArrayList<>();
     collectStrings(message, values);
     for (String raw : values) {
       String decoded = decodeMessageEncoding(raw);
-      Matcher matcher = ACTION_LINK.matcher(decoded);
+      Matcher matcher = pattern.matcher(decoded);
       if (matcher.find()) {
         URI candidate;
         try {
@@ -104,16 +150,15 @@ final class MailpitActivationInbox {
             && candidate.getHost() != null
             && candidate.getHost().equalsIgnoreCase(issuer.getHost())
             && effectivePort(candidate) == effectivePort(issuer)
-            && candidate
-                .getPath()
-                .equals(
-                    issuer.getPath().replaceAll("/+$", "")
-                        + "/protocol/openid-connect/registrations")
+            && candidate.getPath().equals(expectedPath)
             && candidate.getRawQuery() != null
             && !candidate.getRawQuery().isBlank()
-            && queryParameter(candidate, "response_type").equals("code")
-            && queryParameter(candidate, "client_id").equals("account")
-            && !queryParameter(candidate, "token").isBlank()
+            && exactParameters.entrySet().stream()
+                .allMatch(
+                    entry ->
+                        queryParameter(candidate, entry.getKey())
+                            .equals(entry.getValue()))
+            && !queryParameter(candidate, requiredTokenParameter).isBlank()
             && candidate.getUserInfo() == null
             && candidate.getFragment() == null) {
           return candidate;

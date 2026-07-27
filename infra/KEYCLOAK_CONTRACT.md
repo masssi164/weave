@@ -87,6 +87,10 @@ The same `plan`/`apply`/`verify` task family exists for `test` and `prod`. Test 
 private reviewed `WEAVE_ENV_FILE`. Desired State never contains human users or passwords.
 Automated product proof creates the owner/member through Weave invitations, completes Keycloak
 required actions in a real browser, and retains generated passwords only in process memory.
+The realm keeps native email verification enabled. Invitation registration therefore follows
+the organization action link and Keycloak's subsequent one-time `VERIFY_EMAIL` action link in
+the same browser session before credential setup. Neither Identity Ops nor Weave Server marks
+email as verified through an administrative API.
 
 ## Session correctness
 

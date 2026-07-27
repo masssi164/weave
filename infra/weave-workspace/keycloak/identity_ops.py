@@ -258,6 +258,7 @@ def realm_payload(realm: dict[str, Any]) -> dict[str, Any]:
         "organizationsEnabled": realm.get("organizationsEnabled", False),
         "adminPermissionsEnabled": realm.get("adminPermissionsEnabled", False),
         "registrationAllowed": realm.get("registrationAllowed", False),
+        "verifyEmail": realm["verifyEmail"],
         "loginWithEmailAllowed": realm.get("loginWithEmailAllowed", True),
         "duplicateEmailsAllowed": realm.get("duplicateEmailsAllowed", False),
         "sslRequired": realm.get("sslRequired", "external"),

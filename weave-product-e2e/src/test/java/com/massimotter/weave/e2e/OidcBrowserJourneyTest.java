@@ -50,6 +50,30 @@ class OidcBrowserJourneyTest {
   }
 
   @Test
+  void recognizesOnlyTheNativeVerifyEmailRequiredActionOnTheExactIssuer() {
+    URI issuer = URI.create("https://auth.weave.test:5443/realms/weave");
+
+    assertThat(
+            OidcBrowserJourney.isEmailVerificationRequiredAction(
+                "https://auth.weave.test:5443/realms/weave/login-actions/required-action"
+                    + "?execution=VERIFY_EMAIL&client_id=account&tab_id=session",
+                issuer))
+        .isTrue();
+    assertThat(
+            OidcBrowserJourney.isEmailVerificationRequiredAction(
+                "https://auth.weave.test:5443/realms/weave/login-actions/required-action"
+                    + "?execution=UPDATE_PASSWORD&client_id=account&tab_id=session",
+                issuer))
+        .isFalse();
+    assertThat(
+            OidcBrowserJourney.isEmailVerificationRequiredAction(
+                "https://attacker.example/realms/weave/login-actions/required-action"
+                    + "?execution=VERIFY_EMAIL",
+                issuer))
+        .isFalse();
+  }
+
+  @Test
   void reducesIssuerResponsesToSupportSafeStatusClasses() {
     assertThat(OidcBrowserJourney.statusClass(null)).isEqualTo("none");
     assertThat(OidcBrowserJourney.statusClass(204)).isEqualTo("2xx");

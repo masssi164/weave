@@ -33,6 +33,7 @@ def main() -> None:
         {
             "name": "weave",
             "frontendUrl": "https://auth.weave.local",
+            "verifyEmail": True,
             "smtp": {
                 "host": "mailpit",
                 "port": 1025,
@@ -45,7 +46,14 @@ def main() -> None:
     )
     assert "frontendUrl" not in realm
     assert realm["attributes"]["frontendUrl"] == "https://auth.weave.local"
+    assert realm["verifyEmail"] is True
     assert realm["smtpServer"]["port"] == "1025"
+    try:
+        identity_ops.realm_payload({"name": "weave"})
+        raise AssertionError("realm payload accepted missing native email verification policy")
+    except KeyError as error:
+        assert error.args == ("verifyEmail",)
+    assert '"emailVerified"' not in MODULE_PATH.read_text(encoding="utf-8")
     calls: list[list[str]] = []
     original_run = identity_ops.subprocess.run
 

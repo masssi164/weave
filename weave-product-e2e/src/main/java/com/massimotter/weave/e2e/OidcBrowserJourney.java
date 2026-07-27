@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /** Real Chromium registration and Authorization Code + PKCE journey. */
 final class OidcBrowserJourney implements AutoCloseable {
@@ -81,14 +82,41 @@ final class OidcBrowserJourney implements AutoCloseable {
         .orElseThrow(() -> new ProductFlowException("isolated host resolver is empty"));
   }
 
-  void activate(URI actionLink, String email, String password, String displayName) {
+  void activate(
+      URI actionLink,
+      String email,
+      String password,
+      String displayName,
+      Supplier<URI> emailVerificationLink) {
     try (BrowserContext context =
         browser.newContext(
             new Browser.NewContextOptions().setLocale("en-US"))) {
       Page page = context.newPage();
       navigate(page, actionLink, "activation");
       boolean submitted = false;
+      boolean verificationFollowed = false;
       for (int step = 0; step < MAX_BROWSER_STEPS; step++) {
+        if (isEmailVerificationRequiredAction(page.url(), environment.issuer())) {
+          if (verificationFollowed) {
+            throw new ProductFlowException(
+                "Keycloak activation requested email verification more than once");
+          }
+          URI verificationLink = emailVerificationLink.get();
+          if (verificationLink == null) {
+            throw new ProductFlowException(
+                "Keycloak email verification did not expose an action link");
+          }
+          navigate(page, verificationLink, "email-verification");
+          verificationFollowed = true;
+          submitted = false;
+          waitForPage(page);
+          if (hasVisibleError(page)) {
+            throw new ProductFlowException(
+                "Keycloak activation rejected the email verification");
+          }
+          continue;
+        }
+
         fillIfVisible(page, "input[name='username']", username(email));
         fillIfVisible(page, "input[name='email']", email);
         fillIfVisible(page, "input[name='firstName']", firstName(displayName));
@@ -104,7 +132,7 @@ final class OidcBrowserJourney implements AutoCloseable {
                 || visible(page, "input[name='password-confirm']")
                 || visible(page, "input[name='firstName']")
                 || visible(page, "input[name='lastName']");
-        if (submitted && !actionPage && !credentialAction) {
+        if (verificationFollowed && !actionPage && !credentialAction) {
           return;
         }
         Locator submit =
@@ -112,7 +140,7 @@ final class OidcBrowserJourney implements AutoCloseable {
                 "form button[type='submit'], form input[type='submit'], #kc-form-buttons button");
         Locator visibleSubmit = firstVisible(submit);
         if (visibleSubmit == null) {
-          if (submitted && !credentialAction) {
+          if (verificationFollowed && submitted && !credentialAction) {
             return;
           }
           throw new ProductFlowException(
@@ -131,6 +159,18 @@ final class OidcBrowserJourney implements AutoCloseable {
         }
       }
       throw new ProductFlowException("Keycloak activation exceeded the bounded browser steps");
+    }
+  }
+
+  static boolean isEmailVerificationRequiredAction(String rawUrl, URI issuer) {
+    try {
+      URI candidate = URI.create(rawUrl);
+      String issuerPath = issuer.getPath().replaceAll("/+$", "");
+      return isIssuerPage(rawUrl, issuer)
+          && candidate.getPath().equals(issuerPath + "/login-actions/required-action")
+          && "VERIFY_EMAIL".equals(query(candidate).get("execution"));
+    } catch (RuntimeException invalid) {
+      return false;
     }
   }
 

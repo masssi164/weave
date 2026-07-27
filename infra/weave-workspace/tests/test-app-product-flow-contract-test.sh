@@ -15,6 +15,7 @@ readonly MODULE_BUILD="${REPOSITORY_ROOT}/weave-product-e2e/build.gradle"
 readonly MODULE_TASKS="${REPOSITORY_ROOT}/weave-product-e2e/gradle/tasks/product-flow.gradle"
 readonly FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java"
 readonly BROWSER_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/OidcBrowserJourney.java"
+readonly ACTIVATION_INBOX="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/MailpitActivationInbox.java"
 readonly MCP_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/WorkloadMcpJourney.java"
 readonly CANDIDATE_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/candidate-images.yml"
 
@@ -67,10 +68,15 @@ contains "${FLOW}" '/api/v1/identity/session/reconcile'
 contains "${FLOW}" '"access_updated"'
 contains "${FLOW}" 'authorization_code_pkce_s256'
 contains "${FLOW}" 'client_credentials_private_key_jwt'
+contains "${FLOW}" 'awaitEmailVerificationLink'
 contains "${FLOW}" 'credentialsIncluded'
 contains "${FLOW}" 'actionLinksIncluded'
 contains "${BROWSER_FLOW}" '--ignore-certificate-errors-spki-list='
 contains "${BROWSER_FLOW}" '--host-resolver-rules='
+contains "${BROWSER_FLOW}" 'isEmailVerificationRequiredAction'
+contains "${BROWSER_FLOW}" '"email-verification"'
+contains "${ACTIVATION_INBOX}" '/login-actions/action-token'
+contains "${ACTIVATION_INBOX}" '"key"'
 absent "${BROWSER_FLOW}" 'setIgnoreHTTPSErrors'
 contains "${MCP_FLOW}" 'private_key_jwt'
 contains "${MCP_FLOW}" '"files.search"'

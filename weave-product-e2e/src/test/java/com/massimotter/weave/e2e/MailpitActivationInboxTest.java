@@ -88,6 +88,43 @@ class MailpitActivationInboxTest {
         .isNull();
   }
 
+  @Test
+  void acceptsOnlyTheIssuerBoundKeycloakEmailVerificationActionToken() {
+    JsonNode message =
+        mapper
+            .createObjectNode()
+            .put(
+                "HTML",
+                """
+                <a href="https://auth.weave.test:5443/realms/weave/login-actions/action-token\
+                ?key&#x3D;one-time&#x26;client_id=account&amp;tab_id=session">Verify</a>
+                """);
+
+    assertThat(inbox.emailVerificationLink(message))
+        .isEqualTo(
+            URI.create(
+                "https://auth.weave.test:5443/realms/weave/login-actions/action-token"
+                    + "?key=one-time&client_id=account&tab_id=session"));
+    assertThat(
+            inbox.emailVerificationLink(
+                message(
+                    "https://attacker.example/realms/weave/login-actions/action-token"
+                        + "?key=one-time&client_id=account")))
+        .isNull();
+    assertThat(
+            inbox.emailVerificationLink(
+                message(
+                    "https://auth.weave.test:5443/realms/weave/login-actions/action-token"
+                        + "?key=one-time&client_id=other")))
+        .isNull();
+    assertThat(
+            inbox.emailVerificationLink(
+                message(
+                    "https://auth.weave.test:5443/realms/weave/login-actions/action-token"
+                        + "?client_id=account")))
+        .isNull();
+  }
+
   private JsonNode message(String link) {
     return mapper.createObjectNode().put("Text", link);
   }
