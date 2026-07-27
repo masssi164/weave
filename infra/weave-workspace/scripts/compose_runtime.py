@@ -31,7 +31,17 @@ COMMANDS = (
     "identity-apply",
     "identity-verify",
 )
-RUNTIME_ROOT_SERVICES = ("caddy", "mailpit", "mcp")
+RUNTIME_ROOT_SERVICES = {
+    "dev": ("caddy", "mailpit"),
+    "test": ("caddy", "mailpit", "mcp"),
+    "prod": ("caddy", "mcp"),
+}
+HOST_APPLICATION_SERVICES = (
+    "backend",
+    "mcp",
+    "mcp-secret-check",
+    "mcp-keycloak-connectivity-check",
+)
 ADOPTION_RECEIPT_MAX_AGE = timedelta(hours=6)
 VOLUME_KEYS = (
     "WEAVE_CADDY_DATA_VOLUME",
@@ -353,6 +363,18 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         script(context, "render_config.py")
         prepare(context)
         normalized_config(context, emit=False)
+        if context.profile == "dev":
+            # Explicitly targeting a Compose service activates its otherwise
+            # disabled profile. Remove application-tier containers left by an
+            # older/dev-drifted invocation before converging the provider-only
+            # host-development topology.
+            compose(
+                context,
+                "rm",
+                "--stop",
+                "--force",
+                *HOST_APPLICATION_SERVICES,
+            )
         compose(context, "up", "-d", "postgres", "postgres-reconcile")
         identity_ops(context, "identity-apply")
         compose(
@@ -363,7 +385,7 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
             "--wait",
             "--wait-timeout",
             "600",
-            *RUNTIME_ROOT_SERVICES,
+            *RUNTIME_ROOT_SERVICES[context.profile],
         )
         script(context, "nextcloud_reconcile.py")
     elif command == "down":

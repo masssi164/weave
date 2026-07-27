@@ -171,7 +171,11 @@ def main() -> None:
         runtime_source = (ROOT / "scripts/compose_runtime.py").read_text(encoding="utf-8")
         assert "WEAVE_TEST_USERS_FILE" not in runtime_source
         assert "test-users.json" not in runtime_source
-        assert 'RUNTIME_ROOT_SERVICES = ("caddy", "mailpit", "mcp")' in runtime_source
+        assert '"dev": ("caddy", "mailpit")' in runtime_source
+        assert '"test": ("caddy", "mailpit", "mcp")' in runtime_source
+        assert '"prod": ("caddy", "mcp")' in runtime_source
+        assert "HOST_APPLICATION_SERVICES" in runtime_source
+        assert '"rm",\n                "--stop",\n                "--force",' in runtime_source
         assert '"--wait-timeout",\n            "600",' in runtime_source
         assert 'script(context, "nextcloud_reconcile.py")' in runtime_source
         invalid = root / "invalid.env"
