@@ -323,7 +323,40 @@ final class OidcBrowserJourney implements AutoCloseable {
               .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
               .setTimeout(BROWSER_TIMEOUT_MILLIS));
     } catch (PlaywrightException failure) {
+      if ("navigation-aborted".equals(browserFailureCategory(failure.getMessage()))
+          && recoverAbortedIssuerForm(page)) {
+        return;
+      }
       throw sanitized("browser navigation failed", failure);
+    }
+  }
+
+  private boolean recoverAbortedIssuerForm(Page page) {
+    waitForPage(page);
+    try {
+      return isIssuerPage(page.url()) && firstVisible(page.locator("form")) != null;
+    } catch (PlaywrightException unstablePage) {
+      return false;
+    }
+  }
+
+  boolean isIssuerPage(String rawUrl) {
+    return isIssuerPage(rawUrl, environment.issuer());
+  }
+
+  static boolean isIssuerPage(String rawUrl, URI issuer) {
+    try {
+      URI candidate = URI.create(rawUrl);
+      String issuerPath = issuer.getPath().replaceAll("/+$", "");
+      return "https".equalsIgnoreCase(candidate.getScheme())
+          && candidate.getHost() != null
+          && candidate.getHost().equalsIgnoreCase(issuer.getHost())
+          && effectivePort(candidate) == effectivePort(issuer)
+          && candidate.getPath() != null
+          && candidate.getPath().startsWith(issuerPath + "/")
+          && candidate.getUserInfo() == null;
+    } catch (RuntimeException invalid) {
+      return false;
     }
   }
 
