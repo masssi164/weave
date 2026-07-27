@@ -106,7 +106,7 @@ public final class FreshProductFlow {
               List.of("openid", "profile", "email"),
               ownerEmail,
               ownerPassword);
-      validateHumanWorkspaceToken(browser.jwtPayload(ownerSession.accessToken()), "weave-app");
+      validateHumanBootstrapToken(browser.jwtPayload(ownerSession.accessToken()), "weave-app");
       ownerSession = reconcileIdentitySession(browser, ownerSession, "owner");
       ownerSession = awaitAuthority(browser, ownerSession, "/owners", "owner");
       validateHumanWorkspaceToken(browser.jwtPayload(ownerSession.accessToken()), "weave-app");
@@ -137,7 +137,7 @@ public final class FreshProductFlow {
               List.of("openid", "profile", "email"),
               memberEmail,
               memberPassword);
-      validateHumanWorkspaceToken(browser.jwtPayload(memberSession.accessToken()), "weave-app");
+      validateHumanBootstrapToken(browser.jwtPayload(memberSession.accessToken()), "weave-app");
       memberSession = reconcileIdentitySession(browser, memberSession, "member");
       assignWeaverEntitlement(
           organizationId, memberEmail, ownerSession.accessToken());
@@ -356,6 +356,15 @@ public final class FreshProductFlow {
   }
 
   private void validateHumanWorkspaceToken(JsonNode claims, String clientId) {
+    validateHumanToken(claims, clientId, true);
+  }
+
+  private void validateHumanBootstrapToken(JsonNode claims, String clientId) {
+    validateHumanToken(claims, clientId, false);
+  }
+
+  private void validateHumanToken(
+      JsonNode claims, String clientId, boolean workspaceAccessExpected) {
     Set<String> scopes = tokenScopes(claims);
     Set<String> invalidClaims = new java.util.TreeSet<>();
     if (!clientId.equals(claims.path("azp").asString())) {
@@ -375,12 +384,16 @@ public final class FreshProductFlow {
     if (!claims.path("email_verified").asBoolean(false)) {
       invalidClaims.add("email-verified");
     }
-    if (!hasExactWorkspaceScope(scopes)) {
+    if (workspaceAccessExpected && !hasExactWorkspaceScope(scopes)) {
       invalidClaims.add("workspace-scope");
+    }
+    if (!workspaceAccessExpected && scopes.contains("weave:workspace")) {
+      invalidClaims.add("premature-workspace-scope");
     }
     if (!invalidClaims.isEmpty()) {
       throw new ProductFlowException(
-          "human token contract did not match fields="
+          (workspaceAccessExpected ? "human workspace token" : "human bootstrap token")
+              + " contract did not match fields="
               + String.join(",", invalidClaims)
               + " observedScopes="
               + new java.util.TreeSet<>(scopes));

@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.controller.IdentitySessionController;
+import com.massimotter.weave.backend.service.MemberInvitationService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +28,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -46,6 +49,9 @@ class FirstPartyIdentityContractTest {
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
+
+    @MockitoBean
+    private MemberInvitationService invitations;
 
     @BeforeEach
     void configureJwtDecoder() {
@@ -93,6 +99,28 @@ class FirstPartyIdentityContractTest {
                 .andExpect(jsonPath("$.details.path").value(endsWith(WORKSPACE_CAPABILITIES_PATH)))
                 .andExpect(jsonPath("$.requestId").value(notNullValue()))
                 .andExpect(jsonPath("$.supportRef").value(startsWith("support:")));
+    }
+
+    @Test
+    void acceptsAuthenticatedBootstrapTokenOnlyForSessionReconciliation() throws Exception {
+        mockMvc.perform(post(IdentitySessionController.PATH)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer bootstrap-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("unchanged"))
+                .andExpect(jsonPath("$.sessionRefreshRequired").value(false));
+    }
+
+    @Test
+    void rejectsUnauthenticatedSessionReconciliation() throws Exception {
+        mockMvc.perform(post(IdentitySessionController.PATH))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void keepsBootstrapExceptionMethodExact() throws Exception {
+        mockMvc.perform(get(IdentitySessionController.PATH)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer bootstrap-token"))
+                .andExpect(status().isForbidden());
     }
 
     @ParameterizedTest
@@ -165,6 +193,12 @@ class FirstPartyIdentityContractTest {
                     Map.of("azp", FIRST_PARTY_CLIENT_ID));
             case "missing-scope" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "openid profile",
                     Map.of("azp", FIRST_PARTY_CLIENT_ID));
+            case "bootstrap-token" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE),
+                    "openid profile email organization",
+                    Map.of(
+                            "azp", FIRST_PARTY_CLIENT_ID,
+                            "email", "invitee@example.com",
+                            "email_verified", true));
             case "missing-authorized-party" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace", null);
             case "wrong-azp" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
                     Map.of("azp", "other-client"));

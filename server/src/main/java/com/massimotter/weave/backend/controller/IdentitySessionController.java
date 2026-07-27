@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Tag(name = "Identity session", description = "Authenticated, provider-neutral identity bootstrap.")
 public class IdentitySessionController {
+    public static final String PATH = "/api/v1/identity/session/reconcile";
+
     private final MemberInvitationService invitations;
 
     public IdentitySessionController(MemberInvitationService invitations) {
@@ -28,7 +30,7 @@ public class IdentitySessionController {
     }
 
     @PostMapping(
-            path = "/api/v1/identity/session/reconcile",
+            path = PATH,
             produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(
             operationId = "reconcileIdentitySession",

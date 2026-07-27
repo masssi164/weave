@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
 import com.massimotter.weave.backend.controller.BootstrapOwnerInvitationController;
+import com.massimotter.weave.backend.controller.IdentitySessionController;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -11,6 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -70,6 +72,7 @@ public class SecurityConfig {
                         .requestMatchers(ChatE2eProofSecurityConfiguration.PATH).permitAll()
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
                         .requestMatchers(BootstrapOwnerInvitationController.PATH).permitAll()
+                        .requestMatchers(HttpMethod.POST, IdentitySessionController.PATH).authenticated()
                         .requestMatchers("/api/migration/**").access(MIGRATION_CONTROL_PLANE_ACCESS)
                         .requestMatchers("/dav/**", "/caldav/**", "/_matrix/client/**").hasAuthority(WORKSPACE_SCOPE_AUTHORITY)
                         .requestMatchers("/api/**").hasAuthority(WORKSPACE_SCOPE_AUTHORITY)
