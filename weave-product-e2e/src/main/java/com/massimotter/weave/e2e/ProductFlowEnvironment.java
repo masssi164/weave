@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
 /** Validated, secret-free addressing contract for one isolated product-flow run. */
 record ProductFlowEnvironment(
     String runId,
+    URI productOrigin,
     URI apiOrigin,
     URI issuer,
     URI mailpitApi,
@@ -34,6 +35,7 @@ record ProductFlowEnvironment(
     if (runId == null || !RUN_ID.matcher(runId).matches()) {
       throw new IllegalArgumentException("weave.e2e.run-id is invalid");
     }
+    productOrigin = requireHttpsOrigin(productOrigin, "weave.e2e.product-origin");
     apiOrigin = requireHttpsOrigin(apiOrigin, "weave.e2e.api-origin");
     issuer = requireHttps(issuer, "weave.e2e.issuer");
     mailpitApi = requireLoopbackHttp(mailpitApi, "weave.e2e.mailpit-api");
@@ -45,7 +47,11 @@ record ProductFlowEnvironment(
     requireExactLoopbackMappings(
         hostsFile,
         new HashSet<>(
-            List.of(apiOrigin.getHost(), issuer.getHost(), mcpEndpoint.getHost())));
+            List.of(
+                productOrigin.getHost(),
+                apiOrigin.getHost(),
+                issuer.getHost(),
+                mcpEndpoint.getHost())));
     bootstrapOwnerToken =
         requirePrivateInput(bootstrapOwnerToken, "weave.e2e.bootstrap-owner-token");
     workloadCredentialRoot =
@@ -68,6 +74,7 @@ record ProductFlowEnvironment(
   static ProductFlowEnvironment fromSystemProperties() {
     return new ProductFlowEnvironment(
         required("run-id"),
+        URI.create(required("product-origin")),
         URI.create(required("api-origin")),
         URI.create(required("issuer")),
         URI.create(required("mailpit-api")),

@@ -154,7 +154,7 @@ public final class FreshProductFlow {
       adminSession =
           browser.authorize(
               "weave-admin-console",
-              URI.create("http://localhost:5173/e2e/oauth/callback"),
+              environment.productOrigin().resolve("/admin/oauth/callback"),
               List.of("openid", "profile", "email", "agent-runtime.admin"),
               ownerEmail,
               ownerPassword);

@@ -226,6 +226,7 @@ log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
   --no-daemon \
   --max-workers=2 \
   "-Dweave.e2e.run-id=${RUN_ID}" \
+  "-Dweave.e2e.product-origin=${WEAVE_TEST_APP_PRODUCT_ORIGIN}" \
   "-Dweave.e2e.api-origin=${WEAVE_TEST_APP_API_ORIGIN}" \
   "-Dweave.e2e.issuer=${WEAVE_TEST_APP_ISSUER}" \
   "-Dweave.e2e.mailpit-api=${WEAVE_TEST_APP_MAILPIT_API}" \

@@ -133,7 +133,7 @@ def main() -> int:
     atomic_private_write(env_file, update_environment(template, values))
     atomic_private_write(
         hosts_file,
-        "127.0.0.1 api.weave.test auth.weave.test\n",
+        "127.0.0.1 weave.test api.weave.test auth.weave.test\n",
     )
 
     generated_root = (
@@ -152,6 +152,7 @@ def main() -> int:
         "WEAVE_TEST_APP_GENERATED_ROOT": str(generated_root),
         "WEAVE_TEST_APP_SECRET_ROOT": str(generated_root / "secrets"),
         "WEAVE_TEST_APP_TLS_ROOT": str(generated_root / "tls"),
+        "WEAVE_TEST_APP_PRODUCT_ORIGIN": values["WEAVE_PUBLIC_URL"],
         "WEAVE_TEST_APP_API_ORIGIN": values["WEAVE_API_ORIGIN"],
         "WEAVE_TEST_APP_ISSUER": values["WEAVE_AUTH_URL"] + "/realms/weave",
         "WEAVE_TEST_APP_MCP_ENDPOINT": values["WEAVE_API_ORIGIN"] + "/mcp",

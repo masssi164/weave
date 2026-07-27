@@ -74,6 +74,7 @@ final class OidcBrowserJourney implements AutoCloseable {
   private String loopbackResolverRules() {
     Set<String> hosts = new TreeSet<>();
     hosts.add(environment.apiOrigin().getHost());
+    hosts.add(environment.productOrigin().getHost());
     hosts.add(environment.issuer().getHost());
     hosts.add(environment.mcpEndpoint().getHost());
     return hosts.stream()

@@ -23,6 +23,7 @@ class ProductFlowEnvironmentTest {
             URI.create("http://127.0.0.1:38025/api/v1"),
             Duration.ofMinutes(2));
 
+    assertThat(environment.productOrigin()).isEqualTo(URI.create("https://weave.test:44443/"));
     assertThat(environment.apiOrigin()).isEqualTo(URI.create("https://api.weave.test:44443/"));
     assertThat(environment.api("/api/profile/readiness"))
         .isEqualTo(URI.create("https://api.weave.test:44443/api/profile/readiness"));
@@ -84,6 +85,7 @@ class ProductFlowEnvironmentTest {
             () ->
                 new ProductFlowEnvironment(
                     "fixture-run-42",
+                    URI.create("https://weave.test:44443"),
                     URI.create("https://api.weave.test:44443"),
                     URI.create("https://auth.weave.test:44443/realms/weave"),
                     URI.create("http://127.0.0.1:38025/api/v1"),
@@ -103,6 +105,7 @@ class ProductFlowEnvironmentTest {
       URI apiOrigin, URI issuer, URI mailpit, Duration timeout) throws Exception {
     return new ProductFlowEnvironment(
         "fixture-run-42",
+        URI.create("https://weave.test:44443"),
         apiOrigin,
         issuer,
         mailpit,
@@ -125,6 +128,6 @@ class ProductFlowEnvironmentTest {
   private Path hosts(String name) throws Exception {
     return Files.writeString(
         temporaryDirectory.resolve(name),
-        "127.0.0.1 api.weave.test auth.weave.test\n");
+        "127.0.0.1 weave.test api.weave.test auth.weave.test\n");
   }
 }
