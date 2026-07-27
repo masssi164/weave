@@ -1439,11 +1439,40 @@ def credential_mutation_probe_status(
         ) from error
 
 
+def administration_read_probe_status(
+    server: str,
+    realm: str,
+    resource_path: str,
+    access_token: str,
+) -> int:
+    endpoint = (
+        f"{server}/admin/realms/{urllib.parse.quote(realm, safe='')}"
+        f"/{resource_path.lstrip('/')}"
+    )
+    request = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {access_token}"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            response.read(4096)
+            return response.status
+    except urllib.error.HTTPError as error:
+        error.read(4096)
+        return error.code
+    except urllib.error.URLError as error:
+        raise IdentityOpsError(
+            "identity-admin positive authorization probe failed; response withheld"
+        ) from error
+
+
 def probe_identity_admin_credential_denial(
     kcadm: Kcadm,
     server: str,
     realm: str,
     clients: list[dict[str, Any]],
+    organizations: list[dict[str, Any]],
 ) -> None:
     desired_client = exact(
         [
@@ -1503,6 +1532,53 @@ def probe_identity_admin_credential_denial(
         raise IdentityOpsError(
             "identity administration token is unavailable for the credential-denial probe"
         )
+    desired_organization = exact(
+        [
+            organization
+            for organization in organizations
+            if organization.get("key") == "organization:weave-primary"
+        ],
+        "organization:weave-primary",
+        "desired primary organization",
+    )
+    if desired_organization is None:
+        raise IdentityOpsError("primary organization is missing from desired state")
+    observed_organization = exact(
+        [
+            organization
+            for organization in (kcadm.call("get", "organizations", "-r", realm) or [])
+            if organization.get("alias") == desired_organization.get("alias")
+        ],
+        "organization:weave-primary",
+        "primary organization",
+    )
+    organization_id = (
+        observed_organization.get("id")
+        if isinstance(observed_organization, dict)
+        else None
+    )
+    if not isinstance(organization_id, str) or not organization_id:
+        raise IdentityOpsError("primary organization has no stable identifier")
+    read_probes = {
+        "primary-organization": (
+            "organizations/" + urllib.parse.quote(organization_id, safe="")
+        ),
+        "service-account-user": (
+            "users/" + urllib.parse.quote(account_id, safe="")
+        ),
+    }
+    for probe_name, resource_path in read_probes.items():
+        read_status = administration_read_probe_status(
+            server,
+            realm,
+            resource_path,
+            access_token,
+        )
+        if read_status != 200:
+            raise IdentityOpsError(
+                "identity administration positive authorization probe was denied; "
+                f"probe={probe_name}, httpStatus={read_status}, response withheld"
+            )
     probe_status = credential_mutation_probe_status(
         server,
         realm,
@@ -1620,6 +1696,7 @@ def main() -> int:
                 args.server,
                 desired["realm"]["name"],
                 desired.get("clients", []),
+                desired.get("organizations", []),
             )
         elif args.command == "verify" and operations:
             raise IdentityOpsError("verification found a non-empty plan")

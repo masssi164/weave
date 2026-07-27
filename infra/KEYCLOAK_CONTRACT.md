@@ -92,6 +92,11 @@ the organization action link and Keycloak's subsequent one-time `VERIFY_EMAIL` a
 the same browser session before credential setup. Neither Identity Ops nor Weave Server marks
 email as verified through an administrative API.
 
+Identity Ops verifies both sides of the delegated-administration boundary after convergence:
+the bounded service account must be able to read the exact primary organization and its own
+service-account user, while a password reset must remain forbidden. Any allow or deny probe
+failure blocks apply/readiness without retaining the token or provider response.
+
 ## Session correctness
 
 Realm reconciliation and user-session reconciliation are distinct:

@@ -204,6 +204,38 @@ def main() -> None:
     finally:
         identity_ops.urllib.request.urlopen = original_urlopen
 
+    class ReadProbeResponse:
+        status = 200
+
+        def __enter__(self) -> "ReadProbeResponse":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self, _limit: int) -> bytes:
+            return b'{"id":"withheld"}'
+
+    def allowed_read_probe(request: object, **_kwargs: object) -> ReadProbeResponse:
+        assert request.method == "GET"
+        assert request.data is None
+        assert request.headers["Authorization"] == "Bearer test-only"
+        assert request.full_url.endswith(
+            "/admin/realms/weave/organizations/primary-organization-id"
+        )
+        return ReadProbeResponse()
+
+    identity_ops.urllib.request.urlopen = allowed_read_probe
+    try:
+        assert identity_ops.administration_read_probe_status(
+            "http://keycloak:8080",
+            "weave",
+            "organizations/primary-organization-id",
+            "test-only",
+        ) == 200
+    finally:
+        identity_ops.urllib.request.urlopen = original_urlopen
+
     class RejectedKcadm:
         def call(self, *_arguments: str, payload: object = None) -> object:
             assert payload == {"secret": "must-not-leak"}
@@ -544,6 +576,9 @@ def main() -> None:
     assert '"set-password"' not in source
     assert 'kcadm.call("reset-password"' not in source
     assert "probe_identity_admin_credential_denial(" in source
+    assert "administration_read_probe_status(" in source
+    assert '"primary-organization"' in source
+    assert '"service-account-user"' in source
     assert "probe_status != 403" in source
     assert '"map-org-group-role"' in source
     assert '"attach-client-scope"' in source
