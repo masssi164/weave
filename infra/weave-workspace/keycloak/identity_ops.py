@@ -423,6 +423,115 @@ def client_scope_attachment_operations(
     return operations
 
 
+def client_scope_role_mapping_operations(
+    kcadm: Kcadm,
+    realm: str,
+    desired_scopes: list[dict[str, Any]],
+    scopes_by_key: dict[str, dict[str, Any]],
+    desired_roles: list[dict[str, Any]],
+    roles_by_key: dict[str, dict[str, Any]],
+    clients_by_key: dict[str, dict[str, Any]],
+) -> list[Operation]:
+    managed_roles_by_container: dict[tuple[str, str | None], set[str]] = {}
+    desired_role_by_key: dict[str, dict[str, Any]] = {}
+    for role in desired_roles:
+        role_key = str(role["key"])
+        role_scope = str(role.get("scope", "realm"))
+        client_key = str(role["clientKey"]) if role_scope == "client" else None
+        container = (role_scope, client_key)
+        managed_roles_by_container.setdefault(container, set()).add(str(role["name"]))
+        desired_role_by_key[role_key] = role
+
+    operations: list[Operation] = []
+    for scope in desired_scopes:
+        scope_key = str(scope["key"])
+        observed_scope = scopes_by_key.get(scope_key)
+        if observed_scope is None:
+            continue
+        scope_id = str(observed_scope["id"])
+        expected_refs = {str(reference) for reference in scope.get("roleScopeRefs", [])}
+
+        expected_refs_by_container: dict[tuple[str, str | None], set[str]] = {}
+        for role_ref in expected_refs:
+            desired_role = desired_role_by_key.get(role_ref)
+            if desired_role is None:
+                raise IdentityOpsError(f"{scope_key} references unmanaged role {role_ref}")
+            role_scope = str(desired_role.get("scope", "realm"))
+            client_key = (
+                str(desired_role["clientKey"]) if role_scope == "client" else None
+            )
+            expected_refs_by_container.setdefault((role_scope, client_key), set()).add(
+                role_ref
+            )
+
+        for container, managed_names in sorted(
+            managed_roles_by_container.items(),
+            key=lambda item: (item[0][0], item[0][1] or ""),
+        ):
+            role_scope, client_key = container
+            if role_scope == "realm":
+                endpoint = f"client-scopes/{scope_id}/scope-mappings/realm"
+            elif role_scope == "client" and client_key is not None:
+                observed_client = clients_by_key.get(client_key)
+                if observed_client is None:
+                    continue
+                endpoint = (
+                    f"client-scopes/{scope_id}/scope-mappings/clients/"
+                    f"{observed_client['id']}"
+                )
+            else:
+                raise IdentityOpsError(
+                    f"unsupported role scope {role_scope} in {scope_key}"
+                )
+
+            observed_mappings = kcadm.call("get", endpoint, "-r", realm) or []
+            if not isinstance(observed_mappings, list):
+                raise IdentityOpsError(
+                    f"Keycloak returned an invalid role mapping projection for {scope_key}"
+                )
+            observed_by_name = {
+                str(mapping.get("name", "")): mapping
+                for mapping in observed_mappings
+                if str(mapping.get("name", ""))
+            }
+            container_refs = expected_refs_by_container.get(container, set())
+            expected_names = {
+                str(desired_role_by_key[role_ref]["name"])
+                for role_ref in container_refs
+            }
+
+            for role_name in sorted(
+                (observed_by_name.keys() & managed_names) - expected_names
+            ):
+                operations.append(
+                    Operation(
+                        "remove-client-scope-role",
+                        f"{scope_key}:managed-role:{role_name}",
+                        endpoint,
+                        None,
+                        [observed_by_name[role_name]],
+                    )
+                )
+
+            for role_ref in sorted(container_refs):
+                role = roles_by_key.get(role_ref)
+                if role is None:
+                    # A managed role is created in an earlier convergence round.
+                    continue
+                role_name = str(role["name"])
+                if role_name not in observed_by_name:
+                    operations.append(
+                        Operation(
+                            "map-client-scope-role",
+                            f"{scope_key}:{role_ref}",
+                            endpoint,
+                            None,
+                            [{"id": role["id"], "name": role_name}],
+                        )
+                    )
+    return operations
+
+
 def secret_path(filename: str) -> Path:
     staged = Path("/evidence/secret-updates") / filename
     return staged if staged.is_file() else Path("/run/secrets") / filename
@@ -1001,27 +1110,17 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
                 "_clientKey": role.get("clientKey"),
             }
 
-    for scope in desired.get("clientScopes", []):
-        observed_scope = scopes_by_key.get(scope["key"])
-        if observed_scope is None:
-            continue
-        mapping_endpoint = f"client-scopes/{observed_scope['id']}/scope-mappings/realm"
-        observed_mappings = kcadm.call("get", mapping_endpoint, "-r", realm_name) or []
-        observed_names = {item.get("name") for item in observed_mappings}
-        for role_ref in scope.get("roleScopeRefs", []):
-            role = roles_by_key.get(role_ref)
-            if role is None or role.get("_scope") != "realm":
-                continue
-            if role["name"] not in observed_names:
-                operations.append(
-                    Operation(
-                        "map-client-scope-role",
-                        f"{scope['key']}:{role_ref}",
-                        mapping_endpoint,
-                        None,
-                        [{"id": role["id"], "name": role["name"]}],
-                    )
-                )
+    operations.extend(
+        client_scope_role_mapping_operations(
+            kcadm,
+            realm_name,
+            desired.get("clientScopes", []),
+            scopes_by_key,
+            desired.get("roles", []),
+            roles_by_key,
+            clients_by_key,
+        )
+    )
 
     observed_organizations = kcadm.call("get", "organizations", "-r", realm_name) or []
     organizations_by_key: dict[str, dict[str, Any]] = {}

@@ -380,6 +380,156 @@ def main() -> None:
     ]
     assert all(call[-2:] == ("-r", "weave") for call in scope_mutation_kcadm.calls)
 
+    class ClientScopeRoleMappingKcadm:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+
+        def call(self, *arguments: str, payload: object = None) -> object:
+            assert payload is None
+            self.calls.append(arguments)
+            endpoint = arguments[1]
+            if endpoint == "client-scopes/workspace-id/scope-mappings/realm":
+                return []
+            if (
+                endpoint
+                == "client-scopes/workspace-id/scope-mappings/clients/weave-app-uuid"
+            ):
+                return []
+            raise AssertionError(f"unexpected role mapping read: {endpoint}")
+
+    desired_scope_roles = [
+        {"key": "role:weaver-runtime", "name": "weaver-runtime"},
+        *[
+            {
+                "key": f"role:{role_name}",
+                "name": role_name,
+                "scope": "client",
+                "clientKey": "client:weave-app",
+            }
+            for role_name in ("owner", "admin", "member", "guest")
+        ],
+    ]
+    observed_scope_roles = {
+        role["key"]: {
+            "id": f"{role['name']}-role-id",
+            "name": role["name"],
+        }
+        for role in desired_scope_roles
+    }
+    all_human_role_refs = [
+        "role:owner",
+        "role:admin",
+        "role:member",
+        "role:guest",
+    ]
+    role_mapping_operations = identity_ops.client_scope_role_mapping_operations(
+        ClientScopeRoleMappingKcadm(),
+        "weave",
+        [
+            {
+                "key": "scope:weave-workspace",
+                "roleScopeRefs": all_human_role_refs,
+            }
+        ],
+        {"scope:weave-workspace": {"id": "workspace-id"}},
+        desired_scope_roles,
+        observed_scope_roles,
+        {"client:weave-app": {"id": "weave-app-uuid"}},
+    )
+    client_role_endpoint = (
+        "client-scopes/workspace-id/scope-mappings/clients/weave-app-uuid"
+    )
+    assert [
+        (operation.action, operation.key, operation.endpoint, operation.payload)
+        for operation in role_mapping_operations
+    ] == [
+        (
+            "map-client-scope-role",
+            "scope:weave-workspace:role:admin",
+            client_role_endpoint,
+            [{"id": "admin-role-id", "name": "admin"}],
+        ),
+        (
+            "map-client-scope-role",
+            "scope:weave-workspace:role:guest",
+            client_role_endpoint,
+            [{"id": "guest-role-id", "name": "guest"}],
+        ),
+        (
+            "map-client-scope-role",
+            "scope:weave-workspace:role:member",
+            client_role_endpoint,
+            [{"id": "member-role-id", "name": "member"}],
+        ),
+        (
+            "map-client-scope-role",
+            "scope:weave-workspace:role:owner",
+            client_role_endpoint,
+            [{"id": "owner-role-id", "name": "owner"}],
+        ),
+    ]
+
+    class ClientScopeRoleMutationKcadm:
+        def __init__(self) -> None:
+            self.calls: list[tuple[tuple[str, ...], object]] = []
+
+        def call(self, *arguments: str, payload: object = None) -> None:
+            self.calls.append((arguments, payload))
+
+    role_mutation_kcadm = ClientScopeRoleMutationKcadm()
+    for operation in role_mapping_operations:
+        identity_ops.apply_operation(role_mutation_kcadm, "weave", operation)
+    assert [call[0][0] for call in role_mutation_kcadm.calls] == [
+        "create",
+        "create",
+        "create",
+        "create",
+    ]
+    assert all(
+        call[0][1] == client_role_endpoint for call in role_mutation_kcadm.calls
+    )
+
+    class StaleClientScopeRoleMappingKcadm(ClientScopeRoleMappingKcadm):
+        def call(self, *arguments: str, payload: object = None) -> object:
+            endpoint = arguments[1]
+            if endpoint == "client-scopes/workspace-id/scope-mappings/realm":
+                return []
+            if endpoint == client_role_endpoint:
+                return [
+                    {
+                        "id": "guest-role-id",
+                        "name": "guest",
+                        "clientRole": True,
+                    }
+                ]
+            raise AssertionError(f"unexpected role mapping read: {endpoint}")
+
+    stale_role_operations = identity_ops.client_scope_role_mapping_operations(
+        StaleClientScopeRoleMappingKcadm(),
+        "weave",
+        [
+            {
+                "key": "scope:weave-workspace",
+                "roleScopeRefs": [
+                    "role:owner",
+                    "role:admin",
+                    "role:member",
+                ],
+            }
+        ],
+        {"scope:weave-workspace": {"id": "workspace-id"}},
+        desired_scope_roles,
+        observed_scope_roles,
+        {"client:weave-app": {"id": "weave-app-uuid"}},
+    )
+    assert stale_role_operations[0] == identity_ops.Operation(
+        "remove-client-scope-role",
+        "scope:weave-workspace:managed-role:guest",
+        client_role_endpoint,
+        None,
+        [{"id": "guest-role-id", "name": "guest", "clientRole": True}],
+    )
+
     assert identity_ops.projected_fields_are_current(
         {"alias": "weave", "name": "Weave"},
         {"id": "organization-id", "alias": "weave", "name": "Weave"},
