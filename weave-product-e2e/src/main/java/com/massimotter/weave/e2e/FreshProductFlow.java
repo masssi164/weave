@@ -97,6 +97,7 @@ public final class FreshProductFlow {
               List.of("openid", "profile", "email"),
               ownerEmail,
               ownerPassword);
+      ownerSession = reconcileIdentitySession(browser, ownerSession, "owner");
       ownerSession = awaitAuthority(browser, ownerSession, "/owners", "owner");
       validateHumanWorkspaceToken(browser.jwtPayload(ownerSession.accessToken()), "weave-app");
 
@@ -117,6 +118,7 @@ public final class FreshProductFlow {
               List.of("openid", "profile", "email"),
               memberEmail,
               memberPassword);
+      memberSession = reconcileIdentitySession(browser, memberSession, "member");
       assignWeaverEntitlement(
           organizationId, memberEmail, ownerSession.accessToken());
       memberSession =
@@ -299,6 +301,26 @@ public final class FreshProductFlow {
     if (!readiness.path("supportSafe").asBoolean(false)) {
       throw new ProductFlowException("profile readiness was not support-safe");
     }
+  }
+
+  private OidcBrowserJourney.TokenSet reconcileIdentitySession(
+      OidcBrowserJourney browser,
+      OidcBrowserJourney.TokenSet session,
+      String expectedRole) {
+    JsonNode response =
+        http.json(
+            "reconcile authenticated identity session",
+            "POST",
+            environment.api("/api/v1/identity/session/reconcile"),
+            bearer(session.accessToken(), Map.of()),
+            null,
+            Set.of(200));
+    if (!"access_updated".equals(response.path("state").asString())
+        || !response.path("sessionRefreshRequired").asBoolean(false)) {
+      throw new ProductFlowException(
+          "identity session did not apply the pending " + expectedRole + " intent");
+    }
+    return browser.refresh(session);
   }
 
   private void validateAdminToken(JsonNode claims) {

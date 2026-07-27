@@ -63,6 +63,8 @@ absent "${LIFECYCLE}" 'WEAVE_E2E_OUTSIDER_PASSWORD'
 contains "${MODULE_BUILD}" 'apply from: "${projectDir}/gradle/tasks/product-flow.gradle"'
 contains "${MODULE_TASKS}" "args 'install', '--with-deps', 'chromium'"
 contains "${FLOW}" '/api/bootstrap/owner-invitation'
+contains "${FLOW}" '/api/v1/identity/session/reconcile'
+contains "${FLOW}" '"access_updated"'
 contains "${FLOW}" 'authorization_code_pkce_s256'
 contains "${FLOW}" 'client_credentials_private_key_jwt'
 contains "${FLOW}" 'credentialsIncluded'
