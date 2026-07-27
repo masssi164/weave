@@ -535,7 +535,7 @@ final class OidcBrowserJourney implements AutoCloseable {
   private static boolean hasVisibleError(Page page) {
     return firstVisible(
             page.locator(
-                "[role='alert'], .alert-error, .pf-m-danger, .kc-feedback-text"))
+                ".alert-error, .pf-m-danger, [aria-invalid='true']"))
         != null;
   }
 
