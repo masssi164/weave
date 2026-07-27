@@ -167,19 +167,9 @@ final class OidcBrowserJourney implements AutoCloseable {
       page.onFrameNavigated(
           frame -> captureCallback(frame.url(), redirectUri, observedCallback));
       navigate(page, authorization, "oidc");
-      fillRequired(page, "input[name='username']", email, "OIDC username");
-      fillRequired(page, "input[name='password']", password, "OIDC password");
-      Locator login = firstVisible(page.locator("#kc-login, form button[type='submit']"));
-      if (login == null) {
-        throw new ProductFlowException("OIDC login did not expose a submit action");
-      }
-      try {
-        login.click(new Locator.ClickOptions().setTimeout(BROWSER_TIMEOUT_MILLIS));
-      } catch (PlaywrightException ignored) {
-        // A custom-scheme redirect can make Chromium report an unsupported navigation after
-        // the request was already observed. The exact callback is still verified below.
-      }
-      callback = awaitCallback(page, redirectUri, observedCallback);
+      callback =
+          authenticateAndAwaitCallback(
+              page, redirectUri, observedCallback, email, password);
     }
 
     Map<String, String> callbackParameters = query(callback);
@@ -287,6 +277,57 @@ final class OidcBrowserJourney implements AutoCloseable {
       page.waitForTimeout(250);
     }
     throw new ProductFlowException("OIDC browser did not reach the registered callback");
+  }
+
+  private URI authenticateAndAwaitCallback(
+      Page page,
+      URI redirectUri,
+      AtomicReference<String> observedCallback,
+      String email,
+      String password) {
+    boolean passwordSubmitted = false;
+    for (int step = 0; step < MAX_BROWSER_STEPS; step++) {
+      captureCallback(page.url(), redirectUri, observedCallback);
+      String callback = observedCallback.get();
+      if (callback != null) {
+        return URI.create(callback);
+      }
+
+      Locator username = firstVisible(page.locator("input[name='username']"));
+      Locator passwordInput = firstVisible(page.locator("input[name='password']"));
+      if (username != null) {
+        username.fill(email);
+      }
+      if (passwordInput != null) {
+        passwordInput.fill(password);
+      }
+      if (username == null && passwordInput == null) {
+        if (passwordSubmitted) {
+          return awaitCallback(page, redirectUri, observedCallback);
+        }
+        throw new ProductFlowException("OIDC login did not expose a credential action");
+      }
+
+      Locator login = firstVisible(page.locator("#kc-login, form button[type='submit']"));
+      if (login == null) {
+        throw new ProductFlowException("OIDC login did not expose a submit action");
+      }
+      passwordSubmitted = passwordSubmitted || passwordInput != null;
+      try {
+        login.click(new Locator.ClickOptions().setTimeout(BROWSER_TIMEOUT_MILLIS));
+      } catch (PlaywrightException ignored) {
+        // A custom-scheme redirect can make Chromium report an unsupported navigation after
+        // the request was already observed. The exact callback is still verified below.
+      }
+      waitForPage(page);
+      if (hasVisibleError(page)) {
+        throw new ProductFlowException("OIDC login rejected the credentials");
+      }
+      if (passwordSubmitted) {
+        return awaitCallback(page, redirectUri, observedCallback);
+      }
+    }
+    throw new ProductFlowException("OIDC login exceeded the bounded browser steps");
   }
 
   private static void captureCallback(
@@ -406,15 +447,6 @@ final class OidcBrowserJourney implements AutoCloseable {
     } catch (PlaywrightException ignored) {
       // The next bounded DOM inspection determines convergence.
     }
-  }
-
-  private static void fillRequired(
-      Page page, String selector, String value, String label) {
-    Locator locator = firstVisible(page.locator(selector));
-    if (locator == null) {
-      throw new ProductFlowException(label + " field was unavailable");
-    }
-    locator.fill(value);
   }
 
   private static void fillIfVisible(Page page, String selector, String value) {
