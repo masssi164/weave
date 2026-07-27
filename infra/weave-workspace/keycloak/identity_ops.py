@@ -280,20 +280,14 @@ def realm_payload(realm: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def client_payload(client: dict[str, Any], scope_names: dict[str, str]) -> dict[str, Any]:
+def client_payload(client: dict[str, Any]) -> dict[str, Any]:
     allowed = (
         "clientId", "name", "description", "protocol", "enabled", "publicClient",
         "serviceAccountsEnabled", "standardFlowEnabled", "implicitFlowEnabled",
         "directAccessGrantsEnabled", "fullScopeAllowed",
-        "redirectUris", "webOrigins", "defaultClientScopes", "optionalClientScopes",
+        "redirectUris", "webOrigins",
     )
     result = {name: client[name] for name in allowed if name in client}
-    for attachment in ("defaultClientScopes", "optionalClientScopes"):
-        if attachment in result:
-            result[attachment] = [
-                scope_names.get(str(reference), str(reference).removeprefix("builtin-scope:"))
-                for reference in result[attachment]
-            ]
     if client.get("authenticationMethod") == "client_secret_basic":
         result["clientAuthenticatorType"] = "client-secret"
         attributes = {"token.endpoint.auth.method": "client_secret_basic"}
@@ -346,6 +340,102 @@ def client_payload(client: dict[str, Any], scope_names: dict[str, str]) -> dict[
     if attributes:
         result["attributes"] = attributes
     return result
+
+
+def client_scope_attachment_operations(
+    kcadm: Kcadm,
+    realm: str,
+    desired_clients: list[dict[str, Any]],
+    clients_by_key: dict[str, dict[str, Any]],
+    observed_scopes: list[dict[str, Any]],
+    scope_names: dict[str, str],
+) -> list[Operation]:
+    scopes_by_name: dict[str, list[dict[str, Any]]] = {}
+    for scope in observed_scopes:
+        name = str(scope.get("name", "")).strip()
+        if name:
+            scopes_by_name.setdefault(name, []).append(scope)
+
+    operations: list[Operation] = []
+    associations = (
+        ("defaultClientScopes", "default-client-scopes"),
+        ("optionalClientScopes", "optional-client-scopes"),
+    )
+    for client in desired_clients:
+        client_key = str(client["key"])
+        observed_client = clients_by_key.get(client_key)
+        if observed_client is None:
+            continue
+        client_id = str(observed_client["id"])
+        for desired_field, endpoint_segment in associations:
+            desired_refs = [str(reference) for reference in client.get(desired_field, [])]
+            desired_names = {
+                scope_names.get(reference, reference.removeprefix("builtin-scope:"))
+                for reference in desired_refs
+            }
+            endpoint = f"clients/{client_id}/{endpoint_segment}"
+            observed_attachments = kcadm.call("get", endpoint, "-r", realm) or []
+            if not isinstance(observed_attachments, list):
+                raise IdentityOpsError(
+                    f"Keycloak returned an invalid {endpoint_segment} projection"
+                )
+            observed_names = {
+                str(scope.get("name", "")).strip()
+                for scope in observed_attachments
+                if str(scope.get("name", "")).strip()
+            }
+
+            for reference in desired_refs:
+                name = scope_names.get(
+                    reference,
+                    reference.removeprefix("builtin-scope:"),
+                )
+                target = exact(
+                    scopes_by_name.get(name, []),
+                    reference,
+                    "client scope",
+                )
+                if target is None:
+                    if reference.startswith("builtin-scope:"):
+                        raise IdentityOpsError(
+                            f"pinned Keycloak is missing built-in client scope {name}"
+                        )
+                    # A managed custom scope is created in an earlier convergence round.
+                    continue
+                scope_id = str(target.get("id", "")).strip()
+                if not scope_id:
+                    raise IdentityOpsError(
+                        f"Keycloak client scope {name} has no stable identifier"
+                    )
+                if name not in observed_names:
+                    operations.append(
+                        Operation(
+                            "attach-client-scope",
+                            f"{client_key}:{endpoint_segment}:{reference}",
+                            f"{endpoint}/{scope_id}",
+                            None,
+                            {"clientKey": client_key, "scopeRef": reference},
+                        )
+                    )
+
+            for current in observed_attachments:
+                name = str(current.get("name", "")).strip()
+                scope_id = str(current.get("id", "")).strip()
+                if not name or not scope_id:
+                    raise IdentityOpsError(
+                        f"Keycloak returned an invalid {endpoint_segment} association"
+                    )
+                if name not in desired_names:
+                    operations.append(
+                        Operation(
+                            "detach-client-scope",
+                            f"{client_key}:{endpoint_segment}:observed:{name}",
+                            f"{endpoint}/{scope_id}",
+                            None,
+                            {"clientKey": client_key, "scopeName": name},
+                        )
+                    )
+    return operations
 
 
 def secret_path(filename: str) -> Path:
@@ -815,7 +905,7 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
             key,
             "client",
         )
-        wanted = client_payload(client, scope_names)
+        wanted = client_payload(client)
         if observed is None:
             operations.append(Operation("create", key, "clients", None, marked_payload(key, wanted, list_values=False)))
         else:
@@ -883,6 +973,17 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
                         {**wanted_mapper, "id": observed_mapper["id"]},
                     )
                 )
+
+    operations.extend(
+        client_scope_attachment_operations(
+            kcadm,
+            realm_name,
+            desired.get("clients", []),
+            clients_by_key,
+            observed_scopes,
+            scope_names,
+        )
+    )
 
     all_roles = kcadm.call("get", "roles", "-r", realm_name) or []
     roles_by_key: dict[str, dict[str, Any]] = {}
@@ -1179,6 +1280,12 @@ def apply_operation(kcadm: Kcadm, realm: str, operation: Operation) -> None:
         return
     if operation.action == "remove-client-scope-role":
         kcadm.call("delete", operation.endpoint, "-r", realm, payload=operation.payload)
+        return
+    if operation.action == "attach-client-scope":
+        kcadm.call("update", operation.endpoint, "-r", realm)
+        return
+    if operation.action == "detach-client-scope":
+        kcadm.call("delete", operation.endpoint, "-r", realm)
         return
     realm_arguments = (
         ()

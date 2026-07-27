@@ -254,6 +254,97 @@ def main() -> None:
             },
         },
     )
+
+    client_without_relationships = identity_ops.client_payload(
+        {
+            "clientId": "weave-app",
+            "enabled": True,
+            "defaultClientScopes": ["builtin-scope:basic"],
+            "optionalClientScopes": ["scope:calendar-read"],
+        }
+    )
+    assert "defaultClientScopes" not in client_without_relationships
+    assert "optionalClientScopes" not in client_without_relationships
+
+    class ClientScopeAssociationKcadm:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+
+        def call(self, *arguments: str, payload: object = None) -> object:
+            assert payload is None
+            self.calls.append(arguments)
+            endpoint = arguments[1]
+            if endpoint == "clients/client-uuid/default-client-scopes":
+                return [
+                    {"id": "basic-id", "name": "basic"},
+                    {"id": "stale-id", "name": "stale"},
+                ]
+            if endpoint == "clients/client-uuid/optional-client-scopes":
+                return []
+            raise AssertionError(f"unexpected client scope association read: {endpoint}")
+
+    scope_association_kcadm = ClientScopeAssociationKcadm()
+    scope_operations = identity_ops.client_scope_attachment_operations(
+        scope_association_kcadm,
+        "weave",
+        [
+            {
+                "key": "client:weave-app",
+                "defaultClientScopes": [
+                    "builtin-scope:basic",
+                    "scope:weave-workspace",
+                ],
+                "optionalClientScopes": ["scope:calendar-read"],
+            }
+        ],
+        {"client:weave-app": {"id": "client-uuid"}},
+        [
+            {"id": "basic-id", "name": "basic"},
+            {"id": "workspace-id", "name": "weave:workspace"},
+            {"id": "calendar-id", "name": "calendar.read"},
+            {"id": "stale-id", "name": "stale"},
+        ],
+        {
+            "scope:weave-workspace": "weave:workspace",
+            "scope:calendar-read": "calendar.read",
+        },
+    )
+    assert [
+        (operation.action, operation.endpoint)
+        for operation in scope_operations
+    ] == [
+        (
+            "attach-client-scope",
+            "clients/client-uuid/default-client-scopes/workspace-id",
+        ),
+        (
+            "detach-client-scope",
+            "clients/client-uuid/default-client-scopes/stale-id",
+        ),
+        (
+            "attach-client-scope",
+            "clients/client-uuid/optional-client-scopes/calendar-id",
+        ),
+    ]
+
+    class ClientScopeMutationKcadm:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+
+        def call(self, *arguments: str, payload: object = None) -> None:
+            assert payload is None
+            self.calls.append(arguments)
+
+    scope_mutation_kcadm = ClientScopeMutationKcadm()
+    for operation in scope_operations:
+        identity_ops.apply_operation(scope_mutation_kcadm, "weave", operation)
+    assert [call[0] for call in scope_mutation_kcadm.calls] == [
+        "update",
+        "delete",
+        "update",
+    ]
+    assert all(call[-2:] == ("-r", "weave") for call in scope_mutation_kcadm.calls)
+
     assert identity_ops.projected_fields_are_current(
         {"alias": "weave", "name": "Weave"},
         {"id": "organization-id", "alias": "weave", "name": "Weave"},
@@ -447,6 +538,10 @@ def main() -> None:
     assert "probe_identity_admin_credential_denial(" in source
     assert "probe_status != 403" in source
     assert '"map-org-group-role"' in source
+    assert '"attach-client-scope"' in source
+    assert '"detach-client-scope"' in source
+    assert '"default-client-scopes"' in source
+    assert '"optional-client-scopes"' in source
     assert "organization_group_create_operation(group, group_root, flat_groups)" in source
     assert '"id": staged["id"], "name": staged["name"]' not in source
     assert "Stage the managed resource at organization" not in source
