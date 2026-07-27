@@ -297,7 +297,7 @@ public final class FreshProductFlow {
     OidcBrowserJourney.TokenSet current = initial;
     while (Instant.now().isBefore(deadline)) {
       JsonNode claims = browser.jwtPayload(current.accessToken());
-      if (strings(claims.path("groups")).contains(group)
+      if (organizationGroups(claims).contains(group)
           || strings(
                   claims.path("resource_access").path("weave-app").path("roles"))
               .contains(role)) {
@@ -350,7 +350,7 @@ public final class FreshProductFlow {
         || !audiences.equals(Set.of(environment.apiOrigin().resolve("/api").toString()))
         || !hasExactWorkspaceScope(scopes)
         || !scopes.contains("agent-runtime.admin")
-        || !strings(claims.path("groups")).contains("/owners")) {
+        || !organizationGroups(claims).contains("/owners")) {
       throw new ProductFlowException("Agent Runtime admin token is not exact");
     }
   }
@@ -604,6 +604,18 @@ public final class FreshProductFlow {
     Set<String> result = new java.util.LinkedHashSet<>();
     node.forEach(value -> result.add(value.asString()));
     return Set.copyOf(result);
+  }
+
+  private static Set<String> organizationGroups(JsonNode claims) {
+    JsonNode organizations = claims.path("organization");
+    if (!organizations.isObject() || organizations.size() != 1) {
+      return Set.of();
+    }
+    JsonNode selected = null;
+    for (JsonNode value : organizations.values()) {
+      selected = value;
+    }
+    return selected == null ? Set.of() : strings(selected.path("groups"));
   }
 
   private static String requiredText(JsonNode node, String field) {

@@ -582,24 +582,32 @@ def role_mapping(
 
 
 def mapper_payload(mapper: dict[str, Any]) -> dict[str, Any]:
+    mapper_type = mapper["mapperType"]
+    protocol_mapper = {
+        "group-membership": "oidc-group-membership-mapper",
+        "organization-group-membership": "oidc-organization-group-membership-mapper",
+        "audience": "oidc-audience-mapper",
+    }.get(mapper_type)
+    if protocol_mapper is None:
+        raise IdentityOpsError(f"unsupported protocol mapper type: {mapper_type}")
     common = {
         "name": mapper["name"],
         "protocol": "openid-connect",
-        "protocolMapper": (
-            "oidc-group-membership-mapper"
-            if mapper["mapperType"] == "group-membership"
-            else "oidc-audience-mapper"
-        ),
+        "protocolMapper": protocol_mapper,
     }
-    if mapper["mapperType"] == "group-membership":
+    if mapper_type == "group-membership":
         config = {
             "claim.name": mapper["claimName"],
             "full.path": str(mapper.get("fullPath", True)).lower(),
         }
-    elif mapper["mapperType"] == "audience":
+    elif mapper_type == "organization-group-membership":
+        config = {
+            "addGroupRoleMappings": str(
+                mapper.get("addGroupRoleMappings", False)
+            ).lower(),
+        }
+    elif mapper_type == "audience":
         config = {"included.custom.audience": mapper["includedCustomAudience"]}
-    else:
-        raise IdentityOpsError(f"unsupported protocol mapper type: {mapper['mapperType']}")
     config.update(
         {
             "id.token.claim": str(mapper.get("addToIdToken", False)).lower(),

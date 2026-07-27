@@ -71,7 +71,7 @@ public final class OrganizationIdentityContextResolver {
         String primaryIdentityKey = IdentityReferences.primaryIdentityKey(issuer, subject);
         String accountId = IdentityReferences.accountId(issuer, subject);
         List<String> roles = canonicalRoles(jwt);
-        List<String> groups = stringClaims(jwt, "weave_groups", "groups");
+        List<String> groups = selectedOrganizationGroups(jwt);
         List<String> contextRoles = stringClaims(jwt, "weave_context_roles").stream()
                 .map(role -> role.toLowerCase(Locale.ROOT))
                 .distinct()
@@ -159,6 +159,24 @@ public final class OrganizationIdentityContextResolver {
                         groups.stream().map(group -> "group_claim:" + group))
                 .sorted()
                 .toList();
+    }
+
+    private static List<String> selectedOrganizationGroups(Jwt jwt) {
+        if (jwt == null) {
+            return List.of();
+        }
+        Object claim = jwt.getClaims().get("organization");
+        if (!(claim instanceof Map<?, ?> organizations) || organizations.size() != 1) {
+            return List.of();
+        }
+        Object selected = organizations.values().iterator().next();
+        if (!(selected instanceof Map<?, ?> organization)) {
+            return List.of();
+        }
+        Object groups = organization.get("groups");
+        return groups instanceof Collection<?> values
+                ? stringValues(values).stream().distinct().sorted().toList()
+                : List.of();
     }
 
     private static List<String> stringClaims(Jwt jwt, String... claimNames) {

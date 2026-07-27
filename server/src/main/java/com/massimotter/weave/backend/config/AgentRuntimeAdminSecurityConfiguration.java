@@ -100,20 +100,6 @@ public class AgentRuntimeAdminSecurityConfiguration {
                     .filter(value -> value.equals("OWNER") || value.equals("ADMIN"))
                     .forEach(roles::add);
         }
-        Object groups = jwt.getClaims().get("groups");
-        if (groups instanceof Collection<?> values) {
-            values.stream()
-                    .filter(String.class::isInstance)
-                    .map(String.class::cast)
-                    .map(String::trim)
-                    .map(value -> switch (value) {
-                        case "workspace-owners", "/workspace-owners" -> "OWNER";
-                        case "workspace-admins", "/workspace-admins" -> "ADMIN";
-                        default -> "";
-                    })
-                    .filter(value -> !value.isEmpty())
-                    .forEach(roles::add);
-        }
         return List.copyOf(roles);
     }
 }

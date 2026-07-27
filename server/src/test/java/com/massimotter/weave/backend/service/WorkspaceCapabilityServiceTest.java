@@ -482,7 +482,9 @@ class WorkspaceCapabilityServiceTest {
                 .subject("user-1")
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("resource_access", Map.of("weave-app", Map.of("roles", roles)))
-                .claim("groups", groups)
+                .claim(
+                        "organization",
+                        Map.of("weave-dogfood", Map.of("groups", groups)))
                 .build();
     }
 

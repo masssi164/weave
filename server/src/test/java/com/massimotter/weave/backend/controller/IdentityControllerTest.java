@@ -66,7 +66,11 @@ class IdentityControllerTest {
                         .claim("azp", "weave-app")
                         .claim("aud", List.of("weave-app", "account"))
                         .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member", "admin"))))
-                        .claim("groups", List.of("team-alpha", "team-beta"))
+                        .claim(
+                                "organization",
+                                Map.of(
+                                        "weave-dogfood",
+                                        Map.of("groups", List.of("team-alpha", "team-beta"))))
                         .claim("weave_context_roles", List.of("channel-admin")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())

@@ -271,6 +271,24 @@ def main() -> None:
             },
         },
     )
+    organization_group_mapper = identity_ops.mapper_payload(
+        {
+            "name": "weave-organization-groups",
+            "mapperType": "organization-group-membership",
+            "addGroupRoleMappings": False,
+            "addToAccessToken": True,
+        }
+    )
+    assert (
+        organization_group_mapper["protocolMapper"]
+        == "oidc-organization-group-membership-mapper"
+    )
+    assert organization_group_mapper["config"] == {
+        "addGroupRoleMappings": "false",
+        "id.token.claim": "false",
+        "access.token.claim": "true",
+        "userinfo.token.claim": "false",
+    }
 
     client_without_relationships = identity_ops.client_payload(
         {

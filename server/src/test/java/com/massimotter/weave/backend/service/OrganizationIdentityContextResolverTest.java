@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -51,6 +52,40 @@ class OrganizationIdentityContextResolverTest {
                                                         "org_id", "legacy-org")))
                                 .organizationId())
                 .isEqualTo("configured-default");
+    }
+
+    @Test
+    void readsOnlyTheSelectedNativeOrganizationGroupProjection() {
+        OrganizationIdentityContext context = resolver.resolve(jwt(Map.of(
+                "organization",
+                Map.of(
+                        "weave-dogfood",
+                        Map.of("groups", List.of("/members", "/capabilities/weaver"))),
+                "groups",
+                List.of("/owners"),
+                "weave_groups",
+                List.of("/admins"))));
+
+        assertThat(context.groups())
+                .containsExactly("/capabilities/weaver", "/members");
+        assertThat(context.providerRoleMappings())
+                .containsExactly(
+                        "group_claim:/capabilities/weaver",
+                        "group_claim:/members");
+    }
+
+    @Test
+    void rejectsAmbiguousOrganizationGroupProjection() {
+        OrganizationIdentityContext context = resolver.resolve(jwt(Map.of(
+                "organization",
+                Map.of(
+                        "weave-dogfood",
+                        Map.of("groups", List.of("/members")),
+                        "other",
+                        Map.of("groups", List.of("/owners"))))));
+
+        assertThat(context.groups()).isEmpty();
+        assertThat(context.providerRoleMappings()).isEmpty();
     }
 
     private static Jwt jwt(Map<String, Object> claims) {

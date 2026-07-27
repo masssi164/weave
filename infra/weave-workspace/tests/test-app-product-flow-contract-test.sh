@@ -66,6 +66,8 @@ contains "${MODULE_TASKS}" "args 'install', '--with-deps', 'chromium'"
 contains "${FLOW}" '/api/bootstrap/owner-invitation'
 contains "${FLOW}" '/api/v1/identity/session/reconcile'
 contains "${FLOW}" '"access_updated"'
+contains "${FLOW}" 'organizationGroups(claims)'
+absent "${FLOW}" 'claims.path("groups")'
 contains "${FLOW}" 'authorization_code_pkce_s256'
 contains "${FLOW}" 'client_credentials_private_key_jwt'
 contains "${FLOW}" 'awaitEmailVerificationLink'
