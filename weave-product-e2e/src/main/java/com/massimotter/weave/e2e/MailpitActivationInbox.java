@@ -18,7 +18,8 @@ import java.util.regex.Pattern;
 final class MailpitActivationInbox {
   private static final Pattern ACTION_LINK =
       Pattern.compile(
-          "https?://[^\\s\"'<>]+/realms/[^\\s\"'<>]+/login-actions/action-token[^\\s\"'<>]*",
+          "https?://[^\\s\"'<>]+/realms/[^\\s\"'<>]+"
+              + "/protocol/openid-connect/registrations\\?[^\\s\"'<>]+",
           Pattern.CASE_INSENSITIVE);
 
   private final JsonHttpClient http;
@@ -85,7 +86,7 @@ final class MailpitActivationInbox {
     return List.copyOf(result);
   }
 
-  private URI actionLink(JsonNode message) {
+  URI actionLink(JsonNode message) {
     List<String> values = new ArrayList<>();
     collectStrings(message, values);
     for (String raw : values) {
@@ -104,9 +105,11 @@ final class MailpitActivationInbox {
             && effectivePort(candidate) == effectivePort(issuer)
             && candidate
                 .getPath()
-                .startsWith(
+                .equals(
                     issuer.getPath().replaceAll("/+$", "")
-                        + "/login-actions/action-token")
+                        + "/protocol/openid-connect/registrations")
+            && candidate.getRawQuery() != null
+            && !candidate.getRawQuery().isBlank()
             && candidate.getUserInfo() == null
             && candidate.getFragment() == null) {
           return candidate;

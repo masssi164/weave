@@ -432,7 +432,7 @@ public final class FreshProductFlow {
     } catch (JacksonException failure) {
       throw new ProductFlowException("testApp evidence encoding failed", failure);
     }
-    if (serialized.contains("login-actions/action-token")
+    if (serialized.contains("/protocol/openid-connect/registrations")
         || serialized.contains(ownerEmail)
         || serialized.contains(memberEmail)
         || serialized.contains(mcpProof.clientId())) {

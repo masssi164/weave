@@ -253,7 +253,7 @@ jq -e '
   .supportSafe == true
 ' "${WEAVE_TEST_APP_EVIDENCE_PATH}" >/dev/null ||
   fail "the Fresh product-flow evidence is incomplete"
-! grep -Eqi 'login-actions/action-token|client_assertion|access_token|refresh_token|password' \
+! grep -Eqi 'protocol/openid-connect/registrations|client_assertion|access_token|refresh_token|password' \
   "${WEAVE_TEST_APP_EVIDENCE_PATH}" ||
   fail "the product-flow evidence contains credential material"
 
