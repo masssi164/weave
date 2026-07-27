@@ -25,6 +25,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -194,20 +195,11 @@ public class MemberInvitationService {
 
   private MemberInvitationResponse existingBootstrapInvitation(
       String organizationId, String email, ProvisioningIntent intent) {
-    if (!"owner".equals(intent.requestedRole()) || intent.providerInvitationId() == null) {
+    if (!"owner".equals(intent.requestedRole())) {
       throw bootstrapConflict();
     }
-
-    List<ProviderInvitation> providerMatches =
-        keycloak.invitationsForEmail(organizationId, email).stream()
-            .filter(
-                invitation ->
-                    intent.providerInvitationId().equals(invitation.providerInvitationId()))
-            .toList();
-    if (providerMatches.size() != 1) {
-      throw bootstrapConflict();
-    }
-    return response(providerMatches.getFirst(), expire(intent));
+    return correlateExistingInvitation(organizationId, email, intent)
+        .orElseThrow(this::bootstrapConflict);
   }
 
   private MemberInvitationResponse create(
@@ -221,6 +213,19 @@ public class MemberInvitationService {
     List<ProvisioningIntent> existing =
         intents.findPendingByEmail(tenantId, organizationId, email);
     if (!existing.isEmpty()) {
+      if (existing.size() == 1
+          && sameRequest(
+              existing.getFirst(),
+              request,
+              idempotencyKey,
+              actorIssuer,
+              actorSubject)) {
+        Optional<MemberInvitationResponse> correlated =
+            correlateExistingInvitation(organizationId, email, existing.getFirst());
+        if (correlated.isPresent()) {
+          return correlated.get();
+        }
+      }
       throw new ApiErrorException(
           HttpStatus.CONFLICT,
           "member-invitation-already-pending",
@@ -228,6 +233,7 @@ public class MemberInvitationService {
           Map.of());
     }
 
+    references.requireReady();
     Instant now = clock.instant();
     ProvisioningIntent pending =
         new ProvisioningIntent(
@@ -249,15 +255,9 @@ public class MemberInvitationService {
             now);
     intents.save(pending);
 
+    ProviderInvitation provider;
     try {
-      ProviderInvitation provider =
-          keycloak.issue(organizationId, email, blankToNull(request.displayName()));
-      ProvisioningIntent linked =
-          intents.save(
-              pending.withProviderInvitation(
-                  provider.providerInvitationId(), clock.instant()));
-      publish(AuditAction.MEMBER_INVITATION_CREATED, linked, actorSubject);
-      return response(provider, linked);
+      provider = keycloak.issue(organizationId, email, blankToNull(request.displayName()));
     } catch (RuntimeException providerFailure) {
       ProviderFailureReference failureReference = providerFailureReference(providerFailure);
       LOGGER.warn(
@@ -273,6 +273,47 @@ public class MemberInvitationService {
           "Keycloak could not create the organization invitation.",
           Map.of());
     }
+    ProvisioningIntent linked =
+        intents.save(
+            pending.withProviderInvitation(provider.providerInvitationId(), clock.instant()));
+    publish(AuditAction.MEMBER_INVITATION_CREATED, linked, actorSubject);
+    return response(provider, linked);
+  }
+
+  private Optional<MemberInvitationResponse> correlateExistingInvitation(
+      String organizationId, String email, ProvisioningIntent intent) {
+    List<ProviderInvitation> providerMatches =
+        keycloak.invitationsForEmail(organizationId, email).stream()
+            .filter(
+                invitation ->
+                    intent.providerInvitationId() == null
+                        || intent
+                            .providerInvitationId()
+                            .equals(invitation.providerInvitationId()))
+            .toList();
+    if (providerMatches.size() != 1) {
+      return Optional.empty();
+    }
+    ProviderInvitation provider = providerMatches.getFirst();
+    ProvisioningIntent linked =
+        intent.providerInvitationId() == null
+            ? intents.save(
+                intent.withProviderInvitation(
+                    provider.providerInvitationId(), clock.instant()))
+            : intent;
+    return Optional.of(response(provider, expire(linked)));
+  }
+
+  private static boolean sameRequest(
+      ProvisioningIntent intent,
+      MemberInvitationRequest request,
+      String idempotencyKey,
+      String actorIssuer,
+      String actorSubject) {
+    return intent.requestedRole().equals(request.role())
+        && intent.auditCorrelation().equals(idempotencyKey)
+        && intent.invitedByIssuer().equals(actorIssuer)
+        && intent.invitedBySubject().equals(actorSubject);
   }
 
   private static ProviderFailureReference providerFailureReference(RuntimeException failure) {

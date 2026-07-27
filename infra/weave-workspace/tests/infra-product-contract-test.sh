@@ -58,6 +58,14 @@ require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_MATRIX_FEDERATION_ENABLED'
 require "${ROOT_DIR}/scripts/render_config.py" '"WEAVE_IDENTITY_KEYCLOAK_TOKEN_URI"'
 require "${ROOT_DIR}/scripts/render_config.py" \
   '"spring.security.oauth2.client.registration.weave-identity-admin.client-secret": "keycloak-weave-identity-admin"'
+require "${ROOT_DIR}/scripts/render_config.py" \
+  '"WEAVE_IDENTITY_REFERENCE_HMAC_SECRET_FILE"'
+require "${ROOT_DIR}/compose.yaml" \
+  'file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/identity-reference-hmac-key'
+require "${ROOT_DIR}/compose.yaml" \
+  'target: identity-reference-hmac-key'
+[[ "$(grep -Fc 'source: identity-reference-hmac-key' "${ROOT_DIR}/compose.yaml")" == "1" ]] ||
+  fail "identity-reference-hmac-key must be mounted into Weave Server exactly once"
 require "${REPO_ROOT}/settings.gradle" "include 'weave-application-core',"
 require "${REPO_ROOT}/settings.gradle" "'weave-persistence-jpa',"
 require "${REPO_ROOT}/settings.gradle" "'weave-runtime-security-adapters',"

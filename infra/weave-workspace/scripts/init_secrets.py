@@ -26,6 +26,7 @@ TEXT_SECRETS = (
     "keycloak-bootstrap-admin-password",
     "postgres-admin-password",
     "backend-db-password",
+    "identity-reference-hmac-key",
     "keycloak-db-password",
     "mas-db-password",
     "synapse-db-password",

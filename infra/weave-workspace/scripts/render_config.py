@@ -35,6 +35,7 @@ SECRET_REF_PATHS = {
 }
 REQUIRED_PRIVATE_FILES = (
     "backend-db-password",
+    "identity-reference-hmac-key",
     "keycloak-db-password",
     "mas-db-password",
     "synapse-db-password",
@@ -567,6 +568,11 @@ def _backend_env(context: ComposeContext) -> str:
             f"{keycloak_base}/realms/weave/protocol/openid-connect/token"
         ),
         "WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ALIAS": env["WEAVE_ORGANIZATION_ALIAS"],
+        "WEAVE_IDENTITY_REFERENCE_HMAC_SECRET_FILE": str(
+            context.secret_root / "identity-reference-hmac-key"
+            if host_dev
+            else Path("/run/secrets/identity-reference-hmac-key")
+        ),
         "WEAVE_MATRIX_BASE_URL": matrix_base,
         "WEAVE_WORKSPACE_CHAT_ENABLED": "true",
         "WEAVE_WORKSPACE_CHAT_READINESS": "ready",

@@ -490,6 +490,8 @@ services:
         target: weave/spring.datasource.password
       - source: identity-admin-client-secret
         target: weave/spring.security.oauth2.client.registration.weave-identity-admin.client-secret
+      - source: identity-reference-hmac-key
+        target: identity-reference-hmac-key
       - source: nextcloud-actor-token
         target: weave/weave.nextcloud.files.actor-token
       - source: nextcloud-actor-token
@@ -648,6 +650,8 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/nextcloud-admin-password
   identity-admin-client-secret:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-identity-admin
+  identity-reference-hmac-key:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/identity-reference-hmac-key
   agent-runtime-admin-client-secret:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-agent-runtime-admin
   backend-client-jwk:

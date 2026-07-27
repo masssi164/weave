@@ -14,13 +14,16 @@ import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.invitation.InMemoryProvisioningIntentRepository;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;
 import com.massimotter.weave.backend.identity.IdentityOpaqueReferenceCodec;
+import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.KeycloakAdminException;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.ProviderInvitation;
 import com.massimotter.weave.backend.identity.invitation.ProvisioningIntent;
+import com.massimotter.weave.backend.identity.invitation.ProvisioningIntentStatus;
 import com.massimotter.weave.backend.model.identity.BootstrapOwnerInvitationRequest;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -153,6 +156,101 @@ class MemberInvitationServiceTest {
             error -> assertThat(error.code()).isEqualTo("owner-bootstrap-not-empty"));
 
     verify(keycloak, never()).issue(anyString(), anyString(), anyString());
+  }
+
+  @Test
+  void correlatesOneProviderInvitationAfterLocalPostProcessingWasInterrupted() {
+    ProviderInvitation providerInvitation = providerInvitation();
+    ProvisioningIntent pending =
+        pendingIntent(null, ProvisioningIntentStatus.PENDING);
+    intents.save(pending);
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL))
+        .thenReturn(List.of(providerInvitation));
+
+    var recovered =
+        service.bootstrapOwner(
+            new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"),
+            IDEMPOTENCY_KEY);
+
+    assertThat(recovered.invitationHandle()).isEqualTo("inv_invitation-1");
+    assertThat(
+            intents
+                .findPendingByEmail(TENANT_ID, ORGANIZATION_ID, EMAIL)
+                .getFirst()
+                .providerInvitationId())
+        .isEqualTo("invitation-1");
+    verify(keycloak, never()).issue(anyString(), anyString(), anyString());
+  }
+
+  @Test
+  void doesNotMaskServerOwnedHandleFailureAsAKeycloakProviderOutage() {
+    ProviderInvitation providerInvitation = providerInvitation();
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL)).thenReturn(List.of());
+    when(keycloak.issue(ORGANIZATION_ID, EMAIL, "Weave Owner"))
+        .thenReturn(providerInvitation);
+    when(references.invitation(ORGANIZATION_ID, "invitation-1"))
+        .thenThrow(new IllegalStateException("local reference failure"));
+
+    assertThatThrownBy(
+            () ->
+                service.bootstrapOwner(
+                    new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"),
+                    IDEMPOTENCY_KEY))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("local reference failure");
+
+    assertThat(
+            intents
+                .findPendingByEmail(TENANT_ID, ORGANIZATION_ID, EMAIL)
+                .getFirst()
+                .providerInvitationId())
+        .isEqualTo("invitation-1");
+  }
+
+  @Test
+  void mapsOnlyTheKeycloakMutationFailureToTheStableProviderError() {
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL)).thenReturn(List.of());
+    when(keycloak.issue(ORGANIZATION_ID, EMAIL, "Weave Owner"))
+        .thenThrow(new KeycloakAdminException(503, "provider unavailable", "invitation-create"));
+
+    assertThatThrownBy(
+            () ->
+                service.bootstrapOwner(
+                    new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"),
+                    IDEMPOTENCY_KEY))
+        .isInstanceOfSatisfying(
+            ApiErrorException.class,
+            error -> {
+              assertThat(error.status()).isEqualTo(HttpStatus.BAD_GATEWAY);
+              assertThat(error.code()).isEqualTo("member-invitation-provider-unavailable");
+            });
+  }
+
+  private ProvisioningIntent pendingIntent(
+      String providerInvitationId, ProvisioningIntentStatus status) {
+    return new ProvisioningIntent(
+        UUID.randomUUID(),
+        TENANT_ID,
+        ORGANIZATION_ID,
+        EMAIL,
+        "email-sha256",
+        "owner",
+        providerInvitationId,
+        "urn:weave:identity-bootstrap",
+        "bootstrap-owner-invitation",
+        IDEMPOTENCY_KEY,
+        status,
+        null,
+        null,
+        NOW.plusSeconds(86_400),
+        NOW,
+        NOW);
   }
 
   private ProviderInvitation providerInvitation() {

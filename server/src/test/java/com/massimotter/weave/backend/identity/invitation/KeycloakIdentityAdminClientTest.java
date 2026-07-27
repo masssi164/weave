@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.identity.invitation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.ExpectedCount.once;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -156,6 +157,60 @@ class KeycloakIdentityAdminClientTest {
                 MediaType.APPLICATION_JSON));
 
     assertThat(client.hasHumanUsers()).isTrue();
+    provider.verify();
+  }
+
+  @Test
+  void issuesAndCorrelatesTheOfficialKeycloakOrganizationInvitationProjection() {
+    String inventory =
+        "https://identity.internal/admin/realms/weave"
+            + "/organizations/organization-1/invitations?email=owner@example.org";
+    provider
+        .expect(once(), requestTo(inventory))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+    provider
+        .expect(
+            once(),
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/organizations/organization-1/members/invite-user"))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(content().contentType(MediaType.APPLICATION_FORM_URLENCODED))
+        .andExpect(
+            content()
+                .string(
+                    "email=owner%40example.org&firstName=Weave&lastName=Owner"))
+        .andRespond(withStatus(HttpStatus.NO_CONTENT));
+    provider
+        .expect(once(), requestTo(inventory))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(
+            withSuccess(
+                """
+                [{
+                  "id":"invitation-1",
+                  "organizationId":"organization-1",
+                  "email":"owner@example.org",
+                  "firstName":"Weave",
+                  "lastName":"Owner",
+                  "sentDate":1785081600,
+                  "expiresAt":1785168000,
+                  "status":"PENDING",
+                  "inviteLink":"must-not-cross-the-adapter"
+                }]
+                """,
+                MediaType.APPLICATION_JSON));
+
+    KeycloakIdentityAdminClient.ProviderInvitation invitation =
+        client.issue("organization-1", "owner@example.org", "Weave Owner");
+
+    assertThat(invitation.providerInvitationId()).isEqualTo("invitation-1");
+    assertThat(invitation.email()).isEqualTo("owner@example.org");
+    assertThat(invitation.displayName()).isEqualTo("Weave Owner");
+    assertThat(invitation.lifecycleStatus()).isEqualTo("pending");
+    assertThat(invitation.createdAt()).isNotNull();
+    assertThat(invitation.expiresAt()).isAfter(invitation.createdAt());
     provider.verify();
   }
 
