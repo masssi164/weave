@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.exception;
 
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.config.RequestIdFilter;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.KeycloakAdminException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -11,6 +12,8 @@ import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -19,6 +22,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     private final ApiErrorResponseWriter errorResponseWriter;
 
@@ -129,6 +134,11 @@ public class ApiExceptionHandler {
     public void handleUnexpected(
             Exception exception, HttpServletRequest request, HttpServletResponse response)
             throws IOException {
+        LOGGER.error(
+                "WEAVE_API_UNEXPECTED_FAILURE requestId={} category={} failureType={}",
+                RequestIdFilter.requestId(request),
+                failureCategory(exception),
+                exception.getClass().getName());
         errorResponseWriter.write(
                 request,
                 response,
