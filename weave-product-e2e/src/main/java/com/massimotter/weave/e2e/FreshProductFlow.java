@@ -381,7 +381,9 @@ public final class FreshProductFlow {
     if (!invalidClaims.isEmpty()) {
       throw new ProductFlowException(
           "human token contract did not match fields="
-              + String.join(",", invalidClaims));
+              + String.join(",", invalidClaims)
+              + " observedScopes="
+              + new java.util.TreeSet<>(scopes));
     }
   }
 
