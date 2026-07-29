@@ -45,15 +45,23 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
   @Bean
   KeycloakAdminAccessTokenProvider keycloakAgentRuntimeAdminAccessTokenProvider(
       AgentRuntimeWorkloadIdentityProperties properties,
-      SecretRefAccess secrets) {
+      @Qualifier("fileRuntimeWorkloadCredentialStore") SecretRefAccess secrets) {
     return new SpringSecurityKeycloakAdminAccessTokenProvider(
         properties.workloadAdminTokenSettings(), secrets);
   }
 
   @Bean
+  ExactMountedSecretRefAccess keycloakAgentRuntimeEntitlementSecretRefAccess(
+      AgentRuntimeWorkloadIdentityProperties properties) {
+    return new ExactMountedSecretRefAccess(
+        properties.entitlementCredentialRef(),
+        properties.requiredEntitlementCredentialFile());
+  }
+
+  @Bean
   KeycloakAdminAccessTokenProvider keycloakAgentRuntimeEntitlementAccessTokenProvider(
       AgentRuntimeWorkloadIdentityProperties properties,
-      SecretRefAccess secrets) {
+      @Qualifier("keycloakAgentRuntimeEntitlementSecretRefAccess") SecretRefAccess secrets) {
     return new SpringSecurityKeycloakAdminAccessTokenProvider(
         properties.entitlementTokenSettings(), secrets);
   }
