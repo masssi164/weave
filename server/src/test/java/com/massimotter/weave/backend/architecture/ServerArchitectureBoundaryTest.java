@@ -76,7 +76,9 @@ class ServerArchitectureBoundaryTest {
             "/service/migration/FileMigrationRunEvidenceRepository.java");
     private static final List<String> ACCEPTED_FILE_KEY_CUSTODY_ALLOWLIST = List.of(
             "/agentruntime/adapter/FileRuntimeProfileSigningKeyStore.java",
-            "/agentruntime/adapter/FileRuntimeStateKeyWrapper.java");
+            "/agentruntime/adapter/FileRuntimeStateKeyWrapper.java",
+            "/schema/SchemaAuthorityInitializer.java",
+            "/schema/SchemaReceiptVerifier.java");
     private static final List<String> FILE_RUNTIME_AUTHORITY_MARKERS = List.of(
             "Path storagePath",
             "readValue(storagePath.toFile()",
@@ -388,8 +390,8 @@ class ServerArchitectureBoundaryTest {
         assertThat(productionSources())
                 .allSatisfy(source -> assertThat(source.text())
                         .as(source.path().toString())
-                        .doesNotContain("@Entity")
-                        .doesNotContain("extends JpaRepository"));
+                        .doesNotContain("@Entity\n", "@Entity\r", "@Entity(")
+                        .doesNotContain("extends JpaRepository<"));
     }
 
     @Test
@@ -410,6 +412,24 @@ class ServerArchitectureBoundaryTest {
                         .doesNotContain("JdbcTemplate")
                         .doesNotContain("NamedParameterJdbcTemplate")
                         .doesNotContain("org.springframework.jdbc.core"));
+        assertThat(dataAccessSources.stream()
+                        .filter(source -> !source.packageName().equals(BACKEND_PACKAGE + "schema"))
+                        .toList())
+                .allSatisfy(source -> assertThat(source.text())
+                        .as(source.path().toString())
+                        .doesNotContain(
+                                "java.sql.",
+                                "DriverManager.getConnection(",
+                                ".prepareStatement(",
+                                ".createStatement("));
+        assertThat(productionSources().stream()
+                        .filter(source -> source.packageName().equals(BACKEND_PACKAGE + "schema"))
+                        .filter(source -> source.text().contains("java.sql."))
+                        .map(source -> source.path().getFileName().toString())
+                        .toList())
+                .containsExactlyInAnyOrder(
+                        "SchemaAuthorityInitializer.java",
+                        "SchemaCatalogFingerprint.java");
     }
 
     @Test

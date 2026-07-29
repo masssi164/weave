@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 
 @Entity
@@ -11,6 +12,10 @@ import java.time.Instant;
 public class MigrationRunEvidenceJpaEntity {
 
   @EmbeddedId private MigrationRunEvidenceId id;
+
+  @Version
+  @Column(name = "version", nullable = false)
+  private Long version;
 
   @Column(name = "lifecycle", length = 80, nullable = false)
   private String lifecycle;
@@ -72,6 +77,20 @@ public class MigrationRunEvidenceJpaEntity {
     this.adminApproved = adminApproved;
     this.recordedAt = recordedAt;
     this.expiresAt = expiresAt;
+  }
+
+  public void replaceWith(MigrationRunEvidenceJpaEntity replacement) {
+    this.lifecycle = replacement.lifecycle;
+    this.objectCountsJson = replacement.objectCountsJson;
+    this.contentHashesJson = replacement.contentHashesJson;
+    this.auditRefsJson = replacement.auditRefsJson;
+    this.artifactRefsJson = replacement.artifactRefsJson;
+    this.providerDiagnosticsJson = replacement.providerDiagnosticsJson;
+    this.identityMappingComplete = replacement.identityMappingComplete;
+    this.auditSinkAvailable = replacement.auditSinkAvailable;
+    this.adminApproved = replacement.adminApproved;
+    this.recordedAt = replacement.recordedAt;
+    this.expiresAt = replacement.expiresAt;
   }
 
   public MigrationRunEvidenceId id() {

@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 
 @Entity
@@ -19,6 +20,10 @@ public class DeviceCredentialJpaEntity {
   @Id
   @Column(name = "credential_id", length = 160, nullable = false)
   private String credentialId;
+
+  @Version
+  @Column(name = "version", nullable = false)
+  private Long version;
 
   @Column(name = "domain", length = 40, nullable = false)
   private String domain;
@@ -85,6 +90,21 @@ public class DeviceCredentialJpaEntity {
     this.issuedAt = issuedAt;
     this.expiresAt = expiresAt;
     this.revokedAt = revokedAt;
+  }
+
+  public void replaceWith(DeviceCredentialJpaEntity replacement) {
+    this.domain = replacement.domain;
+    this.tenantId = replacement.tenantId;
+    this.principalRef = replacement.principalRef;
+    this.subjectRef = replacement.subjectRef;
+    this.username = replacement.username;
+    this.clientType = replacement.clientType;
+    this.label = replacement.label;
+    this.capabilitiesJson = replacement.capabilitiesJson;
+    this.secretHash = replacement.secretHash;
+    this.issuedAt = replacement.issuedAt;
+    this.expiresAt = replacement.expiresAt;
+    this.revokedAt = replacement.revokedAt;
   }
 
   public String credentialId() {

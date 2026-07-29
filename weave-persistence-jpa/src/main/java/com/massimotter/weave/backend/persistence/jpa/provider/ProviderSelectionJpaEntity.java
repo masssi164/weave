@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +20,10 @@ public class ProviderSelectionJpaEntity {
   @Id
   @Column(name = "category", length = 80, nullable = false)
   private String category;
+
+  @Version
+  @Column(name = "version", nullable = false)
+  private Long version;
 
   @Column(name = "provider_key", length = 160, nullable = false)
   private String providerKey;

@@ -4,7 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import org.flywaydb.core.Flyway;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -68,10 +68,6 @@ class JpaMigrationRunEvidenceRepositoryPostgresTest {
     }
 
     private void migrate(DriverManagerDataSource dataSource) {
-        Flyway.configure()
-                .dataSource(dataSource)
-                .locations("classpath:db/migration")
-                .load()
-                .migrate();
+        JpaTestDatabase.initializeSchema(dataSource);
     }
 }

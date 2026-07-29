@@ -76,6 +76,7 @@ tasks.register('postgresJpaTest', Test) {
     systemProperty 'weave.test.postgres', 'true'
     filter {
         includeTestsMatching '*PostgresJpaSchemaValidationTest'
+        includeTestsMatching '*SchemaAuthorityInitializerPostgresTest'
         includeTestsMatching '*JpaEncryptedRuntimeStateStoreTest'
         includeTestsMatching '*JpaRuntimeCellRepositoryTest'
         includeTestsMatching '*JpaRuntimeCommandRepositoryTest'

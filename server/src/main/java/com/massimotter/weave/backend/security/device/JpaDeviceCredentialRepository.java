@@ -43,7 +43,14 @@ public class JpaDeviceCredentialRepository implements DeviceCredentialRepository
     @Override
     @Transactional
     public DeviceCredential save(DeviceCredential credential) {
-        repository.saveAndFlush(toEntity(credential));
+        DeviceCredentialJpaEntity replacement = toEntity(credential);
+        DeviceCredentialJpaEntity entity = repository.findById(credential.credentialId())
+                .map(observed -> {
+                    observed.replaceWith(replacement);
+                    return observed;
+                })
+                .orElse(replacement);
+        repository.saveAndFlush(entity);
         return credential;
     }
 

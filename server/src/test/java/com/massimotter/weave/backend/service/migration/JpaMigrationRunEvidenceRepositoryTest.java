@@ -54,6 +54,6 @@ class JpaMigrationRunEvidenceRepositoryTest {
 
     private DriverManagerDataSource migratedDataSource() {
         return com.massimotter.weave.backend.testing.JpaTestDatabase
-                .migratedDataSource("migration-evidence");
+                .entityFirstDataSource("migration-evidence");
     }
 }

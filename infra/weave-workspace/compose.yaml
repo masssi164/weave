@@ -591,6 +591,79 @@ services:
       com.massimotter.weave.one-shot: "true"
       com.massimotter.weave.operation: key-initialize
 
+  schema-init:
+    profiles:
+      - test
+      - prod
+    image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-schema-init
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      postgres-reconcile:
+        condition: service_completed_successfully
+    command:
+      - schema-init
+    env_file:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/backend/public.env
+    environment:
+      WEAVE_CANDIDATE_COMMIT: ${WEAVE_CANDIDATE_COMMIT}
+      WEAVE_PERSISTENCE_PASSWORD_FILE: /run/secrets/backend-db-password
+      WEAVE_SCHEMA_INIT_RECEIPT_FILE: /run/weave-schema-init/receipt.json
+    secrets:
+      - source: backend-db-password
+        target: backend-db-password
+    volumes:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/schema-init:/run/weave-schema-init
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: server-schema
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
+      com.massimotter.weave.one-shot: "true"
+      com.massimotter.weave.operation: schema-initialize
+
+  schema-receipt-check:
+    profiles:
+      - test
+      - prod
+    image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-schema-receipt-check
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
+    restart: "no"
+    read_only: true
+    network_mode: none
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      schema-init:
+        condition: service_completed_successfully
+    command:
+      - schema-receipt-check
+    environment:
+      WEAVE_CANDIDATE_COMMIT: ${WEAVE_CANDIDATE_COMMIT}
+      WEAVE_SCHEMA_INIT_RECEIPT_FILE: /run/weave-schema-init/receipt.json
+    volumes:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/schema-init:/run/weave-schema-init:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: server-schema
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
+      com.massimotter.weave.one-shot: "true"
+      com.massimotter.weave.operation: schema-receipt-verify
+
   backend:
     <<: *weave-service
     labels:
@@ -604,7 +677,7 @@ services:
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-backend
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
     depends_on:
-      postgres-reconcile:
+      schema-receipt-check:
         condition: service_completed_successfully
       keycloak:
         condition: service_healthy

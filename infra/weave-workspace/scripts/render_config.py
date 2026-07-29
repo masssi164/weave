@@ -102,6 +102,21 @@ def _write(path: Path, payload: str | bytes, *, private: bool, runtime_owner: tu
             temporary.unlink()
 
 
+def _runtime_directory(path: Path, runtime_owner: tuple[int, int]) -> None:
+    if path.is_symlink():
+        raise ContractError(f"refusing generated symlink directory: {path}")
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(path, 0o700)
+    uid, gid = runtime_owner
+    if path.stat().st_uid != uid or path.stat().st_gid != gid:
+        try:
+            os.chown(path, uid, gid)
+        except PermissionError as error:
+            raise ContractError(
+                f"cannot bind generated directory {path} to runtime uid/gid {uid}:{gid}"
+            ) from error
+
+
 def _json(path: Path) -> dict[str, object]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -685,6 +700,7 @@ def render(context: ComposeContext) -> None:
         _read_secret(context, "smtp-password")
     generated = context.generated_root
     runtime_owner = (int(context.env["WEAVE_RUNTIME_UID"]), int(context.env["WEAVE_RUNTIME_GID"]))
+    _runtime_directory(generated / "schema-init", runtime_owner)
     _write(generated / "keycloak/overlay.json", json.dumps(overlay, indent=2, sort_keys=True) + "\n", private=False)
     _write(generated / "keycloak/desired-state.json", json.dumps(desired, indent=2, sort_keys=True) + "\n", private=False)
     secret_index = {

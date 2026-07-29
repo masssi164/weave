@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding.State;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderObjectMapping;
 import java.time.Instant;
-import org.flywaydb.core.Flyway;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -24,7 +24,7 @@ class JpaProviderBindingRepositoryPostgresTest {
     @Test
     void activationIsMonotonicAndMappingsRemainRevisionPrivate() {
         DriverManagerDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+        JpaTestDatabase.initializeSchema(dataSource);
         var repository = ProviderBindingJpaTestFactory.create(dataSource);
         Instant now = Instant.parse("2026-07-21T13:00:00Z");
 

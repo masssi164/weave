@@ -5,7 +5,6 @@ import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixE2eeSnapshotJpaRepository;
 import java.util.List;
 import java.util.Map;
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -21,7 +20,7 @@ class MatrixE2eeStateServicePersistenceTest {
     void publicKeysToDeviceEventsAndOpaqueBackupsSurviveServiceRestart() {
         DriverManagerDataSource dataSource =
                 com.massimotter.weave.backend.testing.JpaTestDatabase
-                        .migratedDataSource("matrix-e2ee");
+                        .entityFirstDataSource("matrix-e2ee");
         MatrixE2eeSnapshotJpaRepository repository = repository(dataSource);
         MatrixE2eeSnapshotStore snapshotStore = snapshotStore(repository);
         MatrixE2eeStateService first = service(snapshotStore);
@@ -88,7 +87,7 @@ class MatrixE2eeStateServicePersistenceTest {
     void fallbackKeyClaimAndUsedStateSurviveRestartWithoutMutatingStatusQueries() {
         DriverManagerDataSource dataSource =
                 com.massimotter.weave.backend.testing.JpaTestDatabase
-                        .migratedDataSource("matrix-e2ee-fallback");
+                        .entityFirstDataSource("matrix-e2ee-fallback");
         MatrixE2eeSnapshotJpaRepository repository = repository(dataSource);
         MatrixE2eeStateService service = service(snapshotStore(repository));
         var target = identity("WEAVEFALLBACKTARGET");

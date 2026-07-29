@@ -51,6 +51,6 @@ class JpaAuditEventPublisherTest {
 
     private DriverManagerDataSource migratedDataSource() {
         return com.massimotter.weave.backend.testing.JpaTestDatabase
-                .migratedDataSource("audit");
+                .entityFirstDataSource("audit");
     }
 }

@@ -17,7 +17,7 @@ class SynapseBackedCanonicalChatAdapterTest {
     void conversationMappingFailuresDoNotOverrideAvailableProviderCapability() {
         CanonicalChatStore store = mock(CanonicalChatStore.class);
         MatrixSynapseChatSouthboundAdapter provider = mock(MatrixSynapseChatSouthboundAdapter.class);
-        when(store.persistencePosture()).thenReturn("durable-relational-jpa-flyway");
+        when(store.persistencePosture()).thenReturn("durable-relational-jpa-code-first");
         when(provider.providerKey()).thenReturn("matrix-synapse");
         when(provider.configured()).thenReturn(true);
         when(provider.readiness()).thenReturn(ProviderReadiness.ready("chat-provider-ready"));
@@ -32,7 +32,7 @@ class SynapseBackedCanonicalChatAdapterTest {
     void systemicProviderFailureRemainsGlobalReadinessEvidence() {
         CanonicalChatStore store = mock(CanonicalChatStore.class);
         MatrixSynapseChatSouthboundAdapter provider = mock(MatrixSynapseChatSouthboundAdapter.class);
-        when(store.persistencePosture()).thenReturn("durable-relational-jpa-flyway");
+        when(store.persistencePosture()).thenReturn("durable-relational-jpa-code-first");
         when(provider.configured()).thenReturn(true);
         when(provider.readiness()).thenReturn(ProviderReadiness.degraded("chat-provider-authentication-failed"));
 
@@ -46,7 +46,7 @@ class SynapseBackedCanonicalChatAdapterTest {
     void systemicCallbackIntegrityFailureDegradesAnOtherwiseAvailableProvider() {
         CanonicalChatStore store = mock(CanonicalChatStore.class);
         MatrixSynapseChatSouthboundAdapter provider = mock(MatrixSynapseChatSouthboundAdapter.class);
-        when(store.persistencePosture()).thenReturn("durable-relational-jpa-flyway");
+        when(store.persistencePosture()).thenReturn("durable-relational-jpa-code-first");
         when(store.systemicCallbackIntegrityFailureCount("matrix-synapse")).thenReturn(1L);
         when(provider.providerKey()).thenReturn("matrix-synapse");
         when(provider.configured()).thenReturn(true);

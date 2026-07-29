@@ -15,6 +15,7 @@ import com.massimotter.weave.backend.persistence.jpa.profile.ProductProfileOverr
 import com.massimotter.weave.backend.persistence.jpa.provider.ProviderSelectionJpaRepository;
 import com.massimotter.weave.backend.persistence.jpa.readiness.JpaPersistenceReadinessProbe;
 import com.massimotter.weave.backend.persistence.jpa.security.DeviceCredentialJpaRepository;
+import com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaRepository;
 import com.massimotter.weave.backend.provider.JpaProviderSelectionRepository;
 import com.massimotter.weave.backend.providerbinding.adapter.JpaProviderBindingRepository;
 import com.massimotter.weave.backend.providerbinding.application.FilesProviderBindingBootstrap;
@@ -24,16 +25,19 @@ import com.massimotter.weave.backend.service.JpaProductProfileOverrideRepository
 import com.massimotter.weave.backend.service.migration.JpaMigrationRunEvidenceRepository;
 import jakarta.persistence.EntityManagerFactory;
 import java.time.Clock;
+import java.util.Arrays;
+import java.util.Set;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 /**
  * Explicit composition of domain persistence ports.
  *
- * <p>Spring Boot owns the DataSource, Hibernate, Flyway and transaction manager. No persistence
+ * <p>Spring Boot owns the DataSource, Hibernate and transaction manager. No persistence
  * adapter is allowed to create infrastructure beans.
  */
 @Configuration(proxyBeanMethods = false)
@@ -43,8 +47,16 @@ public class WeavePersistenceConfiguration {
   @Bean
   @ConditionalOnBean(EntityManagerFactory.class)
   JpaPersistenceReadinessProbe jpaPersistenceReadinessProbe(
-      EntityManagerFactory entityManagerFactory) {
-    return new JpaPersistenceReadinessProbe(entityManagerFactory);
+      EntityManagerFactory entityManagerFactory,
+      SchemaAuthorityJpaRepository schemaAuthority,
+      Environment environment) {
+    Set<String> markerProfiles = Set.of("test", "prod");
+    boolean markerRequired =
+        markerProfiles.contains(environment.getProperty("weave.deployment.profile", ""))
+            || Arrays.stream(environment.getActiveProfiles()).anyMatch(markerProfiles::contains);
+    String candidate = environment.getProperty("weave.candidate.commit", "");
+    return new JpaPersistenceReadinessProbe(
+        entityManagerFactory, schemaAuthority, markerRequired, candidate);
   }
 
   @Bean

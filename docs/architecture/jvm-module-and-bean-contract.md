@@ -39,8 +39,8 @@ only their deployed public protocols.
 | `weave-persistence-jpa` | Application Core, Jakarta Persistence, Spring Data JPA, MapStruct API/processor | no configuration beans; entity/repository implementations are discovered only by the Server composition root | Web/controller DTOs, MCP, providers, JDBC templates, Hibernate APIs in entity code |
 | `weave-runtime-provider-adapters` | Application Core and Jackson for provider payload normalization | no component scanning; Server configuration creates the selected port implementations explicitly | controllers, persistence entities, MCP annotations, provider DTOs crossing a port |
 | `weave-runtime-security-adapters` | Application Core, Spring Security JOSE, canonical JSON and Jackson | no security filter chains; Server configuration creates cryptographic/policy port implementations explicitly | HTTP endpoints, JPA, provider administration and MCP transport |
-| `server` | Spring Boot WebMVC/RestClient, Security Resource Server and OAuth2 Client, Validation, Data JPA, Flyway, Actuator, OpenAPI plus the adapter modules | the application composition root: security chains, use-case services, transaction/JPA composition, provider selection, one qualified Keycloak admin `RestClient` | Spring AI MCP transport/tools, MCP token-exchange admission, provider-shaped northbound contracts |
-| `weave-mcp-server` | Spring Boot RestClient, Security Resource Server and OAuth2 Client, Spring AI MCP WebMVC, Actuator and PEM/JWK support | one MCP security chain, one JWT decoder, one token-exchange boundary, one request-scoped exchanged credential, one WebDAV client, one Files tool/resource projection, framework transport customizers | DataSource, JPA, Hibernate, Flyway, Server entities/use cases and every southbound provider |
+| `server` | Spring Boot WebMVC/RestClient, Security Resource Server and OAuth2 Client, Validation, Data JPA, Actuator, OpenAPI plus the adapter modules | the application composition root: security chains, use-case services, transaction/JPA composition, provider selection, one qualified Keycloak admin `RestClient`, and the one-shot code-first schema initializer | Spring AI MCP transport/tools, MCP token-exchange admission, provider-shaped northbound contracts |
+| `weave-mcp-server` | Spring Boot RestClient, Security Resource Server and OAuth2 Client, Spring AI MCP WebMVC, Actuator and PEM/JWK support | one MCP security chain, one JWT decoder, one token-exchange boundary, one request-scoped exchanged credential, one WebDAV client, one Files tool/resource projection, framework transport customizers | DataSource, JPA, Hibernate, schema initialization, Server entities/use cases and every southbound provider |
 | `weave-product-e2e` | Plain Java, Playwright, Jackson, Nimbus JOSE/JWT, JUnit, AssertJ and ArchUnit | no Spring beans; one bounded process drives invitation, browser activation, PKCE, ARC, WebDAV and MCP | Spring, JPA/Hibernate, Server/MCP implementation dependencies, provider adapters, credential/evidence persistence |
 
 Only the two deployable Spring processes apply the Spring Boot plugin. All JVM modules use Java 21 and resolve
@@ -96,9 +96,10 @@ The first-owner bootstrap adds no second identity client:
   check, exact provider/local correlation, and owner-only projection make retries fail closed.
 
 The JPA starter owns `EntityManagerFactory`, transaction management, repository proxies and
-Hibernate. Server is the sole Flyway runner. H2 `dev-h2` uses an isolated in-memory schema built
-from entities with `create-drop`; PostgreSQL profiles apply reviewed Flyway migrations and use
-`ddl-auto=validate`. `JpaAuditEventPublisher` is the required runtime audit bean; application
+Hibernate. H2 `dev-h2` uses an isolated in-memory schema built from entities with `update`.
+PostgreSQL uses the exact Server image in persistent one-shot `schema-init` mode, followed by a
+support-safe receipt check; serving instances use `ddl-auto=validate` and require the exact
+candidate marker. `JpaAuditEventPublisher` is the required runtime audit bean; application
 services do not silently create an in-memory audit sink. No production-shaped profile falls back
 to H2.
 

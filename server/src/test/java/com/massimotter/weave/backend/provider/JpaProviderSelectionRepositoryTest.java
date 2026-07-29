@@ -50,6 +50,6 @@ class JpaProviderSelectionRepositoryTest {
 
     private DriverManagerDataSource migratedDataSource() {
         return com.massimotter.weave.backend.testing.JpaTestDatabase
-                .migratedDataSource("provider-selection");
+                .entityFirstDataSource("provider-selection");
     }
 }

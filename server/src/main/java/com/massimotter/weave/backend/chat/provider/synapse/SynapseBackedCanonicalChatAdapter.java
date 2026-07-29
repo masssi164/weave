@@ -55,7 +55,7 @@ public final class SynapseBackedCanonicalChatAdapter implements ChatProviderPort
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.clock = clock;
-        if (!"durable-relational-jpa-flyway".equals(store.persistencePosture())) {
+        if (!"durable-relational-jpa-code-first".equals(store.persistencePosture())) {
             throw new IllegalStateException("Matrix/Synapse Chat requires durable canonical JPA storage.");
         }
     }
@@ -72,7 +72,7 @@ public final class SynapseBackedCanonicalChatAdapter implements ChatProviderPort
 
     @Override
     public boolean configured() {
-        return provider.configured() && "durable-relational-jpa-flyway".equals(store.persistencePosture());
+        return provider.configured() && "durable-relational-jpa-code-first".equals(store.persistencePosture());
     }
 
     @Override

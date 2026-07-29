@@ -39,7 +39,14 @@ public class JpaMigrationRunEvidenceRepository implements MigrationRunEvidenceRe
             throw new IllegalArgumentException("Migration run evidence and recordedAt are required.");
         }
         try {
-            repository.saveAndFlush(toEntity(evidence));
+            MigrationRunEvidenceJpaEntity replacement = toEntity(evidence);
+            MigrationRunEvidenceJpaEntity entity = repository.findById(replacement.id())
+                    .map(observed -> {
+                        observed.replaceWith(replacement);
+                        return observed;
+                    })
+                    .orElse(replacement);
+            repository.saveAndFlush(entity);
         } catch (DataAccessException failure) {
             throw new MigrationRunEvidenceStoreException(
                     "Failed to persist durable migration run evidence.", failure);

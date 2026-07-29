@@ -119,6 +119,47 @@ def assert_agent_runtime_mount_boundary(model: dict[str, object]) -> None:
             assert "/agent-runtime/workloads/" not in coordinate
 
 
+def assert_schema_init_boundary(model: dict[str, object]) -> None:
+    services = model["services"]
+    initializer = services["schema-init"]
+    verifier = services["schema-receipt-check"]
+    backend = services["backend"]
+    assert initializer["image"] == backend["image"] == verifier["image"]
+    assert initializer["command"] == ["schema-init"]
+    assert verifier["command"] == ["schema-receipt-check"]
+    assert initializer["restart"] == "no"
+    assert verifier["restart"] == "no"
+    assert verifier["network_mode"] == "none"
+    assert initializer["depends_on"]["postgres-reconcile"]["condition"] == (
+        "service_completed_successfully"
+    )
+    assert verifier["depends_on"]["schema-init"]["condition"] == (
+        "service_completed_successfully"
+    )
+    assert backend["depends_on"]["schema-receipt-check"]["condition"] == (
+        "service_completed_successfully"
+    )
+    graph = normalized_mount_graph(model)
+    receipt_writers = {
+        entry["service"]
+        for entry in graph
+        if entry["target"].startswith("/run/weave-schema-init")
+        and entry["access"] == "read-write"
+    }
+    assert receipt_writers == {"schema-init"}
+    assert {
+        entry["service"]
+        for entry in graph
+        if entry["target"].startswith("/run/weave-schema-init")
+        and entry["access"] == "read-only"
+    } == {"schema-receipt-check"}
+    assert {
+        secret["source"]
+        for secret in initializer.get("secrets", [])
+    } == {"backend-db-password"}
+    assert not verifier.get("secrets")
+
+
 def assert_protected_source_preflight(dev, root: Path) -> None:
     root.mkdir(mode=0o700)
     secret_root = root / "secrets"
@@ -334,8 +375,12 @@ def main() -> None:
         assert "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED=false\n" in backend_env
         assert "WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID=" not in backend_env
         assert "WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF=" not in backend_env
-        assert_agent_runtime_mount_boundary(resolved_model(test))
-        assert_agent_runtime_mount_boundary(resolved_model(prod))
+        test_model = resolved_model(test)
+        prod_model = resolved_model(prod)
+        assert_agent_runtime_mount_boundary(test_model)
+        assert_agent_runtime_mount_boundary(prod_model)
+        assert_schema_init_boundary(test_model)
+        assert_schema_init_boundary(prod_model)
         regression = json.loads(
             (
                 ROOT

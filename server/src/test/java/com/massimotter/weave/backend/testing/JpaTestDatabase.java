@@ -11,7 +11,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
-import org.flywaydb.core.Flyway;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.springframework.aop.framework.ProxyFactory;
@@ -84,33 +83,27 @@ public final class JpaTestDatabase {
     return dataSource;
   }
 
-  public static DriverManagerDataSource migratedDataSource(String semanticName) {
-    DriverManagerDataSource dataSource = dataSource(semanticName);
-    Flyway.configure()
-        .dataSource(dataSource)
-        .locations("classpath:db/migration")
-        .load()
-        .migrate();
-    return dataSource;
-  }
-
   /**
-   * Creates a database from the entity model for H2 feedback and from the reviewed migration for
-   * the authoritative PostgreSQL gate.
+   * Creates an isolated database from the entity model for both H2 feedback and authoritative
+   * PostgreSQL repository gates.
    *
-   * <p>This is the normal repository-test entrypoint: H2 exercises the code-first model, while
-   * {@code postgresJpaTest} proves that the deployment baseline remains equivalent.
+   * <p>This is the normal repository-test entrypoint. {@code postgresJpaTest} proves the same
+   * code-first model against PostgreSQL without a parallel SQL migration authority.
    */
   public static synchronized DriverManagerDataSource entityFirstDataSource(String semanticName) {
-    if (Boolean.getBoolean("weave.test.postgres")) {
-      return migratedDataSource(semanticName);
-    }
     DriverManagerDataSource dataSource = dataSource(semanticName);
-    register(dataSource, create(dataSource, "create"));
+    initializeSchema(dataSource);
     return dataSource;
   }
 
-  /** Proves that the reviewed migration and the complete entity model describe the same schema. */
+  /** Creates the complete entity-owned schema on a caller-managed test datasource. */
+  public static synchronized void initializeSchema(DataSource dataSource) {
+    if (!CONTEXTS.containsKey(dataSource)) {
+      register(dataSource, create(dataSource, "create"));
+    }
+  }
+
+  /** Proves that an existing schema matches the complete entity model. */
   public static void validateSchema(DataSource dataSource) {
     LocalContainerEntityManagerFactoryBean factory = entityManagerFactory(dataSource, "validate");
     factory.destroy();

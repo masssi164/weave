@@ -54,10 +54,24 @@ class RelationalProfileGuardTest {
                 .doesNotThrowAnyException();
     }
 
+    @Test
+    void prodRejectsServingSchemaMutation() {
+        MockEnvironment environment = environment(
+                        "prod",
+                        "jdbc:postgresql://postgres:5432/weave",
+                        "org.postgresql.Driver")
+                .withProperty("spring.jpa.hibernate.ddl-auto", "update");
+
+        assertThatThrownBy(() -> new RelationalProfileGuard(environment).afterSingletonsInstantiated())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Hibernate validate");
+    }
+
     private static MockEnvironment environment(String deploymentProfile, String url, String driver) {
         return new MockEnvironment()
                 .withProperty("weave.deployment.profile", deploymentProfile)
                 .withProperty("spring.datasource.url", url)
-                .withProperty("spring.datasource.driver-class-name", driver);
+                .withProperty("spring.datasource.driver-class-name", driver)
+                .withProperty("spring.jpa.hibernate.ddl-auto", "validate");
     }
 }

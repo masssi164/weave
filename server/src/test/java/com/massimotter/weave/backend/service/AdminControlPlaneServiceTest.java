@@ -25,7 +25,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -423,7 +422,7 @@ class AdminControlPlaneServiceTest {
 
     private DriverManagerDataSource migratedDataSource() {
         return com.massimotter.weave.backend.testing.JpaTestDatabase
-                .migratedDataSource("admin-control-plane");
+                .entityFirstDataSource("admin-control-plane");
     }
 
     private WorkspaceCapabilityService workspaceCapabilityService() {

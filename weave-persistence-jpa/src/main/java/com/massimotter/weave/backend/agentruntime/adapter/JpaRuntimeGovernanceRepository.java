@@ -11,6 +11,7 @@ import jakarta.persistence.PersistenceException;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
+import org.springframework.data.domain.PageRequest;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
@@ -69,7 +70,10 @@ public class JpaRuntimeGovernanceRepository
                                 observation.sourceProvider(),
                                 observation.sourceGroupRef(),
                                 observation.capabilityRevision(),
-                                RuntimeEntitlementState.ENTITLED);
+                                RuntimeEntitlementState.ENTITLED,
+                                PageRequest.of(0, 1))
+                                .stream()
+                                .findFirst();
                 if (reusable.isPresent()) {
                     RuntimeEntitlementJpaEntity entity = reusable.orElseThrow();
                     entity.observe(observation, auditRef, now);

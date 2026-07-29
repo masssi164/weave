@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -20,6 +21,10 @@ public class ProvisioningIntentJpaEntity {
   @Id
   @Column(name = "intent_id", nullable = false)
   private UUID intentId;
+
+  @Version
+  @Column(name = "version", nullable = false)
+  private Long version;
 
   @Column(name = "tenant_id", length = 160, nullable = false)
   private String tenantId;

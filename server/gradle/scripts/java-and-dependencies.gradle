@@ -13,8 +13,6 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-flyway'
-    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     implementation libs.springdoc.webmvc.api
     implementation libs.jcs
     implementation(libs.aws.s3) {
@@ -38,8 +36,6 @@ dependencies {
     testImplementation 'org.junit.platform:junit-platform-suite'
     testImplementation libs.testcontainers.junit
     testImplementation libs.testcontainers.postgresql
-    // Flyway currently verifies H2 through 2.3.x; 2.4.240 closes comparison
-    // state retained by valid CHECK constraints and makes JPA tests fail spuriously.
     testRuntimeOnly libs.h2.test
     testRuntimeOnly libs.cucumber.junit.platform
 }

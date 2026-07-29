@@ -35,8 +35,14 @@ public class MatrixE2eeSnapshotStore {
         if (repository == null) {
             return;
         }
-        repository.saveAndFlush(new MatrixE2eeSnapshotJpaEntity(
-                tenantId, sequence, payloadJson, clock.instant()));
+        var now = clock.instant();
+        var observed = repository.findById(tenantId);
+        MatrixE2eeSnapshotJpaEntity snapshot = observed.orElseGet(() ->
+                new MatrixE2eeSnapshotJpaEntity(tenantId, sequence, payloadJson, now));
+        if (observed.isPresent()) {
+            snapshot.replace(sequence, payloadJson, now);
+        }
+        repository.saveAndFlush(snapshot);
     }
 
     public boolean durable() {

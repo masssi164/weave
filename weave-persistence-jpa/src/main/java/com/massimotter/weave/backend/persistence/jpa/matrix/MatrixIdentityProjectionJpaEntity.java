@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 
 @Entity
@@ -23,6 +24,10 @@ public class MatrixIdentityProjectionJpaEntity {
   @Id
   @Column(name = "matrix_user_id", length = 255, nullable = false)
   private String matrixUserId;
+
+  @Version
+  @Column(name = "version", nullable = false)
+  private Long version;
 
   @Column(name = "actor_ref", length = 255, nullable = false)
   private String actorRef;

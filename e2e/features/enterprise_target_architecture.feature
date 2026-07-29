@@ -55,7 +55,7 @@ Feature: Enterprise target architecture evidence spine
     Given Admin Console provider selections and product profile overrides are strategic Weave-owned mutable state
     When the Server composes its production persistence authority
     Then explicit code-first JPA entities define provider selections and product profile overrides
-    And the reviewed Flyway baseline deploys that entity model while Hibernate validates it
+    And the one-shot Server schema initializer converges and fingerprints that entity model before serving Hibernate validation
     And read/write ordering and restart recovery are proven without a selectable file-store fallback
     And H2-only evidence is not claimed as PostgreSQL production readiness
 

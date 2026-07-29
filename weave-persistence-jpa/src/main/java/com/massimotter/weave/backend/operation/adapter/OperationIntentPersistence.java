@@ -93,7 +93,11 @@ class OperationIntentJpaEntity {
     @Column(name = "canonical_arguments_digest", nullable = false, length = 71, updatable = false)
     private String canonicalArgumentsDigest;
 
-    @Column(name = "object_refs_json", nullable = false, updatable = false)
+    @Column(
+            name = "object_refs_json",
+            nullable = false,
+            updatable = false,
+            length = Integer.MAX_VALUE)
     private String objectRefsJson;
 
     @Column(name = "policy_revision", nullable = false, length = 255, updatable = false)
@@ -365,7 +369,11 @@ class OperationOutboxJpaEntity {
     @Column(name = "event_type", nullable = false, length = 120, updatable = false)
     private String eventType;
 
-    @Column(name = "payload_json", nullable = false, updatable = false)
+    @Column(
+            name = "payload_json",
+            nullable = false,
+            updatable = false,
+            length = Integer.MAX_VALUE)
     private String payloadJson;
 
     @Column(name = "delivery_state", nullable = false, length = 32)

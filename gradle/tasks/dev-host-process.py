@@ -172,7 +172,6 @@ def application_environment(
             "WEAVE_PERSISTENCE_PASSWORD",
             "WEAVE_PERSISTENCE_DRIVER",
             "WEAVE_JPA_DDL_AUTO",
-            "WEAVE_FLYWAY_ENABLED",
         ):
             translated.pop(key, None)
         translated["SPRING_PROFILES_ACTIVE"] = "dev-h2"

@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 @Entity
 @Table(name = "weave_product_profile_overrides")
@@ -12,6 +13,10 @@ public class ProductProfileOverrideJpaEntity {
   @Id
   @Column(name = "primary_identity_key", length = 528, nullable = false)
   private String primaryIdentityKey;
+
+  @Version
+  @Column(name = "version", nullable = false)
+  private Long version;
 
   @Column(name = "display_name", length = 255)
   private String displayName;

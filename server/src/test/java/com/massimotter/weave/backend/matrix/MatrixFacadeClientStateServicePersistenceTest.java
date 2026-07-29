@@ -8,7 +8,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -22,7 +21,7 @@ class MatrixFacadeClientStateServicePersistenceTest {
     @Test
     void keycloakDerivedIdentityProjectionSurvivesBackendRestart() {
         DriverManagerDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+        com.massimotter.weave.backend.testing.JpaTestDatabase.initializeSchema(dataSource);
         MatrixProtocolCoreService protocol = mock(MatrixProtocolCoreService.class);
         String matrixUserId = "@user_projection:api.weave.test";
         when(protocol.whoami("subject-projection", "WEAVEDEVICEPROJECTION"))

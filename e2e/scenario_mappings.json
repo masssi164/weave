@@ -4229,21 +4229,21 @@
         {
           "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
           "fragments": [
-            "Flyway Core",
+            "one persistent, non-cancelling schema initializer",
             "Testcontainers JUnit/PostgreSQL",
             "H2 only for fast development/unit feedback",
             "PostgreSQL as the authoritative integration"
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/resources/db/migration/V001__weave_baseline.sql",
+          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/provider/ProviderSelectionJpaEntity.java",
           "fragments": [
             "weave_provider_selections",
-            "weave_provider_selection_notes"
+            "ProviderSelectionJpaEntity"
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/resources/db/migration/V001__weave_baseline.sql",
+          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/profile/ProductProfileOverrideJpaEntity.java",
           "fragments": [
             "weave_product_profile_overrides",
             "accessibility_preferences_json"
@@ -4284,7 +4284,7 @@
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/resources/db/migration/V001__weave_baseline.sql",
+          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/audit/AuditEventJpaEntity.java",
           "fragments": [
             "weave_audit_events",
             "uq_weave_audit_events_idempotency"
@@ -4325,10 +4325,10 @@
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/resources/db/migration/V001__weave_baseline.sql",
+          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/migration/MigrationRunEvidenceJpaEntity.java",
           "fragments": [
             "weave_migration_run_evidence",
-            "primary key (run_id, domain_key)"
+            "@EmbeddedId"
           ]
         },
         {

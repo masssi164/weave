@@ -14,7 +14,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
-import org.flywaydb.core.Flyway;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -35,7 +35,7 @@ class JpaOperationIntentRepositoryPostgresTest {
     @Test
     void intentOutboxAndEquivalentRetryShareOneDurableEffect() {
         DriverManagerDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+        JpaTestDatabase.initializeSchema(dataSource);
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         var repository = OperationIntentJpaTestFactory.create(dataSource);
         var service = new OperationIntentService(
@@ -58,7 +58,7 @@ class JpaOperationIntentRepositoryPostgresTest {
     @Test
     void conflictingArgumentsForOneKeyFailClosed() {
         DriverManagerDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+        JpaTestDatabase.initializeSchema(dataSource);
         var repository = OperationIntentJpaTestFactory.create(dataSource);
         var service = new OperationIntentService(repository, Clock.systemUTC());
 

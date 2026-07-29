@@ -34,8 +34,8 @@ the [JVM module, dependency, and bean contract](architecture/jvm-module-and-bean
 | Module | Runtime dependencies | Owned beans | Forbidden dependencies/beans |
 | --- | --- | --- | --- |
 | `weave-files-core` | Java only | none | Spring, HTTP, Servlet, Jackson, JPA, MCP and provider SDKs |
-| `server` | Java 21, Spring Boot 4.1, WebMVC, OAuth2 Resource Server, Spring Data JPA, Hibernate, Flyway | public/control-plane security chains, canonical Files use cases, provider ports/adapters, explicit identity-provider OAuth2 client, JPA/Flyway composition | Spring AI MCP, MCP OAuth2 token exchange, MCP tool beans |
-| `weave-mcp-server` | Java 21, Spring Boot 4.1, Spring AI MCP 2.0, OAuth2 Resource Server, OAuth2 Client, Actuator, Bouncy Castle PEM support | MCP transport/security, Boot-managed `RestClient.Builder`, request-scoped exchanged credentials, RFC 8693 token-exchange adapter, Files MCP projection | JDBC/JPA/Flyway, provider adapters, product repositories, duplicate domain use cases |
+| `server` | Java 21, Spring Boot 4.1, WebMVC, OAuth2 Resource Server, Spring Data JPA, Hibernate | public/control-plane security chains, canonical Files use cases, provider ports/adapters, explicit identity-provider OAuth2 client, JPA composition and one-shot schema initialization | Spring AI MCP, MCP OAuth2 token exchange, MCP tool beans |
+| `weave-mcp-server` | Java 21, Spring Boot 4.1, Spring AI MCP 2.0, OAuth2 Resource Server, OAuth2 Client, Actuator, Bouncy Castle PEM support | MCP transport/security, Boot-managed `RestClient.Builder`, request-scoped exchanged credentials, RFC 8693 token-exchange adapter, Files MCP projection | JDBC/JPA/schema initialization, provider adapters, product repositories, duplicate domain use cases |
 
 Spring manages exactly one default bean for each boundary concern in the MCP process:
 

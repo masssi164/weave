@@ -40,6 +40,6 @@ class JpaProductProfileOverrideRepositoryTest {
 
     private DriverManagerDataSource migratedDataSource() {
         return com.massimotter.weave.backend.testing.JpaTestDatabase
-                .migratedDataSource("product-profile");
+                .entityFirstDataSource("product-profile");
     }
 }

@@ -97,7 +97,7 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
 
     @Override
     public String persistencePosture() {
-        return "durable-relational-jpa-flyway";
+        return "durable-relational-jpa-code-first";
     }
 
     @Override

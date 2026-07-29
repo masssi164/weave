@@ -12,14 +12,10 @@ import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.context.ApplicationContext;
 import org.springframework.core.env.Environment;
 import org.springframework.test.context.ActiveProfiles;
 
-@DataJpaTest(properties = {
-        "spring.flyway.enabled=false",
-        "spring.jpa.hibernate.ddl-auto=create-drop"
-})
+@DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=update")
 @Tag("dev-h2-integration")
 @ActiveProfiles("dev")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -27,9 +23,6 @@ class DevH2JpaIntegrationTest {
 
     @Autowired
     private Environment environment;
-
-    @Autowired
-    private ApplicationContext applicationContext;
 
     @Autowired
     private OrganizationBootstrapJpaRepository repository;
@@ -43,12 +36,9 @@ class DevH2JpaIntegrationTest {
         assertThat(environment.getRequiredProperty("spring.datasource.driver-class-name"))
                 .isEqualTo("org.h2.Driver");
         assertThat(environment.getRequiredProperty("spring.jpa.hibernate.ddl-auto"))
-                .isEqualTo("create-drop");
+                .isEqualTo("update");
         assertThat(environment.getRequiredProperty("spring.jpa.open-in-view"))
                 .isEqualTo("false");
-        assertThat(applicationContext.getBeanNamesForType(org.flywaydb.core.Flyway.class))
-                .isEmpty();
-
         OffsetDateTime bootstrappedAt = OffsetDateTime.of(
                 2026, 7, 22, 12, 30, 0, 0, ZoneOffset.UTC);
         repository.saveAndFlush(new OrganizationBootstrapEntity(

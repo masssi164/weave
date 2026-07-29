@@ -15,13 +15,9 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 /**
- * Proves parity between Flyway, the pinned Chen-model manifest, and JPA.
+ * Proves parity between the pinned relational-model manifest and JPA.
  */
 class RelationalModelParityTest {
-    private static final Pattern CREATE_TABLE = Pattern.compile(
-            "(?im)^create\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?([a-zA-Z0-9_]+)");
-    private static final Pattern DROP_TABLE = Pattern.compile(
-            "(?im)^drop\\s+table\\s+(?:if\\s+exists\\s+)?([a-zA-Z0-9_]+)");
     private static final Pattern ENTITY_DECLARATION = Pattern.compile(
             "@Entity\\b([\\s\\S]*?)\\bclass\\s+([A-Za-z0-9_]+)");
     private static final Pattern TABLE_NAME = Pattern.compile(
@@ -31,20 +27,22 @@ class RelationalModelParityTest {
             Pattern.MULTILINE);
 
     @Test
-    void flywayManifestEntitiesAndRepositoriesAreInExactParity()
+    void manifestEntitiesAndRepositoriesAreInExactParity()
             throws IOException {
         Path repositoryRoot = repositoryRoot();
         Path migrations = repositoryRoot.resolve(
                 "weave-persistence-jpa/src/main/resources/db/migration");
-        try (var files = Files.list(migrations)) {
-            assertThat(files
-                    .filter(path -> path.toString().endsWith(".sql"))
-                    .map(path -> path.getFileName().toString())
-                    .toList())
-                    .containsExactly("V001__weave_baseline.sql");
+        if (Files.exists(migrations)) {
+            try (var files = Files.walk(migrations)) {
+                assertThat(files
+                        .filter(Files::isRegularFile)
+                        .map(path -> migrations.relativize(path).toString())
+                        .toList())
+                        .as("code-first persistence has no parallel migration resource")
+                        .isEmpty();
+            }
         }
         JsonNode model = relationalModel(repositoryRoot);
-        Set<String> flywayTables = currentFlywayTables(repositoryRoot);
         Set<String> manifestTables = new LinkedHashSet<>();
         Map<String, String> expectedEntityTables = new LinkedHashMap<>();
         Set<String> expectedRepositories = new LinkedHashSet<>();
@@ -52,8 +50,7 @@ class RelationalModelParityTest {
         for (JsonNode entity : model.path("entities")) {
             String lifecycle = entity.path("lifecycle").asText();
             JsonNode storage = entity.path("storage");
-            if (Set.of("flyway-table", "migration-table")
-                    .contains(storage.path("kind").asText())) {
+            if ("jpa-table".equals(storage.path("kind").asText())) {
                 manifestTables.add(storage.path("name").asText());
             }
             JsonNode jpa = entity.path("jpa");
@@ -81,18 +78,16 @@ class RelationalModelParityTest {
         Set<String> actualRepositories = matches(
                 JPA_REPOSITORY, production, 1);
 
-        assertThat(manifestTables)
-                .as("every current Flyway table is modeled, including migration-only debt")
-                .isEqualTo(flywayTables);
         assertThat(actualEntityTables)
                 .as("every JPA entity and @Table mapping matches the canonical relational manifest")
                 .isEqualTo(expectedEntityTables);
         assertThat(actualRepositories)
                 .as("every Spring Data repository is declared by the canonical relational manifest")
                 .isEqualTo(expectedRepositories);
-        assertThat(actualEntityTables)
-                .as("checkpoint chunks remain migration-only and cannot gain a production entity")
-                .doesNotContainValue("weave_agent_runtime_state_chunks");
+        assertThat(new LinkedHashSet<>(actualEntityTables.values()))
+                .as("the complete relational schema is owned by JPA and no retired table remains")
+                .isEqualTo(manifestTables)
+                .doesNotContain("weave_agent_runtime_state_chunks");
     }
 
     private JsonNode relationalModel(Path repositoryRoot) throws IOException {
@@ -110,25 +105,6 @@ class RelationalModelParityTest {
                 .as("the exact pinned specification corpus must be available")
                 .isRegularFile();
         return mapper.readTree(Files.readString(model));
-    }
-
-    private Set<String> currentFlywayTables(Path repositoryRoot)
-            throws IOException {
-        Set<String> created = new LinkedHashSet<>();
-        Set<String> dropped = new LinkedHashSet<>();
-        Path migrations = repositoryRoot.resolve(
-                "weave-persistence-jpa/src/main/resources/db/migration");
-        try (var files = Files.list(migrations)) {
-            for (Path migration : files
-                    .filter(path -> path.toString().endsWith(".sql"))
-                    .toList()) {
-                String sql = Files.readString(migration);
-                created.addAll(matches(CREATE_TABLE, sql, 1));
-                dropped.addAll(matches(DROP_TABLE, sql, 1));
-            }
-        }
-        created.removeAll(dropped);
-        return created;
     }
 
     private String productionJava(Path repositoryRoot) throws IOException {

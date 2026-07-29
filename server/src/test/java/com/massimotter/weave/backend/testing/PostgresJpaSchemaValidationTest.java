@@ -9,8 +9,8 @@ import org.junit.jupiter.api.Test;
 class PostgresJpaSchemaValidationTest {
 
   @Test
-  void reviewedFlywayBaselineMatchesTheCompleteHibernateEntityModel() {
-    var dataSource = JpaTestDatabase.migratedDataSource("schema-validation");
+  void codeFirstPostgresSchemaMatchesTheCompleteHibernateEntityModel() {
+    var dataSource = JpaTestDatabase.entityFirstDataSource("schema-validation");
 
     assertThatCode(() -> JpaTestDatabase.validateSchema(dataSource)).doesNotThrowAnyException();
   }

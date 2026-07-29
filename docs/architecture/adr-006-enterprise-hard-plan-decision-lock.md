@@ -94,7 +94,7 @@ The target package and module map is:
 | Domain kernel | Canonical domain entities, value objects, invariants, and use-case interfaces. | Framework-free `weave-application-core` and domain-specific core modules such as `weave-files-core`. |
 | Application/use cases | Product workflows over domain ports; no direct provider or projection calls. | Framework-free application modules plus Server-owned composition. |
 | Projections | OpenAPI control/admin/setup/revoke/manifest convenience, WebDAV, CalDAV/iCalendar, People-domain CardDAV/vCard, Matrix Client-Server, and Spring AI MCP northbound adapters. | Server protocol adapters and the separate `weave-mcp-server` process. |
-| Persistence | Flyway/JPA-backed repositories and append-only ledgers behind domain ports. | `weave-persistence-jpa`, composed exclusively by the Server. |
+| Persistence | Code-first JPA repositories and append-only ledgers behind domain ports. | `weave-persistence-jpa`, composed exclusively by the Server; the exact Server image owns one-shot PostgreSQL schema initialization. |
 | Provider adapters | Southbound Keycloak, Matrix, Nextcloud, OpenProject, LiveKit, directory/contact, and future adapters. | Provider and security adapter modules behind application ports. |
 | Policy, audit, credentials | Authorization, approvals, redaction, audit, credential references, and support-safe evidence. | Current `audit`, `context/authz`, identity, and readiness services. |
 | Boot wiring | Spring composition root, configuration, and profile-specific adapters. | Current server boot module. |
@@ -145,7 +145,7 @@ Existing work remains part of the graph rather than being duplicated:
   reconciled with repo conventions, dependency policy, and the pinned corpus.
 - Strategic persistence is cut over to JPA for production and dogfood. H2 is a
   code-first development feedback profile; PostgreSQL, the reviewed Fresh Start
-  Flyway baseline, and Hibernate validation form the authoritative runtime
+  code-first schema initializer, authority marker, catalog fingerprint, and Hibernate validation form the authoritative runtime
   contract. There is no selectable file-store fallback.
 - Physical Gradle modules and ArchUnit gates enforce dependency direction before
   code can cross application, persistence, provider, security, transport, or MCP

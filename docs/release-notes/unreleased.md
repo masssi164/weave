@@ -27,9 +27,9 @@ Use this page for release-affecting changes that have merged but are not include
 ## Changed
 
 - Replaces productive JDBC repositories with portable JPA entities, Spring Data repositories and
-  explicit MapStruct/domain mappings. H2 remains development/test feedback only; PostgreSQL plus
-  reviewed Flyway `V001` and Hibernate validation are the integration, dogfood and production
-  contract.
+  explicit MapStruct/domain mappings. H2 remains development feedback only; PostgreSQL uses a
+  one-shot code-first Server initializer with advisory lock, catalog fingerprint, authority
+  marker and receipt, while serving instances use Hibernate validation.
 - Standardizes Keycloak communication on Spring Security OAuth2 Client components: Boot's
   authorized-client manager for invitation administration, the client-credentials response
   client for SecretRef-backed ARC administration, and RFC 8693 token exchange with

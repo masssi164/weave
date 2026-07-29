@@ -40,7 +40,7 @@ class RuntimeProfileJpaEntity {
     @Column(name = "person_ref", nullable = false, length = 255, updatable = false)
     private String personRef;
 
-    @Column(name = "payload", nullable = false, updatable = false)
+    @Column(name = "payload", nullable = false, updatable = false, length = Integer.MAX_VALUE)
     private String payload;
 
     @Column(name = "selected_key_id", nullable = false, length = 255)
@@ -181,10 +181,14 @@ class RuntimeProfileSignatureJpaEntity {
     @EmbeddedId
     private RuntimeProfileSignatureId id;
 
-    @Column(name = "protected_header", nullable = false, updatable = false)
+    @Column(
+            name = "protected_header",
+            nullable = false,
+            updatable = false,
+            length = Integer.MAX_VALUE)
     private String protectedHeader;
 
-    @Column(name = "signature", nullable = false, updatable = false)
+    @Column(name = "signature", nullable = false, updatable = false, length = Integer.MAX_VALUE)
     private String signature;
 
     @Column(name = "created_at", nullable = false, updatable = false)

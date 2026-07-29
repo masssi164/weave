@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.OffsetDateTime;
 
 @Entity
@@ -13,13 +14,17 @@ public class OrganizationBootstrapEntity {
     @Column(name = "organization_id", nullable = false, length = 255)
     private String organizationId;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @Column(name = "bootstrap_mode", nullable = false, length = 64)
     private String bootstrapMode;
 
     @Column(name = "actor_primary_identity_key", nullable = false, length = 512)
     private String actorPrimaryIdentityKey;
 
-    @Column(name = "retained_admin_primary_identity_keys_json", nullable = false, columnDefinition = "text")
+    @Column(name = "retained_admin_primary_identity_keys_json", nullable = false, length = Integer.MAX_VALUE)
     private String retainedAdminPrimaryIdentityKeysJson;
 
     @Column(name = "bootstrapped_at", nullable = false)
