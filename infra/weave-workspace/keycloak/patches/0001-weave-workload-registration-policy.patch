@@ -2,7 +2,7 @@ diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/
 new file mode 100644
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,470 @@
+@@ -0,0 +1,484 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import jakarta.ws.rs.core.Response;
@@ -96,6 +96,14 @@ new file mode 100644
 +            "Weave workload client metadata is not permitted [constraint=final-auth].";
 +    static final String INVALID_FINAL_SESSION_DETAIL =
 +            "Weave workload client metadata is not permitted [constraint=final-session].";
++    static final String INVALID_FINAL_REFRESH_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=final-refresh].";
++    static final String INVALID_FINAL_BACKCHANNEL_SESSION_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=final-backchannel-session].";
++    static final String INVALID_FINAL_BACKCHANNEL_REVOKE_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=final-backchannel-revoke].";
++    static final String INVALID_FINAL_FRONTCHANNEL_SESSION_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=final-frontchannel-session].";
 +    static final String INVALID_FINAL_ROLES_DETAIL =
 +            "Weave workload client metadata is not permitted [constraint=final-roles].";
 +    static final String CROSS_CELL_DETAIL =
@@ -388,14 +396,20 @@ new file mode 100644
 +                attributes.get(OIDCConfigAttributes.TOKEN_ENDPOINT_AUTH_SIGNING_ALG))) {
 +            throw invalid(INVALID_FINAL_AUTH_DETAIL);
 +        }
-+        if (!FIXED_ATTRIBUTES.entrySet().stream()
-+                .filter(entry -> !Set.of(
-+                                OIDCConfigAttributes.USE_JWKS_STRING,
-+                                OIDCConfigAttributes.USE_JWKS_URL,
-+                                OIDCConfigAttributes.TOKEN_ENDPOINT_AUTH_SIGNING_ALG)
-+                        .contains(entry.getKey()))
-+                .allMatch(entry -> entry.getValue().equals(attributes.get(entry.getKey())))) {
-+            throw invalid(INVALID_FINAL_SESSION_DETAIL);
++        if (!Boolean.FALSE.toString().equals(attributes.get(USE_REFRESH_TOKENS))) {
++            throw invalid(INVALID_FINAL_REFRESH_DETAIL);
++        }
++        if (!Boolean.FALSE.toString().equals(
++                attributes.get(BACKCHANNEL_LOGOUT_SESSION_REQUIRED))) {
++            throw invalid(INVALID_FINAL_BACKCHANNEL_SESSION_DETAIL);
++        }
++        if (!Boolean.FALSE.toString().equals(
++                attributes.get(BACKCHANNEL_LOGOUT_REVOKE_OFFLINE_TOKENS))) {
++            throw invalid(INVALID_FINAL_BACKCHANNEL_REVOKE_DETAIL);
++        }
++        if (!Boolean.FALSE.toString().equals(
++                attributes.get(FRONTCHANNEL_LOGOUT_SESSION_REQUIRED))) {
++            throw invalid(INVALID_FINAL_FRONTCHANNEL_SESSION_DETAIL);
 +        }
 +        if (!Set.of(WORKLOAD_ROLE).equals(directRoleNames)
 +                || !Set.of(WORKLOAD_ROLE).equals(effectiveRoleNames)) {
