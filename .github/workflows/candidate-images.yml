@@ -309,12 +309,6 @@ jobs:
           java-version: "21"
           cache: gradle
 
-      - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_version: 1.10.6
-          tofu_wrapper: false
-
       - name: Authenticate exact candidate pulls
         uses: docker/login-action@v4
         with:

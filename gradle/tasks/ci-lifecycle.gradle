@@ -50,7 +50,6 @@ tasks.register('doctor') {
         checkCommand('dart', ['dart', '--version'], 'Install the Dart SDK or use the Dart bundled with Flutter.')
         checkCommand('node', ['node', '--version'], 'Install Node matching the CI setup or the repo .nvm policy when added.')
         checkCommand('npm', ['npm', '--version'], 'Install npm and run npm ci in admin-console when needed.')
-        checkCommand('tofu', ['tofu', '--version'], 'Install OpenTofu for infraStatic, matching the CI setup version.')
         checkCommand('mkdocs', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs --version'], 'Install pinned docs dependencies with: python3 -m pip install -r docs/requirements.txt (or use build/docs-venv).')
 
         if (!failures.isEmpty()) {

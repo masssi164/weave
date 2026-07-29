@@ -10,6 +10,7 @@ readonly SERVER_IMAGE="${REPOSITORY_ROOT}/server/Dockerfile"
 readonly MCP_IMAGE="${REPOSITORY_ROOT}/weave-mcp-server/Dockerfile"
 readonly IDENTITY_OPS_IMAGE="${REPOSITORY_ROOT}/infra/weave-workspace/keycloak/Dockerfile.identity-ops"
 readonly WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/candidate-images.yml"
+readonly DOCTOR_TASK="${REPOSITORY_ROOT}/gradle/tasks/ci-lifecycle.gradle"
 
 fail() {
   printf 'candidate image contract failed: %s\n' "$*" >&2
@@ -20,6 +21,12 @@ contains() {
   local file="$1"
   local text="$2"
   grep -Fq -- "${text}" "${file}" || fail "${file} omitted ${text}"
+}
+
+reject() {
+  local file="$1"
+  local text="$2"
+  ! grep -Fq -- "${text}" "${file}" || fail "${file} retains retired prerequisite ${text}"
 }
 
 for image in "${SERVER_IMAGE}" "${MCP_IMAGE}" "${IDENTITY_OPS_IMAGE}"; do
@@ -56,6 +63,9 @@ contains "${WORKFLOW}" 'Verify published OCI runtime metadata'
 contains "${WORKFLOW}" 'validate_published_image'
 contains "${WORKFLOW}" 'docker image inspect'
 contains "${WORKFLOW}" 'com.massimotter.weave.runtime-user'
+reject "${WORKFLOW}" 'opentofu/setup-opentofu'
+reject "${WORKFLOW}" 'tofu_version'
+reject "${DOCTOR_TASK}" "checkCommand('tofu'"
 if grep -Fq ':latest' "${WORKFLOW}"; then
   fail "${WORKFLOW} contains a mutable latest tag"
 fi
