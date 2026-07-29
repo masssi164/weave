@@ -2,7 +2,7 @@ diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/
 new file mode 100644
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,422 @@
+@@ -0,0 +1,425 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import jakarta.ws.rs.core.Response;
@@ -243,6 +243,9 @@ new file mode 100644
 +
 +        Map<String, String> attributes =
 +                new HashMap<>(Objects.requireNonNullElse(representation.getAttributes(), Map.of()));
++        // Keycloak's ClientRepresentation wrapper retains null-valued keys when an optional
++        // OIDC field is absent. Normalize only those converter placeholders before allowlisting.
++        attributes.entrySet().removeIf(entry -> entry.getValue() == null);
 +        for (String converterAttribute : CONVERTER_FALSE_ATTRIBUTES) {
 +            String value = attributes.remove(converterAttribute);
 +            if (value != null && !Boolean.FALSE.toString().equals(value)) {
