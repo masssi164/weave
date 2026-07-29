@@ -15,16 +15,19 @@ class JpaProvisioningIntentRepositoryTest {
     void repeatedSaveUpdatesTheAssignedIdentifierInsteadOfInsertingItAgain() {
         var database = JpaTestDatabase.entityFirstDataSource("identity-provisioning-intent");
         JpaProvisioningIntentRepository repository = repository(database);
-        Instant createdAt = Instant.parse("2026-07-29T19:00:00Z");
+        Instant createdAt = Instant.parse("2026-07-29T19:00:00.123456789Z");
         ProvisioningIntent pending = intent(UUID.randomUUID(), createdAt);
 
-        repository.save(pending);
+        ProvisioningIntent persisted = repository.save(pending);
         ProvisioningIntent linked =
                 pending.withProviderInvitation("provider-invitation-1", createdAt.plusSeconds(1));
-        repository.save(linked);
+        ProvisioningIntent persistedLinked = repository.save(linked);
 
-        assertThat(repository.findById(pending.intentId())).contains(linked);
-        assertThat(repository.findByProviderInvitationId("provider-invitation-1")).contains(linked);
+        assertThat(persisted.createdAt()).isEqualTo(Instant.parse("2026-07-29T19:00:00.123Z"));
+        assertThat(persistedLinked.updatedAt()).isEqualTo(Instant.parse("2026-07-29T19:00:01.123Z"));
+        assertThat(repository.findById(pending.intentId())).contains(persistedLinked);
+        assertThat(repository.findByProviderInvitationId("provider-invitation-1"))
+                .contains(persistedLinked);
     }
 
     @Test

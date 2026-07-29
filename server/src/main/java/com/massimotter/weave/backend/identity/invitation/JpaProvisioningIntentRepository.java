@@ -2,6 +2,8 @@ package com.massimotter.weave.backend.identity.invitation;
 
 import com.massimotter.weave.backend.persistence.jpa.identity.ProvisioningIntentJpaEntity;
 import com.massimotter.weave.backend.persistence.jpa.identity.ProvisioningIntentJpaRepository;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,7 +24,7 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
                 .map(existing -> update(existing, intent))
                 .orElseGet(() -> toEntity(intent));
         intents.saveAndFlush(entity);
-        return intent;
+        return toDomain(entity);
     }
 
     @Override
@@ -63,9 +65,9 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
                 value.status().name(),
                 value.appliedSubject(),
                 value.failureCode(),
-                value.expiresAt(),
-                value.createdAt(),
-                value.updatedAt());
+                persistedInstant(value.expiresAt()),
+                persistedInstant(value.createdAt()),
+                persistedInstant(value.updatedAt()));
     }
 
     private ProvisioningIntentJpaEntity update(
@@ -79,8 +81,8 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
                 || !existing.invitedByIssuer().equals(value.invitedByIssuer())
                 || !existing.invitedBySubject().equals(value.invitedBySubject())
                 || !existing.auditCorrelation().equals(value.auditCorrelation())
-                || !existing.expiresAt().equals(value.expiresAt())
-                || !existing.createdAt().equals(value.createdAt())) {
+                || !existing.expiresAt().equals(persistedInstant(value.expiresAt()))
+                || !existing.createdAt().equals(persistedInstant(value.createdAt()))) {
             throw new IllegalStateException("provisioning intent immutable identity changed");
         }
         existing.updateMutableState(
@@ -88,8 +90,12 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
                 value.status().name(),
                 value.appliedSubject(),
                 value.failureCode(),
-                value.updatedAt());
+                persistedInstant(value.updatedAt()));
         return existing;
+    }
+
+    private static Instant persistedInstant(Instant value) {
+        return value.truncatedTo(ChronoUnit.MILLIS);
     }
 
     private ProvisioningIntent toDomain(ProvisioningIntentJpaEntity value) {
