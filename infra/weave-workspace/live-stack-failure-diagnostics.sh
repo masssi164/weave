@@ -19,6 +19,7 @@ readonly DEFAULT_CONTAINERS=(
   "${RESOURCE_PREFIX}-mailpit"
   "${RESOURCE_PREFIX}-db"
   "${RESOURCE_PREFIX}-schema-init"
+  "${RESOURCE_PREFIX}-runtime-state-init"
 )
 
 OUTPUT_DIR="${1:-${WEAVE_LIVE_STACK_FAILURE_DIAGNOSTICS_DIR:-${ROOT_DIR}/.generated/live-stack-failure-diagnostics}}"
@@ -228,12 +229,15 @@ main() {
   local failed_markers="${OUTPUT_DIR}/failed-markers.json"
   local private_status="${OUTPUT_DIR}/private-raw-logs-status.txt"
   local schema_init_diagnostic="${OUTPUT_DIR}/one-shot/schema-init.log"
+  local runtime_state_init_diagnostic="${OUTPUT_DIR}/one-shot/runtime-state-init.log"
 
   write_container_status "${container_status}"
   write_operator_check "${operator_check}" "${operator_status}"
   write_failed_markers "${failed_markers}"
   write_redacted_container_diagnostic \
     "${RESOURCE_PREFIX}-schema-init" "${schema_init_diagnostic}"
+  write_redacted_container_diagnostic \
+    "${RESOURCE_PREFIX}-runtime-state-init" "${runtime_state_init_diagnostic}"
   write_redacted_container_diagnostic \
     "${RESOURCE_PREFIX}-backend" "${OUTPUT_DIR}/runtime/backend-startup.log"
   write_backend_readiness_diagnostic \
@@ -264,6 +268,7 @@ This directory is support-safe by default. It intentionally does not dump raw co
 - Support-safe backend readiness state: \`health-checks/backend-readiness.json\`
 - Failed or missing acceptance markers: \`failed-markers.json\`
 - Redacted schema initializer diagnostic: \`one-shot/schema-init.log\`
+- Redacted RuntimeState initializer diagnostic: \`one-shot/runtime-state-init.log\`
 - Redacted backend startup diagnostic: \`runtime/backend-startup.log\`
 - Redacted support bundle: \`${bundle_reference}\` (exit ${support_exit})
 - Private raw logs: ${private_status_text}
@@ -283,6 +288,7 @@ MD
     printf '  "backendReadiness": "health-checks/backend-readiness.json",\n'
     printf '  "failedMarkers": "failed-markers.json",\n'
     printf '  "schemaInitDiagnostic": "one-shot/schema-init.log",\n'
+    printf '  "runtimeStateInitDiagnostic": "one-shot/runtime-state-init.log",\n'
     printf '  "backendStartupDiagnostic": "runtime/backend-startup.log",\n'
     printf '  "supportBundleReference": %s,\n' "$(printf '%s' "${bundle_reference}" | json_escape)"
     printf '  "privateRawLogs": %s\n' "$(printf '%s' "${private_status_text}" | json_escape)"
