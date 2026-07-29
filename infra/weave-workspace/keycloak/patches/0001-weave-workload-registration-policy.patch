@@ -65,6 +65,14 @@ new file mode 100644
 +    static final Pattern CLIENT_ID_PATTERN =
 +            Pattern.compile("^weaver-cell-[A-Za-z0-9_-]+$");
 +    static final String INVALID_DETAIL = "Weave workload client metadata is not permitted.";
++    static final String INVALID_NAMESPACE_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=namespace].";
++    static final String INVALID_POSTURE_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=posture].";
++    static final String INVALID_ATTRIBUTES_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=attributes].";
++    static final String INVALID_FINAL_STATE_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=final-state].";
 +    static final String CROSS_CELL_DETAIL =
 +            "Weave workload client lifecycle authority does not match the target client.";
 +
@@ -185,7 +193,7 @@ new file mode 100644
 +        if (!isWorkloadClient(requestedClientId)
 +                || (representation.getClientId() != null
 +                        && !requestedClientId.equals(representation.getClientId()))) {
-+            throw invalid(INVALID_DETAIL);
++            throw invalid(INVALID_NAMESPACE_DETAIL);
 +        }
 +        representation.setClientId(requestedClientId);
 +        preparePosture(representation, requestedClientId);
@@ -224,7 +232,7 @@ new file mode 100644
 +                || hasValues(representation.getProtocolMappers())
 +                || hasValues(representation.getDefaultClientScopes())
 +                || hasValues(representation.getOptionalClientScopes())) {
-+            throw invalid(INVALID_DETAIL);
++            throw invalid(INVALID_POSTURE_DETAIL);
 +        }
 +
 +        Map<String, String> attributes =
@@ -232,7 +240,7 @@ new file mode 100644
 +        for (String converterAttribute : CONVERTER_FALSE_ATTRIBUTES) {
 +            String value = attributes.remove(converterAttribute);
 +            if (value != null && !Boolean.FALSE.toString().equals(value)) {
-+                throw invalid(INVALID_DETAIL);
++                throw invalid(INVALID_ATTRIBUTES_DETAIL);
 +            }
 +        }
 +        if (!ALLOWED_ATTRIBUTES.containsAll(attributes.keySet())
@@ -241,7 +249,7 @@ new file mode 100644
 +                || !hasText(attributes.get(OIDCConfigAttributes.JWKS_STRING))
 +                || !hasText(attributes.get(JWT_PUBLIC_KEY))
 +                || !hasText(attributes.get(JWT_KEY_ID))) {
-+            throw invalid(INVALID_DETAIL);
++            throw invalid(INVALID_ATTRIBUTES_DETAIL);
 +        }
 +
 +        representation.setEnabled(Boolean.TRUE);
@@ -271,7 +279,7 @@ new file mode 100644
 +                .map(scope -> findScope(realm, scope))
 +                .toList();
 +        if (defaultScope == null || optionalScopes.contains(null)) {
-+            throw invalid(INVALID_DETAIL);
++            throw invalid(INVALID_FINAL_STATE_DETAIL);
 +        }
 +
 +        new HashSet<>(client.getClientScopes(true).values()).forEach(client::removeClientScope);
@@ -283,7 +291,7 @@ new file mode 100644
 +        UserModel serviceAccount = session.users().getServiceAccount(client);
 +        RoleModel workloadRole = realm.getRole(WORKLOAD_ROLE);
 +        if (serviceAccount == null || workloadRole == null) {
-+            throw invalid(INVALID_DETAIL);
++            throw invalid(INVALID_FINAL_STATE_DETAIL);
 +        }
 +        serviceAccount.getRoleMappingsStream().toList().forEach(serviceAccount::deleteRoleMapping);
 +        serviceAccount.grantRole(workloadRole);
@@ -333,7 +341,7 @@ new file mode 100644
 +                        .allMatch(entry -> entry.getValue().equals(attributes.get(entry.getKey())))
 +                || !Set.of(WORKLOAD_ROLE).equals(directRoleNames)
 +                || !Set.of(WORKLOAD_ROLE).equals(effectiveRoleNames)) {
-+            throw invalid(INVALID_DETAIL);
++            throw invalid(INVALID_FINAL_STATE_DETAIL);
 +        }
 +    }
 +
