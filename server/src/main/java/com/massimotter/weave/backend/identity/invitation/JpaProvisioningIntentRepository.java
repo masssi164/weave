@@ -18,7 +18,10 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
     @Override
     @Transactional
     public ProvisioningIntent save(ProvisioningIntent intent) {
-        intents.saveAndFlush(toEntity(intent));
+        ProvisioningIntentJpaEntity entity = intents.findById(intent.intentId())
+                .map(existing -> update(existing, intent))
+                .orElseGet(() -> toEntity(intent));
+        intents.saveAndFlush(entity);
         return intent;
     }
 
@@ -63,6 +66,30 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
                 value.expiresAt(),
                 value.createdAt(),
                 value.updatedAt());
+    }
+
+    private ProvisioningIntentJpaEntity update(
+            ProvisioningIntentJpaEntity existing,
+            ProvisioningIntent value) {
+        if (!existing.tenantId().equals(value.tenantId())
+                || !existing.organizationId().equals(value.organizationId())
+                || !existing.invitedEmail().equals(value.invitedEmail())
+                || !existing.invitedEmailSha256().equals(value.invitedEmailSha256())
+                || !existing.requestedRole().equals(value.requestedRole())
+                || !existing.invitedByIssuer().equals(value.invitedByIssuer())
+                || !existing.invitedBySubject().equals(value.invitedBySubject())
+                || !existing.auditCorrelation().equals(value.auditCorrelation())
+                || !existing.expiresAt().equals(value.expiresAt())
+                || !existing.createdAt().equals(value.createdAt())) {
+            throw new IllegalStateException("provisioning intent immutable identity changed");
+        }
+        existing.updateMutableState(
+                value.providerInvitationId(),
+                value.status().name(),
+                value.appliedSubject(),
+                value.failureCode(),
+                value.updatedAt());
+        return existing;
     }
 
     private ProvisioningIntent toDomain(ProvisioningIntentJpaEntity value) {

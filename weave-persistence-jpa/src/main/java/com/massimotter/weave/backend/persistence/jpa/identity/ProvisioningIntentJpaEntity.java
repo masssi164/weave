@@ -108,6 +108,26 @@ public class ProvisioningIntentJpaEntity {
     this.updatedAt = updatedAt;
   }
 
+  public void updateMutableState(
+      String providerInvitationId,
+      String status,
+      String appliedSubject,
+      String failureCode,
+      Instant updatedAt) {
+    if (this.providerInvitationId != null
+        && !this.providerInvitationId.equals(providerInvitationId)) {
+      throw new IllegalStateException("provisioning intent provider binding is immutable");
+    }
+    if (updatedAt.isBefore(this.updatedAt)) {
+      throw new IllegalStateException("provisioning intent update time cannot move backwards");
+    }
+    this.providerInvitationId = providerInvitationId;
+    this.status = status;
+    this.appliedSubject = appliedSubject;
+    this.failureCode = failureCode;
+    this.updatedAt = updatedAt;
+  }
+
   public UUID intentId() {
     return intentId;
   }
