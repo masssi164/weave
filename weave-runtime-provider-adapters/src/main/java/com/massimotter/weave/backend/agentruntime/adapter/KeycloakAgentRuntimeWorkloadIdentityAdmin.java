@@ -452,6 +452,9 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         metadata.put("token_endpoint_auth_method", CLIENT_AUTHENTICATOR_PRIVATE_KEY_JWT);
         metadata.put("token_endpoint_auth_signing_alg", "PS256");
         metadata.put("subject_type", "public");
+        metadata.put("backchannel_logout_session_required", false);
+        metadata.put("backchannel_logout_revoke_offline_tokens", false);
+        metadata.put("frontchannel_logout_session_required", false);
         metadata.put("scope", String.join(" ", settings.optionalClientScopes()));
         metadata.set("redirect_uris", mapper.createArrayNode());
         metadata.set("grant_types", mapper.createArrayNode().add("client_credentials"));

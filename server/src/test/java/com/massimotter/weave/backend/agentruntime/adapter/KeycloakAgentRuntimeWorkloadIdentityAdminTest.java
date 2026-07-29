@@ -85,6 +85,12 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         assertThat(transport.metadata.path("client_name").asText()).isEqualTo(CLIENT_ID);
         assertThat(transport.metadata.path("token_endpoint_auth_method").asText())
                 .isEqualTo("private_key_jwt");
+        assertThat(transport.metadata.path("backchannel_logout_session_required").asBoolean())
+                .isFalse();
+        assertThat(transport.metadata.path("backchannel_logout_revoke_offline_tokens").asBoolean())
+                .isFalse();
+        assertThat(transport.metadata.path("frontchannel_logout_session_required").asBoolean())
+                .isFalse();
         assertThat(transport.metadata.path("redirect_uris")).isEmpty();
         assertThat(transport.metadata.path("grant_types").get(0).asText())
                 .isEqualTo("client_credentials");
