@@ -1,6 +1,15 @@
 # Control-plane infra bootstrap
 
-This page describes the provider-stack implementation slice for self-hosted/default bootstrap. The canonical product setup boundary is [Bootstrap foundation](bootstrap-foundation-contract.md): Control Plane = Weave Server; the Admin Console remains deferred, while southbound collaboration providers stay profile-driven. Keycloak is the mandatory IDM backbone and OAuth authority. LDAP, Active Directory, and external OIDC/SAML identity systems connect upstream through Keycloak and do not replace the Weave identity boundary. The Sprint 30 bootstrap-to-client acceptance contract is [Weave Control bootstrap-to-client contract](weave-control-bootstrap-to-client-contract.md).
+This page describes the provider-stack implementation slice for self-hosted/default bootstrap. At
+the canonical product setup boundary, [Bootstrap foundation](bootstrap-foundation-contract.md)
+defines the Control Plane as Weave Server plus Admin Console, while
+**Provider Stack / Infra is optional and profile-driven**. This page proves only the
+provider-stack implementation slice; the
+Admin Console deployment target remains outside this slice and no complete Control Plane runtime
+claim follows from it. Keycloak is the mandatory IDM backbone and OAuth authority. LDAP, Active
+Directory, and external OIDC/SAML identity systems connect upstream through Keycloak and do not
+replace the Weave identity boundary. The Sprint 30 bootstrap-to-client acceptance contract is
+[Weave Control bootstrap-to-client contract](weave-control-bootstrap-to-client-contract.md).
 
 - central Keycloak realm as the mandatory identity, organization, session, and OAuth foundation;
 - backend-owned provider registry, readiness, policy, audit, and SecretRef seams;
