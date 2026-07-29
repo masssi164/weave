@@ -12,6 +12,7 @@ import re
 import subprocess
 import sys
 import time
+import uuid
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -291,15 +292,16 @@ def client_payload(client: dict[str, Any]) -> dict[str, Any]:
         for key in jwks.get("keys", []):
             if not isinstance(key, dict):
                 raise IdentityOpsError(f"{client['key']} JWK set is malformed")
-            public_keys.append(
-                {
-                    name: value
-                    for name, value in key.items()
-                    if name not in {"d", "p", "q", "dp", "dq", "qi", "oth", "k"}
-                }
-            )
+            public_key = {
+                name: value
+                for name, value in key.items()
+                if name not in {"d", "p", "q", "dp", "dq", "qi", "oth", "k", "key_ops"}
+            }
+            public_key["key_ops"] = ["verify"]
+            public_keys.append(public_key)
         attributes = {
             "token.endpoint.auth.method": "private_key_jwt",
+            "token.endpoint.auth.signing.alg": "PS256",
             "use.jwks.url": "false",
             "jwks.string": json.dumps({"keys": public_keys}, separators=(",", ":"), sort_keys=True),
         }
@@ -1678,21 +1680,160 @@ def client_credentials_token_response(
         ) from error
 
 
+def base64url_bytes(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+
+def base64url_integer(value: str) -> int:
+    padding = "=" * (-len(value) % 4)
+    return int.from_bytes(base64.urlsafe_b64decode(value + padding), "big")
+
+
+def mask_generation_function(seed: bytes, length: int) -> bytes:
+    result = bytearray()
+    counter = 0
+    while len(result) < length:
+        result.extend(hashlib.sha256(seed + counter.to_bytes(4, "big")).digest())
+        counter += 1
+    return bytes(result[:length])
+
+
+def rsa_ps256_signature(message: bytes, private_jwk: dict[str, Any]) -> bytes:
+    try:
+        modulus = base64url_integer(str(private_jwk["n"]))
+        private_exponent = base64url_integer(str(private_jwk["d"]))
+    except (KeyError, ValueError) as error:
+        raise IdentityOpsError("runtime administration private JWK is malformed") from error
+    modulus_bits = modulus.bit_length()
+    encoded_bits = modulus_bits - 1
+    encoded_length = (encoded_bits + 7) // 8
+    salt = os.urandom(32)
+    digest = hashlib.sha256(message).digest()
+    encoded_digest = hashlib.sha256(b"\x00" * 8 + digest + salt).digest()
+    padding_length = encoded_length - len(encoded_digest) - len(salt) - 2
+    if modulus_bits < 2048 or padding_length < 0:
+        raise IdentityOpsError("runtime administration private JWK is malformed")
+    data_block = b"\x00" * padding_length + b"\x01" + salt
+    data_mask = mask_generation_function(encoded_digest, encoded_length - len(encoded_digest) - 1)
+    masked_data = bytearray(left ^ right for left, right in zip(data_block, data_mask))
+    masked_data[0] &= 0xFF >> (8 * encoded_length - encoded_bits)
+    encoded_message = bytes(masked_data) + encoded_digest + b"\xbc"
+    signature = pow(
+        int.from_bytes(encoded_message, "big"),
+        private_exponent,
+        modulus,
+    )
+    return signature.to_bytes((modulus_bits + 7) // 8, "big")
+
+
+def private_key_jwt_token_response(
+    server: str,
+    realm: str,
+    client_id: str,
+    private_jwk: dict[str, Any],
+) -> tuple[int, dict[str, Any]]:
+    if (
+        private_jwk.get("kty") != "RSA"
+        or private_jwk.get("alg") != "PS256"
+        or private_jwk.get("key_ops") != ["sign"]
+        or not isinstance(private_jwk.get("kid"), str)
+    ):
+        raise IdentityOpsError("runtime administration private JWK is malformed")
+    token_url = f"{server}/realms/{realm}/protocol/openid-connect/token"
+    now = int(time.time())
+    protected = base64url_bytes(
+        json.dumps(
+            {"alg": "PS256", "kid": private_jwk["kid"], "typ": "JWT"},
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("ascii")
+    )
+    claims = base64url_bytes(
+        json.dumps(
+            {
+                "aud": token_url,
+                "exp": now + 60,
+                "iat": now,
+                "iss": client_id,
+                "jti": str(uuid.uuid4()),
+                "sub": client_id,
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("ascii")
+    )
+    signing_input = f"{protected}.{claims}".encode("ascii")
+    assertion = f"{protected}.{claims}.{base64url_bytes(rsa_ps256_signature(signing_input, private_jwk))}"
+    request = urllib.request.Request(
+        token_url,
+        data=urllib.parse.urlencode(
+            {
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_assertion_type": (
+                    "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+                ),
+                "client_assertion": assertion,
+            }
+        ).encode("ascii"),
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            body = json.loads(response.read())
+            if not isinstance(body, dict):
+                raise IdentityOpsError(
+                    f"private_key_jwt response is malformed for {client_id}"
+                )
+            return response.status, body
+    except urllib.error.HTTPError as error:
+        try:
+            body = json.loads(error.read(4096))
+        except json.JSONDecodeError as parse_error:
+            raise IdentityOpsError(
+                f"private_key_jwt error response is malformed for {client_id}; response withheld"
+            ) from parse_error
+        if not isinstance(body, dict):
+            raise IdentityOpsError(
+                f"private_key_jwt error response is malformed for {client_id}; response withheld"
+            )
+        return error.code, body
+    except (urllib.error.URLError, json.JSONDecodeError) as error:
+        raise IdentityOpsError(
+            f"private_key_jwt request failed for {client_id}; response withheld"
+        ) from error
+
+
 def probe_client_credentials(server: str, realm: str, clients: list[dict[str, Any]]) -> None:
     for client in clients:
         secret_ref = client.get("secretRef")
-        if secret_ref not in SECRET_REF_FILES:
+        key_ref = client.get("keyRef")
+        if secret_ref not in SECRET_REF_FILES and key_ref not in SECRET_REF_FILES:
             continue
-        if client.get("authenticationMethod") != "client_secret_basic":
-            raise IdentityOpsError(f"{client['key']} token probe requires client_secret_basic")
         client_id = client["clientId"]
-        secret = private_value(secret_path(SECRET_REF_FILES[secret_ref]))
-        status, body = client_credentials_token_response(
-            server,
-            realm,
-            str(client_id),
-            secret,
-        )
+        if client.get("authenticationMethod") == "client_secret_basic":
+            secret = private_value(secret_path(SECRET_REF_FILES[secret_ref]))
+            status, body = client_credentials_token_response(
+                server,
+                realm,
+                str(client_id),
+                secret,
+            )
+        elif client.get("authenticationMethod") == "private_key_jwt":
+            private_jwk = json.loads(
+                private_value(secret_path(SECRET_REF_FILES[key_ref]))
+            )
+            status, body = private_key_jwt_token_response(
+                server,
+                realm,
+                str(client_id),
+                private_jwk,
+            )
+        else:
+            raise IdentityOpsError(
+                f"{client['key']} token probe requires a supported authentication method"
+            )
         if client.get("serviceAccountsEnabled") is True:
             if status != 200 or not isinstance(body.get("access_token"), str):
                 raise IdentityOpsError(

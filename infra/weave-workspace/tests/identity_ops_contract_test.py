@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
+import base64
 import importlib.util
 import io
 import json
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -125,6 +127,59 @@ def main() -> None:
         ) == (200, {"access_token": "test-only"})
     finally:
         identity_ops.urllib.request.urlopen = original_urlopen
+
+    captured_private_key_jwt: dict[str, str] = {}
+
+    def private_key_jwt_urlopen(request: object, **_kwargs: object) -> TokenResponse:
+        captured_private_key_jwt.update(
+            urllib.parse.parse_qsl(request.data.decode("ascii"))
+        )
+        return TokenResponse()
+
+    private_integer = lambda value: identity_ops.base64url_bytes(
+        value.to_bytes((value.bit_length() + 7) // 8, "big")
+    )
+    runtime_probe_jwk = {
+        "kty": "RSA",
+        "use": "sig",
+        "alg": "PS256",
+        "kid": "runtime-probe",
+        "key_ops": ["sign"],
+        "n": private_integer((1 << 2048) - 159),
+        "e": private_integer(65537),
+        "d": private_integer(1),
+    }
+    identity_ops.urllib.request.urlopen = private_key_jwt_urlopen
+    try:
+        assert identity_ops.private_key_jwt_token_response(
+            "http://keycloak:8080",
+            "weave",
+            "weave-agent-runtime-admin",
+            runtime_probe_jwk,
+        ) == (200, {"access_token": "test-only"})
+    finally:
+        identity_ops.urllib.request.urlopen = original_urlopen
+    assert captured_private_key_jwt["grant_type"] == "client_credentials"
+    assert captured_private_key_jwt["client_id"] == "weave-agent-runtime-admin"
+    assertion_parts = captured_private_key_jwt["client_assertion"].split(".")
+    assert len(assertion_parts) == 3
+    assertion_header = json.loads(
+        base64.urlsafe_b64decode(assertion_parts[0] + "==")
+    )
+    assertion_claims = json.loads(
+        base64.urlsafe_b64decode(assertion_parts[1] + "==")
+    )
+    assert assertion_header == {
+        "alg": "PS256",
+        "kid": "runtime-probe",
+        "typ": "JWT",
+    }
+    assert assertion_claims["iss"] == "weave-agent-runtime-admin"
+    assert assertion_claims["sub"] == "weave-agent-runtime-admin"
+    assert (
+        assertion_claims["aud"]
+        == "http://keycloak:8080/realms/weave/protocol/openid-connect/token"
+    )
 
     def rejected_urlopen(request: object, **_kwargs: object) -> None:
         raise identity_ops.urllib.error.HTTPError(
@@ -300,6 +355,40 @@ def main() -> None:
     )
     assert "defaultClientScopes" not in client_without_relationships
     assert "optionalClientScopes" not in client_without_relationships
+    runtime_private_jwk = {
+        "kty": "RSA",
+        "use": "sig",
+        "alg": "PS256",
+        "kid": "runtime-test",
+        "key_ops": ["sign"],
+        "n": "public-modulus",
+        "e": "AQAB",
+        "d": "private-exponent",
+        "p": "private-prime",
+        "q": "private-prime",
+        "dp": "private-exponent",
+        "dq": "private-exponent",
+        "qi": "private-coefficient",
+    }
+    original_private_value = identity_ops.private_value
+    identity_ops.private_value = lambda _path: json.dumps(runtime_private_jwk)
+    try:
+        runtime_admin = identity_ops.client_payload(
+            {
+                "key": "client:weave-agent-runtime-admin",
+                "clientId": "weave-agent-runtime-admin",
+                "authenticationMethod": "private_key_jwt",
+                "keyRef": "secretref:keycloak/weave-agent-runtime-admin-jwk",
+            }
+        )
+    finally:
+        identity_ops.private_value = original_private_value
+    runtime_public_jwk = json.loads(runtime_admin["attributes"]["jwks.string"])["keys"][0]
+    assert runtime_admin["clientAuthenticatorType"] == "client-jwt"
+    assert runtime_admin["attributes"]["token.endpoint.auth.method"] == "private_key_jwt"
+    assert runtime_admin["attributes"]["token.endpoint.auth.signing.alg"] == "PS256"
+    assert runtime_public_jwk["key_ops"] == ["verify"]
+    assert "d" not in runtime_public_jwk
     assert identity_ops.client_scope_payload(
         {
             "name": "weave:workspace",
