@@ -43,7 +43,6 @@ REQUIRED_PRIVATE_FILES = (
     "control-db-password",
     "nextcloud-actor-token",
     "keycloak-weave-identity-admin",
-    "keycloak-weave-agent-runtime-admin",
     "keycloak-nextcloud",
     "keycloak-matrix-mas",
     "mas-encryption-secret",
@@ -244,7 +243,9 @@ def _render_desired(baseline: dict[str, object], overlay: dict[str, object]) -> 
         raise ContractError("desired-state v2 must not contain legacy human realm groups")
     if desired.get("clientPolicies") != []:
         raise ContractError(
-            "Identity Ops supports stock Standard Token Exchange V2 only; custom clientPolicies must be empty"
+            "BLOCKED_SECURITY_CONTRACT: Keycloak 26.7.0 exposes only internal "
+            "client-registration policy extension points; workload registration "
+            "must remain unprovisioned"
         )
     organization_groups = desired.get("organizationGroups")
     if not isinstance(organization_groups, list):
@@ -626,7 +627,7 @@ def _backend_env(context: ComposeContext) -> str:
                 "WEAVE_AGENT_RUNTIME_POLICY_FILE": "/app/agent-runtime-policy.json",
                 "WEAVE_AGENT_RUNTIME_ENTITLEMENT_ENABLED": "true",
                 "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CAPABILITIES": "files.read",
-                "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED": "true",
+                "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED": "false",
                 "WEAVE_AGENT_RUNTIME_KEYCLOAK_ADMIN_BASE_URL": keycloak_base,
                 "WEAVE_AGENT_RUNTIME_ISSUER":
                     f"{env['WEAVE_AUTH_URL']}/realms/weave",
@@ -634,9 +635,6 @@ def _backend_env(context: ComposeContext) -> str:
                 "WEAVE_AGENT_RUNTIME_ORGANIZATION_REF": "tenant-default",
                 "WEAVE_AGENT_RUNTIME_KEYCLOAK_ORGANIZATION_ALIAS":
                     env["WEAVE_ORGANIZATION_ALIAS"],
-                "WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID": "weave-agent-runtime-admin",
-                "WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF":
-                    "credentialref://weave/keycloak/weave-agent-runtime-admin",
                 "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CLIENT_ID": "weave-identity-admin",
                 "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_REF":
                     "credentialref://weave/keycloak/weave-identity-admin",

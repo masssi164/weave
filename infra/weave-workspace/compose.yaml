@@ -130,7 +130,9 @@ services:
           - ${WEAVE_FILES_SUBDOMAIN:-files}.${WEAVE_TENANT_DOMAIN:-weave.test}
     volumes:
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}:/certs:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/certs/ca.pem:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/cert.pem:/certs/cert.pem:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/key.pem:/certs/key.pem:ro
       - caddy-data:/data
       - caddy-config:/config
     healthcheck:
@@ -225,11 +227,6 @@ services:
         mode: 0600
       - source: identity-admin-client-secret
         target: keycloak-weave-identity-admin
-        uid: "${WEAVE_RUNTIME_UID:-1000}"
-        gid: "${WEAVE_RUNTIME_GID:-1000}"
-        mode: 0600
-      - source: agent-runtime-admin-client-secret
-        target: keycloak-weave-agent-runtime-admin
         uid: "${WEAVE_RUNTIME_UID:-1000}"
         gid: "${WEAVE_RUNTIME_GID:-1000}"
         mode: 0600
@@ -555,6 +552,7 @@ services:
   agent-runtime-keys-init:
     profiles:
       - test
+      - prod
     image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-agent-runtime-keys-init
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
@@ -581,7 +579,8 @@ services:
           java -jar /app/app.jar runtime-state-wrapping-keys --action=initialize --root=/run/secrets/agent-runtime/state-wrapping --operation-ref=compose:fresh-start:state-wrapping >/dev/null
         fi
     volumes:
-      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime:/run/secrets/agent-runtime
+      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/profile-signing:/run/secrets/agent-runtime/profile-signing
+      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/state-wrapping:/run/secrets/agent-runtime/state-wrapping
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=32m
     labels:
@@ -609,6 +608,8 @@ services:
         condition: service_completed_successfully
       keycloak:
         condition: service_healthy
+      agent-runtime-keys-init:
+        condition: service_completed_successfully
       synapse:
         condition: service_healthy
       nextcloud:
@@ -630,7 +631,9 @@ services:
         target: weave/weave.calendar.caldav.backend-token
     volumes:
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/agent-runtime-policy.json:/app/agent-runtime-policy.json:ro
-      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime:/run/secrets/agent-runtime:ro
+      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/workloads:/run/secrets/agent-runtime/workloads
+      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/profile-signing:/run/secrets/agent-runtime/profile-signing:ro
+      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/state-wrapping:/run/secrets/agent-runtime/state-wrapping:ro
       - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/matrix-appservice-as-token:/run/secrets/matrix/as-token:ro
       - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/matrix-appservice-hs-token:/run/secrets/matrix/hs-token:ro
     ports:
@@ -784,8 +787,6 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-identity-admin
   identity-reference-hmac-key:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/identity-reference-hmac-key
-  agent-runtime-admin-client-secret:
-    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-agent-runtime-admin
   backend-client-jwk:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-backend-jwk.json
   mcp-server-client-jwk:

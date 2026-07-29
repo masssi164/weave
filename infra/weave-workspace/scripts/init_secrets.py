@@ -35,7 +35,6 @@ TEXT_SECRETS = (
     "nextcloud-admin-password",
     "nextcloud-actor-token",
     "keycloak-weave-identity-admin",
-    "keycloak-weave-agent-runtime-admin",
     "keycloak-nextcloud",
     "keycloak-matrix-mas",
     "mas-matrix-secret",
