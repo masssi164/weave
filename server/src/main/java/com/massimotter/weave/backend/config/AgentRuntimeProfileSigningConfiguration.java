@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.config;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.Ed25519JcsRuntimeProfileSigner;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeProfileSigningKeyStore;
+import com.massimotter.weave.backend.agentruntime.adapter.FileSecretStoreAccess;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigner;
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -27,7 +28,8 @@ public class AgentRuntimeProfileSigningConfiguration {
                 new SecureRandom(),
                 properties.keyLifetime(),
                 properties.trustOverlap(),
-                properties.maximumProfileTtl());
+                properties.maximumProfileTtl(),
+                FileSecretStoreAccess.READ_ONLY);
     }
 
     @Bean

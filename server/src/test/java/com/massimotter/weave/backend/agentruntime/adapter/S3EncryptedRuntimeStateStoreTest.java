@@ -64,7 +64,8 @@ class S3EncryptedRuntimeStateStoreTest {
                 temporary.resolve("keys").toAbsolutePath(),
                 tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                new SecureRandom());
+                new SecureRandom(),
+                FileSecretStoreAccess.READ_WRITE);
         keys.initialize("operator:init:runtime-state");
         objects = new ConcurrentHashMap<>();
         store = new S3EncryptedRuntimeStateStore(

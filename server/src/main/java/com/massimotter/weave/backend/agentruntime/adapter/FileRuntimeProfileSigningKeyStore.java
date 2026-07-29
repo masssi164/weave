@@ -86,6 +86,7 @@ public final class FileRuntimeProfileSigningKeyStore implements
     private final Duration keyLifetime;
     private final Duration trustOverlap;
     private final Duration maximumProfileTtl;
+    private final FileSecretStoreAccess access;
     private final ReentrantLock localLock = new ReentrantLock();
 
     public FileRuntimeProfileSigningKeyStore(
@@ -95,9 +96,13 @@ public final class FileRuntimeProfileSigningKeyStore implements
             SecureRandom secureRandom,
             Duration keyLifetime,
             Duration trustOverlap,
-            Duration maximumProfileTtl) {
+            Duration maximumProfileTtl,
+            FileSecretStoreAccess access) {
         if (root == null || objectMapper == null || clock == null || secureRandom == null) {
             throw new IllegalArgumentException("signing-key store root, mapper, clock, and randomness are required");
+        }
+        if (access == null) {
+            throw new IllegalArgumentException("signing-key store access is required");
         }
         validateDurations(keyLifetime, trustOverlap, maximumProfileTtl);
         this.root = root.toAbsolutePath().normalize();
@@ -113,6 +118,7 @@ public final class FileRuntimeProfileSigningKeyStore implements
         this.keyLifetime = keyLifetime;
         this.trustOverlap = trustOverlap;
         this.maximumProfileTtl = maximumProfileTtl;
+        this.access = access;
         ensureSecretDirectory();
     }
 
@@ -648,12 +654,16 @@ public final class FileRuntimeProfileSigningKeyStore implements
 
     private void ensureSecretDirectory() {
         try {
-            Files.createDirectories(root);
+            if (access == FileSecretStoreAccess.READ_WRITE) {
+                Files.createDirectories(root);
+            }
             rejectSymlink(root, "RuntimeProfile signing-key SecretRef root");
             if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
                 throw unavailable("The RuntimeProfile signing-key SecretRef root is not a directory", null);
             }
-            setDirectoryPermissions(root);
+            if (access == FileSecretStoreAccess.READ_WRITE) {
+                setDirectoryPermissions(root);
+            }
             requireDirectoryPermissions(root);
         } catch (RuntimeProfileSigningKeyException exception) {
             throw exception;
@@ -672,6 +682,9 @@ public final class FileRuntimeProfileSigningKeyStore implements
     }
 
     private <T> T writeLocked(CheckedSupplier<T> operation) {
+        if (access != FileSecretStoreAccess.READ_WRITE) {
+            throw unavailable("The RuntimeProfile signing-key SecretRef root is read-only", null);
+        }
         localLock.lock();
         try {
             rejectSymlink(lockPath, "RuntimeProfile signing-key lock");

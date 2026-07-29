@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.config;
 
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeStateKeyWrapper;
+import com.massimotter.weave.backend.agentruntime.adapter.FileSecretStoreAccess;
 import com.massimotter.weave.backend.agentruntime.adapter.S3EncryptedRuntimeStateStore;
 import com.massimotter.weave.backend.agentruntime.adapter.RuntimeStateJpaAuthority;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateKeyWrapper;
@@ -33,7 +34,8 @@ public class AgentRuntimeStateStoreConfiguration {
                 properties.requiredWrappingKeyRoot(),
                 objectMapper,
                 Clock.systemUTC(),
-                new SecureRandom());
+                new SecureRandom(),
+                FileSecretStoreAccess.READ_ONLY);
     }
 
     @Bean(destroyMethod = "close")

@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.agentruntime.operator;
 
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeStateKeyWrapper;
+import com.massimotter.weave.backend.agentruntime.adapter.FileSecretStoreAccess;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateWrappingKeyLifecycle;
 import java.io.PrintStream;
 import java.nio.file.Path;
@@ -33,7 +34,7 @@ public final class RuntimeStateWrappingKeyCli {
             Arguments parsed = Arguments.parse(arguments);
             ObjectMapper mapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
             FileRuntimeStateKeyWrapper keys = new FileRuntimeStateKeyWrapper(
-                    parsed.root(), mapper, clock, secureRandom);
+                    parsed.root(), mapper, clock, secureRandom, FileSecretStoreAccess.READ_WRITE);
             RuntimeStateWrappingKeyLifecycle.KeyRingState result = switch (parsed.action()) {
                 case INITIALIZE -> keys.initialize(parsed.requiredOperationRef());
                 case ROTATE -> keys.rotate(parsed.requiredOperationRef());
