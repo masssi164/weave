@@ -2,7 +2,7 @@ diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/
 new file mode 100644
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,425 @@
+@@ -0,0 +1,439 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import jakarta.ws.rs.core.Response;
@@ -79,6 +79,14 @@ new file mode 100644
 +            "Weave workload client metadata is not permitted [constraint=credential-attributes].";
 +    static final String INVALID_FINAL_STATE_DETAIL =
 +            "Weave workload client metadata is not permitted [constraint=final-state].";
++    static final String INVALID_FINAL_POSTURE_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=final-posture].";
++    static final String INVALID_FINAL_SCOPES_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=final-scopes].";
++    static final String INVALID_FINAL_ATTRIBUTES_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=final-attributes].";
++    static final String INVALID_FINAL_ROLES_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=final-roles].";
 +    static final String CROSS_CELL_DETAIL =
 +            "Weave workload client lifecycle authority does not match the target client.";
 +
@@ -346,15 +354,21 @@ new file mode 100644
 +                || hasText(client.getRootUrl())
 +                || hasText(client.getBaseUrl())
 +                || hasText(client.getManagementUrl())
-+                || client.getProtocolMappersStream().findAny().isPresent()
-+                || !Set.of(DEFAULT_SCOPE).equals(client.getClientScopes(true).keySet())
-+                || !OPTIONAL_SCOPES.equals(client.getClientScopes(false).keySet())
-+                || !ALLOWED_ATTRIBUTES.equals(attributes.keySet())
++                || client.getProtocolMappersStream().findAny().isPresent()) {
++            throw invalid(INVALID_FINAL_POSTURE_DETAIL);
++        }
++        if (!Set.of(DEFAULT_SCOPE).equals(client.getClientScopes(true).keySet())
++                || !OPTIONAL_SCOPES.equals(client.getClientScopes(false).keySet())) {
++            throw invalid(INVALID_FINAL_SCOPES_DETAIL);
++        }
++        if (!ALLOWED_ATTRIBUTES.equals(attributes.keySet())
 +                || !FIXED_ATTRIBUTES.entrySet().stream()
-+                        .allMatch(entry -> entry.getValue().equals(attributes.get(entry.getKey())))
-+                || !Set.of(WORKLOAD_ROLE).equals(directRoleNames)
++                        .allMatch(entry -> entry.getValue().equals(attributes.get(entry.getKey())))) {
++            throw invalid(INVALID_FINAL_ATTRIBUTES_DETAIL);
++        }
++        if (!Set.of(WORKLOAD_ROLE).equals(directRoleNames)
 +                || !Set.of(WORKLOAD_ROLE).equals(effectiveRoleNames)) {
-+            throw invalid(INVALID_FINAL_STATE_DETAIL);
++            throw invalid(INVALID_FINAL_ROLES_DETAIL);
 +        }
 +    }
 +
