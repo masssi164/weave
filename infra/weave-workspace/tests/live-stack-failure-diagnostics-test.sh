@@ -81,11 +81,13 @@ PATH="${stub_bin}:${PATH}" \
 [[ -s "${output_dir}/failure-summary.json" ]] || { echo "missing failure summary json" >&2; exit 1; }
 [[ -s "${output_dir}/container-status.tsv" ]] || { echo "missing container status" >&2; exit 1; }
 [[ -s "${output_dir}/one-shot/schema-init.log" ]] || { echo "missing schema initializer diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/runtime/backend-startup.log" ]] || { echo "missing backend startup diagnostic" >&2; exit 1; }
 grep -Fq 'intentionally does not dump raw container logs' "${output_dir}/failure-summary.md"
 grep -Fq 'rawContainerLogsIncluded": false' "${output_dir}/failure-summary.json"
 ! grep -RFq "${output_dir}" "${output_dir}"
 grep -Fq 'CHAT_RESULT' "${output_dir}/failed-markers.json"
 grep -Fq '<redacted>' "${output_dir}/one-shot/schema-init.log"
+grep -Fq '<redacted>' "${output_dir}/runtime/backend-startup.log"
 
 if grep -R -Fq 'secret-password' "${output_dir}" || grep -R -Fq 'person@example.com' "${output_dir}" || grep -R -Fq 'eyJhbGci' "${output_dir}"; then
   echo "failure diagnostics leaked raw private log content" >&2

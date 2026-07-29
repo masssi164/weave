@@ -129,16 +129,16 @@ write_failed_markers() {
   printf '{"schema":"weave-live-stack-failed-markers-v1","status":"acceptance-evidence-not-generated"}\n' >"${target}"
 }
 
-write_schema_init_diagnostic() {
-  local target="$1"
-  local container="${RESOURCE_PREFIX}-schema-init"
+write_redacted_container_diagnostic() {
+  local container="$1"
+  local target="$2"
   mkdir -p "$(dirname -- "${target}")"
   if ! command -v docker >/dev/null 2>&1; then
-    printf 'schema initializer diagnostic unavailable: docker is unavailable\n' >"${target}"
+    printf 'container diagnostic unavailable: docker is unavailable\n' >"${target}"
     return
   fi
   if ! docker inspect "${container}" >/dev/null 2>&1; then
-    printf 'schema initializer diagnostic unavailable: container not found\n' >"${target}"
+    printf 'container diagnostic unavailable: container not found\n' >"${target}"
     return
   fi
   docker logs --tail 200 "${container}" 2>&1 |
@@ -203,7 +203,10 @@ main() {
   write_container_status "${container_status}"
   write_operator_check "${operator_check}" "${operator_status}"
   write_failed_markers "${failed_markers}"
-  write_schema_init_diagnostic "${schema_init_diagnostic}"
+  write_redacted_container_diagnostic \
+    "${RESOURCE_PREFIX}-schema-init" "${schema_init_diagnostic}"
+  write_redacted_container_diagnostic \
+    "${RESOURCE_PREFIX}-backend" "${OUTPUT_DIR}/runtime/backend-startup.log"
   local support_bundle=""
   support_bundle="$(write_support_bundle "${OUTPUT_DIR}/support-bundle" || true)"
   write_private_raw_logs_if_requested "${OUTPUT_DIR}" "${private_status}"
@@ -229,6 +232,7 @@ This directory is support-safe by default. It intentionally does not dump raw co
 - Readiness check output: \`health-checks/operator-check.txt\` (exit ${operator_exit})
 - Failed or missing acceptance markers: \`failed-markers.json\`
 - Redacted schema initializer diagnostic: \`one-shot/schema-init.log\`
+- Redacted backend startup diagnostic: \`runtime/backend-startup.log\`
 - Redacted support bundle: \`${bundle_reference}\` (exit ${support_exit})
 - Private raw logs: ${private_status_text}
 
@@ -246,6 +250,7 @@ MD
     printf '  "operatorCheck": {"path": "health-checks/operator-check.txt", "exitStatus": %s},\n' "${operator_exit}"
     printf '  "failedMarkers": "failed-markers.json",\n'
     printf '  "schemaInitDiagnostic": "one-shot/schema-init.log",\n'
+    printf '  "backendStartupDiagnostic": "runtime/backend-startup.log",\n'
     printf '  "supportBundleReference": %s,\n' "$(printf '%s' "${bundle_reference}" | json_escape)"
     printf '  "privateRawLogs": %s\n' "$(printf '%s' "${private_status_text}" | json_escape)"
     printf '}\n'
