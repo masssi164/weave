@@ -2,7 +2,7 @@ diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/
 new file mode 100644
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,396 @@
+@@ -0,0 +1,404 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import jakarta.ws.rs.core.Response;
@@ -165,9 +165,17 @@ new file mode 100644
 +            if (!isWorkloadClient(requested)
 +                    || representation.getSectorIdentifierUri() != null
 +                    || (representation.getSubjectType() != null
-+                            && !"public".equals(representation.getSubjectType()))) {
++                            && !"public".equals(representation.getSubjectType()))
++                    || representation.getScope() == null
++                    || !exactSet(
++                            List.of(representation.getScope().split(" ", -1)),
++                            OPTIONAL_SCOPES)) {
 +                throw invalid(INVALID_DETAIL);
 +            }
++            // The exact raw OIDC scope set is validated above. Remove it before conversion so
++            // Keycloak's legacy authenticated-registration allowlist cannot widen or reject the
++            // server-owned final assignment performed by the post-create event.
++            representation.setScope(null);
 +        }
 +    }
 +
@@ -214,7 +222,8 @@ new file mode 100644
 +                || hasText(representation.getAdminUrl())
 +                || hasText(representation.getSecret())
 +                || hasValues(representation.getProtocolMappers())
-+                || !exactSet(representation.getOptionalClientScopes(), OPTIONAL_SCOPES)) {
++                || hasValues(representation.getDefaultClientScopes())
++                || hasValues(representation.getOptionalClientScopes())) {
 +            throw invalid(INVALID_DETAIL);
 +        }
 +
@@ -247,9 +256,8 @@ new file mode 100644
 +        representation.setAuthorizationServicesEnabled(Boolean.FALSE);
 +        representation.setRedirectUris(List.of());
 +        representation.setWebOrigins(List.of());
-+        // The legacy authenticated-registration scope policy runs after this pre-create event.
-+        // The requested scopes were validated above; publish none until the post-create event
-+        // assigns the exact server-owned scope set.
++        // The raw OIDC scopes were validated before conversion; publish none until the
++        // post-create event assigns the exact server-owned scope set.
 +        representation.setDefaultClientScopes(List.of());
 +        representation.setOptionalClientScopes(List.of());
 +        representation.setProtocolMappers(List.of());
