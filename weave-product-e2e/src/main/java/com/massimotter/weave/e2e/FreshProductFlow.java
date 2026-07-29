@@ -148,7 +148,12 @@ public final class FreshProductFlow {
       memberSession =
           awaitAuthority(
               browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
-      validateHumanWorkspaceToken(browser.jwtPayload(memberSession.accessToken()), "weave-app");
+      JsonNode memberClaims = browser.jwtPayload(memberSession.accessToken());
+      validateHumanWorkspaceToken(memberClaims, "weave-app");
+      if (!memberEmail.equals(memberClaims.path("preferred_username").asString())) {
+        throw new ProductFlowException(
+            "member token does not match the isolated Context principal");
+      }
       proveMemberApi(memberSession.accessToken());
 
       adminSession =

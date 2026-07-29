@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 import os
 import re
@@ -666,6 +667,29 @@ def _backend_env(context: ComposeContext) -> str:
                 "WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES":
                     "agent-runtime.profile.read,mcp.tools,files.read",
                 "WEAVE_AGENT_RUNTIME_ACCESS_TOKEN_LIFESPAN_SECONDS": "60",
+            }
+        )
+    if context.isolated_namespace is not None:
+        run_id = os.environ.get("WEAVE_E2E_RUN_ID", "")
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{5,39}", run_id):
+            raise ContractError(
+                "isolated backend authorization requires the validated E2E run ID"
+            )
+        member_username = (
+            "weave-e2e-"
+            + hashlib.sha256(run_id.encode("ascii")).hexdigest()[:20]
+            + "-member@example.invalid"
+        )
+        values.update(
+            {
+                "WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM": "preferred_username",
+                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_TENANT_ID": "tenant-default",
+                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_CONTEXT_ID": "workspace-default",
+                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF":
+                    "user:" + member_username,
+                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE": "MEMBER",
+                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE":
+                    "isolated-testapp-keycloak-member",
             }
         )
     return "".join(f"{key}={value}\n" for key, value in sorted(values.items()))

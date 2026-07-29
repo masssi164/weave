@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -427,6 +428,31 @@ def main() -> None:
                 "minio/minio@sha256:"
             )
             assert _image_digest(isolated) == local_image_id
+            isolated_backend_env = _backend_env(isolated)
+            expected_member = (
+                "weave-e2e-"
+                + hashlib.sha256(
+                    isolated_overrides["WEAVE_E2E_RUN_ID"].encode("ascii")
+                ).hexdigest()[:20]
+                + "-member@example.invalid"
+            )
+            assert (
+                "WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM=preferred_username\n"
+                in isolated_backend_env
+            )
+            assert (
+                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF="
+                f"user:{expected_member}\n"
+                in isolated_backend_env
+            )
+            assert (
+                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=MEMBER\n"
+                in isolated_backend_env
+            )
+            assert (
+                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF="
+                not in backend_env
+            )
             os.environ["WEAVE_E2E_STACK_SCOPE"] = "persistent"
             try:
                 load_context("test", ROOT, str(root / "test.env"))
