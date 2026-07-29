@@ -82,6 +82,7 @@ PATH="${stub_bin}:${PATH}" \
 [[ -s "${output_dir}/container-status.tsv" ]] || { echo "missing container status" >&2; exit 1; }
 grep -Fq 'intentionally does not dump raw container logs' "${output_dir}/failure-summary.md"
 grep -Fq 'rawContainerLogsIncluded": false' "${output_dir}/failure-summary.json"
+! grep -RFq "${output_dir}" "${output_dir}"
 grep -Fq 'CHAT_RESULT' "${output_dir}/failed-markers.json"
 
 if grep -R -Fq 'secret-password' "${output_dir}" || grep -R -Fq 'person@example.com' "${output_dir}" || grep -R -Fq 'eyJhbGci' "${output_dir}"; then

@@ -2,7 +2,7 @@ diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/
 new file mode 100644
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,392 @@
+@@ -0,0 +1,394 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import jakarta.ws.rs.core.Response;
@@ -34,6 +34,7 @@ new file mode 100644
 +import org.keycloak.services.clientpolicy.ClientPolicyContext;
 +import org.keycloak.services.clientpolicy.ClientPolicyException;
 +import org.keycloak.services.clientpolicy.context.AdminClientRegisterContext;
++import org.keycloak.services.clientpolicy.context.AdminClientRegisteredContext;
 +import org.keycloak.services.clientpolicy.context.AdminClientUnregisterContext;
 +import org.keycloak.services.clientpolicy.context.AdminClientUpdateContext;
 +import org.keycloak.services.clientpolicy.context.AdminClientUpdatedContext;
@@ -364,6 +365,7 @@ new file mode 100644
 +
 +    private static boolean isAdminContext(ClientPolicyContext context) {
 +        return context instanceof AdminClientRegisterContext
++                || context instanceof AdminClientRegisteredContext
 +                || context instanceof AdminClientUpdateContext
 +                || context instanceof AdminClientUpdatedContext
 +                || context instanceof AdminClientViewContext

@@ -46,6 +46,13 @@ redact_stream() {
   '
 }
 
+redact_evidence_paths() {
+  WEAVE_REDACT_EVIDENCE_ROOT="${OUTPUT_DIR}" perl -pe '
+    my $root = $ENV{"WEAVE_REDACT_EVIDENCE_ROOT"};
+    s/\Q$root\E/<evidence-root>/g if defined $root && length $root;
+  '
+}
+
 scan_for_unredacted_secrets() {
   local path="$1" findings
   findings="$(grep -RIliE \
@@ -59,14 +66,6 @@ scan_for_unredacted_secrets() {
 
 json_escape() {
   jq -Rs .
-}
-
-relative_or_absolute() {
-  local path="$1"
-  case "${path}" in
-    "${ROOT_DIR}"/*) printf '%s' "${path#"${ROOT_DIR}/"}" ;;
-    *) printf '%s' "${path}" ;;
-  esac
 }
 
 is_path_under() {
@@ -138,7 +137,8 @@ write_support_bundle() {
     bash "${ROOT_DIR}/support-bundle.sh" "${WEAVE_PROFILE:-test}" "${target_dir}" >"${target_dir}/support-bundle-command.txt" 2>&1
   local status=$?
   set -e
-  redact_stream <"${target_dir}/support-bundle-command.txt" >"${target_dir}/support-bundle-command.redacted.txt"
+  redact_stream <"${target_dir}/support-bundle-command.txt" |
+    redact_evidence_paths >"${target_dir}/support-bundle-command.redacted.txt"
   mv "${target_dir}/support-bundle-command.redacted.txt" "${target_dir}/support-bundle-command.txt"
   printf '%s\n' "${status}" >"${target_dir}/support-bundle-exit-status.txt"
   find "${target_dir}" -maxdepth 1 -name 'weave-compose-support-*.tar.gz' -print -quit
@@ -193,7 +193,7 @@ main() {
   support_exit="$(cat "${OUTPUT_DIR}/support-bundle/support-bundle-exit-status.txt")"
   private_status_text="$(cat "${private_status}" | redact_stream)"
   if [[ -n "${support_bundle}" ]]; then
-    bundle_reference="$(relative_or_absolute "${support_bundle}")"
+    bundle_reference="support-bundle/$(basename -- "${support_bundle}")"
   else
     bundle_reference="support bundle not written; see support-bundle/support-bundle-command.txt"
   fi
