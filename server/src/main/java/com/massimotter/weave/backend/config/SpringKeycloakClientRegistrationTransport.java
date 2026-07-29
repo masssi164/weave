@@ -7,12 +7,14 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 /** Qualified, bounded Spring transport for Keycloak OIDC Dynamic Client Registration only. */
 public final class SpringKeycloakClientRegistrationTransport
@@ -161,12 +163,40 @@ public final class SpringKeycloakClientRegistrationTransport
       return exchange.perform();
     } catch (RuntimeWorkloadIdentityException failure) {
       throw failure;
+    } catch (RestClientResponseException failure) {
+      throw new RuntimeWorkloadIdentityException(
+          "Keycloak client-registration protocol request failed [failureType="
+              + failureCategory(failure)
+              + "]");
     } catch (RuntimeException failure) {
       throw new RuntimeWorkloadIdentityException(
           "Keycloak client-registration protocol request failed [failureType="
               + failure.getClass().getSimpleName()
               + "]");
     }
+  }
+
+  static String failureCategory(RestClientResponseException failure) {
+    String response = failure.getResponseBodyAsString().toLowerCase(Locale.ROOT);
+    if (response.contains("allowed client scopes")) {
+      return "RegistrationPolicyClientScopes";
+    }
+    if (response.contains("allowed protocol mapper")) {
+      return "RegistrationPolicyProtocolMappers";
+    }
+    if (response.contains("trusted host")) {
+      return "RegistrationPolicyTrustedHost";
+    }
+    if (response.contains("weave workload") || response.contains("client metadata invalid")) {
+      return "WorkloadClientPolicy";
+    }
+    if (response.contains("insufficient_scope")) {
+      return "RegistrationPolicyInsufficientScope";
+    }
+    if (response.contains("invalid_client_metadata")) {
+      return "InvalidClientMetadata";
+    }
+    return "Http" + failure.getStatusCode().value();
   }
 
   @FunctionalInterface

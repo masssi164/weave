@@ -41,12 +41,35 @@ class SpringKeycloakClientRegistrationTransportTest {
               new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
           if ("Bearer rejected-administration-token".equals(authorization.get())) {
             respond(exchange, 401, "{\"error\":\"private rat-secret diagnostic\"}");
+          } else if ("Bearer scope-policy-token".equals(authorization.get())) {
+            respond(
+                exchange,
+                403,
+                "{\"error\":\"insufficient_scope\","
+                    + "\"error_description\":\"Policy 'Allowed Client Scopes' rejected request\"}");
           } else {
             respond(exchange, 200, "{}");
           }
         });
     server.start();
     base = URI.create("http://127.0.0.1:" + server.getAddress().getPort());
+  }
+
+  @Test
+  void reportsOnlyAnAllowlistedRegistrationPolicyFailureCategory() {
+    SpringKeycloakClientRegistrationTransport transport =
+        new SpringKeycloakClientRegistrationTransport(
+            base, "weave", Duration.ofSeconds(2));
+
+    assertThatThrownBy(
+            () ->
+                transport.create(
+                    new ObjectMapper().createObjectNode(),
+                    "scope-policy-token"))
+        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .hasMessageContaining("failureType=RegistrationPolicyClientScopes")
+        .hasMessageNotContaining("Allowed Client Scopes")
+        .hasMessageNotContaining("scope-policy-token");
   }
 
   @AfterEach
