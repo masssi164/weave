@@ -2,7 +2,7 @@ diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/
 new file mode 100644
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,412 @@
+@@ -0,0 +1,422 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import jakarta.ws.rs.core.Response;
@@ -71,6 +71,12 @@ new file mode 100644
 +            "Weave workload client metadata is not permitted [constraint=posture].";
 +    static final String INVALID_ATTRIBUTES_DETAIL =
 +            "Weave workload client metadata is not permitted [constraint=attributes].";
++    static final String INVALID_ATTRIBUTE_SET_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=attribute-set].";
++    static final String INVALID_FIXED_ATTRIBUTES_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=fixed-attributes].";
++    static final String INVALID_CREDENTIAL_ATTRIBUTES_DETAIL =
++            "Weave workload client metadata is not permitted [constraint=credential-attributes].";
 +    static final String INVALID_FINAL_STATE_DETAIL =
 +            "Weave workload client metadata is not permitted [constraint=final-state].";
 +    static final String CROSS_CELL_DETAIL =
@@ -243,13 +249,17 @@ new file mode 100644
 +                throw invalid(INVALID_ATTRIBUTES_DETAIL);
 +            }
 +        }
-+        if (!ALLOWED_ATTRIBUTES.containsAll(attributes.keySet())
-+                || !FIXED_ATTRIBUTES.entrySet().stream()
-+                        .allMatch(entry -> entry.getValue().equals(attributes.get(entry.getKey())))
-+                || !hasText(attributes.get(OIDCConfigAttributes.JWKS_STRING))
++        if (!ALLOWED_ATTRIBUTES.containsAll(attributes.keySet())) {
++            throw invalid(INVALID_ATTRIBUTE_SET_DETAIL);
++        }
++        if (!FIXED_ATTRIBUTES.entrySet().stream()
++                .allMatch(entry -> entry.getValue().equals(attributes.get(entry.getKey())))) {
++            throw invalid(INVALID_FIXED_ATTRIBUTES_DETAIL);
++        }
++        if (!hasText(attributes.get(OIDCConfigAttributes.JWKS_STRING))
 +                || !hasText(attributes.get(JWT_PUBLIC_KEY))
 +                || !hasText(attributes.get(JWT_KEY_ID))) {
-+            throw invalid(INVALID_ATTRIBUTES_DETAIL);
++            throw invalid(INVALID_CREDENTIAL_ATTRIBUTES_DETAIL);
 +        }
 +
 +        representation.setEnabled(Boolean.TRUE);
