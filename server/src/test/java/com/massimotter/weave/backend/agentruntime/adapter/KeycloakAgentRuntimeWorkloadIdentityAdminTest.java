@@ -93,6 +93,10 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 .containsEntry("grant_type", "client_credentials")
                 .containsKey("client_assertion")
                 .doesNotContainKey("client_secret");
+        String assertion = transport.lastClientCredentials.get("client_assertion");
+        JsonNode assertionClaims = mapper.readTree(
+                Base64.getUrlDecoder().decode(assertion.split("\\.")[1]));
+        assertThat(assertionClaims.path("aud").asText()).isEqualTo(ISSUER);
 
         Path protectedRef = temporary.resolve(
                 "weave/agent-runtime/cells/" + CLIENT_ID);

@@ -558,7 +558,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             ObjectNode claims = mapper.createObjectNode();
             claims.put("iss", clientId);
             claims.put("sub", clientId);
-            claims.put("aud", settings.tokenEndpoint().toString());
+            claims.put("aud", settings.issuer().toString());
             claims.put("iat", now.getEpochSecond());
             claims.put("exp", now.plusSeconds(60).getEpochSecond());
             claims.put("jti", UUID.randomUUID().toString());

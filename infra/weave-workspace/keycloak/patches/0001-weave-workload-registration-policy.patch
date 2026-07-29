@@ -6,7 +6,6 @@ new file mode 100644
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import jakarta.ws.rs.core.Response;
-+import java.util.ArrayList;
 +import java.util.HashMap;
 +import java.util.HashSet;
 +import java.util.List;
@@ -248,8 +247,11 @@ new file mode 100644
 +        representation.setAuthorizationServicesEnabled(Boolean.FALSE);
 +        representation.setRedirectUris(List.of());
 +        representation.setWebOrigins(List.of());
-+        representation.setDefaultClientScopes(List.of(DEFAULT_SCOPE));
-+        representation.setOptionalClientScopes(new ArrayList<>(OPTIONAL_SCOPES));
++        // The legacy authenticated-registration scope policy runs after this pre-create event.
++        // The requested scopes were validated above; publish none until the post-create event
++        // assigns the exact server-owned scope set.
++        representation.setDefaultClientScopes(List.of());
++        representation.setOptionalClientScopes(List.of());
 +        representation.setProtocolMappers(List.of());
 +        representation.setAttributes(attributes);
 +    }
