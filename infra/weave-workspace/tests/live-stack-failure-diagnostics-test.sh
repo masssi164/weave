@@ -83,6 +83,7 @@ PATH="${stub_bin}:${PATH}" \
 [[ -s "${output_dir}/one-shot/schema-init.log" ]] || { echo "missing schema initializer diagnostic" >&2; exit 1; }
 [[ -s "${output_dir}/one-shot/runtime-state-init.log" ]] || { echo "missing RuntimeState initializer diagnostic" >&2; exit 1; }
 [[ -s "${output_dir}/runtime/backend-startup.log" ]] || { echo "missing backend startup diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/runtime/keycloak.log" ]] || { echo "missing Keycloak runtime diagnostic" >&2; exit 1; }
 [[ -s "${output_dir}/health-checks/backend-readiness.json" ]] || { echo "missing backend readiness diagnostic" >&2; exit 1; }
 grep -Fq 'intentionally does not dump raw container logs' "${output_dir}/failure-summary.md"
 grep -Fq 'rawContainerLogsIncluded": false' "${output_dir}/failure-summary.json"

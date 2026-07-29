@@ -32,7 +32,12 @@ assert module.UPSTREAM_COMMIT == "6c73e3027811d9c7b22683edd825e839272e9547"
 assert module.ARCHIVE_SHA256 == "32267c4f45db91874c46a097415c336d137ee184d25c3481a513905a92669186"
 assert module.STOCK_SERVICES_SHA256 == "052169f7907a21f4e26679bca5c7365627db91b071a7a2fcaeee00230e6b1419"
 assert module.SPEC_COMMIT == "d864cc095dbc4dcf223fa7458e73b58826f7d0d0"
-assert module.resolve_candidate(repository, "1" * 40) == "1" * 40
+try:
+    module.resolve_candidate(repository, "1" * 40)
+except SystemExit as failure:
+    assert "differs from the local source HEAD" in str(failure)
+else:
+    raise AssertionError("Keycloak builder accepted evidence for a different source commit")
 
 evidence = temporary / "evidence.json"
 module.atomic_write(evidence, {"containsSecretValues": False, "supportSafe": True})

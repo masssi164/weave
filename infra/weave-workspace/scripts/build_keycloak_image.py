@@ -77,12 +77,29 @@ def run(*command: str, cwd: Path | None = None, capture: bool = False) -> str:
 
 
 def resolve_candidate(repository: Path, supplied: str | None) -> str:
-    candidate = supplied or run(
+    head = run(
         "git", "-C", str(repository), "rev-parse", "HEAD", capture=True
     )
+    candidate = supplied or head
     if not COMMIT.fullmatch(candidate):
         raise SystemExit(
             "WEAVE_KEYCLOAK_BUILD_ERROR candidate commit must be an exact lowercase SHA"
+        )
+    if candidate != head:
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR candidate commit differs from the local source HEAD"
+        )
+    if run(
+        "git",
+        "-C",
+        str(repository),
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        capture=True,
+    ):
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR candidate build requires a clean source tree"
         )
     return candidate
 
