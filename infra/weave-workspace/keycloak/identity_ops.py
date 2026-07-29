@@ -1805,6 +1805,26 @@ def private_key_jwt_token_response(
         ) from error
 
 
+def oauth_probe_failure_category(body: dict[str, Any]) -> str:
+    error = str(body.get("error", "")).casefold()
+    description = str(body.get("error_description", "")).casefold()
+    if error == "invalid_client":
+        if "audience" in description:
+            return "invalid-client-audience"
+        if "public key" in description or "load key" in description:
+            return "invalid-client-public-key"
+        if "signature" in description:
+            return "invalid-client-signature"
+        if "algorithm" in description:
+            return "invalid-client-algorithm"
+        return "invalid-client"
+    if error == "unauthorized_client":
+        return "unauthorized-client"
+    if error == "invalid_grant":
+        return "invalid-grant"
+    return "unclassified-oauth-error"
+
+
 def probe_client_credentials(server: str, realm: str, clients: list[dict[str, Any]]) -> None:
     for client in clients:
         secret_ref = client.get("secretRef")
@@ -1837,7 +1857,9 @@ def probe_client_credentials(server: str, realm: str, clients: list[dict[str, An
         if client.get("serviceAccountsEnabled") is True:
             if status != 200 or not isinstance(body.get("access_token"), str):
                 raise IdentityOpsError(
-                    f"service-account client credentials probe failed for {client_id}; response withheld"
+                    "service-account client credentials probe failed for "
+                    f"{client_id}; category={oauth_probe_failure_category(body)}; "
+                    "response withheld"
                 )
         elif status not in {400, 401} or body.get("error") != "unauthorized_client":
             raise IdentityOpsError(

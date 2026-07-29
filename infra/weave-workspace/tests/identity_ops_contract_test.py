@@ -180,6 +180,24 @@ def main() -> None:
         assertion_claims["aud"]
         == "http://keycloak:8080/realms/weave/protocol/openid-connect/token"
     )
+    assert (
+        identity_ops.oauth_probe_failure_category(
+            {
+                "error": "invalid_client",
+                "error_description": "Signature on JWT token failed validation",
+            }
+        )
+        == "invalid-client-signature"
+    )
+    assert (
+        identity_ops.oauth_probe_failure_category(
+            {
+                "error": "invalid_client",
+                "error_description": "Unable to load public key",
+            }
+        )
+        == "invalid-client-public-key"
+    )
 
     def rejected_urlopen(request: object, **_kwargs: object) -> None:
         raise identity_ops.urllib.error.HTTPError(
