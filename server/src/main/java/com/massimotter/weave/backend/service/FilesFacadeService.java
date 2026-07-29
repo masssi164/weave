@@ -86,6 +86,7 @@ public class FilesFacadeService {
     private final FilesProviderPort filesProviderPort;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final OrganizationIdentityContextResolver identityContexts;
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final AuditEventPublisher auditEventPublisher;
     private final DeviceCredentialService deviceCredentialService;
@@ -99,6 +100,7 @@ public class FilesFacadeService {
             ObjectProvider<FilesProviderPort> filesProviderPortProvider,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContexts,
             WorkspaceCapabilityService workspaceCapabilityService,
             DeviceCredentialService deviceCredentialService,
             AuditEventPublisher auditEventPublisher,
@@ -110,6 +112,7 @@ public class FilesFacadeService {
                 filesProviderPortProvider,
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
+                identityContexts,
                 workspaceCapabilityService,
                 deviceCredentialService,
                 auditEventPublisher,
@@ -130,9 +133,36 @@ public class FilesFacadeService {
             FilesMutationIntentService filesMutationIntentService,
             McpWorkloadAuthorizationService mcpWorkloadAuthorizationService,
             McpExchangedTokenPolicy mcpExchangedTokenPolicy) {
+        this(
+                filesProviderPortProvider,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                OrganizationIdentityContextResolver.configured(contextAuthorizationProperties),
+                workspaceCapabilityService,
+                deviceCredentialService,
+                auditEventPublisher,
+                filesLockService,
+                filesMutationIntentService,
+                mcpWorkloadAuthorizationService,
+                mcpExchangedTokenPolicy);
+    }
+
+    FilesFacadeService(
+            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContexts,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            DeviceCredentialService deviceCredentialService,
+            AuditEventPublisher auditEventPublisher,
+            FilesLockService filesLockService,
+            FilesMutationIntentService filesMutationIntentService,
+            McpWorkloadAuthorizationService mcpWorkloadAuthorizationService,
+            McpExchangedTokenPolicy mcpExchangedTokenPolicy) {
         this.filesProviderPort = filesProviderPortProvider.getIfAvailable();
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.identityContexts = Objects.requireNonNull(identityContexts, "identityContexts");
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.deviceCredentialService = deviceCredentialService;
         this.auditEventPublisher = auditEventPublisher;
@@ -938,11 +968,12 @@ public class FilesFacadeService {
     }
 
     private PrincipalContext principalContext(Jwt jwt, String operation) {
+        OrganizationIdentityContext identity = identityContexts.resolve(jwt);
         String username = firstNonBlank(jwt.getClaimAsString("preferred_username"), jwt.getSubject());
         return new PrincipalContext(
-                jwtTenantId(jwt, operation),
+                identity.organizationId(),
                 jwtPrincipalRef(jwt, operation),
-                jwt.getSubject(),
+                identity.subject(),
                 username,
                 revisionClaim(jwt, "weave_policy_revision", "policy:unversioned"),
                 revisionClaim(jwt, "weave_entitlement_revision", "entitlement:unversioned"),
@@ -952,17 +983,6 @@ public class FilesFacadeService {
     private String revisionClaim(Jwt jwt, String claimName, String fallback) {
         Object value = jwt.getClaim(claimName);
         return value == null || value.toString().isBlank() ? fallback : claimName + ":" + value;
-    }
-
-    private String jwtTenantId(Jwt jwt, String operation) {
-        String tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantClaim());
-        if (tenantId == null) {
-            tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantFallbackClaim());
-        }
-        if (tenantId == null) {
-            throw invalidAuthentication(operation, "tenant claim is missing");
-        }
-        return tenantId;
     }
 
     private String jwtPrincipalRef(Jwt jwt, String operation) {

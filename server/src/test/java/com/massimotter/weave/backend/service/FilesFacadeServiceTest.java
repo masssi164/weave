@@ -656,7 +656,8 @@ class FilesFacadeServiceTest {
     }
 
     @Test
-    void jwtWithoutTenantClaimIsRejectedBeforeSeededAuthorizationCanGrantAccess() {
+    void jwtWithoutTenantClaimUsesTheConfiguredDefaultTenantThroughTheIdentityResolver() {
+        AtomicReference<ContextAuthorizationRequest> captured = new AtomicReference<>();
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(
                 Jwt.withTokenValue("token")
                         .header("alg", "none")
@@ -666,11 +667,15 @@ class FilesFacadeServiceTest {
                         .build(),
                 null));
 
-        assertThatThrownBy(() -> service(new StubAdapter(true)).list("/Team"))
-                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
-                    assertThat(exception.status()).isEqualTo(HttpStatus.UNAUTHORIZED);
-                    assertThat(exception.details()).containsEntry("reason", "tenant claim is missing");
+        FilesFacadeService service = service(
+                new StubAdapter(true),
+                request -> {
+                    captured.set(request);
+                    return ContextAuthorizationDecision.allow("configured default tenant");
                 });
+
+        assertThat(service.list("/Team").items()).hasSize(1);
+        assertThat(captured.get().tenantId()).isEqualTo("tenant-default");
     }
 
     @Test
