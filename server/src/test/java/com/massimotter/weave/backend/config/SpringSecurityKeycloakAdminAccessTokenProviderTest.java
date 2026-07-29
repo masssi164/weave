@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -125,6 +126,16 @@ class SpringSecurityKeycloakAdminAccessTokenProviderTest {
                 .contains("client_assertion_type=")
                 .contains("client_assertion=")
                 .doesNotContain("client_secret");
+        String assertion = java.util.Arrays.stream(requestBody.get().split("&"))
+                .filter(value -> value.startsWith("client_assertion="))
+                .map(value -> URLDecoder.decode(
+                        value.substring("client_assertion=".length()), StandardCharsets.UTF_8))
+                .findFirst()
+                .orElseThrow();
+        String claims = new String(
+                Base64.getUrlDecoder().decode(assertion.split("\\.")[1]),
+                StandardCharsets.UTF_8);
+        assertThat(claims).contains("\"aud\":\"https://auth.weave.local/realms/weave\"");
     }
 
     private SpringSecurityKeycloakAdminAccessTokenProvider provider() {
@@ -146,6 +157,7 @@ class SpringSecurityKeycloakAdminAccessTokenProviderTest {
                         clientId,
                         CREDENTIAL_REF,
                         credentialMethod,
+                        URI.create("https://auth.weave.local/realms/weave"),
                         Duration.ofSeconds(2));
         return new SpringSecurityKeycloakAdminAccessTokenProvider(settings, secrets);
     }

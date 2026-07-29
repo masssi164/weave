@@ -13,6 +13,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.http.converter.FormHttpMessageConverter;
@@ -158,8 +159,14 @@ public final class SpringSecurityKeycloakAdminAccessTokenProvider
           "Keycloak workload administration private JWK is invalid");
     }
     RestClientClientCredentialsTokenResponseClient client = tokenResponseClient(settings);
-    client.addParametersConverter(
-        new NimbusJwtClientAuthenticationParametersConverter<>(ignored -> key));
+    NimbusJwtClientAuthenticationParametersConverter<OAuth2ClientCredentialsGrantRequest>
+        assertionConverter = new NimbusJwtClientAuthenticationParametersConverter<>(ignored -> key);
+    assertionConverter.setJwtClientAssertionCustomizer(
+        context ->
+            context
+                .getClaims()
+                .audience(List.of(settings.privateKeyJwtAudience().toString())));
+    client.addParametersConverter(assertionConverter);
     return client;
   }
 
@@ -210,6 +217,7 @@ public final class SpringSecurityKeycloakAdminAccessTokenProvider
       String adminClientId,
       String adminCredentialRef,
       CredentialMethod credentialMethod,
+      URI privateKeyJwtAudience,
       Duration timeout) {
     public Settings {
       if (adminBaseUrl == null
@@ -228,6 +236,13 @@ public final class SpringSecurityKeycloakAdminAccessTokenProvider
         throw new IllegalArgumentException("adminCredentialRef must be a credentialref URI");
       }
       Objects.requireNonNull(credentialMethod, "credentialMethod");
+      if (privateKeyJwtAudience == null
+          || privateKeyJwtAudience.getHost() == null
+          || !("http".equalsIgnoreCase(privateKeyJwtAudience.getScheme())
+              || "https".equalsIgnoreCase(privateKeyJwtAudience.getScheme()))) {
+        throw new IllegalArgumentException(
+            "privateKeyJwtAudience must be an absolute HTTP(S) URI");
+      }
       if (timeout == null || timeout.isZero() || timeout.isNegative()) {
         throw new IllegalArgumentException("timeout must be positive");
       }

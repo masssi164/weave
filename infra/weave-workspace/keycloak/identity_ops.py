@@ -1732,6 +1732,7 @@ def private_key_jwt_token_response(
     realm: str,
     client_id: str,
     private_jwk: dict[str, Any],
+    assertion_audience: str | None = None,
 ) -> tuple[int, dict[str, Any]]:
     if (
         private_jwk.get("kty") != "RSA"
@@ -1741,6 +1742,7 @@ def private_key_jwt_token_response(
     ):
         raise IdentityOpsError("runtime administration private JWK is malformed")
     token_url = f"{server}/realms/{realm}/protocol/openid-connect/token"
+    audience = assertion_audience or token_url
     now = int(time.time())
     protected = base64url_bytes(
         json.dumps(
@@ -1752,7 +1754,7 @@ def private_key_jwt_token_response(
     claims = base64url_bytes(
         json.dumps(
             {
-                "aud": token_url,
+                "aud": audience,
                 "exp": now + 60,
                 "iat": now,
                 "iss": client_id,
@@ -1826,7 +1828,12 @@ def oauth_probe_failure_category(body: dict[str, Any]) -> str:
     return "unclassified-oauth-error"
 
 
-def probe_client_credentials(server: str, realm: str, clients: list[dict[str, Any]]) -> None:
+def probe_client_credentials(
+    server: str,
+    realm: str,
+    clients: list[dict[str, Any]],
+    assertion_audience: str,
+) -> None:
     for client in clients:
         secret_ref = client.get("secretRef")
         key_ref = client.get("keyRef")
@@ -1850,6 +1857,7 @@ def probe_client_credentials(server: str, realm: str, clients: list[dict[str, An
                 realm,
                 str(client_id),
                 private_jwk,
+                assertion_audience,
             )
         else:
             raise IdentityOpsError(
@@ -2108,7 +2116,16 @@ def main() -> int:
                     "readback did not converge to an empty second plan; "
                     f"remaining={remaining}"
                 )
-            probe_client_credentials(args.server, desired["realm"]["name"], desired.get("clients", []))
+            public_issuer = (
+                f"{str(desired['realm']['frontendUrl']).rstrip('/')}"
+                f"/realms/{desired['realm']['name']}"
+            )
+            probe_client_credentials(
+                args.server,
+                desired["realm"]["name"],
+                desired.get("clients", []),
+                public_issuer,
+            )
             probe_identity_admin_authorization(
                 kcadm,
                 args.server,

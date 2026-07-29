@@ -156,6 +156,7 @@ def main() -> None:
             "weave",
             "weave-agent-runtime-admin",
             runtime_probe_jwk,
+            "https://auth.weave.local/realms/weave",
         ) == (200, {"access_token": "test-only"})
     finally:
         identity_ops.urllib.request.urlopen = original_urlopen
@@ -177,8 +178,7 @@ def main() -> None:
     assert assertion_claims["iss"] == "weave-agent-runtime-admin"
     assert assertion_claims["sub"] == "weave-agent-runtime-admin"
     assert (
-        assertion_claims["aud"]
-        == "http://keycloak:8080/realms/weave/protocol/openid-connect/token"
+        assertion_claims["aud"] == "https://auth.weave.local/realms/weave"
     )
     assert (
         identity_ops.oauth_probe_failure_category(

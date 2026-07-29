@@ -196,6 +196,7 @@ public class AgentRuntimeWorkloadIdentityProperties {
                 adminClientId,
                 adminCredentialRef,
                 SpringSecurityKeycloakAdminAccessTokenProvider.CredentialMethod.PRIVATE_KEY_JWT,
+                issuer,
                 timeout);
     }
 
@@ -206,6 +207,7 @@ public class AgentRuntimeWorkloadIdentityProperties {
                 entitlementClientId,
                 entitlementCredentialRef,
                 SpringSecurityKeycloakAdminAccessTokenProvider.CredentialMethod.CLIENT_SECRET_BASIC,
+                issuer,
                 timeout);
     }
 
