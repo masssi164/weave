@@ -961,7 +961,11 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
     if desired.get("apiVersion") != "weave.keycloak-desired-state/v2" or "groups" in desired:
         raise IdentityOpsError("Identity Ops accepts only canonical desired-state v2 without legacy realm groups")
     if desired.get("clientPolicies") != []:
-        raise IdentityOpsError("custom clientPolicies are unmanaged; stock Standard Token Exchange V2 requires an empty list")
+        raise IdentityOpsError(
+            "BLOCKED_SECURITY_CONTRACT: Keycloak 26.7.0 exposes only internal "
+            "client-registration policy extension points; workload registration "
+            "must remain unprovisioned"
+        )
     if desired.get("keycloakVersion") != "26.7.0":
         raise IdentityOpsError("desired state must target the pinned official Keycloak 26.7.0 distribution")
     realm = desired["realm"]

@@ -696,6 +696,18 @@ def main() -> None:
         pass
     else:
         raise AssertionError("unmanaged broad role was silently removed or accepted")
+    try:
+        identity_ops.plan(
+            None,
+            {
+                "apiVersion": "weave.keycloak-desired-state/v2",
+                "clientPolicies": [{"name": "weaver-cell-registration"}],
+            },
+        )
+    except identity_ops.IdentityOpsError as error:
+        assert "BLOCKED_SECURITY_CONTRACT" in str(error)
+    else:
+        raise AssertionError("Identity Ops enabled the blocked workload-registration contract")
     contract = json.dumps(desired)
     assert "26.7.0" in contract
     compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
@@ -763,6 +775,11 @@ def main() -> None:
     assert '"organizationInvitationLifecycle"' not in renderer
     assert 'desired.get("clientPolicies") != []' in renderer
     assert 'desired.get("clientPolicies") != []' in source
+    assert "BLOCKED_SECURITY_CONTRACT" in renderer
+    assert "BLOCKED_SECURITY_CONTRACT" in source
+    assert '"client-policies/profiles"' not in source
+    assert '"client-policies/policies"' not in source
+    assert '"create-client"' not in source
     assert 'choices=("plan", "apply", "verify")' in source
     assert '"verification found a non-empty plan"' in source
     assert '"readback did not converge to an empty second plan; "' in source
