@@ -22,7 +22,6 @@ public class AgentRuntimeWorkloadIdentityProperties {
     private String adminCredentialRef = "";
     private String entitlementClientId = "weave-identity-admin";
     private String entitlementCredentialRef = "";
-    private Path entitlementCredentialFile;
     private Path secretRoot;
     private Duration timeout = Duration.ofSeconds(10);
     private String workloadRole = "weaver-runtime";
@@ -119,14 +118,6 @@ public class AgentRuntimeWorkloadIdentityProperties {
         this.entitlementCredentialRef = entitlementCredentialRef;
     }
 
-    public Path entitlementCredentialFile() {
-        return entitlementCredentialFile;
-    }
-
-    public void setEntitlementCredentialFile(Path entitlementCredentialFile) {
-        this.entitlementCredentialFile = entitlementCredentialFile;
-    }
-
     public Path secretRoot() {
         return secretRoot;
     }
@@ -184,14 +175,6 @@ public class AgentRuntimeWorkloadIdentityProperties {
             throw new IllegalStateException("Agent Runtime workload identity requires an explicit SecretRef root");
         }
         return secretRoot;
-    }
-
-    public Path requiredEntitlementCredentialFile() {
-        if (entitlementCredentialFile == null) {
-            throw new IllegalStateException(
-                    "Agent Runtime entitlement requires an exact SecretRef file");
-        }
-        return entitlementCredentialFile;
     }
 
     public KeycloakAgentRuntimeWorkloadIdentityAdmin.Settings workloadSettings() {

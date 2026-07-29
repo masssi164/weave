@@ -661,10 +661,6 @@ def _backend_env(context: ComposeContext) -> str:
                 "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CLIENT_ID": "weave-identity-admin",
                 "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_REF":
                     "credentialref://weave/keycloak/weave-identity-admin",
-                "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_FILE":
-                    "/run/secrets/weave/"
-                    "spring.security.oauth2.client.registration."
-                    "weave-identity-admin.client-secret",
                 "WEAVE_AGENT_RUNTIME_SECRET_ROOT": "/run/secrets/agent-runtime/workloads",
                 "WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES": "weaver-runtime-workload",
                 "WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES":

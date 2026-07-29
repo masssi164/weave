@@ -101,7 +101,6 @@ weave:
       admin-credential-ref: ${WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF:}
       entitlement-client-id: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CLIENT_ID:weave-identity-admin}
       entitlement-credential-ref: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_REF:}
-      entitlement-credential-file: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_FILE:}
       secret-root: ${WEAVE_AGENT_RUNTIME_SECRET_ROOT:}
       timeout: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_TIMEOUT:10s}
       workload-role: weaver-runtime

@@ -27,6 +27,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({
@@ -51,19 +53,12 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
   }
 
   @Bean
-  ExactMountedSecretRefAccess keycloakAgentRuntimeEntitlementSecretRefAccess(
-      AgentRuntimeWorkloadIdentityProperties properties) {
-    return new ExactMountedSecretRefAccess(
-        properties.entitlementCredentialRef(),
-        properties.requiredEntitlementCredentialFile());
-  }
-
-  @Bean
   KeycloakAdminAccessTokenProvider keycloakAgentRuntimeEntitlementAccessTokenProvider(
       AgentRuntimeWorkloadIdentityProperties properties,
-      @Qualifier("keycloakAgentRuntimeEntitlementSecretRefAccess") SecretRefAccess secrets) {
-    return new SpringSecurityKeycloakAdminAccessTokenProvider(
-        properties.entitlementTokenSettings(), secrets);
+      OAuth2AuthorizedClientManager authorizedClients,
+      OAuth2AuthorizedClientService authorizedClientService) {
+    return new SpringAuthorizedClientKeycloakAccessTokenProvider(
+        properties.entitlementClientId(), authorizedClients, authorizedClientService);
   }
 
   @Bean

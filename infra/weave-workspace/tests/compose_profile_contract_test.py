@@ -386,12 +386,6 @@ def main() -> None:
             "credentialref://weave/keycloak/weave-agent-runtime-admin\n"
             in backend_env
         )
-        assert (
-            "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_FILE="
-            "/run/secrets/weave/spring.security.oauth2.client.registration."
-            "weave-identity-admin.client-secret\n"
-            in backend_env
-        )
         test_model = resolved_model(test)
         prod_model = resolved_model(prod)
         assert_agent_runtime_mount_boundary(test_model)
