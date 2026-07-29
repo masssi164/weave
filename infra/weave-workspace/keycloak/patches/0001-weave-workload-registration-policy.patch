@@ -2,7 +2,7 @@ diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/
 new file mode 100644
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,439 @@
+@@ -0,0 +1,444 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import jakarta.ws.rs.core.Response;
@@ -18,6 +18,7 @@ new file mode 100644
 +import org.keycloak.authentication.authenticators.client.JWTClientAuthenticator;
 +import org.keycloak.crypto.Algorithm;
 +import org.keycloak.models.ClientModel;
++import org.keycloak.models.ClientSecretConstants;
 +import org.keycloak.models.ClientScopeModel;
 +import org.keycloak.models.KeycloakSession;
 +import org.keycloak.models.RealmModel;
@@ -308,6 +309,9 @@ new file mode 100644
 +        client.addClientScope(defaultScope, true);
 +        optionalScopes.forEach(scope -> client.addClientScope(scope, false));
 +        client.getProtocolMappersStream().toList().forEach(client::removeProtocolMapper);
++        client.setSecret(null);
++        client.removeAttribute(ClientSecretConstants.CLIENT_SECRET_CREATION_TIME);
++        client.removeAttribute(ClientSecretConstants.CLIENT_SECRET_EXPIRATION);
 +
 +        UserModel serviceAccount = session.users().getServiceAccount(client);
 +        RoleModel workloadRole = realm.getRole(WORKLOAD_ROLE);
@@ -349,6 +353,7 @@ new file mode 100644
 +                || client.isImplicitFlowEnabled()
 +                || client.isDirectAccessGrantsEnabled()
 +                || client.isFullScopeAllowed()
++                || hasText(client.getSecret())
 +                || hasValues(client.getRedirectUris())
 +                || hasValues(client.getWebOrigins())
 +                || hasText(client.getRootUrl())

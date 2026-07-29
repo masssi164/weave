@@ -53,6 +53,7 @@ assert "weave-workload-client-registration-enforcer" in patch_text
 assert "context instanceof AdminClientRegisteredContext" in patch_text
 assert "representation.setScope(null)" in patch_text
 assert "attributes.entrySet().removeIf(entry -> entry.getValue() == null)" in patch_text
+assert "client.removeAttribute(ClientSecretConstants.CLIENT_SECRET_CREATION_TIME)" in patch_text
 assert "@@ -92,4 +93,9 @@" in patch_text
 assert "@@ -94,0" not in patch_text
 assert "keycloak-server-spi-private" not in patch_text
