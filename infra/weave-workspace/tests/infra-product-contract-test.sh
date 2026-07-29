@@ -57,7 +57,8 @@ require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'ARG WEAVE_KEYCLOAK_BASE=
 require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'ARG WEAVE_UBI9_BASE=registry.access.redhat.com/ubi9@sha256:'
 require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'FROM ${WEAVE_KEYCLOAK_BASE}'
 require "${ROOT_DIR}/scripts/build_keycloak_image.py" 'STOCK_KEYCLOAK_REFERENCE ='
-require "${ROOT_DIR}/scripts/build_keycloak_image.py" '"RepoDigests"'
+require "${ROOT_DIR}/scripts/build_keycloak_image.py" '"weave.downstream-keycloak-image.v1"'
+require "${ROOT_DIR}/keycloak/Dockerfile.runtime" 'com.massimotter.weave.keycloak-patch-sha256'
 require "${ROOT_DIR}/scripts/build_identity_ops_image.py" 'com.massimotter.weave.component=keycloak-identity-ops'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'ordinary reconciliation refuses an implicit rotation'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'
@@ -90,7 +91,7 @@ require "${REPO_ROOT}/settings.gradle" "'weave-mcp-server'"
 require "${REPO_ROOT}/infra/build.gradle" 'apply from: "$projectDir/gradle/tasks/environment-profiles.gradle"'
 require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" '"identity${profileTitle}${operationTitle}"'
 require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" "'identityOpsImageBuild'"
-require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" "'keycloakStockImageResolve'"
+require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" "'keycloakRuntimeImageBuild'"
 require "${REPO_ROOT}/server/build.gradle" 'apply from: "${projectDir}/gradle/tasks/development.gradle"'
 require "${REPO_ROOT}/server/gradle/tasks/development.gradle" "'serverDevH2Test'"
 require "${REPO_ROOT}/server/gradle/tasks/development.gradle" "'serverPostgresIntegrationTest'"

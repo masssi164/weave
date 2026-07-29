@@ -50,7 +50,7 @@ registerInfraCommandTask(
 )
 
 registerInfraCommandTask(
-    'keycloakStockImageResolve',
+    'keycloakRuntimeImageBuild',
     ['python3', 'infra/weave-workspace/scripts/build_keycloak_image.py', '--root', '.'],
-    'Pull and verify the approved stock Keycloak OCI index digest without rebuilding or relabelling it.'
+    'Build the version-pinned downstream Keycloak runtime with the built-in workload registration policy.'
 )

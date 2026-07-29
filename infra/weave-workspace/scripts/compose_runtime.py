@@ -76,12 +76,16 @@ AGENT_RUNTIME_ROOT = PurePosixPath("/run/secrets/agent-runtime")
 PROFILE_SIGNING_TARGET = AGENT_RUNTIME_ROOT / "profile-signing"
 STATE_WRAPPING_TARGET = AGENT_RUNTIME_ROOT / "state-wrapping"
 WORKLOADS_TARGET = AGENT_RUNTIME_ROOT / "workloads"
+RUNTIME_ADMIN_TARGET = (
+    WORKLOADS_TARGET / "weave/keycloak/weave-agent-runtime-admin"
+)
 AGENT_RUNTIME_MOUNT_POLICY = {
     ("agent-runtime-keys-init", str(PROFILE_SIGNING_TARGET)): ("read-write", "directory"),
     ("agent-runtime-keys-init", str(STATE_WRAPPING_TARGET)): ("read-write", "directory"),
     ("backend", str(WORKLOADS_TARGET)): ("read-write", "directory"),
     ("backend", str(PROFILE_SIGNING_TARGET)): ("read-only", "directory"),
     ("backend", str(STATE_WRAPPING_TARGET)): ("read-only", "directory"),
+    ("identity-ops", str(RUNTIME_ADMIN_TARGET)): ("read-only", "file"),
 }
 MCP_PROTECTED_SECRET_MARKERS = (
     "weave-agent-runtime-admin",

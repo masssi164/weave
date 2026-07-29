@@ -27,7 +27,9 @@ SECRET_REF_PATHS = {
     "secretref:keycloak/weave-backend-jwk": "keycloak-weave-backend-jwk.json",
     "secretref:keycloak/weave-mcp-server-jwk": "keycloak-weave-mcp-server-jwk.json",
     "secretref:keycloak/weave-identity-admin": "keycloak-weave-identity-admin",
-    "secretref:keycloak/weave-agent-runtime-admin": "keycloak-weave-agent-runtime-admin",
+    "secretref:keycloak/weave-agent-runtime-admin-jwk": (
+        "agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin"
+    ),
     "secretref:keycloak/nextcloud": "keycloak-nextcloud",
     "secretref:keycloak/matrix-mas": "keycloak-matrix-mas",
     "secretref:smtp/username": "smtp-username",
@@ -140,9 +142,12 @@ def _gateway_site(value: str) -> str:
 
 def _image_digest(context: ComposeContext) -> str:
     image = context.env["WEAVE_KEYCLOAK_IMAGE"]
-    digest_match = re.fullmatch(r"(quay\.io/keycloak/keycloak)@(sha256:[0-9a-f]{64})", image)
+    digest_match = re.fullmatch(
+        r"[A-Za-z0-9._-]+(?::[0-9]+)?/[A-Za-z0-9._/-]+@(sha256:[0-9a-f]{64})",
+        image,
+    )
     if digest_match:
-        return digest_match.group(2)
+        return digest_match.group(1)
     if (
         context.profile == "test"
         and context.isolated_namespace is not None
@@ -153,8 +158,8 @@ def _image_digest(context: ComposeContext) -> str:
         # provenance instead of reintroducing a conflicting registry-only rule.
         return image
     raise ContractError(
-        f"{context.profile} render requires quay.io/keycloak/keycloak@sha256:<approved-26.7.0-digest>; "
-        "the dev preparation task resolves the reviewed 26.7.0 tag before render"
+        f"{context.profile} render requires one immutable downstream Keycloak OCI digest; "
+        "the preparation task builds the version-pinned runtime before render"
     )
 
 
@@ -215,7 +220,7 @@ def _overlay(context: ComposeContext, baseline_revision: str) -> dict[str, objec
             "weaveBackendJwk": "secretref:keycloak/weave-backend-jwk",
             "weaveMcpServerJwk": "secretref:keycloak/weave-mcp-server-jwk",
             "identityAdmin": "secretref:keycloak/weave-identity-admin",
-            "agentRuntimeAdmin": "secretref:keycloak/weave-agent-runtime-admin",
+            "agentRuntimeAdmin": "secretref:keycloak/weave-agent-runtime-admin-jwk",
             "nextcloud": "secretref:keycloak/nextcloud",
             "matrixMas": "secretref:keycloak/matrix-mas",
         },
@@ -256,11 +261,10 @@ def _render_desired(baseline: dict[str, object], overlay: dict[str, object]) -> 
         raise ContractError("canonical desired state must pin Keycloak 26.7.0")
     if "groups" in desired:
         raise ContractError("desired-state v2 must not contain legacy human realm groups")
-    if desired.get("clientPolicies") != []:
+    client_policies = desired.get("clientPolicies")
+    if not isinstance(client_policies, list) or len(client_policies) != 1:
         raise ContractError(
-            "BLOCKED_SECURITY_CONTRACT: Keycloak 26.7.0 exposes only internal "
-            "client-registration policy extension points; workload registration "
-            "must remain unprovisioned"
+            "canonical desired state must declare exactly one workload registration policy"
         )
     organization_groups = desired.get("organizationGroups")
     if not isinstance(organization_groups, list):

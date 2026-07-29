@@ -696,18 +696,37 @@ def main() -> None:
         pass
     else:
         raise AssertionError("unmanaged broad role was silently removed or accepted")
-    try:
-        identity_ops.plan(
-            None,
-            {
-                "apiVersion": "weave.keycloak-desired-state/v2",
-                "clientPolicies": [{"name": "weaver-cell-registration"}],
-            },
-        )
-    except identity_ops.IdentityOpsError as error:
-        assert "BLOCKED_SECURITY_CONTRACT" in str(error)
-    else:
-        raise AssertionError("Identity Ops enabled the blocked workload-registration contract")
+    missing, remove = identity_ops.runtime_admin_role_delta(
+        {"query-clients", "manage-clients"},
+        {"create-client"},
+    )
+    assert missing == {"create-client"}
+    assert remove == {"query-clients", "manage-clients"}
+    workload_policy = {
+        "key": "policy:weaver-cell-registration",
+        "name": "weaver-cell-registration",
+        "enabled": True,
+        "conditionProvider": "any-client",
+        "executorProvider": "weave-workload-client-registration-enforcer",
+        "executorVersion": "1",
+        "keycloakVersion": "26.7.0",
+        "runtimeAdminClientKey": "client:weave-agent-runtime-admin",
+        "registrationProvider": "openid-connect",
+        "identifierMetadata": "client_name",
+        "workloadRoleRef": "role:weaver-runtime",
+    }
+    profiles, policies = identity_ops.workload_client_policy_payloads(
+        [workload_policy]
+    )
+    assert profiles["profiles"][0]["executors"] == [
+        {
+            "executor": "weave-workload-client-registration-enforcer",
+            "configuration": {},
+        }
+    ]
+    assert policies["policies"][0]["conditions"] == [
+        {"condition": "any-client", "configuration": {}}
+    ]
     contract = json.dumps(desired)
     assert "26.7.0" in contract
     compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
@@ -773,13 +792,12 @@ def main() -> None:
     assert '"externalContractAssignments"' not in renderer
     assert '"identityOpsManagedSurface"' not in renderer
     assert '"organizationInvitationLifecycle"' not in renderer
-    assert 'desired.get("clientPolicies") != []' in renderer
-    assert 'desired.get("clientPolicies") != []' in source
-    assert "BLOCKED_SECURITY_CONTRACT" in renderer
-    assert "BLOCKED_SECURITY_CONTRACT" in source
-    assert '"client-policies/profiles"' not in source
-    assert '"client-policies/policies"' not in source
-    assert '"create-client"' not in source
+    assert "len(client_policies) != 1" in renderer
+    assert "plan_workload_client_policy(" in source
+    assert '"client-policies/profiles"' in source
+    assert '"client-policies/policies"' in source
+    assert '"create-client"' in source
+    assert "runtime_admin_role_delta(" in source
     assert 'choices=("plan", "apply", "verify")' in source
     assert '"verification found a non-empty plan"' in source
     assert '"readback did not converge to an empty second plan; "' in source

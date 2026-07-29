@@ -240,6 +240,11 @@ services:
         uid: "${WEAVE_RUNTIME_UID:-1000}"
         gid: "${WEAVE_RUNTIME_GID:-1000}"
         mode: 0600
+      - source: runtime-admin-client-jwk
+        target: agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0600
       - source: nextcloud-client-secret
         target: keycloak-nextcloud
         uid: "${WEAVE_RUNTIME_UID:-1000}"
@@ -864,6 +869,8 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-backend-jwk.json
   mcp-server-client-jwk:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-mcp-server-jwk.json
+  runtime-admin-client-jwk:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin
   nextcloud-client-secret:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-nextcloud
   matrix-mas-client-secret:

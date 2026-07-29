@@ -57,6 +57,12 @@ RSA_JWKS = (
     ("keycloak-weave-backend-jwk.json", "weave-backend-current"),
     ("keycloak-weave-mcp-server-jwk.json", "weave-mcp-server-current"),
 )
+RUNTIME_RSA_JWKS = (
+    (
+        "agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin",
+        "weave-agent-runtime-admin-current",
+    ),
+)
 PEM_KEYS = (
     ("mas-signing-key.pem", "RSA"),
 )
@@ -327,6 +333,7 @@ def _validate_existing(context: ComposeContext) -> None:
         + list(MINIO_ACCESS_KEY_SECRETS)
         + list(HEX_SECRETS)
         + [name for name, _ in RSA_JWKS]
+        + [name for name, _ in RUNTIME_RSA_JWKS]
         + [name for name, _ in PEM_KEYS]
     )
     if context.profile == "test":
@@ -351,7 +358,7 @@ def _validate_existing(context: ComposeContext) -> None:
     )
     if not all(len(value) >= 64 for value in appservice_tokens) or len(set(appservice_tokens)) != 2:
         raise ContractError("Matrix Application Service tokens must be distinct high-entropy SecretRefs")
-    for name, _ in RSA_JWKS:
+    for name, _ in RSA_JWKS + RUNTIME_RSA_JWKS:
         value = json.loads((context.secret_root / name).read_text(encoding="utf-8"))
         required_fields = {"kty", "kid", "n", "e", "d", "p", "q", "dp", "dq", "qi"}
         if (
@@ -368,6 +375,11 @@ def _validate_existing(context: ComposeContext) -> None:
         raise ContractError(
             f"MCP private JWK owner uid is {mcp_jwk.stat().st_uid}; runtime requires {expected_uid}"
         )
+    runtime_admin_jwk = context.secret_root / RUNTIME_RSA_JWKS[0][0]
+    if runtime_admin_jwk.stat().st_uid != expected_uid:
+        raise ContractError(
+            "runtime-admin private JWK owner does not match the configured runtime uid"
+        )
     if context.profile == "prod":
         for name in ("ca.pem", "cert.pem", "key.pem"):
             _assert_private_file(context.tls_root / name)
@@ -379,6 +391,27 @@ def initialize(context: ComposeContext) -> None:
     if context.profile == "prod":
         _validate_existing(context)
         return
+    runtime_key_root = (
+        context.secret_root / "agent-runtime/workloads/weave/keycloak"
+    )
+    runtime_key_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(runtime_key_root, 0o700)
+    runtime_uid = int(context.env["WEAVE_RUNTIME_UID"])
+    runtime_gid = int(context.env["WEAVE_RUNTIME_GID"])
+    for parent in (
+        context.secret_root / "agent-runtime",
+        context.secret_root / "agent-runtime/workloads",
+        context.secret_root / "agent-runtime/workloads/weave",
+        runtime_key_root,
+    ):
+        os.chmod(parent, 0o700)
+        if parent.stat().st_uid != runtime_uid or parent.stat().st_gid != runtime_gid:
+            try:
+                os.chown(parent, runtime_uid, runtime_gid)
+            except PermissionError as error:
+                raise ContractError(
+                    "runtime-admin SecretRef directory ownership is invalid"
+                ) from error
     for name in TEXT_SECRETS:
         _atomic_write(context.secret_root / name, _random_secret())
     for name in MINIO_ACCESS_KEY_SECRETS:
@@ -392,6 +425,17 @@ def initialize(context: ComposeContext) -> None:
         path = context.secret_root / name
         if not path.exists():
             _atomic_write(path, _rsa_jwk(kid))
+    for name, kid in RUNTIME_RSA_JWKS:
+        path = context.secret_root / name
+        if not path.exists():
+            _atomic_write(path, _rsa_jwk(kid))
+        if path.stat().st_uid != runtime_uid or path.stat().st_gid != runtime_gid:
+            try:
+                os.chown(path, runtime_uid, runtime_gid)
+            except PermissionError as error:
+                raise ContractError(
+                    "runtime-admin private JWK ownership is invalid"
+                ) from error
     for name, algorithm in PEM_KEYS:
         path = context.secret_root / name
         if not path.exists():
@@ -402,9 +446,17 @@ def initialize(context: ComposeContext) -> None:
         "schemaVersion": "weave.compose-secret-generation.v1",
         "environment": context.profile,
         "generationFingerprint": "sha256:" + hashlib.sha256(
-            canonical_json(sorted(path.name for path in context.secret_root.iterdir() if path.is_file()))
+            canonical_json(
+                sorted(
+                    str(path.relative_to(context.secret_root))
+                    for path in context.secret_root.rglob("*")
+                    if path.is_file()
+                )
+            )
         ).hexdigest(),
-        "secretCount": len([path for path in context.secret_root.iterdir() if path.is_file()]),
+        "secretCount": len(
+            [path for path in context.secret_root.rglob("*") if path.is_file()]
+        ),
         "containsSecretValues": False,
     }
     manifest_path = context.generated_root / "secret-generation.json"

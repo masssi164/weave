@@ -80,7 +80,7 @@ The `infra` module owns environment and Identity Ops tasks under
 ./gradlew :infra:identityDevVerify
 
 ./gradlew :infra:identityOpsImageBuild
-./gradlew :infra:keycloakStockImageResolve
+./gradlew :infra:keycloakRuntimeImageBuild
 ```
 
 The same `plan`/`apply`/`verify` task family exists for `test` and `prod`. Test and prod require a

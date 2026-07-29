@@ -47,13 +47,14 @@ SECRET_REF_FILES = {
     "secretref:keycloak/weave-backend-jwk": "keycloak-weave-backend-jwk.json",
     "secretref:keycloak/weave-mcp-server-jwk": "keycloak-weave-mcp-server-jwk.json",
     "secretref:keycloak/weave-identity-admin": "keycloak-weave-identity-admin",
-    "secretref:keycloak/weave-agent-runtime-admin": "keycloak-weave-agent-runtime-admin",
+    "secretref:keycloak/weave-agent-runtime-admin-jwk": (
+        "agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin"
+    ),
     "secretref:keycloak/nextcloud": "keycloak-nextcloud",
     "secretref:keycloak/matrix-mas": "keycloak-matrix-mas",
 }
 SECRET_CLIENT_FILES = {
     "weave-identity-admin": "keycloak-weave-identity-admin",
-    "weave-agent-runtime-admin": "keycloak-weave-agent-runtime-admin",
     "nextcloud": "keycloak-nextcloud",
     "matrix-mas": "keycloak-matrix-mas",
 }
@@ -63,6 +64,8 @@ IDENTITY_ADMIN_REALM_MANAGEMENT_ROLES = frozenset(
         "query-users",
     }
 )
+RUNTIME_ADMIN_REALM_MANAGEMENT_ROLES = frozenset({"create-client"})
+WORKLOAD_POLICY_EXECUTOR = "weave-workload-client-registration-enforcer"
 IDENTITY_ADMIN_FGAP_CONTRACT = {
     "enabled": True,
     "subjectPolicies": [
@@ -568,6 +571,16 @@ def identity_admin_role_delta(observed: set[str], expected: set[str]) -> tuple[s
     return expected - observed, unexpected & retired
 
 
+def runtime_admin_role_delta(
+    observed: set[str], expected: set[str]
+) -> tuple[set[str], set[str]]:
+    if expected != set(RUNTIME_ADMIN_REALM_MANAGEMENT_ROLES):
+        raise IdentityOpsError(
+            "runtime administration must resolve to exactly create-client"
+        )
+    return expected - observed, observed - expected
+
+
 def flatten_groups(groups: list[dict[str, Any]], parent: str = "") -> list[dict[str, Any]]:
     flattened: list[dict[str, Any]] = []
     for group in groups:
@@ -956,16 +969,169 @@ def plan_identity_admin_fgap(
     return operations
 
 
+def workload_client_policy_payloads(
+    policies: list[dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if len(policies) != 1:
+        raise IdentityOpsError(
+            "Identity Ops requires exactly one workload registration policy"
+        )
+    contract = policies[0]
+    required = {
+        "conditionProvider": "any-client",
+        "executorProvider": WORKLOAD_POLICY_EXECUTOR,
+        "executorVersion": "1",
+        "keycloakVersion": "26.7.0",
+        "runtimeAdminClientKey": "client:weave-agent-runtime-admin",
+        "registrationProvider": "openid-connect",
+        "identifierMetadata": "client_name",
+        "workloadRoleRef": "role:weaver-runtime",
+    }
+    if any(contract.get(name) != value for name, value in required.items()):
+        raise IdentityOpsError(
+            "workload registration policy does not match the pinned Keycloak contract"
+        )
+    name = str(contract.get("name", "")).strip()
+    if not name or contract.get("enabled") is not True:
+        raise IdentityOpsError(
+            "workload registration policy must be named and enabled"
+        )
+    profile_name = f"{name}-profile"
+    profiles = {
+        "profiles": [
+            {
+                "name": profile_name,
+                "description": (
+                    "Weave-owned, version-pinned per-Cell workload registration policy."
+                ),
+                "executors": [
+                    {
+                        "executor": WORKLOAD_POLICY_EXECUTOR,
+                        "configuration": {},
+                    }
+                ],
+            }
+        ]
+    }
+    policy_payload = {
+        "policies": [
+            {
+                "name": name,
+                "description": (
+                    "Restrict authenticated OIDC Dynamic Client Registration "
+                    "to Weave per-Cell workloads."
+                ),
+                "enabled": True,
+                "conditions": [
+                    {
+                        "condition": "any-client",
+                        "configuration": {},
+                    }
+                ],
+                "profiles": [profile_name],
+            }
+        ]
+    }
+    return profiles, policy_payload
+
+
+def _normalized_client_profiles(value: object) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise IdentityOpsError("Keycloak returned malformed client policy profiles")
+    profiles = value.get("profiles") or []
+    if not isinstance(profiles, list):
+        raise IdentityOpsError("Keycloak returned malformed client policy profiles")
+    return {
+        "profiles": [
+            {
+                "name": profile.get("name"),
+                "description": profile.get("description"),
+                "executors": [
+                    {
+                        "executor": executor.get("executor"),
+                        "configuration": executor.get("configuration") or {},
+                    }
+                    for executor in (profile.get("executors") or [])
+                    if isinstance(executor, dict)
+                ],
+            }
+            for profile in profiles
+            if isinstance(profile, dict)
+        ]
+    }
+
+
+def _normalized_client_policies(value: object) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise IdentityOpsError("Keycloak returned malformed client policies")
+    policies = value.get("policies") or []
+    if not isinstance(policies, list):
+        raise IdentityOpsError("Keycloak returned malformed client policies")
+    return {
+        "policies": [
+            {
+                "name": policy.get("name"),
+                "description": policy.get("description"),
+                "enabled": policy.get("enabled"),
+                "conditions": [
+                    {
+                        "condition": condition.get("condition"),
+                        "configuration": condition.get("configuration") or {},
+                    }
+                    for condition in (policy.get("conditions") or [])
+                    if isinstance(condition, dict)
+                ],
+                "profiles": list(policy.get("profiles") or []),
+            }
+            for policy in policies
+            if isinstance(policy, dict)
+        ]
+    }
+
+
+def plan_workload_client_policy(
+    kcadm: Kcadm,
+    realm: str,
+    policies: list[dict[str, Any]],
+) -> list[Operation]:
+    wanted_profiles, wanted_policies = workload_client_policy_payloads(policies)
+    observed_profiles = kcadm.call(
+        "get", "client-policies/profiles", "-r", realm
+    ) or {}
+    observed_policies = kcadm.call(
+        "get", "client-policies/policies", "-r", realm
+    ) or {}
+    operations: list[Operation] = []
+    if _normalized_client_profiles(observed_profiles) != wanted_profiles:
+        operations.append(
+            Operation(
+                "update",
+                "client-policy-profile:weaver-cell-registration",
+                "client-policies/profiles",
+                None,
+                wanted_profiles,
+            )
+        )
+    if _normalized_client_policies(observed_policies) != wanted_policies:
+        operations.append(
+            Operation(
+                "update",
+                "client-policy:weaver-cell-registration",
+                "client-policies/policies",
+                None,
+                wanted_policies,
+            )
+        )
+    return operations
+
+
 def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = None) -> list[Operation]:
     operations: list[Operation] = []
     if desired.get("apiVersion") != "weave.keycloak-desired-state/v2" or "groups" in desired:
         raise IdentityOpsError("Identity Ops accepts only canonical desired-state v2 without legacy realm groups")
-    if desired.get("clientPolicies") != []:
-        raise IdentityOpsError(
-            "BLOCKED_SECURITY_CONTRACT: Keycloak 26.7.0 exposes only internal "
-            "client-registration policy extension points; workload registration "
-            "must remain unprovisioned"
-        )
+    client_policies = desired.get("clientPolicies")
+    if not isinstance(client_policies, list):
+        raise IdentityOpsError("desired state must declare clientPolicies")
     if desired.get("keycloakVersion") != "26.7.0":
         raise IdentityOpsError("desired state must target the pinned official Keycloak 26.7.0 distribution")
     realm = desired["realm"]
@@ -982,6 +1148,10 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
         return operations
     if not is_current(realm["key"], wanted_realm, observed_realm, list_values=False):
         operations.append(Operation("update", realm["key"], f"realms/{realm_name}", realm_name, marked_payload(realm["key"], wanted_realm, list_values=False)))
+
+    operations.extend(
+        plan_workload_client_policy(kcadm, realm_name, client_policies)
+    )
 
     observed_actions = kcadm.call("get", "authentication/required-actions", "-r", realm_name) or []
     for action in desired.get("requiredActions", []):
@@ -1238,21 +1408,34 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
         if grant["clientKey"] == "client:weave-identity-admin":
             expected = set(IDENTITY_ADMIN_REALM_MANAGEMENT_ROLES)
             missing_roles, retired_roles = identity_admin_role_delta(observed_names, expected)
-            for retired_role in sorted(retired_roles):
-                operations.append(
-                    Operation(
-                        "remove-role",
-                        f"{grant['key']}:{retired_role}",
-                        "remove-roles",
-                        None,
-                        {
-                            "username": account.get("username"),
-                            "clientId": "realm-management",
-                            "roleName": retired_role,
-                        },
-                    )
+        elif grant["clientKey"] == "client:weave-agent-runtime-admin":
+            expected = set(RUNTIME_ADMIN_REALM_MANAGEMENT_ROLES)
+            if required_names != expected:
+                raise IdentityOpsError(
+                    "runtime administration role grant must contain only create-client"
                 )
-        roles_to_add = missing_roles if grant["clientKey"] == "client:weave-identity-admin" else required_names - observed_names
+            missing_roles, retired_roles = runtime_admin_role_delta(
+                observed_names, expected
+            )
+        else:
+            expected = required_names
+            missing_roles = required_names - observed_names
+            retired_roles = set()
+        for retired_role in sorted(retired_roles):
+            operations.append(
+                Operation(
+                    "remove-role",
+                    f"{grant['key']}:{retired_role}",
+                    "remove-roles",
+                    None,
+                    {
+                        "username": account.get("username"),
+                        "clientId": "realm-management",
+                        "roleName": retired_role,
+                    },
+                )
+            )
+        roles_to_add = missing_roles
         for role_name in sorted(roles_to_add):
             operations.append(
                 Operation(
@@ -1268,7 +1451,10 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
                 )
             )
 
-        if grant["clientKey"] == "client:weave-identity-admin":
+        if grant["clientKey"] in {
+            "client:weave-identity-admin",
+            "client:weave-agent-runtime-admin",
+        }:
             scope_mapping_endpoint = (
                 f"clients/{client['id']}/scope-mappings/clients/{realm_management['id']}"
             )
@@ -1279,10 +1465,16 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
                 realm_name,
             ) or []
             observed_scope_names = {item.get("name") for item in scope_mappings}
-            missing_scope_roles, retired_scope_roles = identity_admin_role_delta(
-                observed_scope_names,
-                expected,
-            )
+            if grant["clientKey"] == "client:weave-identity-admin":
+                missing_scope_roles, retired_scope_roles = identity_admin_role_delta(
+                    observed_scope_names,
+                    expected,
+                )
+            else:
+                missing_scope_roles, retired_scope_roles = runtime_admin_role_delta(
+                    observed_scope_names,
+                    expected,
+                )
             for retired_role in sorted(retired_scope_roles):
                 mapped_role = exact(
                     [item for item in scope_mappings if item.get("name") == retired_role],
@@ -1326,18 +1518,21 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
                         )
                     )
 
-            fgap = desired.get("fineGrainedAdminPermissions")
-            if not isinstance(fgap, dict):
-                raise IdentityOpsError("identity admin requires a declared FGAP contract")
-            operations.extend(
-                plan_identity_admin_fgap(
-                    kcadm,
-                    realm_name,
-                    fgap,
-                    account,
-                    organizations_by_key,
+            if grant["clientKey"] == "client:weave-identity-admin":
+                fgap = desired.get("fineGrainedAdminPermissions")
+                if not isinstance(fgap, dict):
+                    raise IdentityOpsError(
+                        "identity admin requires a declared FGAP contract"
+                    )
+                operations.extend(
+                    plan_identity_admin_fgap(
+                        kcadm,
+                        realm_name,
+                        fgap,
+                        account,
+                        organizations_by_key,
+                    )
                 )
-            )
     return operations
 
 

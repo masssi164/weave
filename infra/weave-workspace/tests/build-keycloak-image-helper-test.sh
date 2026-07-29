@@ -5,62 +5,50 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly ROOT_DIR
+REPOSITORY_ROOT="$(cd -- "${ROOT_DIR}/../.." && pwd)"
+readonly REPOSITORY_ROOT
 PYTHON_BIN="$(command -v python3)"
 readonly PYTHON_BIN
-TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/weave-keycloak-resolver-test.XXXXXX")"
+TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/weave-keycloak-builder-test.XXXXXX")"
 readonly TEMP_ROOT
 trap 'rm -rf -- "$TEMP_ROOT"' EXIT
 
-MOCK_BIN="${TEMP_ROOT}/bin"
-EVIDENCE_FILE="${TEMP_ROOT}/stock-keycloak-image.json"
-mkdir -p "${MOCK_BIN}"
+export REPOSITORY_ROOT TEMP_ROOT
+"${PYTHON_BIN}" - <<'PY'
+import importlib.util
+import os
+import stat
+from pathlib import Path
 
-cat >"${MOCK_BIN}/docker" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
+repository = Path(os.environ["REPOSITORY_ROOT"])
+temporary = Path(os.environ["TEMP_ROOT"])
+script = repository / "infra/weave-workspace/scripts/build_keycloak_image.py"
+spec = importlib.util.spec_from_file_location("build_keycloak_image", script)
+assert spec is not None and spec.loader is not None
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
 
-readonly STOCK_REFERENCE='quay.io/keycloak/keycloak@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13'
-readonly IMAGE_ID='sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+assert module.UPSTREAM_COMMIT == "6c73e3027811d9c7b22683edd825e839272e9547"
+assert module.ARCHIVE_SHA256 == "32267c4f45db91874c46a097415c336d137ee184d25c3481a513905a92669186"
+assert module.STOCK_SERVICES_SHA256 == "052169f7907a21f4e26679bca5c7365627db91b071a7a2fcaeee00230e6b1419"
+assert module.SPEC_COMMIT == "09a892aebef8fe9d1c648fc180f9380487a26672"
+assert module.resolve_candidate(repository, "1" * 40) == "1" * 40
 
-case "${1:-}" in
-  pull)
-    [[ "${2:-}" == "${STOCK_REFERENCE}" ]]
-    printf 'mock pull progress that must not contaminate resolver stdout\n'
-    ;;
-  image)
-    [[ "${2:-}" == inspect ]]
-    [[ "${3:-}" == "${STOCK_REFERENCE}" ]]
-    printf '{"Id":"%s","RepoDigests":["%s"]}\n' "${IMAGE_ID}" "${STOCK_REFERENCE}"
-    ;;
-  *)
-    printf 'unexpected docker invocation\n' >&2
-    exit 2
-    ;;
-esac
-EOF
-chmod 700 "${MOCK_BIN}/docker"
+evidence = temporary / "evidence.json"
+module.atomic_write(evidence, {"containsSecretValues": False, "supportSafe": True})
+assert stat.S_IMODE(evidence.stat().st_mode) == 0o600
 
-actual="$(
-  PATH="${MOCK_BIN}:${PATH}" "${PYTHON_BIN}" \
-    "${ROOT_DIR}/scripts/build_keycloak_image.py" \
-    --root "${ROOT_DIR}" \
-    --candidate-commit 1111111111111111111111111111111111111111 \
-    --output "${EVIDENCE_FILE}"
-)"
-
-expected='sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-[[ "${actual}" == "${expected}" ]] || {
-  printf 'resolver stdout was not exactly one immutable image ID: %q\n' "${actual}" >&2
-  exit 1
-}
-
-jq -e \
-  --arg imageId "${expected}" \
-  '.schemaVersion == "weave.stock-keycloak-image.v1" and
-   .imageId == $imageId and
-   .evidenceForCandidateCommit == "1111111111111111111111111111111111111111" and
-   .supportSafe == true and
-   .containsSecretValues == false' \
-  "${EVIDENCE_FILE}" >/dev/null
+patch = repository / module.PATCH_RELATIVE
+dockerfile = repository / module.DOCKERFILE_RELATIVE
+assert patch.is_file() and dockerfile.is_file()
+patch_text = patch.read_text(encoding="utf-8")
+dockerfile_text = dockerfile.read_text(encoding="utf-8")
+assert "WeaveWorkloadClientRegistrationExecutorFactory" in patch_text
+assert "weave-workload-client-registration-enforcer" in patch_text
+assert "keycloak-server-spi-private" not in patch_text
+assert "FROM ${WEAVE_KEYCLOAK_BASE} AS builder" in dockerfile_text
+assert "kc.sh build --db=postgres" in dockerfile_text
+assert "com.massimotter.weave.keycloak-patch-sha256" in dockerfile_text
+PY
 
 printf 'build-keycloak-image-helper-test: ok\n'

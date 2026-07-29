@@ -106,9 +106,11 @@ def assert_agent_runtime_mount_boundary(model: dict[str, object]) -> None:
         str(STATE_WRAPPING_TARGET),
     }
     assert {entry["access"] for entry in initializer.values()} == {"read-write"}
+    runtime_admin_entries = []
     for entry in graph:
         coordinate = entry["source"] + entry["target"]
-        assert "weave-agent-runtime-admin" not in coordinate
+        if "weave-agent-runtime-admin" in coordinate:
+            runtime_admin_entries.append(entry)
         if entry["service"] in {
             "mcp",
             "mcp-secret-check",
@@ -117,6 +119,16 @@ def assert_agent_runtime_mount_boundary(model: dict[str, object]) -> None:
             assert "weave-identity-admin" not in coordinate
             assert "weave-backend-jwk" not in coordinate
             assert "/agent-runtime/workloads/" not in coordinate
+    assert {
+        (entry["service"], entry["target"], entry["access"])
+        for entry in runtime_admin_entries
+    } == {
+        (
+            "identity-ops",
+            "/run/secrets/agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin",
+            "read-only",
+        )
+    }
 
 
 def assert_schema_init_boundary(model: dict[str, object]) -> None:
@@ -335,28 +347,19 @@ def main() -> None:
             "redirectUri": "https://weave.local",
         },
     }
-    safe_canonical = {
-        **canonical,
-        "clientPolicies": [],
-        "serviceAccountRoleGrants": [canonical["serviceAccountRoleGrants"][0]],
-    }
-    rendered = _render_desired(safe_canonical, overlay)
+    rendered = _render_desired(canonical, overlay)
     assert "groups" not in rendered
     assert "externalContractAssignments" not in rendered
     assert "identityOpsManagedSurface" not in rendered
     assert "organizationInvitationLifecycle" not in rendered
     try:
-        _render_desired({**safe_canonical, "groups": []}, overlay)
+        _render_desired({**canonical, "groups": []}, overlay)
     except ContractError:
         pass
     else:
         raise AssertionError("renderer accepted a legacy desired-state groups field")
-    try:
-        _render_desired(canonical, overlay)
-    except ContractError as error:
-        assert "BLOCKED_SECURITY_CONTRACT" in str(error)
-    else:
-        raise AssertionError("renderer enabled the blocked workload-registration contract")
+    assert rendered["clientPolicies"] == canonical["clientPolicies"]
+    assert rendered["serviceAccountRoleGrants"] == canonical["serviceAccountRoleGrants"]
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary)
         test = load_context("test", ROOT, str(materialize_example("test", root / "test.env")))
