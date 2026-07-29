@@ -36,8 +36,11 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.HeadBucketResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -97,8 +100,8 @@ class S3EncryptedRuntimeStateStoreTest {
                 .doesNotContain("runtime-secret-session-and-plugin-state-");
         assertThat(store.readiness()).isEqualTo(
                 new RuntimeStateStore.StoreReadiness(
-                        false,
-                        "guarded-cross-store-reconciliation-required",
+                        true,
+                        "reconciled",
                         1));
     }
 
@@ -224,7 +227,25 @@ class S3EncryptedRuntimeStateStoreTest {
                 "select count(*) from weave_agent_runtime_state_heads", Integer.class)).isZero();
         assertThat(guarded.readiness().ready()).isFalse();
         assertThat(guarded.readiness().state())
-                .isEqualTo("guarded-cross-store-reconciliation-required");
+                .isEqualTo("cross-store-inconsistent");
+    }
+
+    @Test
+    void emptyFreshStoreReconcilesAndMissingOrForeignObjectsFailClosed() {
+        assertThat(store.readiness()).isEqualTo(
+                new RuntimeStateStore.StoreReadiness(true, "reconciled", 0));
+
+        objects.put("runtime-state/generations/" + "b".repeat(64) + ".bin", new byte[] {1});
+        assertThat(store.readiness()).isEqualTo(
+                new RuntimeStateStore.StoreReadiness(false, "cross-store-inconsistent", 0));
+
+        objects.clear();
+        RuntimeStateGeneration committed = store.commit(command(
+                "alice", 0, "bound state".getBytes(StandardCharsets.UTF_8),
+                "state-write-alice-0001"));
+        objects.remove(objectKey(committed.generationRef()));
+        assertThat(store.readiness()).isEqualTo(
+                new RuntimeStateStore.StoreReadiness(false, "cross-store-inconsistent", 1));
     }
 
     private static RuntimeStateStore.CommitRuntimeStateCommand command(
@@ -299,6 +320,28 @@ class S3EncryptedRuntimeStateStoreTest {
                 });
         when(client.headBucket(any(HeadBucketRequest.class)))
                 .thenReturn(HeadBucketResponse.builder().build());
+        when(client.listObjectsV2(any(ListObjectsV2Request.class)))
+                .thenAnswer(invocation -> {
+                    ListObjectsV2Request request = invocation.getArgument(0);
+                    java.util.List<S3Object> listed = objects.entrySet().stream()
+                            .filter(entry -> entry.getKey().startsWith(request.prefix()))
+                            .sorted(Map.Entry.comparingByKey())
+                            .map(entry -> S3Object.builder()
+                                    .key(entry.getKey())
+                                    .size((long) entry.getValue().length)
+                                    .build())
+                            .toList();
+                    return ListObjectsV2Response.builder()
+                            .contents(listed)
+                            .isTruncated(false)
+                            .build();
+                });
         return client;
+    }
+
+    private static String objectKey(String generationRef) {
+        return "runtime-state/generations/"
+                + generationRef.substring("state-generation:".length())
+                + ".bin";
     }
 }

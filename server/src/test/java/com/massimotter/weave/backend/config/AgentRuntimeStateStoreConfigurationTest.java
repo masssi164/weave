@@ -2,43 +2,17 @@ package com.massimotter.weave.backend.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.core.env.Environment;
 
-class AgentRuntimeStateStoreGuardTest {
+class AgentRuntimeStateStoreConfigurationTest {
 
     @TempDir
     Path temporary;
-
-    @Test
-    void releaseProfilesCannotActivateTheCrossStoreAdapterBeforeReconciliationEvidence() {
-        Environment prod = mock(Environment.class);
-        when(prod.getActiveProfiles()).thenReturn(new String[] {"prod"});
-        when(prod.getProperty("weave.deployment.profile", "")).thenReturn("prod");
-
-        assertThatThrownBy(() -> AgentRuntimeStateStoreConfiguration.rejectReleaseActivation(prod))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("RuntimeStateStore remains Guarded until durable cross-store reconciliation evidence passes")
-                .hasMessageNotContaining("S3")
-                .hasMessageNotContaining("credential")
-                .hasMessageNotContaining("bucket");
-    }
-
-    @Test
-    void testProfileCanExerciseTheGuardedAdapterWithoutPromotingIt() {
-        Environment test = mock(Environment.class);
-        when(test.getActiveProfiles()).thenReturn(new String[] {"test"});
-        when(test.getProperty("weave.deployment.profile", "")).thenReturn("test");
-
-        AgentRuntimeStateStoreConfiguration.rejectReleaseActivation(test);
-    }
 
     @Test
     void mountedCredentialFilesMustBeAbsolutePrivateRegularFiles() throws Exception {

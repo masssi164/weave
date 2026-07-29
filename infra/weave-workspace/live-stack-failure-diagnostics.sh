@@ -146,6 +146,35 @@ write_redacted_container_diagnostic() {
     redact_evidence_paths >"${target}"
 }
 
+write_backend_readiness_diagnostic() {
+  local container="$1"
+  local target="$2"
+  mkdir -p "$(dirname -- "${target}")"
+  if ! command -v docker >/dev/null 2>&1 ||
+      ! docker inspect "${container}" >/dev/null 2>&1; then
+    printf '{"schema":"weave-backend-readiness-diagnostic-v1","status":"unavailable"}\n' >"${target}"
+    return
+  fi
+  set +e
+  docker exec "${container}" \
+      curl --silent --show-error --max-time 5 http://127.0.0.1:8080/api/health/ready 2>/dev/null |
+    jq '{
+      schema: "weave-backend-readiness-diagnostic-v1",
+      status: (.status // "unavailable"),
+      checks: [(.checks // [])[] | {
+        key: (.key // "unknown"),
+        status: (.status // "unknown"),
+        readiness: (.readiness // "unknown"),
+        actionRequired: ((.action // "") != "")
+      }]
+    }' >"${target}"
+  local status=${PIPESTATUS[0]}
+  set -e
+  if ((status != 0)) || [[ ! -s "${target}" ]]; then
+    printf '{"schema":"weave-backend-readiness-diagnostic-v1","status":"unavailable"}\n' >"${target}"
+  fi
+}
+
 write_support_bundle() {
   local target_dir="$1"
   mkdir -p "${target_dir}"
@@ -207,6 +236,8 @@ main() {
     "${RESOURCE_PREFIX}-schema-init" "${schema_init_diagnostic}"
   write_redacted_container_diagnostic \
     "${RESOURCE_PREFIX}-backend" "${OUTPUT_DIR}/runtime/backend-startup.log"
+  write_backend_readiness_diagnostic \
+    "${RESOURCE_PREFIX}-backend" "${OUTPUT_DIR}/health-checks/backend-readiness.json"
   local support_bundle=""
   support_bundle="$(write_support_bundle "${OUTPUT_DIR}/support-bundle" || true)"
   write_private_raw_logs_if_requested "${OUTPUT_DIR}" "${private_status}"
@@ -230,6 +261,7 @@ This directory is support-safe by default. It intentionally does not dump raw co
 
 - Container status: \`container-status.tsv\`
 - Readiness check output: \`health-checks/operator-check.txt\` (exit ${operator_exit})
+- Support-safe backend readiness state: \`health-checks/backend-readiness.json\`
 - Failed or missing acceptance markers: \`failed-markers.json\`
 - Redacted schema initializer diagnostic: \`one-shot/schema-init.log\`
 - Redacted backend startup diagnostic: \`runtime/backend-startup.log\`
@@ -248,6 +280,7 @@ MD
     printf '  "rawContainerLogsIncluded": false,\n'
     printf '  "containerStatus": "container-status.tsv",\n'
     printf '  "operatorCheck": {"path": "health-checks/operator-check.txt", "exitStatus": %s},\n' "${operator_exit}"
+    printf '  "backendReadiness": "health-checks/backend-readiness.json",\n'
     printf '  "failedMarkers": "failed-markers.json",\n'
     printf '  "schemaInitDiagnostic": "one-shot/schema-init.log",\n'
     printf '  "backendStartupDiagnostic": "runtime/backend-startup.log",\n'

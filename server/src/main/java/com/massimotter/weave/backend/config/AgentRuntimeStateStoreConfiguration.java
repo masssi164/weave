@@ -12,7 +12,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.env.Environment;
 import org.springframework.transaction.PlatformTransactionManager;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -40,9 +39,7 @@ public class AgentRuntimeStateStoreConfiguration {
 
     @Bean(destroyMethod = "close")
     S3Client runtimeStateS3Client(
-            AgentRuntimeStateStoreProperties properties,
-            Environment environment) {
-        rejectReleaseActivation(environment);
+            AgentRuntimeStateStoreProperties properties) {
         properties.requiredCredentialRef();
         return S3Client.builder()
                 .endpointOverride(properties.requiredEndpoint())
@@ -54,17 +51,6 @@ public class AgentRuntimeStateStoreConfiguration {
                         .pathStyleAccessEnabled(properties.pathStyleAccess())
                         .build())
                 .build();
-    }
-
-    static void rejectReleaseActivation(Environment environment) {
-        java.util.Set<String> releaseProfiles = java.util.Set.of("prod");
-        boolean releaseProfile = java.util.Arrays.stream(environment.getActiveProfiles())
-                .anyMatch(releaseProfiles::contains);
-        String declaredProfile = environment.getProperty("weave.deployment.profile", "");
-        if (releaseProfile || releaseProfiles.contains(declaredProfile)) {
-            throw new IllegalStateException(
-                    "RuntimeStateStore remains Guarded until durable cross-store reconciliation evidence passes");
-        }
     }
 
     @Bean
