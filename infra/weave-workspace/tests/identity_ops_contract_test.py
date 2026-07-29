@@ -405,6 +405,8 @@ def main() -> None:
     assert runtime_admin["clientAuthenticatorType"] == "client-jwt"
     assert runtime_admin["attributes"]["token.endpoint.auth.method"] == "private_key_jwt"
     assert runtime_admin["attributes"]["token.endpoint.auth.signing.alg"] == "PS256"
+    assert runtime_admin["attributes"]["use.jwks.url"] == "false"
+    assert runtime_admin["attributes"]["use.jwks.string"] == "true"
     assert runtime_public_jwk["key_ops"] == ["verify"]
     assert "d" not in runtime_public_jwk
     assert identity_ops.client_scope_payload(

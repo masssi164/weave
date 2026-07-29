@@ -303,6 +303,7 @@ def client_payload(client: dict[str, Any]) -> dict[str, Any]:
             "token.endpoint.auth.method": "private_key_jwt",
             "token.endpoint.auth.signing.alg": "PS256",
             "use.jwks.url": "false",
+            "use.jwks.string": "true",
             "jwks.string": json.dumps({"keys": public_keys}, separators=(",", ":"), sort_keys=True),
         }
     else:
