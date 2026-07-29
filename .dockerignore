@@ -14,6 +14,10 @@
 !weave-mcp-server/build/
 !weave-mcp-server/build/libs/
 !weave-mcp-server/build/libs/*.jar
+!keycloak-workload-registration-provider/
+!keycloak-workload-registration-provider/build/
+!keycloak-workload-registration-provider/build/libs/
+!keycloak-workload-registration-provider/build/libs/*.jar
 !infra/
 !infra/identity-ops/
 !infra/identity-ops/**

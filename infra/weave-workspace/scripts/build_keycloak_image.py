@@ -24,6 +24,7 @@ PROVIDER_JAR = (
     "weave-workload-client-registration-provider-1.0.0.jar"
 )
 SOURCE_PATHS = (
+    ".dockerignore",
     "settings.gradle",
     "gradle/libs.versions.toml",
     "keycloak-workload-registration-provider",
