@@ -625,6 +625,8 @@ services:
         target: backend-db-password
     volumes:
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/schema-init:/run/weave-schema-init
+    networks:
+      - weave
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m
     labels:

@@ -141,6 +141,7 @@ def assert_schema_init_boundary(model: dict[str, object]) -> None:
     assert verifier["command"] == ["schema-receipt-check"]
     assert initializer["restart"] == "no"
     assert verifier["restart"] == "no"
+    assert set(initializer["networks"]) == {"weave"}
     assert verifier["network_mode"] == "none"
     assert initializer["depends_on"]["postgres-reconcile"]["condition"] == (
         "service_completed_successfully"
