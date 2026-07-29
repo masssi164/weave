@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.util.LinkedMultiValueMap;
@@ -20,8 +21,11 @@ import org.springframework.web.client.RestClientResponseException;
 public final class SpringKeycloakClientRegistrationTransport
     implements KeycloakClientRegistrationTransport {
 
+  private static final Pattern WORKLOAD_CLIENT_ID =
+      Pattern.compile("weaver-cell-[A-Za-z0-9_-]+");
+
   private final URI registrationEndpoint;
-  private final String registrationPrefix;
+  private final String registrationPathPrefix;
   private final URI tokenEndpoint;
   private final RestClient restClient;
 
@@ -42,7 +46,7 @@ public final class SpringKeycloakClientRegistrationTransport
     registrationEndpoint =
         keycloakBaseUrl.resolve(
             "/realms/" + encodedRealm + "/clients-registrations/openid-connect");
-    registrationPrefix = registrationEndpoint + "/";
+    registrationPathPrefix = registrationEndpoint.getRawPath() + "/";
     tokenEndpoint =
         keycloakBaseUrl.resolve(
             "/realms/" + encodedRealm + "/protocol/openid-connect/token");
@@ -72,12 +76,12 @@ public final class SpringKeycloakClientRegistrationTransport
 
   @Override
   public JsonNode retrieve(URI registrationUri, byte[] registrationAccessToken) {
-    requireRegistrationUri(registrationUri);
+    URI operationUri = registrationOperationUri(registrationUri);
     return exchangeJson(
         () ->
             restClient
                 .get()
-                .uri(registrationUri)
+                .uri(operationUri)
                 .headers(
                     headers ->
                         headers.setBearerAuth(
@@ -89,12 +93,12 @@ public final class SpringKeycloakClientRegistrationTransport
   @Override
   public JsonNode update(
       URI registrationUri, JsonNode metadata, byte[] registrationAccessToken) {
-    requireRegistrationUri(registrationUri);
+    URI operationUri = registrationOperationUri(registrationUri);
     return exchangeJson(
         () ->
             restClient
                 .put()
-                .uri(registrationUri)
+                .uri(operationUri)
                 .headers(
                     headers ->
                         headers.setBearerAuth(
@@ -107,12 +111,12 @@ public final class SpringKeycloakClientRegistrationTransport
 
   @Override
   public void delete(URI registrationUri, byte[] registrationAccessToken) {
-    requireRegistrationUri(registrationUri);
+    URI operationUri = registrationOperationUri(registrationUri);
     exchangeVoid(
         () -> {
           restClient
               .delete()
-              .uri(registrationUri)
+              .uri(operationUri)
               .headers(
                   headers ->
                       headers.setBearerAuth(
@@ -138,15 +142,27 @@ public final class SpringKeycloakClientRegistrationTransport
                 .body(JsonNode.class));
   }
 
-  private void requireRegistrationUri(URI registrationUri) {
+  private URI registrationOperationUri(URI registrationUri) {
+    String rawPath = registrationUri == null ? null : registrationUri.getRawPath();
+    String clientId =
+        rawPath != null && rawPath.startsWith(registrationPathPrefix)
+            ? rawPath.substring(registrationPathPrefix.length())
+            : "";
     if (registrationUri == null
+        || !registrationUri.isAbsolute()
+        || (!"http".equalsIgnoreCase(registrationUri.getScheme())
+            && !"https".equalsIgnoreCase(registrationUri.getScheme()))
+        || registrationUri.getHost() == null
         || registrationUri.getUserInfo() != null
+        || registrationUri.getQuery() != null
         || registrationUri.getFragment() != null
-        || !registrationUri.toString().startsWith(registrationPrefix)
-        || registrationUri.toString().substring(registrationPrefix.length()).contains("/")) {
+        || !WORKLOAD_CLIENT_ID.matcher(clientId).matches()) {
       throw new RuntimeWorkloadIdentityException(
           "The Keycloak registration URI is outside the configured realm boundary");
     }
+    // Keycloak returns its public backend URI. Retain that protocol value in protected state,
+    // but never use its authority as an outbound destination.
+    return URI.create(registrationEndpoint.toASCIIString() + "/" + clientId);
   }
 
   private static JsonNode exchangeJson(Exchange<JsonNode> exchange) {

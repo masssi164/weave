@@ -25,17 +25,20 @@ class SpringKeycloakClientRegistrationTransportTest {
   private AtomicInteger requests;
   private AtomicReference<String> authorization;
   private AtomicReference<String> body;
+  private AtomicReference<URI> requestUri;
 
   @BeforeEach
   void setUp() throws IOException {
     requests = new AtomicInteger();
     authorization = new AtomicReference<>();
     body = new AtomicReference<>();
+    requestUri = new AtomicReference<>();
     server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     server.createContext(
         "/",
         exchange -> {
           requests.incrementAndGet();
+          requestUri.set(exchange.getRequestURI());
           authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
           body.set(
               new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
@@ -119,6 +122,71 @@ class SpringKeycloakClientRegistrationTransportTest {
         .isInstanceOf(RuntimeWorkloadIdentityException.class)
         .hasMessageContaining("outside the configured realm boundary");
     assertThat(requests).hasValue(5);
+  }
+
+  @Test
+  void rebindsAValidatedPublicRegistrationUriToTheConfiguredKeycloakAuthority() {
+    SpringKeycloakClientRegistrationTransport transport =
+        new SpringKeycloakClientRegistrationTransport(
+            base, "weave", Duration.ofSeconds(2));
+    URI publicRegistration =
+        URI.create(
+            "https://auth.weave.test/realms/weave/clients-registrations/openid-connect/"
+                + "weaver-cell-test");
+
+    transport.retrieve(publicRegistration, "rat-one".getBytes(StandardCharsets.UTF_8));
+
+    assertThat(requestUri)
+        .hasValue(
+            URI.create(
+                "/realms/weave/clients-registrations/openid-connect/weaver-cell-test"));
+    assertThat(authorization).hasValue("Bearer rat-one");
+  }
+
+  @Test
+  void rejectsRegistrationUrisThatCouldEscapeTheConfiguredProtocolBoundary() {
+    SpringKeycloakClientRegistrationTransport transport =
+        new SpringKeycloakClientRegistrationTransport(
+            base, "weave", Duration.ofSeconds(2));
+    byte[] token = "rat-one".getBytes(StandardCharsets.UTF_8);
+
+    assertThatThrownBy(
+            () ->
+                transport.retrieve(
+                    URI.create(
+                        "https://auth.weave.test/realms/weave/clients-registrations/"
+                            + "openid-connect/weaver-cell-test/other"),
+                    token))
+        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .hasMessageContaining("outside the configured realm boundary");
+    assertThatThrownBy(
+            () ->
+                transport.retrieve(
+                    URI.create(
+                        "https://auth.weave.test/realms/weave/clients-registrations/"
+                            + "openid-connect/weaver-cell-test%2Fother"),
+                    token))
+        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .hasMessageContaining("outside the configured realm boundary");
+    assertThatThrownBy(
+            () ->
+                transport.retrieve(
+                    URI.create(
+                        "https://auth.weave.test/realms/weave/clients-registrations/"
+                            + "openid-connect/not-a-workload"),
+                    token))
+        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .hasMessageContaining("outside the configured realm boundary");
+    assertThatThrownBy(
+            () ->
+                transport.retrieve(
+                    URI.create(
+                        "https://auth.weave.test/realms/weave/clients-registrations/"
+                            + "openid-connect/weaver-cell-test?destination=elsewhere"),
+                    token))
+        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .hasMessageContaining("outside the configured realm boundary");
+    assertThat(requests).hasValue(0);
   }
 
   @Test
