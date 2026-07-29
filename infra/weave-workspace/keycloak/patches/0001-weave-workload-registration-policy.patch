@@ -2,7 +2,7 @@ diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/
 new file mode 100644
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,404 @@
+@@ -0,0 +1,412 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import jakarta.ws.rs.core.Response;
