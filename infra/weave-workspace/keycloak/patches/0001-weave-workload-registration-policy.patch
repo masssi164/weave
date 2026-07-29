@@ -460,18 +460,25 @@ diff --git a/services/src/main/java/org/keycloak/services/clientregistration/oid
  import org.keycloak.services.ErrorResponseException;
  import org.keycloak.services.ServicesLogger;
  import org.keycloak.services.Urls;
-@@ -94,0 +96,5 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationP
+@@ -92,4 +93,9 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationP
+             throw new ErrorResponseException(ErrorCodes.INVALID_CLIENT_METADATA, "Client Identifier included", Response.Status.BAD_REQUEST);
+         }
+-
 +        try {
 +            WeaveWorkloadClientRegistrationExecutor.validateOidcMetadata(clientOIDC, null);
 +        } catch (org.keycloak.services.clientpolicy.ClientPolicyException failure) {
 +            throw new ErrorResponseException(ErrorCodes.INVALID_CLIENT_METADATA, "Client metadata invalid", Response.Status.BAD_REQUEST);
 +        }
-@@ -138,0 +145,5 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationP
++
+         try {
+@@ -138,2 +144,7 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationP
+         try {
 +            try {
 +                WeaveWorkloadClientRegistrationExecutor.validateOidcMetadata(clientOIDC, clientId);
 +            } catch (org.keycloak.services.clientpolicy.ClientPolicyException failure) {
 +                throw new ClientRegistrationException("Client metadata invalid");
 +            }
+             ClientRepresentation client = DescriptionConverter.toInternal(session, clientOIDC);
 diff --git a/services/src/main/resources/META-INF/services/org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory b/services/src/main/resources/META-INF/services/org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory
 --- a/services/src/main/resources/META-INF/services/org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory
 +++ b/services/src/main/resources/META-INF/services/org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory

@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import urllib.request
@@ -148,7 +149,7 @@ def build_services(repository: Path, temporary: Path) -> tuple[Path, str, str]:
     run("git", "apply", str(patch), cwd=source)
     build_environment = os.environ.copy()
     build_environment["SOURCE_DATE_EPOCH"] = "946684800"
-    subprocess.run(
+    completed = subprocess.run(
         [
             str(source / "mvnw"),
             "-pl",
@@ -162,9 +163,22 @@ def build_services(repository: Path, temporary: Path) -> tuple[Path, str, str]:
         ],
         cwd=source,
         env=build_environment,
-        check=True,
-        stdout=subprocess.DEVNULL,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
     )
+    if completed.returncode != 0:
+        diagnostic = [
+            line.replace(str(source), "<keycloak-source>")
+            for line in completed.stdout.splitlines()
+            if "[ERROR]" in line
+        ][-12:]
+        for line in diagnostic:
+            print(line, file=sys.stderr)
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR patched Keycloak services compilation failed"
+        )
     services = source / SERVICES_JAR
     if not services.is_file():
         raise SystemExit("WEAVE_KEYCLOAK_BUILD_ERROR patched services JAR is absent")

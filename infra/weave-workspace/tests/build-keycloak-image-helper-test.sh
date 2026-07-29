@@ -45,6 +45,8 @@ patch_text = patch.read_text(encoding="utf-8")
 dockerfile_text = dockerfile.read_text(encoding="utf-8")
 assert "WeaveWorkloadClientRegistrationExecutorFactory" in patch_text
 assert "weave-workload-client-registration-enforcer" in patch_text
+assert "@@ -92,4 +93,9 @@" in patch_text
+assert "@@ -94,0" not in patch_text
 assert "keycloak-server-spi-private" not in patch_text
 assert "FROM ${WEAVE_KEYCLOAK_BASE} AS builder" in dockerfile_text
 assert "kc.sh build --db=postgres" in dockerfile_text

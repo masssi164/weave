@@ -20,6 +20,7 @@ IDENTITY_OPS_IMAGE="${WEAVE_TEST_APP_IDENTITY_OPS_IMAGE:-}"
 KEYCLOAK_IMAGE="${WEAVE_TEST_APP_KEYCLOAK_IMAGE:-}"
 LOCAL_SERVER_TAG=""
 LOCAL_MCP_TAG=""
+CONTEXT_PREPARED=false
 STACK_PREPARED=false
 
 log() { printf '%s\n' "$*"; }
@@ -63,12 +64,13 @@ cleanup() {
         --isolated \
         --evidence-file "${WEAVE_TEST_APP_TEARDOWN_EVIDENCE_PATH}" ||
       cleanup_status=$?
-    if ((cleanup_status == 0)); then
-      python3 "${RUNTIME_CLEANUP}" \
-        --repository-root "${REPOSITORY_ROOT}" \
-        --namespace "${WEAVE_E2E_RUN_NAMESPACE}" ||
-        cleanup_status=$?
-    fi
+  fi
+  if [[ "${CONTEXT_PREPARED}" == "true" ]] && ((cleanup_status == 0)); then
+    python3 "${RUNTIME_CLEANUP}" \
+      --repository-root "${REPOSITORY_ROOT}" \
+      --output-root "${OUTPUT_ROOT}" \
+      --namespace "${WEAVE_E2E_RUN_NAMESPACE}" ||
+      cleanup_status=$?
   fi
   [[ -z "${LOCAL_SERVER_TAG}" ]] || docker image rm "${LOCAL_SERVER_TAG}" >/dev/null 2>&1 || true
   [[ -z "${LOCAL_MCP_TAG}" ]] || docker image rm "${LOCAL_MCP_TAG}" >/dev/null 2>&1 || true
@@ -113,6 +115,7 @@ context="$(
     --run-id "${RUN_ID}"
 )"
 eval "${context}"
+CONTEXT_PREPARED=true
 export WEAVE_E2E_RUN_ID WEAVE_E2E_RUN_NAMESPACE WEAVE_ENV_FILE
 export WEAVE_PROXY_HTTP_HOST_PORT WEAVE_PROXY_HTTPS_HOST_PORT
 export WEAVE_KEYCLOAK_HOST_PORT WEAVE_KEYCLOAK_MANAGEMENT_HOST_PORT
