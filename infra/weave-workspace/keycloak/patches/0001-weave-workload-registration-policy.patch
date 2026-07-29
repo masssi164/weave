@@ -2,7 +2,7 @@ diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/
 new file mode 100644
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,484 @@
+@@ -0,0 +1,488 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import jakarta.ws.rs.core.Response;
@@ -330,6 +330,10 @@ new file mode 100644
 +        client.setSecret(null);
 +        client.removeAttribute(ClientSecretConstants.CLIENT_SECRET_CREATION_TIME);
 +        client.removeAttribute(ClientSecretConstants.CLIENT_SECRET_EXPIRATION);
++        new HashSet<>(client.getAttributes().keySet()).stream()
++                .filter(attribute -> !ALLOWED_ATTRIBUTES.contains(attribute))
++                .forEach(client::removeAttribute);
++        FIXED_ATTRIBUTES.forEach(client::setAttribute);
 +
 +        UserModel serviceAccount = session.users().getServiceAccount(client);
 +        RoleModel workloadRole = realm.getRole(WORKLOAD_ROLE);
