@@ -59,6 +59,7 @@ REQUIRED_PRIVATE_FILES = (
     "keycloak-weave-mcp-server-jwk.json",
     "runtime-state-s3-access-key",
     "runtime-state-s3-secret-key",
+    "agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin",
 )
 
 
@@ -646,11 +647,14 @@ def _backend_env(context: ComposeContext) -> str:
                 "WEAVE_AGENT_RUNTIME_POLICY_FILE": "/app/agent-runtime-policy.json",
                 "WEAVE_AGENT_RUNTIME_ENTITLEMENT_ENABLED": "true",
                 "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CAPABILITIES": "files.read",
-                "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED": "false",
+                "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED": "true",
                 "WEAVE_AGENT_RUNTIME_KEYCLOAK_ADMIN_BASE_URL": keycloak_base,
                 "WEAVE_AGENT_RUNTIME_ISSUER":
                     f"{env['WEAVE_AUTH_URL']}/realms/weave",
                 "WEAVE_AGENT_RUNTIME_REALM": "weave",
+                "WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID": "weave-agent-runtime-admin",
+                "WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF":
+                    "credentialref://weave/keycloak/weave-agent-runtime-admin",
                 "WEAVE_AGENT_RUNTIME_ORGANIZATION_REF": "tenant-default",
                 "WEAVE_AGENT_RUNTIME_KEYCLOAK_ORGANIZATION_ALIAS":
                     env["WEAVE_ORGANIZATION_ALIAS"],

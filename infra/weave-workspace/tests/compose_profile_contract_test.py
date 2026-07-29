@@ -375,9 +375,16 @@ def main() -> None:
         assert _image_digest(test) == "sha256:" + "a" * 64
         assert _image_digest(prod) == "sha256:" + "a" * 64
         backend_env = _backend_env(test)
-        assert "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED=false\n" in backend_env
-        assert "WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID=" not in backend_env
-        assert "WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF=" not in backend_env
+        assert "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED=true\n" in backend_env
+        assert (
+            "WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID=weave-agent-runtime-admin\n"
+            in backend_env
+        )
+        assert (
+            "WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF="
+            "credentialref://weave/keycloak/weave-agent-runtime-admin\n"
+            in backend_env
+        )
         test_model = resolved_model(test)
         prod_model = resolved_model(prod)
         assert_agent_runtime_mount_boundary(test_model)

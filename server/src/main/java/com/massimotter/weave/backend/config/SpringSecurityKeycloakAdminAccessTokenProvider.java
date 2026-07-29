@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.config;
 
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.RSAKey;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
 import com.massimotter.weave.backend.agentruntime.port.SecretRefAccess;
@@ -17,6 +19,7 @@ import org.springframework.http.converter.FormHttpMessageConverter;
 import org.springframework.security.oauth2.client.http.OAuth2ErrorResponseErrorHandler;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
 import org.springframework.security.oauth2.client.endpoint.OAuth2ClientCredentialsGrantRequest;
+import org.springframework.security.oauth2.client.endpoint.NimbusJwtClientAuthenticationParametersConverter;
 import org.springframework.security.oauth2.client.endpoint.RestClientClientCredentialsTokenResponseClient;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
@@ -82,17 +85,24 @@ public final class SpringSecurityKeycloakAdminAccessTokenProvider
   private CachedToken requestToken(byte[] mountedSecret, Instant now) {
     byte[] secret = trimAsciiWhitespace(mountedSecret);
     try {
+      ClientAuthenticationMethod authenticationMethod =
+          settings.credentialMethod() == CredentialMethod.PRIVATE_KEY_JWT
+              ? ClientAuthenticationMethod.PRIVATE_KEY_JWT
+              : ClientAuthenticationMethod.CLIENT_SECRET_BASIC;
       ClientRegistration registration =
           ClientRegistration.withRegistrationId(settings.registrationId())
               .clientId(settings.adminClientId())
-              .clientSecret(new String(secret, StandardCharsets.UTF_8))
-              .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+              .clientSecret(
+                  settings.credentialMethod() == CredentialMethod.CLIENT_SECRET_BASIC
+                      ? new String(secret, StandardCharsets.UTF_8)
+                      : null)
+              .clientAuthenticationMethod(authenticationMethod)
               .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
               .tokenUri(settings.tokenEndpoint().toString())
               .clientName("Weave Keycloak administration")
               .build();
       OAuth2AccessToken token =
-          tokenResponseClient
+          tokenResponseClient(secret)
               .getTokenResponse(new OAuth2ClientCredentialsGrantRequest(registration))
               .getAccessToken();
       Instant issuedAt = token.getIssuedAt() == null ? now : token.getIssuedAt();
@@ -128,8 +138,33 @@ public final class SpringSecurityKeycloakAdminAccessTokenProvider
     }
   }
 
-  private static OAuth2AccessTokenResponseClient<OAuth2ClientCredentialsGrantRequest>
-      tokenResponseClient(Settings settings) {
+  private OAuth2AccessTokenResponseClient<OAuth2ClientCredentialsGrantRequest>
+      tokenResponseClient(byte[] secret) {
+    if (settings.credentialMethod() == CredentialMethod.CLIENT_SECRET_BASIC) {
+      return tokenResponseClient;
+    }
+    RSAKey key;
+    try {
+      key = RSAKey.parse(new String(secret, StandardCharsets.UTF_8));
+    } catch (java.text.ParseException failure) {
+      throw new RuntimeWorkloadIdentityException(
+          "Keycloak workload administration private JWK is invalid");
+    }
+    if (!key.isPrivate()
+        || !JWSAlgorithm.PS256.equals(key.getAlgorithm())
+        || key.getKeyID() == null
+        || key.getKeyID().isBlank()) {
+      throw new RuntimeWorkloadIdentityException(
+          "Keycloak workload administration private JWK is invalid");
+    }
+    RestClientClientCredentialsTokenResponseClient client = tokenResponseClient(settings);
+    client.addParametersConverter(
+        new NimbusJwtClientAuthenticationParametersConverter<>(ignored -> key));
+    return client;
+  }
+
+  private static RestClientClientCredentialsTokenResponseClient tokenResponseClient(
+      Settings settings) {
     HttpClient httpClient = HttpClient.newBuilder().connectTimeout(settings.timeout()).build();
     JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
     requestFactory.setReadTimeout(settings.timeout());
@@ -174,6 +209,7 @@ public final class SpringSecurityKeycloakAdminAccessTokenProvider
       String realm,
       String adminClientId,
       String adminCredentialRef,
+      CredentialMethod credentialMethod,
       Duration timeout) {
     public Settings {
       if (adminBaseUrl == null
@@ -191,6 +227,7 @@ public final class SpringSecurityKeycloakAdminAccessTokenProvider
       if (adminCredentialRef == null || !adminCredentialRef.startsWith("credentialref://")) {
         throw new IllegalArgumentException("adminCredentialRef must be a credentialref URI");
       }
+      Objects.requireNonNull(credentialMethod, "credentialMethod");
       if (timeout == null || timeout.isZero() || timeout.isNegative()) {
         throw new IllegalArgumentException("timeout must be positive");
       }
@@ -206,6 +243,11 @@ public final class SpringSecurityKeycloakAdminAccessTokenProvider
     String registrationId() {
       return "weave-keycloak-admin-" + Integer.toUnsignedString(adminClientId.hashCode(), 16);
     }
+  }
+
+  public enum CredentialMethod {
+    CLIENT_SECRET_BASIC,
+    PRIVATE_KEY_JWT
   }
 
   private record CachedToken(String value, Instant refreshAfter) {}

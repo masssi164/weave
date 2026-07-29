@@ -3,6 +3,8 @@ package com.massimotter.weave.backend.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeWorkloadCredentialStore;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
@@ -95,7 +97,45 @@ class SpringSecurityKeycloakAdminAccessTokenProviderTest {
                 .hasMessageNotContaining("admin-secret");
     }
 
+    @Test
+    void authenticatesTheRuntimeAdministratorWithPrivateKeyJwt() throws Exception {
+        Path secret = temporary.resolve("weave/agent-runtime/admin/keycloak");
+        Files.writeString(
+                secret,
+                new RSAKeyGenerator(2048)
+                        .keyID("runtime-admin-test")
+                        .algorithm(JWSAlgorithm.PS256)
+                        .generate()
+                        .toJSONString(),
+                StandardCharsets.UTF_8);
+        server.createContext("/realms/weave/protocol/openid-connect/token", exchange -> {
+            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.US_ASCII));
+            respond(exchange, 200, "{\"access_token\":\"runtime-token\","
+                    + "\"token_type\":\"Bearer\",\"expires_in\":60}");
+        });
+
+        assertThat(provider(
+                SpringSecurityKeycloakAdminAccessTokenProvider.CredentialMethod.PRIVATE_KEY_JWT,
+                "weave-agent-runtime-admin").accessToken()).isEqualTo("runtime-token");
+
+        assertThat(authorization.get()).isNull();
+        assertThat(requestBody.get())
+                .contains("grant_type=client_credentials")
+                .contains("client_assertion_type=")
+                .contains("client_assertion=")
+                .doesNotContain("client_secret");
+    }
+
     private SpringSecurityKeycloakAdminAccessTokenProvider provider() {
+        return provider(
+                SpringSecurityKeycloakAdminAccessTokenProvider.CredentialMethod.CLIENT_SECRET_BASIC,
+                "weave-identity-admin");
+    }
+
+    private SpringSecurityKeycloakAdminAccessTokenProvider provider(
+            SpringSecurityKeycloakAdminAccessTokenProvider.CredentialMethod credentialMethod,
+            String clientId) {
         FileRuntimeWorkloadCredentialStore secrets =
                 new FileRuntimeWorkloadCredentialStore(temporary, new ObjectMapper());
         URI base = URI.create("http://127.0.0.1:" + server.getAddress().getPort());
@@ -103,8 +143,9 @@ class SpringSecurityKeycloakAdminAccessTokenProviderTest {
                 new SpringSecurityKeycloakAdminAccessTokenProvider.Settings(
                         base,
                         "weave",
-                        "weave-identity-admin",
+                        clientId,
                         CREDENTIAL_REF,
+                        credentialMethod,
                         Duration.ofSeconds(2));
         return new SpringSecurityKeycloakAdminAccessTokenProvider(settings, secrets);
     }

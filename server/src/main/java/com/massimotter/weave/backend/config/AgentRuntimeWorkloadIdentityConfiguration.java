@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAgentRuntimeWorkloadIdentityAdmin;
+import com.massimotter.weave.backend.agentruntime.adapter.KeycloakClientRegistrationTransport;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeIdentityAuthority;
 import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeControlService;
@@ -58,14 +59,27 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
   }
 
   @Bean
+  KeycloakClientRegistrationTransport keycloakWorkloadClientRegistrationTransport(
+      AgentRuntimeWorkloadIdentityProperties properties) {
+    return new SpringKeycloakClientRegistrationTransport(
+        properties.keycloakAdminBaseUrl(), properties.realm(), properties.timeout());
+  }
+
+  @Bean
   KeycloakAgentRuntimeWorkloadIdentityAdmin runtimeWorkloadIdentityAdmin(
       AgentRuntimeWorkloadIdentityProperties properties,
-      RuntimeWorkloadCredentialStore credentials,
+      FileRuntimeWorkloadCredentialStore credentials,
       @Qualifier("keycloakAgentRuntimeAdminAccessTokenProvider")
           KeycloakAdminAccessTokenProvider accessTokens,
+      @Qualifier("keycloakWorkloadClientRegistrationTransport")
+          KeycloakClientRegistrationTransport registrationTransport,
       ObjectMapper objectMapper) {
     return new KeycloakAgentRuntimeWorkloadIdentityAdmin(
-        properties.workloadSettings(), credentials, accessTokens, objectMapper);
+        properties.workloadSettings(),
+        credentials,
+        accessTokens,
+        registrationTransport,
+        objectMapper);
   }
 
   @Bean
