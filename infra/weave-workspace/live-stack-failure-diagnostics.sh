@@ -18,6 +18,7 @@ readonly DEFAULT_CONTAINERS=(
   "${RESOURCE_PREFIX}-nextcloud"
   "${RESOURCE_PREFIX}-mailpit"
   "${RESOURCE_PREFIX}-db"
+  "${RESOURCE_PREFIX}-schema-init"
 )
 
 OUTPUT_DIR="${1:-${WEAVE_LIVE_STACK_FAILURE_DIAGNOSTICS_DIR:-${ROOT_DIR}/.generated/live-stack-failure-diagnostics}}"
@@ -128,6 +129,23 @@ write_failed_markers() {
   printf '{"schema":"weave-live-stack-failed-markers-v1","status":"acceptance-evidence-not-generated"}\n' >"${target}"
 }
 
+write_schema_init_diagnostic() {
+  local target="$1"
+  local container="${RESOURCE_PREFIX}-schema-init"
+  mkdir -p "$(dirname -- "${target}")"
+  if ! command -v docker >/dev/null 2>&1; then
+    printf 'schema initializer diagnostic unavailable: docker is unavailable\n' >"${target}"
+    return
+  fi
+  if ! docker inspect "${container}" >/dev/null 2>&1; then
+    printf 'schema initializer diagnostic unavailable: container not found\n' >"${target}"
+    return
+  fi
+  docker logs --tail 200 "${container}" 2>&1 |
+    redact_stream |
+    redact_evidence_paths >"${target}"
+}
+
 write_support_bundle() {
   local target_dir="$1"
   mkdir -p "${target_dir}"
@@ -180,10 +198,12 @@ main() {
   local operator_status="${OUTPUT_DIR}/health-checks/operator-check-exit-status.txt"
   local failed_markers="${OUTPUT_DIR}/failed-markers.json"
   local private_status="${OUTPUT_DIR}/private-raw-logs-status.txt"
+  local schema_init_diagnostic="${OUTPUT_DIR}/one-shot/schema-init.log"
 
   write_container_status "${container_status}"
   write_operator_check "${operator_check}" "${operator_status}"
   write_failed_markers "${failed_markers}"
+  write_schema_init_diagnostic "${schema_init_diagnostic}"
   local support_bundle=""
   support_bundle="$(write_support_bundle "${OUTPUT_DIR}/support-bundle" || true)"
   write_private_raw_logs_if_requested "${OUTPUT_DIR}" "${private_status}"
@@ -208,6 +228,7 @@ This directory is support-safe by default. It intentionally does not dump raw co
 - Container status: \`container-status.tsv\`
 - Readiness check output: \`health-checks/operator-check.txt\` (exit ${operator_exit})
 - Failed or missing acceptance markers: \`failed-markers.json\`
+- Redacted schema initializer diagnostic: \`one-shot/schema-init.log\`
 - Redacted support bundle: \`${bundle_reference}\` (exit ${support_exit})
 - Private raw logs: ${private_status_text}
 
@@ -224,6 +245,7 @@ MD
     printf '  "containerStatus": "container-status.tsv",\n'
     printf '  "operatorCheck": {"path": "health-checks/operator-check.txt", "exitStatus": %s},\n' "${operator_exit}"
     printf '  "failedMarkers": "failed-markers.json",\n'
+    printf '  "schemaInitDiagnostic": "one-shot/schema-init.log",\n'
     printf '  "supportBundleReference": %s,\n' "$(printf '%s' "${bundle_reference}" | json_escape)"
     printf '  "privateRawLogs": %s\n' "$(printf '%s' "${private_status_text}" | json_escape)"
     printf '}\n'
