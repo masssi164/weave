@@ -56,11 +56,6 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
     private static final Pattern CLIENT_ID =
             Pattern.compile("^weaver-cell-[A-Za-z0-9_-]+$");
-    private static final Set<String> APPROVED_SCOPES = Set.of(
-            "weaver-runtime-workload",
-            "agent-runtime.profile.read",
-            "mcp.tools",
-            "files.read");
     private static final PSSParameterSpec PS256 = new PSSParameterSpec(
             "SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
 
@@ -518,7 +513,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         Set<String> grants = strings(response.path("grant_types"));
         Set<String> redirects = strings(response.path("redirect_uris"));
         if (!clientId.equals(text(response, "client_name"))
-                || !APPROVED_SCOPES.equals(scopes)
+                || !new HashSet<>(settings.optionalClientScopes()).equals(scopes)
                 || !Set.of("client_credentials").equals(grants)
                 || !redirects.isEmpty()
                 || !"public".equals(text(response, "subject_type"))

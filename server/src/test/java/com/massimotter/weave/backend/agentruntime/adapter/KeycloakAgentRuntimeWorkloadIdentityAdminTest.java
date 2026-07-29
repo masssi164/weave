@@ -302,7 +302,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                     new String(rat, StandardCharsets.UTF_8));
             response.put(
                     "scope",
-                    "weaver-runtime-workload agent-runtime.profile.read mcp.tools files.read");
+                    "agent-runtime.profile.read mcp.tools files.read");
             return response;
         }
 
