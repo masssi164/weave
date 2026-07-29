@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import hashlib
 import json
 import os
@@ -1828,6 +1829,31 @@ def oauth_probe_failure_category(body: dict[str, Any]) -> str:
     return "unclassified-oauth-error"
 
 
+def access_token_client_roles(access_token: str, client_id: str) -> set[str]:
+    try:
+        segments = access_token.split(".")
+        if len(segments) != 3:
+            raise ValueError("JWT segment count")
+        padding = "=" * (-len(segments[1]) % 4)
+        claims = json.loads(
+            base64.urlsafe_b64decode(segments[1] + padding).decode("utf-8")
+        )
+        if not isinstance(claims, dict):
+            return set()
+        resource_access = claims.get("resource_access")
+        access = (
+            resource_access.get(client_id)
+            if isinstance(resource_access, dict)
+            else None
+        )
+        roles = access.get("roles") if isinstance(access, dict) else None
+        if not isinstance(roles, list) or any(not isinstance(role, str) for role in roles):
+            return set()
+        return set(roles)
+    except (binascii.Error, UnicodeDecodeError, ValueError, json.JSONDecodeError):
+        return set()
+
+
 def probe_client_credentials(
     server: str,
     realm: str,
@@ -1870,6 +1896,16 @@ def probe_client_credentials(
                     f"{client_id}; category={oauth_probe_failure_category(body)}; "
                     "response withheld"
                 )
+            if client.get("key") == "client:weave-agent-runtime-admin":
+                projected_roles = access_token_client_roles(
+                    str(body["access_token"]),
+                    "realm-management",
+                )
+                if projected_roles != set(RUNTIME_ADMIN_REALM_MANAGEMENT_ROLES):
+                    raise IdentityOpsError(
+                        "runtime administration token role projection differs from "
+                        "exact create-client authority; response withheld"
+                    )
         elif status not in {400, 401} or body.get("error") != "unauthorized_client":
             raise IdentityOpsError(
                 f"non-service client unexpectedly accepted client credentials for {client_id}"

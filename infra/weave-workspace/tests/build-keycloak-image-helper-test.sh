@@ -31,7 +31,7 @@ spec.loader.exec_module(module)
 assert module.UPSTREAM_COMMIT == "6c73e3027811d9c7b22683edd825e839272e9547"
 assert module.ARCHIVE_SHA256 == "32267c4f45db91874c46a097415c336d137ee184d25c3481a513905a92669186"
 assert module.STOCK_SERVICES_SHA256 == "052169f7907a21f4e26679bca5c7365627db91b071a7a2fcaeee00230e6b1419"
-assert module.SPEC_COMMIT == "09a892aebef8fe9d1c648fc180f9380487a26672"
+assert module.SPEC_COMMIT == "d864cc095dbc4dcf223fa7458e73b58826f7d0d0"
 assert module.resolve_candidate(repository, "1" * 40) == "1" * 40
 
 evidence = temporary / "evidence.json"

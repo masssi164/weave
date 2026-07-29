@@ -198,6 +198,24 @@ def main() -> None:
         )
         == "invalid-client-public-key"
     )
+    token_claims = base64.urlsafe_b64encode(
+        json.dumps(
+            {
+                "resource_access": {
+                    "realm-management": {"roles": ["create-client"]}
+                }
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).rstrip(b"=").decode("ascii")
+    assert identity_ops.access_token_client_roles(
+        f"test.{token_claims}.signature",
+        "realm-management",
+    ) == {"create-client"}
+    assert not identity_ops.access_token_client_roles(
+        "malformed",
+        "realm-management",
+    )
 
     def rejected_urlopen(request: object, **_kwargs: object) -> None:
         raise identity_ops.urllib.error.HTTPError(
