@@ -59,7 +59,7 @@ tasks.register('freshStartPlan', Exec) {
             'freshStartManifest',
             layout.buildDirectory.file('operations/fresh-start/plan.json').get().asFile.absolutePath
         )
-        commandLine(
+        def arguments = [
             'python3',
             'infra/weave-workspace/fresh-start.py',
             'plan',
@@ -85,7 +85,12 @@ tasks.register('freshStartPlan', Exec) {
                 new File(System.getProperty('user.home'), '.local/state/weave/fresh-start.lock').absolutePath
             ),
             '--output', manifest
-        )
+        ]
+        def recoveryReceipt = providers.gradleProperty('recoveryReceipt').orNull
+        if (recoveryReceipt != null && !recoveryReceipt.toString().trim().isEmpty()) {
+            arguments.addAll(['--recovery-receipt', recoveryReceipt.toString()])
+        }
+        commandLine arguments
     }
 }
 

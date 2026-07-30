@@ -205,7 +205,7 @@ check_backup_dir() {
 
   [[ -d "${backup_dir}" ]] || fail "Backup directory not found: ${backup_dir}"
   python3 "${INTEGRITY_TOOL}" --backup-dir "${backup_dir}"
-  log "Backup artifact integrity check passed for the candidate-bound Compose v2 consistency set."
+  log "Backup artifact integrity check passed for the candidate-bound Compose v3 consistency set."
 }
 
 main() {

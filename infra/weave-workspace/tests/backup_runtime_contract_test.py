@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -22,6 +23,7 @@ from compose_env import ContractError  # noqa: E402
 
 class BackupRuntimeContractTest(unittest.TestCase):
     CANDIDATE = "a" * 40
+    CANDIDATE_MANIFEST = "sha256:" + "d" * 64
 
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -57,9 +59,15 @@ class BackupRuntimeContractTest(unittest.TestCase):
         self.temporary.cleanup()
 
     @staticmethod
-    def _write_postgres(_context: object, target: Path) -> str:
+    def _write_postgres(
+        _context: object, target: Path
+    ) -> tuple[str, str, list[str]]:
         target.write_bytes(b"postgres-consistency-dump\n")
-        return "sha256:" + hashlib.sha256(b"system-identifier").hexdigest()
+        return (
+            "sha256:" + hashlib.sha256(b"system-identifier").hexdigest(),
+            "postgres@sha256:" + "c" * 64,
+            ["postgres", "weave_backend", "weave_keycloak"],
+        )
 
     @staticmethod
     def _write_volume(_context: object, volume: str, target: Path) -> None:
@@ -72,6 +80,7 @@ class BackupRuntimeContractTest(unittest.TestCase):
     def _environment(self) -> dict[str, str]:
         return {
             "WEAVE_CANDIDATE_COMMIT": self.CANDIDATE,
+            "WEAVE_CANDIDATE_MANIFEST_DIGEST": self.CANDIDATE_MANIFEST,
             "WEAVE_BACKUP_ROOT": str(self.backup_root),
         }
 
@@ -92,8 +101,23 @@ class BackupRuntimeContractTest(unittest.TestCase):
             destination = backup_runtime.backup(self.context)
 
         manifest = json.loads((destination / "BackupManifest.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["schemaVersion"], "weave.compose-private-backup.v2")
+        self.assertEqual(manifest["schemaVersion"], "weave.compose-private-backup.v3")
+        self.assertEqual(
+            manifest["postgresDumpClientImage"],
+            "postgres@sha256:" + "c" * 64,
+        )
+        self.assertEqual(
+            manifest["postgresDatabases"],
+            ["postgres", "weave_backend", "weave_keycloak"],
+        )
         self.assertEqual(manifest["candidateCommit"], self.CANDIDATE)
+        self.assertEqual(
+            manifest["candidateManifestDigest"], self.CANDIDATE_MANIFEST
+        )
+        self.assertRegex(
+            manifest["postgresDatabaseInventoryDigest"],
+            r"^sha256:[0-9a-f]{64}$",
+        )
         self.assertEqual(manifest["composeProject"], "weave-test")
         self.assertEqual(manifest["quiescedServices"], list(backup_runtime.QUIESCED_SERVICES))
         self.assertEqual(manifest["runtimeInventory"], inventory)
@@ -121,6 +145,11 @@ class BackupRuntimeContractTest(unittest.TestCase):
             with self.assertRaisesRegex(ContractError, "fixture failure"):
                 backup_runtime.backup(self.context)
         start.assert_called_once_with(self.context, running, inventory)
+        self.assertEqual(
+            list(self.backup_root.iterdir()),
+            [],
+            "a failed private backup must not leave a partial directory",
+        )
 
     def test_volume_archiver_has_only_the_read_capability_required_for_private_provider_data(
         self,
@@ -143,6 +172,13 @@ class BackupRuntimeContractTest(unittest.TestCase):
 
         archive_command = run.call_args_list[1].args[0]
         self.assertEqual(archive_command[0:3], ["docker", "run", "--rm"])
+        self.assertEqual(
+            archive_command[
+                archive_command.index("--network") :
+                archive_command.index("--network") + 2
+            ],
+            ["--network", "none"],
+        )
         self.assertIn("--read-only", archive_command)
         self.assertEqual(
             archive_command[
@@ -165,6 +201,61 @@ class BackupRuntimeContractTest(unittest.TestCase):
         self.assertNotIn("DAC_OVERRIDE", archive_command)
         self.assertIn("type=volume,src=weave-nextcloud-data,dst=/source,readonly", archive_command)
         self.assertIn("no-new-privileges:true", archive_command)
+
+    def test_postgres_dump_client_is_bound_to_the_running_published_digest(
+        self,
+    ) -> None:
+        image_id = "sha256:" + "d" * 64
+        published = "postgres@sha256:" + "e" * 64
+        with mock.patch.object(
+            backup_runtime.subprocess,
+            "run",
+            side_effect=[
+                subprocess.CompletedProcess(
+                    ("docker", "container", "inspect"),
+                    0,
+                    json.dumps([{"Image": image_id}]),
+                    "",
+                ),
+                subprocess.CompletedProcess(
+                    ("docker", "image", "inspect"),
+                    0,
+                    json.dumps([{"RepoDigests": [published]}]),
+                    "",
+                ),
+            ],
+        ):
+            self.assertEqual(
+                backup_runtime._published_postgres_image("weave-db"),
+                published,
+            )
+
+    def test_postgres_dump_client_rejects_mutable_or_local_only_image(
+        self,
+    ) -> None:
+        image_id = "sha256:" + "d" * 64
+        with mock.patch.object(
+            backup_runtime.subprocess,
+            "run",
+            side_effect=[
+                subprocess.CompletedProcess(
+                    ("docker", "container", "inspect"),
+                    0,
+                    json.dumps([{"Image": image_id}]),
+                    "",
+                ),
+                subprocess.CompletedProcess(
+                    ("docker", "image", "inspect"),
+                    0,
+                    json.dumps([{"RepoDigests": []}]),
+                    "",
+                ),
+            ],
+        ):
+            with self.assertRaisesRegex(
+                ContractError, "published immutable digest"
+            ):
+                backup_runtime._published_postgres_image("weave-db")
 
     def test_dev_profile_and_unbound_candidate_fail_closed(self) -> None:
         self.context.profile = "dev"

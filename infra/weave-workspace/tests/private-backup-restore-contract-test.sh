@@ -18,7 +18,7 @@ require "${SCRIPT}" 'WEAVE_RESTORE_PREFLIGHT_ONLY'
 require "${SCRIPT}" 'direct private-backup apply is retired after the Compose/JPA cutover'
 require "${SCRIPT}" 'integrity verified; apply remains Guarded pending Compose/control-store restore evidence'
 require "${TOOL}" 'a required private backup artifact failed checksum validation'
-require "${TOOL}" 'weave.compose-private-backup.v2'
+require "${TOOL}" 'weave.compose-private-backup.v3'
 
 if grep -Eq 'weave-backup-manifest-v1|allow-legacy|MANIFEST\.txt|generated-config-secrets' "${SCRIPT}" "${TOOL}"; then
   fail "Restore preflight must not retain the retired backup schema or compatibility reader"

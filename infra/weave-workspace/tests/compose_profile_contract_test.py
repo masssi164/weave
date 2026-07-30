@@ -652,9 +652,47 @@ def main() -> None:
             "profile": "test",
             "composeProject": test.env["WEAVE_COMPOSE_PROJECT"],
             "candidateCommit": candidate,
+            "candidateManifestDigest": test.env[
+                "WEAVE_CANDIDATE_MANIFEST_DIGEST"
+            ],
+            "backupRef": "evidence:private-backup:sha256:" + "1" * 64,
+            "databaseFingerprint": "sha256:" + "2" * 64,
+            "postgresDumpClientImage": "postgres@sha256:" + "3" * 64,
+            "postgresDatabaseInventoryDigest": "sha256:" + "4" * 64,
+            "postgresDatabaseCount": 3,
             "backupVerified": True,
             "isolatedRestoreVerified": True,
+            "restoreHelperImage": "nextcloud@sha256:" + "5" * 64,
+            "restoredVolumeInventories": [
+                {
+                    "artifact": artifact,
+                    "entryCount": 1,
+                    "regularFileCount": 1,
+                    "regularFileBytes": 1,
+                    "inventoryDigest": "sha256:" + str(index + 1) * 64,
+                    "rootMetadata": {"uid": 0, "gid": 0, "mode": 0o700},
+                    "verified": True,
+                }
+                for index, artifact in enumerate(
+                    (
+                        "caddy-config.tgz",
+                        "caddy-data.tgz",
+                        "keycloak-data.tgz",
+                        "matrix-appservice.tgz",
+                        "nextcloud-data.tgz",
+                        "synapse-data.tgz",
+                    )
+                )
+            ],
+            "isolatedNamespace": "weave-restore-123456789abc",
+            "verifiedDatabaseCount": 3,
+            "verifiedServiceDatabaseCount": 2,
             "verifiedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "cleanupVerified": True,
+            "secretContinuityVerified": True,
+            "secretMigrationReceiptRef": (
+                "evidence:legacy-secret-migration:sha256:" + "6" * 64
+            ),
             "resources": [
                 {"kind": kind, "name": name}
                 for kind, name in sorted(resource_inventory(test))

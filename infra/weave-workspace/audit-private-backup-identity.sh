@@ -133,8 +133,8 @@ main() {
   TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/weave-identity-audit.XXXXXX")"
   chmod 700 "${TEMP_ROOT}"
   python3 "${INTEGRITY_TOOL}" --backup-dir "${BACKUP_DIR}" --output "${TEMP_ROOT}/integrity.json"
-  jq -e '.schemaVersion == "weave.compose-private-backup-integrity.v2" and .profile == "test"' \
-    "${TEMP_ROOT}/integrity.json" >/dev/null || fail "backup is not a verified test-profile Compose v2 consistency set"
+  jq -e '.schemaVersion == "weave.compose-private-backup-integrity.v3" and .profile == "test"' \
+    "${TEMP_ROOT}/integrity.json" >/dev/null || fail "backup is not a verified test-profile Compose v3 consistency set"
   tar -C "${TEMP_ROOT}" -xzf "${BACKUP_DIR}/private-config-secrets.tgz" secrets/postgres-admin-password
   local database_coordinates administrator helper_image recorded_subject audit_id ready process_one
   database_coordinates="$(WEAVE_AUDIT_ROOT="${ROOT_DIR}" PYTHONPATH="${ROOT_DIR}/scripts" python3 - <<'PY'

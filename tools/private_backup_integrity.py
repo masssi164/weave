@@ -13,6 +13,17 @@ import tarfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).resolve().parents[1]
+        / "infra"
+        / "weave-workspace"
+        / "scripts"
+    ),
+)
+from recovery_receipt import database_inventory_digest  # noqa: E402
+
 
 EXPECTED_ARTIFACT_KINDS = {
     "postgres.sql": "postgres-consistency-dump",
@@ -45,8 +56,11 @@ def digest(path: Path) -> tuple[str, int]:
     return checksum.hexdigest(), size
 
 
-def _validate_archive(path: Path) -> None:
+def _validate_archive(path: Path, *, require_root: bool) -> None:
     entries = 0
+    roots = 0
+    normalized_paths: set[str] = set()
+    symlink_paths: set[str] = set()
     try:
         with tarfile.open(path, "r:gz") as archive:
             for member in archive:
@@ -54,16 +68,66 @@ def _validate_archive(path: Path) -> None:
                 candidate = PurePosixPath(member.name)
                 if candidate.is_absolute() or ".." in candidate.parts:
                     raise IntegrityError("private backup archive contains an unsafe member path")
+                normalized = str(candidate).removeprefix("./") or "."
+                if normalized in normalized_paths:
+                    raise IntegrityError(
+                        "private backup archive contains a duplicate member path"
+                    )
+                normalized_paths.add(normalized)
                 if member.ischr() or member.isblk() or member.isfifo() or member.isdev():
                     raise IntegrityError("private backup archive contains a special device member")
+                if not (
+                    member.isfile()
+                    or member.isdir()
+                    or member.issym()
+                    or member.islnk()
+                ):
+                    raise IntegrityError(
+                        "private backup archive contains an unsupported member type"
+                    )
+                if (
+                    not isinstance(member.uid, int)
+                    or isinstance(member.uid, bool)
+                    or member.uid < 0
+                    or member.uid > 2_147_483_647
+                    or not isinstance(member.gid, int)
+                    or isinstance(member.gid, bool)
+                    or member.gid < 0
+                    or member.gid > 2_147_483_647
+                ):
+                    raise IntegrityError(
+                        "private backup archive contains invalid numeric ownership"
+                    )
+                if member.isfile() and member.mode & 0o6000:
+                    raise IntegrityError(
+                        "private backup archive contains a privileged regular-file mode"
+                    )
+                if normalized == ".":
+                    roots += 1
+                    if not member.isdir():
+                        raise IntegrityError(
+                            "private backup archive root is not a directory"
+                        )
                 if member.issym() or member.islnk():
                     target = PurePosixPath(member.linkname)
                     if target.is_absolute() or ".." in target.parts:
                         raise IntegrityError("private backup archive contains an unsafe link target")
+                if member.issym():
+                    symlink_paths.add(normalized)
+        for normalized in normalized_paths:
+            candidate = PurePosixPath(normalized)
+            if any(str(parent) in symlink_paths for parent in candidate.parents):
+                raise IntegrityError(
+                    "private backup archive traverses a parent symlink"
+                )
     except (OSError, tarfile.TarError) as error:
         raise IntegrityError("private backup archive is unreadable") from error
     if entries == 0:
         raise IntegrityError("private backup archive is empty")
+    if require_root and roots != 1:
+        raise IntegrityError(
+            "provider-volume backup archive must contain exactly one root directory"
+        )
 
 
 def _manifest(path: Path) -> dict[str, Any]:
@@ -82,15 +146,20 @@ def validate_backup(backup_dir: Path) -> dict[str, Any]:
     if backup_dir.is_symlink() or not backup_dir.is_dir():
         raise IntegrityError("private backup directory is missing or unsafe")
     manifest = _manifest(backup_dir / "BackupManifest.json")
-    if manifest.get("schemaVersion") != "weave.compose-private-backup.v2":
+    if manifest.get("schemaVersion") != "weave.compose-private-backup.v3":
         raise IntegrityError("backup manifest schema is unsupported")
     if manifest.get("supportSafe") is not False or manifest.get("containsSecretsOrMemberData") is not True:
         raise IntegrityError("backup manifest must declare its private data boundary")
     candidate = manifest.get("candidateCommit")
+    candidate_manifest_digest = manifest.get("candidateManifestDigest")
     profile = manifest.get("profile")
     backup_id = manifest.get("backupId")
     if not isinstance(candidate, str) or not COMMIT_RE.fullmatch(candidate):
         raise IntegrityError("backup manifest candidate commit is invalid")
+    if not isinstance(candidate_manifest_digest, str) or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", candidate_manifest_digest
+    ):
+        raise IntegrityError("backup manifest candidate manifest digest is invalid")
     if profile not in {"test", "prod"}:
         raise IntegrityError("backup manifest profile is invalid")
     if (
@@ -106,6 +175,36 @@ def validate_backup(backup_dir: Path) -> dict[str, Any]:
     database_fingerprint = manifest.get("databaseFingerprint")
     if not isinstance(database_fingerprint, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", database_fingerprint):
         raise IntegrityError("backup manifest database fingerprint is invalid")
+    postgres_dump_client_image = manifest.get("postgresDumpClientImage")
+    if not isinstance(postgres_dump_client_image, str) or not re.fullmatch(
+        r"postgres@sha256:[0-9a-f]{64}", postgres_dump_client_image
+    ):
+        raise IntegrityError(
+            "backup manifest PostgreSQL dump client image is invalid"
+        )
+    postgres_databases = manifest.get("postgresDatabases")
+    postgres_database_inventory_digest = manifest.get(
+        "postgresDatabaseInventoryDigest"
+    )
+    if (
+        not isinstance(postgres_databases, list)
+        or "postgres" not in postgres_databases
+        or postgres_databases != sorted(set(postgres_databases))
+        or any(
+            not isinstance(name, str)
+            or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,62}", name)
+            for name in postgres_databases
+        )
+    ):
+        raise IntegrityError("backup manifest PostgreSQL inventory is invalid")
+    if (
+        not isinstance(postgres_database_inventory_digest, str)
+        or postgres_database_inventory_digest
+        != database_inventory_digest(postgres_databases)
+    ):
+        raise IntegrityError(
+            "backup manifest PostgreSQL inventory digest is invalid"
+        )
     if not isinstance(manifest.get("quiescedServices"), list) or not isinstance(manifest.get("runtimeInventory"), list):
         raise IntegrityError("backup manifest runtime consistency boundary is missing")
 
@@ -141,15 +240,21 @@ def validate_backup(backup_dir: Path) -> dict[str, Any]:
         if actual_hash != inventory[name]["sha256"] or actual_size != inventory[name]["bytes"]:
             raise IntegrityError("a required private backup artifact failed checksum validation")
         if name.endswith(".tgz"):
-            _validate_archive(path)
+            _validate_archive(
+                path, require_root=name != "private-config-secrets.tgz"
+            )
 
     return {
-        "schemaVersion": "weave.compose-private-backup-integrity.v2",
+        "schemaVersion": "weave.compose-private-backup-integrity.v3",
         "status": "passed",
         "backupIdSha256": hashlib.sha256(backup_id.encode("utf-8")).hexdigest(),
         "candidateCommit": candidate,
+        "candidateManifestDigest": candidate_manifest_digest,
         "profile": profile,
         "composeProject": compose_project,
+        "postgresDumpClientImage": postgres_dump_client_image,
+        "postgresDatabaseInventoryDigest": postgres_database_inventory_digest,
+        "postgresDatabaseCount": len(postgres_databases),
         "artifactCount": len(REQUIRED_ARTIFACTS),
         "allRequiredArtifactsVerified": True,
         "privateArtifactContentIncluded": False,

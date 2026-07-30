@@ -16,6 +16,14 @@ from pathlib import Path
 from typing import Any, Iterator, NoReturn
 from urllib.parse import urlsplit
 
+sys.path.insert(
+    0, str(Path(__file__).resolve().parent / "scripts")
+)
+from recovery_receipt import (  # noqa: E402
+    ReceiptContractError,
+    load_fresh_start_recovery,
+)
+
 LABEL_PREFIX = "com.massimotter.weave."
 REQUIRED_CURRENT_LABELS = (
     "managed",
@@ -314,7 +322,7 @@ def exclusion_snapshot(
     return snapshots
 
 
-def validate_plan_arguments(args: argparse.Namespace) -> None:
+def validate_plan_arguments(args: argparse.Namespace) -> str | None:
     if args.environment == "prod":
         fail("Fresh Start is forbidden for prod")
     for value, label in (
@@ -344,10 +352,24 @@ def validate_plan_arguments(args: argparse.Namespace) -> None:
     if args.recovery_decision not in ("verified-backup", "approved-no-recovery"):
         fail("unsupported recovery decision")
     validate_reference(args.recovery_evidence_ref, "recovery evidence")
+    if args.recovery_decision == "verified-backup":
+        if args.recovery_receipt is None:
+            fail("verified-backup requires one private recovery receipt")
+        try:
+            return load_fresh_start_recovery(
+                args.recovery_receipt,
+                candidate=args.candidate_commit,
+                candidate_manifest_digest=args.candidate_manifest_digest,
+            )
+        except ReceiptContractError as error:
+            fail(str(error))
+    if args.recovery_receipt is not None:
+        fail("approved-no-recovery must not consume a backup receipt")
+    return None
 
 
 def plan(args: argparse.Namespace) -> None:
-    validate_plan_arguments(args)
+    recovery_receipt_digest = validate_plan_arguments(args)
     with exclusive_lock(args.lock_file):
         targets, exclusions = load_allowlist(
             args.allowlist, args.environment, args.stack
@@ -405,6 +427,11 @@ def plan(args: argparse.Namespace) -> None:
             "recoveryDecision": {
                 "decision": args.recovery_decision,
                 "evidenceRef": args.recovery_evidence_ref,
+                **(
+                    {"receiptSha256": recovery_receipt_digest}
+                    if recovery_receipt_digest is not None
+                    else {}
+                ),
             },
             "allowlistSha256": hashlib.sha256(args.allowlist.read_bytes()).hexdigest(),
             "targets": inventory,
@@ -602,6 +629,7 @@ def parser() -> argparse.ArgumentParser:
         required=True,
     )
     plan_parser.add_argument("--recovery-evidence-ref", required=True)
+    plan_parser.add_argument("--recovery-receipt", type=Path)
     plan_parser.add_argument("--allowlist", type=Path, default=root / "fresh-start-targets.json")
     plan_parser.add_argument("--output", type=Path, required=True)
     plan_parser.add_argument(
