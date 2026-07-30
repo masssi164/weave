@@ -207,6 +207,24 @@ subsequent `:infra:composeTestUp`; the runtime rejects a missing, stale, symlink
 wrong-candidate, wrong-project, or resource-incomplete receipt. The former state is retained as
 restricted migration evidence, not an executable rollback engine.
 
+Do not use that adoption path for the manifest-bound Fresh Start. The hard cut has no legacy
+credential migration or state adoption. Before requesting its exact destructive approval, run:
+
+```bash
+WEAVE_CANDIDATE_COMMIT=<exact-sha> \
+WEAVE_BACKUP_ROOT=/private/mode-0700/path \
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env \
+bash weave-workspace/fresh-start-backup-rehearsal.sh test
+```
+
+This command quiesces the exact former runtime, creates the same private Compose v2 consistency
+set, restores every archived provider volume and PostgreSQL service database into a newly generated
+isolated namespace, verifies the Weave realm, and removes every rehearsal-owned container, network,
+volume, and temporary password file. Its mode-`0600` support-safe receipt is written inside the
+private backup directory as `FreshStartBackupRehearsal.json`. The receipt explicitly records
+`legacyStateMigrated=false`, `adoptionAuthorized=false`, and `cleanupVerified=true`; it is recovery
+evidence for the hard cut, never authority to import or attach the restored state.
+
 `restore-smoke.sh` does not restore or delete data. After a separately approved restore/rehearsal it
 revalidates the v2 consistency set, runs `operator-check.sh`, and verifies Matrix Application Service
 mounts plus Agent Runtime trust/readiness. It emits `weave.compose-restore-receipt.v2` with only a

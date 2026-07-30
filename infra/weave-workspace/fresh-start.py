@@ -412,7 +412,7 @@ def plan(args: argparse.Namespace) -> None:
         }
         digest = write_manifest(args.output, manifest)
         print(f"WEAVE_FRESH_START_PLAN manifest={args.output} sha256={digest}")
-        print(f"Confirmation: {args.environment}:DELETE_OLD_WEAVE:{digest}")
+        print(f"Confirmation: DELETE_OLD_WEAVE:{digest}")
 
 
 def validate_approval(path: Path, manifest: dict[str, Any], digest: str) -> str:
@@ -470,7 +470,7 @@ def apply(args: argparse.Namespace) -> None:
     with exclusive_lock(args.lock_file):
         if manifest.get("environment") == "prod":
             fail("Fresh Start is forbidden for prod")
-        if args.confirm != f"{manifest.get('environment')}:DELETE_OLD_WEAVE:{digest}":
+        if args.confirm != f"DELETE_OLD_WEAVE:{digest}":
             fail("confirmation does not match the exact environment and manifest SHA-256")
         approval_digest = validate_approval(args.approval_evidence, manifest, digest)
         allowlist, declared_exclusions = load_allowlist(

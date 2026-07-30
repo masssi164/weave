@@ -11,6 +11,7 @@
     {"kind": "container", "name": "weave-mcp-server", "component": "mcp", "dataClass": "runtime-ephemeral"},
     {"kind": "container", "name": "weave-nextcloud", "component": "files-calendar", "dataClass": "runtime-ephemeral"},
     {"kind": "container", "name": "weave-proxy", "component": "gateway", "dataClass": "runtime-ephemeral"},
+    {"kind": "container", "name": "weave-runtime-state", "component": "runtime-state", "dataClass": "runtime-state-sensitive"},
     {"kind": "container", "name": "weave-synapse", "component": "chat", "dataClass": "runtime-ephemeral"},
     {"kind": "network", "name": "weave_network", "component": "network", "dataClass": "connectivity"},
     {"kind": "volume", "name": "weave_caddy_config", "component": "gateway", "dataClass": "configuration-sensitive"},
@@ -20,6 +21,7 @@
     {"kind": "volume", "name": "weave_mailpit_data", "component": "mail", "dataClass": "activation-sensitive"},
     {"kind": "volume", "name": "weave_matrix_chat_appservice_runtime", "component": "chat-appservice", "dataClass": "credential-sensitive"},
     {"kind": "volume", "name": "weave_nextcloud_data", "component": "files-calendar", "dataClass": "collaboration-sensitive"},
+    {"kind": "volume", "name": "weave_runtime_state", "component": "runtime-state", "dataClass": "runtime-state-sensitive"},
     {"kind": "volume", "name": "weave_synapse_data", "component": "chat", "dataClass": "collaboration-sensitive"}
   ],
   "exclusions": []
