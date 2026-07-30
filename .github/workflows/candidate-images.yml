@@ -403,5 +403,6 @@ jobs:
           path: |
             weave/build/test-app/*/weave-test-app-evidence.json
             weave/build/test-app/*/teardown-evidence.json
+            weave/build/test-app/*/failure-diagnostics/**
           if-no-files-found: warn
           retention-days: 30

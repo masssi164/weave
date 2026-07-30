@@ -107,5 +107,6 @@ contains "${CANDIDATE_WORKFLOW}" 'weave-server@${{ needs.build-candidate.outputs
 contains "${CANDIDATE_WORKFLOW}" 'weave-mcp-server@${{ needs.build-candidate.outputs.mcp_digest }}'
 contains "${CANDIDATE_WORKFLOW}" 'weave-keycloak-runtime@${{ needs.build-candidate.outputs.keycloak_runtime_digest }}'
 contains "${CANDIDATE_WORKFLOW}" 'run: ./gradlew --no-daemon testApp'
+contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/failure-diagnostics/**'
 
 printf 'testApp product-flow contract tests passed\n'
