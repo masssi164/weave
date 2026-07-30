@@ -924,7 +924,14 @@ def main() -> None:
             assert payload is None
             endpoint = arguments[1]
             if endpoint == "clients":
-                assert arguments[-2:] == ("--max", "10000")
+                assert arguments == (
+                    "get",
+                    "clients",
+                    "-r",
+                    "weave",
+                    "-q",
+                    "max=10000",
+                )
                 return [
                     {"id": "realm-management-id", "clientId": "realm-management"},
                     {"id": "other-client-id", "clientId": "other-client"},

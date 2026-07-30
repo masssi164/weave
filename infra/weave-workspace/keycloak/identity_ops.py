@@ -609,8 +609,8 @@ def runtime_admin_role_inventory(
         "clients",
         "-r",
         realm,
-        "--max",
-        "10000",
+        "-q",
+        "max=10000",
     ) or []
     if (
         not isinstance(clients, list)
