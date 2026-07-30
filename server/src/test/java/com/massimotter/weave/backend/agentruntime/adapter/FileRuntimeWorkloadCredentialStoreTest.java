@@ -234,6 +234,81 @@ class FileRuntimeWorkloadCredentialStoreTest {
                         assertThat(authority.registrationUri()).isEqualTo(expected));
     }
 
+    @Test
+    void rotatedRegistrationAuthorityIsJournaledOwnerOnlyUntilTheExactCommit() throws Exception {
+        URI issuer = URI.create("https://auth.weave.test/realms/weave");
+        FileRuntimeWorkloadCredentialStore strict =
+                new FileRuntimeWorkloadCredentialStore(temporary, mapper, issuer);
+        strict.create(command());
+        URI registration =
+                URI.create(issuer + "/clients-registrations/openid-connect/" + CLIENT_ID);
+        byte[] initial = "fixture-registration-authority-initial"
+                .getBytes(StandardCharsets.UTF_8);
+        byte[] rotated = "fixture-registration-authority-rotated"
+                .getBytes(StandardCharsets.UTF_8);
+        strict.bindRegistrationAuthority(
+                CLIENT_ID,
+                OWNER,
+                OWNER,
+                OWNER,
+                OWNER,
+                registration,
+                initial,
+                "service-account-subject");
+
+        strict.stageRegistrationRecovery(
+                CLIENT_ID,
+                OWNER,
+                registration,
+                rotated,
+                "service-account-subject",
+                false,
+                FileRuntimeWorkloadCredentialStore.RegistrationRecoveryAction.COMMIT);
+
+        Path recovery = temporary.resolve(
+                "weave/agent-runtime/registration-recovery/" + CLIENT_ID);
+        assertThat(Files.isRegularFile(recovery)).isTrue();
+        if (Files.getFileStore(recovery).supportsFileAttributeView("posix")) {
+            assertThat(Files.getPosixFilePermissions(recovery))
+                    .isEqualTo(PosixFilePermissions.fromString("rw-------"));
+        }
+        assertThat(strict.registrationRecoveryCommitted(CLIENT_ID, OWNER)).isFalse();
+        AtomicReference<byte[]> observed = new AtomicReference<>();
+        strict.withRegistrationRecoveryAccessToken(
+                CLIENT_ID,
+                OWNER,
+                (pending, token) -> {
+                    observed.set(token);
+                    assertThat(pending.action())
+                            .isEqualTo(FileRuntimeWorkloadCredentialStore
+                                    .RegistrationRecoveryAction.COMMIT);
+                    assertThat(token).isEqualTo(rotated);
+                    return null;
+                });
+        assertThat(observed.get()).containsOnly((byte) 0);
+        assertThatThrownBy(() -> strict.registrationRecovery(CLIENT_ID, OTHER_OWNER))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("another immutable cell binding");
+
+        String previousFingerprint =
+                strict.registrationAuthority(CLIENT_ID, OWNER).orElseThrow().tokenFingerprint();
+        strict.replaceRegistrationAuthority(
+                CLIENT_ID,
+                OWNER,
+                previousFingerprint,
+                registration,
+                rotated,
+                "service-account-subject",
+                false);
+        assertThat(strict.registrationRecoveryCommitted(CLIENT_ID, OWNER)).isTrue();
+        String rotatedFingerprint =
+                strict.registrationRecovery(CLIENT_ID, OWNER).orElseThrow().tokenFingerprint();
+        strict.clearRegistrationRecovery(CLIENT_ID, OWNER, rotatedFingerprint);
+
+        assertThat(strict.registrationRecovery(CLIENT_ID, OWNER)).isEmpty();
+        assertThat(Files.exists(recovery)).isFalse();
+    }
+
     private static CreateCredentialCommand command() {
         return new CreateCredentialCommand(
                 CLIENT_ID, OWNER, RuntimeWorkloadBinding.AuthenticationMethod.PRIVATE_KEY_JWT);

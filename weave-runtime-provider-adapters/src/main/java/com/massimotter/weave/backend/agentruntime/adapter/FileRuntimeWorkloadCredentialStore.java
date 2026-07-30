@@ -66,6 +66,8 @@ public final class FileRuntimeWorkloadCredentialStore
         implements RuntimeWorkloadCredentialStore, SecretRefAccess {
 
     static final String SCHEMA = "weave.workload-credential/v2";
+    private static final String REGISTRATION_RECOVERY_SCHEMA =
+            "weave.registration-authority-recovery/v1";
     static final String ALGORITHM = "PS256";
     private static final int RSA_BITS = 3072;
     private static final int LOCAL_LOCK_STRIPES = 64;
@@ -531,6 +533,193 @@ public final class FileRuntimeWorkloadCredentialStore
         }
     }
 
+    void stageRegistrationRecovery(
+            String clientId,
+            String ownerFingerprint,
+            URI registrationUri,
+            byte[] registrationAccessToken,
+            String serviceAccountSubject,
+            boolean enabled,
+            RegistrationRecoveryAction action) {
+        Objects.requireNonNull(registrationUri, "registrationUri");
+        Objects.requireNonNull(registrationAccessToken, "registrationAccessToken");
+        Objects.requireNonNull(action, "action");
+        locked(clientId, () -> {
+            if (!validFingerprint(ownerFingerprint)) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration recovery owner is invalid");
+            }
+            StoredRegistrationRecovery staged = new StoredRegistrationRecovery(
+                    REGISTRATION_RECOVERY_SCHEMA,
+                    clientId,
+                    ownerFingerprint,
+                    registrationUri.toString(),
+                    new String(registrationAccessToken, StandardCharsets.UTF_8),
+                    serviceAccountSubject,
+                    enabled,
+                    action,
+                    clock.instant().toString());
+            validate(staged, clientId);
+            Optional<StoredRegistrationRecovery> existing = readRegistrationRecovery(clientId);
+            if (existing.isPresent()) {
+                StoredRegistrationRecovery observed = existing.orElseThrow();
+                requireOwner(observed, ownerFingerprint);
+                if (!sameRegistrationRecoveryAuthority(observed, staged)) {
+                    throw new RuntimeWorkloadIdentityException(
+                            "A different workload registration recovery is already pending");
+                }
+                RegistrationRecoveryAction effectiveAction =
+                        observed.action() == RegistrationRecoveryAction.DELETE
+                                || action == RegistrationRecoveryAction.DELETE
+                                ? RegistrationRecoveryAction.DELETE
+                                : RegistrationRecoveryAction.COMMIT;
+                String effectiveSubject = serviceAccountSubject != null
+                        ? serviceAccountSubject
+                        : observed.serviceAccountSubject();
+                staged = new StoredRegistrationRecovery(
+                        observed.schemaVersion(),
+                        observed.clientId(),
+                        observed.ownerFingerprint(),
+                        observed.registrationUri(),
+                        observed.registrationAccessToken(),
+                        effectiveSubject,
+                        enabled,
+                        effectiveAction,
+                        observed.createdAt());
+                validate(staged, clientId);
+                if (staged.equals(observed)) {
+                    return null;
+                }
+            }
+            writeRegistrationRecovery(staged);
+            return null;
+        });
+    }
+
+    Optional<RegistrationRecovery> registrationRecovery(
+            String clientId, String ownerFingerprint) {
+        requireClientId(clientId);
+        return locked(clientId, () -> readRegistrationRecovery(clientId)
+                .map(stored -> {
+                    requireOwner(stored, ownerFingerprint);
+                    return recovery(stored);
+                }));
+    }
+
+    List<RegistrationRecoveryEntry> registrationRecoveries() {
+        Path directory = recoveryDirectory();
+        if (!Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
+            return List.of();
+        }
+        try (var paths = Files.list(directory)) {
+            List<String> clientIds = paths
+                    .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
+                    .map(path -> path.getFileName().toString())
+                    .filter(value -> value.matches("weaver-cell-[A-Za-z0-9_-]+"))
+                    .sorted()
+                    .limit(10_001)
+                    .toList();
+            if (clientIds.size() > 10_000) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration recovery inventory exceeds its safe bound");
+            }
+            List<RegistrationRecoveryEntry> entries = new ArrayList<>();
+            for (String clientId : clientIds) {
+                locked(clientId, () -> {
+                    StoredRegistrationRecovery stored =
+                            readRegistrationRecovery(clientId).orElseThrow();
+                    entries.add(new RegistrationRecoveryEntry(
+                            clientId, stored.ownerFingerprint(), recovery(stored)));
+                    return null;
+                });
+            }
+            return List.copyOf(entries);
+        } catch (IOException failure) {
+            throw unavailable(
+                    "The workload registration recovery inventory is unavailable", failure);
+        }
+    }
+
+    boolean registrationRecoveryCommitted(
+            String clientId, String ownerFingerprint) {
+        requireClientId(clientId);
+        return locked(clientId, () -> {
+            StoredRegistrationRecovery pending =
+                    readRegistrationRecovery(clientId).orElseThrow(() ->
+                            new RuntimeWorkloadIdentityException(
+                                    "The workload registration recovery is unavailable"));
+            requireOwner(pending, ownerFingerprint);
+            if (pending.action() == RegistrationRecoveryAction.DELETE) {
+                return false;
+            }
+            Optional<StoredCredential> current = read(clientId);
+            if (current.isEmpty()) {
+                return false;
+            }
+            requireOwner(current.orElseThrow(), ownerFingerprint);
+            Optional<RegistrationAuthority> authority = authority(current.orElseThrow());
+            return authority.isPresent()
+                    && authority.orElseThrow().registrationUri()
+                            .equals(URI.create(pending.registrationUri()))
+                    && MessageDigest.isEqual(
+                            authority.orElseThrow().tokenFingerprint()
+                                    .getBytes(StandardCharsets.US_ASCII),
+                            fingerprint(pending.registrationAccessToken())
+                                    .getBytes(StandardCharsets.US_ASCII))
+                    && (pending.serviceAccountSubject() == null
+                            || pending.serviceAccountSubject().equals(
+                                    authority.orElseThrow().serviceAccountSubject()))
+                    && authority.orElseThrow().enabled() == pending.enabled();
+        });
+    }
+
+    <T> T withRegistrationRecoveryAccessToken(
+            String clientId,
+            String ownerFingerprint,
+            RegistrationRecoveryAccessTokenOperation<T> operation) {
+        Objects.requireNonNull(operation, "operation");
+        RegistrationRecoveryTokenSnapshot snapshot = locked(clientId, () -> {
+            StoredRegistrationRecovery stored =
+                    readRegistrationRecovery(clientId).orElseThrow(() ->
+                            new RuntimeWorkloadIdentityException(
+                                    "The workload registration recovery is unavailable"));
+            requireOwner(stored, ownerFingerprint);
+            return new RegistrationRecoveryTokenSnapshot(
+                    recovery(stored),
+                    stored.registrationAccessToken().getBytes(StandardCharsets.UTF_8));
+        });
+        byte[] token = snapshot.registrationAccessToken();
+        try {
+            return operation.apply(snapshot.recovery(), token);
+        } finally {
+            Arrays.fill(token, (byte) 0);
+        }
+    }
+
+    void clearRegistrationRecovery(
+            String clientId, String ownerFingerprint, String expectedTokenFingerprint) {
+        requireClientId(clientId);
+        Objects.requireNonNull(expectedTokenFingerprint, "expectedTokenFingerprint");
+        locked(clientId, () -> {
+            Optional<StoredRegistrationRecovery> existing =
+                    readRegistrationRecovery(clientId);
+            if (existing.isEmpty()) {
+                return null;
+            }
+            StoredRegistrationRecovery stored = existing.orElseThrow();
+            requireOwner(stored, ownerFingerprint);
+            if (!MessageDigest.isEqual(
+                    fingerprint(stored.registrationAccessToken())
+                            .getBytes(StandardCharsets.US_ASCII),
+                    expectedTokenFingerprint.getBytes(StandardCharsets.US_ASCII))) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration recovery changed concurrently");
+            }
+            deleteRegistrationRecovery(clientId);
+            return null;
+        });
+    }
+
     <T> T withActivePrivateJwk(
             String clientId,
             String ownerFingerprint,
@@ -601,6 +790,46 @@ public final class FileRuntimeWorkloadCredentialStore
                 current.keys());
     }
 
+    private RegistrationRecovery recovery(StoredRegistrationRecovery stored) {
+        return new RegistrationRecovery(
+                URI.create(stored.registrationUri()),
+                fingerprint(stored.registrationAccessToken()),
+                stored.serviceAccountSubject(),
+                stored.enabled(),
+                stored.action());
+    }
+
+    private static boolean sameRegistrationRecoveryAuthority(
+            StoredRegistrationRecovery left, StoredRegistrationRecovery right) {
+        return left.clientId().equals(right.clientId())
+                && left.ownerFingerprint().equals(right.ownerFingerprint())
+                && left.registrationUri().equals(right.registrationUri())
+                && MessageDigest.isEqual(
+                        fingerprint(left.registrationAccessToken())
+                                .getBytes(StandardCharsets.US_ASCII),
+                        fingerprint(right.registrationAccessToken())
+                                .getBytes(StandardCharsets.US_ASCII));
+    }
+
+    private Optional<StoredRegistrationRecovery> readRegistrationRecovery(String clientId) {
+        Path path = recoveryPath(clientId);
+        if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
+            return Optional.empty();
+        }
+        byte[] bytes = readSecretBytes(path);
+        try {
+            StoredRegistrationRecovery stored =
+                    mapper.readValue(bytes, StoredRegistrationRecovery.class);
+            validate(stored, clientId);
+            return Optional.of(stored);
+        } catch (RuntimeException exception) {
+            throw unavailable(
+                    "The workload registration recovery envelope is invalid", exception);
+        } finally {
+            Arrays.fill(bytes, (byte) 0);
+        }
+    }
+
     private Optional<StoredCredential> read(String clientId) {
         String ref = credentialRef(clientId);
         Path path = pathForRef(ref);
@@ -639,11 +868,35 @@ public final class FileRuntimeWorkloadCredentialStore
         } catch (JacksonException exception) {
             throw unavailable("Unable to encode the workload credential envelope", exception);
         }
-        Path target = pathForRef(stored.credentialRef());
+        writeSecret(
+                pathForRef(stored.credentialRef()),
+                stored.clientId(),
+                bytes,
+                "Unable to atomically persist the workload credential");
+    }
+
+    private void writeRegistrationRecovery(StoredRegistrationRecovery stored) {
+        byte[] bytes;
+        try {
+            bytes = mapper.writeValueAsBytes(stored);
+        } catch (JacksonException exception) {
+            throw unavailable(
+                    "Unable to encode the workload registration recovery envelope", exception);
+        }
+        writeSecret(
+                recoveryPath(stored.clientId()),
+                stored.clientId(),
+                bytes,
+                "Unable to atomically persist the workload registration recovery");
+    }
+
+    private void writeSecret(
+            Path target, String clientId, byte[] bytes, String failureMessage) {
         ensureDirectory(target.getParent());
         Path temporary = null;
         try {
-            temporary = createOwnerTempFile(target.getParent(), "." + stored.clientId() + "-", ".tmp");
+            temporary =
+                    createOwnerTempFile(target.getParent(), "." + clientId + "-", ".tmp");
             setFilePermissions(temporary, OWNER_FILE_PERMISSIONS);
             try (FileChannel channel = FileChannel.open(temporary, StandardOpenOption.WRITE)) {
                 ByteBuffer buffer = ByteBuffer.wrap(bytes);
@@ -659,7 +912,7 @@ public final class FileRuntimeWorkloadCredentialStore
             setFilePermissions(target, OWNER_FILE_PERMISSIONS);
             forceDirectory(target.getParent());
         } catch (IOException | UnsupportedOperationException exception) {
-            throw unavailable("Unable to atomically persist the workload credential", exception);
+            throw unavailable(failureMessage, exception);
         } finally {
             Arrays.fill(bytes, (byte) 0);
             if (temporary != null) {
@@ -669,6 +922,17 @@ public final class FileRuntimeWorkloadCredentialStore
                     // The incomplete file is owner-only and never referenced by a CredentialRef.
                 }
             }
+        }
+    }
+
+    private void deleteRegistrationRecovery(String clientId) {
+        Path recovery = recoveryPath(clientId);
+        try {
+            Files.deleteIfExists(recovery);
+            forceDirectory(recovery.getParent());
+        } catch (IOException failure) {
+            throw unavailable(
+                    "Unable to delete the workload registration recovery", failure);
         }
     }
 
@@ -805,6 +1069,32 @@ public final class FileRuntimeWorkloadCredentialStore
         }
     }
 
+    private void validate(
+            StoredRegistrationRecovery stored, String expectedClientId) {
+        if (stored == null
+                || !REGISTRATION_RECOVERY_SCHEMA.equals(stored.schemaVersion())
+                || !expectedClientId.equals(stored.clientId())
+                || !validFingerprint(stored.ownerFingerprint())
+                || !validRegistrationUri(stored.registrationUri(), stored.clientId())
+                || stored.registrationAccessToken() == null
+                || stored.registrationAccessToken().isBlank()
+                || stored.registrationAccessToken().length() > 16 * 1024
+                || (stored.serviceAccountSubject() != null
+                        && (stored.serviceAccountSubject().isBlank()
+                                || stored.serviceAccountSubject().length() > 1024))
+                || stored.action() == null
+                || stored.createdAt() == null) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration recovery authority is inconsistent");
+        }
+        try {
+            Instant.parse(stored.createdAt());
+        } catch (RuntimeException failure) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration recovery timestamp is invalid", failure);
+        }
+    }
+
     private boolean validRegistrationUri(String value, String clientId) {
         if (value == null) {
             return false;
@@ -937,6 +1227,14 @@ public final class FileRuntimeWorkloadCredentialStore
         }
     }
 
+    private static void requireOwner(
+            StoredRegistrationRecovery stored, String ownerFingerprint) {
+        if (!stored.ownerFingerprint().equals(ownerFingerprint)) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration recovery belongs to another immutable cell binding");
+        }
+    }
+
     private static void requireMethod(
             StoredCredential stored,
             RuntimeWorkloadBinding.AuthenticationMethod authenticationMethod) {
@@ -972,6 +1270,29 @@ public final class FileRuntimeWorkloadCredentialStore
     private static String credentialRef(String clientId) {
         requireClientId(clientId);
         return "credentialref://weave/agent-runtime/cells/" + clientId;
+    }
+
+    private Path recoveryDirectory() {
+        Path directory = root.resolve("weave/agent-runtime/registration-recovery")
+                .toAbsolutePath()
+                .normalize();
+        if (!directory.startsWith(root)) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration recovery path escaped its SecretRef root");
+        }
+        requireNoSymlinkAncestors(directory);
+        return directory;
+    }
+
+    private Path recoveryPath(String clientId) {
+        requireClientId(clientId);
+        Path path = recoveryDirectory().resolve(clientId).toAbsolutePath().normalize();
+        if (!path.startsWith(recoveryDirectory())) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration recovery path escaped its SecretRef root");
+        }
+        requireNoSymlinkAncestors(path.getParent());
+        return path;
     }
 
     private Path pathForRef(String credentialRef) {
@@ -1142,12 +1463,37 @@ public final class FileRuntimeWorkloadCredentialStore
             Set<String> acceptedKeyIds,
             RegistrationAuthority authority) {}
 
+    enum RegistrationRecoveryAction {
+        COMMIT,
+        DELETE
+    }
+
+    record RegistrationRecovery(
+            URI registrationUri,
+            String tokenFingerprint,
+            String serviceAccountSubject,
+            boolean enabled,
+            RegistrationRecoveryAction action) {}
+
+    record RegistrationRecoveryEntry(
+            String clientId,
+            String ownerFingerprint,
+            RegistrationRecovery recovery) {}
+
     private record RegistrationTokenSnapshot(
             RegistrationAuthority authority, byte[] registrationAccessToken) {}
+
+    private record RegistrationRecoveryTokenSnapshot(
+            RegistrationRecovery recovery, byte[] registrationAccessToken) {}
 
     @FunctionalInterface
     interface RegistrationAccessTokenOperation<T> {
         T apply(RegistrationAuthority authority, byte[] registrationAccessToken);
+    }
+
+    @FunctionalInterface
+    interface RegistrationRecoveryAccessTokenOperation<T> {
+        T apply(RegistrationRecovery recovery, byte[] registrationAccessToken);
     }
 
     @FunctionalInterface
@@ -1170,4 +1516,15 @@ public final class FileRuntimeWorkloadCredentialStore
         PENDING,
         PREVIOUS
     }
+
+    private record StoredRegistrationRecovery(
+            String schemaVersion,
+            String clientId,
+            String ownerFingerprint,
+            String registrationUri,
+            String registrationAccessToken,
+            String serviceAccountSubject,
+            boolean enabled,
+            RegistrationRecoveryAction action,
+            String createdAt) {}
 }

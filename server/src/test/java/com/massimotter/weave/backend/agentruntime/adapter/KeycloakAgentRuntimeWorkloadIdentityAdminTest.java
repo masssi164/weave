@@ -25,6 +25,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -256,6 +257,124 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
     }
 
     @Test
+    void failedRatPersistenceAndCompensationDeleteRemainRestartRecoverable() throws Exception {
+        RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
+        Path protectedRef = temporary.resolve(
+                "weave/agent-runtime/cells/" + CLIENT_ID);
+        byte[] previousEnvelope = Files.readAllBytes(protectedRef);
+        transport.failNextDelete = true;
+        transport.afterNextUpdate = () -> {
+            try {
+                Files.delete(protectedRef);
+                Files.createDirectory(protectedRef);
+            } catch (Exception failure) {
+                throw new IllegalStateException(
+                        "unable to install persistence fault", failure);
+            }
+        };
+
+        RuntimeWorkloadIdentityException failure = catchThrowableOfType(
+                RuntimeWorkloadIdentityException.class,
+                () -> adapter.disableBinding(new DisableBindingCommand(
+                        ORGANIZATION,
+                        PERSON,
+                        CELL,
+                        binding,
+                        "audit:persistence-and-compensation-failure")));
+
+        assertThat(failure)
+                .isNotNull()
+                .hasMessageNotContaining("rat-");
+        assertThat(transport.deleted).isFalse();
+        assertThat(credentials.registrationRecovery(CLIENT_ID, owner()))
+                .hasValueSatisfying(recovery ->
+                        assertThat(recovery.action())
+                                .isEqualTo(FileRuntimeWorkloadCredentialStore
+                                        .RegistrationRecoveryAction.DELETE));
+
+        Files.delete(protectedRef);
+        Files.write(protectedRef, previousEnvelope);
+        if (Files.getFileStore(protectedRef).supportsFileAttributeView("posix")) {
+            Files.setPosixFilePermissions(
+                    protectedRef, PosixFilePermissions.fromString("rw-------"));
+        }
+        FileRuntimeWorkloadCredentialStore restartedCredentials =
+                new FileRuntimeWorkloadCredentialStore(temporary, mapper);
+        KeycloakAgentRuntimeWorkloadIdentityAdmin restarted =
+                adapter(restartedCredentials);
+
+        RuntimeWorkloadBinding replacement = restarted.ensureBinding(ensure());
+
+        assertThat(replacement.clientId()).isEqualTo(CLIENT_ID);
+        assertThat(transport.deleteAttempts).hasValue(2);
+        assertThat(transport.creates).hasValue(2);
+        assertThat(restartedCredentials.registrationRecovery(CLIENT_ID, owner()))
+                .isEmpty();
+        assertThat(restartedCredentials.find(CLIENT_ID)).isPresent();
+        Arrays.fill(previousEnvelope, (byte) 0);
+    }
+
+    @Test
+    void localDeleteFailureIsRetriedIdempotentlyAfterRestart() throws Exception {
+        RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
+        Path protectedRef = temporary.resolve(
+                "weave/agent-runtime/cells/" + CLIENT_ID);
+        byte[] previousEnvelope = Files.readAllBytes(protectedRef);
+        transport.afterNextDelete = () -> {
+            try {
+                Files.delete(protectedRef);
+                Files.createDirectory(protectedRef);
+            } catch (Exception failure) {
+                throw new IllegalStateException(
+                        "unable to install delete persistence fault", failure);
+            }
+        };
+
+        assertThatThrownBy(() -> adapter.deleteBinding(new DeleteBindingCommand(
+                ORGANIZATION, PERSON, CELL, binding, "audit:delete-local-failure")))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageNotContaining("rat-");
+
+        assertThat(transport.deleted).isTrue();
+        assertThat(credentials.registrationRecovery(CLIENT_ID, owner())).isPresent();
+        Files.delete(protectedRef);
+        Files.write(protectedRef, previousEnvelope);
+        if (Files.getFileStore(protectedRef).supportsFileAttributeView("posix")) {
+            Files.setPosixFilePermissions(
+                    protectedRef, PosixFilePermissions.fromString("rw-------"));
+        }
+        FileRuntimeWorkloadCredentialStore restartedCredentials =
+                new FileRuntimeWorkloadCredentialStore(temporary, mapper);
+        KeycloakAgentRuntimeWorkloadIdentityAdmin restarted =
+                adapter(restartedCredentials);
+
+        restarted.deleteBinding(new DeleteBindingCommand(
+                ORGANIZATION, PERSON, CELL, binding, "audit:delete-retry"));
+
+        assertThat(transport.deleteAttempts).hasValue(2);
+        assertThat(restartedCredentials.registrationRecovery(CLIENT_ID, owner()))
+                .isEmpty();
+        assertThat(restartedCredentials.find(CLIENT_ID)).isEmpty();
+        Arrays.fill(previousEnvelope, (byte) 0);
+    }
+
+    @Test
+    void mutatingResponseWithoutRatRotationIsRejectedAndCleanedUp() {
+        RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
+        transport.reuseRatOnNextUpdate = true;
+
+        assertThatThrownBy(() -> adapter.disableBinding(new DisableBindingCommand(
+                ORGANIZATION, PERSON, CELL, binding, "audit:missing-rat-rotation")))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("did not rotate")
+                .hasMessageNotContaining("rat-");
+
+        assertThat(transport.deleted).isTrue();
+        assertThat(credentials.find(CLIENT_ID)).isEmpty();
+        assertThat(credentials.registrationRecoveries()).isEmpty();
+    }
+
+    @Test
     void inconsistentCreateResponseDeletesTheClientAndLocalCredential() {
         transport.nextResponseMutation = response -> response.put(
                 "registration_client_uri",
@@ -339,6 +458,33 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 "audit:provision");
     }
 
+    private KeycloakAgentRuntimeWorkloadIdentityAdmin adapter(
+            FileRuntimeWorkloadCredentialStore credentialStore) {
+        return new KeycloakAgentRuntimeWorkloadIdentityAdmin(
+                new KeycloakAgentRuntimeWorkloadIdentityAdmin.Settings(
+                        URI.create("http://keycloak.test"),
+                        URI.create(ISSUER),
+                        "weave",
+                        Duration.ofSeconds(2),
+                        "weaver-runtime",
+                        List.of("weaver-runtime-workload"),
+                        List.of("agent-runtime.profile.read", "mcp.tools", "files.read"),
+                        60),
+                credentialStore,
+                () -> "runtime-admin-access-token",
+                transport,
+                mapper,
+                Clock.fixed(
+                        Instant.parse("2026-07-29T18:00:00Z"),
+                        ZoneOffset.UTC));
+    }
+
+    private static String owner() {
+        return com.massimotter.weave.backend.agentruntime.domain
+                .RuntimeWorkloadOwnership.ownerFingerprint(
+                ORGANIZATION, PERSON, CELL, CLIENT_ID);
+    }
+
     private static final class FakeRegistrationTransport
             implements KeycloakClientRegistrationTransport {
         private final ObjectMapper mapper;
@@ -355,10 +501,14 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         private Map<String, String> lastClientCredentials = Map.of();
         private boolean deleted;
         private boolean failNextRetrieve;
+        private boolean failNextDelete;
+        private boolean reuseRatOnNextUpdate;
         private boolean lastUpdateResponseHadScope;
         private Runnable afterNextUpdate = () -> {};
+        private Runnable afterNextDelete = () -> {};
         private Consumer<ObjectNode> nextResponseMutation = ignored -> {};
         private Consumer<ObjectNode> nextRetrieveMutation = ignored -> {};
+        private final AtomicInteger deleteAttempts = new AtomicInteger();
 
         FakeRegistrationTransport(ObjectMapper mapper) {
             this.mapper = mapper;
@@ -370,6 +520,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 throw new RuntimeWorkloadIdentityException("duplicate registration");
             }
             creates.incrementAndGet();
+            deleted = false;
             lastAdministrationToken = administrationAccessToken;
             metadata = ((ObjectNode) requested).deepCopy();
             return response(rotateRat());
@@ -402,7 +553,12 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             }
             updates.incrementAndGet();
             metadata = ((ObjectNode) requested).deepCopy();
-            ObjectNode response = response(rotateRat());
+            byte[] responseRat = currentRat;
+            if (!reuseRatOnNextUpdate) {
+                responseRat = rotateRat();
+            }
+            reuseRatOnNextUpdate = false;
+            ObjectNode response = response(responseRat);
             response.remove("scope");
             lastUpdateResponseHadScope = response.has("scope");
             Runnable callback = afterNextUpdate;
@@ -414,10 +570,22 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         @Override
         public void delete(String clientId, URI uri, byte[] rat) {
             requireClient(clientId);
+            deleteAttempts.incrementAndGet();
+            if (metadata == null && deleted) {
+                return;
+            }
             requireAuthority(uri, rat);
+            if (failNextDelete) {
+                failNextDelete = false;
+                throw new RuntimeWorkloadIdentityException(
+                        "simulated registration cleanup failure");
+            }
             deleted = true;
             metadata = null;
             currentRat = null;
+            Runnable callback = afterNextDelete;
+            afterNextDelete = () -> {};
+            callback.run();
         }
 
         @Override

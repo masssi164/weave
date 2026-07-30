@@ -97,6 +97,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         requirePrivateKeyJwt(command.authenticationMethod());
         String owner = owner(command.organizationRef(), command.personRef(), command.cellRef(),
                 command.clientId());
+        recoverPendingRegistration(command.clientId(), owner);
         RuntimeWorkloadCredentialState credential = credentials.find(command.clientId())
                 .orElseGet(() -> credentials.create(
                         new com.massimotter.weave.backend.agentruntime.port
@@ -139,6 +140,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         Objects.requireNonNull(command, "command");
         String owner = requireBindingOwner(
                 command.organizationRef(), command.personRef(), command.cellRef(), command.binding());
+        recoverPendingRegistration(command.binding().clientId(), owner);
         RuntimeWorkloadCredentialState credential = requireCredential(command.binding(), owner);
         FileRuntimeWorkloadCredentialStore.RegistrationAuthority authority =
                 credentials.registrationAuthority(command.binding().clientId(), owner)
@@ -186,6 +188,26 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                             token);
                     byte[] next = registrationAccessToken(response);
                     try {
+                        try {
+                            requireRotatedRegistrationAccessToken(observedAuthority, next);
+                            credentials.stageRegistrationRecovery(
+                                    clientId,
+                                    owner,
+                                    observedAuthority.registrationUri(),
+                                    next,
+                                    subject,
+                                    true,
+                                    FileRuntimeWorkloadCredentialStore
+                                            .RegistrationRecoveryAction.COMMIT);
+                        } catch (RuntimeException responseFailure) {
+                            failClosedRemoteRegistration(
+                                    clientId,
+                                    owner,
+                                    observedAuthority.registrationUri(),
+                                    next,
+                                    responseFailure);
+                            throw responseFailure;
+                        }
                         RegistrationResponse registration;
                         try {
                             // A mutating response is the RAT/URI handoff. The policy-enforced
@@ -205,7 +227,8 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                             throw responseFailure;
                         }
                         try {
-                            return credentials.activateReplacementAuthority(
+                            RuntimeWorkloadCredentialState replacement =
+                                    credentials.activateReplacementAuthority(
                                     clientId,
                                     owner,
                                     rotationRef,
@@ -213,6 +236,11 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                                     registration.registrationUri(),
                                     next,
                                     subject);
+                            credentials.clearRegistrationRecovery(
+                                    clientId,
+                                    owner,
+                                    fingerprint(next));
+                            return replacement;
                         } catch (RuntimeException persistenceFailure) {
                             failClosedRemoteRegistration(
                                     clientId,
@@ -251,6 +279,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         Objects.requireNonNull(command, "command");
         String owner = requireBindingOwner(
                 command.organizationRef(), command.personRef(), command.cellRef(), command.binding());
+        recoverPendingRegistration(command.binding().clientId(), owner);
         RuntimeWorkloadCredentialState credential = requireCredential(command.binding(), owner);
         FileRuntimeWorkloadCredentialStore.RegistrationAuthority authority =
                 credentials.registrationAuthority(command.binding().clientId(), owner)
@@ -269,6 +298,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         Objects.requireNonNull(command, "command");
         String owner = requireBindingOwner(
                 command.organizationRef(), command.personRef(), command.cellRef(), command.binding());
+        recoverPendingRegistration(command.binding().clientId(), owner);
         RuntimeWorkloadCredentialState prepared = credentials.prepareRotation(
                 new com.massimotter.weave.backend.agentruntime.port
                         .RuntimeWorkloadCredentialStore.RotateCredentialCommand(
@@ -294,6 +324,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         Objects.requireNonNull(command, "command");
         String owner = requireBindingOwner(
                 command.organizationRef(), command.personRef(), command.cellRef(), command.binding());
+        recoverPendingRegistration(command.binding().clientId(), owner);
         var retirement = new com.massimotter.weave.backend.agentruntime.port
                 .RuntimeWorkloadCredentialStore.RetireCredentialCommand(
                 command.binding().clientId(), owner, command.rotationRef());
@@ -314,6 +345,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         Objects.requireNonNull(command, "command");
         String owner = requireBindingOwner(
                 command.organizationRef(), command.personRef(), command.cellRef(), command.binding());
+        recoverPendingRegistration(command.binding().clientId(), owner);
         RuntimeWorkloadCredentialState credential = requireCredential(command.binding(), owner);
         update(
                 command.binding().clientId(),
@@ -329,24 +361,40 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         Objects.requireNonNull(command, "command");
         String owner = requireBindingOwner(
                 command.organizationRef(), command.personRef(), command.cellRef(), command.binding());
+        if (recoverPendingRegistration(command.binding().clientId(), owner)) {
+            return;
+        }
         credentials.withRegistrationAccessToken(
                 command.binding().clientId(),
                 owner,
                 (authority, token) -> {
+                    credentials.stageRegistrationRecovery(
+                            command.binding().clientId(),
+                            owner,
+                            authority.registrationUri(),
+                            token,
+                            authority.serviceAccountSubject(),
+                            authority.enabled(),
+                            FileRuntimeWorkloadCredentialStore.RegistrationRecoveryAction.DELETE);
                     transport.delete(
                             command.binding().clientId(),
                             authority.registrationUri(),
                             token);
+                    credentials.delete(
+                            new com.massimotter.weave.backend.agentruntime.port
+                                    .RuntimeWorkloadCredentialStore.DeleteCredentialCommand(
+                                    command.binding().clientId(), owner));
+                    credentials.clearRegistrationRecovery(
+                            command.binding().clientId(),
+                            owner,
+                            fingerprint(token));
                     return null;
                 });
-        credentials.delete(
-                new com.massimotter.weave.backend.agentruntime.port
-                        .RuntimeWorkloadCredentialStore.DeleteCredentialCommand(
-                        command.binding().clientId(), owner));
     }
 
     @Override
     public Snapshot scan() {
+        recoverPendingRegistrations();
         List<ClientObservation> observations = new ArrayList<>();
         for (FileRuntimeWorkloadCredentialStore.RegistrationAuthorityEntry entry
                 : credentials.registrationAuthorities()) {
@@ -397,6 +445,43 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                 false);
     }
 
+    private void recoverPendingRegistrations() {
+        for (FileRuntimeWorkloadCredentialStore.RegistrationRecoveryEntry entry
+                : credentials.registrationRecoveries()) {
+            recoverPendingRegistration(entry.clientId(), entry.ownerFingerprint());
+        }
+    }
+
+    private boolean recoverPendingRegistration(String clientId, String owner) {
+        var pending = credentials.registrationRecovery(clientId, owner);
+        if (pending.isEmpty()) {
+            return false;
+        }
+        FileRuntimeWorkloadCredentialStore.RegistrationRecovery recovery =
+                pending.orElseThrow();
+        if (recovery.action()
+                        == FileRuntimeWorkloadCredentialStore.RegistrationRecoveryAction.COMMIT
+                && credentials.registrationRecoveryCommitted(clientId, owner)) {
+            credentials.clearRegistrationRecovery(
+                    clientId, owner, recovery.tokenFingerprint());
+            return false;
+        }
+        credentials.withRegistrationRecoveryAccessToken(
+                clientId,
+                owner,
+                (observed, token) -> {
+                    transport.delete(clientId, observed.registrationUri(), token);
+                    return null;
+                });
+        credentials.delete(
+                new com.massimotter.weave.backend.agentruntime.port
+                        .RuntimeWorkloadCredentialStore.DeleteCredentialCommand(
+                        clientId, owner));
+        credentials.clearRegistrationRecovery(
+                clientId, owner, recovery.tokenFingerprint());
+        return true;
+    }
+
     private void createRegistration(
             EnsureBindingCommand command,
             String owner,
@@ -412,11 +497,27 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         }
         byte[] token = registrationAccessToken(response);
         try {
+            credentials.stageRegistrationRecovery(
+                    command.clientId(),
+                    owner,
+                    expectedRegistrationUri(command.clientId()),
+                    token,
+                    null,
+                    true,
+                    FileRuntimeWorkloadCredentialStore.RegistrationRecoveryAction.COMMIT);
             RegistrationResponse registration = registrationResponse(
                     response, command.clientId(), null, token);
             validateMetadata(response, command.clientId(), publicJwks(credential));
             String subject = verifyWorkloadSubject(
                     command.clientId(), owner, credential, null);
+            credentials.stageRegistrationRecovery(
+                    command.clientId(),
+                    owner,
+                    registration.registrationUri(),
+                    token,
+                    subject,
+                    true,
+                    FileRuntimeWorkloadCredentialStore.RegistrationRecoveryAction.COMMIT);
             credentials.bindRegistrationAuthority(
                     command.clientId(),
                     owner,
@@ -426,6 +527,10 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                     registration.registrationUri(),
                     token,
                     subject);
+            credentials.clearRegistrationRecovery(
+                    command.clientId(),
+                    owner,
+                    fingerprint(token));
         } catch (RuntimeException registrationFailure) {
             failClosedRemoteRegistration(
                     command.clientId(),
@@ -458,6 +563,27 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                             clientId, authority.registrationUri(), token);
                     byte[] next = registrationAccessToken(response);
                     try {
+                        try {
+                            if (registrationAccessTokenRotated(authority, next)) {
+                                credentials.stageRegistrationRecovery(
+                                        clientId,
+                                        owner,
+                                        authority.registrationUri(),
+                                        next,
+                                        authority.serviceAccountSubject(),
+                                        authority.enabled(),
+                                        FileRuntimeWorkloadCredentialStore
+                                                .RegistrationRecoveryAction.COMMIT);
+                            }
+                        } catch (RuntimeException responseFailure) {
+                            failClosedRemoteRegistration(
+                                    clientId,
+                                    owner,
+                                    authority.registrationUri(),
+                                    next,
+                                    responseFailure);
+                            throw responseFailure;
+                        }
                         RegistrationResponse registration;
                         try {
                             // Keycloak can render this response before post-update Client Policy
@@ -504,6 +630,26 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                             clientId, authority.registrationUri(), metadata, token);
                     byte[] next = registrationAccessToken(response);
                     try {
+                        try {
+                            requireRotatedRegistrationAccessToken(authority, next);
+                            credentials.stageRegistrationRecovery(
+                                    clientId,
+                                    owner,
+                                    authority.registrationUri(),
+                                    next,
+                                    subject,
+                                    enabled,
+                                    FileRuntimeWorkloadCredentialStore
+                                            .RegistrationRecoveryAction.COMMIT);
+                        } catch (RuntimeException responseFailure) {
+                            failClosedRemoteRegistration(
+                                    clientId,
+                                    owner,
+                                    authority.registrationUri(),
+                                    next,
+                                    responseFailure);
+                            throw responseFailure;
+                        }
                         RegistrationResponse registration;
                         try {
                             registration = registrationResponse(
@@ -542,10 +688,14 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         byte[] next = registration.registrationAccessToken();
         try {
             if (authority.tokenFingerprint().equals(
-                    fingerprint(new String(next, StandardCharsets.UTF_8)))
+                    fingerprint(next))
                     && authority.registrationUri().equals(registration.registrationUri())
                     && authority.serviceAccountSubject().equals(subject)
                     && authority.enabled() == enabled) {
+                credentials.clearRegistrationRecovery(
+                        clientId,
+                        owner,
+                        fingerprint(next));
                 return;
             }
             credentials.replaceRegistrationAuthority(
@@ -556,6 +706,10 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                     next,
                     subject,
                     enabled);
+            credentials.clearRegistrationRecovery(
+                    clientId,
+                    owner,
+                    fingerprint(next));
         } catch (RuntimeException persistenceFailure) {
             failClosedRemoteRegistration(
                     clientId,
@@ -575,16 +729,45 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             URI registrationUri,
             byte[] currentRegistrationAccessToken,
             RuntimeException primaryFailure) {
+        String tokenFingerprint = fingerprint(currentRegistrationAccessToken);
+        try {
+            credentials.stageRegistrationRecovery(
+                    clientId,
+                    owner,
+                    registrationUri,
+                    currentRegistrationAccessToken,
+                    null,
+                    false,
+                    FileRuntimeWorkloadCredentialStore.RegistrationRecoveryAction.DELETE);
+        } catch (RuntimeException recoveryFailure) {
+            primaryFailure.addSuppressed(recoveryFailure);
+        }
+        boolean remoteDeleted = false;
         try {
             transport.delete(clientId, registrationUri, currentRegistrationAccessToken);
+            remoteDeleted = true;
         } catch (RuntimeException cleanupFailure) {
             primaryFailure.addSuppressed(cleanupFailure);
         }
+        if (!remoteDeleted) {
+            return;
+        }
+        boolean localDeleted = false;
         try {
             credentials.delete(
                     new com.massimotter.weave.backend.agentruntime.port
                             .RuntimeWorkloadCredentialStore.DeleteCredentialCommand(
                             clientId, owner));
+            localDeleted = true;
+        } catch (RuntimeException cleanupFailure) {
+            primaryFailure.addSuppressed(cleanupFailure);
+        }
+        if (!localDeleted) {
+            return;
+        }
+        try {
+            credentials.clearRegistrationRecovery(
+                    clientId, owner, tokenFingerprint);
         } catch (RuntimeException cleanupFailure) {
             primaryFailure.addSuppressed(cleanupFailure);
         }
@@ -659,6 +842,24 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                     "Keycloak returned an invalid Registration Access Token");
         }
         return value.stringValue().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private boolean registrationAccessTokenRotated(
+            FileRuntimeWorkloadCredentialStore.RegistrationAuthority authority,
+            byte[] next) {
+        return !MessageDigest.isEqual(
+                authority.tokenFingerprint().getBytes(StandardCharsets.US_ASCII),
+                fingerprint(next)
+                        .getBytes(StandardCharsets.US_ASCII));
+    }
+
+    private void requireRotatedRegistrationAccessToken(
+            FileRuntimeWorkloadCredentialStore.RegistrationAuthority authority,
+            byte[] next) {
+        if (!registrationAccessTokenRotated(authority, next)) {
+            throw new RuntimeWorkloadIdentityException(
+                    "Keycloak did not rotate the Registration Access Token");
+        }
     }
 
     private RegistrationResponse registrationResponse(
@@ -986,10 +1187,13 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
     }
 
     private static String fingerprint(String value) {
+        return fingerprint(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String fingerprint(byte[] value) {
         try {
             return "sha256:" + HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256")
-                            .digest(value.getBytes(StandardCharsets.UTF_8)));
+                    MessageDigest.getInstance("SHA-256").digest(value));
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException(impossible);
         }
