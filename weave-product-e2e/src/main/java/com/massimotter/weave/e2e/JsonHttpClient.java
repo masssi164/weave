@@ -182,6 +182,18 @@ final class JsonHttpClient {
     } catch (RuntimeException ignored) {
       // Non-Weave or malformed payloads are deliberately omitted from diagnostics.
     }
+    if (reference.indexOf(" code=") < 0) {
+      response
+          .headers()
+          .firstValue("X-Weave-Error-Code")
+          .ifPresent(
+              code ->
+                  appendSafeText(
+                      reference,
+                      " code=",
+                      code,
+                      "[a-z0-9][a-z0-9-]{0,79}"));
+    }
     if (reference.indexOf("requestId=") < 0) {
       response
           .headers()

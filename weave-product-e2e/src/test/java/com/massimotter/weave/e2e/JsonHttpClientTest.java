@@ -68,4 +68,47 @@ class JsonHttpClientTest {
       server.stop(0);
     }
   }
+
+  @Test
+  void reportsAllowlistedWebDavErrorHeaderWithoutParsingXmlPayload() throws Exception {
+    HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext(
+        "/failure",
+        exchange -> {
+          byte[] body =
+              """
+              <?xml version="1.0" encoding="UTF-8"?>
+              <d:error xmlns:d="DAV:"><d:message>provider secret must not leak</d:message></d:error>
+              """
+                  .getBytes(StandardCharsets.UTF_8);
+          exchange.getResponseHeaders().set("X-Weave-Error-Code", "files-storage-unavailable");
+          exchange.sendResponseHeaders(503, body.length);
+          exchange.getResponseBody().write(body);
+          exchange.close();
+        });
+    server.start();
+    try {
+      JsonHttpClient client = new JsonHttpClient(HttpClient.newHttpClient());
+
+      org.assertj.core.api.ThrowableAssert.ThrowingCallable call =
+          () ->
+              client.send(
+                  "WebDAV operation",
+                  "PUT",
+                  java.net.URI.create(
+                      "http://127.0.0.1:" + server.getAddress().getPort() + "/failure"),
+                  Map.of(),
+                  "text/plain",
+                  new byte[] {1},
+                  Set.of(201));
+
+      assertThat(org.assertj.core.api.Assertions.catchThrowable(call))
+          .hasMessage(
+              "WebDAV operation failed with HTTP 503 code=files-storage-unavailable")
+          .hasMessageNotContaining("provider secret")
+          .hasMessageNotContaining("message");
+    } finally {
+      server.stop(0);
+    }
+  }
 }
