@@ -380,6 +380,33 @@ def main() -> None:
         "access.token.claim": "true",
         "userinfo.token.claim": "false",
     }
+    workload_client_id_mapper = identity_ops.mapper_payload(
+        {
+            "name": "weaver-runtime-client-id",
+            "mapperType": "user-session-note",
+            "sessionNote": "client_id",
+            "claimName": "client_id",
+            "claimValueType": "String",
+            "addToIdToken": False,
+            "addToAccessToken": True,
+            "addToUserInfo": False,
+        }
+    )
+    assert (
+        workload_client_id_mapper["protocolMapper"]
+        == "oidc-usersessionmodel-note-mapper"
+    )
+    assert workload_client_id_mapper["config"] == {
+        "user.session.note": "client_id",
+        "claim.name": "client_id",
+        "jsonType.label": "String",
+        "lightweight.claim": "false",
+        "access.tokenResponse.claim": "false",
+        "introspection.token.claim": "false",
+        "id.token.claim": "false",
+        "access.token.claim": "true",
+        "userinfo.token.claim": "false",
+    }
 
     client_without_relationships = identity_ops.client_payload(
         {

@@ -723,6 +723,7 @@ def mapper_payload(mapper: dict[str, Any]) -> dict[str, Any]:
         "group-membership": "oidc-group-membership-mapper",
         "organization-group-membership": "oidc-organization-group-membership-mapper",
         "audience": "oidc-audience-mapper",
+        "user-session-note": "oidc-usersessionmodel-note-mapper",
     }.get(mapper_type)
     if protocol_mapper is None:
         raise IdentityOpsError(f"unsupported protocol mapper type: {mapper_type}")
@@ -744,6 +745,15 @@ def mapper_payload(mapper: dict[str, Any]) -> dict[str, Any]:
         }
     elif mapper_type == "audience":
         config = {"included.custom.audience": mapper["includedCustomAudience"]}
+    elif mapper_type == "user-session-note":
+        config = {
+            "user.session.note": mapper["sessionNote"],
+            "claim.name": mapper["claimName"],
+            "jsonType.label": mapper["claimValueType"],
+            "lightweight.claim": "false",
+            "access.tokenResponse.claim": "false",
+            "introspection.token.claim": "false",
+        }
     config.update(
         {
             "id.token.claim": str(mapper.get("addToIdToken", False)).lower(),
