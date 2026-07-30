@@ -584,6 +584,11 @@ def _backend_env(context: ComposeContext) -> str:
         "WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE": str(appservice_root / "hs-token"),
         "WEAVE_NEXTCLOUD_BASE_URL": nextcloud_base,
         "WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME": env["WEAVE_NEXTCLOUD_ACTOR_USERNAME"],
+        "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_ENABLED": "true",
+        "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_ORGANIZATION_REF": "tenant-default",
+        "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_ADAPTER_KEY": "nextcloud-webdav",
+        "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_CONFIGURATION_REF":
+            "secretref:files:nextcloud",
         "WEAVE_CALDAV_BASE_URL": nextcloud_base,
         "WEAVE_CALDAV_BACKEND_USERNAME": env["WEAVE_NEXTCLOUD_ACTOR_USERNAME"],
         "WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE": calendar_path,

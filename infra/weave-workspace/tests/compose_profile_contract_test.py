@@ -387,6 +387,26 @@ def main() -> None:
             "credentialref://weave/keycloak/weave-agent-runtime-admin\n"
             in backend_env
         )
+        for rendered_backend_env in (backend_env, _backend_env(prod)):
+            assert (
+                "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_ENABLED=true\n"
+                in rendered_backend_env
+            )
+            assert (
+                "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_ORGANIZATION_REF="
+                "tenant-default\n"
+                in rendered_backend_env
+            )
+            assert (
+                "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_ADAPTER_KEY="
+                "nextcloud-webdav\n"
+                in rendered_backend_env
+            )
+            assert (
+                "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_CONFIGURATION_REF="
+                "secretref:files:nextcloud\n"
+                in rendered_backend_env
+            )
         test_model = resolved_model(test)
         prod_model = resolved_model(prod)
         assert_agent_runtime_mount_boundary(test_model)
