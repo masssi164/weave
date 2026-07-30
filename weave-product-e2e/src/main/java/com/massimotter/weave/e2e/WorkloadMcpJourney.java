@@ -160,12 +160,13 @@ final class WorkloadMcpJourney {
 
   private void validateWorkloadToken(String token, String clientId) {
     JsonNode claims = jwtPayload(token);
-    if (!environment.issuer().toString().equals(claims.path("iss").asString())
-        || !clientId.equals(claims.path("client_id").asString())
-        || !clientId.equals(claims.path("azp").asString())
-        || claims.path("sub").asString("").isBlank()
-        || claims.path("exp").asLong(0) <= Instant.now().getEpochSecond()) {
-      throw new ProductFlowException("MCP workload token identity claims are invalid");
+    Set<String> invalidIdentityClaims =
+        invalidIdentityClaims(
+            claims, clientId, environment.issuer().toString(), Instant.now().getEpochSecond());
+    if (!invalidIdentityClaims.isEmpty()) {
+      throw new ProductFlowException(
+          "MCP workload token identity claims are invalid fields="
+              + String.join(",", invalidIdentityClaims));
     }
     Set<String> audiences = strings(claims.path("aud"));
     Set<String> expectedAudiences =
@@ -182,6 +183,27 @@ final class WorkloadMcpJourney {
     if (!roles.equals(Set.of("weaver-runtime"))) {
       throw new ProductFlowException("MCP workload token role set is not exact");
     }
+  }
+
+  static Set<String> invalidIdentityClaims(
+      JsonNode claims, String clientId, String issuer, long currentEpochSecond) {
+    Set<String> invalid = new java.util.TreeSet<>();
+    if (!issuer.equals(claims.path("iss").asString())) {
+      invalid.add("issuer");
+    }
+    if (!clientId.equals(claims.path("client_id").asString())) {
+      invalid.add("client-id");
+    }
+    if (!clientId.equals(claims.path("azp").asString())) {
+      invalid.add("authorized-party");
+    }
+    if (claims.path("sub").asString("").isBlank()) {
+      invalid.add("subject");
+    }
+    if (claims.path("exp").asLong(0) <= currentEpochSecond) {
+      invalid.add("expiry");
+    }
+    return Set.copyOf(invalid);
   }
 
   private RSAKey readActiveKey(String clientId) {

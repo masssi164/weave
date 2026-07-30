@@ -1,0 +1,55 @@
+package com.massimotter.weave.e2e;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import tools.jackson.databind.json.JsonMapper;
+import org.junit.jupiter.api.Test;
+
+class WorkloadMcpJourneyTest {
+
+  @Test
+  void reportsOnlyInvalidIdentityFieldNames() {
+    var claims =
+        JsonMapper.builder()
+            .build()
+            .createObjectNode()
+            .put("iss", "https://wrong.example/realms/weave")
+            .put("client_id", "weaver-cell-other")
+            .put("azp", "weaver-cell-test")
+            .put("sub", "")
+            .put("exp", 99);
+
+    assertThat(
+            WorkloadMcpJourney.invalidIdentityClaims(
+                claims,
+                "weaver-cell-test",
+                "https://auth.weave.test/realms/weave",
+                100))
+        .containsExactlyInAnyOrder("issuer", "client-id", "subject", "expiry")
+        .doesNotContain(
+            "https://wrong.example/realms/weave",
+            "weaver-cell-other",
+            "weaver-cell-test");
+  }
+
+  @Test
+  void acceptsTheExactWorkloadIdentityShape() {
+    var claims =
+        JsonMapper.builder()
+            .build()
+            .createObjectNode()
+            .put("iss", "https://auth.weave.test/realms/weave")
+            .put("client_id", "weaver-cell-test")
+            .put("azp", "weaver-cell-test")
+            .put("sub", "service-account-subject")
+            .put("exp", 101);
+
+    assertThat(
+            WorkloadMcpJourney.invalidIdentityClaims(
+                claims,
+                "weaver-cell-test",
+                "https://auth.weave.test/realms/weave",
+                100))
+        .isEmpty();
+  }
+}
