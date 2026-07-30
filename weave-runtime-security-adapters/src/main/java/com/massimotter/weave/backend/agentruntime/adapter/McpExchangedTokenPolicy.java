@@ -91,7 +91,8 @@ public final class McpExchangedTokenPolicy {
     }
 
     private static McpWorkloadAuthorizationException denied() {
-        return new McpWorkloadAuthorizationException(false);
+        return new McpWorkloadAuthorizationException(
+                false, McpWorkloadAuthorizationException.Reason.TOKEN_POLICY);
     }
 
 }

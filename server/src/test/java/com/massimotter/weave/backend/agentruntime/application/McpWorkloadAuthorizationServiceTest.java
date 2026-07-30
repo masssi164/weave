@@ -115,7 +115,10 @@ class McpWorkloadAuthorizationServiceTest {
 
         assertThatThrownBy(() -> service.authorize(token()))
                 .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
-                        failure -> assertThat(failure.authorityUnavailable()).isTrue())
+                        failure -> {
+                            assertThat(failure.authorityUnavailable()).isTrue();
+                            assertThat(failure.reasonCode()).isEqualTo("authority-unavailable");
+                        })
                 .hasMessageNotContaining("private provider diagnostic")
                 .hasMessageNotContaining("exchanged-secret-token");
     }
@@ -131,7 +134,8 @@ class McpWorkloadAuthorizationServiceTest {
         when(cells.findByWorkload(ISSUER, SUBJECT)).thenReturn(Optional.of(revoked));
 
         assertThatThrownBy(() -> service.authorize(token()))
-                .isInstanceOf(McpWorkloadAuthorizationException.class)
+                .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
+                        failure -> assertThat(failure.reasonCode()).isEqualTo("cell-binding"))
                 .hasMessageNotContaining(SUBJECT)
                 .hasMessageNotContaining("member-subject")
                 .hasMessageNotContaining("exchanged-secret-token");

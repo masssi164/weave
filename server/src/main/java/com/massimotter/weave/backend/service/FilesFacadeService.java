@@ -68,6 +68,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
@@ -82,6 +84,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class FilesFacadeService {
 
     private static final String DEFAULT_CONTEXT_ID = "workspace-default";
+    private static final Logger LOGGER = LoggerFactory.getLogger(FilesFacadeService.class);
 
     private final FilesProviderPort filesProviderPort;
     private final ContextAuthorizationPort contextAuthorizationPort;
@@ -901,6 +904,7 @@ public class FilesFacadeService {
             workload = mcpWorkloadAuthorizationService.authorize(
                     mcpExchangedTokenPolicy.resolve(jwt));
         } catch (McpWorkloadAuthorizationException denied) {
+            LOGGER.warn("MCP workload authorization rejected reason={}", denied.reasonCode());
             throw new ApiErrorException(
                     denied.authorityUnavailable()
                             ? HttpStatus.SERVICE_UNAVAILABLE
