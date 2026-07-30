@@ -31,6 +31,8 @@ class WorkloadMcpJourneyTest {
             .put("client_id", "weaver-cell-other")
             .put("azp", "weaver-cell-test")
             .put("sub", "")
+            .put("jti", "")
+            .put("iat", 1)
             .put("exp", 99);
 
     assertThat(
@@ -39,7 +41,8 @@ class WorkloadMcpJourneyTest {
                 "weaver-cell-test",
                 "https://auth.weave.test/realms/weave",
                 100))
-        .containsExactlyInAnyOrder("issuer", "client-id", "subject", "expiry")
+        .containsExactlyInAnyOrder(
+            "issuer", "client-id", "subject", "token-id", "expiry", "token-ttl")
         .doesNotContain(
             "https://wrong.example/realms/weave",
             "weaver-cell-other",
@@ -56,6 +59,8 @@ class WorkloadMcpJourneyTest {
             .put("client_id", "weaver-cell-test")
             .put("azp", "weaver-cell-test")
             .put("sub", "service-account-subject")
+            .put("jti", "token-identifier")
+            .put("iat", 100)
             .put("exp", 101);
 
     assertThat(

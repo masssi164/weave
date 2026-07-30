@@ -29,6 +29,7 @@ import java.util.UUID;
 
 /** Per-cell private_key_jwt, client credentials, and MCP Streamable HTTP proof. */
 final class WorkloadMcpJourney {
+  private static final long MAXIMUM_WORKLOAD_TOKEN_TTL_SECONDS = 60;
   private static final Set<String> MCP_SCOPES = Set.of("mcp.tools", "files.read");
 
   private final ProductFlowEnvironment environment;
@@ -203,8 +204,19 @@ final class WorkloadMcpJourney {
     if (claims.path("sub").asString("").isBlank()) {
       invalid.add("subject");
     }
+    if (claims.path("jti").asString("").isBlank()) {
+      invalid.add("token-id");
+    }
+    long issuedAt = claims.path("iat").asLong(0);
+    if (issuedAt <= 0) {
+      invalid.add("issued-at");
+    }
     if (claims.path("exp").asLong(0) <= currentEpochSecond) {
       invalid.add("expiry");
+    }
+    if (issuedAt > 0
+        && claims.path("exp").asLong(0) - issuedAt > MAXIMUM_WORKLOAD_TOKEN_TTL_SECONDS) {
+      invalid.add("token-ttl");
     }
     return Set.copyOf(invalid);
   }
