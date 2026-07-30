@@ -555,6 +555,9 @@ public final class FreshProductFlow {
     evidence.put("schemaVersion", "weave.test-app-product-flow/v1");
     evidence.put("startedAt", startedAt.toString());
     evidence.put("completedAt", Instant.now().toString());
+    evidence.put("candidateCommit", environment.candidateCommit());
+    evidence.put("specificationCommit", environment.specificationCommit());
+    evidence.put("composeProject", environment.composeProject());
     evidence.put("runIdSha256", Hashing.sha256(environment.runId()));
     evidence.put("ownerEmailSha256", Hashing.sha256(ownerEmail));
     evidence.put("memberEmailSha256", Hashing.sha256(memberEmail));

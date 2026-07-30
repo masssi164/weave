@@ -80,12 +80,13 @@ There are three deliberately separated lanes:
 
 The persistent test stack is the required bridge between `dev` and `main`: a commit may be promoted to `main` only after it is contained in `dev`, contained in `dogfood`, and has a successful `Test Stack Deploy` run on `dogfood`. See [Dev/Dogfood/Main promotion flow](dev-test-main-promotion-flow.md).
 
-The disposable workflow uploads only `weave-test-app-evidence.json`. It contains
-timestamps, hashes, protocol/result enums, the MCP tool/projection, and explicit
-`credentialsIncluded=false`, `actionLinksIncluded=false`, and
-`supportSafe=true` flags. Passwords, activation URLs, bearer tokens, client
-assertions, private keys, emails, raw client IDs, provider payloads, and raw
-logs remain outside durable evidence.
+The disposable workflow uploads only `weave-test-app-evidence.json`. It binds
+the exact implementation commit, pinned specification commit, and isolated
+Compose project and contains timestamps, hashes, protocol/result enums, the MCP
+tool/projection, and explicit `credentialsIncluded=false`,
+`actionLinksIncluded=false`, and `supportSafe=true` flags. Passwords, activation
+URLs, bearer tokens, client assertions, private keys, emails, raw client IDs,
+provider payloads, and raw logs remain outside durable evidence.
 
 The support-safe Synapse compatibility probe is separate from the full Live Stack. Run `python3 tools/synapse_compatibility_probe.py --target <supported-version> --output <private-build-path>` against each versioned target. It creates and removes one uniquely named Synapse container, injects one Application Service outage, and records only version/profile booleans plus a signature hash. A green probe does not authorize a Synapse pin change or substitute for exact-candidate collaboration, cleanup, teardown, physical-device, or distribution evidence.
 

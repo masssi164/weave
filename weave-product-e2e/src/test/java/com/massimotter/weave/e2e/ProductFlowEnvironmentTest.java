@@ -85,6 +85,9 @@ class ProductFlowEnvironmentTest {
             () ->
                 new ProductFlowEnvironment(
                     "fixture-run-42",
+                    "1".repeat(40),
+                    "2".repeat(40),
+                    "weave-e2e-0123456789abcdef",
                     URI.create("https://weave.test:44443"),
                     URI.create("https://api.weave.test:44443"),
                     URI.create("https://auth.weave.test:44443/realms/weave"),
@@ -105,6 +108,9 @@ class ProductFlowEnvironmentTest {
       URI apiOrigin, URI issuer, URI mailpit, Duration timeout) throws Exception {
     return new ProductFlowEnvironment(
         "fixture-run-42",
+        "1".repeat(40),
+        "2".repeat(40),
+        "weave-e2e-0123456789abcdef",
         URI.create("https://weave.test:44443"),
         apiOrigin,
         issuer,

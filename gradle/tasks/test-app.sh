@@ -126,6 +126,9 @@ export WEAVE_CANDIDATE_COMMIT="${candidate_commit}"
 
 spec_lock="${REPOSITORY_ROOT}/specs/weave-specs.lock.json"
 [[ -f "${spec_lock}" ]] || fail "the pinned specification lock is unavailable"
+specification_commit="$(
+  jq -er '.specCorpus.gitCommit | select(test("^[0-9a-f]{40}$"))' "${spec_lock}"
+)" || fail "the pinned specification commit is invalid"
 spec_digest="sha256:$(shasum -a 256 "${spec_lock}" | awk '{print $1}')"
 
 if [[ -z "${SERVER_IMAGE}" && -z "${MCP_IMAGE}" ]]; then
@@ -229,6 +232,9 @@ log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
   --no-daemon \
   --max-workers=2 \
   "-Dweave.e2e.run-id=${RUN_ID}" \
+  "-Dweave.e2e.candidate-commit=${candidate_commit}" \
+  "-Dweave.e2e.specification-commit=${specification_commit}" \
+  "-Dweave.e2e.compose-project=${WEAVE_E2E_RUN_NAMESPACE}" \
   "-Dweave.e2e.product-origin=${WEAVE_TEST_APP_PRODUCT_ORIGIN}" \
   "-Dweave.e2e.api-origin=${WEAVE_TEST_APP_API_ORIGIN}" \
   "-Dweave.e2e.issuer=${WEAVE_TEST_APP_ISSUER}" \
@@ -243,8 +249,14 @@ log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
   "-Dweave.e2e.convergence-timeout=${WEAVE_TEST_APP_CONVERGENCE_TIMEOUT:-PT3M}" \
   :weave-product-e2e:productFlow
 
-jq -e '
+jq -e \
+  --arg candidate_commit "${candidate_commit}" \
+  --arg specification_commit "${specification_commit}" \
+  --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
   .schemaVersion == "weave.test-app-product-flow/v1" and
+  .candidateCommit == $candidate_commit and
+  .specificationCommit == $specification_commit and
+  .composeProject == $compose_project and
   .activation == "keycloak-required-actions-real-chromium" and
   .humanOAuth == "authorization_code_pkce_s256" and
   .workloadOAuth == "client_credentials_private_key_jwt" and

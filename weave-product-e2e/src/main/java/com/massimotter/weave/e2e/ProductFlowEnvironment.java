@@ -15,6 +15,9 @@ import java.util.regex.Pattern;
 /** Validated, secret-free addressing contract for one isolated product-flow run. */
 record ProductFlowEnvironment(
     String runId,
+    String candidateCommit,
+    String specificationCommit,
+    String composeProject,
     URI productOrigin,
     URI apiOrigin,
     URI issuer,
@@ -30,10 +33,21 @@ record ProductFlowEnvironment(
 
   private static final Pattern RUN_ID =
       Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{7,159}");
+  private static final Pattern GIT_COMMIT = Pattern.compile("[0-9a-f]{40}");
+  private static final Pattern COMPOSE_PROJECT = Pattern.compile("weave-e2e-[0-9a-f]{16}");
 
   ProductFlowEnvironment {
     if (runId == null || !RUN_ID.matcher(runId).matches()) {
       throw new IllegalArgumentException("weave.e2e.run-id is invalid");
+    }
+    if (candidateCommit == null || !GIT_COMMIT.matcher(candidateCommit).matches()) {
+      throw new IllegalArgumentException("weave.e2e.candidate-commit is invalid");
+    }
+    if (specificationCommit == null || !GIT_COMMIT.matcher(specificationCommit).matches()) {
+      throw new IllegalArgumentException("weave.e2e.specification-commit is invalid");
+    }
+    if (composeProject == null || !COMPOSE_PROJECT.matcher(composeProject).matches()) {
+      throw new IllegalArgumentException("weave.e2e.compose-project is invalid");
     }
     productOrigin = requireHttpsOrigin(productOrigin, "weave.e2e.product-origin");
     apiOrigin = requireHttpsOrigin(apiOrigin, "weave.e2e.api-origin");
@@ -74,6 +88,9 @@ record ProductFlowEnvironment(
   static ProductFlowEnvironment fromSystemProperties() {
     return new ProductFlowEnvironment(
         required("run-id"),
+        required("candidate-commit"),
+        required("specification-commit"),
+        required("compose-project"),
         URI.create(required("product-origin")),
         URI.create(required("api-origin")),
         URI.create(required("issuer")),
