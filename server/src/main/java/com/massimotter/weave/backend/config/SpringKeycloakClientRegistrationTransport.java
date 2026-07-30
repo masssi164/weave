@@ -2,6 +2,8 @@ package com.massimotter.weave.backend.config;
 
 import tools.jackson.databind.JsonNode;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakClientRegistrationTransport;
+import com.massimotter.weave.backend.agentruntime.adapter.KeycloakClientRegistrationTransport.FinalizeResult;
+import com.massimotter.weave.backend.agentruntime.adapter.KeycloakClientRegistrationTransport.RegistrationHandoffProof;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -12,6 +14,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestClient;
@@ -23,6 +27,10 @@ public final class SpringKeycloakClientRegistrationTransport
 
   private static final Pattern WORKLOAD_CLIENT_ID =
       Pattern.compile("weaver-cell-[A-Za-z0-9_-]+");
+  private static final String HANDOFF_HEADER = "Weave-Registration-Handoff";
+  private static final String HANDOFF_STATE_HEADER = "Weave-Registration-Handoff-State";
+  private static final String HANDOFF_OPERATION_HEADER =
+      "Weave-Registration-Handoff-Operation";
 
   private final URI registrationEndpoint;
   private final URI publicRegistrationEndpoint;
@@ -67,14 +75,21 @@ public final class SpringKeycloakClientRegistrationTransport
     tokenEndpoint =
         keycloakBaseUrl.resolve(
             "/realms/" + encodedRealm + "/protocol/openid-connect/token");
-    HttpClient httpClient = HttpClient.newBuilder().connectTimeout(timeout).build();
+    HttpClient httpClient =
+        HttpClient.newBuilder()
+            .connectTimeout(timeout)
+            .followRedirects(HttpClient.Redirect.NEVER)
+            .build();
     JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
     requestFactory.setReadTimeout(timeout);
     restClient = RestClient.builder().requestFactory(requestFactory).build();
   }
 
   @Override
-  public JsonNode create(JsonNode metadata, String administrationAccessToken) {
+  public JsonNode create(
+      JsonNode metadata,
+      String administrationAccessToken,
+      RegistrationHandoffProof handoff) {
     if (administrationAccessToken == null || administrationAccessToken.isBlank()) {
       throw new RuntimeWorkloadIdentityException(
           "Keycloak workload administration access token is unavailable");
@@ -84,7 +99,11 @@ public final class SpringKeycloakClientRegistrationTransport
             restClient
                 .post()
                 .uri(registrationEndpoint)
-                .headers(headers -> headers.setBearerAuth(administrationAccessToken))
+                .headers(
+                    headers -> {
+                      headers.setBearerAuth(administrationAccessToken);
+                      addHandoffHeaders(headers, handoff);
+                    })
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(metadata)
                 .retrieve()
@@ -113,7 +132,8 @@ public final class SpringKeycloakClientRegistrationTransport
       String clientId,
       URI registrationUri,
       JsonNode metadata,
-      byte[] registrationAccessToken) {
+      byte[] registrationAccessToken,
+      RegistrationHandoffProof handoff) {
     URI operationUri = registrationOperationUri(clientId, registrationUri);
     return exchangeJson(
         () ->
@@ -121,13 +141,111 @@ public final class SpringKeycloakClientRegistrationTransport
                 .put()
                 .uri(operationUri)
                 .headers(
-                    headers ->
-                        headers.setBearerAuth(
-                            new String(registrationAccessToken, StandardCharsets.UTF_8)))
+                    headers -> {
+                      headers.setBearerAuth(
+                          new String(registrationAccessToken, StandardCharsets.UTF_8));
+                      addHandoffHeaders(headers, handoff);
+                    })
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(metadata)
                 .retrieve()
                 .body(JsonNode.class));
+  }
+
+  @Override
+  public JsonNode recover(
+      String clientId,
+      URI registrationUri,
+      String administrationAccessToken,
+      RegistrationHandoffProof handoff) {
+    if (administrationAccessToken == null || administrationAccessToken.isBlank()) {
+      throw new RuntimeWorkloadIdentityException(
+          "Keycloak workload administration access token is unavailable");
+    }
+    URI operationUri =
+        URI.create(
+            registrationOperationUri(clientId, registrationUri).toASCIIString()
+                + "/weave-registration-handoff/recover");
+    ResponseEntity<JsonNode> response;
+    try {
+      response =
+          restClient
+              .post()
+              .uri(operationUri)
+              .headers(
+                  headers -> {
+                    headers.setBearerAuth(administrationAccessToken);
+                    addHandoffHeaders(headers, handoff);
+                  })
+              .retrieve()
+              .toEntity(JsonNode.class);
+    } catch (RestClientResponseException failure) {
+      requireNonCacheable(failure.getResponseHeaders());
+      throw protocolFailure(failure);
+    } catch (RuntimeWorkloadIdentityException failure) {
+      throw failure;
+    } catch (RuntimeException failure) {
+      throw new RuntimeWorkloadIdentityException(
+          "Keycloak client-registration protocol request failed [failureType="
+              + failure.getClass().getSimpleName()
+              + "]");
+    }
+    requireNonCacheable(response);
+    JsonNode body = response.getBody();
+    if (body == null || !body.isObject()) {
+      throw new RuntimeWorkloadIdentityException(
+          "Keycloak returned a malformed client-registration response");
+    }
+    return body;
+  }
+
+  @Override
+  public FinalizeResult finalizeHandoff(
+      String clientId,
+      URI registrationUri,
+      byte[] registrationAccessToken,
+      RegistrationHandoffProof handoff) {
+    URI operationUri =
+        URI.create(
+            registrationOperationUri(clientId, registrationUri).toASCIIString()
+                + "/weave-registration-handoff/finalize");
+    try {
+      ResponseEntity<Void> response =
+          restClient
+              .post()
+              .uri(operationUri)
+              .headers(
+                  headers -> {
+                    headers.setBearerAuth(
+                        new String(registrationAccessToken, StandardCharsets.UTF_8));
+                    addHandoffHeaders(headers, handoff);
+                  })
+              .retrieve()
+              .toBodilessEntity();
+      if (response.getStatusCode().value() != 204) {
+        throw new RuntimeWorkloadIdentityException(
+            "Keycloak returned an invalid registration handoff status");
+      }
+      requireNonCacheable(response);
+      return FinalizeResult.FINALIZED;
+    } catch (RestClientResponseException failure) {
+      requireNonCacheable(failure.getResponseHeaders());
+      if (failure.getStatusCode().value() == 409
+          && failure
+              .getResponseBodyAsString()
+              .toLowerCase(Locale.ROOT)
+              .contains("registration_handoff_state_mismatch")) {
+        return FinalizeResult.ALREADY_FINALIZED;
+      }
+      throw protocolFailure(failure);
+    } catch (RuntimeWorkloadIdentityException failure) {
+      throw failure;
+    } catch (RuntimeException failure) {
+      throw new RuntimeWorkloadIdentityException(
+          "Keycloak client-registration protocol request failed [failureType="
+              + failure.getClass().getSimpleName()
+              + "]");
+    }
   }
 
   @Override
@@ -187,6 +305,29 @@ public final class SpringKeycloakClientRegistrationTransport
     // Keycloak returns its public backend URI. Retain that protocol value in protected state,
     // but never use its authority as an outbound destination.
     return URI.create(registrationEndpoint.toASCIIString() + "/" + clientId);
+  }
+
+  private static void addHandoffHeaders(
+      org.springframework.http.HttpHeaders headers, RegistrationHandoffProof handoff) {
+    Objects.requireNonNull(handoff, "handoff");
+    headers.set(HANDOFF_HEADER, handoff.capabilityHeader());
+    headers.set(HANDOFF_STATE_HEADER, handoff.stateDigest());
+    headers.set(HANDOFF_OPERATION_HEADER, handoff.operation().wireValue());
+  }
+
+  private static void requireNonCacheable(ResponseEntity<?> response) {
+    requireNonCacheable(response.getHeaders());
+  }
+
+  private static void requireNonCacheable(HttpHeaders headers) {
+    String cacheControl = headers == null ? null : headers.getCacheControl();
+    if (headers == null
+        || cacheControl == null
+        || !cacheControl.contains("no-store")
+        || !"no-cache".equalsIgnoreCase(headers.getFirst("Pragma"))) {
+      throw new RuntimeWorkloadIdentityException(
+          "Keycloak returned an unsafe registration handoff response");
+    }
   }
 
   private static JsonNode exchangeJson(Exchange<JsonNode> exchange) {

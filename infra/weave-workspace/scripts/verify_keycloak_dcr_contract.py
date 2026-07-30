@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
-import binascii
+import hashlib
 import json
 import os
 import re
@@ -123,12 +123,86 @@ def metadata(
     return value
 
 
-def exchange(
+def registration_state_digest(
+    client_id: str,
+    realm: str,
+    private_jwk: dict[str, Any],
+    operation: str,
+) -> str:
+    state = {
+        "clientId": client_id,
+        "defaultClientScopes": ["weaver-runtime-workload"],
+        "effectiveRoles": [
+            {
+                "containerId": realm,
+                "kind": "realm",
+                "name": "weaver-runtime",
+            }
+        ],
+        "fixedAttributes": {
+            "access.token.header.type.rfc9068": "true",
+            "access.token.lifespan": "60",
+            "backchannel.logout.revoke.offline.tokens": "false",
+            "backchannel.logout.session.required": "false",
+            "frontchannel.logout.session.required": "false",
+            "token.endpoint.auth.signing.alg": "PS256",
+            "use.jwks.string": "true",
+            "use.jwks.url": "false",
+            "use.refresh.tokens": "false",
+        },
+        "flows": {
+            "authorizationCode": False,
+            "ciba": False,
+            "device": False,
+            "directAccessGrant": False,
+            "implicit": False,
+            "jwtAuthorizationGrant": False,
+            "serviceAccounts": True,
+            "standardTokenExchange": False,
+            "uma": False,
+        },
+        "operation": operation,
+        "optionalClientScopes": sorted(APPROVED_SCOPES),
+        "protocolMappers": [],
+        "publicJwks": public_jwks(private_jwk),
+        "tokenEndpointAuthentication": {
+            "algorithm": "PS256",
+            "method": "client-jwt",
+        },
+        "uris": [],
+        "webOrigins": [],
+    }
+    encoded = json.dumps(
+        state, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
+def registration_handoff_headers(
+    client_id: str,
+    realm: str,
+    private_jwk: dict[str, Any],
+    operation: str,
+) -> dict[str, str]:
+    capability = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b"=").decode(
+        "ascii"
+    )
+    return {
+        "Weave-Registration-Handoff": capability,
+        "Weave-Registration-Handoff-State": registration_state_digest(
+            client_id, realm, private_jwk, operation
+        ),
+        "Weave-Registration-Handoff-Operation": operation,
+    }
+
+
+def exchange_details(
     endpoint: str,
     method: str,
     bearer: str,
     body: dict[str, Any] | None = None,
-) -> tuple[int, dict[str, Any]]:
+    request_headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any], dict[str, str]]:
     payload = None
     headers = {
         "Accept": "application/json",
@@ -139,6 +213,15 @@ def exchange(
             "utf-8"
         )
         headers["Content-Type"] = "application/json"
+    if request_headers is not None:
+        if any(
+            not isinstance(name, str)
+            or not isinstance(value, str)
+            or name in headers
+            for name, value in request_headers.items()
+        ):
+            raise ContractError("additional DCR request headers are invalid")
+        headers.update(request_headers)
     request = urllib.request.Request(
         endpoint,
         data=payload,
@@ -149,22 +232,67 @@ def exchange(
         with urllib.request.urlopen(request, timeout=20) as response:
             raw = response.read(64 * 1024 + 1)
             status = response.status
+            response_headers = {
+                name.casefold(): value for name, value in response.headers.items()
+            }
     except urllib.error.HTTPError as error:
         raw = error.read(64 * 1024 + 1)
         status = error.code
+        response_headers = {
+            name.casefold(): value
+            for name, value in (error.headers or {}).items()
+        }
     except urllib.error.URLError as error:
         raise ContractError("Keycloak DCR endpoint is unavailable") from error
     if len(raw) > 64 * 1024:
         raise ContractError("Keycloak DCR response exceeded the bounded size")
     if not raw:
-        return status, {}
+        return status, {}, response_headers
     try:
         value = json.loads(raw)
     except json.JSONDecodeError as error:
         raise ContractError("Keycloak DCR response is malformed; response withheld") from error
     if not isinstance(value, dict):
         raise ContractError("Keycloak DCR response is malformed; response withheld")
-    return status, value
+    return status, value, response_headers
+
+
+def exchange(
+    endpoint: str,
+    method: str,
+    bearer: str,
+    body: dict[str, Any] | None = None,
+    request_headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    status, response, _ = exchange_details(
+        endpoint, method, bearer, body, request_headers
+    )
+    return status, response
+
+
+def handoff_exchange(
+    endpoint: str,
+    bearer: str,
+    headers: dict[str, str],
+) -> tuple[int, dict[str, Any]]:
+    status, response, response_headers = exchange_details(
+        endpoint,
+        "POST",
+        bearer,
+        request_headers=headers,
+    )
+    cache_control = response_headers.get("cache-control", "")
+    if (
+        "no-store" not in {
+            directive.strip().casefold()
+            for directive in cache_control.split(",")
+        }
+        or response_headers.get("pragma", "").casefold() != "no-cache"
+    ):
+        raise ContractError(
+            "registration handoff response is not explicitly non-cacheable"
+        )
+    return status, response
 
 
 def exchange_status(
@@ -205,8 +333,11 @@ def rejected(
     access_token: str,
     name: str,
     request: dict[str, Any],
+    request_headers: dict[str, str],
 ) -> str:
-    status, _ = exchange(endpoint, "POST", access_token, request)
+    status, _ = exchange(
+        endpoint, "POST", access_token, request, request_headers
+    )
     if status not in {400, 403}:
         raise ContractError(f"negative DCR case was not rejected [case={name}]")
     return name
@@ -244,15 +375,20 @@ def require_internal_spi_warning_absent(container_id: str) -> None:
 def registration(
     endpoint: str,
     issuer: str,
+    realm: str,
     access_token: str,
     client_id: str,
     private_jwk: dict[str, Any],
 ) -> tuple[str, str]:
+    handoff_headers = registration_handoff_headers(
+        client_id, realm, private_jwk, "create"
+    )
     status, response = exchange(
         endpoint,
         "POST",
         access_token,
         metadata(client_id, private_jwk),
+        handoff_headers,
     )
     expected_uri = (
         f"{issuer}/clients-registrations/openid-connect/{client_id}"
@@ -263,7 +399,60 @@ def registration(
         or not expected_uri.startswith(issuer + "/clients-registrations/openid-connect/")
     ):
         raise ContractError("valid DCR response did not preserve the exact workload contract")
-    return expected_uri, exact_client_state(response, client_id, private_jwk)
+    initial_rat = exact_client_state(response, client_id, private_jwk)
+    recover_endpoint = (
+        f"{endpoint}/{client_id}/weave-registration-handoff/recover"
+    )
+    status, recovered = handoff_exchange(
+        recover_endpoint, access_token, handoff_headers
+    )
+    recovered_rat = recovered.get("registration_access_token")
+    if (
+        status != 200
+        or recovered.get("client_id") != client_id
+        or recovered.get("registration_client_uri") != expected_uri
+        or recovered.get("state_digest")
+        != handoff_headers["Weave-Registration-Handoff-State"]
+        or not isinstance(recovered.get("subject_digest"), str)
+        or not re.fullmatch(
+            r"sha256:[0-9a-f]{64}", str(recovered.get("subject_digest"))
+        )
+        or not isinstance(recovered_rat, str)
+        or not recovered_rat
+        or recovered_rat == initial_rat
+    ):
+        raise ContractError(
+            "registration handoff recovery did not return one rotated authority"
+        )
+    status, _ = exchange(
+        f"{endpoint}/{client_id}", "GET", initial_rat
+    )
+    if status not in {401, 403}:
+        raise ContractError(
+            "pre-recovery Registration Access Token remained valid"
+        )
+    finalize_endpoint = (
+        f"{endpoint}/{client_id}/weave-registration-handoff/finalize"
+    )
+    status, finalized = handoff_exchange(
+        finalize_endpoint, recovered_rat, handoff_headers
+    )
+    if status != 204 or finalized:
+        raise ContractError("registration handoff finalize did not complete")
+    status, _ = handoff_exchange(
+        recover_endpoint, access_token, handoff_headers
+    )
+    if status not in {403, 404}:
+        raise ContractError("finalized registration handoff remained recoverable")
+    status, observed = exchange(
+        f"{endpoint}/{client_id}", "GET", recovered_rat
+    )
+    if status != 200:
+        raise ContractError(
+            "recovered Registration Access Token cannot read finalized state"
+        )
+    current_rat = exact_client_state(observed, client_id, private_jwk)
+    return expected_uri, current_rat
 
 
 def exact_client_state(
@@ -310,35 +499,18 @@ def workload_token(
         issuer,
     )
     access_token = response.get("access_token")
-    if (
-        status != 200
-        or not isinstance(access_token, str)
-        or identity_ops.access_token_client_roles(
-            access_token, "realm-management"
-        )
-        or access_token_realm_roles(access_token) != {"weaver-runtime"}
-    ):
+    if status != 200 or not isinstance(access_token, str):
         raise ContractError("workload effective-role projection is not exact")
-
-
-def access_token_realm_roles(access_token: str) -> set[str]:
     try:
-        segments = access_token.split(".")
-        if len(segments) != 3:
-            return set()
-        padding = "=" * ((4 - len(segments[1]) % 4) % 4)
-        claims = json.loads(
-            base64.urlsafe_b64decode(segments[1] + padding).decode("utf-8")
+        realm_roles, client_roles = identity_ops.access_token_role_projection(
+            access_token
         )
-        realm_access = claims.get("realm_access")
-        roles = realm_access.get("roles") if isinstance(realm_access, dict) else None
-        if not isinstance(roles, list) or any(
-            not isinstance(role, str) for role in roles
-        ):
-            return set()
-        return set(roles)
-    except (binascii.Error, UnicodeDecodeError, ValueError, json.JSONDecodeError):
-        return set()
+    except identity_ops.IdentityOpsError as error:
+        raise ContractError(
+            "workload effective-role projection is malformed"
+        ) from error
+    if realm_roles != {"weaver-runtime"} or client_roles:
+        raise ContractError("workload effective-role projection is not exact")
 
 
 def atomic_evidence(path: Path, value: dict[str, Any]) -> None:
@@ -377,13 +549,20 @@ def run(args: argparse.Namespace) -> None:
         issuer,
     )
     admin_token = token_response.get("access_token")
-    if (
-        status != 200
-        or not isinstance(admin_token, str)
-        or identity_ops.access_token_client_roles(
-            admin_token, "realm-management"
+    if status != 200 or not isinstance(admin_token, str):
+        raise ContractError("runtime administration authority is not exact")
+    try:
+        admin_realm_roles, admin_client_roles = (
+            identity_ops.access_token_role_projection(admin_token)
         )
-        != {"create-client"}
+    except identity_ops.IdentityOpsError as error:
+        raise ContractError(
+            "runtime administration token role projection is malformed"
+        ) from error
+    if (
+        admin_realm_roles
+        or admin_client_roles
+        != {"realm-management": {"create-client"}}
     ):
         raise ContractError("runtime administration authority is not exact")
     if (
@@ -409,12 +588,24 @@ def run(args: argparse.Namespace) -> None:
     failed_create_rollback_verified = False
     failed_update_rollback_verified = False
     cross_cell_update_rejected = False
+    cross_cell_handoff_rejected = False
     direct_admin_rest_creation_rejected = False
     cleanup_complete = False
     try:
         invalid_namespace = metadata("weaver-cell-invalid!", key_a)
         rejected_cases.append(
-            rejected(direct_endpoint, admin_token, "invalid-namespace", invalid_namespace)
+            rejected(
+                direct_endpoint,
+                admin_token,
+                "invalid-namespace",
+                invalid_namespace,
+                registration_handoff_headers(
+                    str(invalid_namespace["client_name"]),
+                    args.realm,
+                    key_a,
+                    "create",
+                ),
+            )
         )
         outside_namespace = metadata(f"external-workload-{probe_suffix}", key_a)
         rejected_cases.append(
@@ -423,39 +614,111 @@ def run(args: argparse.Namespace) -> None:
                 admin_token,
                 "out-of-namespace",
                 outside_namespace,
+                registration_handoff_headers(
+                    str(outside_namespace["client_name"]),
+                    args.realm,
+                    key_a,
+                    "create",
+                ),
             )
         )
         wrong_auth = metadata(f"weaver-cell-dcr_{probe_suffix}_wrong_auth", key_a)
         wrong_auth["token_endpoint_auth_method"] = "client_secret_basic"
         rejected_cases.append(
-            rejected(direct_endpoint, admin_token, "wrong-auth-method", wrong_auth)
+            rejected(
+                direct_endpoint,
+                admin_token,
+                "wrong-auth-method",
+                wrong_auth,
+                registration_handoff_headers(
+                    str(wrong_auth["client_name"]),
+                    args.realm,
+                    key_a,
+                    "create",
+                ),
+            )
         )
         human_flow = metadata(f"weaver-cell-dcr_{probe_suffix}_human", key_a)
         human_flow["grant_types"] = ["authorization_code"]
         human_flow["response_types"] = ["code"]
         human_flow["redirect_uris"] = ["https://forbidden.invalid/callback"]
         rejected_cases.append(
-            rejected(direct_endpoint, admin_token, "human-login-flow", human_flow)
+            rejected(
+                direct_endpoint,
+                admin_token,
+                "human-login-flow",
+                human_flow,
+                registration_handoff_headers(
+                    str(human_flow["client_name"]),
+                    args.realm,
+                    key_a,
+                    "create",
+                ),
+            )
         )
         web_origin = metadata(rollback_client, rollback_key)
         web_origin["web_origins"] = ["https://forbidden.invalid"]
         rejected_cases.append(
-            rejected(direct_endpoint, admin_token, "web-origin", web_origin)
+            rejected(
+                direct_endpoint,
+                admin_token,
+                "web-origin",
+                web_origin,
+                registration_handoff_headers(
+                    str(web_origin["client_name"]),
+                    args.realm,
+                    rollback_key,
+                    "create",
+                ),
+            )
         )
         wrong_scope = metadata(f"weaver-cell-dcr_{probe_suffix}_scope", key_a)
         wrong_scope["scope"] = " ".join(APPROVED_SCOPES) + " realm-management"
         rejected_cases.append(
-            rejected(direct_endpoint, admin_token, "unapproved-scope", wrong_scope)
+            rejected(
+                direct_endpoint,
+                admin_token,
+                "unapproved-scope",
+                wrong_scope,
+                registration_handoff_headers(
+                    str(wrong_scope["client_name"]),
+                    args.realm,
+                    key_a,
+                    "create",
+                ),
+            )
         )
         provider_url = metadata(f"weaver-cell-dcr_{probe_suffix}_url", key_a)
         provider_url["client_uri"] = "https://forbidden.invalid"
         rejected_cases.append(
-            rejected(direct_endpoint, admin_token, "provider-url", provider_url)
+            rejected(
+                direct_endpoint,
+                admin_token,
+                "provider-url",
+                provider_url,
+                registration_handoff_headers(
+                    str(provider_url["client_name"]),
+                    args.realm,
+                    key_a,
+                    "create",
+                ),
+            )
         )
         custom_mapper = metadata(f"weaver-cell-dcr_{probe_suffix}_mapper", key_a)
         custom_mapper["protocol_mappers"] = [{"name": "forbidden"}]
         rejected_cases.append(
-            rejected(direct_endpoint, admin_token, "protocol-mapper", custom_mapper)
+            rejected(
+                direct_endpoint,
+                admin_token,
+                "protocol-mapper",
+                custom_mapper,
+                registration_handoff_headers(
+                    str(custom_mapper["client_name"]),
+                    args.realm,
+                    key_a,
+                    "create",
+                ),
+            )
         )
         custom_attribute = metadata(
             f"weaver-cell-dcr_{probe_suffix}_attribute", key_a
@@ -467,6 +730,12 @@ def run(args: argparse.Namespace) -> None:
                 admin_token,
                 "custom-attribute",
                 custom_attribute,
+                registration_handoff_headers(
+                    str(custom_attribute["client_name"]),
+                    args.realm,
+                    key_a,
+                    "create",
+                ),
             )
         )
 
@@ -492,6 +761,7 @@ def run(args: argparse.Namespace) -> None:
         rollback_public, rollback_rat = registration(
             direct_endpoint,
             issuer,
+            args.realm,
             admin_token,
             rollback_client,
             rollback_key,
@@ -508,11 +778,11 @@ def run(args: argparse.Namespace) -> None:
         rollback_authority = None
 
         public_a, rat_a = registration(
-            direct_endpoint, issuer, admin_token, client_a, key_a
+            direct_endpoint, issuer, args.realm, admin_token, client_a, key_a
         )
         authority_a = (public_a, rat_a)
         public_b, rat_b = registration(
-            direct_endpoint, issuer, admin_token, client_b, key_b
+            direct_endpoint, issuer, args.realm, admin_token, client_b, key_b
         )
         authority_b = (public_b, rat_b)
 
@@ -540,6 +810,9 @@ def run(args: argparse.Namespace) -> None:
             "PUT",
             rat_b,
             metadata(client_a, key_a_next, update=True),
+            registration_handoff_headers(
+                client_a, args.realm, key_a_next, "rotate"
+            ),
         )
         rejected_cases.append(rejected_status(status, "cross-cell-update"))
         cross_cell_update_rejected = True
@@ -551,6 +824,9 @@ def run(args: argparse.Namespace) -> None:
             "PUT",
             rat_b,
             rejected_update,
+            registration_handoff_headers(
+                client_b, args.realm, key_b, "rotate"
+            ),
         )
         rejected_cases.append(rejected_status(status, "failed-update-rollback"))
         status, observed = exchange(
@@ -564,11 +840,15 @@ def run(args: argparse.Namespace) -> None:
         authority_b = (public_b, rat_b)
         failed_update_rollback_verified = True
 
+        update_handoff = registration_handoff_headers(
+            client_a, args.realm, key_a_next, "rotate"
+        )
         status, update_response = exchange(
             f"{direct_endpoint}/{client_a}",
             "PUT",
             rat_a,
             metadata(client_a, key_a_next, update=True),
+            update_handoff,
         )
         rotated_rat = update_response.get("registration_access_token")
         if (
@@ -579,13 +859,65 @@ def run(args: argparse.Namespace) -> None:
         ):
             raise ContractError("mutating DCR update did not rotate the RAT")
         authority_a = (public_a, rotated_rat)
+        recover_endpoint = (
+            f"{direct_endpoint}/{client_a}/weave-registration-handoff/recover"
+        )
+        status, _ = handoff_exchange(
+            recover_endpoint,
+            admin_token,
+            registration_handoff_headers(
+                client_b, args.realm, key_b, "rotate"
+            ),
+        )
+        if status not in {403, 404}:
+            raise ContractError(
+                "another Cell registration handoff proof was accepted"
+            )
+        cross_cell_handoff_rejected = True
+        status, recovered_update = handoff_exchange(
+            recover_endpoint, admin_token, update_handoff
+        )
+        recovered_update_rat = recovered_update.get("registration_access_token")
+        if (
+            status != 200
+            or recovered_update.get("client_id") != client_a
+            or recovered_update.get("state_digest")
+            != update_handoff["Weave-Registration-Handoff-State"]
+            or not isinstance(recovered_update_rat, str)
+            or not recovered_update_rat
+            or recovered_update_rat == rotated_rat
+        ):
+            raise ContractError(
+                "updated registration handoff recovery did not rotate authority"
+            )
+        authority_a = (public_a, recovered_update_rat)
         status, _ = exchange(
             f"{direct_endpoint}/{client_a}", "GET", rat_a
         )
         if status not in {401, 403}:
             raise ContractError("stale RAT remained valid after rotation")
-        status, observed = exchange(
+        status, _ = exchange(
             f"{direct_endpoint}/{client_a}", "GET", rotated_rat
+        )
+        if status not in {401, 403}:
+            raise ContractError("pre-recovery RAT remained valid after recovery")
+        finalize_endpoint = (
+            f"{direct_endpoint}/{client_a}/weave-registration-handoff/finalize"
+        )
+        status, finalized = handoff_exchange(
+            finalize_endpoint, recovered_update_rat, update_handoff
+        )
+        if status != 204 or finalized:
+            raise ContractError("updated registration handoff did not finalize")
+        status, _ = handoff_exchange(
+            recover_endpoint, admin_token, update_handoff
+        )
+        if status not in {403, 404}:
+            raise ContractError(
+                "finalized update registration handoff remained recoverable"
+            )
+        status, observed = exchange(
+            f"{direct_endpoint}/{client_a}", "GET", recovered_update_rat
         )
         if status != 200:
             raise ContractError("rotated RAT could not retrieve the final client state")
@@ -634,6 +966,9 @@ def run(args: argparse.Namespace) -> None:
             "staleRegistrationAccessTokenRejected": True,
             "crossCellRegistrationAccessTokenRejected": True,
             "crossCellUpdateRejected": cross_cell_update_rejected,
+            "crossCellHandoffRejected": cross_cell_handoff_rejected,
+            "handoffRecoveryAndFinalize": True,
+            "handoffResponsesNonCacheable": True,
             "failedCreateRollbackVerified": failed_create_rollback_verified,
             "failedUpdateRollbackVerified": failed_update_rollback_verified,
             "internalSpiWarningAbsent": True,

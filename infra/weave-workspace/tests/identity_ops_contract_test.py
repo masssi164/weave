@@ -46,6 +46,7 @@ def main() -> None:
             },
         }
     )
+    assert realm["id"] == "weave"
     assert "frontendUrl" not in realm
     assert realm["attributes"]["frontendUrl"] == "https://auth.weave.local"
     assert realm["verifyEmail"] is True
@@ -208,13 +209,35 @@ def main() -> None:
             separators=(",", ":"),
         ).encode("utf-8")
     ).rstrip(b"=").decode("ascii")
-    assert identity_ops.access_token_client_roles(
-        f"test.{token_claims}.signature",
-        "realm-management",
-    ) == {"create-client"}
-    assert not identity_ops.access_token_client_roles(
-        "malformed",
-        "realm-management",
+    assert identity_ops.access_token_role_projection(
+        f"test.{token_claims}.signature"
+    ) == (set(), {"realm-management": {"create-client"}})
+    try:
+        identity_ops.access_token_role_projection("malformed")
+        raise AssertionError("malformed role projection was accepted")
+    except identity_ops.IdentityOpsError as error:
+        assert "token withheld" in str(error)
+
+    broad_token_claims = base64.urlsafe_b64encode(
+        json.dumps(
+            {
+                "realm_access": {"roles": ["manage-realm"]},
+                "resource_access": {
+                    "realm-management": {"roles": ["create-client"]},
+                    "other-client": {"roles": ["create-client"]},
+                },
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).rstrip(b"=").decode("ascii")
+    assert identity_ops.access_token_role_projection(
+        f"test.{broad_token_claims}.signature"
+    ) == (
+        {"manage-realm"},
+        {
+            "realm-management": {"create-client"},
+            "other-client": {"create-client"},
+        },
     )
 
     def rejected_urlopen(request: object, **_kwargs: object) -> None:
@@ -895,6 +918,120 @@ def main() -> None:
     )
     assert missing == {"create-client"}
     assert remove == {"query-clients", "manage-clients"}
+
+    class RuntimeRoleInventoryKcadm:
+        def call(self, *arguments: str, payload: object = None) -> object:
+            assert payload is None
+            endpoint = arguments[1]
+            if endpoint == "clients":
+                assert arguments[-2:] == ("--max", "10000")
+                return [
+                    {"id": "realm-management-id", "clientId": "realm-management"},
+                    {"id": "other-client-id", "clientId": "other-client"},
+                ]
+            roles = {
+                "users/runtime-account/role-mappings/realm": [
+                    {
+                        "name": "unexpected-realm-role",
+                        "containerId": "weave",
+                        "clientRole": False,
+                    }
+                ],
+                "users/runtime-account/role-mappings/realm/composite": [
+                    {
+                        "name": "unexpected-realm-role",
+                        "containerId": "weave",
+                        "clientRole": False,
+                    }
+                ],
+                (
+                    "users/runtime-account/role-mappings/clients/"
+                    "realm-management-id"
+                ): [
+                    {
+                        "name": "create-client",
+                        "containerId": "realm-management-id",
+                        "clientRole": True,
+                    }
+                ],
+                (
+                    "users/runtime-account/role-mappings/clients/"
+                    "realm-management-id/composite"
+                ): [
+                    {
+                        "name": "create-client",
+                        "containerId": "realm-management-id",
+                        "clientRole": True,
+                    }
+                ],
+                (
+                    "users/runtime-account/role-mappings/clients/other-client-id"
+                ): [
+                    {
+                        "name": "create-client",
+                        "containerId": "other-client-id",
+                        "clientRole": True,
+                    }
+                ],
+                (
+                    "users/runtime-account/role-mappings/clients/"
+                    "other-client-id/composite"
+                ): [
+                    {
+                        "name": "create-client",
+                        "containerId": "other-client-id",
+                        "clientRole": True,
+                    }
+                ],
+            }
+            return roles[endpoint]
+
+    direct_roles, effective_roles = identity_ops.runtime_admin_role_inventory(
+        RuntimeRoleInventoryKcadm(),
+        "weave",
+        "runtime-account",
+    )
+    assert identity_ops.RoleIdentity(
+        "client", "realm-management-id", "create-client"
+    ) in effective_roles
+    assert identity_ops.DirectRoleMapping(
+        identity_ops.RoleIdentity(
+            "client", "other-client-id", "create-client"
+        ),
+        "other-client",
+    ) in direct_roles
+    assert identity_ops.DirectRoleMapping(
+        identity_ops.RoleIdentity(
+            "realm", "weave", "unexpected-realm-role"
+        ),
+        None,
+    ) in direct_roles
+
+    class RemoveRealmRoleKcadm:
+        def __init__(self) -> None:
+            self.arguments: tuple[str, ...] = ()
+
+        def call(self, *arguments: str, payload: object = None) -> None:
+            assert payload is None
+            self.arguments = arguments
+
+    remove_realm = RemoveRealmRoleKcadm()
+    identity_ops.apply_operation(
+        remove_realm,
+        "weave",
+        identity_ops.Operation(
+            "remove-role",
+            "realm-role:test",
+            "remove-roles",
+            None,
+            {
+                "username": "service-account-weave-agent-runtime-admin",
+                "clientId": None,
+                "roleName": "unexpected-realm-role",
+            },
+        ),
+    )
+    assert "--cclientid" not in remove_realm.arguments
     workload_policy = {
         "key": "policy:weaver-cell-registration",
         "name": "weaver-cell-registration",

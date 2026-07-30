@@ -40,6 +40,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.erdtman.jcs.JsonCanonicalizer;
 
 /**
  * Keycloak 26.7 OIDC Dynamic Client Registration anti-corruption boundary.
@@ -95,6 +96,11 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         Objects.requireNonNull(command, "command");
         requireNamespace(command.clientId());
         requirePrivateKeyJwt(command.authenticationMethod());
+        return credentials.withRegistrationLifecycleLock(
+                command.clientId(), () -> ensureBindingLocked(command));
+    }
+
+    private RuntimeWorkloadBinding ensureBindingLocked(EnsureBindingCommand command) {
         String owner = owner(command.organizationRef(), command.personRef(), command.cellRef(),
                 command.clientId());
         recoverPendingRegistration(command.clientId(), owner);
@@ -138,6 +144,11 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
     @Override
     public RuntimeWorkloadBinding reconcileBinding(ReconcileBindingCommand command) {
         Objects.requireNonNull(command, "command");
+        return credentials.withRegistrationLifecycleLock(
+                command.binding().clientId(), () -> reconcileBindingLocked(command));
+    }
+
+    private RuntimeWorkloadBinding reconcileBindingLocked(ReconcileBindingCommand command) {
         String owner = requireBindingOwner(
                 command.organizationRef(), command.personRef(), command.cellRef(), command.binding());
         recoverPendingRegistration(command.binding().clientId(), owner);
@@ -177,83 +188,26 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         RuntimeWorkloadCredentialState prepared = credentials.prepareRotation(rotation);
         JsonNode replacementJwks = replacementJwks(prepared);
         ObjectNode replacementMetadata = metadata(clientId, replacementJwks, true);
-        RuntimeWorkloadCredentialState activated = credentials.withRegistrationAccessToken(
+        executeHandoffMutation(
                 clientId,
                 owner,
-                (observedAuthority, token) -> {
-                    JsonNode response = transport.update(
-                            clientId,
-                            observedAuthority.registrationUri(),
-                            replacementMetadata,
-                            token);
-                    byte[] next = registrationAccessToken(response);
-                    try {
-                        try {
-                            requireRotatedRegistrationAccessToken(observedAuthority, next);
-                            credentials.stageRegistrationRecovery(
-                                    clientId,
-                                    owner,
-                                    observedAuthority.registrationUri(),
-                                    next,
-                                    subject,
-                                    true,
-                                    FileRuntimeWorkloadCredentialStore
-                                            .RegistrationRecoveryAction.COMMIT);
-                        } catch (RuntimeException responseFailure) {
-                            failClosedRemoteRegistration(
-                                    clientId,
-                                    owner,
-                                    observedAuthority.registrationUri(),
-                                    next,
-                                    responseFailure);
-                            throw responseFailure;
-                        }
-                        RegistrationResponse registration;
-                        try {
-                            // A mutating response is the RAT/URI handoff. The policy-enforced
-                            // final client state is read and validated after atomic persistence.
-                            registration = registrationResponse(
-                                    response,
-                                    clientId,
-                                    observedAuthority.registrationUri(),
-                                    next);
-                        } catch (RuntimeException responseFailure) {
-                            failClosedRemoteRegistration(
-                                    clientId,
-                                    owner,
-                                    observedAuthority.registrationUri(),
-                                    next,
-                                    responseFailure);
-                            throw responseFailure;
-                        }
-                        try {
-                            RuntimeWorkloadCredentialState replacement =
-                                    credentials.activateReplacementAuthority(
-                                    clientId,
-                                    owner,
-                                    rotationRef,
-                                    observedAuthority.tokenFingerprint(),
-                                    registration.registrationUri(),
-                                    next,
-                                    subject);
-                            credentials.clearRegistrationRecovery(
-                                    clientId,
-                                    owner,
-                                    fingerprint(next));
-                            return replacement;
-                        } catch (RuntimeException persistenceFailure) {
-                            failClosedRemoteRegistration(
-                                    clientId,
-                                    owner,
-                                    registration.registrationUri(),
-                                    next,
-                                    persistenceFailure);
-                            throw persistenceFailure;
-                        }
-                    } finally {
-                        Arrays.fill(next, (byte) 0);
-                    }
-                });
+                replacementMetadata,
+                subject,
+                true,
+                FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation.REENABLE,
+                null,
+                null,
+                null,
+                (handoff, next, observedSubject) ->
+                        credentials.activateReplacementAuthority(
+                                clientId,
+                                owner,
+                                rotationRef,
+                                handoff.currentAuthorityFingerprint(),
+                                handoff.registrationUri(),
+                                next,
+                                observedSubject));
+        RuntimeWorkloadCredentialState activated = credentials.find(clientId).orElseThrow();
         retrieve(clientId, owner, publicJwks(activated));
         return activated;
     }
@@ -277,6 +231,15 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
     @Override
     public void requireCurrentBinding(CurrentBindingCommand command) {
         Objects.requireNonNull(command, "command");
+        credentials.withRegistrationLifecycleLock(
+                command.binding().clientId(),
+                () -> {
+                    requireCurrentBindingLocked(command);
+                    return null;
+                });
+    }
+
+    private void requireCurrentBindingLocked(CurrentBindingCommand command) {
         String owner = requireBindingOwner(
                 command.organizationRef(), command.personRef(), command.cellRef(), command.binding());
         recoverPendingRegistration(command.binding().clientId(), owner);
@@ -296,6 +259,11 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
     @Override
     public RuntimeWorkloadBinding rotateBinding(RotateBindingCommand command) {
         Objects.requireNonNull(command, "command");
+        return credentials.withRegistrationLifecycleLock(
+                command.binding().clientId(), () -> rotateBindingLocked(command));
+    }
+
+    private RuntimeWorkloadBinding rotateBindingLocked(RotateBindingCommand command) {
         String owner = requireBindingOwner(
                 command.organizationRef(), command.personRef(), command.cellRef(), command.binding());
         recoverPendingRegistration(command.binding().clientId(), owner);
@@ -322,6 +290,12 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
     @Override
     public RuntimeWorkloadBinding retirePreviousCredential(RetireCredentialCommand command) {
         Objects.requireNonNull(command, "command");
+        return credentials.withRegistrationLifecycleLock(
+                command.binding().clientId(), () -> retirePreviousCredentialLocked(command));
+    }
+
+    private RuntimeWorkloadBinding retirePreviousCredentialLocked(
+            RetireCredentialCommand command) {
         String owner = requireBindingOwner(
                 command.organizationRef(), command.personRef(), command.cellRef(), command.binding());
         recoverPendingRegistration(command.binding().clientId(), owner);
@@ -343,6 +317,15 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
     @Override
     public void disableBinding(DisableBindingCommand command) {
         Objects.requireNonNull(command, "command");
+        credentials.withRegistrationLifecycleLock(
+                command.binding().clientId(),
+                () -> {
+                    disableBindingLocked(command);
+                    return null;
+                });
+    }
+
+    private void disableBindingLocked(DisableBindingCommand command) {
         String owner = requireBindingOwner(
                 command.organizationRef(), command.personRef(), command.cellRef(), command.binding());
         recoverPendingRegistration(command.binding().clientId(), owner);
@@ -359,35 +342,43 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
     @Override
     public void deleteBinding(DeleteBindingCommand command) {
         Objects.requireNonNull(command, "command");
+        credentials.withRegistrationLifecycleLock(
+                command.binding().clientId(),
+                () -> {
+                    deleteBindingLocked(command);
+                    return null;
+                });
+    }
+
+    private void deleteBindingLocked(DeleteBindingCommand command) {
         String owner = requireBindingOwner(
                 command.organizationRef(), command.personRef(), command.cellRef(), command.binding());
-        if (recoverPendingRegistration(command.binding().clientId(), owner)) {
-            return;
-        }
+        recoverPendingRegistration(command.binding().clientId(), owner);
+        FileRuntimeWorkloadCredentialStore.RegistrationDeletionIntent intent =
+                credentials.prepareRegistrationDeletion(
+                        command.binding().clientId(), owner);
         credentials.withRegistrationAccessToken(
                 command.binding().clientId(),
                 owner,
                 (authority, token) -> {
-                    credentials.stageRegistrationRecovery(
-                            command.binding().clientId(),
-                            owner,
-                            authority.registrationUri(),
-                            token,
-                            authority.serviceAccountSubject(),
-                            authority.enabled(),
-                            FileRuntimeWorkloadCredentialStore.RegistrationRecoveryAction.DELETE);
+                    if (!constantTimeEquals(
+                            authority.tokenFingerprint(),
+                            intent.authorityFingerprint())) {
+                        throw new RuntimeWorkloadIdentityException(
+                                "The workload registration authority changed concurrently");
+                    }
                     transport.delete(
                             command.binding().clientId(),
-                            authority.registrationUri(),
+                            intent.registrationUri(),
                             token);
                     credentials.delete(
                             new com.massimotter.weave.backend.agentruntime.port
                                     .RuntimeWorkloadCredentialStore.DeleteCredentialCommand(
                                     command.binding().clientId(), owner));
-                    credentials.clearRegistrationRecovery(
+                    credentials.clearRegistrationDeletionIntent(
                             command.binding().clientId(),
                             owner,
-                            fingerprint(token));
+                            intent.authorityFingerprint());
                     return null;
                 });
     }
@@ -425,6 +416,15 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
     @Override
     public void quarantineManaged(QuarantineManagedCommand command) {
         Objects.requireNonNull(command, "command");
+        credentials.withRegistrationLifecycleLock(
+                command.clientId(),
+                () -> {
+                    quarantineManagedLocked(command);
+                    return null;
+                });
+    }
+
+    private void quarantineManagedLocked(QuarantineManagedCommand command) {
         FileRuntimeWorkloadCredentialStore.RegistrationAuthorityEntry entry =
                 credentials.registrationAuthorities().stream()
                         .filter(value -> value.clientId().equals(command.clientId())
@@ -446,102 +446,471 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
     }
 
     private void recoverPendingRegistrations() {
-        for (FileRuntimeWorkloadCredentialStore.RegistrationRecoveryEntry entry
-                : credentials.registrationRecoveries()) {
-            recoverPendingRegistration(entry.clientId(), entry.ownerFingerprint());
+        for (FileRuntimeWorkloadCredentialStore.RegistrationHandoffEntry entry
+                : credentials.registrationHandoffs()) {
+            credentials.withRegistrationLifecycleLock(
+                    entry.clientId(),
+                    () -> {
+                        recoverPendingRegistration(
+                                entry.clientId(), entry.ownerFingerprint());
+                        return null;
+                    });
         }
     }
 
     private boolean recoverPendingRegistration(String clientId, String owner) {
-        var pending = credentials.registrationRecovery(clientId, owner);
+        var pending = credentials.registrationHandoff(clientId, owner);
         if (pending.isEmpty()) {
             return false;
         }
-        FileRuntimeWorkloadCredentialStore.RegistrationRecovery recovery =
+        FileRuntimeWorkloadCredentialStore.RegistrationHandoff handoff =
                 pending.orElseThrow();
-        if (recovery.action()
-                        == FileRuntimeWorkloadCredentialStore.RegistrationRecoveryAction.COMMIT
-                && credentials.registrationRecoveryCommitted(clientId, owner)) {
-            credentials.clearRegistrationRecovery(
-                    clientId, owner, recovery.tokenFingerprint());
-            return false;
+        if (handoff.attemptCount() >= 5) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration handoff is quarantined");
         }
-        credentials.withRegistrationRecoveryAccessToken(
+        ObjectNode expectedMetadata = metadata(
+                clientId,
+                parsePublicJwks(handoff.intendedPublicJwks()),
+                handoff.operation()
+                        != FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation.CREATE);
+        FileRuntimeWorkloadCredentialStore.RegistrationAuthority authority =
+                credentials.registrationAuthority(clientId, owner).orElse(null);
+        String expectedSubject = authority == null
+                ? null
+                : authority.serviceAccountSubject();
+        HandoffCommitter committer;
+        if (handoff.operation()
+                == FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation.CREATE) {
+            committer = (observed, token, subject) ->
+                    credentials.bindRegistrationAuthority(
+                            clientId,
+                            owner,
+                            observed.organizationFingerprint(),
+                            observed.personFingerprint(),
+                            observed.cellFingerprint(),
+                            observed.registrationUri(),
+                            token,
+                            subject);
+        } else if (handoff.operation()
+                == FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation.REENABLE) {
+            String rotationRef = "reenable:" + handoff.currentAuthorityFingerprint();
+            committer = (observed, token, subject) ->
+                    credentials.activateReplacementAuthority(
+                            clientId,
+                            owner,
+                            rotationRef,
+                            observed.currentAuthorityFingerprint(),
+                            observed.registrationUri(),
+                            token,
+                            subject);
+        } else {
+            committer = (observed, token, subject) ->
+                    credentials.replaceRegistrationAuthority(
+                            clientId,
+                            owner,
+                            observed.currentAuthorityFingerprint(),
+                            observed.registrationUri(),
+                            token,
+                            subject,
+                            observed.targetEnabled());
+        }
+        completeRegistrationHandoff(
                 clientId,
                 owner,
-                (observed, token) -> {
-                    transport.delete(clientId, observed.registrationUri(), token);
+                expectedMetadata,
+                expectedSubject,
+                committer,
+                true);
+        return false;
+    }
+
+    private void executeHandoffMutation(
+            String clientId,
+            String owner,
+            ObjectNode expectedMetadata,
+            String expectedSubject,
+            boolean targetEnabled,
+            FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation operation,
+            String organizationFingerprint,
+            String personFingerprint,
+            String cellFingerprint,
+            HandoffCommitter committer) {
+        JsonNode publicJwks = normalizedPublicJwks(expectedMetadata.path("jwks"));
+        String intendedPublicJwks = publicJwks.toString();
+        String stateDigest = intendedStateDigest(clientId, publicJwks, operation);
+        FileRuntimeWorkloadCredentialStore.RegistrationAuthority authority =
+                credentials.registrationAuthority(clientId, owner).orElse(null);
+        if (authority != null) {
+            organizationFingerprint = authority.organizationFingerprint();
+            personFingerprint = authority.personFingerprint();
+            cellFingerprint = authority.cellFingerprint();
+        }
+        credentials.prepareRegistrationHandoff(
+                clientId,
+                owner,
+                expectedRegistrationUri(clientId),
+                organizationFingerprint,
+                personFingerprint,
+                cellFingerprint,
+                stateDigest,
+                intendedPublicJwks,
+                expectedSubject == null ? null : fingerprint(expectedSubject),
+                authority == null ? null : authority.tokenFingerprint(),
+                targetEnabled,
+                operation);
+        completeRegistrationHandoff(
+                clientId,
+                owner,
+                expectedMetadata,
+                expectedSubject,
+                committer,
+                false);
+    }
+
+    private void completeRegistrationHandoff(
+            String clientId,
+            String owner,
+            ObjectNode expectedMetadata,
+            String expectedSubject,
+            HandoffCommitter committer,
+            boolean recovering) {
+        FileRuntimeWorkloadCredentialStore.RegistrationHandoff handoff =
+                credentials.registrationHandoff(clientId, owner).orElseThrow();
+        if (handoff.phase()
+                == FileRuntimeWorkloadCredentialStore.RegistrationHandoffPhase.PREPARED) {
+            credentials.recordRegistrationHandoffAttempt(
+                    clientId, owner, handoff.capabilityFingerprint());
+            RuntimeException recoveryFailure = null;
+            if (recovering) {
+                try {
+                    recoverRegistrationAuthority(clientId, owner);
+                } catch (RuntimeException failure) {
+                    recoveryFailure = failure;
+                }
+            }
+            if (credentials.registrationHandoff(clientId, owner)
+                            .orElseThrow()
+                            .phase()
+                    == FileRuntimeWorkloadCredentialStore
+                            .RegistrationHandoffPhase.PREPARED) {
+                try {
+                    issueRegistrationMutation(clientId, owner, expectedMetadata);
+                } catch (RuntimeException mutationFailure) {
+                    if (recoveryFailure != null) {
+                        mutationFailure.addSuppressed(recoveryFailure);
+                    }
+                    throw mutationFailure;
+                }
+            }
+        }
+        finishStagedRegistrationHandoff(
+                clientId, owner, expectedMetadata, expectedSubject, committer);
+    }
+
+    private void issueRegistrationMutation(
+            String clientId, String owner, ObjectNode expectedMetadata) {
+        credentials.withRegistrationHandoffSecrets(
+                clientId,
+                owner,
+                (handoff, capability, ignoredReplacement) -> {
+                    KeycloakClientRegistrationTransport.RegistrationHandoffProof proof =
+                            handoffProof(handoff, capability);
+                    try {
+                        JsonNode response;
+                        if (handoff.operation()
+                                == FileRuntimeWorkloadCredentialStore
+                                        .RegistrationHandoffOperation.CREATE) {
+                            String administrationToken = accessTokens.accessToken();
+                            try {
+                                response = transport.create(
+                                        expectedMetadata, administrationToken, proof);
+                            } catch (RuntimeException failure) {
+                                accessTokens.invalidate(administrationToken);
+                                throw failure;
+                            }
+                        } else {
+                            response = credentials.withRegistrationAccessToken(
+                                    clientId,
+                                    owner,
+                                    (authority, registrationAccessToken) -> {
+                                        if (!constantTimeEquals(
+                                                authority.tokenFingerprint(),
+                                                handoff.currentAuthorityFingerprint())) {
+                                            throw new RuntimeWorkloadIdentityException(
+                                                    "The workload registration authority changed concurrently");
+                                        }
+                                        return transport.update(
+                                                clientId,
+                                                handoff.registrationUri(),
+                                                expectedMetadata,
+                                                registrationAccessToken,
+                                                proof);
+                                    });
+                        }
+                        byte[] replacement = registrationAccessToken(response);
+                        try {
+                            credentials.stageRegistrationHandoff(
+                                    clientId,
+                                    owner,
+                                    handoff.capabilityFingerprint(),
+                                    replacement,
+                                    handoff.intendedStateDigest(),
+                                    null);
+                            RegistrationResponse registration = registrationResponse(
+                                    response,
+                                    clientId,
+                                    handoff.registrationUri(),
+                                    replacement);
+                            if (!registration.registrationUri().equals(
+                                    handoff.registrationUri())) {
+                                throw new RuntimeWorkloadIdentityException(
+                                        "Keycloak changed the client-bound registration URI");
+                            }
+                            if (handoff.operation()
+                                            != FileRuntimeWorkloadCredentialStore
+                                                    .RegistrationHandoffOperation.CREATE
+                                    && handoff.currentAuthorityFingerprint().equals(
+                                            fingerprint(replacement))) {
+                                throw new RuntimeWorkloadIdentityException(
+                                        "Keycloak did not rotate the Registration Access Token");
+                            }
+                        } finally {
+                            Arrays.fill(replacement, (byte) 0);
+                        }
+                    } finally {
+                        proof.destroy();
+                    }
                     return null;
                 });
-        credentials.delete(
-                new com.massimotter.weave.backend.agentruntime.port
-                        .RuntimeWorkloadCredentialStore.DeleteCredentialCommand(
-                        clientId, owner));
-        credentials.clearRegistrationRecovery(
-                clientId, owner, recovery.tokenFingerprint());
-        return true;
+    }
+
+    private void recoverRegistrationAuthority(String clientId, String owner) {
+        credentials.withRegistrationHandoffSecrets(
+                clientId,
+                owner,
+                (handoff, capability, ignoredReplacement) -> {
+                    KeycloakClientRegistrationTransport.RegistrationHandoffProof proof =
+                            handoffProof(handoff, capability);
+                    String administrationToken = accessTokens.accessToken();
+                    try {
+                        JsonNode response;
+                        try {
+                            response = transport.recover(
+                                    clientId,
+                                    handoff.registrationUri(),
+                                    administrationToken,
+                                    proof);
+                        } catch (RuntimeException failure) {
+                            accessTokens.invalidate(administrationToken);
+                            throw failure;
+                        }
+                        if (response == null
+                                || !response.isObject()
+                                || response.size() != 5
+                                || !clientId.equals(text(response, "client_id"))
+                                || !handoff.registrationUri().equals(
+                                        URI.create(text(
+                                                response,
+                                                "registration_client_uri")))
+                                || !handoff.intendedStateDigest().equals(
+                                        text(response, "state_digest"))) {
+                            throw new RuntimeWorkloadIdentityException(
+                                    "Keycloak returned an inconsistent registration handoff");
+                        }
+                        String subjectDigest = text(response, "subject_digest");
+                        if (!subjectDigest.matches("sha256:[a-f0-9]{64}")) {
+                            throw new RuntimeWorkloadIdentityException(
+                                    "Keycloak returned an inconsistent registration handoff");
+                        }
+                        byte[] replacement = registrationAccessToken(response);
+                        try {
+                            credentials.stageRegistrationHandoff(
+                                    clientId,
+                                    owner,
+                                    handoff.capabilityFingerprint(),
+                                    replacement,
+                                    handoff.intendedStateDigest(),
+                                    subjectDigest);
+                        } finally {
+                            Arrays.fill(replacement, (byte) 0);
+                        }
+                    } finally {
+                        proof.destroy();
+                    }
+                    return null;
+                });
+    }
+
+    private void finishStagedRegistrationHandoff(
+            String clientId,
+            String owner,
+            ObjectNode expectedMetadata,
+            String expectedSubject,
+            HandoffCommitter committer) {
+        FileRuntimeWorkloadCredentialStore.RegistrationHandoff pending =
+                credentials.registrationHandoff(clientId, owner).orElseThrow();
+        if (pending.phase()
+                != FileRuntimeWorkloadCredentialStore.RegistrationHandoffPhase.STAGED) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration handoff has no staged authority");
+        }
+        if (pending.operation()
+                        != FileRuntimeWorkloadCredentialStore
+                                .RegistrationHandoffOperation.CREATE
+                && constantTimeEquals(
+                        pending.currentAuthorityFingerprint(),
+                        pending.replacementTokenFingerprint())) {
+            throw new RuntimeWorkloadIdentityException(
+                    "Keycloak did not rotate the Registration Access Token");
+        }
+        if (credentials.registrationHandoffCommitted(clientId, owner)) {
+            credentials.clearRegistrationHandoff(
+                    clientId, owner, pending.capabilityFingerprint());
+            return;
+        }
+        credentials.withRegistrationHandoffSecrets(
+                clientId,
+                owner,
+                (handoff, capability, replacement) -> {
+                    if (replacement == null) {
+                        throw new RuntimeWorkloadIdentityException(
+                                "The workload registration handoff has no staged authority");
+                    }
+                    KeycloakClientRegistrationTransport.RegistrationHandoffProof proof =
+                            handoffProof(handoff, capability);
+                    try {
+                        JsonNode observed = transport.retrieve(
+                                clientId, handoff.registrationUri(), replacement);
+                        byte[] observedToken = registrationAccessToken(observed);
+                        try {
+                            if (!constantTimeEquals(
+                                    fingerprint(observedToken),
+                                    handoff.replacementTokenFingerprint())) {
+                                throw new RuntimeWorkloadIdentityException(
+                                        "The staged registration authority is not current");
+                            }
+                        } finally {
+                            Arrays.fill(observedToken, (byte) 0);
+                        }
+                        registrationResponse(
+                                observed,
+                                clientId,
+                                handoff.registrationUri(),
+                                replacement);
+                        JsonNode expectedJwks =
+                                parsePublicJwks(handoff.intendedPublicJwks());
+                        validateMetadata(observed, clientId, expectedJwks);
+                        String observedState = intendedStateDigest(
+                                clientId, observed.path("jwks"), handoff.operation());
+                        if (!constantTimeEquals(
+                                handoff.intendedStateDigest(), observedState)) {
+                            throw new RuntimeWorkloadIdentityException(
+                                    "The workload registration handoff state does not match");
+                        }
+                        String subject = subjectForHandoff(
+                                clientId, owner, handoff, expectedSubject);
+                        String subjectDigest = fingerprint(subject);
+                        if (handoff.expectedSubjectDigest() != null
+                                && !constantTimeEquals(
+                                        handoff.expectedSubjectDigest(), subjectDigest)) {
+                            throw new RuntimeWorkloadIdentityException(
+                                    "The immutable workload service-account subject changed");
+                        }
+                        if (handoff.observedSubjectDigest() != null
+                                && !constantTimeEquals(
+                                        handoff.observedSubjectDigest(), subjectDigest)) {
+                            throw new RuntimeWorkloadIdentityException(
+                                    "The recovered workload service-account subject changed");
+                        }
+                        credentials.bindRegistrationHandoffSubject(
+                                clientId,
+                                owner,
+                                handoff.capabilityFingerprint(),
+                                subjectDigest);
+                        transport.finalizeHandoff(
+                                clientId,
+                                handoff.registrationUri(),
+                                replacement,
+                                proof);
+                        committer.commit(handoff, replacement, subject);
+                        credentials.clearRegistrationHandoff(
+                                clientId,
+                                owner,
+                                handoff.capabilityFingerprint());
+                    } finally {
+                        proof.destroy();
+                    }
+                    return null;
+                });
+    }
+
+    private String subjectForHandoff(
+            String clientId,
+            String owner,
+            FileRuntimeWorkloadCredentialStore.RegistrationHandoff handoff,
+            String expectedSubject) {
+        if (handoff.operation()
+                == FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation.DISABLE) {
+            if (expectedSubject == null || expectedSubject.isBlank()) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration subject is unavailable");
+            }
+            return expectedSubject;
+        }
+        RuntimeWorkloadCredentialState credential =
+                credentials.find(clientId).orElseThrow();
+        if (handoff.operation()
+                == FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation.REENABLE) {
+            JsonNode keys = parsePublicJwks(handoff.intendedPublicJwks()).path("keys");
+            if (!(keys instanceof ArrayNode array) || array.size() != 1) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The replacement workload credential is ambiguous");
+            }
+            return verifyWorkloadSubject(
+                    clientId,
+                    owner,
+                    text(array.get(0), "kid"),
+                    expectedSubject);
+        }
+        return verifyWorkloadSubject(
+                clientId, owner, credential, expectedSubject);
+    }
+
+    private KeycloakClientRegistrationTransport.RegistrationHandoffProof handoffProof(
+            FileRuntimeWorkloadCredentialStore.RegistrationHandoff handoff,
+            byte[] capability) {
+        return new KeycloakClientRegistrationTransport.RegistrationHandoffProof(
+                capability,
+                handoff.intendedStateDigest(),
+                KeycloakClientRegistrationTransport.RegistrationHandoffOperation.valueOf(
+                        handoff.operation().name()));
     }
 
     private void createRegistration(
             EnsureBindingCommand command,
             String owner,
             RuntimeWorkloadCredentialState credential) {
-        String administrationToken = accessTokens.accessToken();
-        JsonNode response;
-        try {
-            response = transport.create(
-                    metadata(command.clientId(), credential, false), administrationToken);
-        } catch (RuntimeException failure) {
-            accessTokens.invalidate(administrationToken);
-            throw failure;
-        }
-        byte[] token = registrationAccessToken(response);
-        try {
-            credentials.stageRegistrationRecovery(
-                    command.clientId(),
-                    owner,
-                    expectedRegistrationUri(command.clientId()),
-                    token,
-                    null,
-                    true,
-                    FileRuntimeWorkloadCredentialStore.RegistrationRecoveryAction.COMMIT);
-            RegistrationResponse registration = registrationResponse(
-                    response, command.clientId(), null, token);
-            validateMetadata(response, command.clientId(), publicJwks(credential));
-            String subject = verifyWorkloadSubject(
-                    command.clientId(), owner, credential, null);
-            credentials.stageRegistrationRecovery(
-                    command.clientId(),
-                    owner,
-                    registration.registrationUri(),
-                    token,
-                    subject,
-                    true,
-                    FileRuntimeWorkloadCredentialStore.RegistrationRecoveryAction.COMMIT);
-            credentials.bindRegistrationAuthority(
-                    command.clientId(),
-                    owner,
-                    RuntimeWorkloadOwnership.fingerprint(command.organizationRef()),
-                    RuntimeWorkloadOwnership.fingerprint(command.personRef()),
-                    RuntimeWorkloadOwnership.fingerprint(command.cellRef()),
-                    registration.registrationUri(),
-                    token,
-                    subject);
-            credentials.clearRegistrationRecovery(
-                    command.clientId(),
-                    owner,
-                    fingerprint(token));
-        } catch (RuntimeException registrationFailure) {
-            failClosedRemoteRegistration(
-                    command.clientId(),
-                    owner,
-                    expectedRegistrationUri(command.clientId()),
-                    token,
-                    registrationFailure);
-            throw registrationFailure;
-        } finally {
-            Arrays.fill(token, (byte) 0);
-        }
+        executeHandoffMutation(
+                command.clientId(),
+                owner,
+                metadata(command.clientId(), credential, false),
+                null,
+                true,
+                FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation.CREATE,
+                RuntimeWorkloadOwnership.fingerprint(command.organizationRef()),
+                RuntimeWorkloadOwnership.fingerprint(command.personRef()),
+                RuntimeWorkloadOwnership.fingerprint(command.cellRef()),
+                (handoff, token, subject) ->
+                        credentials.bindRegistrationAuthority(
+                                command.clientId(),
+                                owner,
+                                handoff.organizationFingerprint(),
+                                handoff.personFingerprint(),
+                                handoff.cellFingerprint(),
+                                handoff.registrationUri(),
+                                token,
+                                subject));
     }
 
     private LifecycleResult retrieve(
@@ -563,50 +932,13 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                             clientId, authority.registrationUri(), token);
                     byte[] next = registrationAccessToken(response);
                     try {
-                        try {
-                            if (registrationAccessTokenRotated(authority, next)) {
-                                credentials.stageRegistrationRecovery(
-                                        clientId,
-                                        owner,
-                                        authority.registrationUri(),
-                                        next,
-                                        authority.serviceAccountSubject(),
-                                        authority.enabled(),
-                                        FileRuntimeWorkloadCredentialStore
-                                                .RegistrationRecoveryAction.COMMIT);
-                            }
-                        } catch (RuntimeException responseFailure) {
-                            failClosedRemoteRegistration(
-                                    clientId,
-                                    owner,
-                                    authority.registrationUri(),
-                                    next,
-                                    responseFailure);
-                            throw responseFailure;
+                        if (registrationAccessTokenRotated(authority, next)) {
+                            throw new RuntimeWorkloadIdentityException(
+                                    "Keycloak unexpectedly changed the Registration Access Token");
                         }
-                        RegistrationResponse registration;
-                        try {
-                            // Keycloak can render this response before post-update Client Policy
-                            // enforcement. The retrieve below validates the durable final state.
-                            registration = registrationResponse(
-                                    response, clientId, authority.registrationUri(), next);
-                            validateMetadata(response, clientId, expectedJwks);
-                        } catch (RuntimeException responseFailure) {
-                            failClosedRemoteRegistration(
-                                    clientId,
-                                    owner,
-                                    authority.registrationUri(),
-                                    next,
-                                    responseFailure);
-                            throw responseFailure;
-                        }
-                        persistRotatedAuthority(
-                                clientId,
-                                owner,
-                                authority,
-                                registration,
-                                authority.serviceAccountSubject(),
-                                authority.enabled());
+                        registrationResponse(
+                                response, clientId, authority.registrationUri(), next);
+                        validateMetadata(response, clientId, expectedJwks);
                     } finally {
                         Arrays.fill(next, (byte) 0);
                     }
@@ -622,155 +954,30 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             String subject,
             boolean enabled) {
         JsonNode expectedJwks = metadata.path("jwks").deepCopy();
-        credentials.withRegistrationAccessToken(
+        FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation operation =
+                enabled
+                        ? FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation.ROTATE
+                        : FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation.DISABLE;
+        executeHandoffMutation(
                 clientId,
                 owner,
-                (authority, token) -> {
-                    JsonNode response = transport.update(
-                            clientId, authority.registrationUri(), metadata, token);
-                    byte[] next = registrationAccessToken(response);
-                    try {
-                        try {
-                            requireRotatedRegistrationAccessToken(authority, next);
-                            credentials.stageRegistrationRecovery(
-                                    clientId,
-                                    owner,
-                                    authority.registrationUri(),
-                                    next,
-                                    subject,
-                                    enabled,
-                                    FileRuntimeWorkloadCredentialStore
-                                            .RegistrationRecoveryAction.COMMIT);
-                        } catch (RuntimeException responseFailure) {
-                            failClosedRemoteRegistration(
-                                    clientId,
-                                    owner,
-                                    authority.registrationUri(),
-                                    next,
-                                    responseFailure);
-                            throw responseFailure;
-                        }
-                        RegistrationResponse registration;
-                        try {
-                            registration = registrationResponse(
-                                    response, clientId, authority.registrationUri(), next);
-                        } catch (RuntimeException responseFailure) {
-                            failClosedRemoteRegistration(
-                                    clientId,
-                                    owner,
-                                    authority.registrationUri(),
-                                    next,
-                                    responseFailure);
-                            throw responseFailure;
-                        }
-                        persistRotatedAuthority(
+                metadata,
+                subject,
+                enabled,
+                operation,
+                null,
+                null,
+                null,
+                (handoff, next, observedSubject) ->
+                        credentials.replaceRegistrationAuthority(
                                 clientId,
                                 owner,
-                                authority,
-                                registration,
-                                subject,
-                                enabled);
-                    } finally {
-                        Arrays.fill(next, (byte) 0);
-                    }
-                    return null;
-                });
+                                handoff.currentAuthorityFingerprint(),
+                                handoff.registrationUri(),
+                                next,
+                                observedSubject,
+                                handoff.targetEnabled()));
         retrieve(clientId, owner, expectedJwks);
-    }
-
-    private void persistRotatedAuthority(
-            String clientId,
-            String owner,
-            FileRuntimeWorkloadCredentialStore.RegistrationAuthority authority,
-            RegistrationResponse registration,
-            String subject,
-            boolean enabled) {
-        byte[] next = registration.registrationAccessToken();
-        try {
-            if (authority.tokenFingerprint().equals(
-                    fingerprint(next))
-                    && authority.registrationUri().equals(registration.registrationUri())
-                    && authority.serviceAccountSubject().equals(subject)
-                    && authority.enabled() == enabled) {
-                credentials.clearRegistrationRecovery(
-                        clientId,
-                        owner,
-                        fingerprint(next));
-                return;
-            }
-            credentials.replaceRegistrationAuthority(
-                    clientId,
-                    owner,
-                    authority.tokenFingerprint(),
-                    registration.registrationUri(),
-                    next,
-                    subject,
-                    enabled);
-            credentials.clearRegistrationRecovery(
-                    clientId,
-                    owner,
-                    fingerprint(next));
-        } catch (RuntimeException persistenceFailure) {
-            failClosedRemoteRegistration(
-                    clientId,
-                    owner,
-                    registration.registrationUri(),
-                    next,
-                    persistenceFailure);
-            throw persistenceFailure;
-        } finally {
-            Arrays.fill(next, (byte) 0);
-        }
-    }
-
-    private void failClosedRemoteRegistration(
-            String clientId,
-            String owner,
-            URI registrationUri,
-            byte[] currentRegistrationAccessToken,
-            RuntimeException primaryFailure) {
-        String tokenFingerprint = fingerprint(currentRegistrationAccessToken);
-        try {
-            credentials.stageRegistrationRecovery(
-                    clientId,
-                    owner,
-                    registrationUri,
-                    currentRegistrationAccessToken,
-                    null,
-                    false,
-                    FileRuntimeWorkloadCredentialStore.RegistrationRecoveryAction.DELETE);
-        } catch (RuntimeException recoveryFailure) {
-            primaryFailure.addSuppressed(recoveryFailure);
-        }
-        boolean remoteDeleted = false;
-        try {
-            transport.delete(clientId, registrationUri, currentRegistrationAccessToken);
-            remoteDeleted = true;
-        } catch (RuntimeException cleanupFailure) {
-            primaryFailure.addSuppressed(cleanupFailure);
-        }
-        if (!remoteDeleted) {
-            return;
-        }
-        boolean localDeleted = false;
-        try {
-            credentials.delete(
-                    new com.massimotter.weave.backend.agentruntime.port
-                            .RuntimeWorkloadCredentialStore.DeleteCredentialCommand(
-                            clientId, owner));
-            localDeleted = true;
-        } catch (RuntimeException cleanupFailure) {
-            primaryFailure.addSuppressed(cleanupFailure);
-        }
-        if (!localDeleted) {
-            return;
-        }
-        try {
-            credentials.clearRegistrationRecovery(
-                    clientId, owner, tokenFingerprint);
-        } catch (RuntimeException cleanupFailure) {
-            primaryFailure.addSuppressed(cleanupFailure);
-        }
     }
 
     private ObjectNode metadata(
@@ -808,6 +1015,96 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         metadata.set("response_types", mapper.createArrayNode());
         metadata.set("jwks", jwks.deepCopy());
         return metadata;
+    }
+
+    private JsonNode parsePublicJwks(String encoded) {
+        try {
+            return normalizedPublicJwks(mapper.readTree(encoded));
+        } catch (JacksonException failure) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload public JWK set is invalid");
+        }
+    }
+
+    private JsonNode normalizedPublicJwks(JsonNode jwks) {
+        JsonNode keys = jwks == null ? null : jwks.get("keys");
+        if (!(keys instanceof ArrayNode input) || input.isEmpty()) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload public JWK set is invalid");
+        }
+        List<JsonNode> ordered = new ArrayList<>();
+        input.forEach(ordered::add);
+        ordered.sort(Comparator.comparing(key -> text(key, "kid")));
+        ObjectNode normalized = mapper.createObjectNode();
+        ArrayNode output = normalized.putArray("keys");
+        for (JsonNode key : ordered) {
+            ObjectNode value = mapper.createObjectNode();
+            for (String field : List.of("alg", "e", "kid", "kty", "n", "use")) {
+                value.put(field, text(key, field));
+            }
+            output.add(value);
+        }
+        return normalized;
+    }
+
+    private String intendedStateDigest(
+            String clientId,
+            JsonNode publicJwks,
+            FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation operation) {
+        try {
+            ObjectNode root = mapper.createObjectNode();
+            root.put("clientId", clientId);
+            ArrayNode defaultScopes = root.putArray("defaultClientScopes");
+            settings.defaultClientScopes().stream().sorted().forEach(defaultScopes::add);
+            ArrayNode roles = root.putArray("effectiveRoles");
+            ObjectNode role = mapper.createObjectNode();
+            role.put("containerId", settings.realm());
+            role.put("kind", "realm");
+            role.put("name", settings.workloadRole());
+            roles.add(role);
+            ObjectNode attributes = root.putObject("fixedAttributes");
+            new java.util.TreeMap<>(Map.ofEntries(
+                            Map.entry("use.jwks.string", "true"),
+                            Map.entry("use.jwks.url", "false"),
+                            Map.entry("token.endpoint.auth.signing.alg", "PS256"),
+                            Map.entry("access.token.header.type.rfc9068", "true"),
+                            Map.entry(
+                                    "access.token.lifespan",
+                                    Integer.toString(settings.accessTokenLifespanSeconds())),
+                            Map.entry("use.refresh.tokens", "false"),
+                            Map.entry("backchannel.logout.session.required", "false"),
+                            Map.entry(
+                                    "backchannel.logout.revoke.offline.tokens", "false"),
+                            Map.entry("frontchannel.logout.session.required", "false")))
+                    .forEach(attributes::put);
+            ObjectNode flows = root.putObject("flows");
+            flows.put("authorizationCode", false);
+            flows.put("ciba", false);
+            flows.put("device", false);
+            flows.put("directAccessGrant", false);
+            flows.put("implicit", false);
+            flows.put("jwtAuthorizationGrant", false);
+            flows.put("serviceAccounts", true);
+            flows.put("standardTokenExchange", false);
+            flows.put("uma", false);
+            root.put("operation", operation.wireValue());
+            ArrayNode optionalScopes = root.putArray("optionalClientScopes");
+            settings.optionalClientScopes().stream().sorted().forEach(optionalScopes::add);
+            root.set("protocolMappers", mapper.createArrayNode());
+            root.set("publicJwks", normalizedPublicJwks(publicJwks));
+            ObjectNode token = root.putObject("tokenEndpointAuthentication");
+            token.put("algorithm", "PS256");
+            token.put("method", CLIENT_AUTHENTICATOR_PRIVATE_KEY_JWT);
+            root.set("uris", mapper.createArrayNode());
+            root.set("webOrigins", mapper.createArrayNode());
+            return fingerprint(new JsonCanonicalizer(root.toString()).getEncodedUTF8());
+        } catch (Exception failure) {
+            if (failure instanceof RuntimeWorkloadIdentityException identityFailure) {
+                throw identityFailure;
+            }
+            throw new RuntimeWorkloadIdentityException(
+                    "Unable to derive the workload registration state digest");
+        }
     }
 
     private JsonNode revocationJwks() {
@@ -923,20 +1220,40 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             String owner,
             RuntimeWorkloadCredentialState credential,
             String expectedSubject) {
-        return credentials.withActivePrivateJwk(clientId, owner, privateJwk -> {
-            String assertion = clientAssertion(clientId, privateJwk);
-            JsonNode token = transport.clientCredentials(Map.of(
-                    "grant_type", "client_credentials",
-                    "client_id", clientId,
-                    "client_assertion_type", ASSERTION_TYPE,
-                    "client_assertion", assertion));
-            String accessToken = text(token, "access_token");
-            String subject = tokenSubject(accessToken);
-            if (expectedSubject != null) {
-                requireSubject(expectedSubject, subject);
-            }
-            return subject;
-        });
+        return credentials.withActivePrivateJwk(
+                clientId,
+                owner,
+                privateJwk -> authenticateWorkloadSubject(
+                        clientId, privateJwk, expectedSubject));
+    }
+
+    private String verifyWorkloadSubject(
+            String clientId,
+            String owner,
+            String keyId,
+            String expectedSubject) {
+        return credentials.withPrivateJwk(
+                clientId,
+                owner,
+                keyId,
+                privateJwk -> authenticateWorkloadSubject(
+                        clientId, privateJwk, expectedSubject));
+    }
+
+    private String authenticateWorkloadSubject(
+            String clientId, byte[] privateJwk, String expectedSubject) {
+        String assertion = clientAssertion(clientId, privateJwk);
+        JsonNode token = transport.clientCredentials(Map.of(
+                "grant_type", "client_credentials",
+                "client_id", clientId,
+                "client_assertion_type", ASSERTION_TYPE,
+                "client_assertion", assertion));
+        String accessToken = text(token, "access_token");
+        String subject = tokenSubject(accessToken, clientId);
+        if (expectedSubject != null) {
+            requireSubject(expectedSubject, subject);
+        }
+        return subject;
     }
 
     private String clientAssertion(String clientId, byte[] privateJwk) {
@@ -977,13 +1294,19 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         }
     }
 
-    private String tokenSubject(String accessToken) {
+    private String tokenSubject(String accessToken, String clientId) {
         try {
             String[] segments = accessToken.split("\\.");
             if (segments.length != 3) {
                 throw new IllegalArgumentException();
             }
             JsonNode claims = mapper.readTree(Base64.getUrlDecoder().decode(segments[1]));
+            if (!clientId.equals(text(claims, "azp"))
+                    || !Set.of(settings.workloadRole())
+                            .equals(strings(claims.path("realm_access").path("roles")))
+                    || !claims.path("resource_access").propertyNames().isEmpty()) {
+                throw new IllegalArgumentException();
+            }
             return text(claims, "sub");
         } catch (RuntimeException failure) {
             throw new RuntimeWorkloadIdentityException(
@@ -1199,6 +1522,14 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         }
     }
 
+    private static boolean constantTimeEquals(String left, String right) {
+        return left != null
+                && right != null
+                && MessageDigest.isEqual(
+                        left.getBytes(StandardCharsets.US_ASCII),
+                        right.getBytes(StandardCharsets.US_ASCII));
+    }
+
     public record Settings(
             URI adminBaseUrl,
             URI issuer,
@@ -1271,4 +1602,12 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             URI registrationUri, byte[] registrationAccessToken) {}
 
     private record LifecycleResult(String subject) {}
+
+    @FunctionalInterface
+    private interface HandoffCommitter {
+        void commit(
+                FileRuntimeWorkloadCredentialStore.RegistrationHandoff handoff,
+                byte[] registrationAccessToken,
+                String serviceAccountSubject);
+    }
 }

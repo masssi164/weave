@@ -3,9 +3,7 @@
 
 from __future__ import annotations
 
-import base64
 import importlib.util
-import json
 import stat
 import tempfile
 import unittest
@@ -70,34 +68,97 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
                 "registration_access_token": "fixture-rat",
             }
         )
+        recovered = {
+            "client_id": client_id,
+            "registration_client_uri": (
+                issuer
+                + "/clients-registrations/openid-connect/"
+                + client_id
+            ),
+            "registration_access_token": "recovered-rat",
+            "state_digest": "sha256:" + "a" * 64,
+            "subject_digest": "sha256:" + "b" * 64,
+        }
+        observed = dict(response)
+        observed["registration_access_token"] = "current-rat"
+        headers = {
+            "Weave-Registration-Handoff": "A" * 43,
+            "Weave-Registration-Handoff-State": "sha256:" + "a" * 64,
+            "Weave-Registration-Handoff-Operation": "create",
+        }
 
-        with mock.patch.object(
-            target, "exchange", return_value=(201, response)
-        ) as exchange:
+        with (
+            mock.patch.object(
+                target,
+                "registration_handoff_headers",
+                return_value=headers,
+            ),
+            mock.patch.object(
+                target,
+                "exchange",
+                side_effect=[
+                    (201, response),
+                    (401, {}),
+                    (200, observed),
+                ],
+            ) as exchange,
+            mock.patch.object(
+                target,
+                "handoff_exchange",
+                side_effect=[
+                    (200, recovered),
+                    (204, {}),
+                    (403, {}),
+                ],
+            ),
+        ):
             uri, token = target.registration(
-                direct, issuer, "fixture-admin-token", client_id, private
+                direct,
+                issuer,
+                "weave",
+                "fixture-admin-token",
+                client_id,
+                private,
             )
 
         self.assertEqual(
             uri,
             issuer + "/clients-registrations/openid-connect/" + client_id,
         )
-        self.assertEqual(token, "fixture-rat")
-        self.assertEqual(exchange.call_args.args[0], direct)
+        self.assertEqual(token, "current-rat")
+        self.assertEqual(exchange.call_args_list[0].args[0], direct)
 
-    def test_realm_role_projection_is_bounded(self) -> None:
-        claims = base64.urlsafe_b64encode(
-            json.dumps(
-                {"realm_access": {"roles": ["weaver-runtime"]}},
-                separators=(",", ":"),
-            ).encode("utf-8")
-        ).rstrip(b"=").decode("ascii")
-
-        self.assertEqual(
-            target.access_token_realm_roles(f"e30.{claims}.signature"),
-            {"weaver-runtime"},
+    def test_registration_handoff_is_exact_and_candidate_state_bound(self) -> None:
+        private = {
+            "kty": "RSA",
+            "use": "sig",
+            "alg": "PS256",
+            "kid": "test-current",
+            "n": "modulus",
+            "e": "AQAB",
+        }
+        first = target.registration_handoff_headers(
+            "weaver-cell-test", "weave", private, "create"
         )
-        self.assertEqual(target.access_token_realm_roles("not-a-token"), set())
+        second = target.registration_handoff_headers(
+            "weaver-cell-test", "weave", private, "create"
+        )
+
+        self.assertRegex(
+            first["Weave-Registration-Handoff"], r"^[A-Za-z0-9_-]{43}$"
+        )
+        self.assertRegex(
+            first["Weave-Registration-Handoff-State"],
+            r"^sha256:[0-9a-f]{64}$",
+        )
+        self.assertEqual(
+            first["Weave-Registration-Handoff-State"],
+            second["Weave-Registration-Handoff-State"],
+        )
+        self.assertNotEqual(
+            first["Weave-Registration-Handoff"],
+            second["Weave-Registration-Handoff"],
+        )
 
     def test_exact_client_state_rejects_missing_post_policy_scope(self) -> None:
         client_id = "weaver-cell-test"

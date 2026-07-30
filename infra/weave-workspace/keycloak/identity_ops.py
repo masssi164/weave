@@ -136,6 +136,19 @@ class Operation:
         }
 
 
+@dataclass(frozen=True)
+class RoleIdentity:
+    kind: str
+    container_id: str
+    name: str
+
+
+@dataclass(frozen=True)
+class DirectRoleMapping:
+    identity: RoleIdentity
+    client_id: str | None
+
+
 class Kcadm:
     REAUTHENTICATION_INTERVAL_SECONDS = 30
 
@@ -242,6 +255,7 @@ def exact(items: list[dict[str, Any]], key: str, description: str) -> dict[str, 
 
 def realm_payload(realm: dict[str, Any]) -> dict[str, Any]:
     result = {
+        "id": realm.get("id", realm["name"]),
         "realm": realm["name"],
         "enabled": realm.get("enabled", True),
         "organizationsEnabled": realm.get("organizationsEnabled", False),
@@ -583,6 +597,111 @@ def runtime_admin_role_delta(
             "runtime administration must resolve to exactly create-client"
         )
     return expected - observed, observed - expected
+
+
+def runtime_admin_role_inventory(
+    kcadm: Kcadm,
+    realm: str,
+    account_id: str,
+) -> tuple[set[DirectRoleMapping], set[RoleIdentity]]:
+    clients = kcadm.call(
+        "get",
+        "clients",
+        "-r",
+        realm,
+        "--max",
+        "10000",
+    ) or []
+    if (
+        not isinstance(clients, list)
+        or len(clients) > 10000
+        or any(
+            not isinstance(client, dict)
+            or not isinstance(client.get("id"), str)
+            or not isinstance(client.get("clientId"), str)
+            for client in clients
+        )
+    ):
+        raise IdentityOpsError(
+            "runtime administration client-role inventory is invalid"
+        )
+    client_ids = {str(client["id"]): str(client["clientId"]) for client in clients}
+
+    def role_identities(
+        endpoint: str,
+        *,
+        direct_client_id: str | None = None,
+    ) -> set[DirectRoleMapping]:
+        observed = kcadm.call("get", endpoint, "-r", realm) or []
+        if not isinstance(observed, list):
+            raise IdentityOpsError(
+                "runtime administration role inventory is invalid"
+            )
+        mappings: set[DirectRoleMapping] = set()
+        for role in observed:
+            if not isinstance(role, dict):
+                raise IdentityOpsError(
+                    "runtime administration role inventory is invalid"
+                )
+            name = role.get("name")
+            container_id = role.get("containerId")
+            client_role = role.get("clientRole")
+            if (
+                not isinstance(name, str)
+                or not name
+                or not isinstance(container_id, str)
+                or not container_id
+                or not isinstance(client_role, bool)
+            ):
+                raise IdentityOpsError(
+                    "runtime administration role identity is invalid"
+                )
+            kind = "client" if client_role else "realm"
+            mapped_client_id = (
+                client_ids.get(container_id) if client_role else None
+            )
+            if client_role and mapped_client_id is None:
+                raise IdentityOpsError(
+                    "runtime administration client-role container is unknown"
+                )
+            if direct_client_id is not None and mapped_client_id != direct_client_id:
+                raise IdentityOpsError(
+                    "runtime administration direct role container changed"
+                )
+            mappings.add(
+                DirectRoleMapping(
+                    RoleIdentity(kind, container_id, name),
+                    mapped_client_id,
+                )
+            )
+        return mappings
+
+    direct = role_identities(
+        f"users/{account_id}/role-mappings/realm"
+    )
+    effective = {
+        mapping.identity
+        for mapping in role_identities(
+            f"users/{account_id}/role-mappings/realm/composite"
+        )
+    }
+    for container_id, client_id in sorted(
+        client_ids.items(), key=lambda item: item[1]
+    ):
+        direct.update(
+            role_identities(
+                f"users/{account_id}/role-mappings/clients/{container_id}",
+                direct_client_id=client_id,
+            )
+        )
+        effective.update(
+            mapping.identity
+            for mapping in role_identities(
+                f"users/{account_id}/role-mappings/clients/"
+                f"{container_id}/composite"
+            )
+        )
+    return direct, effective
 
 
 def flatten_groups(groups: list[dict[str, Any]], parent: str = "") -> list[dict[str, Any]]:
@@ -1459,9 +1578,62 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
                 raise IdentityOpsError(
                     "runtime administration role grant must contain only create-client"
                 )
-            missing_roles, retired_roles = runtime_admin_role_delta(
-                observed_names, expected
+            direct_roles, effective_roles = runtime_admin_role_inventory(
+                kcadm,
+                realm_name,
+                str(account["id"]),
             )
+            expected_identity = RoleIdentity(
+                "client",
+                str(realm_management["id"]),
+                "create-client",
+            )
+            direct_identities = {mapping.identity for mapping in direct_roles}
+            direct_extras = {
+                mapping
+                for mapping in direct_roles
+                if mapping.identity != expected_identity
+            }
+            unexplained_effective = effective_roles - {
+                expected_identity,
+                *(mapping.identity for mapping in direct_extras),
+            }
+            if unexplained_effective:
+                raise IdentityOpsError(
+                    "runtime administration effective role expansion is not safely reconcilable"
+                )
+            for mapping in sorted(
+                direct_extras,
+                key=lambda item: (
+                    item.identity.kind,
+                    item.identity.container_id,
+                    item.identity.name,
+                ),
+            ):
+                operations.append(
+                    Operation(
+                        "remove-role",
+                        (
+                            f"{grant['key']}:"
+                            f"{mapping.identity.kind}:"
+                            f"{mapping.identity.container_id}:"
+                            f"{mapping.identity.name}"
+                        ),
+                        "remove-roles",
+                        None,
+                        {
+                            "username": account.get("username"),
+                            "clientId": mapping.client_id,
+                            "roleName": mapping.identity.name,
+                        },
+                    )
+                )
+            missing_roles = (
+                expected
+                if expected_identity not in direct_identities
+                else set()
+            )
+            retired_roles = set()
         else:
             expected = required_names
             missing_roles = required_names - observed_names
@@ -1593,13 +1765,21 @@ def apply_operations(kcadm: Kcadm, realm: str, operations: list[Operation]) -> N
 
 def apply_operation(kcadm: Kcadm, realm: str, operation: Operation) -> None:
     if operation.action == "remove-role":
-        kcadm.call(
+        arguments = [
             "remove-roles",
-            "-r", realm,
-            "--uusername", str(operation.payload["username"]),
-            "--cclientid", str(operation.payload["clientId"]),
-            "--rolename", str(operation.payload["roleName"]),
+            "-r",
+            realm,
+            "--uusername",
+            str(operation.payload["username"]),
+        ]
+        if operation.payload["clientId"] is not None:
+            arguments.extend(
+                ["--cclientid", str(operation.payload["clientId"])]
+            )
+        arguments.extend(
+            ["--rolename", str(operation.payload["roleName"])]
         )
+        kcadm.call(*arguments)
         return
     if operation.action == "rotate-secret":
         generated = kcadm.call(
@@ -1870,7 +2050,9 @@ def oauth_probe_failure_category(body: dict[str, Any]) -> str:
     return "unclassified-oauth-error"
 
 
-def access_token_client_roles(access_token: str, client_id: str) -> set[str]:
+def access_token_role_projection(
+    access_token: str,
+) -> tuple[set[str], dict[str, set[str]]]:
     try:
         segments = access_token.split(".")
         if len(segments) != 3:
@@ -1880,19 +2062,50 @@ def access_token_client_roles(access_token: str, client_id: str) -> set[str]:
             base64.urlsafe_b64decode(segments[1] + padding).decode("utf-8")
         )
         if not isinstance(claims, dict):
-            return set()
+            raise ValueError("JWT claims")
+        realm_access = claims.get("realm_access")
+        if realm_access is None:
+            realm_roles: list[str] = []
+        elif (
+            not isinstance(realm_access, dict)
+            or set(realm_access) != {"roles"}
+            or not isinstance(realm_access.get("roles"), list)
+            or any(
+                not isinstance(role, str) or not role
+                for role in realm_access["roles"]
+            )
+        ):
+            raise ValueError("realm role projection")
+        else:
+            realm_roles = realm_access["roles"]
         resource_access = claims.get("resource_access")
-        access = (
-            resource_access.get(client_id)
-            if isinstance(resource_access, dict)
-            else None
-        )
-        roles = access.get("roles") if isinstance(access, dict) else None
-        if not isinstance(roles, list) or any(not isinstance(role, str) for role in roles):
-            return set()
-        return set(roles)
-    except (binascii.Error, UnicodeDecodeError, ValueError, json.JSONDecodeError):
-        return set()
+        if resource_access is None:
+            resource_access = {}
+        if not isinstance(resource_access, dict):
+            raise ValueError("client role projection")
+        client_roles: dict[str, set[str]] = {}
+        for client_id, access in resource_access.items():
+            if (
+                not isinstance(client_id, str)
+                or not client_id
+                or not isinstance(access, dict)
+                or set(access) != {"roles"}
+                or not isinstance(access.get("roles"), list)
+                or any(
+                    not isinstance(role, str) or not role
+                    for role in access["roles"]
+                )
+                or len(access["roles"]) != len(set(access["roles"]))
+            ):
+                raise ValueError("client role projection")
+            client_roles[client_id] = set(access["roles"])
+        if len(realm_roles) != len(set(realm_roles)):
+            raise ValueError("realm role projection")
+        return set(realm_roles), client_roles
+    except (binascii.Error, UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
+        raise IdentityOpsError(
+            "service-account token role projection is malformed; token withheld"
+        ) from error
 
 
 def probe_client_credentials(
@@ -1938,11 +2151,18 @@ def probe_client_credentials(
                     "response withheld"
                 )
             if client.get("key") == "client:weave-agent-runtime-admin":
-                projected_roles = access_token_client_roles(
-                    str(body["access_token"]),
-                    "realm-management",
+                realm_roles, client_roles = access_token_role_projection(
+                    str(body["access_token"])
                 )
-                if projected_roles != set(RUNTIME_ADMIN_REALM_MANAGEMENT_ROLES):
+                if (
+                    realm_roles
+                    or client_roles
+                    != {
+                        "realm-management": set(
+                            RUNTIME_ADMIN_REALM_MANAGEMENT_ROLES
+                        )
+                    }
+                ):
                     raise IdentityOpsError(
                         "runtime administration token role projection differs from "
                         "exact create-client authority; response withheld"

@@ -122,6 +122,21 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
     }
 
     @Test
+    void rejectsAWorkloadTokenWithAnyClientRoleProjection() {
+        transport.nextTokenClaimsMutation = claims -> claims
+                .withObject("resource_access")
+                .withObject("other-client")
+                .putArray("roles")
+                .add("same-name-or-extra-role");
+
+        assertThatThrownBy(() -> adapter.ensureBinding(ensure()))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("malformed workload access token")
+                .hasMessageNotContaining("same-name-or-extra-role");
+        assertThat(credentials.registrationHandoff(CLIENT_ID, owner())).isPresent();
+    }
+
+    @Test
     void repeatedReadRetainsTheRatUntilAMutatingLifecycleOperationRotatesIt() {
         RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
         byte[] initial = transport.currentRat.clone();
@@ -133,7 +148,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 .RuntimeWorkloadBindingAuthority.CurrentBindingCommand(
                 ORGANIZATION, PERSON, CELL, binding, "audit:verify-again"));
 
-        assertThat(transport.retrieves).hasValue(2);
+        assertThat(transport.retrieves).hasValue(3);
         assertThat(transport.currentRat).isEqualTo(initial);
 
         adapter.disableBinding(new DisableBindingCommand(
@@ -227,7 +242,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
     }
 
     @Test
-    void failedRatPersistenceDeletesTheRemoteClientAndFailsClosed() throws Exception {
+    void failedRatPersistenceLeavesTheDurableHandoffForRecovery() throws Exception {
         RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
         Path protectedRef = temporary.resolve(
                 "weave/agent-runtime/cells/" + CLIENT_ID);
@@ -252,17 +267,21 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         assertThat(failure)
                 .isNotNull()
                 .hasMessageContaining("regular non-symlink file");
-        assertThat(transport.deleted).isTrue();
-        assertThat(failure.getSuppressed()).isNotEmpty();
+        assertThat(transport.deleted).isFalse();
+        assertThat(credentials.registrationHandoff(CLIENT_ID, owner()))
+                .hasValueSatisfying(handoff ->
+                        assertThat(handoff.phase())
+                                .isEqualTo(FileRuntimeWorkloadCredentialStore
+                                        .RegistrationHandoffPhase.STAGED));
     }
 
     @Test
-    void failedRatPersistenceAndCompensationDeleteRemainRestartRecoverable() throws Exception {
+    void failedRatPersistenceRemainsRestartRecoverableWithoutDeletingTheClient()
+            throws Exception {
         RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
         Path protectedRef = temporary.resolve(
                 "weave/agent-runtime/cells/" + CLIENT_ID);
         byte[] previousEnvelope = Files.readAllBytes(protectedRef);
-        transport.failNextDelete = true;
         transport.afterNextUpdate = () -> {
             try {
                 Files.delete(protectedRef);
@@ -286,11 +305,11 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 .isNotNull()
                 .hasMessageNotContaining("rat-");
         assertThat(transport.deleted).isFalse();
-        assertThat(credentials.registrationRecovery(CLIENT_ID, owner()))
-                .hasValueSatisfying(recovery ->
-                        assertThat(recovery.action())
+        assertThat(credentials.registrationHandoff(CLIENT_ID, owner()))
+                .hasValueSatisfying(handoff ->
+                        assertThat(handoff.phase())
                                 .isEqualTo(FileRuntimeWorkloadCredentialStore
-                                        .RegistrationRecoveryAction.DELETE));
+                                        .RegistrationHandoffPhase.STAGED));
 
         Files.delete(protectedRef);
         Files.write(protectedRef, previousEnvelope);
@@ -306,9 +325,9 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         RuntimeWorkloadBinding replacement = restarted.ensureBinding(ensure());
 
         assertThat(replacement.clientId()).isEqualTo(CLIENT_ID);
-        assertThat(transport.deleteAttempts).hasValue(2);
-        assertThat(transport.creates).hasValue(2);
-        assertThat(restartedCredentials.registrationRecovery(CLIENT_ID, owner()))
+        assertThat(transport.deleteAttempts).hasValue(0);
+        assertThat(transport.creates).hasValue(1);
+        assertThat(restartedCredentials.registrationHandoff(CLIENT_ID, owner()))
                 .isEmpty();
         assertThat(restartedCredentials.find(CLIENT_ID)).isPresent();
         Arrays.fill(previousEnvelope, (byte) 0);
@@ -336,7 +355,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 .hasMessageNotContaining("rat-");
 
         assertThat(transport.deleted).isTrue();
-        assertThat(credentials.registrationRecovery(CLIENT_ID, owner())).isPresent();
+        assertThat(credentials.registrationDeletionIntent(CLIENT_ID, owner())).isPresent();
         Files.delete(protectedRef);
         Files.write(protectedRef, previousEnvelope);
         if (Files.getFileStore(protectedRef).supportsFileAttributeView("posix")) {
@@ -352,14 +371,14 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 ORGANIZATION, PERSON, CELL, binding, "audit:delete-retry"));
 
         assertThat(transport.deleteAttempts).hasValue(2);
-        assertThat(restartedCredentials.registrationRecovery(CLIENT_ID, owner()))
+        assertThat(restartedCredentials.registrationDeletionIntent(CLIENT_ID, owner()))
                 .isEmpty();
         assertThat(restartedCredentials.find(CLIENT_ID)).isEmpty();
         Arrays.fill(previousEnvelope, (byte) 0);
     }
 
     @Test
-    void mutatingResponseWithoutRatRotationIsRejectedAndCleanedUp() {
+    void mutatingResponseWithoutRatRotationIsQuarantinedWithoutFallback() {
         RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
         transport.reuseRatOnNextUpdate = true;
 
@@ -369,13 +388,13 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 .hasMessageContaining("did not rotate")
                 .hasMessageNotContaining("rat-");
 
-        assertThat(transport.deleted).isTrue();
-        assertThat(credentials.find(CLIENT_ID)).isEmpty();
-        assertThat(credentials.registrationRecoveries()).isEmpty();
+        assertThat(transport.deleted).isFalse();
+        assertThat(credentials.find(CLIENT_ID)).isPresent();
+        assertThat(credentials.registrationHandoff(CLIENT_ID, owner())).isPresent();
     }
 
     @Test
-    void inconsistentCreateResponseDeletesTheClientAndLocalCredential() {
+    void inconsistentCreateResponseLeavesARecoverablePreparedAuthority() {
         transport.nextResponseMutation = response -> response.put(
                 "registration_client_uri",
                 "https://foreign.example/realms/weave/clients-registrations/"
@@ -386,12 +405,15 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 .hasMessageContaining("registration URI")
                 .hasMessageNotContaining("rat-");
 
-        assertThat(transport.deleted).isTrue();
-        assertThat(credentials.find(CLIENT_ID)).isEmpty();
+        assertThat(transport.deleted).isFalse();
+        assertThat(credentials.find(CLIENT_ID)).isPresent();
+        assertThat(credentials.registrationHandoff(CLIENT_ID, owner())).isPresent();
+        assertThat(adapter.ensureBinding(ensure()).clientId()).isEqualTo(CLIENT_ID);
+        assertThat(credentials.registrationHandoff(CLIENT_ID, owner())).isEmpty();
     }
 
     @Test
-    void driftedFinalStateAfterUpdateDeletesTheClientAndLocalCredential() {
+    void driftedFinalStateAfterUpdateLeavesTheExactHandoffForRepair() {
         RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
         transport.nextRetrieveMutation =
                 response -> response.put("scope", "mcp.tools realm-management");
@@ -406,8 +428,9 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 .hasMessageContaining("metadata has drifted")
                 .hasMessageNotContaining("rat-");
 
-        assertThat(transport.deleted).isTrue();
-        assertThat(credentials.find(CLIENT_ID)).isEmpty();
+        assertThat(transport.deleted).isFalse();
+        assertThat(credentials.find(CLIENT_ID)).isPresent();
+        assertThat(credentials.registrationHandoff(CLIENT_ID, owner())).isPresent();
     }
 
     @Test
@@ -508,17 +531,23 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         private Runnable afterNextDelete = () -> {};
         private Consumer<ObjectNode> nextResponseMutation = ignored -> {};
         private Consumer<ObjectNode> nextRetrieveMutation = ignored -> {};
+        private Consumer<ObjectNode> nextTokenClaimsMutation = ignored -> {};
         private final AtomicInteger deleteAttempts = new AtomicInteger();
+        private RegistrationHandoffProof activeHandoff;
 
         FakeRegistrationTransport(ObjectMapper mapper) {
             this.mapper = mapper;
         }
 
         @Override
-        public JsonNode create(JsonNode requested, String administrationAccessToken) {
+        public JsonNode create(
+                JsonNode requested,
+                String administrationAccessToken,
+                RegistrationHandoffProof handoff) {
             if (metadata != null) {
                 throw new RuntimeWorkloadIdentityException("duplicate registration");
             }
+            activeHandoff = copy(handoff);
             creates.incrementAndGet();
             deleted = false;
             lastAdministrationToken = administrationAccessToken;
@@ -544,9 +573,15 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         }
 
         @Override
-        public JsonNode update(String clientId, URI uri, JsonNode requested, byte[] rat) {
+        public JsonNode update(
+                String clientId,
+                URI uri,
+                JsonNode requested,
+                byte[] rat,
+                RegistrationHandoffProof handoff) {
             requireClient(clientId);
             requireAuthority(uri, rat);
+            activeHandoff = copy(handoff);
             if (!CLIENT_ID.equals(requested.path("client_id").asText())) {
                 throw new RuntimeWorkloadIdentityException(
                         "registration update client binding rejected");
@@ -565,6 +600,45 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             afterNextUpdate = () -> {};
             callback.run();
             return response;
+        }
+
+        @Override
+        public JsonNode recover(
+                String clientId,
+                URI uri,
+                String administrationAccessToken,
+                RegistrationHandoffProof handoff) {
+            requireClient(clientId);
+            if (metadata == null || activeHandoff == null) {
+                throw new RuntimeWorkloadIdentityException(
+                        "registration handoff target unavailable");
+            }
+            requireProof(handoff);
+            lastAdministrationToken = administrationAccessToken;
+            byte[] replacement = rotateRat();
+            return mapper.createObjectNode()
+                    .put("client_id", CLIENT_ID)
+                    .put("registration_client_uri", registrationUri.toString())
+                    .put("state_digest", handoff.stateDigest())
+                    .put(
+                            "subject_digest",
+                            digest(SUBJECT))
+                    .put(
+                            "registration_access_token",
+                            new String(replacement, StandardCharsets.UTF_8));
+        }
+
+        @Override
+        public FinalizeResult finalizeHandoff(
+                String clientId,
+                URI uri,
+                byte[] rat,
+                RegistrationHandoffProof handoff) {
+            requireClient(clientId);
+            requireAuthority(uri, rat);
+            requireProof(handoff);
+            activeHandoff = null;
+            return FinalizeResult.FINALIZED;
         }
 
         @Override
@@ -591,7 +665,16 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         @Override
         public JsonNode clientCredentials(Map<String, String> parameters) {
             lastClientCredentials = Map.copyOf(parameters);
-            ObjectNode claims = mapper.createObjectNode().put("sub", SUBJECT);
+            ObjectNode claims = mapper.createObjectNode()
+                    .put("sub", SUBJECT)
+                    .put("azp", CLIENT_ID);
+            claims.putObject("realm_access")
+                    .putArray("roles")
+                    .add("weaver-runtime");
+            claims.putObject("resource_access");
+            Consumer<ObjectNode> mutation = nextTokenClaimsMutation;
+            nextTokenClaimsMutation = ignored -> {};
+            mutation.accept(claims);
             String payload;
             try {
                 payload = Base64.getUrlEncoder().withoutPadding()
@@ -639,6 +722,34 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 throw new RuntimeWorkloadIdentityException(
                         "registration client binding rejected");
             }
+        }
+
+        private void requireProof(RegistrationHandoffProof handoff) {
+            if (activeHandoff == null
+                    || !activeHandoff.stateDigest().equals(handoff.stateDigest())
+                    || activeHandoff.operation() != handoff.operation()
+                    || !java.security.MessageDigest.isEqual(
+                            activeHandoff.capability(), handoff.capability())) {
+                throw new RuntimeWorkloadIdentityException(
+                        "registration handoff rejected");
+            }
+        }
+
+        private static String digest(String value) {
+            try {
+                return "sha256:"
+                        + java.util.HexFormat.of().formatHex(
+                                java.security.MessageDigest.getInstance("SHA-256")
+                                        .digest(value.getBytes(StandardCharsets.UTF_8)));
+            } catch (java.security.NoSuchAlgorithmException impossible) {
+                throw new IllegalStateException(impossible);
+            }
+        }
+
+        private static RegistrationHandoffProof copy(
+                RegistrationHandoffProof handoff) {
+            return new RegistrationHandoffProof(
+                    handoff.capability(), handoff.stateDigest(), handoff.operation());
         }
     }
 }

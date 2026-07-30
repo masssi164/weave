@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import tools.jackson.databind.ObjectMapper;
+import com.massimotter.weave.backend.agentruntime.adapter.KeycloakClientRegistrationTransport.RegistrationHandoffOperation;
+import com.massimotter.weave.backend.agentruntime.adapter.KeycloakClientRegistrationTransport.RegistrationHandoffProof;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -30,6 +32,9 @@ class SpringKeycloakClientRegistrationTransportTest {
   private AtomicReference<String> authorization;
   private AtomicReference<String> body;
   private AtomicReference<URI> requestUri;
+  private AtomicReference<String> handoffCapability;
+  private AtomicReference<String> handoffState;
+  private AtomicReference<String> handoffOperation;
 
   @BeforeEach
   void setUp() throws IOException {
@@ -37,6 +42,9 @@ class SpringKeycloakClientRegistrationTransportTest {
     authorization = new AtomicReference<>();
     body = new AtomicReference<>();
     requestUri = new AtomicReference<>();
+    handoffCapability = new AtomicReference<>();
+    handoffState = new AtomicReference<>();
+    handoffOperation = new AtomicReference<>();
     server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     server.createContext(
         "/",
@@ -44,16 +52,39 @@ class SpringKeycloakClientRegistrationTransportTest {
           requests.incrementAndGet();
           requestUri.set(exchange.getRequestURI());
           authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+          handoffCapability.set(
+              exchange.getRequestHeaders().getFirst("Weave-Registration-Handoff"));
+          handoffState.set(
+              exchange.getRequestHeaders().getFirst(
+                  "Weave-Registration-Handoff-State"));
+          handoffOperation.set(
+              exchange.getRequestHeaders().getFirst(
+                  "Weave-Registration-Handoff-Operation"));
           body.set(
               new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
           if ("Bearer rejected-administration-token".equals(authorization.get())) {
             respond(exchange, 401, "{\"error\":\"private rat-secret diagnostic\"}");
+          } else if ("Bearer unsafe-handoff-error".equals(authorization.get())) {
+            respond(exchange, 401, "{\"error\":\"invalid_token\"}");
           } else if ("Bearer scope-policy-token".equals(authorization.get())) {
             respond(
                 exchange,
                 403,
                 "{\"error\":\"insufficient_scope\","
                     + "\"error_description\":\"Policy 'Allowed Client Scopes' rejected request\"}");
+          } else if (exchange
+              .getRequestURI()
+              .getPath()
+              .endsWith("/weave-registration-handoff/recover")) {
+            noStore(exchange);
+            respond(exchange, 200, "{}");
+          } else if (exchange
+              .getRequestURI()
+              .getPath()
+              .endsWith("/weave-registration-handoff/finalize")) {
+            noStore(exchange);
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
           } else {
             respond(exchange, 200, "{}");
           }
@@ -72,7 +103,8 @@ class SpringKeycloakClientRegistrationTransportTest {
             () ->
                 transport.create(
                     new ObjectMapper().createObjectNode(),
-                    "scope-policy-token"))
+                    "scope-policy-token",
+                    proof(RegistrationHandoffOperation.CREATE)))
         .isInstanceOf(RuntimeWorkloadIdentityException.class)
         .hasMessageContaining("failureType=RegistrationPolicyClientScopes")
         .hasMessageNotContaining("Allowed Client Scopes")
@@ -97,8 +129,12 @@ class SpringKeycloakClientRegistrationTransportTest {
 
     transport.create(
         mapper.createObjectNode().put("client_name", "weaver-cell-test"),
-        "administration-token");
+        "administration-token",
+        proof(RegistrationHandoffOperation.CREATE));
     assertThat(authorization).hasValue("Bearer administration-token");
+    assertThat(handoffCapability)
+        .hasValue(proof(RegistrationHandoffOperation.CREATE).capabilityHeader());
+    assertThat(handoffOperation).hasValue("create");
 
     transport.retrieve(CLIENT_ID, registration, "rat-one".getBytes(StandardCharsets.UTF_8));
     assertThat(authorization).hasValue("Bearer rat-one");
@@ -107,8 +143,10 @@ class SpringKeycloakClientRegistrationTransportTest {
         CLIENT_ID,
         registration,
         mapper.createObjectNode().put("client_name", "weaver-cell-test"),
-        "rat-two".getBytes(StandardCharsets.UTF_8));
+        "rat-two".getBytes(StandardCharsets.UTF_8),
+        proof(RegistrationHandoffOperation.ROTATE));
     assertThat(authorization).hasValue("Bearer rat-two");
+    assertThat(handoffOperation).hasValue("rotate");
 
     transport.clientCredentials(
         Map.of("grant_type", "client_credentials", "client_id", "weaver-cell-test"));
@@ -150,6 +188,59 @@ class SpringKeycloakClientRegistrationTransportTest {
             URI.create(
                 "/realms/weave/clients-registrations/openid-connect/weaver-cell-test"));
     assertThat(authorization).hasValue("Bearer rat-one");
+  }
+
+  @Test
+  void sendsTheClosedHandoffHeadersAndRequiresNonCacheableResponses() {
+    SpringKeycloakClientRegistrationTransport transport =
+        new SpringKeycloakClientRegistrationTransport(
+            base, ISSUER, "weave", Duration.ofSeconds(2));
+    URI registration =
+        URI.create(
+            "https://auth.weave.test/realms/weave/clients-registrations/openid-connect/"
+                + CLIENT_ID);
+    RegistrationHandoffProof proof =
+        proof(RegistrationHandoffOperation.ROTATE);
+
+    transport.recover(CLIENT_ID, registration, "administration-token", proof);
+    assertThat(body).hasValue("");
+    assertThat(handoffCapability).hasValue(proof.capabilityHeader());
+    assertThat(handoffState).hasValue(proof.stateDigest());
+    assertThat(handoffOperation).hasValue("rotate");
+
+    assertThat(
+            transport.finalizeHandoff(
+                CLIENT_ID,
+                registration,
+                "rat-current".getBytes(StandardCharsets.UTF_8),
+                proof))
+        .isEqualTo(
+            com.massimotter.weave.backend.agentruntime.adapter
+                .KeycloakClientRegistrationTransport.FinalizeResult.FINALIZED);
+    assertThat(body).hasValue("");
+    assertThat(authorization).hasValue("Bearer rat-current");
+  }
+
+  @Test
+  void rejectsACacheableHandoffErrorResponse() {
+    SpringKeycloakClientRegistrationTransport transport =
+        new SpringKeycloakClientRegistrationTransport(
+            base, ISSUER, "weave", Duration.ofSeconds(2));
+    URI registration =
+        URI.create(
+            "https://auth.weave.test/realms/weave/clients-registrations/openid-connect/"
+                + CLIENT_ID);
+
+    assertThatThrownBy(
+            () ->
+                transport.recover(
+                    CLIENT_ID,
+                    registration,
+                    "unsafe-handoff-error",
+                    proof(RegistrationHandoffOperation.CREATE)))
+        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .hasMessageContaining("unsafe registration handoff response")
+        .hasMessageNotContaining("unsafe-handoff-error");
   }
 
   @Test
@@ -232,7 +323,8 @@ class SpringKeycloakClientRegistrationTransportTest {
             () ->
                 transport.create(
                     new ObjectMapper().createObjectNode(),
-                    "rejected-administration-token"))
+                    "rejected-administration-token",
+                    proof(RegistrationHandoffOperation.CREATE)))
         .isInstanceOf(RuntimeWorkloadIdentityException.class)
         .hasMessageContaining("protocol request failed")
         .hasMessageNotContaining("rat-secret")
@@ -246,5 +338,18 @@ class SpringKeycloakClientRegistrationTransportTest {
     exchange.sendResponseHeaders(status, bytes.length);
     exchange.getResponseBody().write(bytes);
     exchange.close();
+  }
+
+  private static void noStore(HttpExchange exchange) {
+    exchange.getResponseHeaders().set("Cache-Control", "no-store");
+    exchange.getResponseHeaders().set("Pragma", "no-cache");
+  }
+
+  private static RegistrationHandoffProof proof(
+      RegistrationHandoffOperation operation) {
+    return new RegistrationHandoffProof(
+        new byte[32],
+        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        operation);
   }
 }

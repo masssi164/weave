@@ -66,12 +66,16 @@ public final class FileRuntimeWorkloadCredentialStore
         implements RuntimeWorkloadCredentialStore, SecretRefAccess {
 
     static final String SCHEMA = "weave.workload-credential/v2";
-    private static final String REGISTRATION_RECOVERY_SCHEMA =
-            "weave.registration-authority-recovery/v1";
+    private static final String REGISTRATION_HANDOFF_SCHEMA =
+            "weave.registration-authority-handoff/v2";
+    private static final String REGISTRATION_DELETION_INTENT_SCHEMA =
+            "weave.registration-deletion-intent/v1";
     static final String ALGORITHM = "PS256";
     private static final int RSA_BITS = 3072;
     private static final int LOCAL_LOCK_STRIPES = 64;
     private static final int MAX_SECRET_BYTES = 64 * 1024;
+    private static final ReentrantLock[] CREDENTIAL_LOCKS = lockStripes();
+    private static final ReentrantLock[] REGISTRATION_LIFECYCLE_LOCKS = lockStripes();
     private static final Pattern SEGMENT = Pattern.compile("[A-Za-z0-9._-]+");
     private static final Set<String> PRIVATE_JWK_FIELDS = Set.of(
             "kty", "use", "alg", "kid", "n", "e", "d", "p", "q", "dp", "dq", "qi");
@@ -85,7 +89,6 @@ public final class FileRuntimeWorkloadCredentialStore
     private final URI registrationIssuer;
     private final Clock clock;
     private final SecureRandom secureRandom;
-    private final ReentrantLock[] localLocks;
 
     public FileRuntimeWorkloadCredentialStore(Path root, ObjectMapper objectMapper) {
         this(root, objectMapper, null, Clock.systemUTC(), new SecureRandom());
@@ -137,8 +140,6 @@ public final class FileRuntimeWorkloadCredentialStore
                 .build();
         this.clock = clock;
         this.secureRandom = secureRandom;
-        this.localLocks = new ReentrantLock[LOCAL_LOCK_STRIPES];
-        Arrays.setAll(localLocks, ignored -> new ReentrantLock());
         ensureDirectory(this.root);
     }
 
@@ -533,81 +534,251 @@ public final class FileRuntimeWorkloadCredentialStore
         }
     }
 
-    void stageRegistrationRecovery(
+    /**
+     * Holds the exact-client lock across local preparation, remote mutation or recovery,
+     * finalize, and local commit. The lifecycle lock uses a distinct file from the short
+     * SecretRef mutation lock so protected reads and atomic writes remain composable inside it.
+     */
+    <T> T withRegistrationLifecycleLock(String clientId, Callable<T> operation) {
+        requireClientId(clientId);
+        Objects.requireNonNull(operation, "operation");
+        Path lockPath = lifecycleLockPath(clientId);
+        ReentrantLock local = stripe(REGISTRATION_LIFECYCLE_LOCKS, lockPath);
+        local.lock();
+        try {
+            ensureDirectory(lockPath.getParent());
+            try (FileChannel channel = FileChannel.open(
+                            lockPath,
+                            StandardOpenOption.CREATE,
+                            StandardOpenOption.WRITE);
+                    FileLock ignored = channel.lock()) {
+                setFilePermissions(lockPath, OWNER_FILE_PERMISSIONS);
+                return operation.call();
+            } catch (RuntimeWorkloadIdentityException failure) {
+                throw failure;
+            } catch (Exception failure) {
+                throw unavailable(
+                        "The workload registration lifecycle lock is unavailable", failure);
+            }
+        } finally {
+            local.unlock();
+        }
+    }
+
+    RegistrationHandoff prepareRegistrationHandoff(
             String clientId,
             String ownerFingerprint,
             URI registrationUri,
-            byte[] registrationAccessToken,
-            String serviceAccountSubject,
-            boolean enabled,
-            RegistrationRecoveryAction action) {
+            String organizationFingerprint,
+            String personFingerprint,
+            String cellFingerprint,
+            String intendedStateDigest,
+            String intendedPublicJwks,
+            String expectedSubjectDigest,
+            String currentAuthorityFingerprint,
+            boolean targetEnabled,
+            RegistrationHandoffOperation operation) {
         Objects.requireNonNull(registrationUri, "registrationUri");
-        Objects.requireNonNull(registrationAccessToken, "registrationAccessToken");
-        Objects.requireNonNull(action, "action");
-        locked(clientId, () -> {
-            if (!validFingerprint(ownerFingerprint)) {
-                throw new RuntimeWorkloadIdentityException(
-                        "The workload registration recovery owner is invalid");
-            }
-            StoredRegistrationRecovery staged = new StoredRegistrationRecovery(
-                    REGISTRATION_RECOVERY_SCHEMA,
-                    clientId,
-                    ownerFingerprint,
-                    registrationUri.toString(),
-                    new String(registrationAccessToken, StandardCharsets.UTF_8),
-                    serviceAccountSubject,
-                    enabled,
-                    action,
-                    clock.instant().toString());
-            validate(staged, clientId);
-            Optional<StoredRegistrationRecovery> existing = readRegistrationRecovery(clientId);
-            if (existing.isPresent()) {
-                StoredRegistrationRecovery observed = existing.orElseThrow();
-                requireOwner(observed, ownerFingerprint);
-                if (!sameRegistrationRecoveryAuthority(observed, staged)) {
+        Objects.requireNonNull(operation, "operation");
+        requireClientId(clientId);
+        return locked(clientId, () -> {
+            StoredCredential credential = requireStored(clientId, ownerFingerprint);
+            Optional<RegistrationAuthority> authority = authority(credential);
+            if (operation == RegistrationHandoffOperation.CREATE) {
+                if (authority.isPresent() || currentAuthorityFingerprint != null) {
                     throw new RuntimeWorkloadIdentityException(
-                            "A different workload registration recovery is already pending");
+                            "The workload registration create handoff has an existing authority");
                 }
-                RegistrationRecoveryAction effectiveAction =
-                        observed.action() == RegistrationRecoveryAction.DELETE
-                                || action == RegistrationRecoveryAction.DELETE
-                                ? RegistrationRecoveryAction.DELETE
-                                : RegistrationRecoveryAction.COMMIT;
-                String effectiveSubject = serviceAccountSubject != null
-                        ? serviceAccountSubject
-                        : observed.serviceAccountSubject();
-                staged = new StoredRegistrationRecovery(
-                        observed.schemaVersion(),
-                        observed.clientId(),
-                        observed.ownerFingerprint(),
-                        observed.registrationUri(),
-                        observed.registrationAccessToken(),
-                        effectiveSubject,
-                        enabled,
-                        effectiveAction,
-                        observed.createdAt());
-                validate(staged, clientId);
-                if (staged.equals(observed)) {
-                    return null;
+            } else {
+                RegistrationAuthority current = authority.orElseThrow(() ->
+                        new RuntimeWorkloadIdentityException(
+                                "The workload registration authority is unavailable"));
+                if (!constantTimeEquals(
+                        current.tokenFingerprint(), currentAuthorityFingerprint)) {
+                    throw new RuntimeWorkloadIdentityException(
+                            "The workload registration authority changed concurrently");
                 }
             }
-            writeRegistrationRecovery(staged);
-            return null;
+            Optional<StoredRegistrationHandoff> existing =
+                    readRegistrationHandoff(clientId);
+            if (existing.isPresent()) {
+                StoredRegistrationHandoff observed = existing.orElseThrow();
+                requireOwner(observed, ownerFingerprint);
+                if (!observed.registrationUri().equals(registrationUri.toString())
+                        || !observed.intendedStateDigest().equals(intendedStateDigest)
+                        || !observed.intendedPublicJwks().equals(intendedPublicJwks)
+                        || !observed.operation().equals(operation)
+                        || !Objects.equals(
+                                observed.currentAuthorityFingerprint(),
+                                currentAuthorityFingerprint)
+                        || observed.targetEnabled() != targetEnabled) {
+                    throw new RuntimeWorkloadIdentityException(
+                            "A different workload registration handoff is already pending");
+                }
+                return handoff(observed);
+            }
+            byte[] capability = new byte[32];
+            secureRandom.nextBytes(capability);
+            try {
+                StoredRegistrationHandoff prepared = new StoredRegistrationHandoff(
+                        REGISTRATION_HANDOFF_SCHEMA,
+                        clientId,
+                        ownerFingerprint,
+                        registrationUri.toString(),
+                        organizationFingerprint,
+                        personFingerprint,
+                        cellFingerprint,
+                        intendedStateDigest,
+                        intendedPublicJwks,
+                        expectedSubjectDigest,
+                        currentAuthorityFingerprint,
+                        Base64.getUrlEncoder().withoutPadding().encodeToString(capability),
+                        null,
+                        null,
+                        targetEnabled,
+                        RegistrationHandoffPhase.PREPARED,
+                        operation,
+                        0,
+                        clock.instant().toString());
+                validate(prepared, clientId);
+                writeRegistrationHandoff(prepared);
+                return handoff(prepared);
+            } finally {
+                Arrays.fill(capability, (byte) 0);
+            }
         });
     }
 
-    Optional<RegistrationRecovery> registrationRecovery(
+    RegistrationHandoff stageRegistrationHandoff(
+            String clientId,
+            String ownerFingerprint,
+            String expectedCapabilityFingerprint,
+            byte[] replacementRegistrationAccessToken,
+            String observedStateDigest,
+            String observedSubjectDigest) {
+        Objects.requireNonNull(replacementRegistrationAccessToken, "replacementRegistrationAccessToken");
+        return locked(clientId, () -> {
+            StoredRegistrationHandoff current = readRegistrationHandoff(clientId)
+                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                            "The workload registration handoff is unavailable"));
+            requireOwner(current, ownerFingerprint);
+            requireCapability(current, expectedCapabilityFingerprint);
+            if (!current.intendedStateDigest().equals(observedStateDigest)) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration handoff state does not match");
+            }
+            if (current.expectedSubjectDigest() != null
+                    && observedSubjectDigest != null
+                    && !constantTimeEquals(
+                            current.expectedSubjectDigest(), observedSubjectDigest)) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration subject changed");
+            }
+            String replacement =
+                    new String(replacementRegistrationAccessToken, StandardCharsets.UTF_8);
+            if (current.replacementRegistrationAccessToken() != null
+                    && !constantTimeEquals(
+                            fingerprint(current.replacementRegistrationAccessToken()),
+                            fingerprint(replacement))) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration handoff changed concurrently");
+            }
+            StoredRegistrationHandoff staged = new StoredRegistrationHandoff(
+                    current.schemaVersion(),
+                    current.clientId(),
+                    current.ownerFingerprint(),
+                    current.registrationUri(),
+                    current.organizationFingerprint(),
+                    current.personFingerprint(),
+                    current.cellFingerprint(),
+                    current.intendedStateDigest(),
+                    current.intendedPublicJwks(),
+                    current.expectedSubjectDigest(),
+                    current.currentAuthorityFingerprint(),
+                    current.handoffCapability(),
+                    replacement,
+                    observedSubjectDigest != null
+                            ? observedSubjectDigest
+                            : current.observedSubjectDigest(),
+                    current.targetEnabled(),
+                    RegistrationHandoffPhase.STAGED,
+                    current.operation(),
+                    current.attemptCount(),
+                    current.createdAt());
+            validate(staged, clientId);
+            writeRegistrationHandoff(staged);
+            return handoff(staged);
+        });
+    }
+
+    RegistrationHandoff bindRegistrationHandoffSubject(
+            String clientId,
+            String ownerFingerprint,
+            String expectedCapabilityFingerprint,
+            String observedSubjectDigest) {
+        Objects.requireNonNull(observedSubjectDigest, "observedSubjectDigest");
+        return locked(clientId, () -> {
+            StoredRegistrationHandoff current = readRegistrationHandoff(clientId)
+                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                            "The workload registration handoff is unavailable"));
+            requireOwner(current, ownerFingerprint);
+            requireCapability(current, expectedCapabilityFingerprint);
+            if (current.phase() != RegistrationHandoffPhase.STAGED) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration handoff has no staged authority");
+            }
+            if (current.expectedSubjectDigest() != null
+                    && !constantTimeEquals(
+                            current.expectedSubjectDigest(), observedSubjectDigest)) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration subject changed");
+            }
+            if (current.observedSubjectDigest() != null
+                    && !constantTimeEquals(
+                            current.observedSubjectDigest(), observedSubjectDigest)) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration recovery subject changed");
+            }
+            StoredRegistrationHandoff bound = new StoredRegistrationHandoff(
+                    current.schemaVersion(),
+                    current.clientId(),
+                    current.ownerFingerprint(),
+                    current.registrationUri(),
+                    current.organizationFingerprint(),
+                    current.personFingerprint(),
+                    current.cellFingerprint(),
+                    current.intendedStateDigest(),
+                    current.intendedPublicJwks(),
+                    current.expectedSubjectDigest(),
+                    current.currentAuthorityFingerprint(),
+                    current.handoffCapability(),
+                    current.replacementRegistrationAccessToken(),
+                    observedSubjectDigest,
+                    current.targetEnabled(),
+                    current.phase(),
+                    current.operation(),
+                    current.attemptCount(),
+                    current.createdAt());
+            validate(bound, clientId);
+            if (!bound.equals(current)) {
+                writeRegistrationHandoff(bound);
+            }
+            return handoff(bound);
+        });
+    }
+
+    Optional<RegistrationHandoff> registrationHandoff(
             String clientId, String ownerFingerprint) {
         requireClientId(clientId);
-        return locked(clientId, () -> readRegistrationRecovery(clientId)
+        return locked(clientId, () -> readRegistrationHandoff(clientId)
                 .map(stored -> {
                     requireOwner(stored, ownerFingerprint);
-                    return recovery(stored);
+                    return handoff(stored);
                 }));
     }
 
-    List<RegistrationRecoveryEntry> registrationRecoveries() {
-        Path directory = recoveryDirectory();
+    List<RegistrationHandoffEntry> registrationHandoffs() {
+        Path directory = handoffDirectory();
         if (!Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
             return List.of();
         }
@@ -621,35 +792,63 @@ public final class FileRuntimeWorkloadCredentialStore
                     .toList();
             if (clientIds.size() > 10_000) {
                 throw new RuntimeWorkloadIdentityException(
-                        "The workload registration recovery inventory exceeds its safe bound");
+                        "The workload registration handoff inventory exceeds its safe bound");
             }
-            List<RegistrationRecoveryEntry> entries = new ArrayList<>();
+            List<RegistrationHandoffEntry> entries = new ArrayList<>();
             for (String clientId : clientIds) {
                 locked(clientId, () -> {
-                    StoredRegistrationRecovery stored =
-                            readRegistrationRecovery(clientId).orElseThrow();
-                    entries.add(new RegistrationRecoveryEntry(
-                            clientId, stored.ownerFingerprint(), recovery(stored)));
+                    StoredRegistrationHandoff stored =
+                            readRegistrationHandoff(clientId).orElseThrow();
+                    entries.add(new RegistrationHandoffEntry(
+                            clientId, stored.ownerFingerprint(), handoff(stored)));
                     return null;
                 });
             }
             return List.copyOf(entries);
         } catch (IOException failure) {
             throw unavailable(
-                    "The workload registration recovery inventory is unavailable", failure);
+                    "The workload registration handoff inventory is unavailable", failure);
         }
     }
 
-    boolean registrationRecoveryCommitted(
+    <T> T withRegistrationHandoffSecrets(
+            String clientId,
+            String ownerFingerprint,
+            RegistrationHandoffSecretOperation<T> operation) {
+        Objects.requireNonNull(operation, "operation");
+        RegistrationHandoffSecretSnapshot snapshot = locked(clientId, () -> {
+            StoredRegistrationHandoff stored = readRegistrationHandoff(clientId)
+                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                            "The workload registration handoff is unavailable"));
+            requireOwner(stored, ownerFingerprint);
+            return new RegistrationHandoffSecretSnapshot(
+                    handoff(stored),
+                    Base64.getUrlDecoder().decode(stored.handoffCapability()),
+                    stored.replacementRegistrationAccessToken() == null
+                            ? null
+                            : stored.replacementRegistrationAccessToken()
+                                    .getBytes(StandardCharsets.UTF_8));
+        });
+        byte[] capability = snapshot.capability();
+        byte[] replacement = snapshot.replacementRegistrationAccessToken();
+        try {
+            return operation.apply(snapshot.handoff(), capability, replacement);
+        } finally {
+            Arrays.fill(capability, (byte) 0);
+            if (replacement != null) {
+                Arrays.fill(replacement, (byte) 0);
+            }
+        }
+    }
+
+    boolean registrationHandoffCommitted(
             String clientId, String ownerFingerprint) {
-        requireClientId(clientId);
         return locked(clientId, () -> {
-            StoredRegistrationRecovery pending =
-                    readRegistrationRecovery(clientId).orElseThrow(() ->
-                            new RuntimeWorkloadIdentityException(
-                                    "The workload registration recovery is unavailable"));
+            StoredRegistrationHandoff pending = readRegistrationHandoff(clientId)
+                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                            "The workload registration handoff is unavailable"));
             requireOwner(pending, ownerFingerprint);
-            if (pending.action() == RegistrationRecoveryAction.DELETE) {
+            if (pending.phase() != RegistrationHandoffPhase.STAGED) {
                 return false;
             }
             Optional<StoredCredential> current = read(clientId);
@@ -659,63 +858,131 @@ public final class FileRuntimeWorkloadCredentialStore
             requireOwner(current.orElseThrow(), ownerFingerprint);
             Optional<RegistrationAuthority> authority = authority(current.orElseThrow());
             return authority.isPresent()
+                    && constantTimeEquals(
+                            authority.orElseThrow().tokenFingerprint(),
+                            fingerprint(pending.replacementRegistrationAccessToken()))
                     && authority.orElseThrow().registrationUri()
                             .equals(URI.create(pending.registrationUri()))
-                    && MessageDigest.isEqual(
-                            authority.orElseThrow().tokenFingerprint()
-                                    .getBytes(StandardCharsets.US_ASCII),
-                            fingerprint(pending.registrationAccessToken())
-                                    .getBytes(StandardCharsets.US_ASCII))
-                    && (pending.serviceAccountSubject() == null
-                            || pending.serviceAccountSubject().equals(
-                                    authority.orElseThrow().serviceAccountSubject()))
-                    && authority.orElseThrow().enabled() == pending.enabled();
+                    && authority.orElseThrow().enabled() == pending.targetEnabled();
         });
     }
 
-    <T> T withRegistrationRecoveryAccessToken(
+    void recordRegistrationHandoffAttempt(
             String clientId,
             String ownerFingerprint,
-            RegistrationRecoveryAccessTokenOperation<T> operation) {
-        Objects.requireNonNull(operation, "operation");
-        RegistrationRecoveryTokenSnapshot snapshot = locked(clientId, () -> {
-            StoredRegistrationRecovery stored =
-                    readRegistrationRecovery(clientId).orElseThrow(() ->
-                            new RuntimeWorkloadIdentityException(
-                                    "The workload registration recovery is unavailable"));
-            requireOwner(stored, ownerFingerprint);
-            return new RegistrationRecoveryTokenSnapshot(
-                    recovery(stored),
-                    stored.registrationAccessToken().getBytes(StandardCharsets.UTF_8));
+            String expectedCapabilityFingerprint) {
+        locked(clientId, () -> {
+            StoredRegistrationHandoff current = readRegistrationHandoff(clientId)
+                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                            "The workload registration handoff is unavailable"));
+            requireOwner(current, ownerFingerprint);
+            requireCapability(current, expectedCapabilityFingerprint);
+            StoredRegistrationHandoff attempted = new StoredRegistrationHandoff(
+                    current.schemaVersion(),
+                    current.clientId(),
+                    current.ownerFingerprint(),
+                    current.registrationUri(),
+                    current.organizationFingerprint(),
+                    current.personFingerprint(),
+                    current.cellFingerprint(),
+                    current.intendedStateDigest(),
+                    current.intendedPublicJwks(),
+                    current.expectedSubjectDigest(),
+                    current.currentAuthorityFingerprint(),
+                    current.handoffCapability(),
+                    current.replacementRegistrationAccessToken(),
+                    current.observedSubjectDigest(),
+                    current.targetEnabled(),
+                    current.phase(),
+                    current.operation(),
+                    Math.addExact(current.attemptCount(), 1),
+                    current.createdAt());
+            validate(attempted, clientId);
+            writeRegistrationHandoff(attempted);
+            return null;
         });
-        byte[] token = snapshot.registrationAccessToken();
-        try {
-            return operation.apply(snapshot.recovery(), token);
-        } finally {
-            Arrays.fill(token, (byte) 0);
-        }
     }
 
-    void clearRegistrationRecovery(
-            String clientId, String ownerFingerprint, String expectedTokenFingerprint) {
-        requireClientId(clientId);
-        Objects.requireNonNull(expectedTokenFingerprint, "expectedTokenFingerprint");
+    void clearRegistrationHandoff(
+            String clientId,
+            String ownerFingerprint,
+            String expectedCapabilityFingerprint) {
         locked(clientId, () -> {
-            Optional<StoredRegistrationRecovery> existing =
-                    readRegistrationRecovery(clientId);
-            if (existing.isEmpty()) {
+            Optional<StoredRegistrationHandoff> current =
+                    readRegistrationHandoff(clientId);
+            if (current.isEmpty()) {
                 return null;
             }
-            StoredRegistrationRecovery stored = existing.orElseThrow();
-            requireOwner(stored, ownerFingerprint);
-            if (!MessageDigest.isEqual(
-                    fingerprint(stored.registrationAccessToken())
-                            .getBytes(StandardCharsets.US_ASCII),
-                    expectedTokenFingerprint.getBytes(StandardCharsets.US_ASCII))) {
-                throw new RuntimeWorkloadIdentityException(
-                        "The workload registration recovery changed concurrently");
+            requireOwner(current.orElseThrow(), ownerFingerprint);
+            requireCapability(current.orElseThrow(), expectedCapabilityFingerprint);
+            deleteRegistrationHandoff(clientId);
+            return null;
+        });
+    }
+
+    RegistrationDeletionIntent prepareRegistrationDeletion(
+            String clientId, String ownerFingerprint) {
+        return locked(clientId, () -> {
+            StoredCredential credential = requireStored(clientId, ownerFingerprint);
+            RegistrationAuthority authority = authority(credential)
+                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                            "The workload registration authority is unavailable"));
+            StoredRegistrationDeletionIntent prepared =
+                    new StoredRegistrationDeletionIntent(
+                            REGISTRATION_DELETION_INTENT_SCHEMA,
+                            clientId,
+                            ownerFingerprint,
+                            authority.registrationUri().toString(),
+                            authority.tokenFingerprint(),
+                            clock.instant().toString());
+            validate(prepared, clientId);
+            Optional<StoredRegistrationDeletionIntent> existing =
+                    readRegistrationDeletionIntent(clientId);
+            if (existing.isPresent()) {
+                StoredRegistrationDeletionIntent observed = existing.orElseThrow();
+                requireOwner(observed, ownerFingerprint);
+                if (!observed.equals(prepared)
+                        && (!observed.registrationUri().equals(prepared.registrationUri())
+                                || !constantTimeEquals(
+                                        observed.authorityFingerprint(),
+                                        prepared.authorityFingerprint()))) {
+                    throw new RuntimeWorkloadIdentityException(
+                            "A different workload registration deletion is already pending");
+                }
+                return deletionIntent(observed);
             }
-            deleteRegistrationRecovery(clientId);
+            writeRegistrationDeletionIntent(prepared);
+            return deletionIntent(prepared);
+        });
+    }
+
+    Optional<RegistrationDeletionIntent> registrationDeletionIntent(
+            String clientId, String ownerFingerprint) {
+        return locked(clientId, () -> readRegistrationDeletionIntent(clientId)
+                .map(stored -> {
+                    requireOwner(stored, ownerFingerprint);
+                    return deletionIntent(stored);
+                }));
+    }
+
+    void clearRegistrationDeletionIntent(
+            String clientId,
+            String ownerFingerprint,
+            String expectedAuthorityFingerprint) {
+        locked(clientId, () -> {
+            Optional<StoredRegistrationDeletionIntent> current =
+                    readRegistrationDeletionIntent(clientId);
+            if (current.isEmpty()) {
+                return null;
+            }
+            requireOwner(current.orElseThrow(), ownerFingerprint);
+            if (!constantTimeEquals(
+                    current.orElseThrow().authorityFingerprint(),
+                    expectedAuthorityFingerprint)) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration deletion changed concurrently");
+            }
+            deleteRegistrationDeletionIntent(clientId);
             return null;
         });
     }
@@ -732,6 +999,29 @@ public final class FileRuntimeWorkloadCredentialStore
                     .findFirst()
                     .orElseThrow();
             byte[] encoded = mapper.writeValueAsBytes(active.privateJwk());
+            try {
+                return operation.apply(encoded);
+            } finally {
+                Arrays.fill(encoded, (byte) 0);
+            }
+        });
+    }
+
+    <T> T withPrivateJwk(
+            String clientId,
+            String ownerFingerprint,
+            String keyId,
+            PrivateJwkOperation<T> operation) {
+        Objects.requireNonNull(keyId, "keyId");
+        Objects.requireNonNull(operation, "operation");
+        return locked(clientId, () -> {
+            StoredCredential current = requireStored(clientId, ownerFingerprint);
+            StoredKey selected = current.keys().stream()
+                    .filter(key -> key.keyId().equals(keyId))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                            "The workload credential key is unavailable"));
+            byte[] encoded = mapper.writeValueAsBytes(selected.privateJwk());
             try {
                 return operation.apply(encoded);
             } finally {
@@ -790,41 +1080,75 @@ public final class FileRuntimeWorkloadCredentialStore
                 current.keys());
     }
 
-    private RegistrationRecovery recovery(StoredRegistrationRecovery stored) {
-        return new RegistrationRecovery(
+    private RegistrationHandoff handoff(StoredRegistrationHandoff stored) {
+        byte[] capability = Base64.getUrlDecoder().decode(stored.handoffCapability());
+        try {
+            return new RegistrationHandoff(
+                    URI.create(stored.registrationUri()),
+                    stored.intendedStateDigest(),
+                    stored.intendedPublicJwks(),
+                    stored.expectedSubjectDigest(),
+                    stored.currentAuthorityFingerprint(),
+                    fingerprint(capability),
+                    stored.replacementRegistrationAccessToken() == null
+                            ? null
+                            : fingerprint(stored.replacementRegistrationAccessToken()),
+                    stored.observedSubjectDigest(),
+                    stored.organizationFingerprint(),
+                    stored.personFingerprint(),
+                    stored.cellFingerprint(),
+                    stored.targetEnabled(),
+                    stored.phase(),
+                    stored.operation(),
+                    stored.attemptCount(),
+                    Instant.parse(stored.createdAt()));
+        } finally {
+            Arrays.fill(capability, (byte) 0);
+        }
+    }
+
+    private RegistrationDeletionIntent deletionIntent(
+            StoredRegistrationDeletionIntent stored) {
+        return new RegistrationDeletionIntent(
                 URI.create(stored.registrationUri()),
-                fingerprint(stored.registrationAccessToken()),
-                stored.serviceAccountSubject(),
-                stored.enabled(),
-                stored.action());
+                stored.authorityFingerprint(),
+                Instant.parse(stored.createdAt()));
     }
 
-    private static boolean sameRegistrationRecoveryAuthority(
-            StoredRegistrationRecovery left, StoredRegistrationRecovery right) {
-        return left.clientId().equals(right.clientId())
-                && left.ownerFingerprint().equals(right.ownerFingerprint())
-                && left.registrationUri().equals(right.registrationUri())
-                && MessageDigest.isEqual(
-                        fingerprint(left.registrationAccessToken())
-                                .getBytes(StandardCharsets.US_ASCII),
-                        fingerprint(right.registrationAccessToken())
-                                .getBytes(StandardCharsets.US_ASCII));
-    }
-
-    private Optional<StoredRegistrationRecovery> readRegistrationRecovery(String clientId) {
-        Path path = recoveryPath(clientId);
+    private Optional<StoredRegistrationHandoff> readRegistrationHandoff(String clientId) {
+        Path path = handoffPath(clientId);
         if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
             return Optional.empty();
         }
         byte[] bytes = readSecretBytes(path);
         try {
-            StoredRegistrationRecovery stored =
-                    mapper.readValue(bytes, StoredRegistrationRecovery.class);
+            StoredRegistrationHandoff stored =
+                    mapper.readValue(bytes, StoredRegistrationHandoff.class);
             validate(stored, clientId);
             return Optional.of(stored);
         } catch (RuntimeException exception) {
             throw unavailable(
-                    "The workload registration recovery envelope is invalid", exception);
+                    "The workload registration handoff envelope is invalid", exception);
+        } finally {
+            Arrays.fill(bytes, (byte) 0);
+        }
+    }
+
+    private Optional<StoredRegistrationDeletionIntent> readRegistrationDeletionIntent(
+            String clientId) {
+        Path path = deletionIntentPath(clientId);
+        if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
+            return Optional.empty();
+        }
+        byte[] bytes = readSecretBytes(path);
+        try {
+            StoredRegistrationDeletionIntent stored =
+                    mapper.readValue(bytes, StoredRegistrationDeletionIntent.class);
+            validate(stored, clientId);
+            return Optional.of(stored);
+        } catch (RuntimeException exception) {
+            throw unavailable(
+                    "The workload registration deletion intent is invalid", exception);
         } finally {
             Arrays.fill(bytes, (byte) 0);
         }
@@ -875,19 +1199,36 @@ public final class FileRuntimeWorkloadCredentialStore
                 "Unable to atomically persist the workload credential");
     }
 
-    private void writeRegistrationRecovery(StoredRegistrationRecovery stored) {
+    private void writeRegistrationHandoff(StoredRegistrationHandoff stored) {
         byte[] bytes;
         try {
             bytes = mapper.writeValueAsBytes(stored);
         } catch (JacksonException exception) {
             throw unavailable(
-                    "Unable to encode the workload registration recovery envelope", exception);
+                    "Unable to encode the workload registration handoff envelope", exception);
         }
         writeSecret(
-                recoveryPath(stored.clientId()),
+                handoffPath(stored.clientId()),
                 stored.clientId(),
                 bytes,
-                "Unable to atomically persist the workload registration recovery");
+                "Unable to atomically persist the workload registration handoff");
+    }
+
+    private void writeRegistrationDeletionIntent(
+            StoredRegistrationDeletionIntent stored) {
+        byte[] bytes;
+        try {
+            bytes = mapper.writeValueAsBytes(stored);
+        } catch (JacksonException exception) {
+            throw unavailable(
+                    "Unable to encode the workload registration deletion intent",
+                    exception);
+        }
+        writeSecret(
+                deletionIntentPath(stored.clientId()),
+                stored.clientId(),
+                bytes,
+                "Unable to atomically persist the workload registration deletion intent");
     }
 
     private void writeSecret(
@@ -925,14 +1266,25 @@ public final class FileRuntimeWorkloadCredentialStore
         }
     }
 
-    private void deleteRegistrationRecovery(String clientId) {
-        Path recovery = recoveryPath(clientId);
+    private void deleteRegistrationHandoff(String clientId) {
         try {
-            Files.deleteIfExists(recovery);
-            forceDirectory(recovery.getParent());
+            Path path = handoffPath(clientId);
+            Files.deleteIfExists(path);
+            forceDirectory(path.getParent());
         } catch (IOException failure) {
             throw unavailable(
-                    "Unable to delete the workload registration recovery", failure);
+                    "Unable to remove the workload registration handoff", failure);
+        }
+    }
+
+    private void deleteRegistrationDeletionIntent(String clientId) {
+        try {
+            Path path = deletionIntentPath(clientId);
+            Files.deleteIfExists(path);
+            forceDirectory(path.getParent());
+        } catch (IOException failure) {
+            throw unavailable(
+                    "Unable to remove the workload registration deletion intent", failure);
         }
     }
 
@@ -1070,28 +1422,93 @@ public final class FileRuntimeWorkloadCredentialStore
     }
 
     private void validate(
-            StoredRegistrationRecovery stored, String expectedClientId) {
+            StoredRegistrationHandoff stored, String expectedClientId) {
         if (stored == null
-                || !REGISTRATION_RECOVERY_SCHEMA.equals(stored.schemaVersion())
+                || !REGISTRATION_HANDOFF_SCHEMA.equals(stored.schemaVersion())
                 || !expectedClientId.equals(stored.clientId())
                 || !validFingerprint(stored.ownerFingerprint())
                 || !validRegistrationUri(stored.registrationUri(), stored.clientId())
-                || stored.registrationAccessToken() == null
-                || stored.registrationAccessToken().isBlank()
-                || stored.registrationAccessToken().length() > 16 * 1024
-                || (stored.serviceAccountSubject() != null
-                        && (stored.serviceAccountSubject().isBlank()
-                                || stored.serviceAccountSubject().length() > 1024))
-                || stored.action() == null
+                || !validFingerprint(stored.organizationFingerprint())
+                || !validFingerprint(stored.personFingerprint())
+                || !validFingerprint(stored.cellFingerprint())
+                || stored.intendedStateDigest() == null
+                || !stored.intendedStateDigest().matches("sha256:[a-f0-9]{64}")
+                || stored.intendedPublicJwks() == null
+                || stored.intendedPublicJwks().isBlank()
+                || stored.intendedPublicJwks().length() > 32 * 1024
+                || stored.expectedSubjectDigest() != null
+                        && !stored.expectedSubjectDigest().matches("sha256:[a-f0-9]{64}")
+                || stored.currentAuthorityFingerprint() != null
+                        && !stored.currentAuthorityFingerprint().matches(
+                                "sha256:[a-f0-9]{64}")
+                || stored.handoffCapability() == null
+                || !stored.handoffCapability().matches("[A-Za-z0-9_-]{43}")
+                || stored.replacementRegistrationAccessToken() != null
+                        && (stored.replacementRegistrationAccessToken().isBlank()
+                                || stored.replacementRegistrationAccessToken().length()
+                                        > 16 * 1024)
+                || stored.observedSubjectDigest() != null
+                        && !stored.observedSubjectDigest().matches("sha256:[a-f0-9]{64}")
+                || stored.phase() == null
+                || stored.operation() == null
+                || stored.attemptCount() < 0
+                || stored.attemptCount() > 100_000
                 || stored.createdAt() == null) {
             throw new RuntimeWorkloadIdentityException(
-                    "The workload registration recovery authority is inconsistent");
+                    "The workload registration handoff is inconsistent");
+        }
+        byte[] capability;
+        try {
+            capability = Base64.getUrlDecoder().decode(stored.handoffCapability());
+        } catch (IllegalArgumentException failure) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration handoff capability is invalid", failure);
+        }
+        try {
+            if (capability.length != 32
+                    || !stored.handoffCapability().equals(
+                            Base64.getUrlEncoder()
+                                    .withoutPadding()
+                                    .encodeToString(capability))
+                    || stored.phase() == RegistrationHandoffPhase.PREPARED
+                            && stored.replacementRegistrationAccessToken() != null
+                    || stored.phase() == RegistrationHandoffPhase.STAGED
+                            && stored.replacementRegistrationAccessToken() == null
+                    || stored.operation() == RegistrationHandoffOperation.CREATE
+                            && stored.currentAuthorityFingerprint() != null
+                    || stored.operation() != RegistrationHandoffOperation.CREATE
+                            && stored.currentAuthorityFingerprint() == null) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration handoff state is inconsistent");
+            }
+        } finally {
+            Arrays.fill(capability, (byte) 0);
         }
         try {
             Instant.parse(stored.createdAt());
         } catch (RuntimeException failure) {
             throw new RuntimeWorkloadIdentityException(
-                    "The workload registration recovery timestamp is invalid", failure);
+                    "The workload registration handoff timestamp is invalid", failure);
+        }
+    }
+
+    private void validate(
+            StoredRegistrationDeletionIntent stored, String expectedClientId) {
+        if (stored == null
+                || !REGISTRATION_DELETION_INTENT_SCHEMA.equals(stored.schemaVersion())
+                || !expectedClientId.equals(stored.clientId())
+                || !validFingerprint(stored.ownerFingerprint())
+                || !validRegistrationUri(stored.registrationUri(), stored.clientId())
+                || !validFingerprint(stored.authorityFingerprint())
+                || stored.createdAt() == null) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration deletion intent is inconsistent");
+        }
+        try {
+            Instant.parse(stored.createdAt());
+        } catch (RuntimeException failure) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration deletion timestamp is invalid", failure);
         }
     }
 
@@ -1228,11 +1645,41 @@ public final class FileRuntimeWorkloadCredentialStore
     }
 
     private static void requireOwner(
-            StoredRegistrationRecovery stored, String ownerFingerprint) {
+            StoredRegistrationHandoff stored, String ownerFingerprint) {
         if (!stored.ownerFingerprint().equals(ownerFingerprint)) {
             throw new RuntimeWorkloadIdentityException(
-                    "The workload registration recovery belongs to another immutable cell binding");
+                    "The workload registration handoff belongs to another immutable cell binding");
         }
+    }
+
+    private static void requireOwner(
+            StoredRegistrationDeletionIntent stored, String ownerFingerprint) {
+        if (!stored.ownerFingerprint().equals(ownerFingerprint)) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration deletion belongs to another immutable cell binding");
+        }
+    }
+
+    private static void requireCapability(
+            StoredRegistrationHandoff stored, String expectedCapabilityFingerprint) {
+        byte[] capability = Base64.getUrlDecoder().decode(stored.handoffCapability());
+        try {
+            if (!constantTimeEquals(
+                    fingerprint(capability), expectedCapabilityFingerprint)) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration handoff changed concurrently");
+            }
+        } finally {
+            Arrays.fill(capability, (byte) 0);
+        }
+    }
+
+    private static boolean constantTimeEquals(String left, String right) {
+        return left != null
+                && right != null
+                && MessageDigest.isEqual(
+                        left.getBytes(StandardCharsets.US_ASCII),
+                        right.getBytes(StandardCharsets.US_ASCII));
     }
 
     private static void requireMethod(
@@ -1244,10 +1691,10 @@ public final class FileRuntimeWorkloadCredentialStore
     }
 
     private <T> T locked(String clientId, Callable<T> operation) {
-        ReentrantLock local = localLocks[Math.floorMod(clientId.hashCode(), localLocks.length)];
+        Path target = pathForRef(credentialRef(clientId));
+        ReentrantLock local = stripe(CREDENTIAL_LOCKS, target);
         local.lock();
         try {
-            Path target = pathForRef(credentialRef(clientId));
             ensureDirectory(target.getParent());
             Path lockPath = target.resolveSibling(target.getFileName() + ".lock");
             try (FileChannel channel = FileChannel.open(
@@ -1267,31 +1714,77 @@ public final class FileRuntimeWorkloadCredentialStore
         }
     }
 
+    private static ReentrantLock[] lockStripes() {
+        ReentrantLock[] locks = new ReentrantLock[LOCAL_LOCK_STRIPES];
+        Arrays.setAll(locks, ignored -> new ReentrantLock());
+        return locks;
+    }
+
+    private static ReentrantLock stripe(ReentrantLock[] locks, Path path) {
+        return locks[Math.floorMod(path.hashCode(), locks.length)];
+    }
+
     private static String credentialRef(String clientId) {
         requireClientId(clientId);
         return "credentialref://weave/agent-runtime/cells/" + clientId;
     }
 
-    private Path recoveryDirectory() {
-        Path directory = root.resolve("weave/agent-runtime/registration-recovery")
+    private Path handoffDirectory() {
+        Path directory = root.resolve("weave/agent-runtime/registration-handoffs")
                 .toAbsolutePath()
                 .normalize();
         if (!directory.startsWith(root)) {
             throw new RuntimeWorkloadIdentityException(
-                    "The workload registration recovery path escaped its SecretRef root");
+                    "The workload registration handoff path escaped its SecretRef root");
         }
         requireNoSymlinkAncestors(directory);
         return directory;
     }
 
-    private Path recoveryPath(String clientId) {
+    private Path handoffPath(String clientId) {
         requireClientId(clientId);
-        Path path = recoveryDirectory().resolve(clientId).toAbsolutePath().normalize();
-        if (!path.startsWith(recoveryDirectory())) {
+        Path path = handoffDirectory().resolve(clientId).toAbsolutePath().normalize();
+        if (!path.startsWith(handoffDirectory())) {
             throw new RuntimeWorkloadIdentityException(
-                    "The workload registration recovery path escaped its SecretRef root");
+                    "The workload registration handoff path escaped its SecretRef root");
         }
         requireNoSymlinkAncestors(path.getParent());
+        return path;
+    }
+
+    private Path lifecycleLockPath(String clientId) {
+        requireClientId(clientId);
+        Path directory = root.resolve("weave/agent-runtime/registration-lifecycle-locks")
+                .toAbsolutePath()
+                .normalize();
+        if (!directory.startsWith(root)) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration lifecycle lock path escaped its SecretRef root");
+        }
+        requireNoSymlinkAncestors(directory);
+        Path path = directory.resolve(clientId + ".lock").toAbsolutePath().normalize();
+        if (!path.startsWith(directory)) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration lifecycle lock path escaped its SecretRef root");
+        }
+        return path;
+    }
+
+    private Path deletionIntentPath(String clientId) {
+        requireClientId(clientId);
+        Path directory = root.resolve("weave/agent-runtime/registration-deletions")
+                .toAbsolutePath()
+                .normalize();
+        if (!directory.startsWith(root)) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration deletion path escaped its SecretRef root");
+        }
+        requireNoSymlinkAncestors(directory);
+        Path path = directory.resolve(clientId).toAbsolutePath().normalize();
+        if (!path.startsWith(directory)) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration deletion path escaped its SecretRef root");
+        }
         return path;
     }
 
@@ -1463,28 +1956,63 @@ public final class FileRuntimeWorkloadCredentialStore
             Set<String> acceptedKeyIds,
             RegistrationAuthority authority) {}
 
-    enum RegistrationRecoveryAction {
-        COMMIT,
-        DELETE
+    enum RegistrationHandoffPhase {
+        PREPARED,
+        STAGED
     }
 
-    record RegistrationRecovery(
-            URI registrationUri,
-            String tokenFingerprint,
-            String serviceAccountSubject,
-            boolean enabled,
-            RegistrationRecoveryAction action) {}
+    enum RegistrationHandoffOperation {
+        CREATE("create"),
+        ROTATE("rotate"),
+        DISABLE("disable"),
+        REENABLE("reenable");
 
-    record RegistrationRecoveryEntry(
+        private final String wireValue;
+
+        RegistrationHandoffOperation(String wireValue) {
+            this.wireValue = wireValue;
+        }
+
+        String wireValue() {
+            return wireValue;
+        }
+    }
+
+    record RegistrationHandoff(
+            URI registrationUri,
+            String intendedStateDigest,
+            String intendedPublicJwks,
+            String expectedSubjectDigest,
+            String currentAuthorityFingerprint,
+            String capabilityFingerprint,
+            String replacementTokenFingerprint,
+            String observedSubjectDigest,
+            String organizationFingerprint,
+            String personFingerprint,
+            String cellFingerprint,
+            boolean targetEnabled,
+            RegistrationHandoffPhase phase,
+            RegistrationHandoffOperation operation,
+            int attemptCount,
+            Instant createdAt) {}
+
+    record RegistrationHandoffEntry(
             String clientId,
             String ownerFingerprint,
-            RegistrationRecovery recovery) {}
+            RegistrationHandoff handoff) {}
+
+    record RegistrationDeletionIntent(
+            URI registrationUri,
+            String authorityFingerprint,
+            Instant createdAt) {}
 
     private record RegistrationTokenSnapshot(
             RegistrationAuthority authority, byte[] registrationAccessToken) {}
 
-    private record RegistrationRecoveryTokenSnapshot(
-            RegistrationRecovery recovery, byte[] registrationAccessToken) {}
+    private record RegistrationHandoffSecretSnapshot(
+            RegistrationHandoff handoff,
+            byte[] capability,
+            byte[] replacementRegistrationAccessToken) {}
 
     @FunctionalInterface
     interface RegistrationAccessTokenOperation<T> {
@@ -1492,8 +2020,11 @@ public final class FileRuntimeWorkloadCredentialStore
     }
 
     @FunctionalInterface
-    interface RegistrationRecoveryAccessTokenOperation<T> {
-        T apply(RegistrationRecovery recovery, byte[] registrationAccessToken);
+    interface RegistrationHandoffSecretOperation<T> {
+        T apply(
+                RegistrationHandoff handoff,
+                byte[] capability,
+                byte[] replacementRegistrationAccessToken);
     }
 
     @FunctionalInterface
@@ -1517,14 +2048,32 @@ public final class FileRuntimeWorkloadCredentialStore
         PREVIOUS
     }
 
-    private record StoredRegistrationRecovery(
+    private record StoredRegistrationHandoff(
             String schemaVersion,
             String clientId,
             String ownerFingerprint,
             String registrationUri,
-            String registrationAccessToken,
-            String serviceAccountSubject,
-            boolean enabled,
-            RegistrationRecoveryAction action,
+            String organizationFingerprint,
+            String personFingerprint,
+            String cellFingerprint,
+            String intendedStateDigest,
+            String intendedPublicJwks,
+            String expectedSubjectDigest,
+            String currentAuthorityFingerprint,
+            String handoffCapability,
+            String replacementRegistrationAccessToken,
+            String observedSubjectDigest,
+            boolean targetEnabled,
+            RegistrationHandoffPhase phase,
+            RegistrationHandoffOperation operation,
+            int attemptCount,
+            String createdAt) {}
+
+    private record StoredRegistrationDeletionIntent(
+            String schemaVersion,
+            String clientId,
+            String ownerFingerprint,
+            String registrationUri,
+            String authorityFingerprint,
             String createdAt) {}
 }
