@@ -1013,6 +1013,43 @@ def main() -> None:
         ),
         None,
     ) in direct_roles
+    expected_runtime_role = identity_ops.RoleIdentity(
+        "client", "realm-management-id", "create-client"
+    )
+    direct_extras, missing_expected = (
+        identity_ops.runtime_admin_role_reconciliation(
+            direct_roles,
+            effective_roles,
+            expected_runtime_role,
+        )
+    )
+    assert direct_extras
+    assert not missing_expected
+    assert identity_ops.runtime_admin_role_reconciliation(
+        set(),
+        set(),
+        expected_runtime_role,
+    ) == (set(), True)
+    try:
+        identity_ops.runtime_admin_role_reconciliation(
+            {
+                identity_ops.DirectRoleMapping(
+                    expected_runtime_role,
+                    "realm-management",
+                )
+            },
+            {
+                expected_runtime_role,
+                identity_ops.RoleIdentity(
+                    "client", "other-client-id", "manage-clients"
+                ),
+            },
+            expected_runtime_role,
+        )
+    except identity_ops.IdentityOpsError as error:
+        assert "effective role expansion" in str(error)
+    else:
+        raise AssertionError("unexplained effective runtime-admin role was accepted")
 
     class RemoveRealmRoleKcadm:
         def __init__(self) -> None:

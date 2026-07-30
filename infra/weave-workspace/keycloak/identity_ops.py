@@ -704,6 +704,32 @@ def runtime_admin_role_inventory(
     return direct, effective
 
 
+def runtime_admin_role_reconciliation(
+    direct_roles: set[DirectRoleMapping],
+    effective_roles: set[RoleIdentity],
+    expected_identity: RoleIdentity,
+) -> tuple[set[DirectRoleMapping], bool]:
+    direct_identities = {mapping.identity for mapping in direct_roles}
+    direct_extras = {
+        mapping
+        for mapping in direct_roles
+        if mapping.identity != expected_identity
+    }
+    expected_effective = (
+        {expected_identity}
+        if expected_identity in direct_identities
+        else set()
+    )
+    # Composite descendants of a direct extra disappear only after that direct
+    # mapping has been removed. Verify the exact effective set on the next
+    # reconciliation round, when no direct extra remains.
+    if not direct_extras and effective_roles != expected_effective:
+        raise IdentityOpsError(
+            "runtime administration effective role expansion is not safely reconcilable"
+        )
+    return direct_extras, expected_identity not in direct_identities
+
+
 def flatten_groups(groups: list[dict[str, Any]], parent: str = "") -> list[dict[str, Any]]:
     flattened: list[dict[str, Any]] = []
     for group in groups:
@@ -1588,20 +1614,13 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
                 str(realm_management["id"]),
                 "create-client",
             )
-            direct_identities = {mapping.identity for mapping in direct_roles}
-            direct_extras = {
-                mapping
-                for mapping in direct_roles
-                if mapping.identity != expected_identity
-            }
-            unexplained_effective = effective_roles - {
-                expected_identity,
-                *(mapping.identity for mapping in direct_extras),
-            }
-            if unexplained_effective:
-                raise IdentityOpsError(
-                    "runtime administration effective role expansion is not safely reconcilable"
+            direct_extras, expected_role_missing = (
+                runtime_admin_role_reconciliation(
+                    direct_roles,
+                    effective_roles,
+                    expected_identity,
                 )
+            )
             for mapping in sorted(
                 direct_extras,
                 key=lambda item: (
@@ -1628,11 +1647,7 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
                         },
                     )
                 )
-            missing_roles = (
-                expected
-                if expected_identity not in direct_identities
-                else set()
-            )
+            missing_roles = expected if expected_role_missing else set()
             retired_roles = set()
         else:
             expected = required_names
