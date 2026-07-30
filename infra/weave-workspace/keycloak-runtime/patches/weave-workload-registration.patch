@@ -2,7 +2,7 @@ diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/
 new file mode 100644
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,502 @@
+@@ -0,0 +1,508 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import jakarta.ws.rs.core.Response;
@@ -429,6 +429,12 @@ new file mode 100644
 +                attributes.get(FRONTCHANNEL_LOGOUT_SESSION_REQUIRED))) {
 +            throw invalid(INVALID_FINAL_FRONTCHANNEL_SESSION_DETAIL);
 +        }
++        validateExactRoleNames(directRoleNames, effectiveRoleNames);
++    }
++
++    static void validateExactRoleNames(
++            Set<String> directRoleNames, Set<String> effectiveRoleNames)
++            throws ClientPolicyException {
 +        if (!Set.of(WORKLOAD_ROLE).equals(directRoleNames)
 +                || !Set.of(WORKLOAD_ROLE).equals(effectiveRoleNames)) {
 +            throw invalid(INVALID_FINAL_ROLES_DETAIL);
@@ -600,13 +606,14 @@ diff --git a/services/src/test/java/org/keycloak/services/clientpolicy/executor/
 new file mode 100644
 --- /dev/null
 +++ b/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,80 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 +import static org.junit.jupiter.api.Assertions.assertNull;
 +import static org.junit.jupiter.api.Assertions.assertThrows;
 +
++import java.util.Set;
 +import org.junit.jupiter.api.Test;
 +import org.keycloak.representations.idm.ClientRepresentation;
 +import org.keycloak.representations.oidc.OIDCClientRepresentation;
@@ -660,6 +667,15 @@ new file mode 100644
 +                ClientPolicyException.class,
 +                () -> WeaveWorkloadClientRegistrationExecutor.prepareRegistration(
 +                        representation));
++    }
++
++    @Test
++    void rejectsAnInjectedExtraEffectiveServiceAccountRole() {
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.validateExactRoleNames(
++                        Set.of("weaver-runtime"),
++                        Set.of("weaver-runtime", "realm-management")));
 +    }
 +
 +    private static OIDCClientRepresentation representation(

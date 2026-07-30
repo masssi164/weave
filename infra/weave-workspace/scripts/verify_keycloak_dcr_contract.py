@@ -8,7 +8,9 @@ import base64
 import binascii
 import json
 import os
+import re
 import stat
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -165,6 +167,39 @@ def exchange(
     return status, value
 
 
+def exchange_status(
+    endpoint: str,
+    method: str,
+    bearer: str,
+    body: dict[str, Any] | None = None,
+) -> int:
+    payload = None
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {bearer}",
+    }
+    if body is not None:
+        payload = json.dumps(body, separators=(",", ":"), sort_keys=True).encode(
+            "utf-8"
+        )
+        headers["Content-Type"] = "application/json"
+    request = urllib.request.Request(
+        endpoint,
+        data=payload,
+        headers=headers,
+        method=method,
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            response.read(64 * 1024 + 1)
+            return response.status
+    except urllib.error.HTTPError as error:
+        error.read(64 * 1024 + 1)
+        return error.code
+    except urllib.error.URLError as error:
+        raise ContractError("Keycloak Admin REST endpoint is unavailable") from error
+
+
 def rejected(
     endpoint: str,
     access_token: str,
@@ -175,6 +210,35 @@ def rejected(
     if status not in {400, 403}:
         raise ContractError(f"negative DCR case was not rejected [case={name}]")
     return name
+
+
+def rejected_status(status: int, name: str) -> str:
+    if status not in {400, 401, 403}:
+        raise ContractError(f"negative DCR case was not rejected [case={name}]")
+    return name
+
+
+def require_internal_spi_warning_absent(container_id: str) -> None:
+    if not re.fullmatch(r"[0-9a-f]{12,64}", container_id):
+        raise ContractError("Keycloak runtime container identity is invalid")
+    process = subprocess.Popen(
+        ["docker", "logs", container_id],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert process.stdout is not None
+    warning_seen = False
+    for line in process.stdout:
+        if "KC-SERVICES0047" in line:
+            warning_seen = True
+    return_code = process.wait(timeout=20)
+    if return_code != 0:
+        raise ContractError("Keycloak runtime warning scan failed")
+    if warning_seen:
+        raise ContractError("Keycloak runtime loaded a forbidden internal-SPI provider")
 
 
 def registration(
@@ -333,17 +397,33 @@ def run(args: argparse.Namespace) -> None:
     probe_suffix = args.run_id.replace("-", "_")
     client_a = f"weaver-cell-dcr_{probe_suffix}_a"
     client_b = f"weaver-cell-dcr_{probe_suffix}_b"
+    rollback_client = f"weaver-cell-dcr_{probe_suffix}_rollback"
     key_a = generated_jwk(f"{probe_suffix}-a-current")
     key_a_next = generated_jwk(f"{probe_suffix}-a-next")
     key_b = generated_jwk(f"{probe_suffix}-b-current")
+    rollback_key = generated_jwk(f"{probe_suffix}-rollback")
     rejected_cases: list[str] = []
     authority_a: tuple[str, str] | None = None
     authority_b: tuple[str, str] | None = None
+    rollback_authority: tuple[str, str] | None = None
+    failed_create_rollback_verified = False
+    failed_update_rollback_verified = False
+    cross_cell_update_rejected = False
+    direct_admin_rest_creation_rejected = False
     cleanup_complete = False
     try:
         invalid_namespace = metadata("weaver-cell-invalid!", key_a)
         rejected_cases.append(
             rejected(direct_endpoint, admin_token, "invalid-namespace", invalid_namespace)
+        )
+        outside_namespace = metadata(f"external-workload-{probe_suffix}", key_a)
+        rejected_cases.append(
+            rejected(
+                direct_endpoint,
+                admin_token,
+                "out-of-namespace",
+                outside_namespace,
+            )
         )
         wrong_auth = metadata(f"weaver-cell-dcr_{probe_suffix}_wrong_auth", key_a)
         wrong_auth["token_endpoint_auth_method"] = "client_secret_basic"
@@ -356,6 +436,11 @@ def run(args: argparse.Namespace) -> None:
         human_flow["redirect_uris"] = ["https://forbidden.invalid/callback"]
         rejected_cases.append(
             rejected(direct_endpoint, admin_token, "human-login-flow", human_flow)
+        )
+        web_origin = metadata(rollback_client, rollback_key)
+        web_origin["web_origins"] = ["https://forbidden.invalid"]
+        rejected_cases.append(
+            rejected(direct_endpoint, admin_token, "web-origin", web_origin)
         )
         wrong_scope = metadata(f"weaver-cell-dcr_{probe_suffix}_scope", key_a)
         wrong_scope["scope"] = " ".join(APPROVED_SCOPES) + " realm-management"
@@ -385,6 +470,43 @@ def run(args: argparse.Namespace) -> None:
             )
         )
 
+        admin_rest_client = {
+            "clientId": f"weaver-cell-dcr_{probe_suffix}_admin_bypass",
+            "name": f"weaver-cell-dcr_{probe_suffix}_admin_bypass",
+            "protocol": "openid-connect",
+            "publicClient": False,
+            "serviceAccountsEnabled": True,
+            "standardFlowEnabled": False,
+            "implicitFlowEnabled": False,
+            "directAccessGrantsEnabled": False,
+        }
+        status = exchange_status(
+            f"{base}/admin/realms/{args.realm}/clients",
+            "POST",
+            admin_token,
+            admin_rest_client,
+        )
+        rejected_cases.append(rejected_status(status, "direct-admin-rest-bypass"))
+        direct_admin_rest_creation_rejected = True
+
+        rollback_public, rollback_rat = registration(
+            direct_endpoint,
+            issuer,
+            admin_token,
+            rollback_client,
+            rollback_key,
+        )
+        rollback_authority = (rollback_public, rollback_rat)
+        failed_create_rollback_verified = True
+        status, _ = exchange(
+            f"{direct_endpoint}/{rollback_client}",
+            "DELETE",
+            rollback_rat,
+        )
+        if status not in {200, 204}:
+            raise ContractError("failed-create rollback probe cleanup failed")
+        rollback_authority = None
+
         public_a, rat_a = registration(
             direct_endpoint, issuer, admin_token, client_a, key_a
         )
@@ -413,6 +535,34 @@ def run(args: argparse.Namespace) -> None:
         )
         if status not in {401, 403}:
             raise ContractError("cross-Cell RAT delete was not rejected")
+        status, _ = exchange(
+            f"{direct_endpoint}/{client_a}",
+            "PUT",
+            rat_b,
+            metadata(client_a, key_a_next, update=True),
+        )
+        rejected_cases.append(rejected_status(status, "cross-cell-update"))
+        cross_cell_update_rejected = True
+
+        rejected_update = metadata(client_b, key_b, update=True)
+        rejected_update["web_origins"] = ["https://forbidden.invalid"]
+        status, _ = exchange(
+            f"{direct_endpoint}/{client_b}",
+            "PUT",
+            rat_b,
+            rejected_update,
+        )
+        rejected_cases.append(rejected_status(status, "failed-update-rollback"))
+        status, observed = exchange(
+            f"{direct_endpoint}/{client_b}",
+            "GET",
+            rat_b,
+        )
+        if status != 200:
+            raise ContractError("failed update invalidated the owning Cell RAT")
+        rat_b = exact_client_state(observed, client_b, key_b)
+        authority_b = (public_b, rat_b)
+        failed_update_rollback_verified = True
 
         status, update_response = exchange(
             f"{direct_endpoint}/{client_a}",
@@ -455,11 +605,13 @@ def run(args: argparse.Namespace) -> None:
         if status not in {200, 204}:
             raise ContractError("second owning Cell RAT could not delete its client")
         authority_b = None
+        require_internal_spi_warning_absent(args.keycloak_container_id)
         cleanup_complete = True
     finally:
         for client_id, authority in (
             (client_a, authority_a),
             (client_b, authority_b),
+            (rollback_client, rollback_authority),
         ):
             if authority is not None:
                 exchange(f"{direct_endpoint}/{client_id}", "DELETE", authority[1])
@@ -473,6 +625,7 @@ def run(args: argparse.Namespace) -> None:
             "composeProject": args.compose_project,
             "runtimeAdminRoles": ["create-client"],
             "broadAdminRestRejected": True,
+            "directAdminRestCreationRejected": direct_admin_rest_creation_rejected,
             "validRegistration": True,
             "privateKeyJwt": True,
             "effectiveWorkloadRoles": ["weaver-runtime"],
@@ -480,6 +633,10 @@ def run(args: argparse.Namespace) -> None:
             "postUpdateFinalStateVerified": True,
             "staleRegistrationAccessTokenRejected": True,
             "crossCellRegistrationAccessTokenRejected": True,
+            "crossCellUpdateRejected": cross_cell_update_rejected,
+            "failedCreateRollbackVerified": failed_create_rollback_verified,
+            "failedUpdateRollbackVerified": failed_update_rollback_verified,
+            "internalSpiWarningAbsent": True,
             "negativeCases": rejected_cases,
             "cleanupComplete": cleanup_complete,
             "credentialsIncluded": False,
@@ -498,6 +655,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--candidate-commit", required=True)
     parser.add_argument("--specification-commit", required=True)
     parser.add_argument("--compose-project", required=True)
+    parser.add_argument("--keycloak-container-id", required=True)
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args()
 

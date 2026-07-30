@@ -29,12 +29,27 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 assert module.UPSTREAM_COMMIT == "6c73e3027811d9c7b22683edd825e839272e9547"
+assert module.UPSTREAM_TAG == "26.7.0"
 assert module.ARCHIVE_SHA256 == "32267c4f45db91874c46a097415c336d137ee184d25c3481a513905a92669186"
 assert module.STOCK_SERVICES_SHA256 == "052169f7907a21f4e26679bca5c7365627db91b071a7a2fcaeee00230e6b1419"
 assert module.SPEC_COMMIT == "d44ca90a1010616c9430fe0b45cdf0876d507774"
 assert module.DOWNSTREAM_TEST_CLASS.endswith(
     "WeaveWorkloadClientRegistrationExecutorTest"
 )
+assert module.parse_upstream_tag_resolution(
+    f"{module.UPSTREAM_COMMIT}\trefs/tags/{module.UPSTREAM_TAG}\n"
+) == module.UPSTREAM_COMMIT
+for invalid_resolution in (
+    "",
+    f"{'1' * 40}\trefs/tags/{module.UPSTREAM_TAG}\n",
+    f"{module.UPSTREAM_COMMIT}\trefs/heads/{module.UPSTREAM_TAG}\n",
+):
+    try:
+        module.parse_upstream_tag_resolution(invalid_resolution)
+    except SystemExit:
+        pass
+    else:
+        raise AssertionError("Keycloak builder accepted an invalid upstream tag resolution")
 try:
     module.resolve_candidate(repository, "1" * 40)
 except SystemExit as failure:
@@ -66,6 +81,7 @@ assert "@@ -92,4 +93,9 @@" in patch_text
 assert "@@ -94,0" not in patch_text
 assert "keycloak-server-spi-private" not in patch_text
 assert "rejectsUnapprovedScopesBeforeDescriptionConversion" in patch_text
+assert "rejectsAnInjectedExtraEffectiveServiceAccountRole" in patch_text
 assert "FROM ${WEAVE_KEYCLOAK_BASE} AS builder" in dockerfile_text
 assert "kc.sh build --db=postgres" in dockerfile_text
 assert "com.massimotter.weave.keycloak-patch-sha256" in dockerfile_text

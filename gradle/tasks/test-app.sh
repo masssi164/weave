@@ -326,6 +326,14 @@ done
 
 log "Running direct Keycloak DCR policy and Registration Access Token lifecycle proof."
 dcr_evidence="${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/keycloak-dcr-live-proof.json"
+keycloak_container_id="$(
+  docker ps \
+    --filter "label=com.docker.compose.project=${WEAVE_E2E_RUN_NAMESPACE}" \
+    --filter "label=com.docker.compose.service=keycloak" \
+    --format '{{.ID}}'
+)"
+[[ "${keycloak_container_id}" =~ ^[0-9a-f]{12,64}$ ]] ||
+  fail "the isolated Keycloak runtime container is ambiguous or unavailable"
 python3 "${DCR_CONTRACT_PROBE}" \
   --keycloak-base "http://127.0.0.1:${WEAVE_KEYCLOAK_HOST_PORT}" \
   --issuer "${WEAVE_TEST_APP_ISSUER}" \
@@ -336,6 +344,7 @@ python3 "${DCR_CONTRACT_PROBE}" \
   --candidate-commit "${candidate_commit}" \
   --specification-commit "${specification_commit}" \
   --compose-project "${WEAVE_E2E_RUN_NAMESPACE}" \
+  --keycloak-container-id "${keycloak_container_id}" \
   --output "${dcr_evidence}"
 jq -e \
   --arg candidate_commit "${candidate_commit}" \
@@ -347,6 +356,7 @@ jq -e \
   .composeProject == $compose_project and
   .runtimeAdminRoles == ["create-client"] and
   .broadAdminRestRejected == true and
+  .directAdminRestCreationRejected == true and
   .validRegistration == true and
   .privateKeyJwt == true and
   .effectiveWorkloadRoles == ["weaver-runtime"] and
@@ -354,7 +364,11 @@ jq -e \
   .postUpdateFinalStateVerified == true and
   .staleRegistrationAccessTokenRejected == true and
   .crossCellRegistrationAccessTokenRejected == true and
-  (.negativeCases | length) == 7 and
+  .crossCellUpdateRejected == true and
+  .failedCreateRollbackVerified == true and
+  .failedUpdateRollbackVerified == true and
+  .internalSpiWarningAbsent == true and
+  (.negativeCases | length) == 12 and
   .cleanupComplete == true and
   .credentialsIncluded == false and
   .supportSafe == true

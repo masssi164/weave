@@ -149,6 +149,32 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
             self.assertNotIn("token", path.read_text(encoding="utf-8").casefold())
 
+    def test_internal_spi_warning_scan_fails_closed_without_echoing_logs(self) -> None:
+        clean = mock.Mock()
+        clean.stdout = iter(["normal startup\n", "provider ready\n"])
+        clean.wait.return_value = 0
+        with mock.patch.object(target.subprocess, "Popen", return_value=clean):
+            target.require_internal_spi_warning_absent("a" * 64)
+
+        warned = mock.Mock()
+        warned.stdout = iter(["KC-SERVICES0047 internal SPI diagnostic\n"])
+        warned.wait.return_value = 0
+        with mock.patch.object(target.subprocess, "Popen", return_value=warned):
+            with self.assertRaisesRegex(
+                target.ContractError,
+                "forbidden internal-SPI provider",
+            ):
+                target.require_internal_spi_warning_absent("b" * 64)
+
+    def test_negative_status_contract_accepts_only_protocol_rejections(self) -> None:
+        for status in (400, 401, 403):
+            self.assertEqual(
+                target.rejected_status(status, "fixture"),
+                "fixture",
+            )
+        with self.assertRaisesRegex(target.ContractError, "case=fixture"):
+            target.rejected_status(201, "fixture")
+
 
 if __name__ == "__main__":
     unittest.main()
