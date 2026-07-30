@@ -25,6 +25,7 @@ case "${1:-}" in
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payloadpayload.signature123
 callback=https://runner:secret-password@provider.internal.example/path
 operator=person@example.com
+mc: <ERROR> Invalid command usage, flag provided but not defined: -generated-secret-value
 LOGS
     ;;
   ps)
@@ -91,6 +92,7 @@ grep -Fq 'rawContainerLogsIncluded": false' "${output_dir}/failure-summary.json"
 grep -Fq 'CHAT_RESULT' "${output_dir}/failed-markers.json"
 grep -Fq '<redacted>' "${output_dir}/one-shot/schema-init.log"
 grep -Fq '<redacted>' "${output_dir}/one-shot/runtime-state-init.log"
+! grep -Fq -- '-generated-secret-value' "${output_dir}/one-shot/runtime-state-init.log"
 grep -Fq '<redacted>' "${output_dir}/runtime/backend-startup.log"
 grep -Fq '"key": "persistence"' "${output_dir}/health-checks/backend-readiness.json"
 grep -Fq '"actionRequired": true' "${output_dir}/health-checks/backend-readiness.json"

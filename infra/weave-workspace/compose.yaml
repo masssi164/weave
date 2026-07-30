@@ -528,7 +528,7 @@ services:
       - |
         access_key="$$(cat /run/secrets/runtime-state-s3-access-key)"
         secret_key="$$(cat /run/secrets/runtime-state-s3-secret-key)"
-        mc alias set runtime-state http://runtime-state:9000 "$${access_key}" "$${secret_key}" >/dev/null
+        mc alias set -- runtime-state http://runtime-state:9000 "$${access_key}" "$${secret_key}" >/dev/null
         mc mb --ignore-existing runtime-state/weave-runtime-state >/dev/null
         mc version enable runtime-state/weave-runtime-state >/dev/null
         mc stat runtime-state/weave-runtime-state >/dev/null
