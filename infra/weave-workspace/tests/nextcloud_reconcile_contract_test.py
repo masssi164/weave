@@ -74,6 +74,27 @@ class NextcloudCredentialIdempotenceTest(unittest.TestCase):
                 self.assertRegex(projection_digest, r"^sha256:[0-9a-f]{64}$")
             self.assertFalse(any("user_oidc:provider" in " ".join(map(str, args)) for args, _ in calls))
 
+    def test_fresh_install_can_converge_after_the_former_two_minute_limit(self) -> None:
+        attempts = 0
+
+        def status(*_args: object, **_kwargs: object) -> SimpleNamespace:
+            nonlocal attempts
+            attempts += 1
+            installed = attempts == 121
+            return SimpleNamespace(
+                returncode=0,
+                stdout=json.dumps(
+                    {"installed": installed, "maintenance": not installed}
+                ).encode(),
+                stderr=b"",
+            )
+
+        with patch.object(target, "_occ", side_effect=status), patch.object(target.time, "sleep"):
+            target._wait(self.context(Path("/unused")))
+
+        self.assertEqual(attempts, 121)
+        self.assertGreaterEqual(target.NEXTCLOUD_READY_ATTEMPTS, 600)
+
     def test_managed_projection_includes_all_nonsecret_oidc_controls(self) -> None:
         source = (ROOT / "scripts/nextcloud_reconcile.py").read_text(encoding="utf-8")
         for field in (

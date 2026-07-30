@@ -34,6 +34,8 @@ APPS = {
     ),
 }
 
+NEXTCLOUD_READY_ATTEMPTS = 600
+
 
 def _compose(context: ComposeContext, *arguments: str) -> None:
     subprocess.run(
@@ -77,7 +79,7 @@ def _read_secret(path: Path) -> bytes:
 
 
 def _wait(context: ComposeContext) -> None:
-    for _ in range(120):
+    for _ in range(NEXTCLOUD_READY_ATTEMPTS):
         result = _occ(context, "status", "--output=json", check=False)
         if result.returncode == 0:
             try:
