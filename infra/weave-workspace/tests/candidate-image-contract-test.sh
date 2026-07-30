@@ -68,6 +68,8 @@ contains "${WORKFLOW}" 'validate_published_image'
 contains "${WORKFLOW}" 'docker image inspect'
 contains "${WORKFLOW}" 'com.massimotter.weave.runtime-user'
 contains "${WORKFLOW}" 'WEAVE_TEST_APP_KEYCLOAK_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-keycloak-runtime@${{ needs.build-candidate.outputs.keycloak_runtime_digest }}'
+contains "${WORKFLOW}" 'context: infra/weave-workspace/keycloak'
+contains "${WORKFLOW}" 'file: infra/weave-workspace/keycloak/Dockerfile.identity-ops'
 [[ "$(grep -Fc 'ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}' "${WORKFLOW}")" -eq 2 ]] ||
   fail "${WORKFLOW} must authenticate both specification-corpus checkouts through the deploy key"
 reject "${WORKFLOW}" 'opentofu/setup-opentofu'
