@@ -1,5 +1,6 @@
 package com.massimotter.weave.mcp;
 
+import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.health.contributor.Health;
@@ -9,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.client.TokenExchangeOAuth2AuthorizedClientProvider;
 import org.springframework.security.oauth2.client.endpoint.NimbusJwtClientAuthenticationParametersConverter;
 import org.springframework.security.oauth2.client.endpoint.RestClientTokenExchangeTokenResponseClient;
+import org.springframework.security.oauth2.client.endpoint.TokenExchangeGrantRequest;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
@@ -45,9 +47,16 @@ class McpAuthorizationConfiguration {
       McpWorkloadProperties properties) {
     RestClientTokenExchangeTokenResponseClient responseClient =
         new RestClientTokenExchangeTokenResponseClient();
-    responseClient.addParametersConverter(
+    NimbusJwtClientAuthenticationParametersConverter<TokenExchangeGrantRequest>
+        assertionConverter =
         new NimbusJwtClientAuthenticationParametersConverter<>(
-            ignored -> SecretRefJwkLoader.loadPrivateJwk(properties.exchangeClientJwkFile())));
+            ignored -> SecretRefJwkLoader.loadPrivateJwk(properties.exchangeClientJwkFile()));
+    assertionConverter.setJwtClientAssertionCustomizer(
+        context ->
+            context
+                .getClaims()
+                .audience(List.of(properties.authorizationServer().toString())));
+    responseClient.addParametersConverter(assertionConverter);
 
     TokenExchangeOAuth2AuthorizedClientProvider provider =
         new TokenExchangeOAuth2AuthorizedClientProvider();

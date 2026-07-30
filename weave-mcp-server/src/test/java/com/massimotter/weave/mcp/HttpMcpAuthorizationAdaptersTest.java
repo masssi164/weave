@@ -3,6 +3,7 @@ package com.massimotter.weave.mcp;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
@@ -14,6 +15,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 class HttpMcpAuthorizationAdaptersTest {
@@ -47,7 +50,11 @@ class HttpMcpAuthorizationAdaptersTest {
     jwkFile = temporary.resolve("mcp-edge.jwk");
     Files.writeString(
         jwkFile,
-        new RSAKeyGenerator(2048).keyID("mcp-edge-test").generate().toJSONString(),
+        new RSAKeyGenerator(2048)
+            .keyID("mcp-edge-test")
+            .algorithm(JWSAlgorithm.PS256)
+            .generate()
+            .toJSONString(),
         StandardCharsets.UTF_8);
     try {
       Files.setPosixFilePermissions(jwkFile, PosixFilePermissions.fromString("rw-------"));
@@ -63,7 +70,7 @@ class HttpMcpAuthorizationAdaptersTest {
   }
 
   @Test
-  void springSecurityExchangesWithPrivateKeyJwtAndNeverRelaysInboundBearer() {
+  void springSecurityExchangesWithPrivateKeyJwtAndNeverRelaysInboundBearer() throws Exception {
     AtomicReference<String> authorization = new AtomicReference<>();
     AtomicReference<Map<String, String>> form = new AtomicReference<>();
     server.createContext(
@@ -103,9 +110,19 @@ class HttpMcpAuthorizationAdaptersTest {
             "client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
         .doesNotContainKeys(
             "audience", "resource", "client_secret", "actor_token", "requested_subject");
+    String clientAssertion = form.get().get("client_assertion");
+    assertThat(jwtPart(clientAssertion, 0).path("alg").asString()).isEqualTo("PS256");
+    assertThat(jwtPart(clientAssertion, 0).path("kid").asString())
+        .isEqualTo("mcp-edge-test");
+    assertThat(jwtPart(clientAssertion, 1).path("aud").asString()).isEqualTo(ISSUER);
     assertThat(result.value()).isEqualTo("opaque.backend.token");
     assertThat(result.scopes()).containsExactly("files.read");
     assertThat(result.toString()).isEqualTo("ExchangedAccessToken[redacted]");
+  }
+
+  private JsonNode jwtPart(String token, int index) throws Exception {
+    String encoded = token.split("\\.", -1)[index];
+    return mapper.readTree(Base64.getUrlDecoder().decode(encoded));
   }
 
   @Test
