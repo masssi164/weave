@@ -224,7 +224,7 @@ public final class JpaTestDatabase {
 
     private static PostgreSQLContainer<?> start() {
       PostgreSQLContainer<?> container =
-          new PostgreSQLContainer<>(DockerImageName.parse("postgres:15-alpine"))
+          new PostgreSQLContainer<>(DockerImageName.parse("postgres:16.9-alpine"))
               .withDatabaseName("weave_contract")
               .withUsername("weave")
               .withPassword("weave-test-only");
