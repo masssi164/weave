@@ -188,12 +188,13 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                     try {
                         RegistrationResponse registration;
                         try {
+                            // A mutating response is the RAT/URI handoff. The policy-enforced
+                            // final client state is read and validated after atomic persistence.
                             registration = registrationResponse(
                                     response,
                                     clientId,
                                     observedAuthority.registrationUri(),
                                     next);
-                            validateMetadata(response, clientId, replacementJwks);
                         } catch (RuntimeException responseFailure) {
                             failClosedRemoteRegistration(
                                     clientId,
@@ -459,6 +460,8 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                     try {
                         RegistrationResponse registration;
                         try {
+                            // Keycloak can render this response before post-update Client Policy
+                            // enforcement. The retrieve below validates the durable final state.
                             registration = registrationResponse(
                                     response, clientId, authority.registrationUri(), next);
                             validateMetadata(response, clientId, expectedJwks);
@@ -505,7 +508,6 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                         try {
                             registration = registrationResponse(
                                     response, clientId, authority.registrationUri(), next);
-                            validateMetadata(response, clientId, expectedJwks);
                         } catch (RuntimeException responseFailure) {
                             failClosedRemoteRegistration(
                                     clientId,

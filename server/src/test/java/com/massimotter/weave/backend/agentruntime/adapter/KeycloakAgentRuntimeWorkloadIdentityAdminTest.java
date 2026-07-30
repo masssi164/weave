@@ -181,6 +181,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         adapter.disableBinding(new DisableBindingCommand(
                 ORGANIZATION, PERSON, CELL, binding, "audit:disable"));
 
+        assertThat(transport.lastUpdateResponseHadScope).isFalse();
         assertThat(adapter.scan().clients().getFirst().enabled()).isFalse();
         assertThat(transport.metadata.path("client_id").asText()).isEqualTo(CLIENT_ID);
         assertThat(transport.metadata.path("jwks").path("keys").get(0).path("kid").asText())
@@ -271,9 +272,9 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
     }
 
     @Test
-    void driftedUpdateResponseDeletesTheClientAndLocalCredential() {
+    void driftedFinalStateAfterUpdateDeletesTheClientAndLocalCredential() {
         RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
-        transport.nextResponseMutation =
+        transport.nextRetrieveMutation =
                 response -> response.put("scope", "mcp.tools realm-management");
 
         assertThatThrownBy(() -> adapter.disableBinding(new DisableBindingCommand(
@@ -354,8 +355,10 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         private Map<String, String> lastClientCredentials = Map.of();
         private boolean deleted;
         private boolean failNextRetrieve;
+        private boolean lastUpdateResponseHadScope;
         private Runnable afterNextUpdate = () -> {};
         private Consumer<ObjectNode> nextResponseMutation = ignored -> {};
+        private Consumer<ObjectNode> nextRetrieveMutation = ignored -> {};
 
         FakeRegistrationTransport(ObjectMapper mapper) {
             this.mapper = mapper;
@@ -382,7 +385,11 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                         "simulated post-update verification failure");
             }
             retrieves.incrementAndGet();
-            return response(currentRat);
+            ObjectNode response = response(currentRat);
+            Consumer<ObjectNode> mutation = nextRetrieveMutation;
+            nextRetrieveMutation = ignored -> {};
+            mutation.accept(response);
+            return response;
         }
 
         @Override
@@ -395,7 +402,9 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             }
             updates.incrementAndGet();
             metadata = ((ObjectNode) requested).deepCopy();
-            JsonNode response = response(rotateRat());
+            ObjectNode response = response(rotateRat());
+            response.remove("scope");
+            lastUpdateResponseHadScope = response.has("scope");
             Runnable callback = afterNextUpdate;
             afterNextUpdate = () -> {};
             callback.run();

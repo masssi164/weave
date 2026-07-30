@@ -31,6 +31,29 @@ APPROVED_SCOPES = (
     "files.read",
 )
 PRIVATE_JWK_FIELDS = ("kty", "use", "alg", "kid", "n", "e")
+FORBIDDEN_METADATA_FIELDS = (
+    "client_secret",
+    "client_secret_expires_at",
+    "jwks_uri",
+    "sector_identifier_uri",
+    "software_id",
+    "software_version",
+    "software_statement",
+    "client_uri",
+    "logo_uri",
+    "policy_uri",
+    "tos_uri",
+    "initiate_login_uri",
+    "root_url",
+    "base_url",
+    "admin_url",
+    "provider_url",
+    "web_origins",
+    "request_uris",
+    "protocol_mappers",
+    "protocolMappers",
+    "attributes",
+)
 
 
 class ContractError(RuntimeError):
@@ -172,18 +195,40 @@ def registration(
     )
     if (
         status not in {200, 201}
-        or response.get("client_id") != client_id
         or response.get("registration_client_uri") != expected_uri
-        or response.get("token_endpoint_auth_method") != "private_key_jwt"
-        or set(str(response.get("scope", "")).split()) != set(APPROVED_SCOPES)
-        or response.get("grant_types") != ["client_credentials"]
-        or response.get("redirect_uris") != []
-        or not isinstance(response.get("registration_access_token"), str)
-        or not str(response["registration_access_token"]).strip()
         or not expected_uri.startswith(issuer + "/clients-registrations/openid-connect/")
     ):
         raise ContractError("valid DCR response did not preserve the exact workload contract")
-    return expected_uri, str(response["registration_access_token"])
+    return expected_uri, exact_client_state(response, client_id, private_jwk)
+
+
+def exact_client_state(
+    response: dict[str, Any],
+    client_id: str,
+    private_jwk: dict[str, Any],
+) -> str:
+    rat = response.get("registration_access_token")
+    forbidden = any(
+        value not in (None, "", [], {})
+        for value in (response.get(field) for field in FORBIDDEN_METADATA_FIELDS)
+    )
+    if (
+        response.get("client_id") != client_id
+        or response.get("client_name") != client_id
+        or response.get("token_endpoint_auth_method") != "private_key_jwt"
+        or response.get("token_endpoint_auth_signing_alg") != "PS256"
+        or response.get("subject_type") != "public"
+        or set(str(response.get("scope", "")).split()) != set(APPROVED_SCOPES)
+        or response.get("grant_types") != ["client_credentials"]
+        or response.get("redirect_uris") != []
+        or response.get("response_types") != []
+        or response.get("jwks") != public_jwks(private_jwk)
+        or forbidden
+        or not isinstance(rat, str)
+        or not rat
+    ):
+        raise ContractError("Keycloak client state did not preserve the exact workload contract")
+    return rat
 
 
 def workload_token(
@@ -352,16 +397,9 @@ def run(args: argparse.Namespace) -> None:
         status, observed = exchange(
             f"{direct_endpoint}/{client_a}", "GET", rat_a
         )
-        observed_rat = observed.get("registration_access_token")
-        if (
-            status != 200
-            or observed.get("client_id") != client_a
-            or observed.get("token_endpoint_auth_method") != "private_key_jwt"
-            or set(str(observed.get("scope", "")).split()) != set(APPROVED_SCOPES)
-            or not isinstance(observed_rat, str)
-            or not observed_rat
-        ):
+        if status != 200:
             raise ContractError("owning Cell RAT could not retrieve the exact client state")
+        observed_rat = exact_client_state(observed, client_a, key_a)
         rat_a = observed_rat
         authority_a = (public_a, rat_a)
         workload_token(base, args.realm, issuer, client_a, key_a)
@@ -396,10 +434,17 @@ def run(args: argparse.Namespace) -> None:
         )
         if status not in {401, 403}:
             raise ContractError("stale RAT remained valid after rotation")
+        status, observed = exchange(
+            f"{direct_endpoint}/{client_a}", "GET", rotated_rat
+        )
+        if status != 200:
+            raise ContractError("rotated RAT could not retrieve the final client state")
+        current_rat = exact_client_state(observed, client_a, key_a_next)
+        authority_a = (public_a, current_rat)
         workload_token(base, args.realm, issuer, client_a, key_a_next)
 
         status, _ = exchange(
-            f"{direct_endpoint}/{client_a}", "DELETE", rotated_rat
+            f"{direct_endpoint}/{client_a}", "DELETE", current_rat
         )
         if status not in {200, 204}:
             raise ContractError("owning Cell RAT could not delete its client")
@@ -432,6 +477,7 @@ def run(args: argparse.Namespace) -> None:
             "privateKeyJwt": True,
             "effectiveWorkloadRoles": ["weaver-runtime"],
             "registrationAccessTokenRotation": True,
+            "postUpdateFinalStateVerified": True,
             "staleRegistrationAccessTokenRejected": True,
             "crossCellRegistrationAccessTokenRejected": True,
             "negativeCases": rejected_cases,

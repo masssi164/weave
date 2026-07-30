@@ -99,6 +99,42 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
         )
         self.assertEqual(target.access_token_realm_roles("not-a-token"), set())
 
+    def test_exact_client_state_rejects_missing_post_policy_scope(self) -> None:
+        client_id = "weaver-cell-test"
+        private = {
+            "kty": "RSA",
+            "use": "sig",
+            "alg": "PS256",
+            "kid": "test-current",
+            "n": "modulus",
+            "e": "AQAB",
+        }
+        response = target.metadata(client_id, private)
+        response.update(
+            {
+                "client_id": client_id,
+                "registration_access_token": "fixture-rat",
+            }
+        )
+
+        self.assertEqual(
+            target.exact_client_state(response, client_id, private),
+            "fixture-rat",
+        )
+        response.pop("scope")
+        with self.assertRaisesRegex(
+            target.ContractError,
+            "exact workload contract",
+        ):
+            target.exact_client_state(response, client_id, private)
+        response["scope"] = " ".join(target.APPROVED_SCOPES)
+        response["provider_url"] = "https://forbidden.invalid"
+        with self.assertRaisesRegex(
+            target.ContractError,
+            "exact workload contract",
+        ):
+            target.exact_client_state(response, client_id, private)
+
     def test_evidence_is_owner_only_and_contains_no_credentials(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "proof.json"
