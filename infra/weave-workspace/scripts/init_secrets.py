@@ -45,6 +45,13 @@ TEXT_SECRETS = (
     "matrix-appservice-hs-token",
     "runtime-state-s3-secret-key",
 )
+CLI_ARGUMENT_SECRETS = (
+    # Nextcloud's entrypoint expands both values as option arguments during
+    # maintenance:install. An option-shaped value would be parsed as another
+    # flag instead of as the required credential.
+    "nextcloud-admin-password",
+    "nextcloud-db-password",
+)
 MINIO_ACCESS_KEY_SECRETS = ("runtime-state-s3-access-key",)
 HEX_SECRETS = (
     # MAS requires exactly 32 bytes encoded as 64 lowercase hexadecimal
@@ -98,7 +105,10 @@ def _atomic_write(path: Path, payload: bytes) -> None:
 
 
 def _random_secret() -> bytes:
-    return base64.urlsafe_b64encode(secrets.token_bytes(48)).rstrip(b"=") + b"\n"
+    # Keep the full 384 bits of randomness while guaranteeing an
+    # alphanumeric first byte for consumers that pass the quoted value as a
+    # command-line option argument.
+    return b"W" + base64.urlsafe_b64encode(secrets.token_bytes(48)).rstrip(b"=") + b"\n"
 
 
 def _random_hex_secret() -> bytes:
@@ -107,6 +117,17 @@ def _random_hex_secret() -> bytes:
 
 def _random_minio_access_key() -> bytes:
     return secrets.token_hex(10).upper().encode("ascii") + b"\n"
+
+
+def _valid_cli_argument_secret(value: bytes) -> bool:
+    stripped = value.strip()
+    return bool(
+        stripped
+        and not stripped.startswith(b"-")
+        and b"\x00" not in stripped
+        and b"\n" not in stripped
+        and b"\r" not in stripped
+    )
 
 
 def _read_der_length(value: bytes, offset: int) -> tuple[int, int]:
@@ -352,6 +373,12 @@ def _validate_existing(context: ComposeContext) -> None:
             character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" for character in value
         ):
             raise ContractError(f"MinIO access key must be 3-20 uppercase alphanumeric characters: {name}")
+    for name in CLI_ARGUMENT_SECRETS:
+        value = (context.secret_root / name).read_bytes()
+        if not _valid_cli_argument_secret(value):
+            raise ContractError(
+                f"CLI-bound SecretRef is empty, multiline, or option-shaped: {name}"
+            )
     appservice_tokens = tuple(
         (context.secret_root / name).read_bytes().strip()
         for name in ("matrix-appservice-as-token", "matrix-appservice-hs-token")
