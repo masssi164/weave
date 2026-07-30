@@ -53,6 +53,10 @@ jobs:
           ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
           persist-credentials: false
 
+      - name: Keep the external specification checkout outside implementation source status
+        shell: bash
+        run: printf '/canonical-weave-specs/\n' >> .git/info/exclude
+
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
