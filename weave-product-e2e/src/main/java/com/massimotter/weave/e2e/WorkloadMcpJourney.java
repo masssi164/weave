@@ -26,11 +26,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Per-cell private_key_jwt, client credentials, and MCP Streamable HTTP proof. */
 final class WorkloadMcpJourney {
   private static final long MAXIMUM_WORKLOAD_TOKEN_TTL_SECONDS = 60;
   private static final Set<String> MCP_SCOPES = Set.of("mcp.tools", "files.read");
+  private static final Pattern FILES_ERROR_CODE =
+      Pattern.compile("Files facade rejected request: ([a-z0-9-]{1,64})");
 
   private final ProductFlowEnvironment environment;
   private final JsonHttpClient http;
@@ -349,8 +353,21 @@ final class WorkloadMcpJourney {
         || response.path("error").isObject()
         || !response.path("result").isObject()
         || response.path("result").path("isError").asBoolean(false)) {
-      throw new ProductFlowException(operation + " returned a JSON-RPC error");
+      throw new ProductFlowException(
+          operation + " returned a JSON-RPC error class=" + supportSafeErrorClass(response));
     }
+  }
+
+  static String supportSafeErrorClass(JsonNode response) {
+    Matcher filesError = FILES_ERROR_CODE.matcher(response.toString());
+    if (filesError.find()) {
+      return filesError.group(1);
+    }
+    JsonNode code = response.path("error").path("code");
+    if (code.canConvertToInt()) {
+      return "json-rpc-" + code.intValue();
+    }
+    return "redacted-tool-error";
   }
 
   private JsonNode jwtPayload(String token) {

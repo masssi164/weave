@@ -129,6 +129,29 @@ class FilesWebDavClientTest {
         .hasMessageContaining("ambiguous");
   }
 
+  @Test
+  void downstreamErrorsExposeOnlyTheAllowlistedSupportSafeCode() {
+    server.createContext(
+        "/dav/files",
+        exchange -> {
+          byte[] response =
+              "{\"access_token\":\"must-not-escape\",\"detail\":\"private\"}"
+                  .getBytes(StandardCharsets.UTF_8);
+          exchange.getResponseHeaders().set("X-Weave-Error-Code", "mcp-workload-files-forbidden");
+          exchange.sendResponseHeaders(403, response.length);
+          exchange.getResponseBody().write(response);
+          exchange.close();
+        });
+    server.start();
+
+    assertThatThrownBy(() -> client().search("readme.md", "/", 10))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Files facade rejected request: mcp-workload-files-forbidden")
+        .hasMessageNotContaining("access_token")
+        .hasMessageNotContaining("must-not-escape")
+        .hasMessageNotContaining("private");
+  }
+
   private FilesWebDavClient client() {
     McpInvocationCredentials credentials = mock(McpInvocationCredentials.class);
     when(credentials.exchangedBearer()).thenReturn("exchanged-only");

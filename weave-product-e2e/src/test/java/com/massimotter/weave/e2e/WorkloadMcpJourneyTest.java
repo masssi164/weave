@@ -86,4 +86,28 @@ class WorkloadMcpJourneyTest {
         .isEqualTo(
             "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2025-11-25\"}}");
   }
+
+  @Test
+  void classifiesOnlyAllowlistedFilesErrorCodes() throws Exception {
+    var mapper = JsonMapper.builder().build();
+    var response =
+        mapper.readTree(
+            """
+            {"jsonrpc":"2.0","result":{"isError":true,"content":[
+              {"type":"text","text":"Files facade rejected request: mcp-workload-files-forbidden"}
+            ]}}
+            """);
+    var unsafe =
+        mapper.readTree(
+            """
+            {"jsonrpc":"2.0","result":{"isError":true,"content":[
+              {"type":"text","text":"secret bearer value"}
+            ]}}
+            """);
+
+    assertThat(WorkloadMcpJourney.supportSafeErrorClass(response))
+        .isEqualTo("mcp-workload-files-forbidden");
+    assertThat(WorkloadMcpJourney.supportSafeErrorClass(unsafe))
+        .isEqualTo("redacted-tool-error");
+  }
 }

@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.springframework.http.HttpMethod;
@@ -20,6 +21,7 @@ import org.w3c.dom.NodeList;
 @Component
 final class FilesWebDavClient {
   private static final int MAX_CONTENT_BYTES = 262_144;
+  private static final Pattern SUPPORT_SAFE_ERROR_CODE = Pattern.compile("[a-z0-9-]{1,64}");
 
   private final URI filesUri;
   private final RestClient restClient;
@@ -34,6 +36,16 @@ final class FilesWebDavClient {
     this.restClient =
         restClientBuilder
             .baseUrl(filesUri.toString())
+            .defaultStatusHandler(
+                status -> status.isError(),
+                (request, response) -> {
+                  String reported = response.getHeaders().getFirst("X-Weave-Error-Code");
+                  String code =
+                      reported != null && SUPPORT_SAFE_ERROR_CODE.matcher(reported).matches()
+                          ? reported
+                          : "files-facade-rejected";
+                  throw new IllegalStateException("Files facade rejected request: " + code);
+                })
             .requestInterceptor(
                 (request, body, execution) -> {
                   request.getHeaders().setBearerAuth(credentials.exchangedBearer());
