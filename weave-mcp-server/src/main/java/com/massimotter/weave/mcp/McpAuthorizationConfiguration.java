@@ -12,8 +12,6 @@ import org.springframework.security.oauth2.client.endpoint.RestClientTokenExchan
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
-import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
-import org.springframework.util.LinkedMultiValueMap;
 
 @Configuration(proxyBeanMethods = false)
 class McpAuthorizationConfiguration {
@@ -50,13 +48,6 @@ class McpAuthorizationConfiguration {
     responseClient.addParametersConverter(
         new NimbusJwtClientAuthenticationParametersConverter<>(
             ignored -> SecretRefJwkLoader.loadPrivateJwk(properties.exchangeClientJwkFile())));
-    responseClient.addParametersConverter(
-        request -> {
-          LinkedMultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
-          parameters.set(
-              OAuth2ParameterNames.AUDIENCE, properties.backendResourceUri().toString());
-          return parameters;
-        });
 
     TokenExchangeOAuth2AuthorizedClientProvider provider =
         new TokenExchangeOAuth2AuthorizedClientProvider();

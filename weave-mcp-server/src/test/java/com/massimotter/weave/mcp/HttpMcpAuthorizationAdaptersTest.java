@@ -97,12 +97,12 @@ class HttpMcpAuthorizationAdaptersTest {
         .containsEntry("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange")
         .containsEntry("subject_token", "incoming.cell.token")
         .containsEntry("subject_token_type", "urn:ietf:params:oauth:token-type:access_token")
-        .containsEntry("audience", API_RESOURCE)
         .containsEntry("scope", "files.read")
         .containsKey("client_assertion")
         .containsEntry(
             "client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
-        .doesNotContainKeys("client_secret", "actor_token", "requested_subject");
+        .doesNotContainKeys(
+            "audience", "resource", "client_secret", "actor_token", "requested_subject");
     assertThat(result.value()).isEqualTo("opaque.backend.token");
     assertThat(result.scopes()).containsExactly("files.read");
     assertThat(result.toString()).isEqualTo("ExchangedAccessToken[redacted]");
