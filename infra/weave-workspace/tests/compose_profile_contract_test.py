@@ -20,6 +20,7 @@ from compose_env import ContractError, load_context  # noqa: E402
 from compose_runtime import (  # noqa: E402
     AGENT_RUNTIME_ROOT,
     PROFILE_SIGNING_TARGET,
+    RESOURCE_METADATA,
     STATE_WRAPPING_TARGET,
     WORKLOADS_TARGET,
     compose,
@@ -206,6 +207,59 @@ def assert_runtime_state_boundary(model: dict[str, object], runtime_uid: str, ru
     assert volume_writers == {
         ("runtime-state-volume-init", "/data"),
         ("runtime-state", "/data"),
+    }
+
+
+def assert_fresh_start_target_graph(
+    model: dict[str, object], context: object
+) -> None:
+    def enabled(value: object) -> bool:
+        return str(value).lower() == "true"
+
+    allowlist = json.loads(
+        (ROOT / "fresh-start-targets.json").read_text(encoding="utf-8")
+    )
+    identities = [
+        (target["kind"], target["name"]) for target in allowlist["targets"]
+    ]
+    assert len(identities) == len(set(identities)), "duplicate Fresh Start target"
+    actual = {
+        (target["kind"], target["name"]): (
+            target["component"],
+            target["dataClass"],
+        )
+        for target in allowlist["targets"]
+    }
+    expected: dict[tuple[str, str], tuple[str, str]] = {}
+    for service in model["services"].values():
+        labels = service.get("labels", {})
+        if (
+            enabled(labels.get("com.massimotter.weave.managed"))
+            and enabled(
+                labels.get("com.massimotter.weave.fresh-start-eligible")
+            )
+        ):
+            expected[("container", service["container_name"])] = (
+                labels["com.massimotter.weave.component"],
+                labels["com.massimotter.weave.data-class"],
+            )
+    for variable, (component, data_class) in RESOURCE_METADATA.items():
+        expected[("volume", context.env[variable])] = (
+            component,
+            data_class,
+        )
+    expected[("network", context.env["WEAVE_DOCKER_NETWORK"])] = (
+        "network",
+        "connectivity",
+    )
+    assert actual == expected, {
+        "missing": sorted(set(expected) - set(actual)),
+        "unexpected": sorted(set(actual) - set(expected)),
+        "metadataDrift": sorted(
+            identity
+            for identity in set(actual) & set(expected)
+            if actual[identity] != expected[identity]
+        ),
     }
 
 
@@ -485,6 +539,7 @@ def main() -> None:
         assert_agent_runtime_mount_boundary(prod_model)
         assert_schema_init_boundary(test_model)
         assert_schema_init_boundary(prod_model)
+        assert_fresh_start_target_graph(test_model, test)
         assert_runtime_state_boundary(
             test_model,
             test.env["WEAVE_RUNTIME_UID"],

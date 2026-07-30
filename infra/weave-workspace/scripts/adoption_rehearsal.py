@@ -427,9 +427,6 @@ def rehearse(
             "verifiedAt": datetime.now(timezone.utc).isoformat().replace(
                 "+00:00", "Z"
             ),
-            "resources": sorted(
-                resources, key=lambda item: (item["kind"], item["name"])
-            ),
             "supportSafe": True,
             "containsSecretValues": False,
         }
@@ -443,6 +440,9 @@ def rehearse(
                     "evidence:legacy-secret-migration:sha256:"
                     + _digest(migration_path)
                 ),
+                "resources": sorted(
+                    resources, key=lambda item: (item["kind"], item["name"])
+                ),
             }
         else:
             receipt = {
@@ -451,6 +451,8 @@ def rehearse(
                 "recoveryBoundary": "private-backup-only-no-adoption",
                 "legacyStateMigrated": False,
                 "adoptionAuthorized": False,
+                "privateArtifactCount": len(artifacts),
+                "restoredProviderVolumeCount": len(restored_inventories),
             }
     finally:
         _cleanup(namespace, db_container, network, volumes)

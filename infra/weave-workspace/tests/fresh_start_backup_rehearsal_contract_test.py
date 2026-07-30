@@ -200,6 +200,8 @@ class FreshStartBackupRehearsalContractTest(unittest.TestCase):
             receipt["recoveryBoundary"],
             "private-backup-only-no-adoption",
         )
+        self.assertNotIn("resources", receipt)
+        self.assertEqual(receipt["restoredProviderVolumeCount"], 6)
         self.assertTrue(receipt["supportSafe"])
         self.assertFalse(receipt["containsSecretValues"])
 
