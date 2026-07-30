@@ -250,8 +250,8 @@ def _render_desired(baseline: dict[str, object], overlay: dict[str, object]) -> 
     public = overlay["publicUrls"]
     assert isinstance(public, dict)
     replacements = (
+        ("https://api.weave.test/mcp", f"{_origin(str(public['api']))}/mcp"),
         ("https://api.weave.test/api", str(public["api"])),
-        ("https://api.weave.test", _origin(str(public["api"]))),
         ("https://auth.weave.test", str(public["auth"])),
         ("https://matrix.weave.test", str(public["matrix"])),
         ("https://weave.test", str(public["weave"])),

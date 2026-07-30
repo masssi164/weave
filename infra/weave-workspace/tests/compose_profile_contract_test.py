@@ -352,7 +352,7 @@ def main() -> None:
     }
     overlay = {
         "publicUrls": {
-            "api": "https://api.weave.local:9443/api",
+            "api": "https://api.weave.test:9443/api",
             "auth": "https://auth.weave.local",
             "matrix": "https://matrix.weave.local",
             "weave": "https://weave.local",
@@ -384,9 +384,9 @@ def main() -> None:
         mapper["includedCustomAudience"]
         for mapper in rendered["clientScopes"][0]["mappers"]
     ] == [
-        "https://api.weave.local:9443/api",
-        "https://api.weave.local:9443/mcp",
-        "https://api.weave.local:9443/api/v1/agent-runtime",
+        "https://api.weave.test:9443/api",
+        "https://api.weave.test:9443/mcp",
+        "https://api.weave.test:9443/api/v1/agent-runtime",
     ]
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary)
