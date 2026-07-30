@@ -18,7 +18,11 @@ set -euo pipefail
 case "${1:-}" in
   inspect)
     name="${@: -1}"
-    printf '/%s\trunning\tnone\t0\n' "${name}"
+    if [[ "${2:-}" == "--format" ]]; then
+      printf '/%s\trunning\tnone\t0\tfalse\t0\tnone\n' "${name}"
+    else
+      printf '[]\n'
+    fi
     ;;
   logs)
     cat <<'LOGS'
@@ -81,7 +85,11 @@ PATH="${stub_bin}:${PATH}" \
 [[ -s "${output_dir}/failure-summary.md" ]] || { echo "missing failure summary markdown" >&2; exit 1; }
 [[ -s "${output_dir}/failure-summary.json" ]] || { echo "missing failure summary json" >&2; exit 1; }
 [[ -s "${output_dir}/container-status.tsv" ]] || { echo "missing container status" >&2; exit 1; }
+grep -Fq $'container\tstate\thealth\texitCode\toomKilled\trestartCount\tengineError' "${output_dir}/container-status.tsv"
+grep -Fq $'weave-runtime-state\trunning\tnone\t0\tfalse\t0\tnone' "${output_dir}/container-status.tsv"
 [[ -s "${output_dir}/one-shot/schema-init.log" ]] || { echo "missing schema initializer diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/runtime/runtime-state.log" ]] || { echo "missing RuntimeState process diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/one-shot/runtime-state-volume-init.log" ]] || { echo "missing RuntimeState volume initializer diagnostic" >&2; exit 1; }
 [[ -s "${output_dir}/one-shot/runtime-state-init.log" ]] || { echo "missing RuntimeState initializer diagnostic" >&2; exit 1; }
 [[ -s "${output_dir}/runtime/backend-startup.log" ]] || { echo "missing backend startup diagnostic" >&2; exit 1; }
 [[ -s "${output_dir}/runtime/keycloak.log" ]] || { echo "missing Keycloak runtime diagnostic" >&2; exit 1; }
@@ -91,7 +99,11 @@ grep -Fq 'rawContainerLogsIncluded": false' "${output_dir}/failure-summary.json"
 ! grep -RFq "${output_dir}" "${output_dir}"
 grep -Fq 'CHAT_RESULT' "${output_dir}/failed-markers.json"
 grep -Fq '<redacted>' "${output_dir}/one-shot/schema-init.log"
+grep -Fq '<redacted>' "${output_dir}/runtime/runtime-state.log"
+grep -Fq '<redacted>' "${output_dir}/one-shot/runtime-state-volume-init.log"
 grep -Fq '<redacted>' "${output_dir}/one-shot/runtime-state-init.log"
+! grep -Fq -- '-generated-secret-value' "${output_dir}/runtime/runtime-state.log"
+! grep -Fq -- '-generated-secret-value' "${output_dir}/one-shot/runtime-state-volume-init.log"
 ! grep -Fq -- '-generated-secret-value' "${output_dir}/one-shot/runtime-state-init.log"
 grep -Fq '<redacted>' "${output_dir}/runtime/backend-startup.log"
 grep -Fq '"key": "persistence"' "${output_dir}/health-checks/backend-readiness.json"

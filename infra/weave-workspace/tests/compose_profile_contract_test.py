@@ -174,6 +174,41 @@ def assert_schema_init_boundary(model: dict[str, object]) -> None:
     assert not verifier.get("secrets")
 
 
+def assert_runtime_state_boundary(model: dict[str, object], runtime_uid: str, runtime_gid: str) -> None:
+    services = model["services"]
+    initializer = services["runtime-state-volume-init"]
+    runtime = services["runtime-state"]
+    bucket_initializer = services["runtime-state-init"]
+    assert initializer["image"] == runtime["image"]
+    assert initializer["user"] == "0:0"
+    assert initializer["restart"] == "no"
+    assert initializer["read_only"] is True
+    assert initializer["network_mode"] == "none"
+    assert initializer["cap_drop"] == ["ALL"]
+    assert initializer["cap_add"] == ["CHOWN"]
+    assert not initializer.get("secrets")
+    assert runtime["user"] == f"{runtime_uid}:{runtime_gid}"
+    assert bucket_initializer["user"] == f"{runtime_uid}:{runtime_gid}"
+    assert bucket_initializer["cap_drop"] == ["ALL"]
+    assert not bucket_initializer.get("cap_add")
+    assert runtime["cap_drop"] == ["ALL"]
+    assert not runtime.get("cap_add")
+    assert runtime["depends_on"]["runtime-state-volume-init"]["condition"] == (
+        "service_completed_successfully"
+    )
+    graph = normalized_mount_graph(model)
+    volume_writers = {
+        (entry["service"], entry["target"])
+        for entry in graph
+        if entry["source"] == "runtime-state-data"
+        and entry["access"] == "read-write"
+    }
+    assert volume_writers == {
+        ("runtime-state-volume-init", "/data"),
+        ("runtime-state", "/data"),
+    }
+
+
 def assert_protected_source_preflight(dev, root: Path) -> None:
     root.mkdir(mode=0o700)
     secret_root = root / "secrets"
@@ -450,6 +485,11 @@ def main() -> None:
         assert_agent_runtime_mount_boundary(prod_model)
         assert_schema_init_boundary(test_model)
         assert_schema_init_boundary(prod_model)
+        assert_runtime_state_boundary(
+            test_model,
+            test.env["WEAVE_RUNTIME_UID"],
+            test.env["WEAVE_RUNTIME_GID"],
+        )
         regression = json.loads(
             (
                 ROOT

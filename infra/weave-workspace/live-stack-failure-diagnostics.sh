@@ -19,6 +19,8 @@ readonly DEFAULT_CONTAINERS=(
   "${RESOURCE_PREFIX}-mailpit"
   "${RESOURCE_PREFIX}-db"
   "${RESOURCE_PREFIX}-schema-init"
+  "${RESOURCE_PREFIX}-runtime-state"
+  "${RESOURCE_PREFIX}-runtime-state-volume-init"
   "${RESOURCE_PREFIX}-runtime-state-init"
 )
 
@@ -84,16 +86,16 @@ write_container_status() {
   local target="$1"
   mkdir -p "$(dirname -- "${target}")"
   {
-    printf 'container\tstate\thealth\texitCode\n'
+    printf 'container\tstate\thealth\texitCode\toomKilled\trestartCount\tengineError\n'
     if ! command -v docker >/dev/null 2>&1; then
-      printf 'docker\tunavailable\tn/a\tn/a\n'
+      printf 'docker\tunavailable\tn/a\tn/a\tn/a\tn/a\tn/a\n'
       return
     fi
     local container line
     for container in "${DEFAULT_CONTAINERS[@]}"; do
-      line="$(docker inspect --format '{{.Name}}\t{{.State.Status}}\t{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}\t{{.State.ExitCode}}' "${container}" 2>/dev/null || true)"
+      line="$(docker inspect --format '{{.Name}}{{printf "\t"}}{{.State.Status}}{{printf "\t"}}{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}{{printf "\t"}}{{.State.ExitCode}}{{printf "\t"}}{{.State.OOMKilled}}{{printf "\t"}}{{.RestartCount}}{{printf "\t"}}{{if .State.Error}}present{{else}}none{{end}}' "${container}" 2>/dev/null || true)"
       if [[ -z "${line}" ]]; then
-        printf '%s\tnot-found\tn/a\tn/a\n' "${container}"
+        printf '%s\tnot-found\tn/a\tn/a\tn/a\tn/a\tn/a\n' "${container}"
       else
         printf '%s\n' "${line#/}" | redact_stream
       fi
@@ -230,6 +232,8 @@ main() {
   local failed_markers="${OUTPUT_DIR}/failed-markers.json"
   local private_status="${OUTPUT_DIR}/private-raw-logs-status.txt"
   local schema_init_diagnostic="${OUTPUT_DIR}/one-shot/schema-init.log"
+  local runtime_state_diagnostic="${OUTPUT_DIR}/runtime/runtime-state.log"
+  local runtime_state_volume_init_diagnostic="${OUTPUT_DIR}/one-shot/runtime-state-volume-init.log"
   local runtime_state_init_diagnostic="${OUTPUT_DIR}/one-shot/runtime-state-init.log"
   local keycloak_runtime_diagnostic="${OUTPUT_DIR}/runtime/keycloak.log"
 
@@ -238,6 +242,10 @@ main() {
   write_failed_markers "${failed_markers}"
   write_redacted_container_diagnostic \
     "${RESOURCE_PREFIX}-schema-init" "${schema_init_diagnostic}"
+  write_redacted_container_diagnostic \
+    "${RESOURCE_PREFIX}-runtime-state" "${runtime_state_diagnostic}"
+  write_redacted_container_diagnostic \
+    "${RESOURCE_PREFIX}-runtime-state-volume-init" "${runtime_state_volume_init_diagnostic}"
   write_redacted_container_diagnostic \
     "${RESOURCE_PREFIX}-runtime-state-init" "${runtime_state_init_diagnostic}"
   write_redacted_container_diagnostic \
@@ -272,6 +280,8 @@ This directory is support-safe by default. It intentionally does not dump raw co
 - Support-safe backend readiness state: \`health-checks/backend-readiness.json\`
 - Failed or missing acceptance markers: \`failed-markers.json\`
 - Redacted schema initializer diagnostic: \`one-shot/schema-init.log\`
+- Redacted RuntimeState process diagnostic: \`runtime/runtime-state.log\`
+- Redacted RuntimeState volume initializer diagnostic: \`one-shot/runtime-state-volume-init.log\`
 - Redacted RuntimeState initializer diagnostic: \`one-shot/runtime-state-init.log\`
 - Redacted Keycloak runtime diagnostic: \`runtime/keycloak.log\`
 - Redacted backend startup diagnostic: \`runtime/backend-startup.log\`
@@ -293,6 +303,8 @@ MD
     printf '  "backendReadiness": "health-checks/backend-readiness.json",\n'
     printf '  "failedMarkers": "failed-markers.json",\n'
     printf '  "schemaInitDiagnostic": "one-shot/schema-init.log",\n'
+    printf '  "runtimeStateDiagnostic": "runtime/runtime-state.log",\n'
+    printf '  "runtimeStateVolumeInitDiagnostic": "one-shot/runtime-state-volume-init.log",\n'
     printf '  "runtimeStateInitDiagnostic": "one-shot/runtime-state-init.log",\n'
     printf '  "keycloakRuntimeDiagnostic": "runtime/keycloak.log",\n'
     printf '  "backendStartupDiagnostic": "runtime/backend-startup.log",\n'
