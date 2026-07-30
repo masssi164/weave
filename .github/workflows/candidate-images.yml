@@ -152,7 +152,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: infra/weave-workspace/keycloak
-          file: Dockerfile.identity-ops
+          file: infra/weave-workspace/keycloak/Dockerfile.identity-ops
           platforms: linux/amd64
           push: true
           provenance: mode=max
