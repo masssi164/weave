@@ -348,6 +348,64 @@ def client_payload(client: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def client_creation_payload(client: dict[str, Any]) -> dict[str, Any]:
+    payload = client_payload(client)
+    result = marked_payload(
+        str(client["key"]),
+        payload,
+        list_values=False,
+    )
+    if client.get("authenticationMethod") == "private_key_jwt":
+        # Keycloak otherwise generates an unused client secret for every new
+        # confidential client, even when client-jwt is the only authenticator.
+        # Supplying an explicit empty value keeps private_key_jwt as the sole
+        # credential authority without changing the desired-state digest.
+        result["secret"] = ""
+    return result
+
+
+def private_key_jwt_secret_reconciliation(
+    kcadm: Kcadm,
+    realm: str,
+    desired: dict[str, Any],
+    observed: dict[str, Any],
+) -> Operation | None:
+    if desired.get("authenticationMethod") != "private_key_jwt":
+        return None
+    client_id = str(observed.get("id", "")).strip()
+    if not client_id:
+        raise IdentityOpsError(
+            "private_key_jwt client has no stable identifier"
+        )
+    secret_projection = (
+        kcadm.call(
+            "get",
+            f"clients/{client_id}/client-secret",
+            "-r",
+            realm,
+        )
+        or {}
+    )
+    if not isinstance(secret_projection, dict):
+        raise IdentityOpsError(
+            "private_key_jwt client secret projection is invalid"
+        )
+    observed_secret = secret_projection.get("value")
+    if observed_secret in {None, ""}:
+        return None
+    if not isinstance(observed_secret, str):
+        raise IdentityOpsError(
+            "private_key_jwt client secret projection is invalid"
+        )
+    return Operation(
+        "clear-unused-secret",
+        f"{desired['key']}:unused-client-secret",
+        "clients",
+        client_id,
+        {"secret": ""},
+    )
+
+
 def client_scope_payload(scope: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": scope["name"],
@@ -1383,11 +1441,27 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
         )
         wanted = client_payload(client)
         if observed is None:
-            operations.append(Operation("create", key, "clients", None, marked_payload(key, wanted, list_values=False)))
+            operations.append(
+                Operation(
+                    "create",
+                    key,
+                    "clients",
+                    None,
+                    client_creation_payload(client),
+                )
+            )
         else:
             clients_by_key[key] = observed
             if not is_current(key, wanted, observed, list_values=False):
                 operations.append(Operation("update", key, "clients", str(observed["id"]), marked_payload(key, wanted, list_values=False)))
+            secret_reconciliation = private_key_jwt_secret_reconciliation(
+                kcadm,
+                realm_name,
+                client,
+                observed,
+            )
+            if secret_reconciliation is not None:
+                operations.append(secret_reconciliation)
             secret_ref = client.get("secretRef")
             if secret_ref:
                 if client.get("authenticationMethod") != "client_secret_basic":

@@ -201,7 +201,7 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
         self.assertEqual(
             message,
             "registration handoff recovery violated the exact contract "
-            "[operation=rotate,constraints=status,uri,subject,"
+            "[operation=rotate,constraints=status-409,uri,subject,"
             "authority-not-rotated]",
         )
         self.assertNotIn("previous-fixture-authority", message)

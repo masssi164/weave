@@ -498,13 +498,15 @@ def main() -> None:
     original_private_value = identity_ops.private_value
     identity_ops.private_value = lambda _path: json.dumps(runtime_private_jwk)
     try:
-        runtime_admin = identity_ops.client_payload(
-            {
-                "key": "client:weave-agent-runtime-admin",
-                "clientId": "weave-agent-runtime-admin",
-                "authenticationMethod": "private_key_jwt",
-                "keyRef": "secretref:keycloak/weave-agent-runtime-admin-jwk",
-            }
+        runtime_admin_contract = {
+            "key": "client:weave-agent-runtime-admin",
+            "clientId": "weave-agent-runtime-admin",
+            "authenticationMethod": "private_key_jwt",
+            "keyRef": "secretref:keycloak/weave-agent-runtime-admin-jwk",
+        }
+        runtime_admin = identity_ops.client_payload(runtime_admin_contract)
+        runtime_admin_create = identity_ops.client_creation_payload(
+            runtime_admin_contract
         )
     finally:
         identity_ops.private_value = original_private_value
@@ -516,6 +518,61 @@ def main() -> None:
     assert runtime_admin["attributes"]["use.jwks.string"] == "true"
     assert runtime_public_jwk["key_ops"] == ["verify"]
     assert "d" not in runtime_public_jwk
+    assert runtime_admin_create["secret"] == ""
+    assert runtime_admin_create["attributes"]["weave.desired-digest"] == (
+        identity_ops.marker(
+            "client:weave-agent-runtime-admin",
+            runtime_admin,
+            list_values=False,
+        )["weave.desired-digest"]
+    )
+    assert "secret" not in runtime_admin
+
+    class PrivateKeyJwtSecretKcadm:
+        def __init__(self, value: object) -> None:
+            self.value = value
+            self.calls: list[tuple[str, ...]] = []
+
+        def call(self, *arguments: str, payload: object = None) -> object:
+            assert payload is None
+            self.calls.append(arguments)
+            return {"value": self.value}
+
+    stale_secret_kcadm = PrivateKeyJwtSecretKcadm("withheld-fixture-secret")
+    clear_secret = identity_ops.private_key_jwt_secret_reconciliation(
+        stale_secret_kcadm,
+        "weave",
+        {
+            "key": "client:weave-agent-runtime-admin",
+            "authenticationMethod": "private_key_jwt",
+        },
+        {"id": "runtime-admin-id"},
+    )
+    assert clear_secret == identity_ops.Operation(
+        "clear-unused-secret",
+        "client:weave-agent-runtime-admin:unused-client-secret",
+        "clients",
+        "runtime-admin-id",
+        {"secret": ""},
+    )
+    assert stale_secret_kcadm.calls == [
+        (
+            "get",
+            "clients/runtime-admin-id/client-secret",
+            "-r",
+            "weave",
+        )
+    ]
+    assert identity_ops.private_key_jwt_secret_reconciliation(
+        PrivateKeyJwtSecretKcadm(""),
+        "weave",
+        {
+            "key": "client:weave-agent-runtime-admin",
+            "authenticationMethod": "private_key_jwt",
+        },
+        {"id": "runtime-admin-id"},
+    ) is None
+
     assert identity_ops.client_scope_payload(
         {
             "name": "weave:workspace",

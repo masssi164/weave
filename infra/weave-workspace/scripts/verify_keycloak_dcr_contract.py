@@ -306,7 +306,7 @@ def recovered_handoff_authority(
 ) -> str:
     violations: list[str] = []
     if status != 200:
-        violations.append("status")
+        violations.append(f"status-{status}")
     if response.get("client_id") != client_id:
         violations.append("client")
     if response.get("registration_client_uri") != expected_uri:
