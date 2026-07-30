@@ -723,6 +723,7 @@ def mapper_payload(mapper: dict[str, Any]) -> dict[str, Any]:
         "group-membership": "oidc-group-membership-mapper",
         "organization-group-membership": "oidc-organization-group-membership-mapper",
         "audience": "oidc-audience-mapper",
+        "role": "oidc-usermodel-realm-role-mapper",
         "user-session-note": "oidc-usersessionmodel-note-mapper",
     }.get(mapper_type)
     if protocol_mapper is None:
@@ -745,6 +746,21 @@ def mapper_payload(mapper: dict[str, Any]) -> dict[str, Any]:
         }
     elif mapper_type == "audience":
         config = {"included.custom.audience": mapper["includedCustomAudience"]}
+    elif mapper_type == "role":
+        if (
+            mapper.get("roleRef") != "role:weaver-runtime"
+            or mapper.get("claimName") != "realm_access.roles"
+        ):
+            raise IdentityOpsError(
+                "workload realm-role mapper does not match the exact role projection"
+            )
+        config = {
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "usermodel.realmRoleMapping.rolePrefix": "",
+            "introspection.token.claim": "false",
+        }
     elif mapper_type == "user-session-note":
         config = {
             "user.session.note": mapper["sessionNote"],

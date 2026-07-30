@@ -407,6 +407,31 @@ def main() -> None:
         "access.token.claim": "true",
         "userinfo.token.claim": "false",
     }
+    workload_role_mapper = identity_ops.mapper_payload(
+        {
+            "name": "weaver-runtime-realm-role",
+            "mapperType": "role",
+            "claimName": "realm_access.roles",
+            "roleRef": "role:weaver-runtime",
+            "addToIdToken": False,
+            "addToAccessToken": True,
+            "addToUserInfo": False,
+        }
+    )
+    assert (
+        workload_role_mapper["protocolMapper"]
+        == "oidc-usermodel-realm-role-mapper"
+    )
+    assert workload_role_mapper["config"] == {
+        "claim.name": "realm_access.roles",
+        "jsonType.label": "String",
+        "multivalued": "true",
+        "usermodel.realmRoleMapping.rolePrefix": "",
+        "introspection.token.claim": "false",
+        "id.token.claim": "false",
+        "access.token.claim": "true",
+        "userinfo.token.claim": "false",
+    }
 
     client_without_relationships = identity_ops.client_payload(
         {
