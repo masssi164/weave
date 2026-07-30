@@ -105,6 +105,8 @@ def main() -> int:
     env_file = run_root / "test.env"
     hosts_file = run_root / "hosts"
     evidence_file = run_root / "weave-test-app-evidence.json"
+    restart_evidence_file = run_root / "persistence-restart-evidence.json"
+    runtime_image_evidence_file = run_root / "runtime-image-evidence.json"
     teardown_file = run_root / "teardown-evidence.json"
     ports = dict(zip(PORT_NAMES, map(str, reserve_ports(len(PORT_NAMES)))))
     https_port = ports["WEAVE_PROXY_HTTPS_HOST_PORT"]
@@ -148,6 +150,10 @@ def main() -> int:
         "WEAVE_TEST_APP_RUN_ROOT": str(run_root),
         "WEAVE_TEST_APP_HOSTS_FILE": str(hosts_file),
         "WEAVE_TEST_APP_EVIDENCE_PATH": str(evidence_file),
+        "WEAVE_TEST_APP_RESTART_EVIDENCE_PATH": str(restart_evidence_file),
+        "WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH": str(
+            runtime_image_evidence_file
+        ),
         "WEAVE_TEST_APP_TEARDOWN_EVIDENCE_PATH": str(teardown_file),
         "WEAVE_TEST_APP_GENERATED_ROOT": str(generated_root),
         "WEAVE_TEST_APP_SECRET_ROOT": str(generated_root / "secrets"),

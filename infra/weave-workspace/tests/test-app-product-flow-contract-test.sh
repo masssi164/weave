@@ -12,6 +12,8 @@ readonly RUNTIME_CLEANUP="${REPOSITORY_ROOT}/gradle/scripts/cleanup_test_app_run
 readonly SECRET_INITIALIZER="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/init_secrets.py"
 readonly DCR_CONTRACT_PROBE="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/verify_keycloak_dcr_contract.py"
 readonly DCR_CONTRACT_PROBE_TEST="${REPOSITORY_ROOT}/infra/weave-workspace/tests/verify_keycloak_dcr_contract_test.py"
+readonly COMPOSE_RUNTIME="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/compose_runtime.py"
+readonly RUNTIME_IMAGE_EVIDENCE="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_runtime_image_evidence.py"
 readonly GRADLE_TASKS="${REPOSITORY_ROOT}/gradle/tasks/architecture-lifecycle.gradle"
 readonly MODULE_BUILD="${REPOSITORY_ROOT}/weave-product-e2e/build.gradle"
 readonly MODULE_TASKS="${REPOSITORY_ROOT}/weave-product-e2e/gradle/tasks/product-flow.gradle"
@@ -19,6 +21,7 @@ readonly FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotte
 readonly BROWSER_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/OidcBrowserJourney.java"
 readonly ACTIVATION_INBOX="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/MailpitActivationInbox.java"
 readonly MCP_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/WorkloadMcpJourney.java"
+readonly RESTART_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/PersistenceRestartJourney.java"
 readonly CANDIDATE_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/candidate-images.yml"
 
 fail() { printf 'testApp product-flow contract failed: %s\n' "$*" >&2; exit 1; }
@@ -32,7 +35,12 @@ absent() {
 }
 
 bash -n "${LIFECYCLE}"
-python3 -m py_compile "${CONTEXT_HELPER}" "${RUNTIME_CLEANUP}" "${DCR_CONTRACT_PROBE}"
+python3 -m py_compile \
+  "${CONTEXT_HELPER}" \
+  "${RUNTIME_CLEANUP}" \
+  "${DCR_CONTRACT_PROBE}" \
+  "${COMPOSE_RUNTIME}" \
+  "${RUNTIME_IMAGE_EVIDENCE}"
 python3 -m unittest "${DCR_CONTRACT_PROBE_TEST}"
 
 contains "${GRADLE_TASKS}" "tasks.register('testApp', Exec)"
@@ -53,6 +61,12 @@ contains "${LIFECYCLE}" 'before image build and resource creation'
 contains "${LIFECYCLE}" 'live-stack-failure-diagnostics.sh'
 contains "${LIFECYCLE}" 'verify_keycloak_dcr_contract.py'
 contains "${LIFECYCLE}" 'keycloak-dcr-live-proof.json'
+contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RESTART_EVIDENCE_PATH'
+contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH'
+contains "${LIFECYCLE}" 'WEAVE_TEST_APP_CANDIDATE_MANIFEST'
+contains "${LIFECYCLE}" 'candidate-manifest-check.py'
+contains "${LIFECYCLE}" '.postgresRestartObserved == true'
+contains "${LIFECYCLE}" '.runtimeStateRestartObserved == true'
 contains "${LIFECYCLE}" '.postUpdateFinalStateVerified == true'
 contains "${LIFECYCLE}" 'WEAVE_RESOURCE_PREFIX="${WEAVE_E2E_RUN_NAMESPACE}"'
 contains "${LIFECYCLE}" '/failure-diagnostics'
@@ -66,6 +80,8 @@ contains "${LIFECYCLE}" 'com.massimotter.weave.spec-digest'
 contains "${CONTEXT_HELPER}" 'teardown-evidence.json'
 contains "${SECRET_INITIALIZER}" 'identity-bootstrap-owner-token'
 contains "${CONTEXT_HELPER}" 'weave-test-app-evidence.json'
+contains "${CONTEXT_HELPER}" 'persistence-restart-evidence.json'
+contains "${CONTEXT_HELPER}" 'runtime-image-evidence.json'
 contains "${RUNTIME_CLEANUP}" 'invalid isolated namespace'
 contains "${RUNTIME_CLEANUP}" 'for generated_input in ("test.env", "hosts")'
 absent "${LIFECYCLE}" 'reset-password'
@@ -100,6 +116,17 @@ contains "${FLOW}" 'actionLinksIncluded'
 contains "${FLOW}" 'candidateCommit'
 contains "${FLOW}" 'specificationCommit'
 contains "${FLOW}" 'composeProject'
+contains "${FLOW}" 'candidateManifestDigest'
+contains "${FLOW}" 'sameJpaCellAfterRestart'
+contains "${FLOW}" 'sameMcpCellAfterRestart'
+contains "${RESTART_FLOW}" 'persistence-restart-proof'
+contains "${RESTART_FLOW}" 'weave.test-app-persistence-restart/v1'
+contains "${COMPOSE_RUNTIME}" 'compose(context, "restart", "--no-deps"'
+contains "${COMPOSE_RUNTIME}" '"dependentKeycloakRestartObserved": True'
+contains "${COMPOSE_RUNTIME}" '"fixtureRestoredExactly": True'
+contains "${COMPOSE_RUNTIME}" '"live-integration-fixture"'
+contains "${RUNTIME_IMAGE_EVIDENCE}" '"weave.test-app-runtime-images/v1"'
+contains "${RUNTIME_IMAGE_EVIDENCE}" 'manifest_references.get(component) != reference'
 contains "${BROWSER_FLOW}" '--ignore-certificate-errors-spki-list='
 contains "${BROWSER_FLOW}" '--host-resolver-rules='
 contains "${BROWSER_FLOW}" 'isEmailVerificationRequiredAction'
@@ -124,8 +151,12 @@ contains "${CANDIDATE_WORKFLOW}" 'needs: build-candidate'
 contains "${CANDIDATE_WORKFLOW}" 'weave-server@${{ needs.build-candidate.outputs.server_digest }}'
 contains "${CANDIDATE_WORKFLOW}" 'weave-mcp-server@${{ needs.build-candidate.outputs.mcp_digest }}'
 contains "${CANDIDATE_WORKFLOW}" 'weave-keycloak-runtime@${{ needs.build-candidate.outputs.keycloak_runtime_digest }}'
+contains "${CANDIDATE_WORKFLOW}" 'WEAVE_CANDIDATE_MANIFEST_DIGEST: ${{ needs.build-candidate.outputs.candidate_manifest_digest }}'
+contains "${CANDIDATE_WORKFLOW}" 'actions/download-artifact@v5'
 contains "${CANDIDATE_WORKFLOW}" 'run: ./gradlew --no-daemon testApp'
 contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/keycloak-dcr-live-proof.json'
+contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/persistence-restart-evidence.json'
+contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/runtime-image-evidence.json'
 contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/failure-diagnostics/**'
 
 printf 'testApp product-flow contract tests passed\n'

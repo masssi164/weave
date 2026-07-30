@@ -76,6 +76,7 @@ public final class FreshProductFlow {
     String personRef = null;
     JsonNode startedRuntime = null;
     WorkloadMcpJourney.McpProof mcpProof = null;
+    PersistenceRestartJourney.RestartProof restartProof = null;
     boolean revocationDenied = false;
 
     try (OidcBrowserJourney browser = new OidcBrowserJourney(environment, http)) {
@@ -177,6 +178,18 @@ public final class FreshProductFlow {
           new WorkloadMcpJourney(environment, http)
               .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), proofFile);
 
+      restartProof = new PersistenceRestartJourney(environment, http).restart();
+      JsonNode persistedRuntime =
+          getRuntime(personRef, adminSession.accessToken());
+      requireSameRuntime(startedRuntime, persistedRuntime);
+      WorkloadMcpJourney.McpProof postRestartMcpProof =
+          new WorkloadMcpJourney(environment, http)
+              .invokeFilesSearch(requiredText(startedRuntime, "cellRef"), proofFile);
+      if (!mcpProof.equals(postRestartMcpProof)) {
+        throw new ProductFlowException(
+            "the same Cell MCP projection did not persist across service restarts");
+      }
+
       revokeRuntime(personRef, adminSession.accessToken(), startedRuntime);
       try {
         new WorkloadMcpJourney(environment, http)
@@ -194,6 +207,7 @@ public final class FreshProductFlow {
           memberEmail,
           requiredText(startedRuntime, "cellRef"),
           mcpProof,
+          restartProof,
           revocationDenied);
     } finally {
       if (fileCreated && memberSession != null) {
@@ -207,6 +221,7 @@ public final class FreshProductFlow {
       personRef = null;
       startedRuntime = null;
       mcpProof = null;
+      restartProof = null;
     }
   }
 
@@ -507,6 +522,32 @@ public final class FreshProductFlow {
     }
   }
 
+  private JsonNode getRuntime(String personRef, String token) {
+    return http.json(
+        "read persisted Agent Runtime cell after service restart",
+        "GET",
+        runtimeUri(personRef, ""),
+        bearer(token, Map.of()),
+        null,
+        Set.of(200));
+  }
+
+  private static void requireSameRuntime(JsonNode before, JsonNode after) {
+    for (String field :
+        List.of(
+            "personRef",
+            "cellRef",
+            "runtimeProfileRef",
+            "entitlementRevision",
+            "entitlementState",
+            "desiredState")) {
+      if (!requiredText(before, field).equals(requiredText(after, field))) {
+        throw new ProductFlowException(
+            "the JPA Cell projection changed across PostgreSQL restart field=" + field);
+      }
+    }
+  }
+
   private URI runtimeUri(String personRef, String operation) {
     return environment.api(
         "/api/admin/agent-runtimes/" + encodeSegment(personRef) + operation);
@@ -550,6 +591,7 @@ public final class FreshProductFlow {
       String memberEmail,
       String cellRef,
       WorkloadMcpJourney.McpProof mcpProof,
+      PersistenceRestartJourney.RestartProof restartProof,
       boolean revocationDenied) {
     ObjectNode evidence = http.mapper().createObjectNode();
     evidence.put("schemaVersion", "weave.test-app-product-flow/v1");
@@ -557,6 +599,7 @@ public final class FreshProductFlow {
     evidence.put("completedAt", Instant.now().toString());
     evidence.put("candidateCommit", environment.candidateCommit());
     evidence.put("specificationCommit", environment.specificationCommit());
+    evidence.put("candidateManifestDigest", environment.candidateManifestDigest());
     evidence.put("composeProject", environment.composeProject());
     evidence.put("runIdSha256", Hashing.sha256(environment.runId()));
     evidence.put("ownerEmailSha256", Hashing.sha256(ownerEmail));
@@ -568,6 +611,16 @@ public final class FreshProductFlow {
     evidence.put("mcpTool", mcpProof.toolName());
     evidence.put("serverProjection", mcpProof.serverProjection());
     evidence.put("canonicalResourceSeen", mcpProof.canonicalResourceSeen());
+    evidence.put("postgresRestartObserved", restartProof.postgresRestartObserved());
+    evidence.put(
+        "runtimeStateRestartObserved", restartProof.runtimeStateRestartObserved());
+    evidence.put(
+        "runtimeStateFixtureRestored", restartProof.runtimeStateFixtureRestored());
+    evidence.put("sameJpaCellAfterRestart", true);
+    evidence.put("sameMcpCellAfterRestart", true);
+    evidence.put(
+        "persistenceRestartEvidenceSha256",
+        "sha256:" + restartProof.evidenceSha256());
     evidence.put("revocationDenied", revocationDenied);
     evidence.put("credentialsIncluded", false);
     evidence.put("actionLinksIncluded", false);

@@ -156,6 +156,11 @@ jobs:
             .humanOAuth == "authorization_code_pkce_s256" and
             .workloadOAuth == "client_credentials_private_key_jwt" and
             .mcpTool == "files.search" and
+            .postgresRestartObserved == true and
+            .runtimeStateRestartObserved == true and
+            .runtimeStateFixtureRestored == true and
+            .sameJpaCellAfterRestart == true and
+            .sameMcpCellAfterRestart == true and
             .credentialsIncluded == false and
             .actionLinksIncluded == false and
             .supportSafe == true
@@ -168,6 +173,8 @@ jobs:
           name: weave-fresh-product-proof-${{ github.sha }}
           path: |
             ${{ runner.temp }}/weave-fresh-proof/*/weave-test-app-evidence.json
+            ${{ runner.temp }}/weave-fresh-proof/*/persistence-restart-evidence.json
+            ${{ runner.temp }}/weave-fresh-proof/*/runtime-image-evidence.json
             ${{ runner.temp }}/weave-fresh-proof/*/teardown-evidence.json
             ${{ runner.temp }}/weave-fresh-proof/persistent-resources.txt
           if-no-files-found: warn

@@ -99,6 +99,9 @@ class ProductFlowEnvironmentTest {
                     link,
                     Files.createDirectories(temporaryDirectory.resolve("credentials-link-test")),
                     temporaryDirectory.resolve("evidence-link-test.json"),
+                    input("restart-command"),
+                    temporaryDirectory.resolve("restart-evidence-link-test.json"),
+                    "sha256:" + "3".repeat(64),
                     Duration.ofMinutes(2)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("regular non-symlink file");
@@ -124,6 +127,9 @@ class ProductFlowEnvironmentTest {
             temporaryDirectory.resolve(
                 "credentials-" + temporaryDirectory.toFile().list().length)),
         temporaryDirectory.resolve("evidence.json"),
+        input("restart-command-" + temporaryDirectory.toFile().list().length),
+        temporaryDirectory.resolve("persistence-restart-evidence.json"),
+        "sha256:" + "3".repeat(64),
         timeout);
   }
 
