@@ -155,6 +155,7 @@ services:
     profiles: *core-profiles
     image: ${WEAVE_KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7.0}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-keycloak
+    user: "${WEAVE_RUNTIME_UID:-1000}:0"
     depends_on:
       postgres-reconcile:
         condition: service_completed_successfully

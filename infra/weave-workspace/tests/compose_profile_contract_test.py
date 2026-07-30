@@ -236,6 +236,7 @@ def main() -> None:
     dev_model = resolved_model(dev)
     validate_mount_contract(dev_model)
     assert "backend" not in dev_model["services"]
+    assert dev_model["services"]["keycloak"]["user"] == f"{dev.env['WEAVE_RUNTIME_UID']}:0"
     historical = labels(dev, "network", dev.env["WEAVE_DOCKER_NETWORK"])
     historical.update(
         {
@@ -439,6 +440,12 @@ def main() -> None:
             )
         test_model = resolved_model(test)
         prod_model = resolved_model(prod)
+        assert test_model["services"]["keycloak"]["user"] == (
+            f"{test.env['WEAVE_RUNTIME_UID']}:0"
+        )
+        assert prod_model["services"]["keycloak"]["user"] == (
+            f"{prod.env['WEAVE_RUNTIME_UID']}:0"
+        )
         assert_agent_runtime_mount_boundary(test_model)
         assert_agent_runtime_mount_boundary(prod_model)
         assert_schema_init_boundary(test_model)
