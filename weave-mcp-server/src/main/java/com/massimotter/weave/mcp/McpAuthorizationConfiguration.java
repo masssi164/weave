@@ -14,6 +14,8 @@ import org.springframework.security.oauth2.client.endpoint.TokenExchangeGrantReq
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
+import org.springframework.util.LinkedMultiValueMap;
 
 @Configuration(proxyBeanMethods = false)
 class McpAuthorizationConfiguration {
@@ -57,6 +59,13 @@ class McpAuthorizationConfiguration {
                 .getClaims()
                 .audience(List.of(properties.authorizationServer().toString())));
     responseClient.addParametersConverter(assertionConverter);
+    responseClient.addParametersConverter(
+        ignored -> {
+          var parameters = new LinkedMultiValueMap<String, String>();
+          parameters.add(
+              OAuth2ParameterNames.AUDIENCE, properties.backendResourceUri().toString());
+          return parameters;
+        });
 
     TokenExchangeOAuth2AuthorizedClientProvider provider =
         new TokenExchangeOAuth2AuthorizedClientProvider();

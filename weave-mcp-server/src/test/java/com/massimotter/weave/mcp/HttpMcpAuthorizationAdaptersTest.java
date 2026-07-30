@@ -105,11 +105,11 @@ class HttpMcpAuthorizationAdaptersTest {
         .containsEntry("subject_token", "incoming.cell.token")
         .containsEntry("subject_token_type", "urn:ietf:params:oauth:token-type:access_token")
         .containsEntry("scope", "files.read")
+        .containsEntry("audience", API_RESOURCE)
         .containsKey("client_assertion")
         .containsEntry(
             "client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
-        .doesNotContainKeys(
-            "audience", "resource", "client_secret", "actor_token", "requested_subject");
+        .doesNotContainKeys("resource", "client_secret", "actor_token", "requested_subject");
     String clientAssertion = form.get().get("client_assertion");
     assertThat(jwtPart(clientAssertion, 0).path("alg").asString()).isEqualTo("PS256");
     assertThat(jwtPart(clientAssertion, 0).path("kid").asString())
