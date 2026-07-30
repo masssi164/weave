@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -67,6 +68,7 @@ def main() -> int:
     source_paths = (
         "infra/weave-workspace/keycloak/Dockerfile.identity-ops",
         "infra/weave-workspace/keycloak/identity_ops.py",
+        "specs/weave-specs.lock.json",
     )
     source_match = subprocess.run(
         ["git", "-C", str(repository), "diff", "--quiet", candidate, "--", *source_paths],
@@ -77,6 +79,12 @@ def main() -> int:
             "WEAVE_IDENTITY_OPS_BUILD_ERROR build inputs differ from the selected candidate commit"
         )
     tag = f"weave-keycloak-identity-ops:{candidate}"
+    spec_lock = subprocess.run(
+        ["git", "-C", str(repository), "show", f"{candidate}:specs/weave-specs.lock.json"],
+        check=True,
+        stdout=subprocess.PIPE,
+    ).stdout
+    spec_digest = "sha256:" + hashlib.sha256(spec_lock).hexdigest()
     dockerfile = root / "keycloak/Dockerfile.identity-ops"
     keycloak_base = pinned_base(dockerfile, "WEAVE_KEYCLOAK_BASE")
     ubi9_base = pinned_base(dockerfile, "WEAVE_UBI9_BASE")
@@ -90,6 +98,8 @@ def main() -> int:
             f"org.opencontainers.image.revision={candidate}",
             "--label",
             "com.massimotter.weave.component=keycloak-identity-ops",
+            "--build-arg",
+            f"WEAVE_SPEC_DIGEST={spec_digest}",
             "--build-arg",
             f"WEAVE_KEYCLOAK_BASE={keycloak_base}",
             "--build-arg",
@@ -113,6 +123,7 @@ def main() -> int:
     evidence = {
         "schemaVersion": "weave.identity-ops-image.v2",
         "candidateCommit": candidate,
+        "specDigest": spec_digest,
         "keycloakBaseResolved": keycloak_base,
         "ubi9BaseResolved": ubi9_base,
         "imageId": image_id,
