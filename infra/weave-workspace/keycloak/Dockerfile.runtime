@@ -22,6 +22,7 @@ ARG WEAVE_KEYCLOAK_ARCHIVE_SHA256
 ARG WEAVE_KEYCLOAK_STOCK_SERVICES_SHA256
 ARG WEAVE_KEYCLOAK_PATCH_SHA256
 ARG WEAVE_PATCHED_SERVICES_SHA256
+ARG WEAVE_KEYCLOAK_BUILD_EVIDENCE_DIGEST
 ARG WEAVE_SBOM_REFERENCE=build-pending
 ARG WEAVE_PROVENANCE_REFERENCE=build-pending
 
@@ -44,6 +45,7 @@ LABEL org.opencontainers.image.title="Weave Keycloak Runtime" \
       com.massimotter.weave.keycloak-stock-services-sha256="${WEAVE_KEYCLOAK_STOCK_SERVICES_SHA256}" \
       com.massimotter.weave.keycloak-patch-sha256="${WEAVE_KEYCLOAK_PATCH_SHA256}" \
       com.massimotter.weave.keycloak-patched-services-sha256="${WEAVE_PATCHED_SERVICES_SHA256}" \
+      com.massimotter.weave.keycloak-build-evidence-digest="${WEAVE_KEYCLOAK_BUILD_EVIDENCE_DIGEST}" \
       com.massimotter.weave.sbom-reference="${WEAVE_SBOM_REFERENCE}" \
       com.massimotter.weave.provenance-reference="${WEAVE_PROVENANCE_REFERENCE}"
 

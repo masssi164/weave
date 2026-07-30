@@ -24,6 +24,9 @@ IMAGE_NAMES = (
 SOURCE_IMAGE_NAMES = {"backend", "identity-ops", "mcp"}
 KEYCLOAK_MODULE = "keycloak-runtime"
 KEYCLOAK_PROVIDER = "weave-workload-client-registration-enforcer"
+KEYCLOAK_BUILD_EVIDENCE_LABEL = (
+    "com.massimotter.weave.keycloak-build-evidence-digest"
+)
 IMAGE_ENVIRONMENT = {
     "backend": "WEAVE_BACKEND_IMAGE",
     "identity-ops": "WEAVE_IDENTITY_OPS_IMAGE",
@@ -171,6 +174,10 @@ def assert_local_images(images: dict[str, str], source_candidate: str) -> None:
                     "com.massimotter.weave.keycloak-patched-services-sha256",
                     "",
                 ),
+            )
+            or not re.fullmatch(
+                r"sha256:[0-9a-f]{64}",
+                labels.get(KEYCLOAK_BUILD_EVIDENCE_LABEL, ""),
             )
         ):
             raise MappingError(

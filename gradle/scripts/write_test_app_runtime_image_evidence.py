@@ -21,6 +21,9 @@ RUNNING_SERVICES = {
     "mcp-server": "mcp",
     "keycloak-runtime": "keycloak",
 }
+KEYCLOAK_BUILD_EVIDENCE_LABEL = (
+    "com.massimotter.weave.keycloak-build-evidence-digest"
+)
 
 
 def fail(message: str) -> "NoReturn":
@@ -86,6 +89,23 @@ def container_image_id(compose_project: str, service: str) -> str:
     return image_id
 
 
+def image_label(image_id: str, label: str) -> str:
+    return subprocess.run(
+        [
+            "docker",
+            "image",
+            "inspect",
+            image_id,
+            "--format",
+            f'{{{{ index .Config.Labels "{label}" }}}}',
+        ],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ).stdout.strip()
+
+
 def read_manifest(path: Path, expected_digest: str) -> dict[str, object]:
     if path.is_symlink() or not path.is_file():
         fail("candidate manifest must be a regular non-symlink file")
@@ -146,12 +166,15 @@ def main() -> int:
 
     manifest_bound = args.manifest is not None
     manifest_references: dict[str, str] = {}
+    manifest_keycloak_build_evidence: str | None = None
     if manifest_bound:
         manifest = read_manifest(args.manifest, args.candidate_manifest_digest)
         if (
             manifest.get("schemaVersion")
-            != "weave.release.candidate-manifest.v1"
+            != "weave.release.candidate-manifest.v2"
             or manifest.get("commit") != args.candidate_commit
+            or manifest.get("specificationCommit")
+            != args.specification_commit
             or manifest.get("specDigest") != args.spec_digest
             or manifest.get("supportSafe") is not True
         ):
@@ -166,6 +189,19 @@ def main() -> int:
         }
         if set(manifest_references) != COMPONENTS:
             fail("candidate manifest image set is incomplete")
+        keycloak_images = [
+            image
+            for image in images
+            if isinstance(image, dict)
+            and image.get("component") == "keycloak-runtime"
+        ]
+        if len(keycloak_images) != 1 or not DIGEST.fullmatch(
+            str(keycloak_images[0].get("buildEvidenceDigest", ""))
+        ):
+            fail("candidate manifest Keycloak build evidence is invalid")
+        manifest_keycloak_build_evidence = str(
+            keycloak_images[0]["buildEvidenceDigest"]
+        )
 
     evidence_images: list[dict[str, object]] = []
     for component in sorted(COMPONENTS):
@@ -185,16 +221,29 @@ def main() -> int:
         else:
             observed_id = resolved_id
             lifecycle = "successful-one-shot-lifecycle"
-        evidence_images.append(
-            {
-                "component": component,
-                "immutableReference": reference if manifest_bound else None,
-                "localImageId": resolved_id,
-                "observedImageId": observed_id,
-                "lifecycle": lifecycle,
-                "matchesCandidate": True,
-            }
-        )
+        evidence_image: dict[str, object] = {
+            "component": component,
+            "immutableReference": reference if manifest_bound else None,
+            "localImageId": resolved_id,
+            "observedImageId": observed_id,
+            "lifecycle": lifecycle,
+            "matchesCandidate": True,
+        }
+        if component == "keycloak-runtime":
+            build_evidence = image_label(
+                resolved_id, KEYCLOAK_BUILD_EVIDENCE_LABEL
+            )
+            if not DIGEST.fullmatch(build_evidence):
+                fail("Keycloak Runtime build evidence label is invalid")
+            if (
+                manifest_keycloak_build_evidence is not None
+                and build_evidence != manifest_keycloak_build_evidence
+            ):
+                fail(
+                    "Keycloak Runtime build evidence differs from the candidate manifest"
+                )
+            evidence_image["buildEvidenceDigest"] = build_evidence
+        evidence_images.append(evidence_image)
 
     private_json(
         args.output,

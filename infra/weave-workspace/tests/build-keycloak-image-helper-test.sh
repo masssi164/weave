@@ -16,8 +16,12 @@ trap 'rm -rf -- "$TEMP_ROOT"' EXIT
 export REPOSITORY_ROOT TEMP_ROOT
 "${PYTHON_BIN}" - <<'PY'
 import importlib.util
+import hashlib
+import json
 import os
 import stat
+import subprocess
+import sys
 from pathlib import Path
 
 repository = Path(os.environ["REPOSITORY_ROOT"])
@@ -32,9 +36,11 @@ assert module.UPSTREAM_COMMIT == "6c73e3027811d9c7b22683edd825e839272e9547"
 assert module.UPSTREAM_TAG == "26.7.0"
 assert module.ARCHIVE_SHA256 == "32267c4f45db91874c46a097415c336d137ee184d25c3481a513905a92669186"
 assert module.STOCK_SERVICES_SHA256 == "052169f7907a21f4e26679bca5c7365627db91b071a7a2fcaeee00230e6b1419"
-assert module.SPEC_COMMIT == "d44ca90a1010616c9430fe0b45cdf0876d507774"
-assert module.DOWNSTREAM_TEST_CLASS.endswith(
-    "WeaveWorkloadClientRegistrationExecutorTest"
+assert module.SPEC_COMMIT == "1bf52621b3a414999c24308ebd7e204a04240c43"
+assert module.DOWNSTREAM_TEST_CLASSES == (
+    "org.keycloak.services.clientpolicy.executor.WeaveWorkloadClientRegistrationExecutorTest",
+    "org.keycloak.services.clientregistration.WeaveClientRegistrationAuthTest",
+    "org.keycloak.services.clientregistration.oidc.WeaveRegistrationHandoffTest",
 )
 assert module.parse_upstream_tag_resolution(
     f"{module.UPSTREAM_COMMIT}\trefs/tags/{module.UPSTREAM_TAG}\n"
@@ -61,6 +67,102 @@ evidence = temporary / "evidence.json"
 module.atomic_write(evidence, {"containsSecretValues": False, "supportSafe": True})
 assert stat.S_IMODE(evidence.stat().st_mode) == 0o600
 
+candidate = "a" * 40
+projection = {
+    "schemaVersion": "weave.downstream-keycloak-build-evidence.v1",
+    "candidateCommit": candidate,
+    "specificationCommit": module.SPEC_COMMIT,
+    "specificationLockDigest": "sha256:" + "1" * 64,
+    "keycloakVersion": module.UPSTREAM_TAG,
+    "upstreamCommit": module.UPSTREAM_COMMIT,
+    "upstreamArchiveSha256": module.ARCHIVE_SHA256,
+    "stockReference": module.STOCK_KEYCLOAK_REFERENCE,
+    "stockServicesJarSha256": module.STOCK_SERVICES_SHA256,
+    "patchSha256": "2" * 64,
+    "patchedPaths": list(module.PATCHED_PATHS),
+    "patchedServicesJarSha256": "3" * 64,
+    "downstreamTestClasses": list(module.DOWNSTREAM_TEST_CLASSES),
+    "downstreamTestCount": 12,
+    "buildToolchain": {
+        "javaVersion": "21.0.8",
+        "javaVendor": "fixture",
+        "mavenVersion": "3.9.11",
+        "mavenWrapperPropertiesSha256": "4" * 64,
+    },
+    "providerId": "weave-workload-client-registration-enforcer",
+}
+canonical = json.dumps(
+    projection, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+).encode("utf-8")
+module.atomic_write(
+    evidence,
+    {
+        "schemaVersion": "weave.downstream-keycloak-image.v1",
+        "evidenceForCandidateCommit": candidate,
+        "specificationCommit": module.SPEC_COMMIT,
+        "upstreamCommit": projection["upstreamCommit"],
+        "upstreamArchiveSha256": projection["upstreamArchiveSha256"],
+        "stockReference": projection["stockReference"],
+        "stockServicesJarSha256": projection["stockServicesJarSha256"],
+        "patchSha256": projection["patchSha256"],
+        "patchedPaths": projection["patchedPaths"],
+        "patchedServicesJarSha256": projection["patchedServicesJarSha256"],
+        "downstreamPolicyTestClasses": projection["downstreamTestClasses"],
+        "downstreamPolicyTestCount": projection["downstreamTestCount"],
+        "buildToolchain": projection["buildToolchain"],
+        "providerId": projection["providerId"],
+        "canonicalBuildEvidence": projection,
+        "canonicalBuildEvidenceDigest": (
+            "sha256:" + hashlib.sha256(canonical).hexdigest()
+        ),
+        "containsSecretValues": False,
+        "supportSafe": True,
+    },
+)
+verifier = (
+    repository
+    / "infra/weave-workspace/scripts/verify_keycloak_build_evidence.py"
+)
+subprocess.run(
+    [
+        sys.executable,
+        str(verifier),
+        "--evidence",
+        str(evidence),
+        "--candidate-commit",
+        candidate,
+        "--specification-commit",
+        module.SPEC_COMMIT,
+    ],
+    check=True,
+    stdout=subprocess.PIPE,
+    text=True,
+)
+tampered = json.loads(evidence.read_text(encoding="utf-8"))
+tampered["canonicalBuildEvidence"]["specificationLockDigest"] = (
+    "sha256:" + "5" * 64
+)
+module.atomic_write(evidence, tampered)
+rejected = subprocess.run(
+    [
+        sys.executable,
+        str(verifier),
+        "--evidence",
+        str(evidence),
+        "--candidate-commit",
+        candidate,
+        "--specification-commit",
+        module.SPEC_COMMIT,
+    ],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+)
+assert rejected.returncode != 0
+assert "canonical projection digest does not match" in (
+    rejected.stdout + rejected.stderr
+)
+
 patch = repository / module.PATCH_RELATIVE
 dockerfile = repository / module.DOCKERFILE_RELATIVE
 assert patch.is_file() and dockerfile.is_file()
@@ -77,14 +179,22 @@ assert "FIXED_ATTRIBUTES.forEach(client::setAttribute)" in patch_text
 assert "OIDCConfigAttributes.USE_RFC9068_ACCESS_TOKEN_HEADER_TYPE" in patch_text
 assert "OIDCConfigAttributes.ACCESS_TOKEN_LIFESPAN" in patch_text
 assert "attributes.putIfAbsent(" in patch_text
-assert "@@ -92,4 +93,9 @@" in patch_text
-assert "@@ -94,0" not in patch_text
+assert (
+    "META-INF/services/org.keycloak.services.clientpolicy.executor."
+    "ClientPolicyExecutorProviderFactory"
+) in patch_text
 assert "keycloak-server-spi-private" not in patch_text
 assert "rejectsUnapprovedScopesBeforeDescriptionConversion" in patch_text
 assert "rejectsAnInjectedExtraEffectiveServiceAccountRole" in patch_text
 assert "FROM ${WEAVE_KEYCLOAK_BASE} AS builder" in dockerfile_text
 assert "kc.sh build --db=postgres" in dockerfile_text
 assert "com.massimotter.weave.keycloak-patch-sha256" in dockerfile_text
+assert "com.massimotter.weave.keycloak-build-evidence-digest" in dockerfile_text
+first_from = dockerfile_text.index("FROM ${WEAVE_KEYCLOAK_BASE}")
+second_from = dockerfile_text.index("FROM ${WEAVE_KEYCLOAK_BASE}", first_from + 1)
+assert second_from < dockerfile_text.index(
+    "ARG WEAVE_KEYCLOAK_BUILD_EVIDENCE_DIGEST"
+)
 assert "com.massimotter.weave.spec-digest" in dockerfile_text
 
 services = temporary / "keycloak-services-26.7.0.jar"

@@ -186,12 +186,22 @@ jobs:
             --candidate-commit "$GITHUB_SHA" \
             --prepare-context "$GITHUB_WORKSPACE/build/candidate/keycloak-runtime-context" \
             --output "$GITHUB_WORKSPACE/build/candidate/keycloak-runtime-build.json"
+          python3 infra/weave-workspace/scripts/verify_keycloak_build_evidence.py \
+            --evidence "$GITHUB_WORKSPACE/build/candidate/keycloak-runtime-build.json" \
+            --candidate-commit "$GITHUB_SHA" \
+            --specification-commit "${{ steps.spec.outputs.commit }}"
+          build_evidence_digest="$(
+            jq -er '.canonicalBuildEvidenceDigest |
+              select(test("^sha256:[0-9a-f]{64}$"))' \
+              build/candidate/keycloak-runtime-build.json
+          )"
           {
             echo "upstream_commit=$(jq -er .upstreamCommit build/candidate/keycloak-runtime-build.json)"
             echo "archive_sha256=$(jq -er .upstreamArchiveSha256 build/candidate/keycloak-runtime-build.json)"
             echo "stock_services_sha256=$(jq -er .stockServicesJarSha256 build/candidate/keycloak-runtime-build.json)"
             echo "patch_sha256=$(jq -er .patchSha256 build/candidate/keycloak-runtime-build.json)"
             echo "patched_services_sha256=$(jq -er .patchedServicesJarSha256 build/candidate/keycloak-runtime-build.json)"
+            echo "build_evidence_digest=$build_evidence_digest"
           } >> "$GITHUB_OUTPUT"
 
       - name: Build and publish Keycloak Runtime
@@ -218,6 +228,7 @@ jobs:
             WEAVE_KEYCLOAK_STOCK_SERVICES_SHA256=${{ steps.keycloak_runtime_prepare.outputs.stock_services_sha256 }}
             WEAVE_KEYCLOAK_PATCH_SHA256=${{ steps.keycloak_runtime_prepare.outputs.patch_sha256 }}
             WEAVE_PATCHED_SERVICES_SHA256=${{ steps.keycloak_runtime_prepare.outputs.patched_services_sha256 }}
+            WEAVE_KEYCLOAK_BUILD_EVIDENCE_DIGEST=${{ steps.keycloak_runtime_prepare.outputs.build_evidence_digest }}
             WEAVE_SBOM_REFERENCE=embedded-buildkit-spdx
             WEAVE_PROVENANCE_REFERENCE=embedded-buildkit-slsa
           cache-from: type=gha,scope=candidate-keycloak-runtime
@@ -275,6 +286,10 @@ jobs:
             "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
             com.massimotter.weave.provider-id)" == \
             "weave-workload-client-registration-enforcer" ]]
+          [[ "$(image_label \
+            "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
+            com.massimotter.weave.keycloak-build-evidence-digest)" == \
+            "${{ steps.keycloak_runtime_prepare.outputs.build_evidence_digest }}" ]]
 
       - name: Resolve exact OCI attestation digests
         shell: bash
@@ -302,8 +317,10 @@ jobs:
           evidence_ref="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}"
           ./gradlew createCandidateManifest \
             "-PcandidateCommit=$GITHUB_SHA" \
+            "-PspecificationCommit=${{ steps.spec.outputs.commit }}" \
             "-PspecDigest=${{ steps.identity.outputs.spec_digest }}" \
             "-PbuildEvidenceRef=$evidence_ref" \
+            "-PkeycloakRuntimeBuildEvidenceDigest=${{ steps.keycloak_runtime_prepare.outputs.build_evidence_digest }}" \
             "-PserverImage=${SERVER_IMAGE}@${{ steps.server.outputs.digest }}" \
             "-PserverSbomDigest=$(jq -r .sbomDigest build/candidate/server-attestations.json)" \
             "-PserverProvenanceDigest=$(jq -r .provenanceDigest build/candidate/server-attestations.json)" \

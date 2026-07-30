@@ -45,6 +45,26 @@ require_free_disk_space() {
   fi
 }
 
+require_no_pending_registration_operations() {
+  local workload_root="${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads"
+  local operation_root
+  [[ -d "${workload_root}" && ! -L "${workload_root}" ]] ||
+    fail "the isolated workload SecretRef root is unsafe or unavailable"
+  for operation_root in \
+    "${workload_root}/weave/agent-runtime/registration-handoffs" \
+    "${workload_root}/weave/agent-runtime/registration-deletions"; do
+    [[ ! -L "${operation_root}" ]] ||
+      fail "a registration authority operation root is unsafe"
+    if [[ -e "${operation_root}" ]]; then
+      [[ -d "${operation_root}" ]] ||
+        fail "a registration authority operation root is unsafe"
+      if [[ -n "$(find "${operation_root}" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+        fail "a pending registration authority operation blocks isolated proof"
+      fi
+    fi
+  done
+}
+
 image_label() {
   docker image inspect --format "{{ index .Config.Labels \"$2\" }}" "$1"
 }
@@ -101,7 +121,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-for command in awk bash df docker git java jq openssl python3 shasum; do
+for command in awk bash df docker find git java jq openssl python3 shasum; do
   require_command "${command}"
 done
 docker info >/dev/null 2>&1 || fail "Docker daemon is not reachable"
@@ -260,13 +280,15 @@ validate_runtime_image \
 if [[ -n "${candidate_manifest_path}" ]]; then
   jq -e \
     --arg candidate_commit "${candidate_commit}" \
+    --arg specification_commit "${specification_commit}" \
     --arg spec_digest "${spec_digest}" \
     --arg server "${SERVER_IMAGE}" \
     --arg mcp "${MCP_IMAGE}" \
     --arg identity_ops "${IDENTITY_OPS_IMAGE}" \
     --arg keycloak "${KEYCLOAK_IMAGE}" '
-      .schemaVersion == "weave.release.candidate-manifest.v1" and
+      .schemaVersion == "weave.release.candidate-manifest.v2" and
       .commit == $candidate_commit and
+      .specificationCommit == $specification_commit and
       .specDigest == $spec_digest and
       .supportSafe == true and
       ([.images[] | {key: .component, value: .reference}] | from_entries) == {
@@ -321,8 +343,7 @@ for required in \
   [[ -f "${required}" && ! -L "${required}" ]] ||
     fail "an exact TLS or bootstrap SecretRef input is unavailable"
 done
-[[ -d "${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads" ]] ||
-  fail "the isolated workload SecretRef root is unavailable"
+require_no_pending_registration_operations
 
 log "Running direct Keycloak DCR policy and Registration Access Token lifecycle proof."
 dcr_evidence="${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/keycloak-dcr-live-proof.json"
@@ -365,6 +386,9 @@ jq -e \
   .staleRegistrationAccessTokenRejected == true and
   .crossCellRegistrationAccessTokenRejected == true and
   .crossCellUpdateRejected == true and
+  .crossCellHandoffRejected == true and
+  .handoffRecoveryAndFinalize == true and
+  .handoffResponsesNonCacheable == true and
   .failedCreateRollbackVerified == true and
   .failedUpdateRollbackVerified == true and
   .internalSpiWarningAbsent == true and
@@ -473,6 +497,8 @@ jq -e \
   (.images | length) == 4 and
   ([.images[].component] | sort) ==
     ["identity-ops", "keycloak-runtime", "mcp-server", "server"] and
+  (.images[] | select(.component == "keycloak-runtime") |
+    .buildEvidenceDigest | test("^sha256:[0-9a-f]{64}$")) and
   ([.images[].matchesCandidate] | all) and
   .credentialsIncluded == false and
   .containsSecretValues == false and
@@ -493,5 +519,7 @@ for evidence in \
     "${evidence}" ||
     fail "support-safe evidence contains credential material"
 done
+
+require_no_pending_registration_operations
 
 log "WEAVE_TEST_APP_LIFECYCLE_RESULT status=passed isolated=true cleanup=armed supportSafe=true"

@@ -198,6 +198,7 @@ class CandidateSourceMappingTest(unittest.TestCase):
                         "com.massimotter.weave.provider-id": module.KEYCLOAK_PROVIDER,
                         "com.massimotter.weave.keycloak-patch-sha256": "a" * 64,
                         "com.massimotter.weave.keycloak-patched-services-sha256": "b" * 64,
+                        module.KEYCLOAK_BUILD_EVIDENCE_LABEL: "sha256:" + "c" * 64,
                     }
                 )
             return subprocess.CompletedProcess(
@@ -227,6 +228,30 @@ class CandidateSourceMappingTest(unittest.TestCase):
 
         with mock.patch.object(module.subprocess, "run", side_effect=stale_revision):
             with self.assertRaisesRegex(module.MappingError, "changed"):
+                module.assert_local_images(images, self.source)
+
+        def missing_build_evidence(
+            arguments: list[str],
+            **kwargs: object,
+        ) -> subprocess.CompletedProcess[str]:
+            result = inspect(arguments, **kwargs)
+            payload = json.loads(result.stdout)
+            image_id = arguments[3]
+            name = next(name for name, value in images.items() if value == image_id)
+            if name == "keycloak":
+                payload["Config"]["Labels"].pop(
+                    module.KEYCLOAK_BUILD_EVIDENCE_LABEL
+                )
+            return subprocess.CompletedProcess(
+                arguments, 0, json.dumps(payload), ""
+            )
+
+        with mock.patch.object(
+            module.subprocess, "run", side_effect=missing_build_evidence
+        ):
+            with self.assertRaisesRegex(
+                module.MappingError, "incomplete downstream provenance"
+            ):
                 module.assert_local_images(images, self.source)
 
 

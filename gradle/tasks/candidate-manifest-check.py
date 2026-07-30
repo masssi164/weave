@@ -52,12 +52,16 @@ def main() -> None:
 
     raw = args.manifest.read_bytes()
     payload = json.loads(raw)
-    if payload.get("schemaVersion") != "weave.release.candidate-manifest.v1":
+    if payload.get("schemaVersion") != "weave.release.candidate-manifest.v2":
         fail("unsupported schemaVersion")
     if payload.get("supportSafe") is not True:
         fail("manifest must declare supportSafe=true")
     if not re.fullmatch(r"[0-9a-f]{40}", str(payload.get("commit", ""))):
         fail("commit must be an exact lowercase revision")
+    if not re.fullmatch(
+        r"[0-9a-f]{40}", str(payload.get("specificationCommit", ""))
+    ):
+        fail("specificationCommit must be an exact lowercase revision")
     if not SHA256.fullmatch(str(payload.get("specDigest", ""))):
         fail("specDigest must be exact")
     if not support_safe_https(payload.get("buildEvidenceRef")):
@@ -68,12 +72,15 @@ def main() -> None:
         fail("images must be a list")
     components: set[str] = set()
     for image in images:
-        if not isinstance(image, dict) or set(image) != {
+        expected_fields = {
             "component",
             "reference",
             "sbomDigest",
             "provenanceDigest",
-        }:
+        }
+        if isinstance(image, dict) and image.get("component") == "keycloak-runtime":
+            expected_fields.add("buildEvidenceDigest")
+        if not isinstance(image, dict) or set(image) != expected_fields:
             fail("each image must contain only the reviewed identity fields")
         component = image["component"]
         if component in components:
@@ -86,6 +93,10 @@ def main() -> None:
         for field in ("sbomDigest", "provenanceDigest"):
             if not SHA256.fullmatch(str(image[field])):
                 fail(f"{component} {field} must be exact")
+        if component == "keycloak-runtime" and not SHA256.fullmatch(
+            str(image["buildEvidenceDigest"])
+        ):
+            fail("keycloak-runtime buildEvidenceDigest must be exact")
     if components != REQUIRED_COMPONENTS:
         fail(
             "image set must be exactly " + ", ".join(sorted(REQUIRED_COMPONENTS))
