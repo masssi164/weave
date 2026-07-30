@@ -758,7 +758,6 @@ def mapper_payload(mapper: dict[str, Any]) -> dict[str, Any]:
             "claim.name": "realm_access.roles",
             "jsonType.label": "String",
             "multivalued": "true",
-            "usermodel.realmRoleMapping.rolePrefix": "",
             "introspection.token.claim": "false",
         }
     elif mapper_type == "user-session-note":

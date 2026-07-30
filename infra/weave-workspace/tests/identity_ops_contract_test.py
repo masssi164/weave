@@ -426,7 +426,6 @@ def main() -> None:
         "claim.name": "realm_access.roles",
         "jsonType.label": "String",
         "multivalued": "true",
-        "usermodel.realmRoleMapping.rolePrefix": "",
         "introspection.token.claim": "false",
         "id.token.claim": "false",
         "access.token.claim": "true",
