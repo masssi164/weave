@@ -12,6 +12,9 @@ import stat
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -680,21 +683,27 @@ def normalized_config(context: ComposeContext, emit: bool) -> dict[str, Any]:
 
 def identity_ops(context: ComposeContext, action: str) -> None:
     prepare(context)
-    compose(context, "stop", "keycloak")
-    compose(
-        context,
-        "run",
-        "--rm",
-        "--no-deps",
-        "keycloak",
-        "bootstrap-admin",
-        "service",
-        "--client-id",
-        "weave-identity-ops-bootstrap",
-        "--client-secret:env=WEAVE_IDENTITY_OPS_BOOTSTRAP_SECRET",
-        "--no-prompt",
-    )
     compose(context, "up", "-d", "--wait", "keycloak")
+    if not bootstrap_authority_available(context):
+        compose(context, "stop", "keycloak")
+        compose(
+            context,
+            "run",
+            "--rm",
+            "--no-deps",
+            "keycloak",
+            "bootstrap-admin",
+            "service",
+            "--client-id",
+            "weave-identity-ops-bootstrap",
+            "--client-secret:env=WEAVE_IDENTITY_OPS_BOOTSTRAP_SECRET",
+            "--no-prompt",
+        )
+        compose(context, "up", "-d", "--wait", "keycloak")
+        if not bootstrap_authority_available(context):
+            raise ContractError(
+                "temporary Identity Ops bootstrap authority is unavailable after recovery"
+            )
     command = {
         "identity-plan": "plan",
         "identity-apply": "apply",
@@ -710,6 +719,71 @@ def identity_ops(context: ComposeContext, action: str) -> None:
     )
     if action == "identity-apply":
         adopt_secret_updates(context)
+
+
+def bootstrap_authority_available(context: ComposeContext) -> bool:
+    """Probe the one-shot bootstrap client without retaining its access token."""
+    credential = context.secret_root / "keycloak-bootstrap-admin-password"
+    try:
+        metadata = credential.lstat()
+    except OSError as error:
+        raise ContractError(
+            "Identity Ops bootstrap SecretRef is unavailable"
+        ) from error
+    if (
+        credential.is_symlink()
+        or not stat.S_ISREG(metadata.st_mode)
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+    ):
+        raise ContractError("Identity Ops bootstrap SecretRef is unsafe")
+    secret = credential.read_text(encoding="utf-8").strip()
+    if not secret:
+        raise ContractError("Identity Ops bootstrap SecretRef is empty")
+    request = urllib.request.Request(
+        (
+            "http://127.0.0.1:"
+            + context.env["WEAVE_KEYCLOAK_HOST_PORT"]
+            + "/realms/master/protocol/openid-connect/token"
+        ),
+        data=urllib.parse.urlencode(
+            {
+                "grant_type": "client_credentials",
+                "client_id": "weave-identity-ops-bootstrap",
+                "client_secret": secret,
+            }
+        ).encode("ascii"),
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            try:
+                payload = json.loads(response.read(1024 * 1024))
+            except (json.JSONDecodeError, UnicodeDecodeError) as error:
+                raise ContractError(
+                    "temporary Identity Ops bootstrap authority probe was malformed"
+                ) from error
+            if response.status != 200 or not isinstance(
+                payload.get("access_token"), str
+            ):
+                raise ContractError(
+                    "temporary Identity Ops bootstrap authority probe was malformed"
+                )
+            return True
+    except urllib.error.HTTPError as error:
+        try:
+            payload = json.loads(error.read(1024 * 1024))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            payload = {}
+        if error.code in {400, 401} and payload.get("error") == "invalid_client":
+            return False
+        raise ContractError(
+            "temporary Identity Ops bootstrap authority probe was rejected"
+        ) from error
+    except (urllib.error.URLError, TimeoutError) as error:
+        raise ContractError(
+            "temporary Identity Ops bootstrap authority probe was unavailable"
+        ) from error
 
 
 def _service_container(context: ComposeContext, service: str) -> dict[str, Any]:

@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import re
 import tempfile
+import urllib.error
+import urllib.parse
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
+import compose_runtime as compose_runtime_module  # noqa: E402
 from compose_env import ContractError, load_context  # noqa: E402
 from compose_runtime import (  # noqa: E402
     AGENT_RUNTIME_ROOT,
@@ -69,6 +73,135 @@ def expect_contract_rejection(action, message: str) -> None:
     except ContractError:
         return
     raise AssertionError(message)
+
+
+def assert_identity_bootstrap_lifecycle(context) -> None:
+    original_prepare = compose_runtime_module.prepare
+    original_compose = compose_runtime_module.compose
+    original_probe = compose_runtime_module.bootstrap_authority_available
+    calls: list[tuple[str, ...]] = []
+
+    def record_compose(_context, *arguments: str, **_kwargs):
+        calls.append(arguments)
+        return None
+
+    compose_runtime_module.prepare = lambda _context: None
+    compose_runtime_module.compose = record_compose
+    compose_runtime_module.bootstrap_authority_available = lambda _context: True
+    try:
+        compose_runtime_module.identity_ops(context, "identity-plan")
+    finally:
+        compose_runtime_module.prepare = original_prepare
+        compose_runtime_module.compose = original_compose
+        compose_runtime_module.bootstrap_authority_available = original_probe
+    assert calls == [
+        ("up", "-d", "--wait", "keycloak"),
+        ("run", "--rm", "--no-deps", "identity-ops", "plan"),
+    ]
+
+    calls.clear()
+    probe_results = iter((False, True))
+    compose_runtime_module.prepare = lambda _context: None
+    compose_runtime_module.compose = record_compose
+    compose_runtime_module.bootstrap_authority_available = (
+        lambda _context: next(probe_results)
+    )
+    try:
+        compose_runtime_module.identity_ops(context, "identity-plan")
+    finally:
+        compose_runtime_module.prepare = original_prepare
+        compose_runtime_module.compose = original_compose
+        compose_runtime_module.bootstrap_authority_available = original_probe
+    assert calls == [
+        ("up", "-d", "--wait", "keycloak"),
+        ("stop", "keycloak"),
+        (
+            "run",
+            "--rm",
+            "--no-deps",
+            "keycloak",
+            "bootstrap-admin",
+            "service",
+            "--client-id",
+            "weave-identity-ops-bootstrap",
+            "--client-secret:env=WEAVE_IDENTITY_OPS_BOOTSTRAP_SECRET",
+            "--no-prompt",
+        ),
+        ("up", "-d", "--wait", "keycloak"),
+        ("run", "--rm", "--no-deps", "identity-ops", "plan"),
+    ]
+
+
+def assert_identity_bootstrap_authority_probe(context, root: Path) -> None:
+    secret_root = root / "bootstrap-probe"
+    secret_root.mkdir(mode=0o700)
+    credential = secret_root / "keycloak-bootstrap-admin-password"
+    credential.write_text("test-bootstrap-secret\n", encoding="utf-8")
+    os.chmod(credential, 0o600)
+    probe_context = replace(
+        context,
+        env={
+            **context.env,
+            "WEAVE_SECRET_ROOT": str(secret_root),
+            "WEAVE_KEYCLOAK_HOST_PORT": "49181",
+        },
+    )
+    original_urlopen = compose_runtime_module.urllib.request.urlopen
+    captured: dict[str, str] = {}
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self, _limit: int) -> bytes:
+            return b'{"access_token":"test-only"}'
+
+    def accepted(request, **_kwargs):
+        captured.update(
+            urllib.parse.parse_qsl(request.data.decode("ascii"))
+        )
+        return Response()
+
+    compose_runtime_module.urllib.request.urlopen = accepted
+    try:
+        assert compose_runtime_module.bootstrap_authority_available(probe_context)
+    finally:
+        compose_runtime_module.urllib.request.urlopen = original_urlopen
+    assert captured == {
+        "grant_type": "client_credentials",
+        "client_id": "weave-identity-ops-bootstrap",
+        "client_secret": "test-bootstrap-secret",
+    }
+
+    def rejected(_request, **_kwargs):
+        raise urllib.error.HTTPError(
+            "http://127.0.0.1:49181/token",
+            401,
+            "Unauthorized",
+            {},
+            io.BytesIO(b'{"error":"invalid_client"}'),
+        )
+
+    compose_runtime_module.urllib.request.urlopen = rejected
+    try:
+        assert not compose_runtime_module.bootstrap_authority_available(
+            probe_context
+        )
+    finally:
+        compose_runtime_module.urllib.request.urlopen = original_urlopen
+
+    os.chmod(credential, 0o640)
+    expect_contract_rejection(
+        lambda: compose_runtime_module.bootstrap_authority_available(
+            probe_context
+        ),
+        "mode-0640 bootstrap SecretRef was accepted",
+    )
 
 
 def assert_agent_runtime_mount_boundary(model: dict[str, object]) -> None:
@@ -319,6 +452,25 @@ def assert_protected_source_preflight(dev, root: Path) -> None:
 
 def main() -> None:
     dev = load_context("dev", ROOT)
+    assert_identity_bootstrap_lifecycle(dev)
+    with tempfile.TemporaryDirectory() as temporary:
+        assert_identity_bootstrap_authority_probe(dev, Path(temporary))
+    keycloak_launcher = (ROOT / "scripts/run-keycloak.sh").read_text(
+        encoding="utf-8"
+    )
+    assert (
+        "read_secret KC_BOOTSTRAP_ADMIN_CLIENT_SECRET "
+        "/run/secrets/keycloak-bootstrap-admin-password"
+        in keycloak_launcher
+    )
+    assert (
+        "export KC_BOOTSTRAP_ADMIN_CLIENT_ID=weave-identity-ops-bootstrap"
+        in keycloak_launcher
+    )
+    assert (
+        'if [[ "${1:-}" == "bootstrap-admin" ]]'
+        in keycloak_launcher
+    )
     assert dev.profile == "dev"
     assert dev.env["WEAVE_DEPLOYMENT_CONTEXT"] == "developer"
     assert dev.compose_files[1].name == "compose.dev.yaml"
