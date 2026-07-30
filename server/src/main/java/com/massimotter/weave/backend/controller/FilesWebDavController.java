@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriUtils;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -134,8 +135,13 @@ public class FilesWebDavController {
             }
             String href = scopes.item(0).getTextContent().trim();
             String query = literals.item(0).getTextContent();
+            NodeList whereClauses = document.getElementsByTagNameNS("DAV:", "where");
+            if (whereClauses.getLength() != 1) {
+                throw invalidSearch();
+            }
+            Element whereClause = (Element) whereClauses.item(0);
             boolean canonicalIdMatch =
-                    document.getElementsByTagNameNS("urn:weave:files", "canonical-id").getLength() > 0;
+                    whereClause.getElementsByTagNameNS("urn:weave:files", "canonical-id").getLength() > 0;
             boolean exactMatch = document.getElementsByTagNameNS("DAV:", "eq").getLength() == 1;
             if (canonicalIdMatch != exactMatch) {
                 throw invalidSearch();

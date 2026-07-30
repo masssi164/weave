@@ -136,9 +136,9 @@ class FilesWebDavControllerTest {
                         .header("X-Weave-Search-Limit", "10")
                         .content("""
                                 <?xml version="1.0" encoding="UTF-8"?>
-                                <d:searchrequest xmlns:d="DAV:">
+                                <d:searchrequest xmlns:d="DAV:" xmlns:w="urn:weave:files">
                                   <d:basicsearch>
-                                    <d:select><d:prop><d:displayname/></d:prop></d:select>
+                                    <d:select><d:prop><w:canonical-id/><d:displayname/><d:getcontenttype/><d:getcontentlength/><d:getlastmodified/></d:prop></d:select>
                                     <d:from><d:scope><d:href>/dav/files/Team</d:href><d:depth>infinity</d:depth></d:scope></d:from>
                                     <d:where><d:like><d:prop><d:displayname/></d:prop><d:literal>readme</d:literal></d:like></d:where>
                                   </d:basicsearch>
