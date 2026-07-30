@@ -11,6 +11,7 @@ readonly RUNTIME_CLEANUP="${REPOSITORY_ROOT}/gradle/scripts/cleanup_test_app_run
 readonly COMPOSE="${WORKSPACE_ROOT}/compose.sh"
 readonly TEARDOWN="${WORKSPACE_ROOT}/teardown.sh"
 readonly FAILURE_DIAGNOSTICS="${WORKSPACE_ROOT}/live-stack-failure-diagnostics.sh"
+readonly DCR_CONTRACT_PROBE="${WORKSPACE_ROOT}/scripts/verify_keycloak_dcr_contract.py"
 
 RUN_ID="${WEAVE_TEST_APP_RUN_ID:-}"
 OUTPUT_ROOT="${WEAVE_TEST_APP_OUTPUT_ROOT:-${REPOSITORY_ROOT}/build/test-app}"
@@ -226,6 +227,45 @@ for required in \
 done
 [[ -d "${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads" ]] ||
   fail "the isolated workload SecretRef root is unavailable"
+
+log "Running direct Keycloak DCR policy and Registration Access Token lifecycle proof."
+dcr_evidence="${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/keycloak-dcr-live-proof.json"
+python3 "${DCR_CONTRACT_PROBE}" \
+  --keycloak-base "http://127.0.0.1:${WEAVE_KEYCLOAK_HOST_PORT}" \
+  --issuer "${WEAVE_TEST_APP_ISSUER}" \
+  --realm weave \
+  --runtime-admin-jwk \
+    "${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin" \
+  --run-id "${RUN_ID}" \
+  --candidate-commit "${candidate_commit}" \
+  --specification-commit "${specification_commit}" \
+  --compose-project "${WEAVE_E2E_RUN_NAMESPACE}" \
+  --output "${dcr_evidence}"
+jq -e \
+  --arg candidate_commit "${candidate_commit}" \
+  --arg specification_commit "${specification_commit}" \
+  --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
+  .schemaVersion == "weave.keycloak-dcr-live-proof/v1" and
+  .candidateCommit == $candidate_commit and
+  .specificationCommit == $specification_commit and
+  .composeProject == $compose_project and
+  .runtimeAdminRoles == ["create-client"] and
+  .broadAdminRestRejected == true and
+  .validRegistration == true and
+  .privateKeyJwt == true and
+  .effectiveWorkloadRoles == ["weaver-runtime"] and
+  .registrationAccessTokenRotation == true and
+  .staleRegistrationAccessTokenRejected == true and
+  .crossCellRegistrationAccessTokenRejected == true and
+  (.negativeCases | length) == 7 and
+  .cleanupComplete == true and
+  .credentialsIncluded == false and
+  .supportSafe == true
+' "${dcr_evidence}" >/dev/null ||
+  fail "the live Keycloak DCR evidence is incomplete"
+! grep -Eqi 'authorization:|bearer |registration_access_token|access_token|client_assertion|private_key' \
+  "${dcr_evidence}" ||
+  fail "the live Keycloak DCR evidence contains credential material"
 
 log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
 "${REPOSITORY_ROOT}/gradlew" \

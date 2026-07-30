@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -28,6 +29,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -119,9 +121,9 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
     }
 
     @Test
-    void repeatedReadRotatesTheRatAndRejectsTheStaleCellToken() {
+    void repeatedReadRetainsTheRatUntilAMutatingLifecycleOperationRotatesIt() {
         RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
-        byte[] stale = transport.currentRat.clone();
+        byte[] initial = transport.currentRat.clone();
 
         adapter.requireCurrentBinding(new com.massimotter.weave.backend.agentruntime.port
                 .RuntimeWorkloadBindingAuthority.CurrentBindingCommand(
@@ -131,9 +133,14 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 ORGANIZATION, PERSON, CELL, binding, "audit:verify-again"));
 
         assertThat(transport.retrieves).hasValue(2);
-        assertThatThrownBy(() -> transport.retrieve(transport.registrationUri, stale))
+        assertThat(transport.currentRat).isEqualTo(initial);
+
+        adapter.disableBinding(new DisableBindingCommand(
+                ORGANIZATION, PERSON, CELL, binding, "audit:disable-for-rat-rotation"));
+
+        assertThatThrownBy(() -> transport.retrieve(CLIENT_ID, transport.registrationUri, initial))
                 .isInstanceOf(RuntimeWorkloadIdentityException.class)
-                .hasMessageNotContaining(new String(stale, StandardCharsets.UTF_8));
+                .hasMessageNotContaining(new String(initial, StandardCharsets.UTF_8));
     }
 
     @Test
@@ -168,8 +175,9 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
     }
 
     @Test
-    void logicalDisableRevokesThePublishedKeyAndReconcileRestoresTheSameSubject() {
+    void logicalDisableRevokesThePublishedKeyAndReconcileUsesANewKeyForTheSameSubject() {
         RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
+        String retiredKey = credentials.find(CLIENT_ID).orElseThrow().activeKeyId();
         adapter.disableBinding(new DisableBindingCommand(
                 ORGANIZATION, PERSON, CELL, binding, "audit:disable"));
 
@@ -191,6 +199,12 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         assertThat(adapter.scan().clients().getFirst().enabled()).isTrue();
         assertThat(adapter.scan().clients().getFirst().serviceAccountSubject())
                 .isEqualTo(SUBJECT);
+        var replacement = credentials.find(CLIENT_ID).orElseThrow();
+        assertThat(replacement.activeKeyId()).isNotEqualTo(retiredKey);
+        assertThat(replacement.acceptedKeyIds()).containsExactly(replacement.activeKeyId());
+        assertThat(transport.metadata.path("jwks").path("keys")).hasSize(1);
+        assertThat(transport.metadata.path("jwks").path("keys").get(0).path("kid").asText())
+                .isEqualTo(replacement.activeKeyId());
     }
 
     @Test
@@ -208,6 +222,72 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 .isEqualTo(binding);
         assertThat(transport.updates).hasValue(2);
         assertThat(adapter.scan().clients().getFirst().enabled()).isTrue();
+    }
+
+    @Test
+    void failedRatPersistenceDeletesTheRemoteClientAndFailsClosed() throws Exception {
+        RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
+        Path protectedRef = temporary.resolve(
+                "weave/agent-runtime/cells/" + CLIENT_ID);
+        transport.afterNextUpdate = () -> {
+            try {
+                Files.delete(protectedRef);
+                Files.createDirectory(protectedRef);
+            } catch (Exception failure) {
+                throw new IllegalStateException("unable to install persistence fault", failure);
+            }
+        };
+
+        RuntimeWorkloadIdentityException failure = catchThrowableOfType(
+                RuntimeWorkloadIdentityException.class,
+                () -> adapter.disableBinding(new DisableBindingCommand(
+                        ORGANIZATION,
+                        PERSON,
+                        CELL,
+                        binding,
+                        "audit:persistence-failure")));
+
+        assertThat(failure)
+                .isNotNull()
+                .hasMessageContaining("regular non-symlink file");
+        assertThat(transport.deleted).isTrue();
+        assertThat(failure.getSuppressed()).isNotEmpty();
+    }
+
+    @Test
+    void inconsistentCreateResponseDeletesTheClientAndLocalCredential() {
+        transport.nextResponseMutation = response -> response.put(
+                "registration_client_uri",
+                "https://foreign.example/realms/weave/clients-registrations/"
+                        + "openid-connect/" + CLIENT_ID);
+
+        assertThatThrownBy(() -> adapter.ensureBinding(ensure()))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("registration URI")
+                .hasMessageNotContaining("rat-");
+
+        assertThat(transport.deleted).isTrue();
+        assertThat(credentials.find(CLIENT_ID)).isEmpty();
+    }
+
+    @Test
+    void driftedUpdateResponseDeletesTheClientAndLocalCredential() {
+        RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
+        transport.nextResponseMutation =
+                response -> response.put("scope", "mcp.tools realm-management");
+
+        assertThatThrownBy(() -> adapter.disableBinding(new DisableBindingCommand(
+                ORGANIZATION,
+                PERSON,
+                CELL,
+                binding,
+                "audit:metadata-drift")))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("metadata has drifted")
+                .hasMessageNotContaining("rat-");
+
+        assertThat(transport.deleted).isTrue();
+        assertThat(credentials.find(CLIENT_ID)).isEmpty();
     }
 
     @Test
@@ -266,7 +346,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         private final AtomicInteger retrieves = new AtomicInteger();
         private final AtomicInteger updates = new AtomicInteger();
         private final URI registrationUri =
-                URI.create("http://keycloak.test/realms/weave/clients-registrations/"
+                URI.create(ISSUER + "/clients-registrations/"
                         + "openid-connect/" + CLIENT_ID);
         private ObjectNode metadata;
         private byte[] currentRat;
@@ -274,6 +354,8 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         private Map<String, String> lastClientCredentials = Map.of();
         private boolean deleted;
         private boolean failNextRetrieve;
+        private Runnable afterNextUpdate = () -> {};
+        private Consumer<ObjectNode> nextResponseMutation = ignored -> {};
 
         FakeRegistrationTransport(ObjectMapper mapper) {
             this.mapper = mapper;
@@ -291,7 +373,8 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         }
 
         @Override
-        public JsonNode retrieve(URI uri, byte[] rat) {
+        public JsonNode retrieve(String clientId, URI uri, byte[] rat) {
+            requireClient(clientId);
             requireAuthority(uri, rat);
             if (failNextRetrieve) {
                 failNextRetrieve = false;
@@ -299,11 +382,12 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                         "simulated post-update verification failure");
             }
             retrieves.incrementAndGet();
-            return response(rotateRat());
+            return response(currentRat);
         }
 
         @Override
-        public JsonNode update(URI uri, JsonNode requested, byte[] rat) {
+        public JsonNode update(String clientId, URI uri, JsonNode requested, byte[] rat) {
+            requireClient(clientId);
             requireAuthority(uri, rat);
             if (!CLIENT_ID.equals(requested.path("client_id").asText())) {
                 throw new RuntimeWorkloadIdentityException(
@@ -311,13 +395,16 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             }
             updates.incrementAndGet();
             metadata = ((ObjectNode) requested).deepCopy();
-            ObjectNode stalePrePolicyResponse = response(rotateRat());
-            stalePrePolicyResponse.remove("scope");
-            return stalePrePolicyResponse;
+            JsonNode response = response(rotateRat());
+            Runnable callback = afterNextUpdate;
+            afterNextUpdate = () -> {};
+            callback.run();
+            return response;
         }
 
         @Override
-        public void delete(URI uri, byte[] rat) {
+        public void delete(String clientId, URI uri, byte[] rat) {
+            requireClient(clientId);
             requireAuthority(uri, rat);
             deleted = true;
             metadata = null;
@@ -349,6 +436,9 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             response.put(
                     "scope",
                     "agent-runtime.profile.read mcp.tools files.read");
+            Consumer<ObjectNode> mutation = nextResponseMutation;
+            nextResponseMutation = ignored -> {};
+            mutation.accept(response);
             return response;
         }
 
@@ -364,6 +454,13 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                     || !java.security.MessageDigest.isEqual(currentRat, rat)) {
                 throw new RuntimeWorkloadIdentityException(
                         "registration authority rejected");
+            }
+        }
+
+        private void requireClient(String clientId) {
+            if (!CLIENT_ID.equals(clientId)) {
+                throw new RuntimeWorkloadIdentityException(
+                        "registration client binding rejected");
             }
         }
     }

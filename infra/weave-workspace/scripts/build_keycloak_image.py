@@ -14,6 +14,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+import xml.etree.ElementTree as element_tree
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -30,8 +31,24 @@ STOCK_KEYCLOAK_REFERENCE = (
 ARCHIVE_URL = f"https://github.com/keycloak/keycloak/archive/{UPSTREAM_COMMIT}.tar.gz"
 SPEC_COMMIT = "d44ca90a1010616c9430fe0b45cdf0876d507774"
 PATCH_RELATIVE = Path(
-    "infra/weave-workspace/keycloak/patches/"
-    "0001-weave-workload-registration-policy.patch"
+    "infra/weave-workspace/keycloak-runtime/patches/"
+    "weave-workload-registration.patch"
+)
+PATCHED_PATHS = (
+    "services/src/main/java/org/keycloak/services/clientpolicy/executor/"
+    "WeaveWorkloadClientRegistrationExecutor.java",
+    "services/src/main/java/org/keycloak/services/clientpolicy/executor/"
+    "WeaveWorkloadClientRegistrationExecutorFactory.java",
+    "services/src/main/java/org/keycloak/services/clientregistration/oidc/"
+    "OIDCClientRegistrationProvider.java",
+    "services/src/main/resources/META-INF/services/"
+    "org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory",
+    "services/src/test/java/org/keycloak/services/clientpolicy/executor/"
+    "WeaveWorkloadClientRegistrationExecutorTest.java",
+)
+DOWNSTREAM_TEST_CLASS = (
+    "org.keycloak.services.clientpolicy.executor."
+    "WeaveWorkloadClientRegistrationExecutorTest"
 )
 DOCKERFILE_RELATIVE = Path("infra/weave-workspace/keycloak/Dockerfile.runtime")
 SERVICES_JAR = Path("services/target/keycloak-services-26.7.0.jar")
@@ -154,11 +171,54 @@ def verify_stock_services() -> None:
         )
 
 
-def build_services(repository: Path, temporary: Path) -> tuple[Path, str, str]:
+def patch_paths(patch: Path) -> tuple[str, ...]:
+    paths: list[str] = []
+    for line in patch.read_text(encoding="utf-8").splitlines():
+        match = re.fullmatch(r"diff --git a/(\S+) b/(\S+)", line)
+        if match:
+            if match.group(1) != match.group(2):
+                raise SystemExit(
+                    "WEAVE_KEYCLOAK_BUILD_ERROR patch contains a path-changing delta"
+                )
+            paths.append(match.group(1))
+    observed = tuple(paths)
+    if observed != PATCHED_PATHS:
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR patch changed-path allowlist mismatch"
+        )
+    return observed
+
+
+def downstream_test_count(source: Path) -> int:
+    report = (
+        source
+        / "services/target/surefire-reports"
+        / f"TEST-{DOWNSTREAM_TEST_CLASS}.xml"
+    )
+    if not report.is_file():
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR downstream policy test report is absent"
+        )
+    root = element_tree.parse(report).getroot()
+    tests = int(root.attrib.get("tests", "0"))
+    failures = int(root.attrib.get("failures", "0"))
+    errors = int(root.attrib.get("errors", "0"))
+    skipped = int(root.attrib.get("skipped", "0"))
+    if tests < 4 or failures != 0 or errors != 0 or skipped != 0:
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR downstream policy tests did not pass completely"
+        )
+    return tests
+
+
+def build_services(
+    repository: Path, temporary: Path
+) -> tuple[Path, str, str, tuple[str, ...], int]:
     patch = repository / PATCH_RELATIVE
     if not patch.is_file():
         raise SystemExit("WEAVE_KEYCLOAK_BUILD_ERROR canonical patch is unavailable")
     patch_digest = sha256(patch)
+    changed_paths = patch_paths(patch)
     archive = temporary / "keycloak.tar.gz"
     download_archive(archive)
     source = extract_archive(archive, temporary)
@@ -172,9 +232,10 @@ def build_services(repository: Path, temporary: Path) -> tuple[Path, str, str]:
             "-pl",
             "services",
             "-am",
-            "-DskipTests",
             "-DskipTestsuite",
             "-DskipExamples",
+            f"-Dtest={DOWNSTREAM_TEST_CLASS}",
+            "-Dsurefire.failIfNoSpecifiedTests=false",
             "-Dproject.build.outputTimestamp=2000-01-01T00:00:00Z",
             "package",
         ],
@@ -196,6 +257,7 @@ def build_services(repository: Path, temporary: Path) -> tuple[Path, str, str]:
         raise SystemExit(
             "WEAVE_KEYCLOAK_BUILD_ERROR patched Keycloak services compilation failed"
         )
+    test_count = downstream_test_count(source)
     services = source / SERVICES_JAR
     if not services.is_file():
         raise SystemExit("WEAVE_KEYCLOAK_BUILD_ERROR patched services JAR is absent")
@@ -213,7 +275,7 @@ def build_services(repository: Path, temporary: Path) -> tuple[Path, str, str]:
         raise SystemExit(
             "WEAVE_KEYCLOAK_BUILD_ERROR built-in policy classes are absent"
         )
-    return services, patch_digest, patched_digest
+    return services, patch_digest, patched_digest, changed_paths, test_count
 
 
 def build_image(
@@ -298,7 +360,7 @@ def main() -> int:
     verify_stock_services()
     with tempfile.TemporaryDirectory(prefix="weave-keycloak-build-") as directory:
         temporary = Path(directory)
-        services, patch_digest, patched_digest = build_services(
+        services, patch_digest, patched_digest, changed_paths, test_count = build_services(
             repository, temporary
         )
         if args.prepare_context:
@@ -328,7 +390,10 @@ def main() -> int:
         "stockReference": STOCK_KEYCLOAK_REFERENCE,
         "stockServicesJarSha256": STOCK_SERVICES_SHA256,
         "patchSha256": patch_digest,
+        "patchedPaths": list(changed_paths),
         "patchedServicesJarSha256": patched_digest,
+        "downstreamPolicyTestClass": DOWNSTREAM_TEST_CLASS,
+        "downstreamPolicyTestCount": test_count,
         "imageTag": tag,
         "imageId": image_id,
         "preparedContext": args.prepare_context is not None,

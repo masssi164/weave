@@ -596,3 +596,78 @@ diff --git a/services/src/main/resources/META-INF/services/org.keycloak.services
  org.keycloak.services.clientpolicy.executor.TlsClientAuthCASubjectDNExecutorFactory
  org.keycloak.protocol.oauth2.cimd.clientpolicy.executor.ClientIdMetadataDocumentExecutorFactory
 +org.keycloak.services.clientpolicy.executor.WeaveWorkloadClientRegistrationExecutorFactory
+diff --git a/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java b/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java
+new file mode 100644
+--- /dev/null
++++ b/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java
+@@ -0,0 +1,70 @@
++package org.keycloak.services.clientpolicy.executor;
++
++import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
++import static org.junit.jupiter.api.Assertions.assertNull;
++import static org.junit.jupiter.api.Assertions.assertThrows;
++
++import org.junit.jupiter.api.Test;
++import org.keycloak.representations.idm.ClientRepresentation;
++import org.keycloak.representations.oidc.OIDCClientRepresentation;
++import org.keycloak.services.clientpolicy.ClientPolicyException;
++
++class WeaveWorkloadClientRegistrationExecutorTest {
++
++    private static final String CLIENT_ID = "weaver-cell-example_01";
++    private static final String APPROVED_SCOPES =
++            "agent-runtime.profile.read mcp.tools files.read";
++
++    @Test
++    void acceptsAndNormalizesTheExactOidcMetadataContract() {
++        OIDCClientRepresentation representation = representation(CLIENT_ID, APPROVED_SCOPES);
++
++        assertDoesNotThrow(() ->
++                WeaveWorkloadClientRegistrationExecutor.validateOidcMetadata(
++                        representation, null));
++
++        assertNull(representation.getScope());
++    }
++
++    @Test
++    void rejectsInvalidNamespaceBeforeDescriptionConversion() {
++        OIDCClientRepresentation representation =
++                representation("weaver-cell-invalid!", APPROVED_SCOPES);
++
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.validateOidcMetadata(
++                        representation, null));
++    }
++
++    @Test
++    void rejectsUnapprovedScopesBeforeDescriptionConversion() {
++        OIDCClientRepresentation representation =
++                representation(CLIENT_ID, APPROVED_SCOPES + " realm-management");
++
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.validateOidcMetadata(
++                        representation, null));
++    }
++
++    @Test
++    void rejectsInvalidNamespaceAtTheClientPolicyBoundary() {
++        ClientRepresentation representation = new ClientRepresentation();
++        representation.setName("weaver-cell-invalid!");
++
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.prepareRegistration(
++                        representation));
++    }
++
++    private static OIDCClientRepresentation representation(
++            String clientName, String scopes) {
++        OIDCClientRepresentation representation = new OIDCClientRepresentation();
++        representation.setClientName(clientName);
++        representation.setScope(scopes);
++        representation.setSubjectType("public");
++        return representation;
++    }
++}

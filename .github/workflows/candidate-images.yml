@@ -323,6 +323,7 @@ jobs:
           path: |
             build/candidate/candidate-manifest.json
             build/candidate/candidate-manifest.json.sha256
+            build/candidate/keycloak-runtime-build.json
             build/candidate/*-attestations.json
           if-no-files-found: error
           retention-days: 90
@@ -402,6 +403,7 @@ jobs:
           name: fresh-product-proof-${{ github.sha }}
           path: |
             weave/build/test-app/*/weave-test-app-evidence.json
+            weave/build/test-app/*/keycloak-dcr-live-proof.json
             weave/build/test-app/*/teardown-evidence.json
             weave/build/test-app/*/failure-diagnostics/**
           if-no-files-found: warn

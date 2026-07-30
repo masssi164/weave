@@ -10,6 +10,8 @@ readonly LIFECYCLE="${REPOSITORY_ROOT}/gradle/tasks/test-app.sh"
 readonly CONTEXT_HELPER="${REPOSITORY_ROOT}/gradle/scripts/prepare_test_app_context.py"
 readonly RUNTIME_CLEANUP="${REPOSITORY_ROOT}/gradle/scripts/cleanup_test_app_runtime.py"
 readonly SECRET_INITIALIZER="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/init_secrets.py"
+readonly DCR_CONTRACT_PROBE="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/verify_keycloak_dcr_contract.py"
+readonly DCR_CONTRACT_PROBE_TEST="${REPOSITORY_ROOT}/infra/weave-workspace/tests/verify_keycloak_dcr_contract_test.py"
 readonly GRADLE_TASKS="${REPOSITORY_ROOT}/gradle/tasks/architecture-lifecycle.gradle"
 readonly MODULE_BUILD="${REPOSITORY_ROOT}/weave-product-e2e/build.gradle"
 readonly MODULE_TASKS="${REPOSITORY_ROOT}/weave-product-e2e/gradle/tasks/product-flow.gradle"
@@ -30,7 +32,8 @@ absent() {
 }
 
 bash -n "${LIFECYCLE}"
-python3 -m py_compile "${CONTEXT_HELPER}" "${RUNTIME_CLEANUP}"
+python3 -m py_compile "${CONTEXT_HELPER}" "${RUNTIME_CLEANUP}" "${DCR_CONTRACT_PROBE}"
+python3 -m unittest "${DCR_CONTRACT_PROBE_TEST}"
 
 contains "${GRADLE_TASKS}" "tasks.register('testApp', Exec)"
 contains "${GRADLE_TASKS}" "commandLine 'bash', 'gradle/tasks/test-app.sh'"
@@ -45,6 +48,8 @@ contains "${LIFECYCLE}" 'WEAVE_TEST_APP_SERVER_IMAGE must be digest-pinned'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_MCP_IMAGE must be digest-pinned'
 contains "${LIFECYCLE}" 'testApp requires a clean worktree'
 contains "${LIFECYCLE}" 'live-stack-failure-diagnostics.sh'
+contains "${LIFECYCLE}" 'verify_keycloak_dcr_contract.py'
+contains "${LIFECYCLE}" 'keycloak-dcr-live-proof.json'
 contains "${LIFECYCLE}" 'WEAVE_RESOURCE_PREFIX="${WEAVE_E2E_RUN_NAMESPACE}"'
 contains "${LIFECYCLE}" '/failure-diagnostics'
 contains "${LIFECYCLE}" 'status --porcelain=v1 --untracked-files=all'
@@ -66,6 +71,15 @@ absent "${LIFECYCLE}" 'WEAVE_TEST_USERS_FILE'
 absent "${LIFECYCLE}" 'WEAVE_E2E_AUTHOR_PASSWORD'
 absent "${LIFECYCLE}" 'WEAVE_E2E_COLLABORATOR_PASSWORD'
 absent "${LIFECYCLE}" 'WEAVE_E2E_OUTSIDER_PASSWORD'
+contains "${DCR_CONTRACT_PROBE}" '"invalid-namespace"'
+contains "${DCR_CONTRACT_PROBE}" '"wrong-auth-method"'
+contains "${DCR_CONTRACT_PROBE}" '"human-login-flow"'
+contains "${DCR_CONTRACT_PROBE}" '"unapproved-scope"'
+contains "${DCR_CONTRACT_PROBE}" '"protocol-mapper"'
+contains "${DCR_CONTRACT_PROBE}" '"custom-attribute"'
+contains "${DCR_CONTRACT_PROBE}" '"cross-Cell RAT read was not rejected"'
+contains "${DCR_CONTRACT_PROBE}" '"stale RAT remained valid after rotation"'
+contains "${DCR_CONTRACT_PROBE}" '"credentialsIncluded": False'
 
 contains "${MODULE_BUILD}" 'apply from: "${projectDir}/gradle/tasks/product-flow.gradle"'
 contains "${MODULE_TASKS}" "args 'install', '--with-deps', 'chromium'"
@@ -107,6 +121,7 @@ contains "${CANDIDATE_WORKFLOW}" 'weave-server@${{ needs.build-candidate.outputs
 contains "${CANDIDATE_WORKFLOW}" 'weave-mcp-server@${{ needs.build-candidate.outputs.mcp_digest }}'
 contains "${CANDIDATE_WORKFLOW}" 'weave-keycloak-runtime@${{ needs.build-candidate.outputs.keycloak_runtime_digest }}'
 contains "${CANDIDATE_WORKFLOW}" 'run: ./gradlew --no-daemon testApp'
+contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/keycloak-dcr-live-proof.json'
 contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/failure-diagnostics/**'
 
 printf 'testApp product-flow contract tests passed\n'

@@ -110,8 +110,11 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             createRegistration(command, owner, credential);
         } else {
             if (!existing.orElseThrow().enabled()) {
-                update(command.clientId(), owner, credential, metadata(command.clientId(), credential, true),
-                        existing.orElseThrow().serviceAccountSubject(), true);
+                credential = reenable(
+                        command.clientId(),
+                        owner,
+                        existing.orElseThrow(),
+                        existing.orElseThrow().serviceAccountSubject());
                 verifyWorkloadSubject(
                         command.clientId(),
                         owner,
@@ -142,13 +145,11 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                         .orElseThrow(() -> new RuntimeWorkloadIdentityException(
                                 "The workload registration authority is unavailable"));
         if (!authority.enabled()) {
-            update(
+            credential = reenable(
                     command.binding().clientId(),
                     owner,
-                    credential,
-                    metadata(command.binding().clientId(), credential, true),
-                    command.binding().subject(),
-                    true);
+                    authority,
+                    command.binding().subject());
             verifyWorkloadSubject(
                     command.binding().clientId(),
                     owner,
@@ -159,6 +160,89 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             requireSubject(command.binding().subject(), observed.subject());
         }
         return command.binding();
+    }
+
+    private RuntimeWorkloadCredentialState reenable(
+            String clientId,
+            String owner,
+            FileRuntimeWorkloadCredentialStore.RegistrationAuthority authority,
+            String subject) {
+        String rotationRef = "reenable:" + authority.tokenFingerprint();
+        var rotation =
+                new com.massimotter.weave.backend.agentruntime.port
+                        .RuntimeWorkloadCredentialStore.RotateCredentialCommand(
+                        clientId, owner, rotationRef);
+        RuntimeWorkloadCredentialState prepared = credentials.prepareRotation(rotation);
+        JsonNode replacementJwks = replacementJwks(prepared);
+        ObjectNode replacementMetadata = metadata(clientId, replacementJwks, true);
+        RuntimeWorkloadCredentialState activated = credentials.withRegistrationAccessToken(
+                clientId,
+                owner,
+                (observedAuthority, token) -> {
+                    JsonNode response = transport.update(
+                            clientId,
+                            observedAuthority.registrationUri(),
+                            replacementMetadata,
+                            token);
+                    byte[] next = registrationAccessToken(response);
+                    try {
+                        RegistrationResponse registration;
+                        try {
+                            registration = registrationResponse(
+                                    response,
+                                    clientId,
+                                    observedAuthority.registrationUri(),
+                                    next);
+                            validateMetadata(response, clientId, replacementJwks);
+                        } catch (RuntimeException responseFailure) {
+                            failClosedRemoteRegistration(
+                                    clientId,
+                                    owner,
+                                    observedAuthority.registrationUri(),
+                                    next,
+                                    responseFailure);
+                            throw responseFailure;
+                        }
+                        try {
+                            return credentials.activateReplacementAuthority(
+                                    clientId,
+                                    owner,
+                                    rotationRef,
+                                    observedAuthority.tokenFingerprint(),
+                                    registration.registrationUri(),
+                                    next,
+                                    subject);
+                        } catch (RuntimeException persistenceFailure) {
+                            failClosedRemoteRegistration(
+                                    clientId,
+                                    owner,
+                                    registration.registrationUri(),
+                                    next,
+                                    persistenceFailure);
+                            throw persistenceFailure;
+                        }
+                    } finally {
+                        Arrays.fill(next, (byte) 0);
+                    }
+                });
+        retrieve(clientId, owner, publicJwks(activated));
+        return activated;
+    }
+
+    private JsonNode replacementJwks(RuntimeWorkloadCredentialState prepared) {
+        JsonNode projected = publicJwks(prepared);
+        ArrayNode keys = (ArrayNode) projected.path("keys");
+        ArrayNode replacement = mapper.createArrayNode();
+        for (JsonNode key : keys) {
+            if (!prepared.activeKeyId().equals(text(key, "kid"))) {
+                replacement.add(key.deepCopy());
+            }
+        }
+        if (replacement.size() != 1) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The replacement workload credential is ambiguous");
+        }
+        return mapper.createObjectNode().set("keys", replacement);
     }
 
     @Override
@@ -248,7 +332,10 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                 command.binding().clientId(),
                 owner,
                 (authority, token) -> {
-                    transport.delete(authority.registrationUri(), token);
+                    transport.delete(
+                            command.binding().clientId(),
+                            authority.registrationUri(),
+                            token);
                     return null;
                 });
         credentials.delete(
@@ -322,13 +409,13 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             accessTokens.invalidate(administrationToken);
             throw failure;
         }
-        RegistrationResponse registration =
-                registrationResponse(response, command.clientId(), null);
-        validateMetadata(response, command.clientId(), credential.acceptedKeyIds());
-        String subject = verifyWorkloadSubject(
-                command.clientId(), owner, credential, null);
-        byte[] token = registration.registrationAccessToken();
+        byte[] token = registrationAccessToken(response);
         try {
+            RegistrationResponse registration = registrationResponse(
+                    response, command.clientId(), null, token);
+            validateMetadata(response, command.clientId(), publicJwks(credential));
+            String subject = verifyWorkloadSubject(
+                    command.clientId(), owner, credential, null);
             credentials.bindRegistrationAuthority(
                     command.clientId(),
                     owner,
@@ -338,13 +425,14 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                     registration.registrationUri(),
                     token,
                     subject);
-        } catch (RuntimeException persistenceFailure) {
-            try {
-                transport.delete(registration.registrationUri(), token);
-            } catch (RuntimeException cleanupFailure) {
-                persistenceFailure.addSuppressed(cleanupFailure);
-            }
-            throw persistenceFailure;
+        } catch (RuntimeException registrationFailure) {
+            failClosedRemoteRegistration(
+                    command.clientId(),
+                    owner,
+                    expectedRegistrationUri(command.clientId()),
+                    token,
+                    registrationFailure);
+            throw registrationFailure;
         } finally {
             Arrays.fill(token, (byte) 0);
         }
@@ -354,28 +442,45 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             String clientId,
             String owner,
             RuntimeWorkloadCredentialState credential) {
-        return retrieve(clientId, owner, credential.acceptedKeyIds());
+        return retrieve(clientId, owner, publicJwks(credential));
     }
 
     private LifecycleResult retrieve(
             String clientId,
             String owner,
-            Set<String> expectedKeyIds) {
+            JsonNode expectedJwks) {
         return credentials.withRegistrationAccessToken(
                 clientId,
                 owner,
                 (authority, token) -> {
-                    JsonNode response = transport.retrieve(authority.registrationUri(), token);
-                    RegistrationResponse registration = registrationResponse(
-                            response, clientId, authority.registrationUri());
-                    validateMetadata(response, clientId, expectedKeyIds);
-                    persistRotatedAuthority(
-                            clientId,
-                            owner,
-                            authority,
-                            registration,
-                            authority.serviceAccountSubject(),
-                            authority.enabled());
+                    JsonNode response = transport.retrieve(
+                            clientId, authority.registrationUri(), token);
+                    byte[] next = registrationAccessToken(response);
+                    try {
+                        RegistrationResponse registration;
+                        try {
+                            registration = registrationResponse(
+                                    response, clientId, authority.registrationUri(), next);
+                            validateMetadata(response, clientId, expectedJwks);
+                        } catch (RuntimeException responseFailure) {
+                            failClosedRemoteRegistration(
+                                    clientId,
+                                    owner,
+                                    authority.registrationUri(),
+                                    next,
+                                    responseFailure);
+                            throw responseFailure;
+                        }
+                        persistRotatedAuthority(
+                                clientId,
+                                owner,
+                                authority,
+                                registration,
+                                authority.serviceAccountSubject(),
+                                authority.enabled());
+                    } finally {
+                        Arrays.fill(next, (byte) 0);
+                    }
                     return new LifecycleResult(authority.serviceAccountSubject());
                 });
     }
@@ -387,25 +492,42 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             ObjectNode metadata,
             String subject,
             boolean enabled) {
-        Set<String> expectedKeyIds = keyIds(metadata.path("jwks"));
+        JsonNode expectedJwks = metadata.path("jwks").deepCopy();
         credentials.withRegistrationAccessToken(
                 clientId,
                 owner,
                 (authority, token) -> {
                     JsonNode response = transport.update(
-                            authority.registrationUri(), metadata, token);
-                    RegistrationResponse registration = registrationResponse(
-                            response, clientId, authority.registrationUri());
-                    persistRotatedAuthority(
-                            clientId,
-                            owner,
-                            authority,
-                            registration,
-                            subject,
-                            enabled);
+                            clientId, authority.registrationUri(), metadata, token);
+                    byte[] next = registrationAccessToken(response);
+                    try {
+                        RegistrationResponse registration;
+                        try {
+                            registration = registrationResponse(
+                                    response, clientId, authority.registrationUri(), next);
+                            validateMetadata(response, clientId, expectedJwks);
+                        } catch (RuntimeException responseFailure) {
+                            failClosedRemoteRegistration(
+                                    clientId,
+                                    owner,
+                                    authority.registrationUri(),
+                                    next,
+                                    responseFailure);
+                            throw responseFailure;
+                        }
+                        persistRotatedAuthority(
+                                clientId,
+                                owner,
+                                authority,
+                                registration,
+                                subject,
+                                enabled);
+                    } finally {
+                        Arrays.fill(next, (byte) 0);
+                    }
                     return null;
                 });
-        retrieve(clientId, owner, expectedKeyIds);
+        retrieve(clientId, owner, expectedJwks);
     }
 
     private void persistRotatedAuthority(
@@ -417,6 +539,13 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             boolean enabled) {
         byte[] next = registration.registrationAccessToken();
         try {
+            if (authority.tokenFingerprint().equals(
+                    fingerprint(new String(next, StandardCharsets.UTF_8)))
+                    && authority.registrationUri().equals(registration.registrationUri())
+                    && authority.serviceAccountSubject().equals(subject)
+                    && authority.enabled() == enabled) {
+                return;
+            }
             credentials.replaceRegistrationAuthority(
                     clientId,
                     owner,
@@ -425,8 +554,37 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                     next,
                     subject,
                     enabled);
+        } catch (RuntimeException persistenceFailure) {
+            failClosedRemoteRegistration(
+                    clientId,
+                    owner,
+                    registration.registrationUri(),
+                    next,
+                    persistenceFailure);
+            throw persistenceFailure;
         } finally {
             Arrays.fill(next, (byte) 0);
+        }
+    }
+
+    private void failClosedRemoteRegistration(
+            String clientId,
+            String owner,
+            URI registrationUri,
+            byte[] currentRegistrationAccessToken,
+            RuntimeException primaryFailure) {
+        try {
+            transport.delete(clientId, registrationUri, currentRegistrationAccessToken);
+        } catch (RuntimeException cleanupFailure) {
+            primaryFailure.addSuppressed(cleanupFailure);
+        }
+        try {
+            credentials.delete(
+                    new com.massimotter.weave.backend.agentruntime.port
+                            .RuntimeWorkloadCredentialStore.DeleteCredentialCommand(
+                            clientId, owner));
+        } catch (RuntimeException cleanupFailure) {
+            primaryFailure.addSuppressed(cleanupFailure);
         }
     }
 
@@ -434,8 +592,12 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             String clientId,
             RuntimeWorkloadCredentialState credential,
             boolean update) {
+        return metadata(clientId, publicJwks(credential), update);
+    }
+
+    private JsonNode publicJwks(RuntimeWorkloadCredentialState credential) {
         try {
-            return metadata(clientId, mapper.readTree(credential.publicJwks()), update);
+            return mapper.readTree(credential.publicJwks());
         } catch (JacksonException failure) {
             throw new RuntimeWorkloadIdentityException(
                     "The workload public JWK set is invalid");
@@ -483,8 +645,25 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         }
     }
 
+    private byte[] registrationAccessToken(JsonNode response) {
+        JsonNode value = response == null
+                ? null
+                : response.path("registration_access_token");
+        if (value == null
+                || !value.isString()
+                || value.stringValue().isBlank()
+                || value.stringValue().length() > 16 * 1024) {
+            throw new RuntimeWorkloadIdentityException(
+                    "Keycloak returned an invalid Registration Access Token");
+        }
+        return value.stringValue().getBytes(StandardCharsets.UTF_8);
+    }
+
     private RegistrationResponse registrationResponse(
-            JsonNode response, String clientId, URI expectedUri) {
+            JsonNode response,
+            String clientId,
+            URI expectedUri,
+            byte[] registrationAccessToken) {
         if (response == null
                 || !clientId.equals(text(response, "client_id"))
                 || !CLIENT_AUTHENTICATOR_PRIVATE_KEY_JWT.equals(
@@ -499,33 +678,41 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             throw new RuntimeWorkloadIdentityException(
                     "Keycloak returned an invalid registration URI");
         }
-        if (expectedUri != null && !expectedUri.equals(uri)) {
+        URI configuredUri = expectedRegistrationUri(clientId);
+        if (!configuredUri.equals(uri)
+                || (expectedUri != null && !expectedUri.equals(uri))) {
             throw new RuntimeWorkloadIdentityException(
                     "Keycloak changed the client-bound registration URI");
         }
-        String rat = text(response, "registration_access_token");
-        if (rat.isBlank() || rat.length() > 16 * 1024) {
-            throw new RuntimeWorkloadIdentityException(
-                    "Keycloak returned an invalid Registration Access Token");
-        }
-        return new RegistrationResponse(
-                uri, rat.getBytes(StandardCharsets.UTF_8));
+        return new RegistrationResponse(uri, registrationAccessToken);
     }
 
     private void validateMetadata(
-            JsonNode response, String clientId, Set<String> expectedKeyIds) {
-        Set<String> scopes = Set.of(text(response, "scope").split(" "));
+            JsonNode response, String clientId, JsonNode expectedJwks) {
+        Set<String> scopes =
+                new HashSet<>(List.of(text(response, "scope").trim().split("\\s+")));
         Set<String> grants = strings(response.path("grant_types"));
         Set<String> redirects = strings(response.path("redirect_uris"));
+        Set<String> responseTypes = strings(response.path("response_types"));
         if (!clientId.equals(text(response, "client_name"))
                 || !new HashSet<>(settings.optionalClientScopes()).equals(scopes)
                 || !Set.of("client_credentials").equals(grants)
                 || !redirects.isEmpty()
+                || !responseTypes.isEmpty()
                 || !"public".equals(text(response, "subject_type"))
-                || !expectedKeyIds.equals(keyIds(response.path("jwks")))) {
+                || !"PS256".equals(text(response, "token_endpoint_auth_signing_alg"))
+                || !exactPublicJwks(expectedJwks, response.path("jwks"))
+                || hasForbiddenMetadata(response)) {
             throw new RuntimeWorkloadIdentityException(
                     "The Keycloak workload registration metadata has drifted");
         }
+    }
+
+    private URI expectedRegistrationUri(String clientId) {
+        return URI.create(
+                settings.issuer().toASCIIString()
+                        + "/clients-registrations/openid-connect/"
+                        + clientId);
     }
 
     private String verifyWorkloadSubject(
@@ -719,6 +906,67 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         return Set.copyOf(values);
     }
 
+    private static boolean exactPublicJwks(JsonNode expected, JsonNode observed) {
+        if (expected == null
+                || observed == null
+                || !expected.equals(observed)
+                || keyIds(expected).isEmpty()) {
+            return false;
+        }
+        JsonNode keys = observed.get("keys");
+        if (!(keys instanceof ArrayNode array)) {
+            return false;
+        }
+        for (JsonNode key : array) {
+            if (!key.isObject()
+                    || key.size() != 6
+                    || !"RSA".equals(text(key, "kty"))
+                    || !"sig".equals(text(key, "use"))
+                    || !"PS256".equals(text(key, "alg"))
+                    || !key.hasNonNull("kid")
+                    || !key.hasNonNull("n")
+                    || !key.hasNonNull("e")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean hasForbiddenMetadata(JsonNode response) {
+        for (String field : List.of(
+                "client_secret",
+                "client_secret_expires_at",
+                "jwks_uri",
+                "sector_identifier_uri",
+                "software_id",
+                "software_version",
+                "software_statement",
+                "client_uri",
+                "logo_uri",
+                "policy_uri",
+                "tos_uri",
+                "initiate_login_uri",
+                "root_url",
+                "base_url",
+                "admin_url",
+                "provider_url",
+                "web_origins",
+                "request_uris",
+                "protocol_mappers",
+                "protocolMappers",
+                "attributes")) {
+            JsonNode value = response.get(field);
+            if (value != null
+                    && !value.isNull()
+                    && !(value.isString() && value.stringValue().isBlank())
+                    && !(value.isArray() && value.isEmpty())
+                    && !(value.isObject() && value.isEmpty())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static BigInteger integer(JsonNode jwk, String field) {
         return new BigInteger(1, Base64.getUrlDecoder().decode(text(jwk, field)));
     }
@@ -759,6 +1007,12 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             requireHttp(issuer, "issuer", true);
             if (realm == null || realm.isBlank() || realm.contains("/")) {
                 throw new IllegalArgumentException("realm is required");
+            }
+            String encodedRealm =
+                    URLEncoder.encode(realm, StandardCharsets.UTF_8).replace("+", "%20");
+            if (!("/realms/" + encodedRealm).equals(issuer.getRawPath())) {
+                throw new IllegalArgumentException(
+                        "issuer must identify the configured realm exactly");
             }
             if (timeout == null || timeout.isZero() || timeout.isNegative()) {
                 throw new IllegalArgumentException("timeout must be positive");
@@ -808,11 +1062,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
     }
 
     private record RegistrationResponse(
-            URI registrationUri, byte[] registrationAccessToken) {
-        RegistrationResponse {
-            registrationAccessToken = registrationAccessToken.clone();
-        }
-    }
+            URI registrationUri, byte[] registrationAccessToken) {}
 
     private record LifecycleResult(String subject) {}
 }
