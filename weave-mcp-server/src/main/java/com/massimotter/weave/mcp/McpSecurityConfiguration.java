@@ -46,7 +46,8 @@ class McpSecurityConfiguration {
             new JwtTimestampValidator(),
             new JwtIssuerValidator(issuer),
             new McpAccessTokenTypeValidator(),
-            exactAudienceValidator(Set.of(properties.resourceUri().toString())));
+            exactAudienceValidator(
+                Set.of(properties.resourceUri().toString(), properties.exchangeClientId())));
     decoder.setJwtValidator(validator);
     return decoder;
   }
@@ -122,7 +123,7 @@ class McpSecurityConfiguration {
         .build();
   }
 
-  private static OAuth2TokenValidator<Jwt> exactAudienceValidator(Set<String> expected) {
+  static OAuth2TokenValidator<Jwt> exactAudienceValidator(Set<String> expected) {
     return jwt -> {
       if (jwt.getAudience() != null
           && jwt.getAudience().size() == expected.size()
