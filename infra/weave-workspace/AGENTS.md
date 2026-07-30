@@ -23,6 +23,8 @@ a parallel Compose graph or executable OpenTofu/Terraform fallback.
   schema convergence.
 - `backup.sh` and `adoption-rehearsal.sh`: private candidate-bound backup and isolated adoption
   proof. Normal stop/update never removes data.
+- `fresh-start-backup-rehearsal.sh`: private backup plus isolated restore proof for a hard cut;
+  it never migrates or authorizes adoption of the retired generation.
 
 ## Required sequence
 

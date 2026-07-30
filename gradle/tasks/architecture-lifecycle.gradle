@@ -89,6 +89,20 @@ tasks.register('freshStartPlan', Exec) {
     }
 }
 
+tasks.register('freshStartBackupRehearsal', Exec) {
+    group = 'weave operations'
+    description = 'Create a private candidate-bound backup and prove it in isolation without migration or adoption.'
+    workingDir rootProject.projectDir
+    outputs.upToDateWhen { false }
+    doFirst {
+        commandLine(
+            'bash',
+            'infra/weave-workspace/fresh-start-backup-rehearsal.sh',
+            optionalProperty('freshStartBackupProfile', 'test')
+        )
+    }
+}
+
 tasks.register('freshStartDeleteApprovedTargets', Exec) {
     group = 'weave operations'
     description = 'Internal Fresh Start phase: delete only the targets in one reviewed manifest.'

@@ -35,6 +35,9 @@ directory outside the checkout. `adoption-rehearsal.sh` verifies that backup thr
 restore before an unlabeled former deployment resource can be adopted. Never mutate or adopt a
 persistent test/prod resource without exact ownership labels or an explicitly selected
 `persistent-adoption` deployment context backed by a verified backup.
+`fresh-start-backup-rehearsal.sh` is the separate hard-cut recovery proof: it backs up and restores
+the retired generation in an isolated namespace without migrating credential state or authorizing
+adoption. Never substitute the adoption receipt for Fresh Start evidence.
 
 ## Validation and safety
 
