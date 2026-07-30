@@ -434,7 +434,7 @@ def main() -> None:
                 + hashlib.sha256(
                     isolated_overrides["WEAVE_E2E_RUN_ID"].encode("ascii")
                 ).hexdigest()[:20]
-                + "-member@example.invalid"
+                + "-member"
             )
             assert (
                 "WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM=preferred_username\n"

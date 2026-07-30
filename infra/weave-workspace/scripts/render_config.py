@@ -678,7 +678,7 @@ def _backend_env(context: ComposeContext) -> str:
         member_username = (
             "weave-e2e-"
             + hashlib.sha256(run_id.encode("ascii")).hexdigest()[:20]
-            + "-member@example.invalid"
+            + "-member"
         )
         values.update(
             {
