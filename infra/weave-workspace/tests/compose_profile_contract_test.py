@@ -286,6 +286,24 @@ def main() -> None:
         "provenance": {"overlayRevision": ""},
         "realm": {"adminPermissionsEnabled": True, "frontendUrl": "", "smtp": {}},
         "organizations": [{"key": "organization:weave-primary", "alias": "weave"}],
+        "clientScopes": [
+            {
+                "key": "scope:audience-contract",
+                "mappers": [
+                    {
+                        "includedCustomAudience": "https://api.weave.test/api",
+                    },
+                    {
+                        "includedCustomAudience": "https://api.weave.test/mcp",
+                    },
+                    {
+                        "includedCustomAudience": (
+                            "https://api.weave.test/api/v1/agent-runtime"
+                        ),
+                    },
+                ],
+            },
+        ],
         "organizationGroups": [
             {
                 "key": f"organization-group:{name}",
@@ -334,7 +352,7 @@ def main() -> None:
     }
     overlay = {
         "publicUrls": {
-            "api": "https://api.weave.local/api",
+            "api": "https://api.weave.local:9443/api",
             "auth": "https://auth.weave.local",
             "matrix": "https://matrix.weave.local",
             "weave": "https://weave.local",
@@ -362,6 +380,14 @@ def main() -> None:
         raise AssertionError("renderer accepted a legacy desired-state groups field")
     assert rendered["clientPolicies"] == canonical["clientPolicies"]
     assert rendered["serviceAccountRoleGrants"] == canonical["serviceAccountRoleGrants"]
+    assert [
+        mapper["includedCustomAudience"]
+        for mapper in rendered["clientScopes"][0]["mappers"]
+    ] == [
+        "https://api.weave.local:9443/api",
+        "https://api.weave.local:9443/mcp",
+        "https://api.weave.local:9443/api/v1/agent-runtime",
+    ]
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary)
         test = load_context("test", ROOT, str(materialize_example("test", root / "test.env")))
