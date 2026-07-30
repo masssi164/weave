@@ -30,6 +30,13 @@ public final class McpWorkloadAuthorizationException extends RuntimeException {
     public enum Reason {
         UNSPECIFIED,
         TOKEN_POLICY,
+        TOKEN_REQUIRED_CLAIMS,
+        TOKEN_TYPE,
+        TOKEN_REQUESTER,
+        TOKEN_AUDIENCE,
+        TOKEN_SCOPE,
+        TOKEN_REALM_ROLES,
+        TOKEN_CLIENT_ROLES,
         TOKEN_LIFETIME,
         CELL_NOT_FOUND,
         CELL_BINDING,
