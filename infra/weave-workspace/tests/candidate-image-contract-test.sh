@@ -9,6 +9,7 @@ readonly REPOSITORY_ROOT
 readonly SERVER_IMAGE="${REPOSITORY_ROOT}/server/Dockerfile"
 readonly MCP_IMAGE="${REPOSITORY_ROOT}/weave-mcp-server/Dockerfile"
 readonly IDENTITY_OPS_IMAGE="${REPOSITORY_ROOT}/infra/weave-workspace/keycloak/Dockerfile.identity-ops"
+readonly KEYCLOAK_RUNTIME_IMAGE="${REPOSITORY_ROOT}/infra/weave-workspace/keycloak/Dockerfile.runtime"
 readonly WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/candidate-images.yml"
 readonly DOCTOR_TASK="${REPOSITORY_ROOT}/gradle/tasks/ci-lifecycle.gradle"
 
@@ -29,7 +30,7 @@ reject() {
   ! grep -Fq -- "${text}" "${file}" || fail "${file} retains retired prerequisite ${text}"
 }
 
-for image in "${SERVER_IMAGE}" "${MCP_IMAGE}" "${IDENTITY_OPS_IMAGE}"; do
+for image in "${SERVER_IMAGE}" "${MCP_IMAGE}" "${IDENTITY_OPS_IMAGE}" "${KEYCLOAK_RUNTIME_IMAGE}"; do
   for label in \
     org.opencontainers.image.title \
     org.opencontainers.image.source \
@@ -54,6 +55,9 @@ contains "${MCP_IMAGE}" 'USER 10001:10001'
 contains "${MCP_IMAGE}" 'com.massimotter.weave.module="weave-mcp-server"'
 contains "${IDENTITY_OPS_IMAGE}" 'USER 1000:1000'
 contains "${IDENTITY_OPS_IMAGE}" 'com.massimotter.weave.module="identity-ops"'
+contains "${KEYCLOAK_RUNTIME_IMAGE}" 'USER 1000:0'
+contains "${KEYCLOAK_RUNTIME_IMAGE}" 'com.massimotter.weave.module="keycloak-runtime"'
+contains "${KEYCLOAK_RUNTIME_IMAGE}" 'com.massimotter.weave.provider-id="weave-workload-client-registration-enforcer"'
 
 contains "${WORKFLOW}" 'tag_sha=sha-$GITHUB_SHA'
 contains "${WORKFLOW}" 'tag_run=candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT'
@@ -63,6 +67,7 @@ contains "${WORKFLOW}" 'Verify published OCI runtime metadata'
 contains "${WORKFLOW}" 'validate_published_image'
 contains "${WORKFLOW}" 'docker image inspect'
 contains "${WORKFLOW}" 'com.massimotter.weave.runtime-user'
+contains "${WORKFLOW}" 'WEAVE_TEST_APP_KEYCLOAK_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-keycloak-runtime@${{ needs.build-candidate.outputs.keycloak_runtime_digest }}'
 reject "${WORKFLOW}" 'opentofu/setup-opentofu'
 reject "${WORKFLOW}" 'tofu_version'
 reject "${DOCTOR_TASK}" "checkCommand('tofu'"

@@ -16,6 +16,7 @@ ARG WEAVE_IMAGE_CREATED
 ARG WEAVE_IMAGE_REVISION
 ARG WEAVE_IMAGE_VERSION
 ARG WEAVE_SPEC_COMMIT
+ARG WEAVE_SPEC_DIGEST
 ARG WEAVE_KEYCLOAK_UPSTREAM_COMMIT
 ARG WEAVE_KEYCLOAK_ARCHIVE_SHA256
 ARG WEAVE_KEYCLOAK_STOCK_SERVICES_SHA256
@@ -33,6 +34,7 @@ LABEL org.opencontainers.image.title="Weave Keycloak Runtime" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.vendor="Weave" \
       com.massimotter.weave.spec-commit="${WEAVE_SPEC_COMMIT}" \
+      com.massimotter.weave.spec-digest="${WEAVE_SPEC_DIGEST}" \
       com.massimotter.weave.module="keycloak-runtime" \
       com.massimotter.weave.runtime-user="1000:0" \
       com.massimotter.weave.dependency-platform="keycloak-26.7.0-downstream-built-in-policy" \

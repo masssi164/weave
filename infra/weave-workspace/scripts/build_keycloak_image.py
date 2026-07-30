@@ -237,6 +237,12 @@ def build_image(
         "WEAVE_IMAGE_REVISION": candidate,
         "WEAVE_IMAGE_VERSION": f"26.7.0-weave.{candidate[:12]}",
         "WEAVE_SPEC_COMMIT": SPEC_COMMIT,
+        "WEAVE_SPEC_DIGEST": (
+            "sha256:"
+            + hashlib.sha256(
+                (repository / "specs/weave-specs.lock.json").read_bytes()
+            ).hexdigest()
+        ),
         "WEAVE_KEYCLOAK_UPSTREAM_COMMIT": UPSTREAM_COMMIT,
         "WEAVE_KEYCLOAK_ARCHIVE_SHA256": ARCHIVE_SHA256,
         "WEAVE_KEYCLOAK_STOCK_SERVICES_SHA256": STOCK_SERVICES_SHA256,
@@ -264,11 +270,28 @@ def build_image(
     return tag, image_id
 
 
+def prepare_build_context(
+    context: Path,
+    services: Path,
+    dockerfile: Path,
+) -> None:
+    if context.exists():
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR prepared build context already exists"
+        )
+    context.mkdir(parents=True, mode=0o700)
+    shutil.copyfile(services, context / services.name)
+    os.chmod(context / services.name, 0o600)
+    shutil.copyfile(dockerfile, context / "Dockerfile.runtime")
+    os.chmod(context / "Dockerfile.runtime", 0o600)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--candidate-commit")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--prepare-context", type=Path)
     args = parser.parse_args()
     repository = args.root.resolve()
     candidate = resolve_candidate(repository, args.candidate_commit)
@@ -278,14 +301,23 @@ def main() -> int:
         services, patch_digest, patched_digest = build_services(
             repository, temporary
         )
-        tag, image_id = build_image(
-            repository,
-            candidate,
-            services,
-            patch_digest,
-            patched_digest,
-            temporary,
-        )
+        if args.prepare_context:
+            prepare_build_context(
+                args.prepare_context.resolve(),
+                services,
+                repository / DOCKERFILE_RELATIVE,
+            )
+            tag = None
+            image_id = None
+        else:
+            tag, image_id = build_image(
+                repository,
+                candidate,
+                services,
+                patch_digest,
+                patched_digest,
+                temporary,
+            )
     evidence = {
         "schemaVersion": "weave.downstream-keycloak-image.v1",
         "evidenceForCandidateCommit": candidate,
@@ -299,6 +331,7 @@ def main() -> int:
         "patchedServicesJarSha256": patched_digest,
         "imageTag": tag,
         "imageId": image_id,
+        "preparedContext": args.prepare_context is not None,
         "providerId": "weave-workload-client-registration-enforcer",
         "providerPackaging": "built-in-keycloak-services",
         "containsSecretValues": False,
@@ -306,7 +339,7 @@ def main() -> int:
     }
     if args.output:
         atomic_write(args.output.resolve(), evidence)
-    print(image_id)
+    print(args.prepare_context.resolve() if args.prepare_context else image_id)
     return 0
 
 

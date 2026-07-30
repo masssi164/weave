@@ -64,6 +64,21 @@ assert "keycloak-server-spi-private" not in patch_text
 assert "FROM ${WEAVE_KEYCLOAK_BASE} AS builder" in dockerfile_text
 assert "kc.sh build --db=postgres" in dockerfile_text
 assert "com.massimotter.weave.keycloak-patch-sha256" in dockerfile_text
+assert "com.massimotter.weave.spec-digest" in dockerfile_text
+
+services = temporary / "keycloak-services-26.7.0.jar"
+services.write_bytes(b"fixture")
+context = temporary / "prepared-context"
+module.prepare_build_context(context, services, dockerfile)
+assert (context / services.name).read_bytes() == b"fixture"
+assert (context / "Dockerfile.runtime").read_text(encoding="utf-8") == dockerfile_text
+assert stat.S_IMODE((context / services.name).stat().st_mode) == 0o600
+try:
+    module.prepare_build_context(context, services, dockerfile)
+except SystemExit as failure:
+    assert "already exists" in str(failure)
+else:
+    raise AssertionError("Keycloak builder overwrote a prepared build context")
 PY
 
 printf 'build-keycloak-image-helper-test: ok\n'

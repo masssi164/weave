@@ -35,6 +35,8 @@ grep -Fq 'PUBLISHED_DIGEST_IMAGE_RE' "${ROOT_DIR}/scripts/compose_env.py"
 grep -Fq 'Fresh Start is forbidden for prod' "${PYTHON_SCRIPT}"
 grep -Fq "DELETE_OLD_WEAVE:{digest}" "${PYTHON_SCRIPT}"
 grep -Fq 'canonical_json_bytes' "${PYTHON_SCRIPT}"
+grep -Fq '"WEAVE_KEYCLOAK_IMAGE": image_reference(' "${ROOT_DIR}/fresh-start-recreate.py"
+grep -Fq 'candidate, "keycloak-runtime"' "${ROOT_DIR}/fresh-start-recreate.py"
 if grep -Eq 'docker (system|container|volume|network) prune|name.*startswith|prefix|glob' "${PYTHON_SCRIPT}"; then
   echo "Fresh Start contains a broad selection/deletion primitive" >&2
   exit 1

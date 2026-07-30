@@ -147,12 +147,14 @@ the provider work area is a bounded executable tmpfs, and the state directory is
 private mount.
 
 `.github/workflows/candidate-images.yml` is the only candidate image producer. It runs the JVM,
-MCP, and PostgreSQL gates before publishing Server, MCP Server, and Identity Ops. Tags identify a
-commit and workflow attempt for navigation, but deployment identity is always the image digest.
+MCP, and PostgreSQL gates before publishing Server, MCP Server, Identity Ops, and the
+version-pinned Keycloak Runtime. Tags identify a commit and workflow attempt for navigation, but
+deployment identity is always the image digest.
 Each image carries OCI/Weave labels plus embedded SPDX SBOM and SLSA provenance attestations. A
-canonical candidate manifest binds all three image digests, attestation layer digests, the commit,
+canonical candidate manifest binds all four image digests, attestation layer digests, the commit,
 and the Specification Corpus lock digest. Its dependent `fresh-product-proof` job passes only the
-published Server and MCP `@sha256` references into `testApp`, which verifies their revision,
+published Server, MCP, Identity Ops, and Keycloak Runtime `@sha256` references into `testApp`,
+which verifies their revision,
 Specification Corpus digest and dependency-platform annotations before starting the isolated
 stack.
 
@@ -161,8 +163,8 @@ stack.
 `./gradlew testApp` owns one run-scoped stack from preparation through exact teardown:
 
 1. A local image build requires a clean Git worktree; candidate CI instead supplies paired,
-   published Server and MCP digest references. This prevents an uncommitted source tree from
-   inheriting a misleading commit revision label.
+   published digest references for all four candidate runtime images. This prevents an
+   uncommitted source tree from inheriting a misleading commit revision label.
 2. `prepare-product-flow` creates namespace, ports, ownership evidence, a machine-only Chat proof
    SecretRef and empty human membership inputs. It creates no `credentials.env`.
 3. The protected first-owner operation emits a normal Keycloak organization invitation.

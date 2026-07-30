@@ -12,9 +12,10 @@ Use this page for release-affecting changes that have merged but are not include
   activation, real Chromium registration, Authorization Code + PKCE, member invitation, ARC
   provisioning, per-cell `private_key_jwt`, MCP discovery/tool use, WebDAV provider access,
   revocation, support-safe evidence, and exact isolated cleanup.
-- Adds digest-bound Server, MCP Server, and Identity Ops candidate images with immutable
-  navigation tags, standard OCI metadata, module/runtime/platform labels, numeric non-root users,
-  embedded SBOM/provenance attestations, and post-publish metadata verification.
+- Adds digest-bound Server, MCP Server, Identity Ops, and version-pinned Keycloak Runtime
+  candidate images with immutable navigation tags, standard OCI metadata,
+  module/runtime/platform labels, numeric non-root users, embedded SBOM/provenance attestations,
+  and post-publish metadata verification.
 - Adds a versioned enterprise dogfood readiness manifest and ordered candidate chain covering exact-commit three-user collaboration, non-destructive persistent deployment, TestFlight distribution, and mandatory physical-iPhone VoiceOver signoff before any human-testing-ready or main-promotion claim.
 - Adds a client-owned Matrix E2EE release candidate through the Apache-2.0 Matrix Rust SDK and `flutter_rust_bridge`: encrypted room sync/send, encrypted SQLite state, stable device identity, cross-signing, accessible SAS verification, recovery, lost-device denial, opaque server persistence, and live E2E evidence gates.
 - Adds stable physical-iPhone session continuity for in-place TestFlight iterations. The saved organization profile, OIDC refresh session, Matrix device ID, Keychain-held crypto-store passphrase, and encrypted history survive ordinary close, relaunch, and app update; explicit account removal remains the destructive boundary.

@@ -185,6 +185,9 @@ def recreate_environment(
             "WEAVE_IDENTITY_OPS_IMAGE": image_reference(
                 candidate, "identity-ops"
             ),
+            "WEAVE_KEYCLOAK_IMAGE": image_reference(
+                candidate, "keycloak-runtime"
+            ),
         }
     )
     profile = "test" if plan["environment"] in {"test", "persistent-dogfood"} else "dev"

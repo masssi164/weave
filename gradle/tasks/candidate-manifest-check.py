@@ -10,7 +10,12 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-REQUIRED_COMPONENTS = {"server", "mcp-server", "identity-ops"}
+REQUIRED_COMPONENTS = {
+    "server",
+    "mcp-server",
+    "identity-ops",
+    "keycloak-runtime",
+}
 SHA256 = re.compile(r"sha256:[0-9a-f]{64}")
 IMAGE = re.compile(r"[^\s@:]+(?:/[^\s@:]+)+@sha256:[0-9a-f]{64}")
 
