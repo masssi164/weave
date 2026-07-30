@@ -354,6 +354,13 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             String clientId,
             String owner,
             RuntimeWorkloadCredentialState credential) {
+        return retrieve(clientId, owner, credential.acceptedKeyIds());
+    }
+
+    private LifecycleResult retrieve(
+            String clientId,
+            String owner,
+            Set<String> expectedKeyIds) {
         return credentials.withRegistrationAccessToken(
                 clientId,
                 owner,
@@ -361,7 +368,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                     JsonNode response = transport.retrieve(authority.registrationUri(), token);
                     RegistrationResponse registration = registrationResponse(
                             response, clientId, authority.registrationUri());
-                    validateMetadata(response, clientId, credential.acceptedKeyIds());
+                    validateMetadata(response, clientId, expectedKeyIds);
                     persistRotatedAuthority(
                             clientId,
                             owner,
@@ -380,6 +387,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             ObjectNode metadata,
             String subject,
             boolean enabled) {
+        Set<String> expectedKeyIds = keyIds(metadata.path("jwks"));
         credentials.withRegistrationAccessToken(
                 clientId,
                 owner,
@@ -388,10 +396,6 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                             authority.registrationUri(), metadata, token);
                     RegistrationResponse registration = registrationResponse(
                             response, clientId, authority.registrationUri());
-                    validateMetadata(
-                            response,
-                            clientId,
-                            keyIds(metadata.path("jwks")));
                     persistRotatedAuthority(
                             clientId,
                             owner,
@@ -401,6 +405,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                             enabled);
                     return null;
                 });
+        retrieve(clientId, owner, expectedKeyIds);
     }
 
     private void persistRotatedAuthority(

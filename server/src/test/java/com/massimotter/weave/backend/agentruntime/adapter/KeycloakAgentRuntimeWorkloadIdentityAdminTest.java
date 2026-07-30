@@ -194,6 +194,23 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
     }
 
     @Test
+    void failedPostUpdateVerificationRetainsOnlyTheRotatedRatForRecovery() {
+        RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
+        transport.failNextRetrieve = true;
+
+        assertThatThrownBy(() -> adapter.disableBinding(new DisableBindingCommand(
+                ORGANIZATION, PERSON, CELL, binding, "audit:disable")))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("simulated post-update verification failure");
+
+        assertThat(adapter.reconcileBinding(new ReconcileBindingCommand(
+                ORGANIZATION, PERSON, CELL, binding, "audit:recover")))
+                .isEqualTo(binding);
+        assertThat(transport.updates).hasValue(2);
+        assertThat(adapter.scan().clients().getFirst().enabled()).isTrue();
+    }
+
+    @Test
     void crossCellAuthorityCannotReadOrDeleteTheBinding() {
         RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
         assertThatThrownBy(() -> adapter.reconcileBinding(new ReconcileBindingCommand(
@@ -256,6 +273,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         private String lastAdministrationToken;
         private Map<String, String> lastClientCredentials = Map.of();
         private boolean deleted;
+        private boolean failNextRetrieve;
 
         FakeRegistrationTransport(ObjectMapper mapper) {
             this.mapper = mapper;
@@ -275,6 +293,11 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         @Override
         public JsonNode retrieve(URI uri, byte[] rat) {
             requireAuthority(uri, rat);
+            if (failNextRetrieve) {
+                failNextRetrieve = false;
+                throw new RuntimeWorkloadIdentityException(
+                        "simulated post-update verification failure");
+            }
             retrieves.incrementAndGet();
             return response(rotateRat());
         }
@@ -288,7 +311,9 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             }
             updates.incrementAndGet();
             metadata = ((ObjectNode) requested).deepCopy();
-            return response(rotateRat());
+            ObjectNode stalePrePolicyResponse = response(rotateRat());
+            stalePrePolicyResponse.remove("scope");
+            return stalePrePolicyResponse;
         }
 
         @Override
