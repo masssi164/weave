@@ -71,4 +71,19 @@ class WorkloadMcpJourneyTest {
                 100))
         .isEmpty();
   }
+
+  @Test
+  void extractsJsonFromAStreamableHttpEventWithMetadataLines() {
+    String payload =
+        """
+        id: 7
+        event: message
+        data: {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25"}}
+
+        """;
+
+    assertThat(WorkloadMcpJourney.protocolPayload(payload))
+        .isEqualTo(
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2025-11-25\"}}");
+  }
 }

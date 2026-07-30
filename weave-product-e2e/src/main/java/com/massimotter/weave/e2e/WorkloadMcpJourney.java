@@ -313,22 +313,25 @@ final class WorkloadMcpJourney {
   }
 
   private JsonNode protocolBody(JsonHttpClient.Response response) {
-    String body = response.bodyText().trim();
-    if (body.startsWith("data:")) {
-      body =
-          body.lines()
-              .filter(line -> line.startsWith("data:"))
-              .map(line -> line.substring("data:".length()).trim())
-              .filter(line -> !line.isBlank())
-              .findFirst()
-              .orElseThrow(
-                  () -> new ProductFlowException("MCP event stream contained no JSON result"));
-    }
+    String body = protocolPayload(response.bodyText());
     try {
       return http.mapper().readTree(body);
     } catch (RuntimeException failure) {
       throw new ProductFlowException("MCP returned an invalid protocol message", failure);
     }
+  }
+
+  static String protocolPayload(String responseBody) {
+    String body = responseBody == null ? "" : responseBody.trim();
+    String eventData =
+        body.lines()
+            .map(String::trim)
+            .filter(line -> line.startsWith("data:"))
+            .map(line -> line.substring("data:".length()).trim())
+            .filter(line -> !line.isBlank())
+            .findFirst()
+            .orElse("");
+    return eventData.isBlank() ? body : eventData;
   }
 
   private ObjectNode request(Integer id, String method) {
