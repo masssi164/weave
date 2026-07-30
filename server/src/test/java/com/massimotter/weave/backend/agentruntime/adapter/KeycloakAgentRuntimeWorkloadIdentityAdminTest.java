@@ -14,6 +14,7 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAd
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin.RetireCredentialCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin.RotateBindingCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityInventory.QuarantineManagedCommand;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -173,6 +174,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 ORGANIZATION, PERSON, CELL, binding, "audit:disable"));
 
         assertThat(adapter.scan().clients().getFirst().enabled()).isFalse();
+        assertThat(transport.metadata.path("client_id").asText()).isEqualTo(CLIENT_ID);
         assertThat(transport.metadata.path("jwks").path("keys").get(0).path("kid").asText())
                 .startsWith("revoked_");
         assertThat(credentials.find(CLIENT_ID)).isPresent();
@@ -201,6 +203,21 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 ORGANIZATION, PERSON, "cell:other", binding, "audit:cross-cell-delete")))
                 .isInstanceOf(RuntimeWorkloadIdentityException.class);
         assertThat(transport.deleted).isFalse();
+    }
+
+    @Test
+    void quarantineUsesAnUpdateBoundToTheExactManagedClient() {
+        adapter.ensureBinding(ensure());
+        var observed = adapter.scan().clients().getFirst();
+
+        adapter.quarantineManaged(new QuarantineManagedCommand(
+                observed.providerRef(),
+                observed.clientId(),
+                observed.ownerFingerprint(),
+                "audit:quarantine"));
+
+        assertThat(transport.metadata.path("client_id").asText()).isEqualTo(CLIENT_ID);
+        assertThat(adapter.scan().clients().getFirst().enabled()).isFalse();
     }
 
     @Test
@@ -265,6 +282,10 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         @Override
         public JsonNode update(URI uri, JsonNode requested, byte[] rat) {
             requireAuthority(uri, rat);
+            if (!CLIENT_ID.equals(requested.path("client_id").asText())) {
+                throw new RuntimeWorkloadIdentityException(
+                        "registration update client binding rejected");
+            }
             updates.incrementAndGet();
             metadata = ((ObjectNode) requested).deepCopy();
             return response(rotateRat());

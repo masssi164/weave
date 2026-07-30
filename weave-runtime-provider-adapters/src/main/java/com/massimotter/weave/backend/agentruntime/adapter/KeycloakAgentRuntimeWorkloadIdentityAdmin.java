@@ -234,7 +234,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                 command.binding().clientId(),
                 owner,
                 credential,
-                metadata(command.binding().clientId(), revocationJwks(), false),
+                metadata(command.binding().clientId(), revocationJwks(), true),
                 command.binding().subject(),
                 false);
     }
@@ -304,7 +304,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                 entry.clientId(),
                 entry.ownerFingerprint(),
                 credential,
-                metadata(entry.clientId(), revocationJwks(), false),
+                metadata(entry.clientId(), revocationJwks(), true),
                 entry.authority().serviceAccountSubject(),
                 false);
     }
