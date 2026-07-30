@@ -31,7 +31,7 @@ spec.loader.exec_module(module)
 assert module.UPSTREAM_COMMIT == "6c73e3027811d9c7b22683edd825e839272e9547"
 assert module.ARCHIVE_SHA256 == "32267c4f45db91874c46a097415c336d137ee184d25c3481a513905a92669186"
 assert module.STOCK_SERVICES_SHA256 == "052169f7907a21f4e26679bca5c7365627db91b071a7a2fcaeee00230e6b1419"
-assert module.SPEC_COMMIT == "d864cc095dbc4dcf223fa7458e73b58826f7d0d0"
+assert module.SPEC_COMMIT == "e545f919b4cb612f27448553049b25c3fd123415"
 try:
     module.resolve_candidate(repository, "1" * 40)
 except SystemExit as failure:
@@ -55,6 +55,8 @@ assert "representation.setScope(null)" in patch_text
 assert "attributes.entrySet().removeIf(entry -> entry.getValue() == null)" in patch_text
 assert "client.removeAttribute(ClientSecretConstants.CLIENT_SECRET_CREATION_TIME)" in patch_text
 assert "FIXED_ATTRIBUTES.forEach(client::setAttribute)" in patch_text
+assert "OIDCConfigAttributes.USE_RFC9068_ACCESS_TOKEN_HEADER_TYPE" in patch_text
+assert "attributes.putIfAbsent(" in patch_text
 assert "@@ -92,4 +93,9 @@" in patch_text
 assert "@@ -94,0" not in patch_text
 assert "keycloak-server-spi-private" not in patch_text

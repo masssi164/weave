@@ -159,6 +159,10 @@ final class WorkloadMcpJourney {
   }
 
   private void validateWorkloadToken(String token, String clientId) {
+    JsonNode header = jwtPart(token, 0);
+    if (!hasRfc9068TokenType(header)) {
+      throw new ProductFlowException("MCP workload token type is not RFC 9068 at+jwt");
+    }
     JsonNode claims = jwtPayload(token);
     Set<String> invalidIdentityClaims =
         invalidIdentityClaims(
@@ -203,6 +207,10 @@ final class WorkloadMcpJourney {
       invalid.add("expiry");
     }
     return Set.copyOf(invalid);
+  }
+
+  static boolean hasRfc9068TokenType(JsonNode header) {
+    return "at+jwt".equalsIgnoreCase(header.path("typ").asString());
   }
 
   private RSAKey readActiveKey(String clientId) {
@@ -329,12 +337,16 @@ final class WorkloadMcpJourney {
   }
 
   private JsonNode jwtPayload(String token) {
+    return jwtPart(token, 1);
+  }
+
+  private JsonNode jwtPart(String token, int index) {
     String[] parts = token.split("\\.");
     if (parts.length != 3) {
       throw new ProductFlowException("workload access token is not a JWT");
     }
     try {
-      return http.mapper().readTree(Base64.getUrlDecoder().decode(parts[1]));
+      return http.mapper().readTree(Base64.getUrlDecoder().decode(parts[index]));
     } catch (RuntimeException failure) {
       throw new ProductFlowException("workload access token is invalid", failure);
     }

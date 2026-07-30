@@ -8,6 +8,20 @@ import org.junit.jupiter.api.Test;
 class WorkloadMcpJourneyTest {
 
   @Test
+  void requiresTheRfc9068AccessTokenHeaderType() {
+    var mapper = JsonMapper.builder().build();
+
+    assertThat(
+            WorkloadMcpJourney.hasRfc9068TokenType(
+                mapper.createObjectNode().put("typ", "at+jwt")))
+        .isTrue();
+    assertThat(
+            WorkloadMcpJourney.hasRfc9068TokenType(
+                mapper.createObjectNode().put("typ", "JWT")))
+        .isFalse();
+  }
+
+  @Test
   void reportsOnlyInvalidIdentityFieldNames() {
     var claims =
         JsonMapper.builder()

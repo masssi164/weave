@@ -2,7 +2,7 @@ diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/
 new file mode 100644
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,488 @@
+@@ -0,0 +1,494 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import jakarta.ws.rs.core.Response;
@@ -127,6 +127,7 @@ new file mode 100644
 +            JWT_PUBLIC_KEY,
 +            JWT_KEY_ID,
 +            OIDCConfigAttributes.TOKEN_ENDPOINT_AUTH_SIGNING_ALG,
++            OIDCConfigAttributes.USE_RFC9068_ACCESS_TOKEN_HEADER_TYPE,
 +            USE_REFRESH_TOKENS,
 +            BACKCHANNEL_LOGOUT_SESSION_REQUIRED,
 +            BACKCHANNEL_LOGOUT_REVOKE_OFFLINE_TOKENS,
@@ -135,6 +136,8 @@ new file mode 100644
 +            OIDCConfigAttributes.USE_JWKS_STRING, Boolean.TRUE.toString(),
 +            OIDCConfigAttributes.USE_JWKS_URL, Boolean.FALSE.toString(),
 +            OIDCConfigAttributes.TOKEN_ENDPOINT_AUTH_SIGNING_ALG, Algorithm.PS256,
++            OIDCConfigAttributes.USE_RFC9068_ACCESS_TOKEN_HEADER_TYPE,
++                    Boolean.TRUE.toString(),
 +            USE_REFRESH_TOKENS, Boolean.FALSE.toString(),
 +            BACKCHANNEL_LOGOUT_SESSION_REQUIRED, Boolean.FALSE.toString(),
 +            BACKCHANNEL_LOGOUT_REVOKE_OFFLINE_TOKENS, Boolean.FALSE.toString(),
@@ -279,6 +282,9 @@ new file mode 100644
 +                throw invalid(INVALID_ATTRIBUTES_DETAIL);
 +            }
 +        }
++        attributes.putIfAbsent(
++                OIDCConfigAttributes.USE_RFC9068_ACCESS_TOKEN_HEADER_TYPE,
++                Boolean.TRUE.toString());
 +        if (!ALLOWED_ATTRIBUTES.containsAll(attributes.keySet())) {
 +            throw invalid(INVALID_ATTRIBUTE_SET_DETAIL);
 +        }

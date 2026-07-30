@@ -28,7 +28,7 @@ STOCK_KEYCLOAK_REFERENCE = (
     "sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13"
 )
 ARCHIVE_URL = f"https://github.com/keycloak/keycloak/archive/{UPSTREAM_COMMIT}.tar.gz"
-SPEC_COMMIT = "d864cc095dbc4dcf223fa7458e73b58826f7d0d0"
+SPEC_COMMIT = "e545f919b4cb612f27448553049b25c3fd123415"
 PATCH_RELATIVE = Path(
     "infra/weave-workspace/keycloak/patches/"
     "0001-weave-workload-registration-policy.patch"
