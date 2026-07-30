@@ -267,6 +267,7 @@ jq -e \
   .privateKeyJwt == true and
   .effectiveWorkloadRoles == ["weaver-runtime"] and
   .registrationAccessTokenRotation == true and
+  .postUpdateFinalStateVerified == true and
   .staleRegistrationAccessTokenRejected == true and
   .crossCellRegistrationAccessTokenRejected == true and
   (.negativeCases | length) == 7 and
