@@ -154,18 +154,22 @@ only the services it observed running. A successful directory is named
 - `caddy-data.tgz` and `caddy-config.tgz`;
 - `matrix-appservice.tgz`;
 - `private-config-secrets.tgz`, containing the generated, SecretRef, and TLS consistency roots;
-- `BackupManifest.json`, using only `weave.compose-private-backup.v2` and binding the candidate,
-  profile, Compose project, database fingerprint, quiesced services, runtime inventory, byte counts,
-  and SHA-256 hashes.
+- `BackupManifest.json`, using only `weave.compose-private-backup.v3` and binding the candidate,
+  candidate manifest, profile, Compose project, database fingerprint, the immutable PostgreSQL
+  dump-client image, exact non-template database inventory and its support-safe digest, quiesced
+  services, runtime inventory, byte counts, and SHA-256 hashes.
 
 Every listed artifact and the manifest are private and must never be uploaded as support evidence.
+Backup creation uses an owner-only staging directory and publishes the completed consistency set
+with one atomic rename. A failed backup removes only its exact staging directory after the
+quiesced services have been restarted.
 Support bundles are not backups and exclude database content, provider/member content, raw logs,
 credentials, signed assertions, and private configuration.
 
-The backup remains bound to `WEAVE_CANDIDATE_COMMIT`, the lane authority. Image provenance is a
-separate support-safe mapping from that lane commit to `WEAVE_IMAGE_SOURCE_COMMIT` and the four
-immutable image IDs; do not relabel a lane-built image or substitute the source commit in backup
-receipts.
+The backup remains bound to `WEAVE_CANDIDATE_COMMIT`, the lane authority, and to
+`WEAVE_CANDIDATE_MANIFEST_DIGEST`. Image provenance is a separate support-safe mapping from that
+lane commit to `WEAVE_IMAGE_SOURCE_COMMIT` and the four immutable image IDs; do not relabel a
+lane-built image or substitute the source commit in backup receipts.
 
 Minimum expectation before calling the stack release-ready:
 
@@ -176,7 +180,7 @@ Minimum expectation before calling the stack release-ready:
 
 ## 6. Restore outline and smoke
 
-The repository currently exposes only a non-mutating v2 integrity preflight:
+The repository currently exposes only a non-mutating v3 integrity preflight:
 
 ```bash
 WEAVE_RESTORE_PREFLIGHT_ONLY=true \
@@ -212,12 +216,13 @@ credential migration or state adoption. Before requesting its exact destructive 
 
 ```bash
 WEAVE_CANDIDATE_COMMIT=<exact-sha> \
+WEAVE_CANDIDATE_MANIFEST_DIGEST=sha256:<exact-manifest-digest> \
 WEAVE_BACKUP_ROOT=/private/mode-0700/path \
 WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env \
 bash weave-workspace/fresh-start-backup-rehearsal.sh test
 ```
 
-This command quiesces the exact former runtime, creates the same private Compose v2 consistency
+This command quiesces the exact former runtime, creates the same private Compose v3 consistency
 set, restores every archived provider volume and PostgreSQL service database into a newly generated
 isolated namespace, verifies the Weave realm, and removes every rehearsal-owned container, network,
 volume, and temporary password file. Its mode-`0600` support-safe receipt is written inside the
@@ -225,8 +230,19 @@ private backup directory as `FreshStartBackupRehearsal.json`. The receipt explic
 `legacyStateMigrated=false`, `adoptionAuthorized=false`, and `cleanupVerified=true`; it is recovery
 evidence for the hard cut, never authority to import or attach the restored state.
 
+The restore server and SQL client both use the immutable PostgreSQL image recorded from the source
+runtime. Provider-volume extraction uses the candidate's immutable GNU-tar helper without network
+access. The receipt binds both helper images, the candidate manifest, the database-inventory
+digest, exact provider-volume inventory digests, and successful cleanup.
+
+When `freshStartPlan` uses `-PrecoveryDecision=verified-backup`, also supply
+`-PrecoveryReceipt=/absolute/private/path/FreshStartBackupRehearsal.json`. Planning rejects a
+missing, stale, weakly permissioned, candidate-mismatched, non-cleaned, migration-authorizing, or
+manifest-mismatched receipt. Only the receipt SHA-256 and the support-safe
+`-PrecoveryEvidenceRef=...` are written to the canonical deletion plan.
+
 `restore-smoke.sh` does not restore or delete data. After a separately approved restore/rehearsal it
-revalidates the v2 consistency set, runs `operator-check.sh`, and verifies Matrix Application Service
+revalidates the v3 consistency set, runs `operator-check.sh`, and verifies Matrix Application Service
 mounts plus Agent Runtime trust/readiness. It emits `weave.compose-restore-receipt.v2` with only a
 manifest hash, backup-ID hash, exact candidate/profile/project binding, and support-safe outcomes.
 If a deliberately empty disposable Matrix database must be reprovisioned, use:

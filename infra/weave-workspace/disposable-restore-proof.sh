@@ -296,13 +296,35 @@ for name, kind in [
     })
 
 backup_manifest = {
-    "schemaVersion": "weave.compose-private-backup.v2",
+    "schemaVersion": "weave.compose-private-backup.v3",
     "backupId": backup_id,
     "createdAt": created_at,
     "candidateCommit": candidate,
+    "candidateManifestDigest": "sha256:" + "d" * 64,
     "profile": "test",
     "composeProject": "weave-disposable-proof",
     "databaseFingerprint": "sha256:" + hashlib.sha256(postgres.read_bytes()).hexdigest(),
+    "postgresDumpClientImage": "postgres@sha256:" + "c" * 64,
+    "postgresDatabases": [
+        "postgres",
+        "weave_backend",
+        "weave_keycloak",
+        "weave_nextcloud",
+        "weave_synapse",
+    ],
+    "postgresDatabaseInventoryDigest": "sha256:" + hashlib.sha256(
+        json.dumps(
+            [
+                "postgres",
+                "weave_backend",
+                "weave_keycloak",
+                "weave_nextcloud",
+                "weave_synapse",
+            ],
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest(),
     "quiescedServices": ["backend", "synapse", "nextcloud", "keycloak"],
     "runtimeInventory": [{"service": "provider-fixtures", "authority": "isolated-disposable-proof", "container": "none"}],
     "artifacts": sorted(artifact_entries, key=lambda item: item["path"]),

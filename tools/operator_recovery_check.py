@@ -102,7 +102,7 @@ def sha256_file(path: Path) -> str:
 
 
 def validate_backup_manifest(manifest: dict[str, Any], *, fixture: bool) -> None:
-    if manifest.get("schemaVersion") != "weave.compose-private-backup.v2":
+    if manifest.get("schemaVersion") != "weave.compose-private-backup.v3":
         fail("BackupManifest schema mismatch")
     if manifest.get("supportSafe") is not False or manifest.get("containsSecretsOrMemberData") is not True:
         fail("BackupManifest must declare backup artifacts private")
@@ -114,6 +114,37 @@ def validate_backup_manifest(manifest: dict[str, Any], *, fixture: bool) -> None
         fail("BackupManifest Compose project is invalid")
     if not isinstance(manifest.get("databaseFingerprint"), str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["databaseFingerprint"]):
         fail("BackupManifest database fingerprint is invalid")
+    if not isinstance(manifest.get("candidateManifestDigest"), str) or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", manifest["candidateManifestDigest"]
+    ):
+        fail("BackupManifest candidate manifest digest is invalid")
+    if not isinstance(manifest.get("postgresDumpClientImage"), str) or not re.fullmatch(
+        r"postgres@sha256:[0-9a-f]{64}",
+        manifest["postgresDumpClientImage"],
+    ):
+        fail("BackupManifest PostgreSQL dump client image is invalid")
+    postgres_databases = manifest.get("postgresDatabases")
+    if (
+        not isinstance(postgres_databases, list)
+        or "postgres" not in postgres_databases
+        or postgres_databases != sorted(set(postgres_databases))
+        or any(
+            not isinstance(name, str)
+            or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,62}", name)
+            for name in postgres_databases
+        )
+    ):
+        fail("BackupManifest PostgreSQL inventory is invalid")
+    expected_database_digest = "sha256:" + hashlib.sha256(
+        json.dumps(
+            postgres_databases,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    if manifest.get("postgresDatabaseInventoryDigest") != expected_database_digest:
+        fail("BackupManifest PostgreSQL inventory digest is invalid")
     if not isinstance(manifest.get("quiescedServices"), list) or not isinstance(manifest.get("runtimeInventory"), list):
         fail("BackupManifest runtime consistency boundary is missing")
     artifacts = manifest.get("artifacts")
@@ -137,7 +168,7 @@ def validate_backup_manifest(manifest: dict[str, Any], *, fixture: bool) -> None
         if not isinstance(item.get("bytes"), int) or item["bytes"] <= 0:
             fail(f"backup artifact {path} must include positive bytes")
     if set(by_path) != set(REQUIRED_BACKUP_ARTIFACTS):
-        fail("BackupManifest artifact inventory does not match the canonical Compose v2 set")
+        fail("BackupManifest artifact inventory does not match the canonical Compose v3 set")
     if not fixture:
         # In a real evidence directory the private BackupManifest checksums and sizes
         # must match the backup artifacts next to the manifest.
@@ -295,7 +326,7 @@ def validate_evidence_dir(path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--evidence-dir", type=Path, help="Validate a real Compose v2 operator evidence directory: private BackupManifest.json plus private backup artifacts, support-safe RestoreReceipt.json, and support-safe support-redaction-report.json.")
+    parser.add_argument("--evidence-dir", type=Path, help="Validate a real Compose v3 operator evidence directory: private BackupManifest.json plus private backup artifacts, support-safe RestoreReceipt.json, and support-safe support-redaction-report.json.")
     args = parser.parse_args()
     if args.evidence_dir:
         validate_evidence_dir(args.evidence_dir)

@@ -8,6 +8,8 @@ import hashlib
 import json
 import os
 import re
+import secrets
+import shutil
 import stat
 import subprocess
 import tarfile
@@ -15,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from compose_env import ComposeContext, ContractError, compose_environment, load_context
+from recovery_receipt import database_inventory_digest
 
 
 VOLUME_ARTIFACTS = (
@@ -159,6 +162,8 @@ def _archive_volume(context: ComposeContext, volume: str, target: Path) -> None:
             "docker",
             "run",
             "--rm",
+            "--network",
+            "none",
             "--read-only",
             "--user",
             "0:0",
@@ -184,8 +189,57 @@ def _archive_volume(context: ComposeContext, volume: str, target: Path) -> None:
     )
 
 
-def _postgres_dump(context: ComposeContext, target: Path) -> str:
+def _published_postgres_image(container: str) -> str:
+    container_rows = json.loads(
+        subprocess.run(
+            ["docker", "container", "inspect", container],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        ).stdout
+    )
+    if len(container_rows) != 1:
+        raise ContractError("PostgreSQL container identity is ambiguous")
+    image_id = container_rows[0].get("Image")
+    if not isinstance(image_id, str) or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", image_id
+    ):
+        raise ContractError("PostgreSQL container image identity is invalid")
+    image_rows = json.loads(
+        subprocess.run(
+            ["docker", "image", "inspect", image_id],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        ).stdout
+    )
+    references = (
+        image_rows[0].get("RepoDigests", [])
+        if len(image_rows) == 1 and isinstance(image_rows[0], dict)
+        else []
+    )
+    postgres = sorted(
+        {
+            reference
+            for reference in references
+            if isinstance(reference, str)
+            and re.fullmatch(r"postgres@sha256:[0-9a-f]{64}", reference)
+        }
+    )
+    if len(postgres) != 1:
+        raise ContractError(
+            "PostgreSQL dump client must have one published immutable digest"
+        )
+    return postgres[0]
+
+
+def _postgres_dump(
+    context: ComposeContext, target: Path
+) -> tuple[str, str, list[str]]:
     container = _container(context, "db")
+    dump_client_image = _published_postgres_image(container)
     fingerprint = subprocess.run(
         [
             "docker",
@@ -207,6 +261,37 @@ def _postgres_dump(context: ComposeContext, target: Path) -> str:
     ).stdout.strip()
     if not fingerprint.isdigit():
         raise ContractError("PostgreSQL system identifier is unavailable")
+    databases = subprocess.run(
+        [
+            "docker",
+            "exec",
+            container,
+            "psql",
+            "--no-psqlrc",
+            "-U",
+            context.env["WEAVE_DB_ADMIN_USERNAME"],
+            "-d",
+            "postgres",
+            "-Atqc",
+            (
+                "SELECT datname FROM pg_database "
+                "WHERE datistemplate = false ORDER BY datname"
+            ),
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ).stdout.splitlines()
+    if (
+        "postgres" not in databases
+        or databases != sorted(set(databases))
+        or any(
+            not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,62}", name)
+            for name in databases
+        )
+    ):
+        raise ContractError("PostgreSQL database inventory is invalid")
     with target.open("xb") as output:
         os.chmod(target, 0o600)
         subprocess.run(
@@ -215,7 +300,11 @@ def _postgres_dump(context: ComposeContext, target: Path) -> str:
             stdout=output,
             stderr=subprocess.PIPE,
         )
-    return "sha256:" + hashlib.sha256(fingerprint.encode("ascii")).hexdigest()
+    return (
+        "sha256:" + hashlib.sha256(fingerprint.encode("ascii")).hexdigest(),
+        dump_client_image,
+        databases,
+    )
 
 
 def _archive_private_config(context: ComposeContext, target: Path) -> None:
@@ -244,6 +333,14 @@ def backup(context: ComposeContext) -> Path:
     candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
     if not re.fullmatch(r"[0-9a-f]{40}", candidate):
         raise ContractError("WEAVE_CANDIDATE_COMMIT must bind the private backup to an exact candidate")
+    candidate_manifest_digest = os.environ.get(
+        "WEAVE_CANDIDATE_MANIFEST_DIGEST", ""
+    )
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", candidate_manifest_digest):
+        raise ContractError(
+            "WEAVE_CANDIDATE_MANIFEST_DIGEST must bind the private backup "
+            "to one immutable manifest"
+        )
     backup_root_value = os.environ.get("WEAVE_BACKUP_ROOT", "")
     if not backup_root_value:
         raise ContractError("WEAVE_BACKUP_ROOT is required and must be outside the checkout")
@@ -256,45 +353,107 @@ def backup(context: ComposeContext) -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     backup_id = f"weave-{context.profile}-{timestamp}-{candidate[:12]}"
     destination = backup_root / backup_id
-    _private_directory(destination)
+    if destination.exists() or destination.is_symlink():
+        raise ContractError("candidate-bound private backup already exists")
     running, inventory = _running_services(context)
     to_stop = [name for name in QUIESCED_SERVICES if name in running]
+    staging = backup_root / (
+        f".{backup_id}.partial-{os.getpid()}-{secrets.token_hex(6)}"
+    )
     artifacts: list[dict[str, object]] = []
     try:
-        if to_stop:
-            _stop(context, to_stop, inventory)
-        dump = destination / "postgres.sql"
-        database_fingerprint = _postgres_dump(context, dump)
-        for variable, archive, kind in VOLUME_ARTIFACTS:
-            target = destination / archive
-            _archive_volume(context, context.env[variable], target)
-            digest, size = _sha256(target)
-            artifacts.append({"path": archive, "kind": kind, "sha256": digest, "bytes": size})
-        private_config = destination / "private-config-secrets.tgz"
-        _archive_private_config(context, private_config)
-        for target, kind in ((dump, "postgres-consistency-dump"), (private_config, "private-config-secretrefs")):
-            digest, size = _sha256(target)
-            artifacts.append({"path": target.name, "kind": kind, "sha256": digest, "bytes": size})
-        manifest = {
-            "schemaVersion": "weave.compose-private-backup.v2",
-            "backupId": backup_id,
-            "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "candidateCommit": candidate,
-            "profile": context.profile,
-            "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
-            "databaseFingerprint": database_fingerprint,
-            "quiescedServices": to_stop,
-            "runtimeInventory": inventory,
-            "artifacts": sorted(artifacts, key=lambda item: str(item["path"])),
-            "supportSafe": False,
-            "containsSecretsOrMemberData": True,
-        }
-        manifest_path = destination / "BackupManifest.json"
-        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        os.chmod(manifest_path, 0o600)
-    finally:
-        if to_stop:
-            _start(context, to_stop, inventory)
+        _private_directory(staging)
+        try:
+            if to_stop:
+                _stop(context, to_stop, inventory)
+            dump = staging / "postgres.sql"
+            (
+                database_fingerprint,
+                postgres_dump_client_image,
+                postgres_databases,
+            ) = _postgres_dump(context, dump)
+            for variable, archive, kind in VOLUME_ARTIFACTS:
+                target = staging / archive
+                _archive_volume(context, context.env[variable], target)
+                digest, size = _sha256(target)
+                artifacts.append(
+                    {
+                        "path": archive,
+                        "kind": kind,
+                        "sha256": digest,
+                        "bytes": size,
+                    }
+                )
+            private_config = staging / "private-config-secrets.tgz"
+            _archive_private_config(context, private_config)
+            for target, kind in (
+                (dump, "postgres-consistency-dump"),
+                (private_config, "private-config-secretrefs"),
+            ):
+                digest, size = _sha256(target)
+                artifacts.append(
+                    {
+                        "path": target.name,
+                        "kind": kind,
+                        "sha256": digest,
+                        "bytes": size,
+                    }
+                )
+            manifest = {
+                "schemaVersion": "weave.compose-private-backup.v3",
+                "backupId": backup_id,
+                "createdAt": datetime.now(timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
+                "candidateCommit": candidate,
+                "candidateManifestDigest": candidate_manifest_digest,
+                "profile": context.profile,
+                "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
+                "databaseFingerprint": database_fingerprint,
+                "postgresDumpClientImage": postgres_dump_client_image,
+                "postgresDatabases": postgres_databases,
+                "postgresDatabaseInventoryDigest": database_inventory_digest(
+                    postgres_databases
+                ),
+                "quiescedServices": to_stop,
+                "runtimeInventory": inventory,
+                "artifacts": sorted(
+                    artifacts, key=lambda item: str(item["path"])
+                ),
+                "supportSafe": False,
+                "containsSecretsOrMemberData": True,
+            }
+            manifest_path = staging / "BackupManifest.json"
+            descriptor = os.open(
+                manifest_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+            )
+            with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+                json.dump(manifest, output, indent=2, sort_keys=True)
+                output.write("\n")
+                output.flush()
+                os.fsync(output.fileno())
+        finally:
+            if to_stop:
+                _start(context, to_stop, inventory)
+        staging_descriptor = os.open(
+            staging, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+        )
+        try:
+            os.fsync(staging_descriptor)
+        finally:
+            os.close(staging_descriptor)
+        os.replace(staging, destination)
+        root_descriptor = os.open(
+            backup_root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+        )
+        try:
+            os.fsync(root_descriptor)
+        finally:
+            os.close(root_descriptor)
+    except Exception:
+        if staging.exists() and not staging.is_symlink():
+            shutil.rmtree(staging)
+        raise
     return destination
 
 

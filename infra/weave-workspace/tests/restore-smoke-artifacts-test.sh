@@ -12,6 +12,7 @@ trap 'rm -rf "${backup_dir}"' EXIT
 
 PYTHONPATH="${ROOT_DIR}/../../tools" python3 - "${backup_dir}" <<'PY'
 import io
+import hashlib
 import json
 import sys
 import tarfile
@@ -24,8 +25,13 @@ for name in REQUIRED_ARTIFACTS:
     path = backup / name
     if name.endswith(".tgz"):
         with tarfile.open(path, "w:gz") as archive:
+            if name != "private-config-secrets.tgz":
+                root = tarfile.TarInfo(".")
+                root.type = tarfile.DIRTYPE
+                root.mode = 0o700
+                archive.addfile(root)
             payload = name.encode("utf-8")
-            member = tarfile.TarInfo("fixture/value")
+            member = tarfile.TarInfo("./fixture/value")
             member.size = len(payload)
             archive.addfile(member, io.BytesIO(payload))
     else:
@@ -35,13 +41,23 @@ for name in sorted(REQUIRED_ARTIFACTS):
     checksum, size = digest(backup / name)
     artifacts.append({"path": name, "kind": EXPECTED_ARTIFACT_KINDS[name], "sha256": checksum, "bytes": size})
 manifest = {
-    "schemaVersion": "weave.compose-private-backup.v2",
+    "schemaVersion": "weave.compose-private-backup.v3",
     "backupId": f"weave-test-20260722T120000Z-{candidate[:12]}",
     "createdAt": "2026-07-22T12:00:00Z",
     "candidateCommit": candidate,
+    "candidateManifestDigest": "sha256:" + "d" * 64,
     "profile": "test",
     "composeProject": "weave-test",
     "databaseFingerprint": "sha256:" + "b" * 64,
+    "postgresDumpClientImage": "postgres@sha256:" + "c" * 64,
+    "postgresDatabases": ["postgres", "weave_backend", "weave_keycloak"],
+    "postgresDatabaseInventoryDigest": "sha256:" + hashlib.sha256(
+        json.dumps(
+            ["postgres", "weave_backend", "weave_keycloak"],
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest(),
     "quiescedServices": ["backend", "keycloak"],
     "runtimeInventory": [{"service": "backend", "authority": "compose"}],
     "artifacts": artifacts,

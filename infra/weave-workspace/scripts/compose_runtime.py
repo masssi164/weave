@@ -17,6 +17,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from compose_env import ComposeContext, ContractError, compose_environment, load_context, run
+from recovery_receipt import ReceiptContractError, validate_receipt
 
 
 COMMANDS = (
@@ -238,14 +239,22 @@ def validate_adoption_receipt(context: ComposeContext, kind: str, name: str) -> 
     candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
     if not re.fullmatch(r"[0-9a-f]{40}", candidate):
         raise ContractError("persistent adoption requires an exact WEAVE_CANDIDATE_COMMIT")
-    verified_at_value = receipt.get("verifiedAt", "")
     try:
-        verified_at = datetime.fromisoformat(verified_at_value.replace("Z", "+00:00"))
-    except (AttributeError, ValueError) as error:
-        raise ContractError("WEAVE_ADOPTION_RECEIPT has an invalid verifiedAt") from error
-    now = datetime.now(timezone.utc)
-    if verified_at.tzinfo is None or verified_at > now or now - verified_at > ADOPTION_RECEIPT_MAX_AGE:
-        raise ContractError("WEAVE_ADOPTION_RECEIPT is stale or future-dated")
+        validate_receipt(
+            receipt,
+            purpose="adoption",
+            candidate=candidate,
+            candidate_manifest_digest=context.env[
+                "WEAVE_CANDIDATE_MANIFEST_DIGEST"
+            ],
+            profile=context.profile,
+            compose_project=context.env["WEAVE_COMPOSE_PROJECT"],
+            maximum_age=ADOPTION_RECEIPT_MAX_AGE,
+        )
+    except ReceiptContractError as error:
+        raise ContractError(
+            "WEAVE_ADOPTION_RECEIPT does not authorize this exact adoption"
+        ) from error
     supplied_resources = receipt.get("resources")
     if not isinstance(supplied_resources, list):
         raise ContractError("WEAVE_ADOPTION_RECEIPT has no resource inventory")
@@ -261,15 +270,7 @@ def validate_adoption_receipt(context: ComposeContext, kind: str, name: str) -> 
     if len(supplied_resources) != len(expected_inventory) or observed_inventory != expected_inventory:
         raise ContractError("WEAVE_ADOPTION_RECEIPT resource inventory is incomplete or ambiguous")
     if (
-        receipt.get("schemaVersion") != "weave.compose-adoption-receipt.v1"
-        or receipt.get("profile") != context.profile
-        or receipt.get("composeProject") != context.env["WEAVE_COMPOSE_PROJECT"]
-        or receipt.get("candidateCommit") != candidate
-        or receipt.get("backupVerified") is not True
-        or receipt.get("isolatedRestoreVerified") is not True
-        or receipt.get("supportSafe") is not True
-        or receipt.get("containsSecretValues") is not False
-        or (kind, name) not in observed_inventory
+        (kind, name) not in observed_inventory
     ):
         raise ContractError("WEAVE_ADOPTION_RECEIPT does not authorize this exact adoption")
 

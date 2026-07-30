@@ -1,11 +1,21 @@
 {
-  "schemaVersion": "weave.compose-private-backup.v2",
+  "schemaVersion": "weave.compose-private-backup.v3",
   "backupId": "weave-test-20260726T191852Z-4f25fb17725c",
   "createdAt": "2026-07-26T19:18:52Z",
   "candidateCommit": "4f25fb17725c1bd6eac38927dca081e3c61cbd94",
+  "candidateManifestDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
   "profile": "test",
   "composeProject": "weave-disposable-proof",
   "databaseFingerprint": "sha256:edd90df7047b4600e20a0bba39b456f595c8364beab8d8c63c134edb2596ba1c",
+  "postgresDumpClientImage": "postgres@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "postgresDatabases": [
+    "postgres",
+    "weave_backend",
+    "weave_keycloak",
+    "weave_nextcloud",
+    "weave_synapse"
+  ],
+  "postgresDatabaseInventoryDigest": "sha256:59da6125993f65307c8f998621d14ec959e2cc388bbdb0ce1d6258afd4166861",
   "quiescedServices": [
     "backend",
     "synapse",
