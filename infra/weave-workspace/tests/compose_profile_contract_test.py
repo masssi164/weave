@@ -403,6 +403,10 @@ def main() -> None:
         assert _image_digest(test) == "sha256:" + "a" * 64
         assert _image_digest(prod) == "sha256:" + "a" * 64
         backend_env = _backend_env(test)
+        assert (
+            f"WEAVE_API_BASE_URL={test.env['WEAVE_API_URL']}\n"
+            in backend_env
+        )
         assert "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED=true\n" in backend_env
         assert (
             "WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID=weave-agent-runtime-admin\n"
@@ -475,6 +479,10 @@ def main() -> None:
             )
             assert _image_digest(isolated) == local_image_id
             isolated_backend_env = _backend_env(isolated)
+            assert (
+                f"WEAVE_API_BASE_URL={isolated.env['WEAVE_API_URL']}\n"
+                in isolated_backend_env
+            )
             expected_member = (
                 "weave-e2e-"
                 + hashlib.sha256(

@@ -578,6 +578,7 @@ def _backend_env(context: ComposeContext) -> str:
         "WEAVE_OIDC_ISSUER_URI": f"{env['WEAVE_AUTH_URL']}/realms/weave",
         "WEAVE_OIDC_JWK_SET_URI": f"{keycloak_base}/realms/weave/protocol/openid-connect/certs",
         "WEAVE_OIDC_REQUIRED_AUDIENCE": env["WEAVE_API_URL"],
+        "WEAVE_API_BASE_URL": env["WEAVE_API_URL"],
         "WEAVE_CHAT_PROVIDER": "matrix-synapse",
         "WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL": matrix_base,
         "WEAVE_CHAT_MATRIX_SERVER_NAME": env["WEAVE_MATRIX_HOST"],
