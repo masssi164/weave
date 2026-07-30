@@ -212,7 +212,16 @@ if PATH="${MOCK_BIN}:${PATH}" MOCK_REMOVALS="${REMOVALS}" \
   exit 1
 fi
 
-confirmation="persistent-dogfood:DELETE_OLD_WEAVE:${first_digest}"
+if PATH="${MOCK_BIN}:${PATH}" MOCK_REMOVALS="${REMOVALS}" \
+  MOCK_STATE="${MOCK_STATE}" "${SCRIPT}" apply --manifest "${PLAN}" \
+    --allowlist "${ALLOWLIST}" --approval-evidence "${APPROVAL_EVIDENCE}" \
+    --lock-file "${TMP_DIR}/fresh-start.lock" \
+    --confirm "persistent-dogfood:DELETE_OLD_WEAVE:${first_digest}" >/dev/null 2>&1; then
+  echo "obsolete environment-prefixed confirmation was accepted" >&2
+  exit 1
+fi
+
+confirmation="DELETE_OLD_WEAVE:${first_digest}"
 PATH="${MOCK_BIN}:${PATH}" MOCK_REMOVALS="${REMOVALS}" MOCK_STATE="${MOCK_STATE}" \
   "${SCRIPT}" apply --manifest "${PLAN}" --allowlist "${ALLOWLIST}" \
     --approval-evidence "${APPROVAL_EVIDENCE}" \
