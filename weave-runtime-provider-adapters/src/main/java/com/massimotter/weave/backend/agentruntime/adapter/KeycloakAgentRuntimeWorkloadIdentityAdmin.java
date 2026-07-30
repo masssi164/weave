@@ -40,7 +40,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
-import org.erdtman.jcs.JsonCanonicalizer;
 
 /**
  * Keycloak 26.7 OIDC Dynamic Client Registration anti-corruption boundary.
@@ -52,7 +51,9 @@ import org.erdtman.jcs.JsonCanonicalizer;
 public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         implements RuntimeWorkloadIdentityAdmin, RuntimeWorkloadIdentityInventory {
 
+    // OIDC DCR metadata and Keycloak's persisted ClientModel use different identifiers.
     static final String CLIENT_AUTHENTICATOR_PRIVATE_KEY_JWT = "private_key_jwt";
+    private static final String KEYCLOAK_CLIENT_AUTHENTICATOR_PRIVATE_KEY_JWT = "client-jwt";
     private static final String ASSERTION_TYPE =
             "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
     private static final Pattern CLIENT_ID =
@@ -1027,6 +1028,11 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
     }
 
     private JsonNode normalizedPublicJwks(JsonNode jwks) {
+        return normalizedPublicJwks(mapper, jwks);
+    }
+
+    private static JsonNode normalizedPublicJwks(
+            ObjectMapper mapper, JsonNode jwks) {
         JsonNode keys = jwks == null ? null : jwks.get("keys");
         if (!(keys instanceof ArrayNode input) || input.isEmpty()) {
             throw new RuntimeWorkloadIdentityException(
@@ -1051,6 +1057,18 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             String clientId,
             JsonNode publicJwks,
             FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation operation) {
+        return intendedStateDigest(settings, mapper, clientId, publicJwks, operation);
+    }
+
+    static String intendedStateDigest(
+            Settings settings,
+            ObjectMapper mapper,
+            String clientId,
+            JsonNode publicJwks,
+            FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation operation) {
+        Objects.requireNonNull(settings, "settings");
+        Objects.requireNonNull(mapper, "mapper");
+        Objects.requireNonNull(operation, "operation");
         try {
             ObjectNode root = mapper.createObjectNode();
             root.put("clientId", clientId);
@@ -1091,13 +1109,14 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             ArrayNode optionalScopes = root.putArray("optionalClientScopes");
             settings.optionalClientScopes().stream().sorted().forEach(optionalScopes::add);
             root.set("protocolMappers", mapper.createArrayNode());
-            root.set("publicJwks", normalizedPublicJwks(publicJwks));
+            root.set("publicJwks", normalizedPublicJwks(mapper, publicJwks));
             ObjectNode token = root.putObject("tokenEndpointAuthentication");
             token.put("algorithm", "PS256");
-            token.put("method", CLIENT_AUTHENTICATOR_PRIVATE_KEY_JWT);
+            token.put("method", KEYCLOAK_CLIENT_AUTHENTICATOR_PRIVATE_KEY_JWT);
             root.set("uris", mapper.createArrayNode());
             root.set("webOrigins", mapper.createArrayNode());
-            return fingerprint(new JsonCanonicalizer(root.toString()).getEncodedUTF8());
+            // The versioned Keycloak provider hashes this exact ordered projection.
+            return fingerprint(mapper.writeValueAsBytes(root));
         } catch (Exception failure) {
             if (failure instanceof RuntimeWorkloadIdentityException identityFailure) {
                 throw identityFailure;

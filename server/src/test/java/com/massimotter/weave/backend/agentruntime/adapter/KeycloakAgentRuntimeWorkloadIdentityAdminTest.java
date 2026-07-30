@@ -122,6 +122,38 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
     }
 
     @Test
+    void derivesTheVersionedKeycloakProviderStateDigestContract() {
+        ObjectNode publicKey = mapper.createObjectNode();
+        publicKey.put("kty", "RSA");
+        publicKey.put("use", "sig");
+        publicKey.put("alg", "PS256");
+        publicKey.put("kid", "contract-key-01");
+        publicKey.put("n", "public-modulus");
+        publicKey.put("e", "AQAB");
+        JsonNode publicJwks =
+                mapper.createObjectNode().set("keys", mapper.createArrayNode().add(publicKey));
+
+        String digest = KeycloakAgentRuntimeWorkloadIdentityAdmin.intendedStateDigest(
+                new KeycloakAgentRuntimeWorkloadIdentityAdmin.Settings(
+                        URI.create("http://keycloak.test"),
+                        URI.create(ISSUER),
+                        "weave",
+                        Duration.ofSeconds(2),
+                        "weaver-runtime",
+                        List.of("weaver-runtime-workload"),
+                        List.of("agent-runtime.profile.read", "mcp.tools", "files.read"),
+                        60),
+                mapper,
+                CLIENT_ID,
+                publicJwks,
+                FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation.CREATE);
+
+        assertThat(digest)
+                .isEqualTo(
+                        "sha256:a5dcb465330027b2a869c2d14e31ee686f5e9afc7f02f637afb91c77c14030b2");
+    }
+
+    @Test
     void rejectsAWorkloadTokenWithAnyClientRoleProjection() {
         transport.nextTokenClaimsMutation = claims -> claims
                 .withObject("resource_access")
