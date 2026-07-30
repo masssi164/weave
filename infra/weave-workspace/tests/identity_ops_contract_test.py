@@ -362,6 +362,21 @@ def main() -> None:
             },
         },
     )
+    requester_audience_mapper = identity_ops.mapper_payload(
+        {
+            "name": "mcp-exchange-requester-audience",
+            "mapperType": "audience",
+            "includedClientKey": "client:weave-mcp-server",
+            "addToAccessToken": True,
+        },
+        {"client:weave-mcp-server": "weave-mcp-server"},
+    )
+    assert requester_audience_mapper["config"] == {
+        "included.client.audience": "weave-mcp-server",
+        "id.token.claim": "false",
+        "access.token.claim": "true",
+        "userinfo.token.claim": "false",
+    }
     organization_group_mapper = identity_ops.mapper_payload(
         {
             "name": "weave-organization-groups",

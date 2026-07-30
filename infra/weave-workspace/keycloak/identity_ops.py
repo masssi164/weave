@@ -717,7 +717,10 @@ def role_mapping(
     return "realm", {"id": role["id"], "name": role["name"]}
 
 
-def mapper_payload(mapper: dict[str, Any]) -> dict[str, Any]:
+def mapper_payload(
+    mapper: dict[str, Any],
+    client_ids_by_key: dict[str, str] | None = None,
+) -> dict[str, Any]:
     mapper_type = mapper["mapperType"]
     protocol_mapper = {
         "group-membership": "oidc-group-membership-mapper",
@@ -745,7 +748,16 @@ def mapper_payload(mapper: dict[str, Any]) -> dict[str, Any]:
             ).lower(),
         }
     elif mapper_type == "audience":
-        config = {"included.custom.audience": mapper["includedCustomAudience"]}
+        included_client_key = mapper.get("includedClientKey")
+        if included_client_key is not None:
+            client_id = (client_ids_by_key or {}).get(str(included_client_key))
+            if client_id is None:
+                raise IdentityOpsError(
+                    f"audience mapper references unavailable client: {included_client_key}"
+                )
+            config = {"included.client.audience": client_id}
+        else:
+            config = {"included.custom.audience": mapper["includedCustomAudience"]}
     elif mapper_type == "role":
         if (
             mapper.get("roleRef") != "role:weaver-runtime"
@@ -1212,6 +1224,10 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
         str(scope["key"]): str(scope["name"])
         for scope in desired.get("clientScopes", [])
     }
+    desired_client_ids = {
+        str(client["key"]): str(client["clientId"])
+        for client in desired.get("clients", [])
+    }
     clients_by_key: dict[str, dict[str, Any]] = {}
     for client in desired.get("clients", []):
         key = client["key"]
@@ -1270,7 +1286,7 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
         mapper_endpoint = f"client-scopes/{observed['id']}/protocol-mappers/models"
         observed_mappers = kcadm.call("get", mapper_endpoint, "-r", realm_name) or []
         for mapper in scope.get("mappers", []):
-            wanted_mapper = mapper_payload(mapper)
+            wanted_mapper = mapper_payload(mapper, desired_client_ids)
             observed_mapper = exact(
                 [item for item in observed_mappers if item.get("name") == mapper["name"]],
                 mapper["key"],

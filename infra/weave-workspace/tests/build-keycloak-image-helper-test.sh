@@ -31,7 +31,7 @@ spec.loader.exec_module(module)
 assert module.UPSTREAM_COMMIT == "6c73e3027811d9c7b22683edd825e839272e9547"
 assert module.ARCHIVE_SHA256 == "32267c4f45db91874c46a097415c336d137ee184d25c3481a513905a92669186"
 assert module.STOCK_SERVICES_SHA256 == "052169f7907a21f4e26679bca5c7365627db91b071a7a2fcaeee00230e6b1419"
-assert module.SPEC_COMMIT == "7117cc816412f77b2a36b048f5440b713872bd0b"
+assert module.SPEC_COMMIT == "c8e6ec9dd85892bb92ca2af962f5f6d81ac060dd"
 try:
     module.resolve_candidate(repository, "1" * 40)
 except SystemExit as failure:

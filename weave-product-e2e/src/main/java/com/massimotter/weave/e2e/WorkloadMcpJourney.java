@@ -174,7 +174,8 @@ final class WorkloadMcpJourney {
               + String.join(",", invalidIdentityClaims));
     }
     Set<String> audiences = strings(claims.path("aud"));
-    Set<String> expectedAudiences = Set.of(environment.mcpEndpoint().toString());
+    Set<String> expectedAudiences =
+        Set.of(environment.mcpEndpoint().toString(), "weave-mcp-server");
     if (!audiences.equals(expectedAudiences)) {
       throw new ProductFlowException("MCP workload token audience set is not exact");
     }

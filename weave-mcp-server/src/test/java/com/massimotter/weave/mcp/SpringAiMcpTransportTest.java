@@ -217,7 +217,9 @@ class SpringAiMcpTransportTest {
                 ? List.of("https://api.weave.test/api")
                 : wrongAudience
                     ? List.of("https://api.weave.test/api")
-                    : extraAudience ? List.of(RESOURCE, EDGE) : List.of(RESOURCE))
+                    : extraAudience
+                        ? List.of(RESOURCE, EDGE, "unexpected-audience")
+                        : List.of(RESOURCE, EDGE))
         .claim("client_id", clientId)
         .claim("azp", clientId)
         .claim("scope", scope)
