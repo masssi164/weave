@@ -33,6 +33,7 @@ jobs:
       mcp_digest: ${{ steps.mcp.outputs.digest }}
       identity_ops_digest: ${{ steps.identity_ops.outputs.digest }}
       keycloak_runtime_digest: ${{ steps.keycloak_runtime.outputs.digest }}
+      candidate_manifest_digest: ${{ steps.manifest.outputs.digest }}
 
     steps:
       - name: Check out exact candidate
@@ -294,6 +295,7 @@ jobs:
             --output build/candidate/keycloak-runtime-attestations.json
 
       - name: Create immutable candidate manifest
+        id: manifest
         shell: bash
         run: |
           set -euo pipefail
@@ -315,6 +317,8 @@ jobs:
             "-PkeycloakRuntimeSbomDigest=$(jq -r .sbomDigest build/candidate/keycloak-runtime-attestations.json)" \
             "-PkeycloakRuntimeProvenanceDigest=$(jq -r .provenanceDigest build/candidate/keycloak-runtime-attestations.json)" \
             "-PcandidateManifest=$GITHUB_WORKSPACE/build/candidate/candidate-manifest.json"
+          echo "digest=sha256:$(awk 'NR == 1 {print $1}' build/candidate/candidate-manifest.json.sha256)" \
+            >> "$GITHUB_OUTPUT"
 
       - name: Upload candidate evidence
         uses: actions/upload-artifact@v4
@@ -355,7 +359,9 @@ jobs:
       WEAVE_TEST_APP_OUTPUT_ROOT: ${{ github.workspace }}/weave/build/test-app
       WEAVE_TEST_APP_RUN_ID: candidate-${{ github.run_id }}-${{ github.run_attempt }}
       WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
+      WEAVE_CANDIDATE_MANIFEST_DIGEST: ${{ needs.build-candidate.outputs.candidate_manifest_digest }}
       WEAVE_CANDIDATE_EVIDENCE_REF: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      WEAVE_TEST_APP_CANDIDATE_MANIFEST: ${{ github.workspace }}/weave/build/candidate-input/candidate-manifest.json
 
     steps:
       - name: Check out exact candidate
@@ -392,6 +398,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
+      - name: Download the exact candidate manifest
+        uses: actions/download-artifact@v5
+        with:
+          name: candidate-manifest-${{ github.sha }}
+          path: weave/build/candidate-input
+
       - name: Run the isolated Fresh product proof
         working-directory: weave
         run: ./gradlew --no-daemon testApp
@@ -404,6 +416,8 @@ jobs:
           path: |
             weave/build/test-app/*/weave-test-app-evidence.json
             weave/build/test-app/*/keycloak-dcr-live-proof.json
+            weave/build/test-app/*/persistence-restart-evidence.json
+            weave/build/test-app/*/runtime-image-evidence.json
             weave/build/test-app/*/teardown-evidence.json
             weave/build/test-app/*/failure-diagnostics/**
           if-no-files-found: warn

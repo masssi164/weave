@@ -12,6 +12,8 @@ readonly COMPOSE="${WORKSPACE_ROOT}/compose.sh"
 readonly TEARDOWN="${WORKSPACE_ROOT}/teardown.sh"
 readonly FAILURE_DIAGNOSTICS="${WORKSPACE_ROOT}/live-stack-failure-diagnostics.sh"
 readonly DCR_CONTRACT_PROBE="${WORKSPACE_ROOT}/scripts/verify_keycloak_dcr_contract.py"
+readonly RUNTIME_IMAGE_EVIDENCE_WRITER="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_runtime_image_evidence.py"
+readonly CANDIDATE_MANIFEST_CHECK="${REPOSITORY_ROOT}/gradle/tasks/candidate-manifest-check.py"
 
 RUN_ID="${WEAVE_TEST_APP_RUN_ID:-}"
 OUTPUT_ROOT="${WEAVE_TEST_APP_OUTPUT_ROOT:-${REPOSITORY_ROOT}/build/test-app}"
@@ -130,6 +132,8 @@ context="$(
 eval "${context}"
 CONTEXT_PREPARED=true
 export WEAVE_E2E_RUN_ID WEAVE_E2E_RUN_NAMESPACE WEAVE_ENV_FILE
+export WEAVE_TEST_APP_RUN_ROOT WEAVE_TEST_APP_RESTART_EVIDENCE_PATH
+export WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH
 export WEAVE_PROXY_HTTP_HOST_PORT WEAVE_PROXY_HTTPS_HOST_PORT
 export WEAVE_KEYCLOAK_HOST_PORT WEAVE_KEYCLOAK_MANAGEMENT_HOST_PORT
 export WEAVE_MAILPIT_WEB_HOST_PORT WEAVE_MAS_HOST_PORT WEAVE_SYNAPSE_HOST_PORT
@@ -143,6 +147,38 @@ specification_commit="$(
   jq -er '.specCorpus.gitCommit | select(test("^[0-9a-f]{40}$"))' "${spec_lock}"
 )" || fail "the pinned specification commit is invalid"
 spec_digest="sha256:$(shasum -a 256 "${spec_lock}" | awk '{print $1}')"
+candidate_manifest_path="${WEAVE_TEST_APP_CANDIDATE_MANIFEST:-}"
+if [[ -n "${candidate_manifest_path}" ]]; then
+  [[ "${candidate_manifest_path}" == /* ]] ||
+    fail "WEAVE_TEST_APP_CANDIDATE_MANIFEST must be absolute"
+  [[ -f "${candidate_manifest_path}" && ! -L "${candidate_manifest_path}" ]] ||
+    fail "the candidate manifest must be a regular non-symlink file"
+  [[ -n "${WEAVE_CANDIDATE_MANIFEST_DIGEST:-}" ]] ||
+    fail "a manifest-bound run requires WEAVE_CANDIDATE_MANIFEST_DIGEST"
+  python3 "${CANDIDATE_MANIFEST_CHECK}" --manifest "${candidate_manifest_path}"
+  candidate_manifest_digest="sha256:$(shasum -a 256 "${candidate_manifest_path}" | awk '{print $1}')"
+  [[ "${candidate_manifest_digest}" == "${WEAVE_CANDIDATE_MANIFEST_DIGEST}" ]] ||
+    fail "candidate manifest bytes do not match WEAVE_CANDIDATE_MANIFEST_DIGEST"
+elif [[ -n "${WEAVE_CANDIDATE_MANIFEST_DIGEST:-}" ]]; then
+  fail "WEAVE_CANDIDATE_MANIFEST_DIGEST requires the exact candidate manifest"
+else
+  candidate_manifest_digest="$(
+    python3 - "${candidate_commit}" "${spec_digest}" <<'PY'
+import hashlib
+import json
+import sys
+
+payload = {
+    "schemaVersion": "weave.test-app-local-candidate.v1",
+    "candidateCommit": sys.argv[1],
+    "specDigest": sys.argv[2],
+}
+serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+print("sha256:" + hashlib.sha256(serialized).hexdigest())
+PY
+  )"
+fi
+export WEAVE_CANDIDATE_MANIFEST_DIGEST="${candidate_manifest_digest}"
 
 if [[ -z "${SERVER_IMAGE}" && -z "${MCP_IMAGE}" ]]; then
   LOCAL_SERVER_TAG="weave-backend:test-app-${WEAVE_E2E_RUN_NAMESPACE}"
@@ -212,6 +248,36 @@ else
     fail "WEAVE_TEST_APP_KEYCLOAK_IMAGE must be digest-pinned"
   docker pull "${KEYCLOAK_IMAGE}"
 fi
+validate_runtime_image \
+  "${IDENTITY_OPS_IMAGE}" \
+  "Weave Identity Ops" \
+  "keycloak-26.7-kcadm-python3"
+validate_runtime_image \
+  "${KEYCLOAK_IMAGE}" \
+  "Weave Keycloak Runtime" \
+  "keycloak-26.7.0-downstream-built-in-policy"
+
+if [[ -n "${candidate_manifest_path}" ]]; then
+  jq -e \
+    --arg candidate_commit "${candidate_commit}" \
+    --arg spec_digest "${spec_digest}" \
+    --arg server "${SERVER_IMAGE}" \
+    --arg mcp "${MCP_IMAGE}" \
+    --arg identity_ops "${IDENTITY_OPS_IMAGE}" \
+    --arg keycloak "${KEYCLOAK_IMAGE}" '
+      .schemaVersion == "weave.release.candidate-manifest.v1" and
+      .commit == $candidate_commit and
+      .specDigest == $spec_digest and
+      .supportSafe == true and
+      ([.images[] | {key: .component, value: .reference}] | from_entries) == {
+        "server": $server,
+        "mcp-server": $mcp,
+        "identity-ops": $identity_ops,
+        "keycloak-runtime": $keycloak
+      }
+    ' "${candidate_manifest_path}" >/dev/null ||
+    fail "runtime image inputs do not match the exact candidate manifest"
+fi
 
 export WEAVE_BACKEND_IMAGE
 WEAVE_BACKEND_IMAGE="$(docker image inspect "${SERVER_IMAGE}" --format '{{.Id}}')"
@@ -226,6 +292,24 @@ log "Starting one exact, disposable Compose test stack."
 STACK_PREPARED=true
 bash "${COMPOSE}" test up
 bash "${WORKSPACE_ROOT}/operator-check.sh" test
+
+runtime_image_evidence_arguments=(
+  --candidate-commit "${candidate_commit}"
+  --specification-commit "${specification_commit}"
+  --spec-digest "${spec_digest}"
+  --candidate-manifest-digest "${candidate_manifest_digest}"
+  --compose-project "${WEAVE_E2E_RUN_NAMESPACE}"
+  --output "${WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH}"
+  --image server "${SERVER_IMAGE}" "${WEAVE_BACKEND_IMAGE}"
+  --image mcp-server "${MCP_IMAGE}" "${WEAVE_MCP_IMAGE}"
+  --image identity-ops "${IDENTITY_OPS_IMAGE}" "${WEAVE_IDENTITY_OPS_IMAGE}"
+  --image keycloak-runtime "${KEYCLOAK_IMAGE}" "${WEAVE_KEYCLOAK_IMAGE}"
+)
+if [[ -n "${candidate_manifest_path}" ]]; then
+  runtime_image_evidence_arguments+=(--manifest "${candidate_manifest_path}")
+fi
+python3 "${RUNTIME_IMAGE_EVIDENCE_WRITER}" \
+  "${runtime_image_evidence_arguments[@]}"
 
 for required in \
   "${WEAVE_TEST_APP_TLS_ROOT}/ca.pem" \
@@ -299,16 +383,21 @@ log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
   "-Dweave.e2e.bootstrap-owner-token=${WEAVE_TEST_APP_SECRET_ROOT}/identity-bootstrap-owner-token" \
   "-Dweave.e2e.workload-credential-root=${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads" \
   "-Dweave.e2e.evidence-file=${WEAVE_TEST_APP_EVIDENCE_PATH}" \
+  "-Dweave.e2e.persistence-restart-command=${COMPOSE}" \
+  "-Dweave.e2e.persistence-restart-evidence=${WEAVE_TEST_APP_RESTART_EVIDENCE_PATH}" \
+  "-Dweave.e2e.candidate-manifest-digest=${candidate_manifest_digest}" \
   "-Dweave.e2e.convergence-timeout=${WEAVE_TEST_APP_CONVERGENCE_TIMEOUT:-PT3M}" \
   :weave-product-e2e:productFlow
 
 jq -e \
   --arg candidate_commit "${candidate_commit}" \
   --arg specification_commit "${specification_commit}" \
+  --arg candidate_manifest_digest "${candidate_manifest_digest}" \
   --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
   .schemaVersion == "weave.test-app-product-flow/v1" and
   .candidateCommit == $candidate_commit and
   .specificationCommit == $specification_commit and
+  .candidateManifestDigest == $candidate_manifest_digest and
   .composeProject == $compose_project and
   .activation == "keycloak-required-actions-real-chromium" and
   .humanOAuth == "authorization_code_pkce_s256" and
@@ -316,6 +405,12 @@ jq -e \
   .mcpTool == "files.search" and
   .serverProjection == "weave-webdav" and
   .canonicalResourceSeen == true and
+  .postgresRestartObserved == true and
+  .runtimeStateRestartObserved == true and
+  .runtimeStateFixtureRestored == true and
+  .sameJpaCellAfterRestart == true and
+  .sameMcpCellAfterRestart == true and
+  (.persistenceRestartEvidenceSha256 | test("^sha256:[0-9a-f]{64}$")) and
   .revocationDenied == true and
   .credentialsIncluded == false and
   .actionLinksIncluded == false and
@@ -325,5 +420,62 @@ jq -e \
 ! grep -Eqi 'protocol/openid-connect/registrations|client_assertion|access_token|refresh_token|password' \
   "${WEAVE_TEST_APP_EVIDENCE_PATH}" ||
   fail "the product-flow evidence contains credential material"
+
+jq -e \
+  --arg candidate_commit "${candidate_commit}" \
+  --arg specification_commit "${specification_commit}" \
+  --arg candidate_manifest_digest "${candidate_manifest_digest}" \
+  --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
+  .schemaVersion == "weave.test-app-persistence-restart/v1" and
+  .candidateCommit == $candidate_commit and
+  .specificationCommit == $specification_commit and
+  .candidateManifestDigest == $candidate_manifest_digest and
+  .composeProject == $compose_project and
+  .postgres.restartObserved == true and
+  .postgres.healthyAfterRestart == true and
+  .runtimeState.restartObserved == true and
+  .runtimeState.healthyAfterRestart == true and
+  .runtimeState.sameVolume == true and
+  .runtimeState.fixtureRestoredExactly == true and
+  .runtimeState.fixtureRemoved == true and
+  .credentialsIncluded == false and
+  .containsSecretValues == false and
+  .supportSafe == true
+' "${WEAVE_TEST_APP_RESTART_EVIDENCE_PATH}" >/dev/null ||
+  fail "the persistence-restart evidence is incomplete"
+
+jq -e \
+  --arg candidate_commit "${candidate_commit}" \
+  --arg specification_commit "${specification_commit}" \
+  --arg candidate_manifest_digest "${candidate_manifest_digest}" \
+  --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
+  .schemaVersion == "weave.test-app-runtime-images/v1" and
+  .candidateCommit == $candidate_commit and
+  .specificationCommit == $specification_commit and
+  .candidateManifestDigest == $candidate_manifest_digest and
+  .composeProject == $compose_project and
+  (.images | length) == 4 and
+  ([.images[].component] | sort) ==
+    ["identity-ops", "keycloak-runtime", "mcp-server", "server"] and
+  ([.images[].matchesCandidate] | all) and
+  .credentialsIncluded == false and
+  .containsSecretValues == false and
+  .supportSafe == true
+' "${WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH}" >/dev/null ||
+  fail "the runtime image evidence is incomplete"
+if [[ -n "${candidate_manifest_path}" ]]; then
+  jq -e '.manifestBound == true and ([.images[].immutableReference] | all)' \
+    "${WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH}" >/dev/null ||
+    fail "the manifest-bound runtime image evidence is incomplete"
+fi
+
+for evidence in \
+  "${WEAVE_TEST_APP_RESTART_EVIDENCE_PATH}" \
+  "${WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH}"; do
+  ! grep -Eqi \
+    'authorization:|bearer |registration_access_token|access_token|refresh_token|client_assertion|private[_-]?key|BEGIN [A-Z ]+PRIVATE KEY' \
+    "${evidence}" ||
+    fail "support-safe evidence contains credential material"
+done
 
 log "WEAVE_TEST_APP_LIFECYCLE_RESULT status=passed isolated=true cleanup=armed supportSafe=true"

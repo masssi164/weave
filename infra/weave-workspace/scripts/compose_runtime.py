@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import stat
 import subprocess
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -31,6 +33,7 @@ COMMANDS = (
     "identity-plan",
     "identity-apply",
     "identity-verify",
+    "persistence-restart-proof",
 )
 RUNTIME_ROOT_SERVICES = {
     "dev": ("caddy", "mailpit"),
@@ -708,6 +711,268 @@ def identity_ops(context: ComposeContext, action: str) -> None:
         adopt_secret_updates(context)
 
 
+def _service_container(context: ComposeContext, service: str) -> dict[str, Any]:
+    selected = compose(context, "ps", "-q", service, capture=True).stdout.strip().splitlines()
+    if len(selected) != 1 or not re.fullmatch(r"[0-9a-f]{64}", selected[0]):
+        raise ContractError(f"{service} does not resolve to one exact running container")
+    inspected = subprocess.run(
+        ["docker", "container", "inspect", selected[0]],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    payload = json.loads(inspected.stdout)
+    if not isinstance(payload, list) or len(payload) != 1:
+        raise ContractError(f"{service} container inspection is ambiguous")
+    container = payload[0]
+    labels = container.get("Config", {}).get("Labels", {}) or {}
+    if (
+        labels.get("com.docker.compose.project") != context.env["WEAVE_COMPOSE_PROJECT"]
+        or labels.get("com.docker.compose.service") != service
+        or labels.get("com.massimotter.weave.namespace")
+        != context.env["WEAVE_RESOURCE_PREFIX"]
+    ):
+        raise ContractError(f"{service} is outside the exact isolated Compose namespace")
+    return container
+
+
+def _service_snapshot(context: ComposeContext, service: str) -> dict[str, Any]:
+    container = _service_container(context, service)
+    state = container.get("State", {})
+    health = state.get("Health", {}).get("Status", "none")
+    return {
+        "containerId": str(container.get("Id", "")),
+        "startedAt": str(state.get("StartedAt", "")),
+        "restartCount": int(container.get("RestartCount", -1)),
+        "running": state.get("Running") is True,
+        "health": health,
+    }
+
+
+def _await_healthy(context: ComposeContext, service: str) -> dict[str, Any]:
+    deadline = time.monotonic() + 180
+    last: dict[str, Any] = {}
+    while time.monotonic() < deadline:
+        try:
+            last = _service_snapshot(context, service)
+            if last["running"] is True and last["health"] == "healthy":
+                return last
+        except (ContractError, json.JSONDecodeError, subprocess.CalledProcessError):
+            last = {}
+        time.sleep(2)
+    state = "unavailable" if not last else f"running={last['running']} health={last['health']}"
+    raise ContractError(f"{service} did not become healthy after the bounded restart: {state}")
+
+
+def _volume_identity(context: ComposeContext, volume: str) -> str:
+    present, owned = inspect_resource(context, "volume", volume)
+    if not present or not owned:
+        raise ContractError("persistence proof requires the exact owned RuntimeState volume")
+    inspected = subprocess.run(
+        ["docker", "volume", "inspect", volume, "--format", "{{.Name}}"],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ).stdout.strip()
+    if inspected != volume:
+        raise ContractError("RuntimeState volume identity is ambiguous")
+    return "sha256:" + hashlib.sha256(volume.encode("utf-8")).hexdigest()
+
+
+def _runtime_state_fixture(
+    context: ComposeContext,
+    operation: str,
+    fixture_key: str,
+    fixture_value: str,
+) -> str:
+    if operation not in {"put", "read", "remove"}:
+        raise ContractError("unsupported RuntimeState persistence fixture operation")
+    common = """
+access_key="$(cat /run/secrets/runtime-state-s3-access-key)"
+secret_key="$(cat /run/secrets/runtime-state-s3-secret-key)"
+mc alias set -- runtime-state http://runtime-state:9000 "${access_key}" "${secret_key}" >/dev/null
+""".strip()
+    operations = {
+        "put": """
+printf '%s' "${WEAVE_PERSISTENCE_FIXTURE}" |
+  mc pipe "runtime-state/weave-runtime-state/${WEAVE_PERSISTENCE_FIXTURE_KEY}" >/dev/null
+mc stat "runtime-state/weave-runtime-state/${WEAVE_PERSISTENCE_FIXTURE_KEY}" >/dev/null
+printf '%s' "${WEAVE_PERSISTENCE_FIXTURE}"
+""",
+        "read": """
+mc cat "runtime-state/weave-runtime-state/${WEAVE_PERSISTENCE_FIXTURE_KEY}"
+""",
+        "remove": """
+mc rm --force "runtime-state/weave-runtime-state/${WEAVE_PERSISTENCE_FIXTURE_KEY}" >/dev/null
+""",
+    }
+    result = compose(
+        context,
+        "run",
+        "--rm",
+        "--no-deps",
+        "--entrypoint",
+        "/bin/sh",
+        "-e",
+        f"WEAVE_PERSISTENCE_FIXTURE_KEY={fixture_key}",
+        "-e",
+        f"WEAVE_PERSISTENCE_FIXTURE={fixture_value}",
+        "runtime-state-init",
+        "-euc",
+        common + "\n" + operations[operation].strip(),
+        capture=True,
+    )
+    return result.stdout
+
+
+def _private_json(path: Path, payload: dict[str, Any]) -> None:
+    path = path.resolve()
+    if path.exists() and (path.is_symlink() or not path.is_file()):
+        raise ContractError("persistence-restart evidence target must be a regular file")
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(path.parent, 0o700)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream, ensure_ascii=False, indent=2, sort_keys=True)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        os.chmod(path, 0o600)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def persistence_restart_proof(context: ComposeContext) -> None:
+    if context.profile != "test" or context.isolated_namespace is None:
+        raise ContractError("persistence-restart-proof is restricted to isolated testApp stacks")
+    evidence_value = os.environ.get("WEAVE_TEST_APP_RESTART_EVIDENCE_PATH", "")
+    run_root_value = os.environ.get("WEAVE_TEST_APP_RUN_ROOT", "")
+    if not evidence_value or not run_root_value:
+        raise ContractError("persistence-restart-proof requires the exact private run directory")
+    run_root_input = Path(run_root_value)
+    if run_root_input.is_symlink():
+        raise ContractError("persistence-restart run directory must not be a symlink")
+    run_root = run_root_input.resolve()
+    evidence = Path(evidence_value).resolve()
+    if (
+        not run_root.is_dir()
+        or evidence.parent != run_root
+        or evidence.name != "persistence-restart-evidence.json"
+    ):
+        raise ContractError("persistence-restart evidence must stay in the exact private run directory")
+    candidate = context.env["WEAVE_CANDIDATE_COMMIT"]
+    specification = context.env["WEAVE_SPEC_COMMIT"]
+    manifest_digest = context.env["WEAVE_CANDIDATE_MANIFEST_DIGEST"]
+    fixture_value = "weave.test-app.persistence/v1:" + hashlib.sha256(
+        (context.isolated_namespace + "\0" + candidate).encode("utf-8")
+    ).hexdigest()
+    fixture_key = "test-app-persistence/" + hashlib.sha256(
+        fixture_value.encode("ascii")
+    ).hexdigest() + ".txt"
+    fixture_digest = "sha256:" + hashlib.sha256(fixture_value.encode("ascii")).hexdigest()
+    volume = context.env["WEAVE_RUNTIME_STATE_VOLUME"]
+    volume_before = _volume_identity(context, volume)
+    postgres_before = _service_snapshot(context, "postgres")
+    runtime_state_before = _service_snapshot(context, "runtime-state")
+    if (
+        not postgres_before["running"]
+        or postgres_before["health"] != "healthy"
+        or not runtime_state_before["running"]
+        or runtime_state_before["health"] != "healthy"
+    ):
+        raise ContractError("persistence-restart-proof requires healthy starting services")
+
+    fixture_removed = False
+    started_at = datetime.now(timezone.utc)
+    try:
+        stored = _runtime_state_fixture(
+            context, "put", fixture_key, fixture_value
+        )
+        if stored != fixture_value:
+            raise ContractError("RuntimeState fixture write was not read back exactly")
+
+        compose(context, "restart", "--no-deps", "--timeout", "20", "postgres")
+        postgres_after = _await_healthy(context, "postgres")
+        _await_healthy(context, "backend")
+        if (
+            postgres_after["containerId"] != postgres_before["containerId"]
+            or postgres_after["startedAt"] == postgres_before["startedAt"]
+        ):
+            raise ContractError("PostgreSQL restart identity did not advance exactly")
+
+        compose(context, "restart", "--no-deps", "--timeout", "20", "runtime-state")
+        runtime_state_after = _await_healthy(context, "runtime-state")
+        _await_healthy(context, "backend")
+        if (
+            runtime_state_after["containerId"] != runtime_state_before["containerId"]
+            or runtime_state_after["startedAt"] == runtime_state_before["startedAt"]
+        ):
+            raise ContractError("RuntimeState restart identity did not advance exactly")
+        restored = _runtime_state_fixture(
+            context, "read", fixture_key, fixture_value
+        )
+        if restored != fixture_value:
+            raise ContractError("RuntimeState fixture did not survive the exact restart")
+        volume_after = _volume_identity(context, volume)
+        if volume_after != volume_before:
+            raise ContractError("RuntimeState volume identity changed across restart")
+
+        _runtime_state_fixture(context, "remove", fixture_key, fixture_value)
+        fixture_removed = True
+        _private_json(
+            evidence,
+            {
+                "schemaVersion": "weave.test-app-persistence-restart/v1",
+                "startedAt": started_at.isoformat().replace("+00:00", "Z"),
+                "completedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "candidateCommit": candidate,
+                "specificationCommit": specification,
+                "candidateManifestDigest": manifest_digest,
+                "composeProject": context.isolated_namespace,
+                "postgres": {
+                    "sameContainer": True,
+                    "restartObserved": True,
+                    "healthyAfterRestart": True,
+                },
+                "runtimeState": {
+                    "sameContainer": True,
+                    "restartObserved": True,
+                    "healthyAfterRestart": True,
+                    "sameVolume": True,
+                    "volumeIdentitySha256": volume_after,
+                    "fixtureSha256": fixture_digest,
+                    "fixtureRestoredExactly": True,
+                    "fixtureRemoved": True,
+                },
+                "classification": {
+                    "postgres": "live-product-state",
+                    "runtimeState": "live-integration-fixture",
+                },
+                "credentialsIncluded": False,
+                "containsSecretValues": False,
+                "supportSafe": True,
+            },
+        )
+    finally:
+        if not fixture_removed:
+            try:
+                _runtime_state_fixture(
+                    context, "remove", fixture_key, fixture_value
+                )
+            except (ContractError, subprocess.CalledProcessError):
+                pass
+    print(
+        "WEAVE_PERSISTENCE_RESTART_RESULT "
+        "postgres=healthy runtimeState=healthy fixture=restored supportSafe=true"
+    )
+
+
 def adopt_secret_updates(context: ComposeContext) -> None:
     updates = context.generated_root / "identity-ops/secret-updates"
     if not updates.exists():
@@ -784,6 +1049,10 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         compose(context, "down", *extra)
     elif command in {"ps", "logs"}:
         compose(context, command, *extra)
+    elif command == "persistence-restart-proof":
+        if extra:
+            raise ContractError("persistence-restart-proof does not accept command arguments")
+        persistence_restart_proof(context)
     else:
         identity_ops(context, command)
 

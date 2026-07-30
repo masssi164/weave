@@ -29,12 +29,16 @@ record ProductFlowEnvironment(
     Path bootstrapOwnerToken,
     Path workloadCredentialRoot,
     Path evidenceFile,
+    Path persistenceRestartCommand,
+    Path persistenceRestartEvidence,
+    String candidateManifestDigest,
     Duration convergenceTimeout) {
 
   private static final Pattern RUN_ID =
       Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{7,159}");
   private static final Pattern GIT_COMMIT = Pattern.compile("[0-9a-f]{40}");
   private static final Pattern COMPOSE_PROJECT = Pattern.compile("weave-e2e-[0-9a-f]{16}");
+  private static final Pattern SHA256 = Pattern.compile("sha256:[0-9a-f]{64}");
 
   ProductFlowEnvironment {
     if (runId == null || !RUN_ID.matcher(runId).matches()) {
@@ -77,6 +81,23 @@ record ProductFlowEnvironment(
     if (evidenceFile.getParent() == null) {
       throw new IllegalArgumentException("weave.e2e.evidence-file needs a parent directory");
     }
+    persistenceRestartCommand =
+        requirePrivateInput(
+            persistenceRestartCommand, "weave.e2e.persistence-restart-command");
+    persistenceRestartEvidence =
+        Objects.requireNonNull(
+                persistenceRestartEvidence, "weave.e2e.persistence-restart-evidence")
+            .toAbsolutePath()
+            .normalize();
+    if (persistenceRestartEvidence.getParent() == null
+        || !persistenceRestartEvidence.getParent().equals(evidenceFile.getParent())
+        || persistenceRestartEvidence.equals(evidenceFile)) {
+      throw new IllegalArgumentException(
+          "weave.e2e.persistence-restart-evidence must be a distinct sibling of product evidence");
+    }
+    if (candidateManifestDigest == null || !SHA256.matcher(candidateManifestDigest).matches()) {
+      throw new IllegalArgumentException("weave.e2e.candidate-manifest-digest is invalid");
+    }
     if (convergenceTimeout == null
         || convergenceTimeout.compareTo(Duration.ofSeconds(30)) < 0
         || convergenceTimeout.compareTo(Duration.ofMinutes(10)) > 0) {
@@ -102,6 +123,9 @@ record ProductFlowEnvironment(
         Path.of(required("bootstrap-owner-token")),
         Path.of(required("workload-credential-root")),
         Path.of(required("evidence-file")),
+        Path.of(required("persistence-restart-command")),
+        Path.of(required("persistence-restart-evidence")),
+        required("candidate-manifest-digest"),
         Duration.parse(System.getProperty("weave.e2e.convergence-timeout", "PT2M")));
   }
 
