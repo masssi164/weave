@@ -2,7 +2,7 @@ diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/
 new file mode 100644
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,500 @@
+@@ -0,0 +1,502 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import jakarta.ws.rs.core.Response;
@@ -188,7 +188,9 @@ new file mode 100644
 +            requireBoundRegistrationAccessToken(crud, target);
 +            prepareUpdate(crud.getProposedClientRepresentation(), target.getClientId());
 +        } else if (context instanceof DynamicClientUpdatedContext) {
-+            requireBoundRegistrationAccessToken(crud, target);
++            // The pre-update event bound the request RAT. Keycloak rotates the stored token ID
++            // before this post-update event, so the old request token cannot match the new ID.
++            // Final-state enforcement still runs inside the same transactional update.
 +            enforceFinalState(target);
 +        } else if (context instanceof DynamicClientViewContext
 +                || context instanceof DynamicClientUnregisterContext) {
