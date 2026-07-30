@@ -295,6 +295,42 @@ def handoff_exchange(
     return status, response
 
 
+def recovered_handoff_authority(
+    status: int,
+    response: dict[str, Any],
+    client_id: str,
+    expected_uri: str,
+    expected_state_digest: str,
+    previous_authority: str,
+    operation: str,
+) -> str:
+    violations: list[str] = []
+    if status != 200:
+        violations.append("status")
+    if response.get("client_id") != client_id:
+        violations.append("client")
+    if response.get("registration_client_uri") != expected_uri:
+        violations.append("uri")
+    if response.get("state_digest") != expected_state_digest:
+        violations.append("state")
+    subject_digest = response.get("subject_digest")
+    if not isinstance(subject_digest, str) or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", subject_digest
+    ):
+        violations.append("subject")
+    authority = response.get("registration_access_token")
+    if not isinstance(authority, str) or not authority:
+        violations.append("authority-absent")
+    elif authority == previous_authority:
+        violations.append("authority-not-rotated")
+    if violations:
+        raise ContractError(
+            "registration handoff recovery violated the exact contract "
+            f"[operation={operation},constraints={','.join(violations)}]"
+        )
+    return authority
+
+
 def exchange_status(
     endpoint: str,
     method: str,
@@ -406,24 +442,15 @@ def registration(
     status, recovered = handoff_exchange(
         recover_endpoint, access_token, handoff_headers
     )
-    recovered_rat = recovered.get("registration_access_token")
-    if (
-        status != 200
-        or recovered.get("client_id") != client_id
-        or recovered.get("registration_client_uri") != expected_uri
-        or recovered.get("state_digest")
-        != handoff_headers["Weave-Registration-Handoff-State"]
-        or not isinstance(recovered.get("subject_digest"), str)
-        or not re.fullmatch(
-            r"sha256:[0-9a-f]{64}", str(recovered.get("subject_digest"))
-        )
-        or not isinstance(recovered_rat, str)
-        or not recovered_rat
-        or recovered_rat == initial_rat
-    ):
-        raise ContractError(
-            "registration handoff recovery did not return one rotated authority"
-        )
+    recovered_rat = recovered_handoff_authority(
+        status,
+        recovered,
+        client_id,
+        expected_uri,
+        handoff_headers["Weave-Registration-Handoff-State"],
+        initial_rat,
+        "create",
+    )
     status, _ = exchange(
         f"{endpoint}/{client_id}", "GET", initial_rat
     )
@@ -877,19 +904,15 @@ def run(args: argparse.Namespace) -> None:
         status, recovered_update = handoff_exchange(
             recover_endpoint, admin_token, update_handoff
         )
-        recovered_update_rat = recovered_update.get("registration_access_token")
-        if (
-            status != 200
-            or recovered_update.get("client_id") != client_a
-            or recovered_update.get("state_digest")
-            != update_handoff["Weave-Registration-Handoff-State"]
-            or not isinstance(recovered_update_rat, str)
-            or not recovered_update_rat
-            or recovered_update_rat == rotated_rat
-        ):
-            raise ContractError(
-                "updated registration handoff recovery did not rotate authority"
-            )
+        recovered_update_rat = recovered_handoff_authority(
+            status,
+            recovered_update,
+            client_a,
+            public_a,
+            update_handoff["Weave-Registration-Handoff-State"],
+            rotated_rat,
+            "rotate",
+        )
         authority_a = (public_a, recovered_update_rat)
         status, _ = exchange(
             f"{direct_endpoint}/{client_a}", "GET", rat_a

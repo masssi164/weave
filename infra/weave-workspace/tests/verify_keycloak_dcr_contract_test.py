@@ -160,6 +160,53 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
             second["Weave-Registration-Handoff"],
         )
 
+    def test_recovered_handoff_authority_reports_only_safe_constraints(self) -> None:
+        response = {
+            "client_id": "weaver-cell-test",
+            "registration_client_uri": (
+                "https://auth.weave.test/realms/weave/"
+                "clients-registrations/openid-connect/weaver-cell-test"
+            ),
+            "registration_access_token": "rotated-fixture-authority",
+            "state_digest": "sha256:" + "a" * 64,
+            "subject_digest": "sha256:" + "b" * 64,
+        }
+
+        authority = target.recovered_handoff_authority(
+            200,
+            response,
+            "weaver-cell-test",
+            response["registration_client_uri"],
+            response["state_digest"],
+            "previous-fixture-authority",
+            "create",
+        )
+
+        self.assertEqual(authority, "rotated-fixture-authority")
+        invalid = dict(response)
+        invalid["registration_client_uri"] = "https://forbidden.invalid"
+        invalid["registration_access_token"] = "previous-fixture-authority"
+        invalid["subject_digest"] = "invalid"
+        with self.assertRaises(target.ContractError) as raised:
+            target.recovered_handoff_authority(
+                409,
+                invalid,
+                "weaver-cell-test",
+                response["registration_client_uri"],
+                response["state_digest"],
+                "previous-fixture-authority",
+                "rotate",
+            )
+        message = str(raised.exception)
+        self.assertEqual(
+            message,
+            "registration handoff recovery violated the exact contract "
+            "[operation=rotate,constraints=status,uri,subject,"
+            "authority-not-rotated]",
+        )
+        self.assertNotIn("previous-fixture-authority", message)
+        self.assertNotIn("https://forbidden.invalid", message)
+
     def test_exact_client_state_rejects_missing_post_policy_scope(self) -> None:
         client_id = "weaver-cell-test"
         private = {
