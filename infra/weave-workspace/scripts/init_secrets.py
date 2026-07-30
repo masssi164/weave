@@ -138,7 +138,7 @@ def _b64(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
 
-def _rsa_jwk(kid: str) -> bytes:
+def generate_rsa_jwk(kid: str) -> bytes:
     generated = subprocess.run(
         [OPENSSL, "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:3072"],
         check=True,
@@ -424,11 +424,11 @@ def initialize(context: ComposeContext) -> None:
     for name, kid in RSA_JWKS:
         path = context.secret_root / name
         if not path.exists():
-            _atomic_write(path, _rsa_jwk(kid))
+            _atomic_write(path, generate_rsa_jwk(kid))
     for name, kid in RUNTIME_RSA_JWKS:
         path = context.secret_root / name
         if not path.exists():
-            _atomic_write(path, _rsa_jwk(kid))
+            _atomic_write(path, generate_rsa_jwk(kid))
         if path.stat().st_uid != runtime_uid or path.stat().st_gid != runtime_gid:
             try:
                 os.chown(path, runtime_uid, runtime_gid)

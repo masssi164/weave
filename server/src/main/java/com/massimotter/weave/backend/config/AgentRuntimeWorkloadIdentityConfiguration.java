@@ -41,7 +41,8 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
   @Bean
   FileRuntimeWorkloadCredentialStore fileRuntimeWorkloadCredentialStore(
       AgentRuntimeWorkloadIdentityProperties properties, ObjectMapper objectMapper) {
-    return new FileRuntimeWorkloadCredentialStore(properties.requiredSecretRoot(), objectMapper);
+    return new FileRuntimeWorkloadCredentialStore(
+        properties.requiredSecretRoot(), objectMapper, properties.issuer());
   }
 
   @Bean
@@ -65,7 +66,10 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
   KeycloakClientRegistrationTransport keycloakWorkloadClientRegistrationTransport(
       AgentRuntimeWorkloadIdentityProperties properties) {
     return new SpringKeycloakClientRegistrationTransport(
-        properties.keycloakAdminBaseUrl(), properties.realm(), properties.timeout());
+        properties.keycloakAdminBaseUrl(),
+        properties.issuer(),
+        properties.realm(),
+        properties.timeout());
   }
 
   @Bean

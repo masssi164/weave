@@ -90,6 +90,7 @@ final class SchemaCatalogFingerprint {
     foreignKeys.sort(Comparator.comparing(key -> key.toString()));
     projection.put("foreignKeys", foreignKeys);
     projection.put("checks", checks(connection, schema, table));
+    projection.put("uniqueConstraints", uniqueConstraints(connection, schema, table));
     projection.put("indexes", explicitIndexes(connection, schema, table));
     return projection;
   }
@@ -118,6 +119,33 @@ final class SchemaCatalogFingerprint {
       }
     }
     return checks;
+  }
+
+  private static List<Map<String, Object>> uniqueConstraints(
+      Connection connection, String schema, String table) throws SQLException {
+    String query =
+        """
+        select pc.conname as constraint_name, pg_get_constraintdef(pc.oid, true) as definition
+        from pg_constraint pc
+        join pg_class rel on rel.oid = pc.conrelid
+        join pg_namespace ns on ns.oid = rel.relnamespace
+        where pc.contype = 'u' and ns.nspname = ? and rel.relname = ?
+        order by constraint_name
+        """;
+    List<Map<String, Object>> constraints = new ArrayList<>();
+    try (var statement = connection.prepareStatement(query)) {
+      statement.setString(1, schema);
+      statement.setString(2, table);
+      try (ResultSet rows = statement.executeQuery()) {
+        while (rows.next()) {
+          constraints.add(
+              Map.of(
+                  "name", rows.getString("constraint_name"),
+                  "definition", rows.getString("definition")));
+        }
+      }
+    }
+    return constraints;
   }
 
   private static List<Map<String, Object>> explicitIndexes(

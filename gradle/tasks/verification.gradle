@@ -11,8 +11,12 @@ tasks.named('matrixRustCoreTest') {
 registerCommandTask('clientCi', file('client'), ['bash', '-lc', 'flutter gen-l10n && dart run build_runner build --delete-conflicting-outputs && dart format --output=none --set-exit-if-changed . && flutter analyze --fatal-infos && flutter test && make marketing-screenshots && git -C .. diff --exit-code -- client/lib client/test docs/assets/marketing docs/assets/roadmap && make offline-contract-test'], 'Run Flutter generated-code, format, analysis, tests, screenshots, and offline contract checks.')
 tasks.register('serverCi') {
     group = 'verification'
-    description = 'Run fast server tests plus the authoritative PostgreSQL JPA contract gate.'
-    dependsOn ':server:test', ':server:postgresJpaTest'
+    description = 'Run core and adapter architecture tests plus the authoritative PostgreSQL JPA contract gate.'
+    dependsOn ':weave-application-core:test',
+            ':weave-files-core:test',
+            ':weave-persistence-jpa:test',
+            ':server:test',
+            ':server:postgresJpaTest'
 }
 registerCommandTask('adminCi', file('admin-console'), ['npm', 'run', 'ci'], 'Run admin console npm CI checks.')
 registerRootCommandTask('generateOpenApiContract', ['bash', 'tools/generate_openapi_contract.sh'], 'Generate the server-owned OpenAPI artifact used by typed consumers.')

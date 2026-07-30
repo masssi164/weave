@@ -97,8 +97,15 @@
       "issue": 651,
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
-      "commands": ["./gradlew :server:test --tests 'com.massimotter.weave.backend.agentruntime.adapter.JdbcEncryptedRuntimeStateStoreTest'"],
-      "evidence": ["server/src/main/resources/db/migration/V001__weave_baseline.sql", "docs/evidence/weaver-security-privacy-accessibility-report.md"]
+      "commands": [
+        "./gradlew :server:test --tests 'com.massimotter.weave.backend.agentruntime.adapter.S3EncryptedRuntimeStateStoreTest'",
+        "./gradlew :server:postgresJpaTest --tests 'com.massimotter.weave.backend.schema.SchemaAuthorityInitializerPostgresTest'"
+      ],
+      "evidence": [
+        "server/src/test/java/com/massimotter/weave/backend/agentruntime/adapter/S3EncryptedRuntimeStateStoreTest.java",
+        "server/src/test/java/com/massimotter/weave/backend/schema/SchemaAuthorityInitializerPostgresTest.java",
+        "docs/evidence/weaver-security-privacy-accessibility-report.md"
+      ]
     },
     {
       "id": "mcp-workload-identity",

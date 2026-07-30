@@ -452,6 +452,7 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
                     context.tenantId(),
                     conversationId.value(),
                     eventId,
+                    allocateEventSequence(context.tenantId(), conversationId),
                     context.identityIssuer(),
                     context.actorRef().value(),
                     content.kind().value(),
@@ -1061,6 +1062,7 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
                     room.tenantId(),
                     conversationId.value(),
                     canonicalEventId,
+                    allocateEventSequence(room.tenantId(), conversationId),
                     actor.issuer(),
                     actor.actorRef(),
                     content.kind().value(),
@@ -2274,6 +2276,16 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
                 .findById(new ChatPairId(tenantId, conversationId.value()))
                 .orElseThrow(() -> new IllegalArgumentException(
                         "canonical chat conversation was not found"));
+    }
+
+    private long allocateEventSequence(
+            String tenantId,
+            ConversationId conversationId) {
+        return jpa.conversations()
+                .lockForEventSequence(tenantId, conversationId.value())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "canonical chat conversation was not found"))
+                .allocateEventSequence();
     }
 
     private ChatEventJpaEntity requireEventEntity(

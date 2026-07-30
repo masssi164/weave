@@ -141,13 +141,17 @@ public final class SchemaAuthorityInitializer {
       throw new IllegalStateException("schema receipt parent directory is unavailable");
     }
     Map<String, Object> value = new LinkedHashMap<>();
-    value.put("schemaVersion", "weave.schema-init-receipt/v1");
+    value.put("schemaVersion", "weave.schema-init-receipt/v2");
     value.put("supportSafe", true);
     value.put("epoch", EPOCH);
     value.put("relationalModelId", MODEL_ID);
     value.put("candidateCommit", candidate);
     value.put("catalogFingerprint", snapshot.sha256());
     value.put("tableCount", snapshot.tables().size());
+    value.put("tables", snapshot.tables());
+    value.put(
+        "catalogProjection",
+        new ObjectMapper().readTree(snapshot.canonicalJson()));
     value.put("completedAtUtc", Instant.now().toString());
     value.put("secretValuesIncluded", false);
     byte[] serialized = new ObjectMapper().writeValueAsString(value).getBytes(StandardCharsets.UTF_8);

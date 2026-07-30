@@ -14,14 +14,21 @@ public interface KeycloakClientRegistrationTransport {
 
     JsonNode create(JsonNode metadata, String administrationAccessToken);
 
-    JsonNode retrieve(URI registrationUri, byte[] registrationAccessToken);
+    JsonNode retrieve(
+            String clientId,
+            URI registrationUri,
+            byte[] registrationAccessToken);
 
     JsonNode update(
+            String clientId,
             URI registrationUri,
             JsonNode metadata,
             byte[] registrationAccessToken);
 
-    void delete(URI registrationUri, byte[] registrationAccessToken);
+    void delete(
+            String clientId,
+            URI registrationUri,
+            byte[] registrationAccessToken);
 
     JsonNode clientCredentials(Map<String, String> parameters);
 }

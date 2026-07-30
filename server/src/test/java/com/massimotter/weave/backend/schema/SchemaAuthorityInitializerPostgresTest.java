@@ -21,7 +21,7 @@ class SchemaAuthorityInitializerPostgresTest {
 
   private static final String CANDIDATE = "a".repeat(40);
   private static final PostgreSQLContainer<?> POSTGRES =
-      new PostgreSQLContainer<>(DockerImageName.parse("postgres:15-alpine"))
+      new PostgreSQLContainer<>(DockerImageName.parse("postgres:16.9-alpine"))
           .withDatabaseName("weave_schema_authority")
           .withUsername("weave")
           .withPassword("weave-test-only");
@@ -37,10 +37,14 @@ class SchemaAuthorityInitializerPostgresTest {
 
     SchemaAuthorityInitializer.run(environment.values());
     var first = new ObjectMapper().readTree(Files.readString(environment.receipt()));
-    assertThat(first.path("schemaVersion").asText()).isEqualTo("weave.schema-init-receipt/v1");
+    assertThat(first.path("schemaVersion").asText()).isEqualTo("weave.schema-init-receipt/v2");
     assertThat(first.path("candidateCommit").asText()).isEqualTo(CANDIDATE);
     assertThat(first.path("catalogFingerprint").asText()).matches("[0-9a-f]{64}");
-    assertThat(first.path("tableCount").asInt()).isEqualTo(47);
+    assertThat(first.path("tableCount").asInt()).isEqualTo(first.path("tables").size());
+    assertThat(first.path("tables"))
+        .anyMatch(table -> "weave_schema_authority".equals(table.asText()));
+    assertThat(first.path("catalogProjection").path("tables").size())
+        .isEqualTo(first.path("tableCount").asInt());
     assertThat(first.path("secretValuesIncluded").asBoolean()).isFalse();
     SchemaReceiptVerifier.verify(environment.values());
 
@@ -53,6 +57,20 @@ class SchemaAuthorityInitializerPostgresTest {
             DriverManager.getConnection(
                 environment.url(), POSTGRES.getUsername(), POSTGRES.getPassword());
         var statement = connection.createStatement()) {
+      statement.execute(
+          "alter table weave_schema_authority "
+              + "add constraint unexpected_unique unique (candidate_commit)");
+    }
+    assertThatThrownBy(() -> SchemaAuthorityInitializer.run(environment.values()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("fingerprint")
+        .hasMessageNotContaining(POSTGRES.getPassword());
+
+    try (var connection =
+            DriverManager.getConnection(
+                environment.url(), POSTGRES.getUsername(), POSTGRES.getPassword());
+        var statement = connection.createStatement()) {
+      statement.execute("alter table weave_schema_authority drop constraint unexpected_unique");
       statement.execute("alter table weave_schema_authority add column unexpected_drift integer");
     }
     assertThatThrownBy(() -> SchemaAuthorityInitializer.run(environment.values()))

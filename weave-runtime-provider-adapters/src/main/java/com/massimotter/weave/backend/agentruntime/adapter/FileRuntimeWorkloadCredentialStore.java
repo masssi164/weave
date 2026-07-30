@@ -80,16 +80,22 @@ public final class FileRuntimeWorkloadCredentialStore
 
     private final Path root;
     private final ObjectMapper mapper;
+    private final URI registrationIssuer;
     private final Clock clock;
     private final SecureRandom secureRandom;
     private final ReentrantLock[] localLocks;
 
     public FileRuntimeWorkloadCredentialStore(Path root, ObjectMapper objectMapper) {
-        this(root, objectMapper, Clock.systemUTC(), new SecureRandom());
+        this(root, objectMapper, null, Clock.systemUTC(), new SecureRandom());
+    }
+
+    public FileRuntimeWorkloadCredentialStore(
+            Path root, ObjectMapper objectMapper, URI registrationIssuer) {
+        this(root, objectMapper, registrationIssuer, Clock.systemUTC(), new SecureRandom());
     }
 
     public FileRuntimeWorkloadCredentialStore(Path root, ObjectMapper objectMapper, Clock clock) {
-        this(root, objectMapper, clock, new SecureRandom());
+        this(root, objectMapper, null, clock, new SecureRandom());
     }
 
     FileRuntimeWorkloadCredentialStore(
@@ -97,10 +103,31 @@ public final class FileRuntimeWorkloadCredentialStore
             ObjectMapper objectMapper,
             Clock clock,
             SecureRandom secureRandom) {
+        this(root, objectMapper, null, clock, secureRandom);
+    }
+
+    private FileRuntimeWorkloadCredentialStore(
+            Path root,
+            ObjectMapper objectMapper,
+            URI registrationIssuer,
+            Clock clock,
+            SecureRandom secureRandom) {
         if (root == null || objectMapper == null || clock == null || secureRandom == null) {
             throw new IllegalArgumentException("credential root, ObjectMapper, clock, and randomness are required");
         }
         this.root = root.toAbsolutePath().normalize();
+        if (registrationIssuer != null
+                && (registrationIssuer.getHost() == null
+                || !"https".equalsIgnoreCase(registrationIssuer.getScheme())
+                || registrationIssuer.getUserInfo() != null
+                || registrationIssuer.getQuery() != null
+                || registrationIssuer.getFragment() != null
+                || registrationIssuer.getRawPath() == null
+                || !registrationIssuer.getRawPath().matches("/realms/[A-Za-z0-9._~-]+"))) {
+            throw new IllegalArgumentException(
+                    "registrationIssuer must identify one exact HTTPS realm");
+        }
+        this.registrationIssuer = registrationIssuer;
         this.mapper = objectMapper.rebuild()
                 .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
@@ -427,6 +454,61 @@ public final class FileRuntimeWorkloadCredentialStore
         });
     }
 
+    RuntimeWorkloadCredentialState activateReplacementAuthority(
+            String clientId,
+            String ownerFingerprint,
+            String rotationRef,
+            String expectedTokenFingerprint,
+            URI registrationUri,
+            byte[] registrationAccessToken,
+            String serviceAccountSubject) {
+        Objects.requireNonNull(rotationRef, "rotationRef");
+        Objects.requireNonNull(registrationUri, "registrationUri");
+        Objects.requireNonNull(registrationAccessToken, "registrationAccessToken");
+        return locked(clientId, () -> {
+            StoredCredential current = requireStored(clientId, ownerFingerprint);
+            RegistrationAuthority authority = authority(current)
+                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                            "The workload registration authority is unavailable"));
+            if (!MessageDigest.isEqual(
+                    authority.tokenFingerprint().getBytes(StandardCharsets.US_ASCII),
+                    expectedTokenFingerprint.getBytes(StandardCharsets.US_ASCII))) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration authority changed concurrently");
+            }
+            String rotation = fingerprint(rotationRef);
+            requireRotation(current, rotation);
+            if (phase(current) != RotationPhase.PREPARED) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The replacement workload credential is not prepared");
+            }
+            StoredKey replacement = current.keys().stream()
+                    .filter(key -> key.status() == KeyStatus.PENDING)
+                    .findFirst()
+                    .orElseThrow();
+            StoredCredential activated = new StoredCredential(
+                    current.schemaVersion(),
+                    current.clientId(),
+                    current.ownerFingerprint(),
+                    current.authenticationMethod(),
+                    current.credentialRef(),
+                    registrationUri.toString(),
+                    new String(registrationAccessToken, StandardCharsets.UTF_8),
+                    serviceAccountSubject,
+                    true,
+                    current.organizationFingerprint(),
+                    current.personFingerprint(),
+                    current.cellFingerprint(),
+                    replacement.keyId(),
+                    null,
+                    rotation,
+                    List.of(replacement.withStatus(KeyStatus.ACTIVE)));
+            validate(activated, clientId);
+            write(activated);
+            return projection(activated);
+        });
+    }
+
     <T> T withRegistrationAccessToken(
             String clientId,
             String ownerFingerprint,
@@ -682,7 +764,8 @@ public final class FileRuntimeWorkloadCredentialStore
                 && stored.personFingerprint() == null
                 && stored.cellFingerprint() == null
                 && !stored.registrationEnabled();
-        boolean authorityPresent = validRegistrationUri(stored.registrationUri())
+        boolean authorityPresent = validRegistrationUri(
+                        stored.registrationUri(), stored.clientId())
                 && stored.registrationAccessToken() != null
                 && !stored.registrationAccessToken().isBlank()
                 && stored.registrationAccessToken().length() <= 16 * 1024
@@ -722,18 +805,27 @@ public final class FileRuntimeWorkloadCredentialStore
         }
     }
 
-    private static boolean validRegistrationUri(String value) {
+    private boolean validRegistrationUri(String value, String clientId) {
         if (value == null) {
             return false;
         }
         try {
             URI uri = URI.create(value);
-            return uri.isAbsolute()
+            boolean validShape = uri.isAbsolute()
                     && uri.getHost() != null
                     && ("http".equalsIgnoreCase(uri.getScheme())
                             || "https".equalsIgnoreCase(uri.getScheme()))
                     && uri.getUserInfo() == null
+                    && uri.getQuery() == null
                     && uri.getFragment() == null;
+            if (!validShape || registrationIssuer == null) {
+                return validShape;
+            }
+            return URI.create(
+                            registrationIssuer.toASCIIString()
+                                    + "/clients-registrations/openid-connect/"
+                                    + clientId)
+                    .equals(uri);
         } catch (IllegalArgumentException ignored) {
             return false;
         }

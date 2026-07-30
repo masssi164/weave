@@ -11,6 +11,7 @@ readonly RUNTIME_CLEANUP="${REPOSITORY_ROOT}/gradle/scripts/cleanup_test_app_run
 readonly COMPOSE="${WORKSPACE_ROOT}/compose.sh"
 readonly TEARDOWN="${WORKSPACE_ROOT}/teardown.sh"
 readonly FAILURE_DIAGNOSTICS="${WORKSPACE_ROOT}/live-stack-failure-diagnostics.sh"
+readonly DCR_CONTRACT_PROBE="${WORKSPACE_ROOT}/scripts/verify_keycloak_dcr_contract.py"
 
 RUN_ID="${WEAVE_TEST_APP_RUN_ID:-}"
 OUTPUT_ROOT="${WEAVE_TEST_APP_OUTPUT_ROOT:-${REPOSITORY_ROOT}/build/test-app}"
@@ -28,6 +29,18 @@ fail() { printf 'WEAVE_TEST_APP_LIFECYCLE_ERROR %s\n' "$*" >&2; exit 1; }
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
+}
+
+require_free_disk_space() {
+  local minimum_kib=8388608
+  local available_kib
+  mkdir -p "${OUTPUT_ROOT}"
+  available_kib="$(df -Pk "${OUTPUT_ROOT}" | awk 'NR == 2 {print $4}')"
+  [[ "${available_kib}" =~ ^[0-9]+$ ]] ||
+    fail "unable to determine free disk space for the isolated proof"
+  if ((available_kib < minimum_kib)); then
+    fail "isolated proof requires at least ${minimum_kib} KiB free before image build and resource creation"
+  fi
 }
 
 image_label() {
@@ -86,13 +99,14 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-for command in bash docker git java jq openssl python3 shasum; do
+for command in awk bash df docker git java jq openssl python3 shasum; do
   require_command "${command}"
 done
 docker info >/dev/null 2>&1 || fail "Docker daemon is not reachable"
 [[ -x "${REPOSITORY_ROOT}/gradlew" ]] || fail "Gradle wrapper is unavailable"
 [[ "${OUTPUT_ROOT}" == /* ]] || fail "WEAVE_TEST_APP_OUTPUT_ROOT must be absolute"
 [[ -f "${CONTEXT_HELPER}" ]] || fail "Fresh testApp context helper is unavailable"
+require_free_disk_space
 
 candidate_commit="${WEAVE_CANDIDATE_COMMIT:-$(git -C "${REPOSITORY_ROOT}" rev-parse HEAD)}"
 [[ "${candidate_commit}" =~ ^[0-9a-f]{40}$ ]] ||
@@ -106,7 +120,6 @@ fi
 [[ "${RUN_ID}" =~ ^[a-z0-9][a-z0-9-]{5,39}$ ]] ||
   fail "WEAVE_TEST_APP_RUN_ID must match [a-z0-9][a-z0-9-]{5,39}"
 
-mkdir -p "${OUTPUT_ROOT}"
 chmod 700 "${OUTPUT_ROOT}"
 context="$(
   python3 "${CONTEXT_HELPER}" \
@@ -226,6 +239,46 @@ for required in \
 done
 [[ -d "${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads" ]] ||
   fail "the isolated workload SecretRef root is unavailable"
+
+log "Running direct Keycloak DCR policy and Registration Access Token lifecycle proof."
+dcr_evidence="${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/keycloak-dcr-live-proof.json"
+python3 "${DCR_CONTRACT_PROBE}" \
+  --keycloak-base "http://127.0.0.1:${WEAVE_KEYCLOAK_HOST_PORT}" \
+  --issuer "${WEAVE_TEST_APP_ISSUER}" \
+  --realm weave \
+  --runtime-admin-jwk \
+    "${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin" \
+  --run-id "${RUN_ID}" \
+  --candidate-commit "${candidate_commit}" \
+  --specification-commit "${specification_commit}" \
+  --compose-project "${WEAVE_E2E_RUN_NAMESPACE}" \
+  --output "${dcr_evidence}"
+jq -e \
+  --arg candidate_commit "${candidate_commit}" \
+  --arg specification_commit "${specification_commit}" \
+  --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
+  .schemaVersion == "weave.keycloak-dcr-live-proof/v1" and
+  .candidateCommit == $candidate_commit and
+  .specificationCommit == $specification_commit and
+  .composeProject == $compose_project and
+  .runtimeAdminRoles == ["create-client"] and
+  .broadAdminRestRejected == true and
+  .validRegistration == true and
+  .privateKeyJwt == true and
+  .effectiveWorkloadRoles == ["weaver-runtime"] and
+  .registrationAccessTokenRotation == true and
+  .postUpdateFinalStateVerified == true and
+  .staleRegistrationAccessTokenRejected == true and
+  .crossCellRegistrationAccessTokenRejected == true and
+  (.negativeCases | length) == 7 and
+  .cleanupComplete == true and
+  .credentialsIncluded == false and
+  .supportSafe == true
+' "${dcr_evidence}" >/dev/null ||
+  fail "the live Keycloak DCR evidence is incomplete"
+! grep -Eqi 'authorization:|bearer |registration_access_token|access_token|client_assertion|private_key' \
+  "${dcr_evidence}" ||
+  fail "the live Keycloak DCR evidence contains credential material"
 
 log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
 "${REPOSITORY_ROOT}/gradlew" \

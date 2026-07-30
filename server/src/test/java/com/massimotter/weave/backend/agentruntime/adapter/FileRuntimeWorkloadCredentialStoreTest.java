@@ -13,6 +13,8 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredential
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore.RetireCredentialCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore.RotateCredentialCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
@@ -178,6 +180,58 @@ class FileRuntimeWorkloadCredentialStoreTest {
             }
             assertThat(mapper.readTree(Files.readString(secretPath())).path("keys")).hasSize(1);
         }
+    }
+
+    @Test
+    void registrationAuthorityIsBoundToTheExactPublicRealmAndClient() {
+        URI issuer = URI.create("https://auth.weave.test/realms/weave");
+        FileRuntimeWorkloadCredentialStore strict =
+                new FileRuntimeWorkloadCredentialStore(temporary, mapper, issuer);
+        strict.create(command());
+        byte[] token = "fixture-registration-authority".getBytes(StandardCharsets.UTF_8);
+
+        assertThatThrownBy(() -> strict.bindRegistrationAuthority(
+                CLIENT_ID,
+                OWNER,
+                OWNER,
+                OWNER,
+                OWNER,
+                URI.create(
+                        "https://foreign.example/realms/weave/clients-registrations/"
+                                + "openid-connect/" + CLIENT_ID),
+                token,
+                "service-account-subject"))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("registration authority is inconsistent");
+        assertThatThrownBy(() -> strict.bindRegistrationAuthority(
+                CLIENT_ID,
+                OWNER,
+                OWNER,
+                OWNER,
+                OWNER,
+                URI.create(
+                        issuer + "/clients-registrations/openid-connect/"
+                                + CLIENT_ID + "?destination=elsewhere"),
+                token,
+                "service-account-subject"))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("registration authority is inconsistent");
+
+        URI expected = URI.create(
+                issuer + "/clients-registrations/openid-connect/" + CLIENT_ID);
+        strict.bindRegistrationAuthority(
+                CLIENT_ID,
+                OWNER,
+                OWNER,
+                OWNER,
+                OWNER,
+                expected,
+                token,
+                "service-account-subject");
+
+        assertThat(strict.registrationAuthority(CLIENT_ID, OWNER))
+                .hasValueSatisfying(authority ->
+                        assertThat(authority.registrationUri()).isEqualTo(expected));
     }
 
     private static CreateCredentialCommand command() {

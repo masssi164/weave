@@ -463,6 +463,38 @@ services:
       retries: 60
       start_period: 30s
 
+  runtime-state-volume-init:
+    profiles:
+      - test
+    image: ${WEAVE_RUNTIME_STATE_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-runtime-state-volume-init
+    restart: "no"
+    user: "0:0"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+    entrypoint:
+      - /bin/sh
+      - -euc
+    command:
+      - |
+        chmod 0700 /data
+        chown "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}" /data
+    volumes:
+      - runtime-state-data:/data
+    network_mode: none
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: runtime-state
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
+      com.massimotter.weave.one-shot: "true"
+      com.massimotter.weave.operation: volume-initialize
+
   runtime-state:
     <<: *weave-service
     labels:
@@ -475,6 +507,7 @@ services:
     image: ${WEAVE_RUNTIME_STATE_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-runtime-state
     restart: unless-stopped
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -489,6 +522,9 @@ services:
       - /data
       - --console-address
       - :9001
+    depends_on:
+      runtime-state-volume-init:
+        condition: service_completed_successfully
     secrets:
       - source: runtime-state-s3-access-key
         target: runtime-state-s3-access-key
@@ -515,6 +551,7 @@ services:
     image: ${WEAVE_RUNTIME_STATE_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-runtime-state-init
     restart: "no"
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
     read_only: true
     security_opt:
       - no-new-privileges:true
