@@ -99,6 +99,7 @@ class McpWorkloadAuthorizationServiceTest {
         assertThat(principal.workloadClientId()).isEqualTo(CLIENT);
         assertThat(principal.mcpEdgeClientId()).isEqualTo("weave-mcp-server");
         assertThat(principal.memberBinding()).isEqualTo(MEMBER);
+        assertThat(principal.contextPrincipalClaim()).isEqualTo("test-member");
         assertThat(principal.scopes()).containsExactly("calendar.read");
         assertThat(principal.visibleToolClasses()).containsExactly("calendar.read");
         assertThat(principal.authorizationExpiresAt()).isEqualTo(NOW.plusSeconds(30));
@@ -288,6 +289,7 @@ class McpWorkloadAuthorizationServiceTest {
                 "org:test",
                 "person:test",
                 MEMBER,
+                "test-member",
                 "keycloak",
                 SOURCE_GROUP,
                 CAPABILITY_REVISION,

@@ -63,6 +63,7 @@ class KeycloakRuntimeIdentityAuthorityTest {
         var observation = authority.observe(command(ISSUER));
 
         assertThat(observation.sourceProvider()).isEqualTo("keycloak");
+        assertThat(observation.contextPrincipalClaim()).isEqualTo("member-username");
         assertThat(observation.sourceGroupRef()).matches("sha256:[a-f0-9]{64}");
         assertThat(observation.capabilityRevision()).matches("sha256:[a-f0-9]{64}");
         assertThat(observation.sourceGroupRef()).doesNotContain("group-1", "capabilities");
@@ -280,6 +281,7 @@ class KeycloakRuntimeIdentityAuthorityTest {
                 respond(exchange, 200, mapper.writeValueAsString(
                         mapper.createObjectNode()
                         .put("id", SUBJECT)
+                        .put("username", "member-username")
                         .put("enabled", userEnabled)));
                 return;
             }

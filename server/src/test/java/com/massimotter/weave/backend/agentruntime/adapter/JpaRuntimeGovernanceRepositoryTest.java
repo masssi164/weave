@@ -101,7 +101,7 @@ class JpaRuntimeGovernanceRepositoryTest {
         return new RuntimeEntitlementObservation(
                 "org:example", "person:example",
                 new RuntimeMemberBinding("https://auth.weave.test/realms/weave", "member-1"),
-                "keycloak", HASH_ONE, HASH_TWO, observedAt, expiresAt);
+                "member-1", "keycloak", HASH_ONE, HASH_TWO, observedAt, expiresAt);
     }
 
     private static RuntimeAuditCorrelation correlation(String correlationRef) {

@@ -127,6 +127,7 @@ public final class McpWorkloadAuthorizationService {
                 cell.organizationRef(),
                 cell.personRef(),
                 cell.memberBinding(),
+                observation.contextPrincipalClaim(),
                 cell.cellRef(),
                 profile.profileId(),
                 envelope.profileHash(),

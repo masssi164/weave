@@ -119,7 +119,8 @@ public final class KeycloakRuntimeIdentityAuthority
         String capabilityRevision = RuntimeWorkloadOwnership.fingerprint(capability.toString());
         Instant observedAt = clock.instant();
         return new RuntimeEntitlementObservation(
-                command.organizationRef(), command.personRef(), command.memberBinding(), SOURCE_PROVIDER,
+                command.organizationRef(), command.personRef(), command.memberBinding(),
+                text(organizationMember, "username"), SOURCE_PROVIDER,
                 sourceGroupRef, capabilityRevision, observedAt, observedAt.plus(settings.observationTtl()));
     }
 

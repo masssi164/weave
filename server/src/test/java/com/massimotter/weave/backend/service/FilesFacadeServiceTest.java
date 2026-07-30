@@ -174,6 +174,7 @@ class FilesFacadeServiceTest {
                 "person-1",
                 new RuntimeMemberBinding(
                         "https://auth.weave.test/realms/weave", "member-subject-1"),
+                "member-username",
                 "cell-1",
                 "profile-1",
                 "sha256:profile",
@@ -188,9 +189,13 @@ class FilesFacadeServiceTest {
         when(authorization.authorize(exchanged)).thenReturn(principal);
 
         InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        AtomicReference<ContextAuthorizationRequest> contextRequest = new AtomicReference<>();
         FilesFacadeService service = new FilesFacadeService(
                 provider(new StubAdapter(true)),
-                request -> ContextAuthorizationDecision.allow("active member binding"),
+                request -> {
+                    contextRequest.set(request);
+                    return ContextAuthorizationDecision.allow("active member binding");
+                },
                 defaultContextAuthorizationProperties(),
                 workspaceCapabilityService(),
                 new com.massimotter.weave.backend.security.device.DeviceCredentialService(
@@ -206,6 +211,7 @@ class FilesFacadeServiceTest {
                 WebDavSearchRequest.MatchField.DISPLAY_NAME_OR_PATH));
 
         assertThat(result.resources()).hasSize(1);
+        assertThat(contextRequest.get().principalRef()).isEqualTo("user:member-username");
         assertThat(audit.events()).singleElement().satisfies(event -> {
             assertThat(event.action()).isEqualTo(AuditAction.WEAVER_TOOL_INVOCATION_RECORDED);
             assertThat(event.tenantId()).isEqualTo("tenant-default");

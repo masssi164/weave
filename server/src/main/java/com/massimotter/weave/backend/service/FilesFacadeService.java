@@ -928,7 +928,7 @@ public class FilesFacadeService {
         String memberSubject = workload.memberBinding().subject();
         PrincipalContext principal = new PrincipalContext(
                 workload.organizationRef(),
-                contextAuthorizationProperties.principalRef(memberSubject),
+                contextAuthorizationProperties.principalRef(workload.contextPrincipalClaim()),
                 memberSubject,
                 workload.personRef(),
                 "runtime-profile:" + workload.runtimeProfileHash(),
@@ -1201,7 +1201,7 @@ public class FilesFacadeService {
         auditEventPublisher.publish(new AuditEvent(
                 principal.tenantId(),
                 DEFAULT_CONTEXT_ID,
-                principal.principalRef(),
+                contextAuthorizationProperties.principalRef(principal.subject()),
                 "files:mcp",
                 AuditAction.WEAVER_TOOL_INVOCATION_RECORDED,
                 Instant.now(),

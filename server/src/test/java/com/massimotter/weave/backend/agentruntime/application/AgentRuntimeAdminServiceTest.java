@@ -69,7 +69,7 @@ class AgentRuntimeAdminServiceTest {
         JpaRuntimeGovernanceRepository governance = persistence.governance();
         workloads = new CountingWorkloadAdmin();
         RuntimeEntitlementAuthority entitlement = command -> new RuntimeEntitlementObservation(
-                command.organizationRef(), command.personRef(), command.memberBinding(), "keycloak",
+                command.organizationRef(), command.personRef(), command.memberBinding(), "test-member", "keycloak",
                 "sha256:" + "1".repeat(64), "sha256:" + "2".repeat(64),
                 NOW, NOW.plusSeconds(300));
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);

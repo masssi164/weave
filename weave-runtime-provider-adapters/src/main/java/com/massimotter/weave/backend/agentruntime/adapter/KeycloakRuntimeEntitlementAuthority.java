@@ -131,6 +131,7 @@ public final class KeycloakRuntimeEntitlementAuthority
         command.organizationRef(),
         command.personRef(),
         command.memberBinding(),
+        text(user, "username"),
         SOURCE_PROVIDER,
         sourceGroupRef,
         capabilityRevision,

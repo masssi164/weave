@@ -61,6 +61,7 @@ public final class AgentRuntimeJpaTestFactory {
                 organizationRef,
                 personRef,
                 memberBinding,
+                "test-member",
                 "keycloak",
                 RuntimeWorkloadOwnership.fingerprint(
                         "organization-group:/capabilities/weaver"),

@@ -221,7 +221,7 @@ class AgentRuntimeControlServiceTest {
                 throw new RuntimeEntitlementAuthorityException("simulated authority outage");
             }
             return new RuntimeEntitlementObservation(
-                    command.organizationRef(), command.personRef(), command.memberBinding(), "keycloak",
+                    command.organizationRef(), command.personRef(), command.memberBinding(), "test-member", "keycloak",
                     "sha256:" + "1".repeat(64), capabilityRevision,
                     NOW, NOW.plusSeconds(300));
         }
