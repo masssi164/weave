@@ -879,10 +879,13 @@ def persistence_restart_proof(context: ComposeContext) -> None:
     volume = context.env["WEAVE_RUNTIME_STATE_VOLUME"]
     volume_before = _volume_identity(context, volume)
     postgres_before = _service_snapshot(context, "postgres")
+    keycloak_before = _service_snapshot(context, "keycloak")
     runtime_state_before = _service_snapshot(context, "runtime-state")
     if (
         not postgres_before["running"]
         or postgres_before["health"] != "healthy"
+        or not keycloak_before["running"]
+        or keycloak_before["health"] != "healthy"
         or not runtime_state_before["running"]
         or runtime_state_before["health"] != "healthy"
     ):
@@ -899,12 +902,24 @@ def persistence_restart_proof(context: ComposeContext) -> None:
 
         compose(context, "restart", "--no-deps", "--timeout", "20", "postgres")
         postgres_after = _await_healthy(context, "postgres")
-        _await_healthy(context, "backend")
         if (
             postgres_after["containerId"] != postgres_before["containerId"]
             or postgres_after["startedAt"] == postgres_before["startedAt"]
         ):
             raise ContractError("PostgreSQL restart identity did not advance exactly")
+
+        # Keycloak owns a JDBC pool against the restarted database. Its
+        # management endpoint can stay healthy while a pre-restart connection
+        # is stale. Restart the dependent process in the same namespace so the
+        # subsequent token flow proves persisted Realm and DCR state.
+        compose(context, "restart", "--no-deps", "--timeout", "20", "keycloak")
+        keycloak_after = _await_healthy(context, "keycloak")
+        if (
+            keycloak_after["containerId"] != keycloak_before["containerId"]
+            or keycloak_after["startedAt"] == keycloak_before["startedAt"]
+        ):
+            raise ContractError("Keycloak dependency restart identity did not advance exactly")
+        _await_healthy(context, "backend")
 
         compose(context, "restart", "--no-deps", "--timeout", "20", "runtime-state")
         runtime_state_after = _await_healthy(context, "runtime-state")
@@ -939,6 +954,8 @@ def persistence_restart_proof(context: ComposeContext) -> None:
                     "sameContainer": True,
                     "restartObserved": True,
                     "healthyAfterRestart": True,
+                    "dependentKeycloakRestartObserved": True,
+                    "keycloakHealthyAfterRestart": True,
                 },
                 "runtimeState": {
                     "sameContainer": True,

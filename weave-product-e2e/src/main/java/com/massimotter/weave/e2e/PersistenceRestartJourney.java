@@ -113,6 +113,14 @@ final class PersistenceRestartJourney {
             && receipt.path("postgres").path("sameContainer").asBoolean(false)
             && receipt.path("postgres").path("restartObserved").asBoolean(false)
             && receipt.path("postgres").path("healthyAfterRestart").asBoolean(false)
+            && receipt
+                .path("postgres")
+                .path("dependentKeycloakRestartObserved")
+                .asBoolean(false)
+            && receipt
+                .path("postgres")
+                .path("keycloakHealthyAfterRestart")
+                .asBoolean(false)
             && receipt.path("runtimeState").path("sameContainer").asBoolean(false)
             && receipt.path("runtimeState").path("restartObserved").asBoolean(false)
             && receipt

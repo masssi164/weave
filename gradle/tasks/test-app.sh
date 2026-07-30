@@ -433,6 +433,8 @@ jq -e \
   .composeProject == $compose_project and
   .postgres.restartObserved == true and
   .postgres.healthyAfterRestart == true and
+  .postgres.dependentKeycloakRestartObserved == true and
+  .postgres.keycloakHealthyAfterRestart == true and
   .runtimeState.restartObserved == true and
   .runtimeState.healthyAfterRestart == true and
   .runtimeState.sameVolume == true and
