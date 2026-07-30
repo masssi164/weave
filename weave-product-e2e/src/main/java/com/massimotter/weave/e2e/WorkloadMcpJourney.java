@@ -347,7 +347,8 @@ final class WorkloadMcpJourney {
   private static void requireNoError(JsonNode response, String operation) {
     if (!"2.0".equals(response.path("jsonrpc").asString())
         || response.path("error").isObject()
-        || !response.path("result").isObject()) {
+        || !response.path("result").isObject()
+        || response.path("result").path("isError").asBoolean(false)) {
       throw new ProductFlowException(operation + " returned a JSON-RPC error");
     }
   }

@@ -36,6 +36,39 @@ class FilesWebDavClientTest {
   }
 
   @Test
+  void searchRequestsAndReturnsProviderNeutralCanonicalMetadata() {
+    server.createContext(
+        "/dav/files",
+        exchange -> {
+          authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+          searchBody.set(
+              new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+          byte[] response = searchResponse("files:/Team/readme.md");
+          exchange.getResponseHeaders().set("Content-Type", "application/xml");
+          exchange.sendResponseHeaders(207, response.length);
+          exchange.getResponseBody().write(response);
+          exchange.close();
+        });
+    server.start();
+
+    List<FilesWebDavClient.FileSearchItem> matches =
+        client().search("readme.md", "/", 10);
+
+    assertThat(authorization.get()).isEqualTo("Bearer exchanged-only");
+    assertThat(searchBody.get())
+        .contains("<d:like>")
+        .contains("<w:canonical-id/>")
+        .contains("<d:literal>readme.md</d:literal>");
+    assertThat(matches)
+        .singleElement()
+        .satisfies(
+            match -> {
+              assertThat(match.canonicalFileId()).isEqualTo("files:/Team/readme.md");
+              assertThat(match.name()).isEqualTo("readme.md");
+            });
+  }
+
+  @Test
   void resourceReadResolvesCanonicalIdByExactDavPredicateThenGetsFacadeContent() {
     server.createContext(
         "/dav/files",
