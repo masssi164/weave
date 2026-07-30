@@ -8,7 +8,7 @@ Every provider adapter must publish a support-safe manifest before it can back a
 
 | Field | Requirement |
 | --- | --- |
-| `adapterKey` | Stable adapter identifier, e.g. `keycloak-realm`, `openproject-primary`, `livekit`, or `nextcloud-files`. |
+| `adapterKey` | Stable southbound adapter identifier, e.g. `matrix-synapse`, `openproject-primary`, `livekit`, or `nextcloud-files`; platform identity is not an adapter category. |
 | `domain` | One canonical domain, or an explicit list when the adapter spans domains. |
 | `apiProfile` | Standards/API profile used by the adapter, such as OIDC, SAML, SCIM, CalDAV, WebDAV, Matrix Client-Server, OpenProject REST, LiveKit token API, or provider Graph API. |
 | `canonicalObjects` | Canonical object kinds the adapter can read, write, or link. |

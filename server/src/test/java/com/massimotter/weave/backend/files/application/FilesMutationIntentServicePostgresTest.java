@@ -18,7 +18,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
-import org.flywaydb.core.Flyway;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -131,7 +131,7 @@ class FilesMutationIntentServicePostgresTest {
         dataSource.setUrl(POSTGRES.getJdbcUrl());
         dataSource.setUsername(POSTGRES.getUsername());
         dataSource.setPassword(POSTGRES.getPassword());
-        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+        JpaTestDatabase.initializeSchema(dataSource);
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         // PostgreSQL truncates this nanosecond value to microsecond precision on round-trip.
         // A successful insert must still be reported as new rather than mistaken for a retry.

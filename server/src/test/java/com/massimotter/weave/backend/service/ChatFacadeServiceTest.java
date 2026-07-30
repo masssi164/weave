@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.audit.AuditRequiredException;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
@@ -184,8 +186,10 @@ class ChatFacadeServiceTest {
                 .subject("user-123")
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", roles)))
-                .claim("groups", groups)
+                .claim(
+                        "organization",
+                        HumanJwtTestSupport
+                                .organizationWithRolesAndGroups(roles, groups))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();

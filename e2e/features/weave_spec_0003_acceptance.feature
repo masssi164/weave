@@ -9,7 +9,7 @@ Feature: WEAVE-SPEC-0003 acceptance
     And the acceptance scenario is mapped to offline spec evidence marker WEAVE_SPEC_0003_MEETING_CONSENT_BOUNDARY
     When the product claim is evaluated for merge
     Then the claim is blocked unless the mapped evidence covers meeting consent boundary
-    And the catalog records the bounded domains meetings-calls, identity-idm, decisions-evidence
+    And the catalog records the bounded domains meetings-calls, admin-health-ops, decisions-evidence
 
   @weave-spec-0003-transcript-retention-followup
   Scenario: Transcript and follow-up artifacts stay encrypted retained and policy-linked

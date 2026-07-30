@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChangeSet;
@@ -24,13 +26,14 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
-import com.massimotter.weave.backend.files.application.FilesLockService;
-import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
 import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.files.application.FilesLockService;
+import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
 import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
 import com.massimotter.weave.backend.security.device.DeviceCredentialRepository;
@@ -89,6 +92,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 CalDavCalendarController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
@@ -809,7 +813,7 @@ class FilesCalendarFacadeControllerTest {
     @Test
     void memberJwtWithoutCalendarEditorCapabilityCannotWriteEvenWhenRebacWouldAllow() throws Exception {
         mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/caldav/workspace/missing-capability.ics")
-                        .with(memberWorkspaceJwt())
+                        .with(workspaceJwtWithoutCalendarEditor())
                         .header("If-None-Match", "*")
                         .contentType("text/calendar")
                         .content("""
@@ -833,7 +837,7 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))));
 
         mockMvc.perform(post("/api/calendar/client-setup/credentials")
-                        .with(memberWorkspaceJwt())
+                        .with(workspaceJwtWithoutCalendarEditor())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"label\":\"Denied calendar\",\"clientType\":\"caldav\"}"))
                 .andExpect(status().isForbidden())
@@ -983,20 +987,23 @@ class FilesCalendarFacadeControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                 .claim("aud", java.util.List.of("weave-app"))
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin"))))
-                .claim("groups", java.util.List.of()))
+                .claim(
+                        "organization",
+                        HumanJwtTestSupport
+                                .organizationWithRole("admin")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
-    private org.springframework.test.web.servlet.request.RequestPostProcessor memberWorkspaceJwt() {
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithoutCalendarEditor() {
         return jwt().jwt(jwt -> jwt
                         .subject("user@example.com")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("weave_tenant_id", "tenant-default")
-                        .claim("resource_access", java.util.Map.of(
-                                "weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                        .claim("groups", java.util.List.of()))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("member")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 

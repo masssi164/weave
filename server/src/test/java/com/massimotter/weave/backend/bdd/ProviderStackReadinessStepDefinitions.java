@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.bdd;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -78,7 +80,7 @@ public class ProviderStackReadinessStepDefinitions {
                         .subject("admin-123")
                         .claim("iss", "https://auth.weave.test/realms/weave")
                         .claim("aud", List.of("weave-app"))
-                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("admin")))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("admin")))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                         new SimpleGrantedAuthority("ROLE_ADMIN"));
@@ -121,8 +123,8 @@ public class ProviderStackReadinessStepDefinitions {
     @Then("the provider registry is visible through {string}")
     public void theProviderRegistryIsVisibleThrough(String route) {
         assertThat(route).isEqualTo("GET /api/providers/status");
-        assertThat(lastJson.path("releaseStatus").asText()).isEqualTo("provider-stack-contract-v1");
-        assertThat(lastJson.path("providerConfigSource").asText()).isEqualTo("admin-control-plane-selected-provider-mappings");
+        assertThat(lastJson.path("releaseStatus").asString()).isEqualTo("provider-stack-contract-v1");
+        assertThat(lastJson.path("providerConfigSource").asString()).isEqualTo("admin-control-plane-selected-provider-mappings");
         assertThat(lastJson.path("adminSelectedMappingsRequired").asBoolean()).isTrue();
         assertThat(lastJson.path("providers")).isNotEmpty();
     }
@@ -141,13 +143,13 @@ public class ProviderStackReadinessStepDefinitions {
     @Then("profile readiness is visible through {string}")
     public void profileReadinessIsVisibleThrough(String route) {
         assertThat(route).isEqualTo("GET /api/profile/readiness");
-        assertThat(lastJson.path("contractId").asText()).isEqualTo("CEFACADE");
+        assertThat(lastJson.path("contractId").asString()).isEqualTo("CEFACADE");
     }
 
     @Then("profile readiness uses CEFACADE at {string}")
     public void profileReadinessUsesCefacadeAt(String endpoint) {
-        assertThat(lastJson.path("contractId").asText()).isEqualTo("CEFACADE");
-        assertThat(lastJson.path("endpoint").asText()).isEqualTo(endpoint);
+        assertThat(lastJson.path("contractId").asString()).isEqualTo("CEFACADE");
+        assertThat(lastJson.path("endpoint").asString()).isEqualTo(endpoint);
     }
 
     @Then("profile readiness is backend-owned support-safe and forbids direct provider calls")
@@ -158,10 +160,9 @@ public class ProviderStackReadinessStepDefinitions {
         assertThat(lastJson.path("unsupportedOperations").toString()).contains("direct-frontend-keycloak-admin");
     }
 
-    @Then("provider modules include files calendar boards office meetings contacts forms source-control issue-tracker ci release and identity-realm")
+    @Then("provider modules include files calendar boards office meetings contacts forms source-control issue-tracker ci and release")
     public void providerModulesIncludeExpectedProviderStackContracts() {
         assertThat(providerModules()).contains(
-                "identity-realm",
                 "files",
                 "calendar",
                 "boards",
@@ -173,6 +174,7 @@ public class ProviderStackReadinessStepDefinitions {
                 "issue-tracker",
                 "ci",
                 "release");
+        assertThat(providerModules()).doesNotContain("identity-realm", "matrix-auth");
     }
 
     @Then("provider category contracts separate feature capabilities from default and external adapters")
@@ -188,11 +190,6 @@ public class ProviderStackReadinessStepDefinitions {
                 Set.of("nextcloud-files"),
                 Set.of("sharepoint", "onedrive"));
         assertCategoryContract(
-                "identity-idm",
-                Set.of("identity.sign_in", "identity.groups"),
-                Set.of("keycloak-realm"),
-                Set.of("entra-id", "generic-oidc"));
-        assertCategoryContract(
                 "documents-collaboration",
                 Set.of("documents.view", "documents.edit", "documents.collaborate"),
                 Set.of("onlyoffice"),
@@ -201,7 +198,7 @@ public class ProviderStackReadinessStepDefinitions {
 
     @Then("provider choice models include recommended self-hosted defaults and risk-aware external providers")
     public void providerChoiceModelsIncludeRecommendedSelfHostedDefaultsAndRiskAwareExternalProviders() {
-        for (String categoryKey : List.of("identity-idm", "chat", "files", "boards-tasks")) {
+        for (String categoryKey : List.of("chat", "files", "boards-tasks")) {
             JsonNode contract = categoryByKey(categoryKey).path("contract");
             assertThat(stringsFrom(contract.path("choiceModels").findValues("choiceModel")))
                     .contains("recommended_self_hosted_default", "external_existing_provider", "managed_cloud_provider");
@@ -211,10 +208,8 @@ public class ProviderStackReadinessStepDefinitions {
         }
     }
 
-    @Then("a mixed provider posture can keep self-hosted identity Teams chat SharePoint files and OpenProject tasks behind stable category contracts")
+    @Then("a mixed provider posture can keep Teams chat SharePoint files and OpenProject tasks behind stable category contracts")
     public void mixedProviderPostureKeepsStableCategoryContracts() {
-        assertThat(stringsFrom(categoryByKey("identity-idm").at("/contract/defaultAdapters")))
-                .contains("keycloak-realm");
         assertThat(stringsFrom(categoryByKey("chat").at("/contract/externalAdapters")))
                 .contains("microsoft-teams");
         assertThat(stringsFrom(categoryByKey("files").at("/contract/externalAdapters")))
@@ -222,7 +217,7 @@ public class ProviderStackReadinessStepDefinitions {
         assertThat(stringsFrom(categoryByKey("boards-tasks").at("/contract/defaultAdapters")))
                 .contains("openproject-primary");
 
-        for (String categoryKey : List.of("identity-idm", "chat", "files", "boards-tasks")) {
+        for (String categoryKey : List.of("chat", "files", "boards-tasks")) {
             assertThat(stringsFrom(categoryByKey(categoryKey).at("/contract/stableMemberImpactStates")))
                     .containsExactlyInAnyOrder(
                             "available",
@@ -246,7 +241,7 @@ public class ProviderStackReadinessStepDefinitions {
                             "unavailable",
                             "coming_later");
             assertThat(category.at("/contract/normalMembersConfigureProviders").asBoolean()).isFalse();
-            assertThat(category.path("memberImpact").asText()).doesNotContain("secret", "Authorization", "access_token");
+            assertThat(category.path("memberImpact").asString()).doesNotContain("secret", "Authorization", "access_token");
         }
     }
 
@@ -254,11 +249,11 @@ public class ProviderStackReadinessStepDefinitions {
     public void callsReadinessTreatsLiveKitAsAReplaceableSfuAndFailsClosedSupportSafely() {
         JsonNode provider = providerByModule("meetings");
         assertThat(provider).as("meetings provider status").isNotNull();
-        assertThat(provider.path("providerKey").asText()).isEqualTo("livekit");
+        assertThat(provider.path("providerKey").asString()).isEqualTo("livekit");
         assertThat(provider.path("configured").asBoolean()).isFalse();
         assertThat(provider.path("failClosed").asBoolean()).isTrue();
         assertThat(provider.path("supportSafe").asBoolean()).isTrue();
-        assertThat(provider.at("/diagnostics/activeSfuAdapter").asText()).isEqualTo("livekit");
+        assertThat(provider.at("/diagnostics/activeSfuAdapter").asString()).isEqualTo("livekit");
         assertThat(provider.at("/diagnostics/livekitUrlConfigured").asBoolean()).isFalse();
         assertThat(provider.at("/diagnostics/apiKeyConfigured").asBoolean()).isFalse();
         assertThat(provider.at("/diagnostics/apiSecretConfigured").asBoolean()).isFalse();
@@ -266,14 +261,12 @@ public class ProviderStackReadinessStepDefinitions {
         assertThat(provider.toString()).doesNotContain("matrix-meetings");
     }
 
-    @Then("Identity readiness is Keycloak-mediated while Forms and Contacts keep dependent seams")
+    @Then("platform identity is absent from the provider patch panel while Forms and Contacts keep dependent seams")
     public void identityReadinessIsKeycloakMediatedWhileOptionalSeamsRemainDependent() {
-        JsonNode identity = providerByModule("identity-realm");
-        assertThat(identity).as("identity provider status").isNotNull();
-        assertThat(identity.path("providerKey").asText()).isEqualTo("keycloak-realm");
-        assertThat(identity.at("/diagnostics/identityGateway").asText()).isEqualTo("keycloak");
-        assertThat(identity.at("/diagnostics/ldapAdBoundary").asText()).isEqualTo("keycloak-user-federation");
-        assertThat(identity.at("/diagnostics/oidcSamlBoundary").asText()).isEqualTo("keycloak-identity-brokering");
+        assertThat(providerModules()).doesNotContain("identity-realm", "matrix-auth");
+        assertThat(iterable(lastJson.path("categories")))
+                .allSatisfy(category -> assertThat(category.path("category").asString())
+                        .isNotEqualTo("identity-idm"));
         assertProviderDependencyReference("forms");
         assertProviderDependencyReference("contacts");
     }
@@ -281,8 +274,8 @@ public class ProviderStackReadinessStepDefinitions {
     @Then("disabled or unconfigured optional providers fail closed")
     public void disabledOrUnconfiguredOptionalProvidersFailClosed() {
         for (JsonNode provider : iterable(lastJson.path("providers"))) {
-            String module = provider.path("module").asText();
-            if (Set.of("identity-realm", "contacts", "forms", "source-control", "issue-tracker", "ci", "release", "office")
+            String module = provider.path("module").asString();
+            if (Set.of("contacts", "forms", "source-control", "issue-tracker", "ci", "release", "office")
                     .contains(module)) {
                 assertThat(provider.path("enabled").asBoolean()).as(module + " enabled").isFalse();
                 assertThat(provider.path("configured").asBoolean()).as(module + " configured").isFalse();
@@ -299,7 +292,7 @@ public class ProviderStackReadinessStepDefinitions {
         assertThat(lastJson.path("paidFeaturesRequired").asBoolean()).isFalse();
         assertThat(modulesFrom(lastJson.path("providerReadiness"))).contains("source-control", "issue-tracker", "ci", "release");
         for (JsonNode provider : iterable(lastJson.path("providerReadiness"))) {
-            assertThat(provider.path("readiness").asText()).isEqualTo("not_configured");
+            assertThat(provider.path("readiness").asString()).isEqualTo("not_configured");
             assertThat(provider.path("enabled").asBoolean()).isFalse();
             assertThat(provider.path("configured").asBoolean()).isFalse();
             assertThat(provider.path("readOnly").asBoolean()).isTrue();
@@ -324,8 +317,8 @@ public class ProviderStackReadinessStepDefinitions {
         assertThat(lastJson.path("enabled").asBoolean()).isFalse();
         assertThat(lastJson.path("configured").asBoolean()).isFalse();
         assertThat(lastJson.path("supportSafe").asBoolean()).isTrue();
-        assertThat(lastJson.path("launchMode").asText()).isEqualTo("unavailable");
-        assertThat(lastJson.path("defaultProvider").asText()).isEqualTo("onlyoffice");
+        assertThat(lastJson.path("launchMode").asString()).isEqualTo("unavailable");
+        assertThat(lastJson.path("defaultProvider").asString()).isEqualTo("onlyoffice");
         assertThat(lastJson.at("/capabilities/view").asBoolean()).isFalse();
         assertThat(lastJson.at("/capabilities/edit").asBoolean()).isFalse();
         assertThat(lastJson.at("/capabilities/comment").asBoolean()).isFalse();
@@ -338,11 +331,11 @@ public class ProviderStackReadinessStepDefinitions {
 
     @Then("Office launch is refused support-safely with {string}")
     public void officeLaunchIsRefusedSupportSafelyWith(String code) {
-        assertThat(lastJson.path("code").asText()).isEqualTo(code);
-        assertThat(lastJson.at("/details/module").asText()).isEqualTo("office");
-        assertThat(lastJson.at("/details/operation").asText()).isEqualTo("launch");
+        assertThat(lastJson.path("code").asString()).isEqualTo(code);
+        assertThat(lastJson.at("/details/module").asString()).isEqualTo("office");
+        assertThat(lastJson.at("/details/operation").asString()).isEqualTo("launch");
         assertThat(lastJson.at("/details/supportSafe").asBoolean()).isTrue();
-        assertThat(lastJson.at("/details/reason").asText()).contains("requestedMode=edit");
+        assertThat(lastJson.at("/details/reason").asString()).contains("requestedMode=edit");
     }
 
     @Then("no provider secrets or raw provider errors are exposed")
@@ -369,13 +362,13 @@ public class ProviderStackReadinessStepDefinitions {
 
     private Set<String> modulesFrom(JsonNode providers) {
         return StreamSupport.stream(providers.spliterator(), false)
-                .map(provider -> provider.path("module").asText())
+                .map(provider -> provider.path("module").asString())
                 .collect(Collectors.toSet());
     }
 
     private Set<String> providerKeysFrom(JsonNode providers) {
         return StreamSupport.stream(providers.spliterator(), false)
-                .map(provider -> provider.path("providerKey").asText())
+                .map(provider -> provider.path("providerKey").asString())
                 .collect(Collectors.toSet());
     }
 
@@ -383,7 +376,7 @@ public class ProviderStackReadinessStepDefinitions {
         List<String> operations = new ArrayList<>();
         for (JsonNode provider : iterable(lastJson.path("providers"))) {
             for (JsonNode operation : iterable(provider.path("unsupportedOperations"))) {
-                operations.add(operation.asText());
+                operations.add(operation.asString());
             }
         }
         return operations;
@@ -392,13 +385,13 @@ public class ProviderStackReadinessStepDefinitions {
     private void assertProviderDependencyReference(String module) {
         JsonNode provider = providerByModule(module);
         assertThat(provider).as(module + " provider status").isNotNull();
-        assertThat(provider.at("/diagnostics/dependency").asText()).startsWith("weave-backend#");
+        assertThat(provider.at("/diagnostics/dependency").asString()).startsWith("weave-backend#");
         assertThat(provider.at("/diagnostics/compatibleSeam").asBoolean()).isTrue();
     }
 
     private JsonNode providerByModule(String module) {
         for (JsonNode provider : iterable(lastJson.path("providers"))) {
-            if (module.equals(provider.path("module").asText())) {
+            if (module.equals(provider.path("module").asString())) {
                 return provider;
             }
         }
@@ -413,7 +406,7 @@ public class ProviderStackReadinessStepDefinitions {
         JsonNode category = categoryByKey(categoryKey);
         assertThat(category).as(categoryKey + " category").isNotNull();
         JsonNode contract = category.path("contract");
-        assertThat(contract.path("category").asText()).isEqualTo(categoryKey);
+        assertThat(contract.path("category").asString()).isEqualTo(categoryKey);
         assertThat(stringsFrom(contract.path("featureCapabilities"))).containsAll(featureCapabilities);
         assertThat(stringsFrom(contract.path("defaultAdapters"))).containsAll(defaultAdapters);
         assertThat(stringsFrom(contract.path("externalAdapters"))).containsAll(externalAdapters);
@@ -423,7 +416,7 @@ public class ProviderStackReadinessStepDefinitions {
 
     private JsonNode categoryByKey(String categoryKey) {
         for (JsonNode category : iterable(lastJson.path("categories"))) {
-            if (categoryKey.equals(category.path("category").asText())) {
+            if (categoryKey.equals(category.path("category").asString())) {
                 return category;
             }
         }
@@ -432,17 +425,17 @@ public class ProviderStackReadinessStepDefinitions {
 
     private Set<String> stringsFrom(JsonNode array) {
         return StreamSupport.stream(array.spliterator(), false)
-                .map(JsonNode::asText)
+                .map(JsonNode::asString)
                 .collect(Collectors.toSet());
     }
 
     private Set<String> stringsFrom(List<JsonNode> nodes) {
         return nodes.stream()
-                .map(JsonNode::asText)
+                .map(JsonNode::asString)
                 .collect(Collectors.toSet());
     }
 
     private Iterable<JsonNode> iterable(JsonNode node) {
-        return node.values();
+        return node::iterator;
     }
 }

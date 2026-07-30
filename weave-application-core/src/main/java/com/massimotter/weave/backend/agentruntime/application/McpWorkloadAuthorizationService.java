@@ -70,10 +70,10 @@ public final class McpWorkloadAuthorizationService {
         Instant now = clock.instant();
         if (token.expiresAt().isAfter(token.issuedAt().plus(MAXIMUM_EXCHANGED_TOKEN_TTL))
                 || !now.isBefore(token.expiresAt())) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.TOKEN_LIFETIME);
         }
         RuntimeCell cell = cells.findByWorkload(token.issuer(), token.subject()).orElseThrow(
-                McpWorkloadAuthorizationService::denied);
+                () -> denied(McpWorkloadAuthorizationException.Reason.CELL_NOT_FOUND));
         requireActiveCell(cell, token);
         String auditRef = "audit:mcp-workload:" + RuntimeWorkloadOwnership.fingerprint(
                 token.issuer() + "\u0000" + token.tokenId() + "\u0000" + cell.cellRef()).substring(7);
@@ -81,7 +81,7 @@ public final class McpWorkloadAuthorizationService {
             workloadIdentities.requireCurrentBinding(new RuntimeWorkloadBindingAuthority.CurrentBindingCommand(
                     cell.organizationRef(), cell.personRef(), cell.cellRef(), cell.workloadBinding(), auditRef));
         } catch (RuntimeWorkloadIdentityException | UnsupportedOperationException failure) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.IDENTITY_BINDING);
         }
 
         SignedRuntimeProfile envelope = profiles.findCurrentForWorkload(
@@ -90,30 +90,31 @@ public final class McpWorkloadAuthorizationService {
                         cell.workloadBinding().subject(),
                         cell.workloadBinding().clientId(),
                         now)
-                .orElseThrow(McpWorkloadAuthorizationService::denied);
+                .orElseThrow(() -> denied(McpWorkloadAuthorizationException.Reason.PROFILE_NOT_FOUND));
         RuntimeProfile profile;
         try {
             profile = verifier.verify(envelope, now);
         } catch (InvalidRuntimeProfileException | IllegalArgumentException failure) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.PROFILE_INVALID);
         }
         requireProfileBinding(cell, profile, envelope, token);
 
         RuntimeEntitlementRef entitlement = governance.findEffectiveRevision(
                         cell.organizationRef(), cell.personRef(), cell.entitlementRevision(), now)
                 .filter(current -> current.memberBinding().equals(cell.memberBinding()))
-                .orElseThrow(McpWorkloadAuthorizationService::denied);
+                .orElseThrow(() -> denied(McpWorkloadAuthorizationException.Reason.ENTITLEMENT_NOT_FOUND));
         RuntimeEntitlementObservation observation;
         try {
             observation = entitlementAuthority.observe(new RuntimeEntitlementAuthority.ObserveEntitlementCommand(
                     cell.organizationRef(), cell.personRef(), cell.memberBinding(), auditRef));
         } catch (RuntimeEntitlementAuthorityException unavailable) {
-            throw new McpWorkloadAuthorizationException(true);
+            throw new McpWorkloadAuthorizationException(
+                    true, McpWorkloadAuthorizationException.Reason.AUTHORITY_UNAVAILABLE);
         } catch (RuntimeException denied) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.ENTITLEMENT_OBSERVATION);
         }
         if (!sameAuthority(entitlement, observation)) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.ENTITLEMENT_MISMATCH);
         }
 
         Set<String> visibleToolClasses = grantedToolClasses(profile, token.scopes());
@@ -126,6 +127,7 @@ public final class McpWorkloadAuthorizationService {
                 cell.organizationRef(),
                 cell.personRef(),
                 cell.memberBinding(),
+                observation.contextPrincipalClaim(),
                 cell.cellRef(),
                 profile.profileId(),
                 envelope.profileHash(),
@@ -143,7 +145,7 @@ public final class McpWorkloadAuthorizationService {
                 || cell.runtimeProfileHash() == null
                 || !workload.issuer().equals(token.issuer())
                 || !workload.subject().equals(token.subject())) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.CELL_BINDING);
         }
     }
 
@@ -169,7 +171,7 @@ public final class McpWorkloadAuthorizationService {
                 || !workload.clientId().equals(cell.workloadBinding().clientId())
                 || workload.authenticationMethod() != expectedMethod
                 || token.expiresAt().isAfter(profile.expiresAt())) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.PROFILE_BINDING);
         }
     }
 
@@ -189,7 +191,7 @@ public final class McpWorkloadAuthorizationService {
             }
         }
         if (granted.isEmpty()) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.TOOL_SCOPE);
         }
         return Set.copyOf(granted);
     }
@@ -210,7 +212,8 @@ public final class McpWorkloadAuthorizationService {
         return result.isBefore(third) ? result : third;
     }
 
-    private static McpWorkloadAuthorizationException denied() {
-        return new McpWorkloadAuthorizationException(false);
+    private static McpWorkloadAuthorizationException denied(
+            McpWorkloadAuthorizationException.Reason reason) {
+        return new McpWorkloadAuthorizationException(false, reason);
     }
 }

@@ -9,7 +9,7 @@ The strategic setup contracts are [Organization embedding contract](organization
 Admin/operator setup owns:
 
 - organization creation and verified domains;
-- identity provider configuration;
+- Keycloak platform-security configuration and upstream federation/brokering;
 - provider category selection;
 - endpoint URL management and rotation;
 - `SecretRef` wiring for provider credentials;
@@ -21,15 +21,14 @@ The current product order remains: provider-neutral Weave suite first, admin por
 
 ## Identity and Keycloak default
 
-Keycloak is the self-hosted default identity choice for dogfood deployments. The product contract remains provider-neutral: Entra ID, Authentik, Auth0, OIDC/SAML, SCIM, or LDAP-style sources can attach through adapter contracts when supported.
+Keycloak is the fixed platform identity authority for the current Weave architecture. It owns human authentication, organizations, roles, groups, invitations, required actions, sessions, workload clients, and upstream federation/brokering. LDAP/AD user federation and Entra/Auth0/Authentik-style OIDC or SAML sources attach to Keycloak; they do not replace a runtime-selectable Weave identity provider.
 
-Admins map identity claims, groups, and roles into Weave capability profiles. Unknown roles, groups, or provider states must fail closed. Email addresses are never primary identity keys; immutable provider IDs such as OIDC/SAML issuer+subject, SCIM externalId, Entra object ID, or LDAP/AD objectGUID/objectSid are the mapping anchors.
+Admins map Keycloak claims, groups, and `weave-app` client roles into Weave capability profiles. Unknown roles, groups, or federation states fail closed. Email addresses are never primary identity keys; immutable Keycloak subjects are retained only behind server-owned opaque member and invitation references.
 
 ## Provider selection
 
 Provider categories are first-class product concepts:
 
-- identity/IDM;
 - chat;
 - files;
 - calendar;
@@ -72,35 +71,25 @@ Before an Office adapter can move beyond `contract_only`, the admin/operator rea
 
 Until those gates are green, launch requests must fail before provider mutation/session creation and must not return credential-bearing URLs, document-server tokens, callback secrets, provider-internal IDs, or raw provider errors.
 
-## Keycloak Identity Ops
+## Keycloak platform-security operations
 
-Identity Ops in `infra/weave-workspace` is the only planner, reconciler, and verifier for the Keycloak baseline. The product server exposes the read-only, support-safe readiness view at `GET /api/admin/identity/readiness`; it has no realm desired-state, dry-run, or apply API and stores no shadow plan. The removed `/api/admin/identity/realm/dry-run` and `/api/admin/identity/realm/apply` routes are intentionally not retained as compatibility endpoints.
+Realm, clients, scopes, roles, groups, organizations, SMTP, federation, and broker configuration are infrastructure desired state owned by `infra/identity-ops`. They are deliberately not exposed as public provider dry-run/apply APIs. A second desired-state apply must converge to an empty plan.
 
-Use the profile-specific Gradle tasks from the repository root:
+The Weave Server owns the audited human lifecycle through server-owned contracts:
 
-- `:infra:identityDevPlan`, `:infra:identityDevApply`, `:infra:identityDevVerify`;
-- `:infra:identityTestPlan`, `:infra:identityTestApply`, `:infra:identityTestVerify`;
-- `:infra:identityProdPlan`, `:infra:identityProdApply`, `:infra:identityProdVerify`.
+- `POST /api/bootstrap/owner-invitation` is available only for an empty realm and requires the mounted bootstrap SecretRef;
+- `POST /api/admin/organizations/{organizationId}/invitations` creates or resends invite-first activation;
+- `GET /api/admin/organizations/{organizationId}/members` returns opaque member references and bounded cursors;
+- `PATCH /api/admin/organizations/{organizationId}/members/{memberRef}` changes the product role or enabled state with `If-Match` and idempotency;
+- session revocation and offboarding are separate audited operations and must preserve the last active owner.
 
-The tasks load the corresponding `dev`, `test`, or `prod` desired-state profile, call the official Keycloak administration surface through the pinned `kcadm` runtime, and emit support-safe plan/apply/verify evidence. Apply remains an explicit operator action. The server and Admin Console consume only readiness and evidence summaries; they do not reconstruct a competing realm plan.
+The server uses Spring Security's OAuth2 Client support and one named Keycloak administration `RestClient`. Admin credentials, raw Keycloak subjects, invitation ids, tokens, action links, and provider bodies never enter public responses or support evidence. Member passwords are created only in the Keycloak required-action browser flow.
 
-The canonical human access model uses the organization role groups `/owners`, `/admins`, `/members`, and `/guests`. `/capabilities/weaver` is the sole human Weaver entitlement and is a child of the role-free `/capabilities` group. The realm role `weaver-runtime` is workload-only. Legacy `/weave/*` groups, realm-user group fallbacks, claims, and stored observations are not accepted as entitlement authority.
+## Platform identity readiness in Workspace Health
 
-Evidence must remain support-safe: no raw provider bodies, provider-internal IDs, credential-bearing URLs, private keys, tokens, SecretRef payloads, or reconciliation credentials. Failed verification is a hard blocker; readiness must not infer convergence from a successful plan or apply invocation alone.
+Use `GET /api/admin/platform/identity/readiness` or the embedded `platformIdentityReadiness` block on `GET /api/admin/control-plane`. The response identifies `keycloak` as the fixed platform authority and always reports `providerSelectable=false`. Normal member clients have no identity-provider selector or realm-configuration controls.
 
-## Identity provider readiness in Workspace Health
-
-Workspace Health reads identity/provider readiness from backend-owned facades only. Use `GET /api/admin/identity/readiness` or the embedded `identityProviderReadiness` block on `GET /api/admin/control-plane`; normal members must not call these admin endpoints.
-
-The identity readiness contract is optional/version-skew safe: if an older backend omits it, Admin Console treats identity readiness as `admin-action-required` and fails closed rather than enabling member provider setup. Stable admin states are:
-
-- `ready`;
-- `degraded`;
-- `policy-blocked`;
-- `admin-action-required`;
-- `disabled`.
-
-Workspace Health currently renders identity operator cards for realm import, OIDC/SAML federation readiness, SCIM/LDAP/AD-style provisioning source readiness, roles/groups mapping, login readiness, deprovisioning readiness, break-glass readiness, service-principal readiness, and policy readiness. Conceptual SCIM, LDAP, and AD connector states are fixture-backed/`coming_later` unless a separate live connector evidence gate promotes them; the readiness surface still fails closed so admins can see lifecycle risk before inviting members. Deprovisioning cards cover access/session revocation, ownership/content references, retained-admin checks, and audit posture without performing live destructive identity mutations. Break-glass cards require immutable retained owner/admin proof, guarded recovery copy, and support-safe audit refs. Service-principal cards treat non-human actors as scoped identities with expiry/rotation and audit expectations. Each card must include support-safe remediation and next actions. Do not include OIDC issuer URLs, SAML metadata, client IDs, redirect URIs, realm internals, raw provider errors, credentials, tokens, service endpoints, provider payloads, or service-principal secrets in these cards. Member clients only see product-level capability states (`available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`) and never provider setup controls.
+Readiness is support-safe and covers login, invitations, activation mail, membership projection, session revocation, retained-owner protection, workload-client credentials, and federation/broker posture. LDAP/AD and external OIDC/SAML sources remain Keycloak-managed upstream integrations; their absence must not be presented as an alternative identity-provider choice.
 
 ## Whitelisting and policies
 
@@ -110,7 +99,7 @@ Weave policy is deny-by-default. Capability profiles should use category-level p
 - `files.read`, `files.upload`;
 - `calendar.read`, `calendar.manage_events`;
 - `boards.read`, `boards.update_task`;
-- `agent-runtime.entitled` only from exact native Keycloak Organization membership `/capabilities/weaver`; human roles never imply it.
+- `agent-runtime.entitled` only from the configured authoritative Keycloak group; human roles never imply it.
 
 Whitelists restrict which providers and adapters are visible to an organization or role. ARC lifecycle permissions remain admin/operator-only, and a missing whitelist or entitlement never grants runtime or domain access.
 
@@ -118,9 +107,9 @@ Whitelists restrict which providers and adapters are visible to an organization 
 
 Use `POST /api/admin/policies/effective/simulations` before applying identity, realm, or provider policy changes. The endpoint is admin/operator only and simulates the member-visible impact of selected roles, groups, and requested capabilities without mutating provider configuration, realm state, whitelists, or member accounts.
 
-The simulation complements Workspace Health/admin readiness: readiness explains whether backend-owned provider setup is ready or degraded, while effective policy simulation explains whether known identity inputs would grant, disable, degrade, or policy-block product capabilities for members. Run it alongside the profile-specific Identity Ops plan to preview capability impact before an explicit Identity Ops apply; it never replaces provider verification.
+The simulation complements Workspace Health/admin readiness work (#212): readiness explains whether backend-owned provider setup is ready or degraded, while effective policy simulation explains whether known identity inputs would grant, disable, degrade, or policy-block product capabilities for members. It also fits before the identity realm dry-run/apply path (#233): run the realm dry-run to inspect desired realm changes, then run effective policy simulation to preview capability impact before any guarded apply.
 
-Unknown roles, groups, or capabilities fail closed and produce `disabled_by_policy` member states. The response uses only stable member state labels (`available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, `coming_later`) and admin reason codes; it must not expose email as a primary identity key, raw provider IDs, endpoint URLs, tokens, credentials, SecretRef payloads, or provider internals. Agent runtime entitlement is never inferred from a human role: only exact native Keycloak Organization membership `/capabilities/weaver` may derive `agent-runtime.entitled`. A support-safe fixture is checked in at `server/src/test/resources/effective-policy-simulation/admin-operator-preview.json`.
+Unknown roles, groups, or capabilities fail closed and produce `disabled_by_policy` member states. The response uses only stable member state labels (`available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, `coming_later`) and admin reason codes; it must not expose email as a primary identity key, raw provider IDs, endpoint URLs, tokens, credentials, SecretRef payloads, or provider internals. Agent runtime entitlement is never inferred from a human role: only the configured authoritative Keycloak group may derive `agent-runtime.entitled`. A support-safe fixture is checked in at `server/src/test/resources/effective-policy-simulation/admin-operator-preview.json`.
 
 ## Readiness and audit
 
@@ -138,7 +127,7 @@ Required review evidence before any future promotion includes consequence counts
 
 ## Infra and bootstrap
 
-Docker Compose is the operator-facing single-host deployment authority. Use the common model with exactly one of the `dev`, `test`, or `prod` runtime profiles; the `dev`, `dogfood`, and `main` Git lanes remain a separate delivery concern. Production uses the digest-pinned `prod` model with protected inputs and separate approval. Keycloak resources are reconciled from the checked-in desired state through rootless one-shot Identity Ops and the matching official `kcadm`, not through application startup or a second infrastructure state engine.
+OpenTofu is the operator-facing infrastructure tool. User-facing workflows and docs should use OpenTofu language unless they are explicitly describing Terraform-compatible internals.
 
 Use the infra tree for local/single-host stack bootstrap, smoke checks, backup/restore, rollback, and support-bundle flows. State-destructive operations require explicit operator confirmation and a backup/restore or rollback path.
 
@@ -159,8 +148,4 @@ make docs-check
 
 Live Stack E2E is available by default on the dedicated self-hosted live runner. Use the GitHub workflow for manual release-candidate evidence; nightly runs should produce acceptance evidence unless a concrete infrastructure blocker is recorded.
 
-The product server may produce a support-safe review plan, but it does not carry a second realm
-baseline or mutate Keycloak. The one deployment baseline is the pinned
-`weave.keycloak-desired-state/v2` contract from the canonical specification corpus; Compose
-renders its closed environment overlay and rootless one-shot Identity Ops reconciles it through
-the matching official `kcadm`.
+The support-safe dogfood realm baseline lives at `server/src/main/resources/identity/weave-realm-baseline.json`. Treat it as desired-state input for dry-run; it is not Terraform/OpenTofu state and intentionally contains no client secrets.

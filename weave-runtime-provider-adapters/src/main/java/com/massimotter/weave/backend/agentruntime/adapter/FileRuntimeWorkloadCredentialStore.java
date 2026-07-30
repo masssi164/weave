@@ -26,6 +26,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -64,7 +65,7 @@ import java.util.regex.Pattern;
 public final class FileRuntimeWorkloadCredentialStore
         implements RuntimeWorkloadCredentialStore, SecretRefAccess {
 
-    static final String SCHEMA = "weave.workload-credential/v1";
+    static final String SCHEMA = "weave.workload-credential/v2";
     static final String ALGORITHM = "PS256";
     private static final int RSA_BITS = 3072;
     private static final int LOCAL_LOCK_STRIPES = 64;
@@ -140,6 +141,13 @@ public final class FileRuntimeWorkloadCredentialStore
                     command.ownerFingerprint(),
                     command.authenticationMethod().name(),
                     ref,
+                    null,
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    null,
                     active.keyId(),
                     null,
                     null,
@@ -196,7 +204,11 @@ public final class FileRuntimeWorkloadCredentialStore
                     .toList();
             StoredCredential activated = new StoredCredential(
                     current.schemaVersion(), current.clientId(), current.ownerFingerprint(),
-                    current.authenticationMethod(), current.credentialRef(), pending.keyId(),
+                    current.authenticationMethod(), current.credentialRef(),
+                    current.registrationUri(), current.registrationAccessToken(),
+                    current.serviceAccountSubject(), current.registrationEnabled(),
+                    current.organizationFingerprint(), current.personFingerprint(),
+                    current.cellFingerprint(), pending.keyId(),
                     rotation, current.lastCompletedRotationFingerprint(), activatedKeys);
             validate(activated, command.clientId());
             write(activated);
@@ -224,7 +236,11 @@ public final class FileRuntimeWorkloadCredentialStore
                     .orElseThrow();
             StoredCredential activeOnly = new StoredCredential(
                     current.schemaVersion(), current.clientId(), current.ownerFingerprint(),
-                    current.authenticationMethod(), current.credentialRef(), active.keyId(),
+                    current.authenticationMethod(), current.credentialRef(),
+                    current.registrationUri(), current.registrationAccessToken(),
+                    current.serviceAccountSubject(), current.registrationEnabled(),
+                    current.organizationFingerprint(), current.personFingerprint(),
+                    current.cellFingerprint(), active.keyId(),
                     null, rotation, List.of(active));
             validate(activeOnly, command.clientId());
             return projection(activeOnly);
@@ -251,7 +267,11 @@ public final class FileRuntimeWorkloadCredentialStore
                     .orElseThrow();
             StoredCredential retired = new StoredCredential(
                     current.schemaVersion(), current.clientId(), current.ownerFingerprint(),
-                    current.authenticationMethod(), current.credentialRef(), active.keyId(),
+                    current.authenticationMethod(), current.credentialRef(),
+                    current.registrationUri(), current.registrationAccessToken(),
+                    current.serviceAccountSubject(), current.registrationEnabled(),
+                    current.organizationFingerprint(), current.personFingerprint(),
+                    current.cellFingerprint(), active.keyId(),
                     null, rotation, List.of(active));
             validate(retired, command.clientId());
             write(retired);
@@ -291,11 +311,212 @@ public final class FileRuntimeWorkloadCredentialStore
         }
     }
 
+    Optional<RegistrationAuthority> registrationAuthority(
+            String clientId, String ownerFingerprint) {
+        requireClientId(clientId);
+        return locked(clientId, () -> {
+            StoredCredential stored = requireStored(clientId, ownerFingerprint);
+            return authority(stored);
+        });
+    }
+
+    List<RegistrationAuthorityEntry> registrationAuthorities() {
+        Path directory = root.resolve("weave/agent-runtime/cells").normalize();
+        if (!directory.startsWith(root)
+                || !Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
+            return List.of();
+        }
+        try (var paths = Files.list(directory)) {
+            List<String> clientIds = paths
+                    .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
+                    .map(path -> path.getFileName().toString())
+                    .filter(value -> value.matches("weaver-cell-[A-Za-z0-9_-]+"))
+                    .sorted()
+                    .limit(10_001)
+                    .toList();
+            if (clientIds.size() > 10_000) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration inventory exceeds its safe bound");
+            }
+            List<RegistrationAuthorityEntry> entries = new ArrayList<>();
+            for (String clientId : clientIds) {
+                locked(clientId, () -> {
+                    StoredCredential stored = read(clientId).orElseThrow();
+                    authority(stored).ifPresent(value -> entries.add(
+                            new RegistrationAuthorityEntry(
+                                    clientId,
+                                    stored.ownerFingerprint(),
+                                    stored.credentialRef(),
+                                    Set.copyOf(projection(stored).acceptedKeyIds()),
+                                    value)));
+                    return null;
+                });
+            }
+            return List.copyOf(entries);
+        } catch (IOException failure) {
+            throw unavailable(
+                    "The workload registration inventory is unavailable", failure);
+        }
+    }
+
+    void bindRegistrationAuthority(
+            String clientId,
+            String ownerFingerprint,
+            String organizationFingerprint,
+            String personFingerprint,
+            String cellFingerprint,
+            URI registrationUri,
+            byte[] registrationAccessToken,
+            String serviceAccountSubject) {
+        Objects.requireNonNull(registrationUri, "registrationUri");
+        Objects.requireNonNull(registrationAccessToken, "registrationAccessToken");
+        locked(clientId, () -> {
+            StoredCredential current = requireStored(clientId, ownerFingerprint);
+            if (authority(current).isPresent()) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration authority is already bound");
+            }
+            StoredCredential bound = withAuthority(
+                    current,
+                    registrationUri,
+                    registrationAccessToken,
+                    serviceAccountSubject,
+                    true,
+                    organizationFingerprint,
+                    personFingerprint,
+                    cellFingerprint);
+            validate(bound, clientId);
+            write(bound);
+            return null;
+        });
+    }
+
+    void replaceRegistrationAuthority(
+            String clientId,
+            String ownerFingerprint,
+            String expectedTokenFingerprint,
+            URI registrationUri,
+            byte[] registrationAccessToken,
+            String serviceAccountSubject,
+            boolean enabled) {
+        Objects.requireNonNull(registrationUri, "registrationUri");
+        Objects.requireNonNull(registrationAccessToken, "registrationAccessToken");
+        locked(clientId, () -> {
+            StoredCredential current = requireStored(clientId, ownerFingerprint);
+            RegistrationAuthority authority = authority(current)
+                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                            "The workload registration authority is unavailable"));
+            if (!MessageDigest.isEqual(
+                    authority.tokenFingerprint().getBytes(StandardCharsets.US_ASCII),
+                    expectedTokenFingerprint.getBytes(StandardCharsets.US_ASCII))) {
+                throw new RuntimeWorkloadIdentityException(
+                        "The workload registration authority changed concurrently");
+            }
+            StoredCredential replaced = withAuthority(
+                    current,
+                    registrationUri,
+                    registrationAccessToken,
+                    serviceAccountSubject,
+                    enabled,
+                    current.organizationFingerprint(),
+                    current.personFingerprint(),
+                    current.cellFingerprint());
+            validate(replaced, clientId);
+            write(replaced);
+            return null;
+        });
+    }
+
+    <T> T withRegistrationAccessToken(
+            String clientId,
+            String ownerFingerprint,
+            RegistrationAccessTokenOperation<T> operation) {
+        Objects.requireNonNull(operation, "operation");
+        RegistrationTokenSnapshot snapshot = locked(clientId, () -> {
+            StoredCredential current = requireStored(clientId, ownerFingerprint);
+            RegistrationAuthority authority = authority(current)
+                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                            "The workload registration authority is unavailable"));
+            return new RegistrationTokenSnapshot(
+                    authority,
+                    current.registrationAccessToken().getBytes(StandardCharsets.UTF_8));
+        });
+        byte[] token = snapshot.registrationAccessToken();
+        try {
+            return operation.apply(snapshot.authority(), token);
+        } finally {
+            Arrays.fill(token, (byte) 0);
+        }
+    }
+
+    <T> T withActivePrivateJwk(
+            String clientId,
+            String ownerFingerprint,
+            PrivateJwkOperation<T> operation) {
+        Objects.requireNonNull(operation, "operation");
+        return locked(clientId, () -> {
+            StoredCredential current = requireStored(clientId, ownerFingerprint);
+            StoredKey active = current.keys().stream()
+                    .filter(key -> key.status() == KeyStatus.ACTIVE)
+                    .findFirst()
+                    .orElseThrow();
+            byte[] encoded = mapper.writeValueAsBytes(active.privateJwk());
+            try {
+                return operation.apply(encoded);
+            } finally {
+                Arrays.fill(encoded, (byte) 0);
+            }
+        });
+    }
+
     private StoredCredential requireStored(String clientId, String ownerFingerprint) {
         StoredCredential current = read(clientId)
                 .orElseThrow(() -> new RuntimeWorkloadIdentityException("The workload credential reference is unavailable"));
         requireOwner(current, ownerFingerprint);
         return current;
+    }
+
+    private Optional<RegistrationAuthority> authority(StoredCredential stored) {
+        if (stored.registrationUri() == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new RegistrationAuthority(
+                URI.create(stored.registrationUri()),
+                stored.serviceAccountSubject(),
+                stored.registrationEnabled(),
+                fingerprint(stored.registrationAccessToken()),
+                stored.organizationFingerprint(),
+                stored.personFingerprint(),
+                stored.cellFingerprint()));
+    }
+
+    private StoredCredential withAuthority(
+            StoredCredential current,
+            URI registrationUri,
+            byte[] registrationAccessToken,
+            String serviceAccountSubject,
+            boolean enabled,
+            String organizationFingerprint,
+            String personFingerprint,
+            String cellFingerprint) {
+        String token = new String(registrationAccessToken, StandardCharsets.UTF_8);
+        return new StoredCredential(
+                current.schemaVersion(),
+                current.clientId(),
+                current.ownerFingerprint(),
+                current.authenticationMethod(),
+                current.credentialRef(),
+                registrationUri.toString(),
+                token,
+                serviceAccountSubject,
+                enabled,
+                organizationFingerprint,
+                personFingerprint,
+                cellFingerprint,
+                current.activeKeyId(),
+                current.rotationFingerprint(),
+                current.lastCompletedRotationFingerprint(),
+                current.keys());
     }
 
     private Optional<StoredCredential> read(String clientId) {
@@ -454,6 +675,26 @@ public final class FileRuntimeWorkloadCredentialStore
                 || stored.activeKeyId() == null) {
             throw new RuntimeWorkloadIdentityException("The workload credential envelope is inconsistent");
         }
+        boolean authorityAbsent = stored.registrationUri() == null
+                && stored.registrationAccessToken() == null
+                && stored.serviceAccountSubject() == null
+                && stored.organizationFingerprint() == null
+                && stored.personFingerprint() == null
+                && stored.cellFingerprint() == null
+                && !stored.registrationEnabled();
+        boolean authorityPresent = validRegistrationUri(stored.registrationUri())
+                && stored.registrationAccessToken() != null
+                && !stored.registrationAccessToken().isBlank()
+                && stored.registrationAccessToken().length() <= 16 * 1024
+                && stored.serviceAccountSubject() != null
+                && !stored.serviceAccountSubject().isBlank()
+                && validFingerprint(stored.organizationFingerprint())
+                && validFingerprint(stored.personFingerprint())
+                && validFingerprint(stored.cellFingerprint());
+        if (!authorityAbsent && !authorityPresent) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The workload registration authority is inconsistent");
+        }
         long active = stored.keys().stream().filter(key -> key.status() == KeyStatus.ACTIVE).count();
         long pending = stored.keys().stream().filter(key -> key.status() == KeyStatus.PENDING).count();
         long previous = stored.keys().stream().filter(key -> key.status() == KeyStatus.PREVIOUS).count();
@@ -479,6 +720,27 @@ public final class FileRuntimeWorkloadCredentialStore
                 && !stored.lastCompletedRotationFingerprint().matches("sha256:[a-f0-9]{64}")) {
             throw new RuntimeWorkloadIdentityException("The completed rotation fingerprint is invalid");
         }
+    }
+
+    private static boolean validRegistrationUri(String value) {
+        if (value == null) {
+            return false;
+        }
+        try {
+            URI uri = URI.create(value);
+            return uri.isAbsolute()
+                    && uri.getHost() != null
+                    && ("http".equalsIgnoreCase(uri.getScheme())
+                            || "https".equalsIgnoreCase(uri.getScheme()))
+                    && uri.getUserInfo() == null
+                    && uri.getFragment() == null;
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
+    private static boolean validFingerprint(String value) {
+        return value != null && value.matches("sha256:[a-f0-9]{64}");
     }
 
     private void validateKey(StoredKey key) {
@@ -749,6 +1011,13 @@ public final class FileRuntimeWorkloadCredentialStore
             String ownerFingerprint,
             String authenticationMethod,
             String credentialRef,
+            String registrationUri,
+            String registrationAccessToken,
+            String serviceAccountSubject,
+            boolean registrationEnabled,
+            String organizationFingerprint,
+            String personFingerprint,
+            String cellFingerprint,
             String activeKeyId,
             String rotationFingerprint,
             String lastCompletedRotationFingerprint,
@@ -757,9 +1026,41 @@ public final class FileRuntimeWorkloadCredentialStore
         StoredCredential withRotation(String nextRotationFingerprint, List<StoredKey> nextKeys) {
             return new StoredCredential(
                     schemaVersion, clientId, ownerFingerprint, authenticationMethod, credentialRef,
+                    registrationUri, registrationAccessToken, serviceAccountSubject,
+                    registrationEnabled, organizationFingerprint, personFingerprint,
+                    cellFingerprint,
                     activeKeyId, nextRotationFingerprint, lastCompletedRotationFingerprint,
                     List.copyOf(nextKeys));
         }
+    }
+
+    record RegistrationAuthority(
+            URI registrationUri,
+            String serviceAccountSubject,
+            boolean enabled,
+            String tokenFingerprint,
+            String organizationFingerprint,
+            String personFingerprint,
+            String cellFingerprint) {}
+
+    record RegistrationAuthorityEntry(
+            String clientId,
+            String ownerFingerprint,
+            String credentialRef,
+            Set<String> acceptedKeyIds,
+            RegistrationAuthority authority) {}
+
+    private record RegistrationTokenSnapshot(
+            RegistrationAuthority authority, byte[] registrationAccessToken) {}
+
+    @FunctionalInterface
+    interface RegistrationAccessTokenOperation<T> {
+        T apply(RegistrationAuthority authority, byte[] registrationAccessToken);
+    }
+
+    @FunctionalInterface
+    interface PrivateJwkOperation<T> {
+        T apply(byte[] privateJwk) throws Exception;
     }
 
     private record StoredKey(String keyId, KeyStatus status, String createdAt, Map<String, String> privateJwk) {

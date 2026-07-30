@@ -42,12 +42,14 @@ OPERATOR_PROCESS_INPUTS = {
     "WEAVE_ADOPTION_RECEIPT",
     "WEAVE_BACKUP_ROOT",
     "WEAVE_CANDIDATE_COMMIT",
+    "WEAVE_CANDIDATE_MANIFEST_DIGEST",
     "WEAVE_IMAGE_SOURCE_COMMIT",
     "WEAVE_E2E_RUN_ID",
     "WEAVE_E2E_RUN_NAMESPACE",
     "WEAVE_E2E_STACK_SCOPE",
-    "WEAVE_TEST_USERS_FILE",
     "WEAVE_IDENTITY_ROTATION_EPOCH",
+    "WEAVE_RESOURCE_GENERATION",
+    "WEAVE_RESOURCE_STACK",
     "WEAVE_SPEC_CORPUS_ROOT",
 }
 PROCESS_RUNTIME_COORDINATES = {
@@ -187,6 +189,7 @@ def _isolated_overrides(profile: str, env: dict[str, str]) -> tuple[dict[str, st
             "WEAVE_NEXTCLOUD_DATA_VOLUME": f"{volume_prefix}_nextcloud_data",
             "WEAVE_SYNAPSE_DATA_VOLUME": f"{volume_prefix}_synapse_data",
             "WEAVE_MATRIX_APPSERVICE_VOLUME": f"{volume_prefix}_matrix_chat_appservice_runtime",
+            "WEAVE_RUNTIME_STATE_VOLUME": f"{volume_prefix}_runtime_state",
         }
     )
     port_names = (
@@ -223,8 +226,6 @@ def load_context(profile: str, root: Path, supplied_env_file: str | None = None)
     selected = _profile_file(root, profile, supplied_env_file or os.environ.get("WEAVE_ENV_FILE"))
     env = parse_env_file(common)
     env.update(parse_env_file(selected))
-    if "WEAVE_TEST_USERS_FILE" in os.environ:
-        env["WEAVE_TEST_USERS_FILE"] = os.environ["WEAVE_TEST_USERS_FILE"]
     if "WEAVE_IDENTITY_ROTATION_EPOCH" in os.environ:
         epoch = os.environ["WEAVE_IDENTITY_ROTATION_EPOCH"]
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}", epoch):
@@ -234,6 +235,72 @@ def load_context(profile: str, root: Path, supplied_env_file: str | None = None)
         value = os.environ.get(name)
         if value:
             env[name] = value
+    lock_path = repository_root / "specs/weave-specs.lock.json"
+    lock_bytes = lock_path.read_bytes()
+    lock = json.loads(lock_bytes)
+    spec_commit = lock["specCorpus"]["gitCommit"]
+    if not COMMIT_RE.fullmatch(spec_commit):
+        fail("specification lock does not contain an immutable commit")
+    candidate_commit = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
+    if not candidate_commit:
+        candidate_commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repository_root,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+        ).stdout.strip()
+    if not COMMIT_RE.fullmatch(candidate_commit):
+        fail("WEAVE_CANDIDATE_COMMIT must be one immutable implementation commit")
+    spec_digest = "sha256:" + hashlib.sha256(lock_bytes).hexdigest()
+    resource_environment = (
+        "persistent-dogfood"
+        if profile == "test"
+        and env.get("WEAVE_DEPLOYMENT_CONTEXT") == "persistent-adoption"
+        and os.environ.get("WEAVE_E2E_STACK_SCOPE") != "isolated"
+        else profile
+    )
+    resource_generation = os.environ.get(
+        "WEAVE_RESOURCE_GENERATION", env.get("WEAVE_RESOURCE_GENERATION", "fresh-v1")
+    )
+    resource_stack = os.environ.get(
+        "WEAVE_RESOURCE_STACK", env.get("WEAVE_RESOURCE_STACK", "weave")
+    )
+    for label, value in (
+        ("resource generation", resource_generation),
+        ("resource stack", resource_stack),
+    ):
+        if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,63}", value):
+            fail(f"{label} is not a support-safe immutable label value")
+    local_candidate_manifest = json.dumps(
+        {
+            "schemaVersion": "weave.compose-local-candidate.v1",
+            "candidateCommit": candidate_commit,
+            "deploymentInstance": env.get("WEAVE_DEPLOYMENT_INSTANCE"),
+            "profile": profile,
+            "specDigest": spec_digest,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    candidate_manifest_digest = os.environ.get(
+        "WEAVE_CANDIDATE_MANIFEST_DIGEST",
+        "sha256:" + hashlib.sha256(local_candidate_manifest).hexdigest(),
+    )
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", candidate_manifest_digest):
+        fail("WEAVE_CANDIDATE_MANIFEST_DIGEST must be one full SHA-256 digest")
+    env.update(
+        {
+            "WEAVE_RESOURCE_ENVIRONMENT": resource_environment,
+            "WEAVE_RESOURCE_GENERATION": resource_generation,
+            "WEAVE_RESOURCE_STACK": resource_stack,
+            "WEAVE_SPEC_COMMIT": spec_commit,
+            "WEAVE_SPEC_DIGEST": spec_digest,
+            "WEAVE_CANDIDATE_COMMIT": candidate_commit,
+            "WEAVE_CANDIDATE_MANIFEST_DIGEST": candidate_manifest_digest,
+        }
+    )
     env.setdefault("WEAVE_RUNTIME_UID", str(os.getuid()))
     env.setdefault("WEAVE_RUNTIME_GID", str(os.getgid()))
     env.setdefault("WEAVE_MATRIX_HOST", urlsplit(env.get("WEAVE_MATRIX_URL", "")).hostname or "")
@@ -306,7 +373,7 @@ def _validate_environment(profile: str, env: Mapping[str, str]) -> None:
             "WEAVE_MCP_IMAGE",
         ]
         if profile == "test":
-            image_names.append("WEAVE_MAILPIT_IMAGE")
+            image_names.extend(("WEAVE_MAILPIT_IMAGE", "WEAVE_RUNTIME_STATE_IMAGE"))
         local_candidate_images = {
             "WEAVE_BACKEND_IMAGE", "WEAVE_IDENTITY_OPS_IMAGE", "WEAVE_MCP_IMAGE"
         } if profile == "test" else set()

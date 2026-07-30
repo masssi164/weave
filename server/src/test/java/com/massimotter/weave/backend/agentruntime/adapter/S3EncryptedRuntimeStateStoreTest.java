@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.agentruntime.domain.RuntimeStateGeneration;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateStore;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateStoreAdmin;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateStoreException;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.SecureRandom;
@@ -20,15 +21,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -39,8 +36,11 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.HeadBucketResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -53,7 +53,7 @@ class S3EncryptedRuntimeStateStoreTest {
     @TempDir
     Path temporary;
 
-    private EmbeddedDatabase database;
+    private DataSource database;
     private JdbcTemplate jdbc;
     private FileRuntimeStateKeyWrapper keys;
     private S3EncryptedRuntimeStateStore store;
@@ -61,18 +61,14 @@ class S3EncryptedRuntimeStateStoreTest {
 
     @BeforeEach
     void setUp() {
-        database = new EmbeddedDatabaseBuilder()
-                .setType(EmbeddedDatabaseType.H2)
-                .setName("arc-state-" + UUID.randomUUID() + ";MODE=PostgreSQL")
-                .build();
-        new ResourceDatabasePopulator(new ClassPathResource(
-                "db/migration/V013__agent_runtime_external_state.sql")).execute(database);
+        database = JpaTestDatabase.entityFirstDataSource("arc-state");
         jdbc = new JdbcTemplate(database);
         keys = new FileRuntimeStateKeyWrapper(
                 temporary.resolve("keys").toAbsolutePath(),
                 tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                new SecureRandom());
+                new SecureRandom(),
+                FileSecretStoreAccess.READ_WRITE);
         keys.initialize("operator:init:runtime-state");
         objects = new ConcurrentHashMap<>();
         store = new S3EncryptedRuntimeStateStore(
@@ -98,17 +94,14 @@ class S3EncryptedRuntimeStateStoreTest {
         assertThat(committed.chunkCount()).isEqualTo(1);
         assertThat(restored).isPresent();
         assertThat(restored.orElseThrow().state()).isEqualTo(state);
-        assertThat(jdbc.queryForObject(
-                "select count(*) from weave_agent_runtime_state_chunks", Integer.class))
-                .isZero();
         assertThat(objects).hasSize(1);
         byte[] ciphertext = objects.values().iterator().next();
         assertThat(new String(ciphertext, java.nio.charset.StandardCharsets.ISO_8859_1))
                 .doesNotContain("runtime-secret-session-and-plugin-state-");
         assertThat(store.readiness()).isEqualTo(
                 new RuntimeStateStore.StoreReadiness(
-                        false,
-                        "guarded-cross-store-reconciliation-required",
+                        true,
+                        "reconciled",
                         1));
     }
 
@@ -234,7 +227,25 @@ class S3EncryptedRuntimeStateStoreTest {
                 "select count(*) from weave_agent_runtime_state_heads", Integer.class)).isZero();
         assertThat(guarded.readiness().ready()).isFalse();
         assertThat(guarded.readiness().state())
-                .isEqualTo("guarded-cross-store-reconciliation-required");
+                .isEqualTo("cross-store-inconsistent");
+    }
+
+    @Test
+    void emptyFreshStoreReconcilesAndMissingOrForeignObjectsFailClosed() {
+        assertThat(store.readiness()).isEqualTo(
+                new RuntimeStateStore.StoreReadiness(true, "reconciled", 0));
+
+        objects.put("runtime-state/generations/" + "b".repeat(64) + ".bin", new byte[] {1});
+        assertThat(store.readiness()).isEqualTo(
+                new RuntimeStateStore.StoreReadiness(false, "cross-store-inconsistent", 0));
+
+        objects.clear();
+        RuntimeStateGeneration committed = store.commit(command(
+                "alice", 0, "bound state".getBytes(StandardCharsets.UTF_8),
+                "state-write-alice-0001"));
+        objects.remove(objectKey(committed.generationRef()));
+        assertThat(store.readiness()).isEqualTo(
+                new RuntimeStateStore.StoreReadiness(false, "cross-store-inconsistent", 1));
     }
 
     private static RuntimeStateStore.CommitRuntimeStateCommand command(
@@ -263,7 +274,7 @@ class S3EncryptedRuntimeStateStoreTest {
         return "runtime-state://org/example/person/" + person + "/state/v1";
     }
 
-    private static RuntimeStateJpaAuthority runtimeStateAuthority(EmbeddedDatabase database) {
+    private static RuntimeStateJpaAuthority runtimeStateAuthority(DataSource database) {
         return new RuntimeStateJpaAuthority(
                 com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
                         database, RuntimeStateHeadJpaRepository.class),
@@ -309,6 +320,28 @@ class S3EncryptedRuntimeStateStoreTest {
                 });
         when(client.headBucket(any(HeadBucketRequest.class)))
                 .thenReturn(HeadBucketResponse.builder().build());
+        when(client.listObjectsV2(any(ListObjectsV2Request.class)))
+                .thenAnswer(invocation -> {
+                    ListObjectsV2Request request = invocation.getArgument(0);
+                    java.util.List<S3Object> listed = objects.entrySet().stream()
+                            .filter(entry -> entry.getKey().startsWith(request.prefix()))
+                            .sorted(Map.Entry.comparingByKey())
+                            .map(entry -> S3Object.builder()
+                                    .key(entry.getKey())
+                                    .size((long) entry.getValue().length)
+                                    .build())
+                            .toList();
+                    return ListObjectsV2Response.builder()
+                            .contents(listed)
+                            .isTruncated(false)
+                            .build();
+                });
         return client;
+    }
+
+    private static String objectKey(String generationRef) {
+        return "runtime-state/generations/"
+                + generationRef.substring("state-generation:".length())
+                + ".bin";
     }
 }

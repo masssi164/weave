@@ -1,13 +1,18 @@
 package com.massimotter.weave.backend.matrix;
 
+import static java.util.Objects.requireNonNull;
+
+import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixIdentityProjectionJpaEntity;
+import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixIdentityProjectionId;
+import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixIdentityProjectionJpaRepository;
+import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixRevokedSessionJpaEntity;
+import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixRevokedSessionJpaRepository;
 import java.time.Instant;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import static java.util.Objects.requireNonNull;
-
-/** JPA adapter for Matrix identity projection and revocation state. */
+/** Portable Spring Data JPA adapter for Matrix identity and revocation state. */
 @Repository
 @Transactional(readOnly = true)
 public class JpaMatrixFacadeClientStateStore implements MatrixFacadeClientStateStore {
@@ -24,55 +29,54 @@ public class JpaMatrixFacadeClientStateStore implements MatrixFacadeClientStateS
 
     @Override
     public Optional<IdentityProjection> identityProjection(
-            String tenantId,
-            String identityIssuer,
-            String matrixUserId) {
-        return identityProjections.findById(new MatrixIdentityProjectionId(
-                        tenantId,
-                        identityIssuer,
-                        matrixUserId))
-                .map(MatrixIdentityProjectionJpaEntity::toProjection);
+            String tenantId, String identityIssuer, String matrixUserId) {
+        return identityProjections.findById(
+                        new MatrixIdentityProjectionId(tenantId, identityIssuer, matrixUserId))
+                .map(entity -> new IdentityProjection(
+                        entity.tenantId(), entity.identityIssuer(), entity.matrixUserId(),
+                        entity.actorRef(), entity.authorizationPrincipalRef(), entity.updatedAt()));
     }
 
     @Override
     @Transactional
     public void saveIdentityProjection(IdentityProjection projection) {
         MatrixIdentityProjectionId id = new MatrixIdentityProjectionId(
-                projection.tenantId(),
-                projection.identityIssuer(),
-                projection.matrixUserId());
-        MatrixIdentityProjectionJpaEntity entity = identityProjections.findById(id)
-                .orElseGet(() -> MatrixIdentityProjectionJpaEntity.create(id, projection));
-        entity.apply(projection);
-        identityProjections.saveAndFlush(entity);
+                projection.tenantId(), projection.identityIssuer(), projection.matrixUserId());
+        MatrixIdentityProjectionJpaEntity existing = identityProjections.findById(id).orElse(null);
+        if (existing != null && !existing.actorRef().equals(projection.actorRef())) {
+            throw new IllegalArgumentException("Matrix user is already bound to another canonical actor.");
+        }
+        if (existing != null && projection.updatedAt().isBefore(existing.updatedAt())) {
+            throw new IllegalArgumentException("Matrix identity projection update cannot move backwards.");
+        }
+        identityProjections.saveAndFlush(new MatrixIdentityProjectionJpaEntity(
+                projection.tenantId(), projection.identityIssuer(), projection.matrixUserId(),
+                projection.actorRef(), projection.authorizationPrincipalRef(), projection.updatedAt()));
     }
 
     @Override
     @Transactional
-    public void revokeSession(
-            String sessionHash,
-            Instant revokedAt,
-            Instant expiresAt) {
-        MatrixRevokedSessionJpaEntity existing = revokedSessions.findById(sessionHash)
-                .orElse(null);
+    public void revokeSession(String sessionHash, Instant revokedAt, Instant expiresAt) {
+        MatrixRevokedSessionJpaEntity existing = revokedSessions.findById(sessionHash).orElse(null);
         if (existing != null) {
-            existing.requireEquivalent(revokedAt, expiresAt);
+            if (!existing.revokedAt().equals(revokedAt) || !existing.expiresAt().equals(expiresAt)) {
+                throw new IllegalArgumentException(
+                        "Matrix revocation digest is already bound to another session window.");
+            }
             return;
         }
         revokedSessions.saveAndFlush(
-                MatrixRevokedSessionJpaEntity.create(sessionHash, revokedAt, expiresAt));
+                new MatrixRevokedSessionJpaEntity(sessionHash, revokedAt, expiresAt));
     }
 
     @Override
     @Transactional
     public void deleteExpiredSessions(Instant now) {
-        revokedSessions.deleteByExpiresAtLessThanEqual(MatrixPersistenceTime.utc(now));
+        revokedSessions.deleteByExpiresAtLessThanEqual(now);
     }
 
     @Override
     public boolean isSessionRevoked(String sessionHash, Instant now) {
-        return revokedSessions.existsBySessionHashAndExpiresAtAfter(
-                sessionHash,
-                MatrixPersistenceTime.utc(now));
+        return revokedSessions.existsBySessionHashAndExpiresAtAfter(sessionHash, now);
     }
 }

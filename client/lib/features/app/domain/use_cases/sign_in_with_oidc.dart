@@ -1,4 +1,5 @@
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
+import 'package:weave/features/app/domain/ports/identity_session_port.dart';
 import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
 import 'package:weave/features/app/domain/use_cases/reconcile_identity_session.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
@@ -34,11 +35,20 @@ class SignInWithOidc {
 
     final authConfiguration = _toAuthConfiguration(configuration);
     final authenticated = await _authPort.signIn(authConfiguration);
-    await _reconcileIdentitySession(
-      authConfiguration: authConfiguration,
+    final reconciliation = await _reconcileIdentitySession(
       backendApiBaseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
       authenticated: authenticated,
     );
+    if (reconciliation ==
+        IdentitySessionReconciliation.reauthorizationRequired) {
+      final reauthorized = await _authPort.signIn(authConfiguration);
+      if (!reauthorized.isAuthenticated || reauthorized.session == null) {
+        await _authPort.clearLocalSession();
+        throw const AuthFailure.sessionRejected(
+          'Organization access changed, but OIDC reauthorization was rejected.',
+        );
+      }
+    }
   }
 
   AuthConfiguration _toAuthConfiguration(ServerConfiguration configuration) {

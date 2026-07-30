@@ -8,7 +8,7 @@ import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateReques
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationResponse;
-import com.massimotter.weave.backend.model.admin.IdentityProviderReadinessResponse;
+import com.massimotter.weave.backend.model.admin.PlatformIdentityReadinessResponse;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapRequest;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapResponse;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestRequest;
@@ -53,7 +53,7 @@ public class AdminControlPlaneController {
         this.adminControlPlaneService = adminControlPlaneService;
     }
 
-    @GetMapping({"/api/admin/control-plane", "/api/v1/admin/control-plane"})
+    @GetMapping("/api/admin/control-plane")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(operationId = "getAdminControlPlane", summary = "Read the support-safe organization control-plane overview")
     @ApiResponse(responseCode = "200", description = "Admin control-plane snapshot.",
@@ -62,7 +62,7 @@ public class AdminControlPlaneController {
         return adminControlPlaneService.overview(jwt);
     }
 
-    @GetMapping({"/api/admin/policies/capability-whitelist", "/api/v1/admin/policies/capability-whitelist"})
+    @GetMapping("/api/admin/policies/capability-whitelist")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(operationId = "getCapabilityWhitelist", summary = "Read deny-by-default capability whitelist policy")
     @ApiResponse(responseCode = "200", description = "Capability whitelist snapshot.",
@@ -71,7 +71,7 @@ public class AdminControlPlaneController {
         return adminControlPlaneService.whitelist(jwt);
     }
 
-    @GetMapping({"/api/admin/policies/effective", "/api/v1/admin/policies/effective"})
+    @GetMapping("/api/admin/policies/effective")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(operationId = "getEffectivePolicy", summary = "Explain the effective capability policy for the authenticated subject")
     @ApiResponse(responseCode = "200", description = "Support-safe effective policy explanation.",
@@ -80,7 +80,7 @@ public class AdminControlPlaneController {
         return adminControlPlaneService.effectivePolicy(jwt);
     }
 
-    @PostMapping({"/api/admin/policies/effective/simulations", "/api/v1/admin/policies/effective/simulations"})
+    @PostMapping("/api/admin/policies/effective/simulations")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(operationId = "simulateEffectivePolicy", summary = "Simulate effective capability policy before provider/realm changes")
     @ApiResponse(responseCode = "200", description = "Support-safe policy simulation.",
@@ -91,16 +91,16 @@ public class AdminControlPlaneController {
         return adminControlPlaneService.simulateEffectivePolicy(request, jwt);
     }
 
-    @GetMapping({"/api/admin/identity/readiness", "/api/v1/admin/identity/readiness"})
+    @GetMapping("/api/admin/platform/identity/readiness")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
-    @Operation(operationId = "getIdentityProviderReadiness", summary = "Read support-safe identity provider readiness for Workspace Health")
-    @ApiResponse(responseCode = "200", description = "Backend-owned identity provider readiness facade.",
-            content = @Content(schema = @Schema(implementation = IdentityProviderReadinessResponse.class)))
-    public IdentityProviderReadinessResponse identityProviderReadiness(@AuthenticationPrincipal Jwt jwt) {
-        return adminControlPlaneService.identityProviderReadiness(jwt);
+    @Operation(operationId = "getPlatformIdentityReadiness", summary = "Read support-safe fixed Keycloak platform readiness")
+    @ApiResponse(responseCode = "200", description = "Backend-owned platform identity readiness.",
+            content = @Content(schema = @Schema(implementation = PlatformIdentityReadinessResponse.class)))
+    public PlatformIdentityReadinessResponse platformIdentityReadiness(@AuthenticationPrincipal Jwt jwt) {
+        return adminControlPlaneService.platformIdentityReadiness(jwt);
     }
 
-    @PostMapping({"/api/admin/organizations/bootstrap", "/api/v1/admin/organizations/bootstrap"})
+    @PostMapping("/api/admin/organizations/bootstrap")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(operationId = "bootstrapOrganization", summary = "Bootstrap or bind an organization with immutable identity recovery administrators")
     @ApiResponse(responseCode = "200", description = "Support-safe organization bootstrap result.",
@@ -111,7 +111,7 @@ public class AdminControlPlaneController {
         return adminControlPlaneService.bootstrapOrganization(request, jwt);
     }
 
-    @PatchMapping({"/api/admin/policies/capability-whitelist", "/api/v1/admin/policies/capability-whitelist"})
+    @PatchMapping("/api/admin/policies/capability-whitelist")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(operationId = "updateCapabilityWhitelist", summary = "Record a support-safe capability whitelist policy update")
     @ApiResponse(responseCode = "200", description = "Updated capability whitelist snapshot.",
@@ -122,7 +122,7 @@ public class AdminControlPlaneController {
         return adminControlPlaneService.updateWhitelist(request, jwt);
     }
 
-    @PostMapping({"/api/admin/providers/selections", "/api/v1/admin/providers/selections"})
+    @PostMapping("/api/admin/providers/selections")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(operationId = "selectProvider", summary = "Apply or dry-run an Admin Console selected provider mapping")
     @ApiResponse(responseCode = "200", description = "Support-safe selected provider mapping.",
@@ -133,7 +133,7 @@ public class AdminControlPlaneController {
         return adminControlPlaneService.selectProvider(request, jwt);
     }
 
-    @PostMapping({"/api/admin/providers/readiness-tests", "/api/v1/admin/providers/readiness-tests"})
+    @PostMapping("/api/admin/providers/readiness-tests")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(operationId = "testProviderReadiness", summary = "Run a backend-owned support-safe provider readiness test contract")
     @ApiResponse(responseCode = "200", description = "Support-safe provider readiness test result.",
@@ -144,7 +144,7 @@ public class AdminControlPlaneController {
         return adminControlPlaneService.testProviderReadiness(request, jwt);
     }
 
-    @PostMapping({"/api/admin/providers/replacements/dry-run", "/api/v1/admin/providers/replacements/dry-run"})
+    @PostMapping("/api/admin/providers/replacements/dry-run")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(operationId = "dryRunProviderReplacement", summary = "Dry-run a provider replacement before activation")
     @ApiResponse(responseCode = "200", description = "Support-safe provider replacement dry-run report.",
@@ -155,7 +155,7 @@ public class AdminControlPlaneController {
         return adminControlPlaneService.dryRunProviderReplacement(request, jwt);
     }
 
-    @GetMapping({"/api/admin/audit/events", "/api/v1/admin/audit/events"})
+    @GetMapping("/api/admin/audit/events")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(operationId = "listAdminAuditEvents", summary = "Read support-safe admin/provider audit events")
     @ApiResponse(responseCode = "200", description = "Audit event list.")

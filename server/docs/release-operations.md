@@ -59,11 +59,11 @@ Protected endpoints return a stable JSON error envelope on auth failures and inc
 
 Use `401` for missing or invalid tokens. Use `403` when the token is authenticated but does not include `weave:workspace`.
 
-`GET /api/profile`, `PATCH /api/profile`, and `GET /api/profile/sync-status` are the authenticated product profile facade. `PATCH /api/profile` supports partial updates to `displayName`, `avatar`, `locale`, `timezone`, `accessibilityPreferences`, and `profileVisibility`; validation errors use the same stable JSON error envelope. Mutable profile overrides use the same Flyway-managed relational authority as the other server domains: H2 in the host-only `dev` runtime profile and PostgreSQL in the `test` and `prod` runtime profiles. There is no production JSON/file fallback. Matrix/Nextcloud profile sync still reports `not_configured` until module propagation is implemented.
+`GET /api/profile`, `PATCH /api/profile`, and `GET /api/profile/sync-status` are the authenticated product profile facade. `PATCH /api/profile` supports partial updates to `displayName`, `avatar`, `locale`, `timezone`, `accessibilityPreferences`, and `profileVisibility`; validation errors use the same stable JSON error envelope. Mutable profile overrides use the same code-first JPA authority as the other server domains: H2 in the host-only `dev` runtime profile and PostgreSQL with one-shot schema initialization plus serving validation in the `test` and `prod` runtime profiles. There is no production JSON/file fallback. Matrix/Nextcloud profile sync still reports `not_configured` until module propagation is implemented.
 
 `/api/workspace/release-readiness` is the backend-owned operator snapshot for the core workspace. It rolls auth, Matrix chat, and Nextcloud files into one response and lists the exact remaining setup actions when the workspace is still degraded or blocked.
 
-The older `/api/v1/workspace/capabilities` and `/api/v1/workspace/release-readiness` paths remain compatibility aliases while clients migrate to the canonical non-versioned workspace routes.
+Only the canonical `/api/workspace/capabilities` and `/api/workspace/release-readiness` paths exist after the Fresh Start; no alternate versioned application routes are retained.
 
 ## Minimum operator checks
 

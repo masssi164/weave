@@ -20,6 +20,7 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityIn
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityInventory.ClientObservation;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityInventory.ManagementState;
 import com.massimotter.weave.backend.config.ProviderHealthProperties;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -32,19 +33,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 class AgentRuntimeWorkloadReconciliationServiceTest {
     private static final Instant NOW = Instant.parse("2026-07-20T13:00:00Z");
@@ -67,14 +60,9 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
 
     @BeforeEach
     void setUp() {
-        EmbeddedDatabase database = new EmbeddedDatabaseBuilder()
-                .setType(EmbeddedDatabaseType.H2)
-                .setName("arc-reconcile-" + UUID.randomUUID() + ";MODE=PostgreSQL")
-                .build();
-        new ResourceDatabasePopulator(new ClassPathResource(
-                "db/migration/V011__agent_runtime_control_foundation.sql"))
-                .execute(database);
-        cells = AgentRuntimeJpaTestFactory.create(database).cells();
+        var database = JpaTestDatabase.entityFirstDataSource("arc-reconcile");
+        var persistence = AgentRuntimeJpaTestFactory.create(database);
+        cells = persistence.cells();
         credentials = new FileRuntimeWorkloadCredentialStore(
                 temporary, new ObjectMapper(), Clock.fixed(NOW.minusSeconds(60), ZoneOffset.UTC));
         String owner = owner();
@@ -87,13 +75,17 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
                 CLIENT,
                 RuntimeWorkloadBinding.AuthenticationMethod.PRIVATE_KEY_JWT,
                 credential.credentialRef());
+        RuntimeMemberBinding memberBinding = new RuntimeMemberBinding(
+                ISSUER, "member-example");
+        var entitlement = AgentRuntimeJpaTestFactory.activateEntitlement(
+                persistence, ORGANIZATION, PERSON, memberBinding, NOW.minusSeconds(30));
         cell = RuntimeCell.provisioning(
                 ORGANIZATION,
                 PERSON,
-                new RuntimeMemberBinding(ISSUER, "member-example"),
+                memberBinding,
                 CELL,
                 binding,
-                "entitlement:1",
+                entitlement.entitlementRevision(),
                 "workspace:1",
                 "webdav-manifest:workspace:1",
                 "runtime-state://org/example/person/example/state/1",
@@ -222,7 +214,12 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
 
     @Test
     void revokedCellsDisableIdentityAndRemoveCredentialBeforeConverging() {
-        cells.revoke(ORGANIZATION, PERSON, "entitlement:revoked:2", "audit:revoke", NOW.minusSeconds(1));
+        cells.revoke(
+                ORGANIZATION,
+                PERSON,
+                cell.entitlementRevision(),
+                "audit:revoke",
+                NOW.minusSeconds(1));
 
         RuntimeWorkloadReconciliationReport report = service.reconcileNow("audit:revoke-reconcile");
 

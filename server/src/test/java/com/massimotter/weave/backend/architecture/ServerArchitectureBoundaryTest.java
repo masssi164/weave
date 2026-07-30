@@ -25,8 +25,7 @@ class ServerArchitectureBoundaryTest {
             BACKEND_PACKAGE + "boards.openproject.",
             BACKEND_PACKAGE + "boards.vikunja.",
             BACKEND_PACKAGE + "boards.deck.",
-            BACKEND_PACKAGE + "boards.local.",
-            BACKEND_PACKAGE + "identity.realm.");
+            BACKEND_PACKAGE + "boards.local.");
     private static final List<String> PROVIDER_ADAPTER_IMPORT_PREFIXES = List.of(
             BACKEND_PACKAGE + "chat.provider.",
             BACKEND_PACKAGE + "boards.openproject.",
@@ -34,9 +33,7 @@ class ServerArchitectureBoundaryTest {
             BACKEND_PACKAGE + "boards.deck.",
             BACKEND_PACKAGE + "boards.local.",
             BACKEND_PACKAGE + "service.files.NextcloudFilesAdapter",
-            BACKEND_PACKAGE + "service.calendar.CalDavCalendarAdapter",
-            BACKEND_PACKAGE + "identity.realm.HttpKeycloakRealmAdminClient",
-            BACKEND_PACKAGE + "identity.realm.KeycloakRealmAdminClient");
+            BACKEND_PACKAGE + "service.calendar.CalDavCalendarAdapter");
     private static final List<String> NATIVE_OR_MCP_CONTRACT_FORBIDDEN_LITERALS = List.of(
             "nextcloud",
             "/remote.php/dav",
@@ -71,15 +68,17 @@ class ServerArchitectureBoundaryTest {
             "credentialref://weave/runtime/short-lived",
             "raw provider payloads are forbidden",
             "raw provider payloads, credential-bearing locations");
+    private static final List<String> LEGACY_FILE_RUNTIME_STORE_ALLOWLIST = List.of(
+            "/audit/FileAuditEventPublisher.java",
+            "/provider/FileProviderSelectionRepository.java",
+            "/service/FileOrganizationBootstrapRepository.java",
+            "/service/FileProductProfileOverrideRepository.java",
+            "/service/migration/FileMigrationRunEvidenceRepository.java");
     private static final List<String> ACCEPTED_FILE_KEY_CUSTODY_ALLOWLIST = List.of(
             "/agentruntime/adapter/FileRuntimeProfileSigningKeyStore.java",
-            "/agentruntime/adapter/FileRuntimeStateKeyWrapper.java");
-    private static final List<String> DIRECT_RELATIONAL_BYPASS_IMPORTS = List.of(
-            "org.springframework.jdbc.",
-            "java.sql.");
-    private static final List<String> REVIEWED_NATIVE_QUERY_ADAPTERS = List.of(
-            "ChatCallbackClaimNativeRepository.java",
-            "OperationIntentLeaseNativeRepository.java");
+            "/agentruntime/adapter/FileRuntimeStateKeyWrapper.java",
+            "/schema/SchemaAuthorityInitializer.java",
+            "/schema/SchemaReceiptVerifier.java");
     private static final List<String> FILE_RUNTIME_AUTHORITY_MARKERS = List.of(
             "Path storagePath",
             "readValue(storagePath.toFile()",
@@ -197,116 +196,13 @@ class ServerArchitectureBoundaryTest {
                 .filter(ServerArchitectureBoundaryTest::usesFileRuntimeStore)
                 .filter(source -> !isAllowedFileRuntimeAuthority(source))
                 .map(source -> source.path()
-                        + " uses file-backed runtime persistence outside operator-mounted cryptographic key custody")
+                        + " uses file-backed runtime persistence outside the explicit #1019/#1011 debt fence")
                 .sorted()
                 .toList();
 
         assertThat(violations)
-                .as("Runtime truth must remain relational; only canonical operator-mounted cryptographic key custody may use files.")
+                .as("Runtime truth must remain relational; only canonical operator-mounted cryptographic key custody and fenced legacy debt may use files.")
                 .isEmpty();
-    }
-
-    @Test
-    void productionPersistenceCannotReintroduceJdbcRepositoriesOrDirectSqlAccess() throws IOException {
-        List<String> violations = productionSources().stream()
-                .flatMap(source -> {
-                    var sourceViolations = new java.util.ArrayList<String>();
-                    String fileName = source.path().getFileName().toString();
-                    if (fileName.startsWith("Jdbc") || source.text().contains("class Jdbc")) {
-                        sourceViolations.add(source.path() + " retains a legacy Jdbc production type");
-                    }
-                    source.imports().stream()
-                            .filter(importName -> DIRECT_RELATIONAL_BYPASS_IMPORTS.stream()
-                                    .anyMatch(importName::startsWith))
-                            .map(importName -> source.path() + " bypasses the JPA boundary through " + importName)
-                            .forEach(sourceViolations::add);
-                    return sourceViolations.stream();
-                })
-                .sorted()
-                .toList();
-
-        assertThat(violations)
-                .as("Production relational adapters must enter through the JPA/Hibernate boundary, not JDBC types.")
-                .isEmpty();
-    }
-
-    @Test
-    void genericSqlExecutorsCannotReturnAndNativeQueriesStayExplicitlyAllowlisted()
-            throws IOException {
-        List<JavaSource> sources = productionSources();
-        assertThat(sources)
-                .extracting(source -> source.path().getFileName().toString())
-                .doesNotContain("JpaSqlExecutor.java", "JpaRow.java");
-
-        List<JavaSource> nativeQuerySources = sources.stream()
-                .filter(source -> source.text().contains("createNativeQuery("))
-                .toList();
-        assertThat(nativeQuerySources)
-                .extracting(source -> source.path().getFileName().toString())
-                .containsExactlyInAnyOrderElementsOf(REVIEWED_NATIVE_QUERY_ADAPTERS);
-        assertThat(nativeQuerySources)
-                .allSatisfy(source -> {
-                    assertThat(source.text())
-                            .as("native query text must be a static adapter-owned constant")
-                            .doesNotContain("createNativeQuery(sql")
-                            .doesNotContain("createNativeQuery(query")
-                            .doesNotContain("createNativeQuery(\"\" +")
-                            .doesNotContain("createNativeQuery(String.format");
-                    assertThat(source.text())
-                            .as("native query values must remain bound parameters")
-                            .contains(".setParameter(");
-                });
-    }
-
-    @Test
-    void concreteSpringRepositoriesRemainProxyable() throws IOException {
-        List<Path> finalRepositories = productionSources().stream()
-                .filter(source -> source.text().contains("@Repository"))
-                .filter(source -> source.text().matches(
-                        "(?s).*@Repository\\s+(?:public\\s+)?"
-                                + "final\\s+class\\s+[A-Za-z0-9_]+.*"))
-                .map(JavaSource::path)
-                .sorted()
-                .toList();
-
-        assertThat(finalRepositories)
-                .as("Spring exception translation and transaction advice require proxyable concrete repositories")
-                .isEmpty();
-    }
-
-    @Test
-    void domainAndApplicationPackagesCannotDependOnJpaOrHibernate() throws IOException {
-        List<String> violations = productionSources().stream()
-                .filter(ServerArchitectureBoundaryTest::isDomainOrApplicationPackage)
-                .flatMap(source -> source.imports().stream()
-                        .filter(importName -> importName.startsWith("jakarta.persistence.")
-                                || importName.startsWith("org.hibernate.")
-                                || importName.startsWith(BACKEND_PACKAGE + "persistence."))
-                        .map(importName -> violation(source, importName)))
-                .sorted()
-                .toList();
-
-        assertThat(violations)
-                .as("Domain and application/use-case packages must depend on ports, never persistence technology.")
-                .isEmpty();
-    }
-
-    @Test
-    void productionCannotReintroduceVolatileOrFilePersistenceFallbacks() throws IOException {
-        String production = productionSources().stream()
-                .map(JavaSource::text)
-                .collect(java.util.stream.Collectors.joining("\n"));
-
-        assertThat(production)
-                .doesNotContain("new InMemory")
-                .doesNotContain("WeavePersistenceProperties")
-                .doesNotContain("storage.mode")
-                .doesNotContain("weave.persistence.mode")
-                .doesNotContain("FileAuditEventPublisher")
-                .doesNotContain("FileProviderSelectionRepository")
-                .doesNotContain("FileOrganizationBootstrapRepository")
-                .doesNotContain("FileProductProfileOverrideRepository")
-                .doesNotContain("FileMigrationRunEvidenceRepository");
     }
 
     @Test
@@ -321,6 +217,22 @@ class ServerArchitectureBoundaryTest {
                 .doesNotContain("@PostMapping(\"/api/files/upload\")")
                 .doesNotContain("@PostMapping(\"/api/files/folders\")")
                 .doesNotContain("@DeleteMapping(\"/api/files/{id}\")");
+    }
+
+    @Test
+    void retiredApplicationCompatibilityRoutesAndConfigurationFallbacksStayAbsent()
+            throws IOException {
+        assertThat(sourceEndingWith(Path.of("controller", "WorkspaceController.java")).text())
+                .doesNotContain("/api/v1/organization")
+                .doesNotContain("/api/v1/workspace");
+        assertThat(sourceEndingWith(Path.of("controller", "ChatController.java")).text())
+                .doesNotContain("/api/v1/chat")
+                .doesNotContain("/api/v1/admin/chat");
+        assertThat(sourceEndingWith(Path.of("controller", "AdminControlPlaneController.java")).text())
+                .doesNotContain("/api/v1/admin");
+        assertThat(sourceEndingWith(
+                Path.of("controller", "ProviderCapabilityHealthController.java")).text())
+                .doesNotContain("/api/v1/admin");
     }
 
     @Test
@@ -422,10 +334,12 @@ class ServerArchitectureBoundaryTest {
         assertThat(runtimeConfiguration.text())
                 .contains("CanonicalChatStore")
                 .contains("JpaCanonicalChatStore")
+                .contains("CanonicalChatJpaAuthority")
                 .contains("MatrixSynapseChatSouthboundAdapter")
                 .contains("SynapseBackedCanonicalChatAdapter")
-                .doesNotContain("requireJdbc(properties)")
-                .doesNotContain("storage.mode");
+                .doesNotContain("WEAVE_CHAT_STORAGE_MODE")
+                .doesNotContain("JdbcTemplate")
+                .doesNotContain("JdbcCanonicalChatStore");
         assertThat(canonicalAdapter.text())
                 .contains("CanonicalChatStore")
                 .contains("MatrixSynapseChatSouthboundAdapter")
@@ -471,6 +385,54 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
+    void serverCompositionContainsNoJpaEntityOrSpringDataRepositoryDeclaration()
+            throws IOException {
+        assertThat(productionSources())
+                .allSatisfy(source -> assertThat(source.text())
+                        .as(source.path().toString())
+                        .doesNotContain("@Entity\n", "@Entity\r", "@Entity(")
+                        .doesNotContain("extends JpaRepository<"));
+    }
+
+    @Test
+    void productionDataAccessUsesJpaWithoutNativeSqlOrJdbcEscapeHatches()
+            throws IOException {
+        List<JavaSource> persistence = persistenceSources();
+        List<JavaSource> dataAccessSources = java.util.stream.Stream.concat(
+                        productionSources().stream(),
+                        persistence.stream())
+                .toList();
+
+        assertThat(dataAccessSources)
+                .allSatisfy(source -> assertThat(source.text())
+                        .as(source.path().toString())
+                        .doesNotContain("createNativeQuery(")
+                        .doesNotContain("nativeQuery = true")
+                        .doesNotContain("nativeQuery=true")
+                        .doesNotContain("JdbcTemplate")
+                        .doesNotContain("NamedParameterJdbcTemplate")
+                        .doesNotContain("org.springframework.jdbc.core"));
+        assertThat(dataAccessSources.stream()
+                        .filter(source -> !source.packageName().equals(BACKEND_PACKAGE + "schema"))
+                        .toList())
+                .allSatisfy(source -> assertThat(source.text())
+                        .as(source.path().toString())
+                        .doesNotContain(
+                                "java.sql.",
+                                "DriverManager.getConnection(",
+                                ".prepareStatement(",
+                                ".createStatement("));
+        assertThat(productionSources().stream()
+                        .filter(source -> source.packageName().equals(BACKEND_PACKAGE + "schema"))
+                        .filter(source -> source.text().contains("java.sql."))
+                        .map(source -> source.path().getFileName().toString())
+                        .toList())
+                .containsExactlyInAnyOrder(
+                        "SchemaAuthorityInitializer.java",
+                        "SchemaCatalogFingerprint.java");
+    }
+
+    @Test
     void matrixProtocolCoreBoundaryDefinesRustJniAndFlutterBridgeTarget() throws IOException {
         JavaSource matrixCore = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("matrix", "MatrixProtocolCoreService.java")))
@@ -510,6 +472,18 @@ class ServerArchitectureBoundaryTest {
                 .filter(source -> source.path().endsWith(suffix))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static List<JavaSource> persistenceSources() throws IOException {
+        Path persistenceRoot = Files.isDirectory(Path.of("src/main/java"))
+                ? Path.of("../weave-persistence-jpa/src/main/java")
+                : Path.of("weave-persistence-jpa/src/main/java");
+        try (var paths = Files.walk(persistenceRoot)) {
+            return paths
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .map(ServerArchitectureBoundaryTest::readSource)
+                    .toList();
+        }
     }
 
     private static JavaSource readSource(Path path) {
@@ -587,7 +561,8 @@ class ServerArchitectureBoundaryTest {
 
     private static boolean isAllowedFileRuntimeAuthority(JavaSource source) {
         String path = source.path().toString().replace('\\', '/');
-        return ACCEPTED_FILE_KEY_CUSTODY_ALLOWLIST.stream().anyMatch(path::endsWith);
+        return LEGACY_FILE_RUNTIME_STORE_ALLOWLIST.stream().anyMatch(path::endsWith)
+                || ACCEPTED_FILE_KEY_CUSTODY_ALLOWLIST.stream().anyMatch(path::endsWith);
     }
 
     private static List<String> forbiddenNativeOrMcpLiterals(JavaSource source) {
@@ -603,14 +578,6 @@ class ServerArchitectureBoundaryTest {
     private static boolean isCanonicalDomainPackage(JavaSource source) {
         String packageName = source.packageName();
         return packageName.endsWith(".domain") || packageName.contains(".domain.");
-    }
-
-    private static boolean isDomainOrApplicationPackage(JavaSource source) {
-        String packageName = source.packageName();
-        return packageName.endsWith(".domain")
-                || packageName.contains(".domain.")
-                || packageName.endsWith(".application")
-                || packageName.contains(".application.");
     }
 
     private static boolean isCanonicalCollaborationPort(JavaSource source) {

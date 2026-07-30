@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -33,19 +34,16 @@ public class JpaOperationIntentRepository
 
     private final OperationIntentJpaRepository intents;
     private final OperationOutboxJpaRepository outbox;
-    private final OperationIntentLeaseNativeRepository leases;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactions;
 
     public JpaOperationIntentRepository(
             OperationIntentJpaRepository intents,
             OperationOutboxJpaRepository outbox,
-            OperationIntentLeaseNativeRepository leases,
             ObjectMapper objectMapper,
             PlatformTransactionManager transactionManager) {
         this.intents = requireNonNull(intents, "intents");
         this.outbox = requireNonNull(outbox, "outbox");
-        this.leases = requireNonNull(leases, "leases");
         this.objectMapper = requireNonNull(objectMapper, "objectMapper");
         this.transactions = new TransactionTemplate(
                 requireNonNull(transactionManager, "transactionManager"));
@@ -126,10 +124,14 @@ public class JpaOperationIntentRepository
             int limit,
             Instant leaseUntil) {
         int bounded = Math.max(1, Math.min(limit, 100));
-        return transactions.execute(status -> leases
-                .lockCandidateRefs(now, bounded)
+        return transactions.execute(status -> intents
+                .lockReconciliationCandidates(
+                        List.of(
+                                OperationIntent.State.AMBIGUOUS.name(),
+                                OperationIntent.State.RECONCILING.name()),
+                        OperationPersistenceTime.utc(now),
+                        PageRequest.of(0, bounded))
                 .stream()
-                .map(ref -> intents.findById(ref).orElseThrow())
                 .peek(entity -> entity.leaseForReconciliation(now, leaseUntil))
                 .map(entity -> entity.toDomain(this::stringList))
                 .toList());

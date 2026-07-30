@@ -14,3 +14,7 @@
 !weave-mcp-server/build/
 !weave-mcp-server/build/libs/
 !weave-mcp-server/build/libs/*.jar
+!infra/
+!infra/identity-ops/
+!infra/identity-ops/**
+!infra/weave-workspace/

@@ -39,6 +39,7 @@ public final class KeycloakRuntimeIdentityAuthority
         implements RuntimeEntitlementAuthority, RuntimePersonDirectory {
     public static final String WEAVER_CAPABILITY_GROUP_PATH = "/capabilities/weaver";
     private static final int PAGE_SIZE = 100;
+    private static final int MAX_ORGANIZATIONS = 1_000;
     private static final int MAX_ORGANIZATION_GROUPS = 10_000;
     private static final int MAX_ORGANIZATION_MEMBERS = 10_000;
     private static final int MAX_RESPONSE_BYTES = 1_048_576;
@@ -49,6 +50,7 @@ public final class KeycloakRuntimeIdentityAuthority
     private final ObjectMapper mapper;
     private final HttpClient httpClient;
     private final Clock clock;
+    private volatile String resolvedOrganizationId;
 
     public KeycloakRuntimeIdentityAuthority(
             Settings settings,
@@ -85,7 +87,7 @@ public final class KeycloakRuntimeIdentityAuthority
         }
 
         JsonNode organizationMember = get(
-                "/organizations/" + path(settings.organizationId()) + "/members/"
+                "/organizations/" + path(organizationId()) + "/members/"
                         + path(command.memberBinding().subject()),
                 Set.of(200, 404));
         if (organizationMember == null
@@ -117,7 +119,8 @@ public final class KeycloakRuntimeIdentityAuthority
         String capabilityRevision = RuntimeWorkloadOwnership.fingerprint(capability.toString());
         Instant observedAt = clock.instant();
         return new RuntimeEntitlementObservation(
-                command.organizationRef(), command.personRef(), command.memberBinding(), SOURCE_PROVIDER,
+                command.organizationRef(), command.personRef(), command.memberBinding(),
+                text(organizationMember, "username"), SOURCE_PROVIDER,
                 sourceGroupRef, capabilityRevision, observedAt, observedAt.plus(settings.observationTtl()));
     }
 
@@ -145,7 +148,7 @@ public final class KeycloakRuntimeIdentityAuthority
                 throw new RuntimePersonNotFoundException("The requested runtime person does not exist");
             }
             JsonNode member = get(
-                    "/organizations/" + path(settings.organizationId()) + "/members/" + path(subject),
+                    "/organizations/" + path(organizationId()) + "/members/" + path(subject),
                     Set.of(200, 404));
             if (member == null
                     || !subject.equals(text(member, "id"))
@@ -168,7 +171,7 @@ public final class KeycloakRuntimeIdentityAuthority
         List<JsonNode> members = new ArrayList<>();
         for (int first = 0; first < MAX_ORGANIZATION_MEMBERS; first += PAGE_SIZE) {
             JsonNode page = get(
-                    "/organizations/" + path(settings.organizationId())
+                    "/organizations/" + path(organizationId())
                             + "/members?first=" + first + "&max=" + PAGE_SIZE,
                     Set.of(200));
             if (page == null || !page.isArray()) {
@@ -188,7 +191,7 @@ public final class KeycloakRuntimeIdentityAuthority
         List<Group> groups = new ArrayList<>();
         for (int first = 0; first < MAX_ORGANIZATION_GROUPS; first += PAGE_SIZE) {
             JsonNode page = get(
-                    "/organizations/" + path(settings.organizationId()) + "/members/"
+                    "/organizations/" + path(organizationId()) + "/members/"
                             + path(subject) + "/groups?briefRepresentation=false&first="
                             + first + "&max=" + PAGE_SIZE,
                     Set.of(200));
@@ -212,6 +215,48 @@ public final class KeycloakRuntimeIdentityAuthority
         }
         throw new RuntimeEntitlementAuthorityException(
                 "The Keycloak organization member-group projection exceeds its safe bound");
+    }
+
+    private String organizationId() {
+        if (!settings.organizationId().isBlank()) {
+            return settings.organizationId();
+        }
+        String cached = resolvedOrganizationId;
+        if (cached != null) {
+            return cached;
+        }
+        List<String> matches = new ArrayList<>();
+        boolean complete = false;
+        for (int first = 0; first < MAX_ORGANIZATIONS; first += PAGE_SIZE) {
+            JsonNode page = get(
+                    "/organizations?first=" + first + "&max=" + PAGE_SIZE
+                            + "&briefRepresentation=true",
+                    Set.of(200));
+            if (page == null || !page.isArray()) {
+                throw new RuntimeEntitlementAuthorityException(
+                        "Keycloak returned an invalid organization projection");
+            }
+            for (JsonNode candidate : page) {
+                JsonNode alias = candidate.path("alias");
+                if (alias.isString() && settings.organizationAlias().equals(alias.stringValue())) {
+                    matches.add(text(candidate, "id"));
+                }
+            }
+            if (page.size() < PAGE_SIZE) {
+                complete = true;
+                break;
+            }
+        }
+        if (!complete) {
+            throw new RuntimeEntitlementAuthorityException(
+                    "The Keycloak organization projection exceeds its safe bound");
+        }
+        if (matches.size() != 1) {
+            throw new RuntimeEntitlementAuthorityException(
+                    "The configured Keycloak organization alias is absent or ambiguous");
+        }
+        resolvedOrganizationId = matches.getFirst();
+        return resolvedOrganizationId;
     }
 
     private JsonNode get(String suffix, Set<Integer> acceptedStatuses) {
@@ -292,6 +337,7 @@ public final class KeycloakRuntimeIdentityAuthority
             URI issuer,
             String organizationRef,
             String organizationId,
+            String organizationAlias,
             String realm,
             Duration timeout,
             Duration observationTtl,
@@ -302,9 +348,13 @@ public final class KeycloakRuntimeIdentityAuthority
             if (organizationRef == null || organizationRef.isBlank() || organizationRef.length() > 255) {
                 throw new IllegalArgumentException("organizationRef is required");
             }
-            if (organizationId == null || organizationId.isBlank()
-                    || organizationId.length() > 255 || organizationId.contains("/")) {
-                throw new IllegalArgumentException("organizationId is required");
+            organizationId = organizationId == null ? "" : organizationId.trim();
+            organizationAlias = organizationAlias == null ? "" : organizationAlias.trim();
+            if ((organizationId.isBlank() && organizationAlias.isBlank())
+                    || organizationId.length() > 255 || organizationId.contains("/")
+                    || organizationAlias.length() > 255 || organizationAlias.contains("/")) {
+                throw new IllegalArgumentException(
+                        "exactly one valid organizationId or organizationAlias lookup coordinate is required");
             }
             if (realm == null || realm.isBlank() || realm.contains("/")) {
                 throw new IllegalArgumentException("realm is required");

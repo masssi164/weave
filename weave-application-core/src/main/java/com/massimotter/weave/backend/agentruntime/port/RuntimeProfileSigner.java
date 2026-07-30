@@ -4,5 +4,5 @@ import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
 
 public interface RuntimeProfileSigner {
-    SignedRuntimeProfile sign(RuntimeProfile profile);
+  SignedRuntimeProfile sign(RuntimeProfile profile);
 }

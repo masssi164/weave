@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.bdd;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -37,7 +39,7 @@ public class OpenStandardsGatewayStepDefinitions {
             "remote.php",
             "files.weave.test",
             "matrix.weave.test",
-            "Authorization",
+            "Authorization:",
             "Bearer ",
             "access_token",
             "refresh_token",
@@ -90,11 +92,11 @@ public class OpenStandardsGatewayStepDefinitions {
                 .content(objectMapper.writeValueAsString(Map.of(
                         "label", "BDD WebDAV client",
                         "clientType", "webdav"))));
-        assertThat(lastJson.path("state").asText()).isEqualTo("active");
+        assertThat(lastJson.path("state").asString()).isEqualTo("active");
         assertThat(lastJson.path("secretMaterialReturned").asBoolean()).isTrue();
-        assertThat(lastJson.path("secret").asText()).hasSizeGreaterThanOrEqualTo(40);
-        assertThat(lastJson.path("webDavBasePath").asText()).isEqualTo("/dav/files");
-        filesCredentialId = lastJson.path("credentialId").asText();
+        assertThat(lastJson.path("secret").asString()).hasSizeGreaterThanOrEqualTo(40);
+        assertThat(lastJson.path("webDavBasePath").asString()).isEqualTo("/dav/files");
+        filesCredentialId = lastJson.path("credentialId").asString();
         assertThat(filesCredentialId).startsWith("files_device_");
     }
 
@@ -111,7 +113,7 @@ public class OpenStandardsGatewayStepDefinitions {
     @When("the credential is revoked")
     public void theCredentialIsRevoked() throws Exception {
         perform(delete("/api/files/client-setup/credentials/{credentialId}", filesCredentialId));
-        assertThat(lastJson.path("state").asText()).isEqualTo("revoked");
+        assertThat(lastJson.path("state").asString()).isEqualTo("revoked");
         assertThat(lastJson.path("secretMaterialReturned").asBoolean()).isFalse();
     }
 
@@ -119,7 +121,7 @@ public class OpenStandardsGatewayStepDefinitions {
     public void filesAdvertisesTheWeaveWebdavFacadeAt(String path) {
         // OPEN_STANDARDS_MANIFEST_CONTRACT
         assertThat(lastJson.at("/clientAccessDiscovery/files/surfaces").toString()).contains(path);
-        assertThat(lastJson.at("/clientAccessDiscovery/files/credentialLifecycle/status").asText())
+        assertThat(lastJson.at("/clientAccessDiscovery/files/credentialLifecycle/status").asString())
                 .isEqualTo("revocable_device_grants_available");
         assertThat(lastJson.at("/clientAccessDiscovery/files/credentialLifecycle/lifecyclePaths").toString())
                 .contains("/api/files/client-setup/credentials");
@@ -140,7 +142,7 @@ public class OpenStandardsGatewayStepDefinitions {
 
     @Then("Calls advertises MatrixRTC Profile 0 without a member Calls API")
     public void callsAdvertisesMatrixRtcProfileZeroWithoutAMemberCallsApi() {
-        assertThat(lastJson.at("/clientAccessDiscovery/meetings-calls/productApiBasePath").asText())
+        assertThat(lastJson.at("/clientAccessDiscovery/meetings-calls/productApiBasePath").asString())
                 .isEqualTo("/_matrix/client");
         assertThat(lastJson.at("/clientAccessDiscovery/meetings-calls/surfaces").toString())
                 .contains("MatrixRTC Profile 0")
@@ -223,8 +225,7 @@ public class OpenStandardsGatewayStepDefinitions {
                         .claim("iss", "https://auth.weave.test/realms/weave")
                         .claim("aud", List.of("weave-app"))
                         .claim("weave_tenant_id", "tenant-default")
-                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                        .claim("groups", List.of("weave-file-uploaders")))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
@@ -235,8 +236,7 @@ public class OpenStandardsGatewayStepDefinitions {
                 .issuer("https://auth.weave.test/realms/weave")
                 .claim("aud", List.of("weave-app"))
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                .claim("groups", List.of("weave-file-uploaders"))
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                 .build();
     }
 

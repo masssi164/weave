@@ -4,13 +4,13 @@ run-name: Test Stack Deploy ${{ github.event.workflow_run.head_sha || inputs.can
 on:
   workflow_run:
     workflows:
-      - Live Stack E2E
+      - Live Stack Product Flow
     types:
       - completed
   workflow_dispatch:
     inputs:
       candidate_sha:
-        description: "Exact dogfood commit with successful isolated Live Stack E2E evidence"
+        description: "Exact dogfood commit with successful isolated Fresh product-flow evidence"
         required: true
         type: string
 
@@ -103,17 +103,17 @@ jobs:
           set -euo pipefail
           if [[ "$GITHUB_EVENT_NAME" == workflow_run ]]; then
             source_run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${ISOLATED_E2E_RUN_ID}")"
-            [[ "$(jq -r '.name' <<<"$source_run")" == "Live Stack E2E" && \
+            [[ "$(jq -r '.name' <<<"$source_run")" == "Live Stack Product Flow" && \
                "$(jq -r '.conclusion' <<<"$source_run")" == success && \
                "$(jq -r '.head_sha' <<<"$source_run")" == "$CANDIDATE_SHA" ]] || {
-              echo "::error::Deployment source is not successful exact-candidate Live Stack E2E evidence." >&2
+              echo "::error::Deployment source is not successful exact-candidate Fresh product-flow evidence." >&2
               exit 1
             }
           else
             runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/live-stack-e2e.yml/runs?head_sha=${CANDIDATE_SHA}&status=completed&per_page=30")"
             ISOLATED_E2E_RUN_ID="$(jq -r '[.workflow_runs[] | select(.conclusion == "success")][0].id // empty' <<<"$runs")"
             [[ -n "$ISOLATED_E2E_RUN_ID" ]] || {
-              echo "::error::No successful isolated Live Stack E2E run targets ${CANDIDATE_SHA}." >&2
+              echo "::error::No successful isolated Fresh product-flow run targets ${CANDIDATE_SHA}." >&2
               exit 1
             }
             echo "ISOLATED_E2E_RUN_ID=$ISOLATED_E2E_RUN_ID" >>"$GITHUB_ENV"

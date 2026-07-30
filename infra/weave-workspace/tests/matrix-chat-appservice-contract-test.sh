@@ -26,11 +26,16 @@ require "${ROOT_DIR}/compose.yaml" 'matrix-appservice-hs-token:/run/secrets/matr
 require "${ROOT_DIR}/scripts/render_config.py" '@internal path /api/internal/* /actuator/*'
 require "${ROOT_DIR}/scripts/render_config.py" 'respond @internal'
 
-require "${REPO_ROOT}/server/src/main/resources/application.yml" 'provider: ${WEAVE_CHAT_PROVIDER:matrix-synapse}'
-require "${REPO_ROOT}/server/src/main/resources/application.yml" 'as-token-file: ${WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE:}'
+require "${REPO_ROOT}/server/src/main/resources/application.yml" 'import: classpath:application-base.yml'
+require "${REPO_ROOT}/server/src/main/resources/application-base.yml" 'provider: ${WEAVE_CHAT_PROVIDER:matrix-synapse}'
+require "${REPO_ROOT}/server/src/main/resources/application-base.yml" 'as-token-file: ${WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE:}'
 require "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/config/MatrixApplicationServiceSecurityConfiguration.java" '.securityMatcher("/api/internal/chat/matrix/appservice/**")'
-require "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/chat/store/CanonicalChatPersistence.java" 'weave_chat_appservice_transactions'
-require "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/chat/store/ChatCallbackClaimNativeRepository.java" 'on conflict do nothing'
+require "${REPO_ROOT}/weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/chat/store/CanonicalChatPersistence.java" 'weave_chat_appservice_transactions'
+require "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/chat/store/CanonicalChatJpaAuthority.java" 'PROPAGATION_REQUIRES_NEW'
+require "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/chat/store/CanonicalChatJpaAuthority.java" 'callbacks.saveAndFlush'
+require "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/chat/store/CanonicalChatJpaAuthority.java" 'callbacks.existsById'
+[[ ! -e "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/chat/store/ChatCallbackClaimNativeRepository.java" ]] \
+  || fail "Database-specific Chat callback claim repository must stay removed"
 
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN='
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN='

@@ -23,6 +23,7 @@ import java.util.Date;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
@@ -92,6 +93,44 @@ class JwtDecoderConfigTest {
     }
 
     @Test
+    void exchangedMcpTokenRequiresExactBackendAudiencePrincipalTypeAndFilesScope() {
+        Instant now = Instant.now();
+        var validator = new DelegatingOAuth2TokenValidator<Jwt>(
+                JwtDecoderConfig.exactAudienceValidator(java.util.Set.of("https://api.weave.test/api")),
+                JwtDecoderConfig.requiredAuthorizedPartyValidator("weave-mcp-server"),
+                JwtDecoderConfig.rfc9068AccessTokenTypeValidator(),
+                JwtDecoderConfig.exactScopesValidator(java.util.Set.of("files.read")));
+        Jwt accepted = exchangedToken(now, List.of("https://api.weave.test/api"), "at+jwt");
+        Jwt broadAudience = exchangedToken(
+                now, List.of("https://api.weave.test/api", "account"), "at+jwt");
+        Jwt genericType = exchangedToken(now, List.of("https://api.weave.test/api"), "JWT");
+        Jwt wrongScope = Jwt.withTokenValue("exchange")
+                .header("alg", "RS256")
+                .header("typ", "at+jwt")
+                .audience(List.of("https://api.weave.test/api"))
+                .claim("azp", "weave-mcp-server")
+                .claim("scope", "calendar.read")
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(60))
+                .build();
+        Jwt humanToken = Jwt.withTokenValue("human")
+                .header("alg", "RS256")
+                .header("typ", "JWT")
+                .audience(List.of("https://api.weave.test/api", "account"))
+                .claim("azp", "weave-app")
+                .claim("scope", "files.read")
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(60))
+                .build();
+
+        assertThat(validator.validate(accepted).hasErrors()).isFalse();
+        assertThat(validator.validate(broadAudience).hasErrors()).isTrue();
+        assertThat(validator.validate(genericType).hasErrors()).isTrue();
+        assertThat(validator.validate(wrongScope).hasErrors()).isTrue();
+        assertThat(validator.validate(humanToken).hasErrors()).isTrue();
+    }
+
+    @Test
     void rfc9068DecoderAcceptsAtJwtAndRejectsGenericJwtBeforeClaimsAreTrusted() throws Exception {
         RSAKey signingKey = rsaSigningKey();
         try (JwksServer jwksServer = JwksServer.start(signingKey)) {
@@ -149,6 +188,18 @@ class JwtDecoderConfigTest {
         properties.getJwt().setIssuerUri(ISSUER_URI);
         properties.getJwt().setJwkSetUri(jwkSetUri);
         return new JwtDecoderConfig().jwtDecoder(properties, new WeaveSecurityProperties(null, null));
+    }
+
+    private static Jwt exchangedToken(Instant now, List<String> audience, String type) {
+        return Jwt.withTokenValue("exchange")
+                .header("alg", "RS256")
+                .header("typ", type)
+                .audience(audience)
+                .claim("azp", "weave-mcp-server")
+                .claim("scope", "files.read")
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(60))
+                .build();
     }
 
     private JwtDecoder adminJwtDecoder(String jwkSetUri) {

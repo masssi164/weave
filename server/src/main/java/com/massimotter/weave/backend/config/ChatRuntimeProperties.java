@@ -11,7 +11,6 @@ public record ChatRuntimeProperties(
         Matrix matrix) {
 
     public static final String MATRIX_SYNAPSE_PROVIDER = "matrix-synapse";
-    public static final String IN_MEMORY_TEST_PROVIDER = "in-memory-test";
 
     public ChatRuntimeProperties {
         provider = normalized(provider, MATRIX_SYNAPSE_PROVIDER);

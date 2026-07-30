@@ -1,0 +1,41 @@
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-restclient'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client'
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation libs.springdoc.webmvc.api
+    implementation libs.jcs
+    implementation(libs.aws.s3) {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+    implementation libs.aws.url.connection.client
+    implementation project(':weave-application-core')
+    implementation project(':weave-files-core')
+    implementation project(':weave-persistence-jpa')
+    implementation project(':weave-runtime-provider-adapters')
+    implementation project(':weave-runtime-security-adapters')
+    runtimeOnly 'org.postgresql:postgresql'
+    developmentOnly 'com.h2database:h2'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+    testImplementation libs.cucumber.java
+    testImplementation libs.cucumber.spring
+    testImplementation 'org.junit.platform:junit-platform-suite'
+    testImplementation libs.testcontainers.junit
+    testImplementation libs.testcontainers.postgresql
+    testRuntimeOnly libs.h2.test
+    testRuntimeOnly libs.cucumber.junit.platform
+}

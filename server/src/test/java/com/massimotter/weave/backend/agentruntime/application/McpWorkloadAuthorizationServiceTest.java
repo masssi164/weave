@@ -99,6 +99,7 @@ class McpWorkloadAuthorizationServiceTest {
         assertThat(principal.workloadClientId()).isEqualTo(CLIENT);
         assertThat(principal.mcpEdgeClientId()).isEqualTo("weave-mcp-server");
         assertThat(principal.memberBinding()).isEqualTo(MEMBER);
+        assertThat(principal.contextPrincipalClaim()).isEqualTo("test-member");
         assertThat(principal.scopes()).containsExactly("calendar.read");
         assertThat(principal.visibleToolClasses()).containsExactly("calendar.read");
         assertThat(principal.authorizationExpiresAt()).isEqualTo(NOW.plusSeconds(30));
@@ -115,7 +116,10 @@ class McpWorkloadAuthorizationServiceTest {
 
         assertThatThrownBy(() -> service.authorize(token()))
                 .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
-                        failure -> assertThat(failure.authorityUnavailable()).isTrue())
+                        failure -> {
+                            assertThat(failure.authorityUnavailable()).isTrue();
+                            assertThat(failure.reasonCode()).isEqualTo("authority-unavailable");
+                        })
                 .hasMessageNotContaining("private provider diagnostic")
                 .hasMessageNotContaining("exchanged-secret-token");
     }
@@ -131,7 +135,8 @@ class McpWorkloadAuthorizationServiceTest {
         when(cells.findByWorkload(ISSUER, SUBJECT)).thenReturn(Optional.of(revoked));
 
         assertThatThrownBy(() -> service.authorize(token()))
-                .isInstanceOf(McpWorkloadAuthorizationException.class)
+                .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
+                        failure -> assertThat(failure.reasonCode()).isEqualTo("cell-binding"))
                 .hasMessageNotContaining(SUBJECT)
                 .hasMessageNotContaining("member-subject")
                 .hasMessageNotContaining("exchanged-secret-token");
@@ -284,6 +289,7 @@ class McpWorkloadAuthorizationServiceTest {
                 "org:test",
                 "person:test",
                 MEMBER,
+                "test-member",
                 "keycloak",
                 SOURCE_GROUP,
                 CAPABILITY_REVISION,

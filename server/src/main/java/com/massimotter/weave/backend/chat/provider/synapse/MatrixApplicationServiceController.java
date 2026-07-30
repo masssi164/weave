@@ -1,6 +1,5 @@
 package com.massimotter.weave.backend.chat.provider.synapse;
 
-import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -155,7 +154,7 @@ public final class MatrixApplicationServiceController {
                 callbackReplayTap.captureFirst(safeTransactionId, payload);
             }
             return ResponseEntity.ok(Map.of());
-        } catch (IllegalArgumentException | JacksonException exception) {
+        } catch (IllegalArgumentException exception) {
             return matrixError(HttpStatus.BAD_REQUEST, "M_BAD_JSON", "Application Service transaction is invalid.");
         } catch (RuntimeException exception) {
             return matrixError(HttpStatus.SERVICE_UNAVAILABLE, "M_UNAVAILABLE", "Application Service processing is unavailable.");
@@ -185,8 +184,8 @@ public final class MatrixApplicationServiceController {
         }
         Map<String, Object> content = new java.util.LinkedHashMap<>(
                 objectMapper.convertValue(value.path("content"), new TypeReference<>() { }));
-        String providerTransaction = value.path("unsigned").path("transaction_id").asText(null);
-        String topLevelRedacts = optional(value.path("redacts").asText(null), 768);
+        String providerTransaction = value.path("unsigned").path("transaction_id").asString(null);
+        String topLevelRedacts = optional(value.path("redacts").asString(null), 768);
         Object contentRedactsValue = content.remove("redacts");
         String contentRedacts = contentRedactsValue == null
                 ? null
@@ -201,10 +200,10 @@ public final class MatrixApplicationServiceController {
         return new CanonicalChatStore.ProviderCallbackEvent(
                 transactionId,
                 optional(providerTransaction, 255),
-                required(value.path("event_id").asText(null), 768),
-                required(value.path("room_id").asText(null), 768),
-                required(value.path("sender").asText(null), 768),
-                required(value.path("type").asText(null), 255),
+                required(value.path("event_id").asString(null), 768),
+                required(value.path("room_id").asString(null), 768),
+                required(value.path("sender").asString(null), 768),
+                required(value.path("type").asString(null), 255),
                 optionalStateKey(value),
                 topLevelRedacts == null ? contentRedacts : topLevelRedacts,
                 content,
@@ -242,11 +241,11 @@ public final class MatrixApplicationServiceController {
             return null;
         }
         JsonNode stateKey = value.get("state_key");
-        if (stateKey == null || !stateKey.isTextual() || stateKey.textValue().length() > 768
-                || stateKey.textValue().chars().anyMatch(Character::isISOControl)) {
+        if (stateKey == null || !stateKey.isString() || stateKey.stringValue().length() > 768
+                || stateKey.stringValue().chars().anyMatch(Character::isISOControl)) {
             throw new IllegalArgumentException("private callback state key is invalid");
         }
-        return stateKey.textValue();
+        return stateKey.stringValue();
     }
 
     private static String sha256(byte[] value) {
@@ -305,7 +304,7 @@ public final class MatrixApplicationServiceController {
     private static void appendCanonicalJson(JsonNode value, StringBuilder target) {
         if (value.isObject()) {
             ArrayList<String> fields = new ArrayList<>();
-            value.propertyNames().forEach(fields::add);
+            value.properties().forEach(entry -> fields.add(entry.getKey()));
             Collections.sort(fields);
             target.append('{');
             for (int index = 0; index < fields.size(); index++) {

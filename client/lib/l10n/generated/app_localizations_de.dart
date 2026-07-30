@@ -15,13 +15,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get setupTitle => 'Organisationszugang';
 
   @override
-  String get setupProviderStepTitle => 'Provider-Kategorien konfigurieren';
-
-  @override
-  String get setupProviderStepDescription =>
-      'Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Agent Runtime Control als Produktkategorien sichtbar, bevor Mitglieder beitreten.';
-
-  @override
   String get setupServicesStepTitle => 'Backend-API prüfen';
 
   @override
@@ -33,7 +26,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get providerCategorySummaryDescription =>
-      'Weave betrachtet zuerst Zusammenarbeits-Kategorien. Die Provider-Namen unten sind aktuelle Dogfood-Auswahlen für Admins/Operatoren, keine mitgliederseitigen Produktnamen.';
+      'Keycloak ist die feste Plattform-Identity-Authority. Die übrigen Zeilen sind Zusammenarbeits-Kategorien; ihre Provider-Namen sind Admin-/Operator-Auswahlen und keine mitgliederseitigen Produktnamen.';
 
   @override
   String get providerCategorySummarySemanticLabel =>
@@ -41,6 +34,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get providerCategoryStatusCurrentDefault => 'Aktuelle Dogfood-Auswahl';
+
+  @override
+  String get platformIdentityStatusFixedAuthority =>
+      'Feste Plattform-Authority';
 
   @override
   String get providerCategoryStatusAdminSetupRequired =>
@@ -51,11 +48,11 @@ class AppLocalizationsDe extends AppLocalizations {
       'Standardmäßig deaktiviert';
 
   @override
-  String get providerCategoryIdentityTitle => 'Identität/IDM';
+  String get platformIdentityTitle => 'Plattformidentität';
 
   @override
-  String get providerCategoryIdentityDetail =>
-      'Keycloak/Auth ist die aktuelle Dogfood-Auswahl; Entra ID, Authentik oder eine andere OIDC/SAML-Quelle kann auf diese Kategorie abgebildet werden.';
+  String get platformIdentityDetail =>
+      'Keycloak/Auth ist die Plattform-Authority. Entra ID, Authentik/Auth0, andere OIDC/SAML-Quellen oder LDAP/AD werden vorgelagert über Keycloak-Federation oder -Brokering angebunden.';
 
   @override
   String get providerCategoryChatTitle => 'Chat';
@@ -364,14 +361,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatOverviewDescription =>
-      'Deine persönlichen Nachrichten, Favoriten, Kanäle und KI-Chats sind hier gruppiert, damit der Workspace nach Absicht startet statt als flache Raumliste.';
+      'Deine persönlichen Nachrichten, Favoriten und Kanäle sind hier gruppiert, damit der Workspace nach Absicht startet statt als flache Raumliste.';
 
   @override
   String get chatHomeHeroTitle => 'Dein Organisations-Workspace';
 
   @override
   String get chatHomeHeroDescription =>
-      'Starte mit Nachrichten, Kanal-Workspaces und gesteuerten KI-Bereichen, die für dich tatsächlich verfügbar sind.';
+      'Starte mit Nachrichten und Kanal-Workspaces, die für dich tatsächlich verfügbar sind.';
 
   @override
   String chatHomeUnreadMetric(int count) {
@@ -410,20 +407,6 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String chatHomeAiMetricReady(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count gesteuerte KI-Chats',
-      one: '1 gesteuerter KI-Chat',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get chatHomeAiMetricDisabled => 'KI durch Workspace-Policy gesteuert';
-
-  @override
   String get chatHomeContinueButton => 'Nächsten Arbeitseintrag öffnen';
 
   @override
@@ -443,11 +426,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatFavoritesSectionDescription =>
-      'Angepinnte Personen, Kanäle und KI-Chats, die du zuerst erreichen möchtest.';
+      'Angepinnte Personen und Kanäle, die du zuerst erreichen möchtest.';
 
   @override
   String get chatFavoritesSectionEmpty =>
-      'Noch keine Favoriten. Wichtige Direktnachrichten, Kanäle und KI-Chats, die als Favoriten markiert sind, bleiben hier.';
+      'Noch keine Favoriten. Wichtige Direktnachrichten und Kanäle, die als Favoriten markiert sind, bleiben hier.';
 
   @override
   String get chatPersonalMessagesSectionTitle => 'Persönliche Nachrichten';
@@ -469,98 +452,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatChannelsSectionEmpty => 'Noch keine Kanäle verfügbar.';
-
-  @override
-  String get chatAiChatsSectionTitle => 'KI-Chats';
-
-  @override
-  String get chatAiChatsSectionDescription =>
-      'Spezialisierte Assistenten- und Agentenchats haben ihren eigenen Bereich.';
-
-  @override
-  String get chatAiChatsSectionEmpty =>
-      'KI-Chats sind für diesen Arbeitsbereich nicht aktiviert. Owner oder Admins können gesteuerte Assistenten aktivieren, sobald Policy-, Einwilligungs- und Audit-Kontrollen bereit sind.';
-
-  @override
-  String get chatAgentGovernanceTitle =>
-      'Agentenchats werden von deinem Workspace gesteuert';
-
-  @override
-  String get chatAgentGovernanceDescription =>
-      'Agenten können in Weave erst helfen, wenn Owner oder Admins ein Paket aktivieren, Bereiche auswählen und Einwilligung sowie Audit sichtbar bleiben.';
-
-  @override
-  String get chatAgentContextPackTitle => 'Kontextpaket vor der Aktion';
-
-  @override
-  String get chatAgentContextPackDescription =>
-      'Wenn ein Agent verfügbar ist, zeigt Weave vorab, welcher Kontext für diese Anfrage gesendet wird.';
-
-  @override
-  String get chatAgentContextPackScopedBullet =>
-      'Kontext ist auf ausgewählte Chats, Dateien, Kalendertermine, Boards oder ausdrücklich gewählte Workspace-Quellen begrenzt.';
-
-  @override
-  String get chatAgentContextPackConsentBullet =>
-      'Vor dem Start oder der Freigabe einer Agentenaktion siehst du Hinweise zu Berechtigungen.';
-
-  @override
-  String get chatAgentContextPackNoSurveillanceBullet =>
-      'Agenten lesen Räume nicht dauerhaft im Hintergrund mit.';
-
-  @override
-  String get chatAgentGovernanceAuditNote =>
-      'Agentenerstellung, Kontextzugriff, Tool-/Aktionsausführung, Freigabe und Widerruf müssen vor einer Laufzeitfreigabe auditierbar sein.';
-
-  @override
-  String get chatAgentAvailabilityPreview => 'Durch Policy deaktiviert';
-
-  @override
-  String get chatAgentAvailabilityAdminSetup => 'Admin-Einrichtung nötig';
-
-  @override
-  String get chatAgentAvailabilityBlocked => 'Durch Policy blockiert';
-
-  @override
-  String get chatAgentPersonalAssistantTitle => 'Persönlicher Assistent';
-
-  @override
-  String get chatAgentPersonalAssistantDescription =>
-      'Ein privater Assistentenchat für Entwürfe, Zusammenfassungen und Erinnerungen kann erst aktiviert werden, wenn Workspace-Policy, Einwilligung und Audit-Kontrollen bereit sind.';
-
-  @override
-  String get chatAgentChannelAgentTitle => 'Kanal-Agent';
-
-  @override
-  String get chatAgentChannelAgentDescription =>
-      'Ein Helfer für einen Kanal oder Projektraum kann nur über ein von Admins freigegebenes Paket aktiviert werden.';
-
-  @override
-  String get chatAgentPersonalScope =>
-      'Nutzt nur Kontext, den du für die aktuelle Anfrage auswählst; Workspace-Policies entscheiden, welche Fähigkeiten verfügbar sind.';
-
-  @override
-  String get chatAgentPersonalBoundary =>
-      'Kein dauerhaftes Mitlesen von Räumen; ein Kontextpaket wird erst nach deinem Start oder deiner Freigabe zusammengestellt.';
-
-  @override
-  String get chatAgentPersonalAudit =>
-      'Erstellung, Kontextzugriff, Tool-Nutzung und Berechtigungsänderungen werden vor Laufzeitnutzung auditierbar.';
-
-  @override
-  String get chatAgentChannelScope =>
-      'Owner oder Admins müssen das Paket aktivieren und erlaubte Chat-, Datei-, Kalender- und Board-Bereiche auswählen.';
-
-  @override
-  String get chatAgentChannelBoundary =>
-      'Der Agent sieht benannte Bereiche und explizite Kontextpakete, nicht jede Nachricht im Workspace.';
-
-  @override
-  String get chatAgentChannelAudit =>
-      'Freigaben, Widerrufe und Aktionsversuche bleiben für Admins sichtbar, ohne Secrets in der App offenzulegen.';
-
-  @override
-  String get chatAgentStartDisabledButton => 'Nicht verfügbar, bis aktiviert';
 
   @override
   String get chatLoadingLabel => 'Unterhaltungen werden geladen…';
@@ -1763,16 +1654,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsWorkspaceMatrixServerBodiesReadable => 'Prüfen';
 
   @override
-  String get settingsWorkspaceMatrixAgentWritesLabel => 'Agent-Schreibzugriff';
-
-  @override
-  String get settingsWorkspaceMatrixAgentWritesBlocked =>
-      'Blockiert/fail-closed';
-
-  @override
-  String get settingsWorkspaceMatrixAgentWritesReview => 'Policy prüfen';
-
-  @override
   String get settingsWorkspaceCapabilityReady => 'Bereit';
 
   @override
@@ -2388,54 +2269,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get chatRoomArchivedEmptyGuidance =>
       'Prüfe die archivierten Nachrichten, um eine wiederherzustellen, oder warte hier auf neue Nachrichten.';
-
-  @override
-  String get chatRoomContextPackTitle => 'Kontext für diesen Raum';
-
-  @override
-  String get chatRoomContextPackDescription =>
-      'Weave nimmt nur begrenzten Kontext auf, den du hier sehen kannst, zum Beispiel diesen Raum, ausgewählte Dateien, verknüpfte Aufgaben und aktuelle Entscheidungen.';
-
-  @override
-  String chatRoomContextPackCounts(int includedCount, int availableCount) {
-    String _temp0 = intl.Intl.pluralLogic(
-      includedCount,
-      locale: localeName,
-      other: '$includedCount Quellen enthalten',
-      one: '1 Quelle enthalten',
-      zero: 'Keine Quellen enthalten',
-    );
-    String _temp1 = intl.Intl.pluralLogic(
-      availableCount,
-      locale: localeName,
-      other: '$availableCount optionale Quellen verfügbar',
-      one: '1 optionale Quelle verfügbar',
-      zero: 'Keine optionalen Quellen verfügbar',
-    );
-    return '$_temp0. $_temp1.';
-  }
-
-  @override
-  String get chatRoomContextPackNoBackgroundReading =>
-      'Kein Agent liest diesen Raum im Hintergrund mit.';
-
-  @override
-  String get chatRoomContextCurrentRoomLabel => 'Aktueller Raum';
-
-  @override
-  String get chatRoomContextSelectedFilesLabel => 'Ausgewählte Dateien';
-
-  @override
-  String get chatRoomContextLinkedTasksLabel => 'Verknüpfte Aufgaben';
-
-  @override
-  String get chatRoomContextRecentDecisionsLabel => 'Aktuelle Entscheidungen';
-
-  @override
-  String get chatRoomContextIncludedStatus => 'Enthalten';
-
-  @override
-  String get chatRoomContextAvailableStatus => 'Verfügbar nach Auswahl';
 
   @override
   String get chatDecisionEvidencePanelTitle =>
@@ -3418,67 +3251,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Assistenten erhalten nur das begrenzte Paket für Anfrage, Erwähnung oder Zeitplan.';
 
   @override
-  String get agentCapabilityPolicyTitle =>
-      'Governance für KI-Agenten-Funktionen';
-
-  @override
-  String get agentCapabilityPolicyAdminDescription =>
-      'Owner und Admins entscheiden, welche Agentenpakete und Verbindungen genutzt werden dürfen. Diese Funktion bleibt aus, bis Berechtigungen, Einwilligung und Audit-Kontrollen verbunden sind.';
-
-  @override
-  String get agentCapabilityPolicyUserDescription =>
-      'KI-Agentenchats sind für diesen Workspace noch nicht aktiviert. Du kannst Weave normal weiter nutzen; zuerst müssen Owner oder Admins diese Funktion freigeben.';
-
-  @override
-  String get agentCapabilityPolicyFailClosedNotice =>
-      'Agenten-Funktionen sind blockiert, bis Weave deine Rolle und die Workspace-Richtlinie bestätigen kann.';
-
-  @override
-  String get agentCapabilityPolicyManageDisabledButton =>
-      'Verwaltung nicht verfügbar, bis die Admin-Einrichtung abgeschlossen ist';
-
-  @override
-  String get agentCapabilityPolicyAskAdminHint =>
-      'Braucht dein Team einen Agenten? Bitte Owner oder Admins, Agenten-Funktionen zu prüfen, sobald sie verfügbar sind.';
-
-  @override
-  String get agentCapabilityPolicyAdminStateHint =>
-      'Aktueller Zustand: durch Policy deaktiviert. Owner-/Admin-Prüfung ist erforderlich, bevor Nutzer einen Agenten starten können.';
-
-  @override
-  String get agentCapabilityPersonalAssistantTitle => 'Persönlicher Assistent';
-
-  @override
-  String get agentCapabilityPersonalAssistantDescription =>
-      'Nutzt nur Kontext, den du für eine Anfrage auswählst, nachdem dein Workspace die Funktion aktiviert hat.';
-
-  @override
-  String get agentCapabilityChannelAgentTitle => 'Kanal-Agent';
-
-  @override
-  String get agentCapabilityChannelAgentDescription =>
-      'Erfordert, dass Owner oder Admins auswählen, welche Kanäle, Dateien, Kalendertermine oder Boards der Agent nutzen darf.';
-
-  @override
-  String get agentCapabilityAvailabilityPreviewOnly =>
-      'Admin-Einrichtung nötig';
-
-  @override
-  String get agentCapabilityAvailabilityAdminSetupRequired =>
-      'Admin-Einrichtung nötig';
-
-  @override
-  String get agentCapabilityAvailabilityBlocked => 'Blockiert';
-
-  @override
-  String get agentCapabilityPolicyErrorTitle =>
-      'Agenten-Funktionsrichtlinie ist nicht verfügbar.';
-
-  @override
-  String get agentCapabilityPolicyLoading =>
-      'Agenten-Funktionsrichtlinie wird geprüft…';
-
-  @override
   String get workflowPreviewTitle => 'Aktive Workflows';
 
   @override
@@ -3794,63 +3566,20 @@ class AppLocalizationsDe extends AppLocalizations {
   String get channelWorkspaceStatusDegraded => 'degraded';
 
   @override
-  String get agentCapabilityAvailabilityDisabledByPolicy =>
-      'Durch Policy deaktiviert';
-
-  @override
-  String get chatWeaverBetaTitle => 'Weaver Beta helper';
-
-  @override
-  String get chatWeaverBetaDescription =>
-      'Weaver stays inside this Weave workspace and can only use approved capabilities. Members see approved Weave actions, not internal runtime catalogs.';
-
-  @override
-  String get chatWeaverBetaConnectedState => 'Connected';
-
-  @override
-  String get chatWeaverBetaUnconnectedState => 'Unconnected';
-
-  @override
-  String get chatWeaverBetaEnabledState => 'Weaver enabled';
-
-  @override
-  String get chatWeaverBetaDisabledState => 'Weaver disabled';
-
-  @override
-  String get chatWeaverBetaCapabilityUnavailableState =>
-      'Capability unavailable';
-
-  @override
-  String get chatWeaverBetaApprovalRequiredState =>
-      'Approval required for sensitive actions';
-
-  @override
-  String get chatWeaverBetaDeniedFailedState => 'Denied or failed safely';
-
-  @override
-  String get chatWeaverBetaSupportSafeResult =>
-      'Results show a summary, status, and audit reference only; secrets and raw provider payloads stay out of the member view.';
-
-  @override
-  String chatWeaverBetaSemanticLabel(
-    String personalState,
-    String channelState,
-    String connectionState,
-  ) {
-    return 'Weaver Beta helper. Personal helper: $personalState. Channel helper: $channelState. Workspace connection: $connectionState. Results are support-safe and do not expose secrets or raw provider payloads.';
-  }
+  String get setupMemberHandoffTitle =>
+      'Über Einladung oder Organisationsanmeldung beitreten';
 
   @override
   String get setupMemberHandoffDescription =>
-      'Füge deinen Abschlusslink oder QR-Inhalt ein oder gib die Weave-Adresse deiner Organisation ein. Jede Option prüft vor der Anmeldung dieselben Organisationsangaben.';
+      'Öffne den Einladungslink, /join-Link oder die Organisations-Anmelde-URL, die dein Admin gesendet hat. Weave bereitet deinen Workspace aus dem Organisationsmanifest vor, ohne dich nach technischen Service-Einstellungen zu fragen.';
 
   @override
   String get setupOrganizationUriLabel =>
-      'Weave-Serveradresse, Abschlusslink oder QR-Inhalt';
+      'Server-URI, Einladungslink oder QR-Inhalt';
 
   @override
   String get setupOrganizationUriHelper =>
-      'Nutze den Link aus deiner E-Mail oder dem QR-Code oder gib die sichere Weave-Adresse deiner Organisation ein.';
+      'Füge den Link aus E-Mail oder QR-Code ein oder gib die Weave-Adresse deiner Organisation ein.';
 
   @override
   String get setupOrganizationUriError =>
@@ -3861,38 +3590,60 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get setupOrganizationAccessHelp =>
-      'Abschlusslinks, QR-Inhalte und die Weave-Serveradresse verwenden dieselbe Organisationsprüfung. Der nächste Bildschirm fordert dich immer ausdrücklich zum Anmelden auf.';
+      'Deine Einladungs-E-Mail und der Organisations-QR-Code enthalten dieselbe Weave-Adresse. Nach der Prüfung bietet der nächste Bildschirm immer Anmelden an.';
 
   @override
-  String get memberHandoffLoadingTitle => 'Organisationszugang wird geprüft';
+  String get setupMemberHandoffPrimaryAction =>
+      'Ich habe eine Einladung oder einen Anmeldelink';
+
+  @override
+  String get setupMemberHandoffPrimaryGuidance =>
+      'Nutze den Link aus Browser, E-Mail oder Chat. Wenn er fehlt oder abgelaufen ist, bitte deinen Workspace-Admin um eine neue Einladung.';
+
+  @override
+  String get setupMemberHandoffAdminNoteTitle => 'Admins und Operatoren';
+
+  @override
+  String get setupMemberHandoffAdminNote =>
+      'Rohdaten zu Anbieter-Endpunkten werden im Admin- oder Operator-Recovery verwaltet, nicht im normalen Mitglieder-Onboarding.';
+
+  @override
+  String get setupOpenOperatorRecoveryButton =>
+      'Operator-Recovery-Setup öffnen';
+
+  @override
+  String get setupOperatorRecoveryTitle => 'Operator-Recovery-Setup';
+
+  @override
+  String get memberHandoffLoadingTitle => 'Weave-Einladung wird geöffnet';
 
   @override
   String get memberHandoffLoadingHint =>
-      'Wir rufen die Anmeldeinformationen für diese Organisation sicher ab.';
+      'Wir bereiten die Anmeldung für diesen Workspace vor.';
 
   @override
-  String get memberHandoffReadyTitle => 'Organisation bereit zur Anmeldung';
+  String get memberHandoffReadyTitle => 'Workspace bereit zur Anmeldung';
 
   @override
-  String memberHandoffReadyGuidance(String organization) {
-    return 'Weave hat den Organisationszugang für $organization vorbereitet. Die Anmeldung öffnet den sicheren Systembrowser und führt dich nach der Autorisierung zu Weave zurück.';
+  String memberHandoffReadyGuidance(String organization, String workspace) {
+    return 'Weave hat $organization/$workspace aus der Einladung vorbereitet. Fahre als Nächstes mit der Workspace-Anmeldung fort.';
   }
 
   @override
   String get memberHandoffErrorTitle =>
-      'Der Organisationszugang konnte nicht geprüft werden';
+      'Diese Weave-Einladung konnte nicht geöffnet werden';
 
   @override
   String get memberHandoffErrorGuidance =>
-      'Der Link oder die Adresse ist möglicherweise unvollständig, abgelaufen oder vorübergehend nicht erreichbar. Prüfe die Eingabe und versuche es erneut oder bitte deine Organisation um einen neuen Abschlusslink.';
+      'Die Einladung ist möglicherweise abgelaufen, unvollständig oder noch nicht bereit. Bitte deinen Workspace-Admin um eine neue Einladung oder Organisations-Anmelde-URL.';
+
+  @override
+  String get memberHandoffSignInRetryGuidance =>
+      'Die Anmeldung wurde nicht abgeschlossen. Versuche es erneut im Systembrowser oder bitte deinen Workspace-Admin, deinen Zugriff zu prüfen.';
 
   @override
   String get memberHandoffTlsErrorGuidance =>
       'Weave konnte die Startkonfiguration des Workspaces nicht über vertrauenswürdiges TLS erreichen. Für lokales Dogfood installiere die Weave Local Development CA auf diesem iPhone und aktiviere volles Vertrauen, oder bitte deinen Admin um eine öffentlich vertrauenswürdige Organisations-Anmelde-URL.';
-
-  @override
-  String get memberHandoffSignInRetryGuidance =>
-      'Deine Organisationsangaben sind gespeichert. Folge den Hinweisen oben und versuche dann erneut, dich anzumelden.';
 
   @override
   String memberHandoffErrorCode(String code) {

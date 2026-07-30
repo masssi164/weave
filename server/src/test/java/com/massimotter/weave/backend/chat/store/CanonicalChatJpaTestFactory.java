@@ -16,13 +16,10 @@ final class CanonicalChatJpaTestFactory {
                 JpaTestDatabase.repository(dataSource, ChatOutboxJpaRepository.class),
                 JpaTestDatabase.repository(dataSource, ChatProviderMappingJpaRepository.class),
                 JpaTestDatabase.repository(dataSource, ChatBridgeLedgerJpaRepository.class),
-                JpaTestDatabase.repository(
-                        dataSource, ChatAppserviceTransactionJpaRepository.class),
+                JpaTestDatabase.repository(dataSource, ChatAppserviceTransactionJpaRepository.class),
                 JpaTestDatabase.repository(dataSource, ChatQuarantineJpaRepository.class),
                 JpaTestDatabase.repository(dataSource, ChatReadReceiptJpaRepository.class),
                 JpaTestDatabase.repository(dataSource, ChatChangeJpaRepository.class),
-                new ChatCallbackClaimNativeRepository(
-                        JpaTestDatabase.entityManager(dataSource)),
                 JpaTestDatabase.transactionManager(dataSource));
     }
 }

@@ -63,6 +63,7 @@ class KeycloakRuntimeIdentityAuthorityTest {
         var observation = authority.observe(command(ISSUER));
 
         assertThat(observation.sourceProvider()).isEqualTo("keycloak");
+        assertThat(observation.contextPrincipalClaim()).isEqualTo("member-username");
         assertThat(observation.sourceGroupRef()).matches("sha256:[a-f0-9]{64}");
         assertThat(observation.capabilityRevision()).matches("sha256:[a-f0-9]{64}");
         assertThat(observation.sourceGroupRef()).doesNotContain("group-1", "capabilities");
@@ -72,6 +73,23 @@ class KeycloakRuntimeIdentityAuthorityTest {
         assertThat(keycloak.requestPaths)
                 .allMatch(path -> path.startsWith("/admin/realms/weave/organizations/org-uuid/"))
                 .noneMatch(path -> path.contains("/users/"));
+    }
+
+    @Test
+    void resolvesAndCachesTheExactConfiguredOrganizationAlias() {
+        keycloak.groups.add(group("group-1", "weaver", "/capabilities/weaver"));
+        KeycloakRuntimeIdentityAuthority aliasAuthority = new KeycloakRuntimeIdentityAuthority(
+                new KeycloakRuntimeIdentityAuthority.Settings(
+                        true, keycloak.baseUri(), URI.create(ISSUER), "org:example", "",
+                        "weave-dogfood", "weave", Duration.ofSeconds(2),
+                        Duration.ofMinutes(5), List.of("files.read")),
+                tokens, mapper, HttpClient.newHttpClient(), Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThat(aliasAuthority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
+        assertThat(aliasAuthority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
+        assertThat(keycloak.requestPaths)
+                .filteredOn(path -> path.equals("/admin/realms/weave/organizations"))
+                .hasSize(1);
     }
 
     @Test
@@ -170,9 +188,9 @@ class KeycloakRuntimeIdentityAuthorityTest {
 
     private KeycloakRuntimeIdentityAuthority.Settings settings(boolean enabled) {
         return new KeycloakRuntimeIdentityAuthority.Settings(
-                enabled, keycloak.baseUri(), URI.create(ISSUER), "org:example", "org-uuid", "weave",
+                enabled, keycloak.baseUri(), URI.create(ISSUER), "org:example", "org-uuid", "", "weave",
                 Duration.ofSeconds(2),
-                Duration.ofMinutes(5), List.of("calendar.read"));
+                Duration.ofMinutes(5), List.of("files.read"));
     }
 
     private static ObserveEntitlementCommand command(String issuer) {
@@ -240,6 +258,13 @@ class KeycloakRuntimeIdentityAuthorityTest {
             }
             String path = exchange.getRequestURI().getPath();
             requestPaths.add(path);
+            if (path.equals("/admin/realms/weave/organizations")) {
+                respond(exchange, 200, mapper.writeValueAsString(
+                        mapper.createArrayNode().add(mapper.createObjectNode()
+                                .put("id", "org-uuid")
+                                .put("alias", "weave-dogfood"))));
+                return;
+            }
             if (path.equals("/admin/realms/weave/organizations/org-uuid/members")) {
                 ArrayNode members = mapper.createArrayNode();
                 if (organizationMember) {
@@ -256,6 +281,7 @@ class KeycloakRuntimeIdentityAuthorityTest {
                 respond(exchange, 200, mapper.writeValueAsString(
                         mapper.createObjectNode()
                         .put("id", SUBJECT)
+                        .put("username", "member-username")
                         .put("enabled", userEnabled)));
                 return;
             }

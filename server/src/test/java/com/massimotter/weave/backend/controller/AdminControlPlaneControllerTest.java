@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
@@ -19,6 +21,7 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyDenyResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
+import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
 import com.massimotter.weave.backend.office.port.DisabledOfficeProvider;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
@@ -28,11 +31,10 @@ import java.time.Instant;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
 import com.massimotter.weave.backend.service.InMemoryOrganizationBootstrapRepository;
 import com.massimotter.weave.backend.service.OrganizationBootstrapRepository;
-import com.massimotter.weave.backend.service.ProductProfileOverride;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.ProductProfileOverrideRepository;
-import com.massimotter.weave.backend.service.migration.InMemoryMigrationRunEvidenceRepository;
-import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,13 +55,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -72,6 +75,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = AdminControlPlaneController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
@@ -106,6 +110,12 @@ class AdminControlPlaneControllerTest {
     @MockitoBean
     private WorkspaceCapabilityService workspaceCapabilityService;
 
+    @MockitoBean
+    private ProductProfileOverrideRepository productProfileOverrideRepository;
+
+    @MockitoBean
+    private MigrationRunEvidenceRepository migrationRunEvidenceRepository;
+
     @Autowired
     private ProviderSelectionRepository providerSelectionRepository;
 
@@ -122,13 +132,13 @@ class AdminControlPlaneControllerTest {
                 capability(WorkspaceCapabilityReadiness.UNAVAILABLE, WorkspaceCapabilityPolicyState.DISABLED, "Weaver disabled."));
         when(workspaceCapabilityService.snapshot()).thenReturn(capabilities);
         when(workspaceCapabilityService.policySnapshot(org.mockito.ArgumentMatchers.any())).thenReturn(new WorkspaceCapabilityPolicyResponse(
-                "identity/IDM",
-                "OIDC/SAML selected IDM",
-                "OIDC/SAML adapter contract; Keycloak is only the dogfood default, not product truth",
-                "OIDC role claims plus group claims from the selected IDM",
+                "platform identity and security",
+                "Keycloak",
+                "Keycloak federation and brokering contract for upstream LDAP, Active Directory, OIDC, and SAML sources",
+                "issuer, subject, role, and group claims issued by Keycloak",
                 List.of("admin"),
                 List.of("/admins"),
-                List.of("workspace-admin", "organization_group:/admins"),
+                List.of("workspace-admin", "group:/admins"),
                 List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure"),
                 true,
                 true,
@@ -141,7 +151,7 @@ class AdminControlPlaneControllerTest {
                 List.of("/admins"),
                 List.of("admin"),
                 List.of("context_admin"),
-                List.of("role_claim:admin", "organization_group_claim:/admins"),
+                List.of("role_claim:admin", "group_claim:/admins"),
                 List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure"),
                 List.of(new EffectivePolicyDenyResponse("agent-runtime.entitled", "Agent Runtime Control requires current Keycloak entitlement", "deny-by-default-capability-policy")),
                 List.of("member-visible states remain available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later"),
@@ -152,16 +162,26 @@ class AdminControlPlaneControllerTest {
                 false));
     }
 
+    @Test
+    void providerSelectionTransportDefaultsRemainDeserializable() {
+        ProviderSelectionRequest request = assertDoesNotThrow(() -> objectMapper.readValue(
+                "{\"category\":\"chat\",\"providerKey\":\"slack\","
+                        + "\"choiceModel\":\"external_existing_provider\","
+                        + "\"secretRef\":\"secretref://weave/provider/slack\"}",
+                ProviderSelectionRequest.class));
+
+        assertEquals(false, request.dryRun());
+        assertEquals(List.of(), request.lossyMappingNotes());
+    }
+
     private void enforceEffectiveCapabilityPolicy() {
         doAnswer(invocation -> {
             org.springframework.security.oauth2.jwt.Jwt jwt = invocation.getArgument(0);
             String capability = invocation.getArgument(1);
             List<String> roles = jwt == null
                     ? List.of()
-                    : ((Map<String, Object>) ((Map<String, Object>) jwt.getClaimAsMap("resource_access")).get("weave-app"))
-                            .getOrDefault("roles", List.of()) instanceof List<?> roleValues
-                                    ? roleValues.stream().filter(String.class::isInstance).map(String.class::cast).toList()
-                                    : List.of();
+                    : com.massimotter.weave.backend.security.NativeOrganizationClaims
+                            .clientRoles(jwt, "weave-app");
             boolean allowed = switch (capability) {
                 case "admin_control_plane.readiness_read" -> roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin") || role.equals("operator"));
                 case "admin.policy.edit", "admin.provider.configure" -> roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin"));
@@ -182,7 +202,6 @@ class AdminControlPlaneControllerTest {
         if (providerSelectionRepository instanceof InMemoryProviderSelectionRepository memoryRepository) {
             memoryRepository.clear();
         }
-        providerSelectionRepository.save(selection("identity-idm", "keycloak-realm", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("chat", "synapse-homeserver", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("files", "nextcloud-files", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("calendar", "nextcloud-caldav", "recommended_self_hosted_default"));
@@ -220,43 +239,44 @@ class AdminControlPlaneControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.contractVersion").value("admin-control-plane-v1"))
                 .andExpect(jsonPath("$.organizationId").value("weave-dogfood"))
-                .andExpect(jsonPath("$.recommendedIdentityBroker").value("OIDC/SAML selected IDM"))
+                .andExpect(jsonPath("$.recommendedIdentityBroker").value("Keycloak platform security"))
                 .andExpect(jsonPath("$.providerConfigSource").value("admin-control-plane-selected-provider-mappings"))
                 .andExpect(jsonPath("$.bootstrapDefaultsAreSuggestionsOnly").value(true))
                 .andExpect(jsonPath("$.backendOwnedFacades").value(true))
                 .andExpect(jsonPath("$.denyByDefaultPolicy").value(true))
                 .andExpect(jsonPath("$.memberClientMayConfigureProviders").value(false))
                 .andExpect(jsonPath("$.categories[*].category", hasItems(
-                        "identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "model", "agent-runtime-control")))
+                        "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "model", "agent-runtime-control")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')]").isEmpty())
                 .andExpect(jsonPath("$.categories[?(@.category == 'chat')].selectedByAdmin", hasItems(true)))
                 .andExpect(jsonPath("$.categories[?(@.category == 'chat')].selectedProviderKey", hasItems("synapse-homeserver")))
-                .andExpect(jsonPath("$.selectedProviderMappings[*].category", hasItems("identity-idm", "chat", "files")))
+                .andExpect(jsonPath("$.selectedProviderMappings[*].category", hasItems("chat", "files")))
                 .andExpect(jsonPath("$.selectedProviderMappings[*].supportSafe", hasItems(true)))
                 .andExpect(jsonPath("$.whitelist.denyByDefault").value(true))
                 .andExpect(jsonPath("$.whitelist.normalMembersMayAuthorPolicy").value(false))
                 .andExpect(jsonPath("$.whitelist.stableMemberImpactStates[*]", hasItems(
                         "available", "disabled_by_policy", "not_configured", "degraded", "unavailable", "coming_later")))
                 .andExpect(jsonPath("$.whitelist.profileCapabilities['guest-deny-default']").isArray())
-                .andExpect(jsonPath("$.identityProviderReadiness.contractVersion").value("identity-provider-readiness-v1"))
-                .andExpect(jsonPath("$.identityProviderReadiness.backendOwnedFacade").value(true))
-                .andExpect(jsonPath("$.identityProviderReadiness.memberClientMayConfigureIdentityProvider").value(false))
-                .andExpect(jsonPath("$.identityProviderReadiness.stableStates[*]", hasItems("ready", "degraded", "policy-blocked", "admin-action-required", "coming_later", "disabled")))
-                .andExpect(jsonPath("$.identityProviderReadiness.cards[*].key", hasItems(
+                .andExpect(jsonPath("$.platformIdentityReadiness.contractVersion").value("platform-identity-readiness-v1"))
+                .andExpect(jsonPath("$.platformIdentityReadiness.platformAuthority").value("keycloak"))
+                .andExpect(jsonPath("$.platformIdentityReadiness.backendOwnedFacade").value(true))
+                .andExpect(jsonPath("$.platformIdentityReadiness.memberClientMayConfigurePlatformSecurity").value(false))
+                .andExpect(jsonPath("$.platformIdentityReadiness.requiredForMemberFlows").value(true))
+                .andExpect(jsonPath("$.platformIdentityReadiness.stableStates[*]", hasItems("ready", "degraded", "policy-blocked", "admin-action-required", "coming_later", "disabled")))
+                .andExpect(jsonPath("$.platformIdentityReadiness.cards[*].key", hasItems(
                         "realm-import", "federation-protocol-readiness", "provisioning-source-readiness",
                         "roles-groups-mapping", "login-readiness", "deprovisioning-readiness",
                         "break-glass-readiness", "service-principal-readiness", "policy-readiness")))
-                .andExpect(jsonPath("$.identityProviderReadiness.cards[?(@.key == 'provisioning-source-readiness')].diagnostics.scimConceptCovered", hasItems(true)))
-                .andExpect(jsonPath("$.identityProviderReadiness.cards[?(@.key == 'provisioning-source-readiness')].diagnostics.liveLdapAdConnectorClaimed", hasItems(false)))
-                .andExpect(jsonPath("$.identityProviderReadiness.cards[?(@.key == 'deprovisioning-readiness')].diagnostics.liveDestructiveMutationClaimed", hasItems(false)))
-                .andExpect(jsonPath("$.identityProviderReadiness.cards[?(@.key == 'break-glass-readiness')].diagnostics.emailRecoveryKeyAllowed", hasItems(false)))
-                .andExpect(jsonPath("$.identityProviderReadiness.cards[?(@.key == 'service-principal-readiness')].diagnostics.secretMaterialReturned", hasItems(false)))
-                .andExpect(jsonPath("$.identityProviderReadiness.cards[*].diagnostics.secretsReturned", hasItems(false)))
-                .andExpect(jsonPath("$.identityProviderReadiness.cards[*].diagnostics.rawProviderErrorsReturned", hasItems(false)))
+                .andExpect(jsonPath("$.platformIdentityReadiness.cards[?(@.key == 'provisioning-source-readiness')].diagnostics.scimConceptCovered", hasItems(true)))
+                .andExpect(jsonPath("$.platformIdentityReadiness.cards[?(@.key == 'provisioning-source-readiness')].diagnostics.liveLdapAdConnectorClaimed", hasItems(false)))
+                .andExpect(jsonPath("$.platformIdentityReadiness.cards[?(@.key == 'deprovisioning-readiness')].diagnostics.hardDeleteAvailable", hasItems(false)))
+                .andExpect(jsonPath("$.platformIdentityReadiness.cards[?(@.key == 'break-glass-readiness')].diagnostics.emailRecoveryKeyAllowed", hasItems(false)))
+                .andExpect(jsonPath("$.platformIdentityReadiness.cards[?(@.key == 'service-principal-readiness')].diagnostics.secretMaterialReturned", hasItems(false)))
                 .andExpect(jsonPath("$.goLiveReadiness.releaseClaimControl.claimState").value("admin-action-required"))
                 .andExpect(jsonPath("$.goLiveReadiness.releaseClaimControl.unresolvedVetoes[*]", hasItems("#591-manual-assistive-technology-signoff-open")))
                 .andExpect(jsonPath("$.goLiveReadiness.releaseClaimControl.gates[*].key", hasItems("sprint-18-manual-at-signoff")))
                 .andExpect(jsonPath("$.goLiveReadiness.releaseClaimControl.gates[?(@.key == 'sprint-18-manual-at-signoff')].blocksReleaseClaim", hasItems(true)))
-                .andExpect(jsonPath("$.adminApiRoutes.identityReadiness").value("/api/admin/identity/readiness"))
+                .andExpect(jsonPath("$.adminApiRoutes.identityReadiness").value("/api/admin/platform/identity/readiness"))
                 .andExpect(jsonPath("$.secretRefs[*].supportSafe", hasItems(true)))
                 .andExpect(jsonPath("$.secretRefs[*].rawSecretExposed", hasItems(false)))
                 .andExpect(jsonPath("$.adminApiRoutes.policy").value("/api/admin/policies/capability-whitelist"))
@@ -268,7 +288,7 @@ class AdminControlPlaneControllerTest {
     }
 
     @Test
-    void providerReplacementDryRunReturnsBackendOwnedPortableSwitchContract() throws Exception {
+    void platformIdentityCannotEnterProviderReplacementPatchPanel() throws Exception {
         String request = """
                 {
                   "category": "identity-idm",
@@ -291,31 +311,10 @@ class AdminControlPlaneControllerTest {
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.category").value("identity-idm"))
-                .andExpect(jsonPath("$.currentAdapter").value("keycloak-realm"))
-                .andExpect(jsonPath("$.targetAdapter").value("authentik"))
-                .andExpect(jsonPath("$.supportSafe").value(true))
-                .andExpect(jsonPath("$.providerDiagnosticsRedacted").value(true))
-                .andExpect(jsonPath("$.lossyMappingReport.canonicalObjects[*]", hasItems("Subject", "Group", "CapabilityProfile")))
-                .andExpect(jsonPath("$.lifecycleExpectations.sourceOfTruthPolicy", containsString("authoritative IdP")))
-                .andExpect(jsonPath("$.portableExportImportContract.exportManifestRef").value("identity-idm-portable-export-manifest-v0.1"))
-                .andExpect(jsonPath("$.portableExportImportContract.importManifestRef").value("identity-idm-portable-import-manifest-v0.1"))
-                .andExpect(jsonPath("$.portableExportImportContract.portabilityGuarantee", containsString("documented portable export/import contract")))
-                .andExpect(jsonPath("$.portableExportImportContract.excludedAutomation[*]", hasItems(containsString("full automated cross-provider migration"))))
-                .andExpect(jsonPath("$.portableExportImportContract.evidenceRefs[*]", hasItems("provider-switch-preflight", "portable-export-import-contract", "rollback-recovery-plan")))
-                .andExpect(jsonPath("$.crossDomainImpact[0].mappingClass").value("manual_review"))
-                .andExpect(jsonPath("$.crossDomainImpact[0].evidenceRefs[*]", hasItems("identity-idm-portable-export-manifest-v0.1")))
-                .andExpect(jsonPath("$.switchPlan.planRef").value("identity-idm-switch-plan-v0.1"))
-                .andExpect(jsonPath("$.switchPlan.preflightRequired").value(true))
-                .andExpect(jsonPath("$.switchPlan.cutoverWindowRequired").value(true))
-                .andExpect(jsonPath("$.switchPlan.rollbackRequired").value(true))
-                .andExpect(jsonPath("$.switchPlan.memberFacingStateDuringSwitch").value("degraded"))
-                .andExpect(jsonPath("$.switchPlan.recoveryActions[*]", hasItems(containsString("keep current adapter active"), containsString("block apply"))))
-                .andExpect(jsonPath("$.memberImpactStates[*]", hasItems("available", "disabled_by_policy", "degraded", "coming_later")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("provider-category-unknown"))
                 .andExpect(content().string(not(containsString("token-that-must-not-leak"))))
-                .andExpect(content().string(not(containsString("client_secret"))))
-                .andExpect(content().string(not(containsString("secretref://"))));
+                .andExpect(content().string(not(containsString("client_secret"))));
     }
 
     @Test
@@ -351,17 +350,17 @@ class AdminControlPlaneControllerTest {
     }
 
     @Test
-    void identityProviderReadinessIsBackendOwnedAndMembersCannotReadIt() throws Exception {
-        mockMvc.perform(get("/api/admin/identity/readiness").with(adminJwt()))
+    void platformIdentityReadinessIsBackendOwnedAndMembersCannotReadIt() throws Exception {
+        mockMvc.perform(get("/api/admin/platform/identity/readiness").with(adminJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.contractVersion").value("identity-provider-readiness-v1"))
-                .andExpect(jsonPath("$.category").value("identity-idm"))
+                .andExpect(jsonPath("$.contractVersion").value("platform-identity-readiness-v1"))
+                .andExpect(jsonPath("$.platformAuthority").value("keycloak"))
                 .andExpect(jsonPath("$.overallState").value("admin-action-required"))
                 .andExpect(jsonPath("$.supportSafe").value(true))
-                .andExpect(jsonPath("$.providerDiagnosticsRedacted").value(true))
+                .andExpect(jsonPath("$.diagnosticsRedacted").value(true))
                 .andExpect(jsonPath("$.backendOwnedFacade").value(true))
-                .andExpect(jsonPath("$.memberClientMayConfigureIdentityProvider").value(false))
-                .andExpect(jsonPath("$.optionalForMemberFlows").value(true))
+                .andExpect(jsonPath("$.memberClientMayConfigurePlatformSecurity").value(false))
+                .andExpect(jsonPath("$.requiredForMemberFlows").value(true))
                 .andExpect(jsonPath("$.cards[*].key", hasItems(
                         "realm-import", "federation-protocol-readiness", "provisioning-source-readiness",
                         "roles-groups-mapping", "login-readiness", "deprovisioning-readiness",
@@ -374,7 +373,7 @@ class AdminControlPlaneControllerTest {
                 .andExpect(content().string(not(containsString("client_secret"))))
                 .andExpect(content().string(not(containsString("Authorization: Bearer"))));
 
-        mockMvc.perform(get("/api/admin/identity/readiness").with(memberJwt()))
+        mockMvc.perform(get("/api/admin/platform/identity/readiness").with(memberJwt()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
                 .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
@@ -390,7 +389,7 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.subject").value("admin-123"))
                 .andExpect(jsonPath("$.organization").value("weave-dogfood"))
                 .andExpect(jsonPath("$.capabilityGrants[*]", hasItems("admin.policy.edit", "admin.provider.configure")))
-                .andExpect(jsonPath("$.providerRoleMappings[*]", hasItems("role_claim:admin", "organization_group_claim:/admins")))
+                .andExpect(jsonPath("$.providerRoleMappings[*]", hasItems("role_claim:admin", "group_claim:/admins")))
                 .andExpect(jsonPath("$.denies[0].capability").value("agent-runtime.entitled"))
                 .andExpect(jsonPath("$.denyByDefault").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
@@ -423,11 +422,11 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.unknownInputsFailClosed").value(false))
                 .andExpect(jsonPath("$.agentRuntimeEntitlementRequired").value(true))
-                .andExpect(jsonPath("$.grantedCapabilities[*]", hasItem("chat.send")))
-                .andExpect(jsonPath("$.grantedCapabilities[*]", not(hasItem("boards.update_task"))))
+                .andExpect(jsonPath("$.grantedCapabilities[*]", hasItems("chat.send")))
                 .andExpect(jsonPath("$.deniedInputs").isEmpty())
                 .andExpect(jsonPath("$.capabilityStates[*].state", hasItems("ready", "disabled", "policy-blocked")))
                 .andExpect(jsonPath("$.capabilityStates[?(@.capability == 'agent-runtime.entitled')].reasonCode", hasItems("agent-runtime-entitlement-required")))
+                .andExpect(jsonPath("$.capabilityStates[?(@.capability == 'boards.update_task')].state", hasItems("policy-blocked")))
                 .andExpect(jsonPath("$.capabilityStates[?(@.capability == 'admin.provider.configure')].state", hasItems("policy-blocked")))
                 .andExpect(content().string(not(containsString("alice@example.com"))))
                 .andExpect(content().string(not(containsString("secret-token"))))
@@ -459,40 +458,40 @@ class AdminControlPlaneControllerTest {
         mockMvc.perform(post("/api/admin/policies/effective/simulations")
                         .with(memberJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roles\":[\"admin\"],\"groups\":[\"/members\"],\"requestedCapabilities\":[\"admin.provider.configure\"]}"))
+                        .content("{\"roles\":[\"admin\"],\"groups\":[\"/admins\"],\"requestedCapabilities\":[\"admin.provider.configure\"]}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
                 .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
                 .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true))
                 .andExpect(content().string(not(containsString("admin.provider.configure"))))
-                .andExpect(content().string(not(containsString("/members"))))
+                .andExpect(content().string(not(containsString("/admins"))))
                 .andExpect(content().string(not(containsString("keycloak-realm"))));
     }
 
     @Test
-    void identityDesiredStateRoutesAreRemovedInFavorOfProtectedIdentityOps() throws Exception {
-        mockMvc.perform(post("/api/admin/identity/realm/dry-run")
-                        .with(adminJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
-                .andExpect(status().isNotFound());
-
-        mockMvc.perform(post("/api/admin/identity/realm/apply")
-                        .with(adminJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
-                .andExpect(status().isNotFound());
-
-        mockMvc.perform(get("/api/admin/control-plane").with(adminJwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.adminApiRoutes.identityRealmDryRun").doesNotExist())
-                .andExpect(jsonPath("$.adminApiRoutes.identityRealmApply").doesNotExist());
+    void realmAndIdentityProviderMutationRoutesDoNotExist() throws Exception {
+        for (String route : List.of(
+                "/api/admin/identity/realm/dry-run",
+                "/api/admin/identity/realm/apply",
+                "/api/v1/admin/identity/realm/dry-run",
+                "/api/v1/admin/identity/realm/apply")) {
+            mockMvc.perform(post(route)
+                            .with(adminJwt())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{}"))
+                    .andExpect(status().isNotFound());
+        }
     }
-
     @Test
     void operatorCanReadButCannotChangeProviderOrPolicy() throws Exception {
         mockMvc.perform(get("/api/admin/control-plane").with(operatorJwt()))
                 .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/admin/identity/realm/dry-run")
+                        .with(operatorJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"desiredState\":{\"realmId\":\"weave-dogfood\",\"clients\":[],\"roles\":[\"admin\"]}}"))
+                .andExpect(status().isNotFound());
 
         mockMvc.perform(patch("/api/admin/policies/capability-whitelist")
                         .with(operatorJwt())
@@ -693,12 +692,12 @@ class AdminControlPlaneControllerTest {
 
     private String jsonField(MvcResult result, String fieldName) throws Exception {
         JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
-        return root.path(fieldName).asText();
+        return root.path(fieldName).asString();
     }
 
     private String jsonArrayField(MvcResult result, String fieldName, int index) throws Exception {
         JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
-        return root.path(fieldName).path(index).asText();
+        return root.path(fieldName).path(index).asString();
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {
@@ -706,8 +705,8 @@ class AdminControlPlaneControllerTest {
                         .subject("admin-123")
                         .claim("iss", "https://auth.example.invalid/realms/weave")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("weave_tenant", "weave-dogfood")
-                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin")))))
+                        .claim("weave_tenant_id", "weave-dogfood")
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("admin")))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                         new SimpleGrantedAuthority("ROLE_ADMIN"));
@@ -718,10 +717,15 @@ class AdminControlPlaneControllerTest {
                         .subject("operator-123")
                         .claim("iss", "https://auth.example.invalid/realms/weave")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("weave_tenant", "weave-dogfood")
-                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("operator")))))
+                        .claim("weave_tenant_id", "weave-dogfood")
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRoles(
+                                                java.util.List.of("member", "operator"))))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
+                        new SimpleGrantedAuthority("ROLE_MEMBER"),
                         new SimpleGrantedAuthority("ROLE_OPERATOR"));
     }
 
@@ -730,7 +734,7 @@ class AdminControlPlaneControllerTest {
                         .subject("user-123")
                         .claim("iss", "https://auth.example.invalid/realms/weave")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member")))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
@@ -749,31 +753,6 @@ class AdminControlPlaneControllerTest {
         @Bean
         OrganizationBootstrapRepository organizationBootstrapRepository() {
             return new InMemoryOrganizationBootstrapRepository();
-        }
-
-
-        @Bean
-        ProductProfileOverrideRepository productProfileOverrideRepository() {
-            Map<String, ProductProfileOverride> profiles = new java.util.concurrent.ConcurrentHashMap<>();
-            return new ProductProfileOverrideRepository() {
-                @Override
-                public ProductProfileOverride findByPrimaryIdentityKey(String primaryIdentityKey) {
-                    return profiles.get(primaryIdentityKey);
-                }
-
-                @Override
-                public ProductProfileOverride saveForPrimaryIdentityKey(
-                        String primaryIdentityKey,
-                        ProductProfileOverride profile) {
-                    profiles.put(primaryIdentityKey, profile);
-                    return profile;
-                }
-            };
-        }
-
-        @Bean
-        MigrationRunEvidenceRepository migrationRunEvidenceRepository() {
-            return new InMemoryMigrationRunEvidenceRepository();
         }
     }
 }

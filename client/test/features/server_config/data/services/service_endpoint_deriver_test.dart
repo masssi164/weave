@@ -16,7 +16,7 @@ void main() {
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'https://api.home.internal/api/dav/files',
+        'https://api.home.internal/dav/files',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
@@ -34,7 +34,7 @@ void main() {
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'https://api.example.com/api/dav/files',
+        'https://api.example.com/dav/files',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
@@ -56,7 +56,7 @@ void main() {
         );
         expect(
           endpoints.nextcloudBaseUrl.toString(),
-          'https://api.workspace.example.com/api/dav/files',
+          'https://api.workspace.example.com/dav/files',
         );
         expect(
           endpoints.backendApiBaseUrl.toString(),
@@ -75,7 +75,7 @@ void main() {
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'http://api.home.internal/api/dav/files',
+        'http://api.home.internal/dav/files',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
@@ -104,6 +104,23 @@ void main() {
       );
       expect(
         () => deriver.parseIssuerUrl('https://auth.home.internal#test'),
+        throwsA(isA<AppFailure>()),
+      );
+    });
+
+    test('accepts only the canonical backend api base path', () {
+      expect(
+        deriver.parseServiceUrl(
+          'https://api.home.internal/api',
+          fieldName: 'the backend API URL',
+        ),
+        Uri.parse('https://api.home.internal/api'),
+      );
+      expect(
+        () => deriver.parseServiceUrl(
+          'https://api.home.internal',
+          fieldName: 'the backend API URL',
+        ),
         throwsA(isA<AppFailure>()),
       );
     });

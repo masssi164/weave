@@ -1,23 +1,27 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.audit.AuditAction;
+import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.identity.invitation.InMemoryProvisioningIntentRepository;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;
+import com.massimotter.weave.backend.identity.IdentityOpaqueReferenceCodec;
+import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.KeycloakAdminException;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.ProviderInvitation;
 import com.massimotter.weave.backend.identity.invitation.ProvisioningIntent;
-import com.massimotter.weave.backend.identity.invitation.ProvisioningIntentRepository;
 import com.massimotter.weave.backend.identity.invitation.ProvisioningIntentStatus;
-import com.massimotter.weave.backend.model.identity.MemberInvitationRequest;
+import com.massimotter.weave.backend.model.identity.BootstrapOwnerInvitationRequest;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -26,215 +30,307 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+@ExtendWith(MockitoExtension.class)
 class MemberInvitationServiceTest {
-    private static final Instant NOW = Instant.parse("2026-07-22T10:00:00Z");
+  private static final Instant NOW = Instant.parse("2026-07-26T10:00:00Z");
+  private static final String TENANT_ID = "tenant-default";
+  private static final String ORGANIZATION_ID = "organization-1";
+  private static final String EMAIL = "owner@example.org";
+  private static final String IDEMPOTENCY_KEY = "bootstrap-owner-run-0001";
 
-    private ProvisioningIntentRepository intents;
-    private KeycloakIdentityAdminClient keycloak;
-    private AuditEventPublisher audit;
-    private MemberInvitationService service;
+  @Mock KeycloakIdentityAdminClient keycloak;
+  @Mock IdentityOpaqueReferenceCodec references;
 
-    @BeforeEach
-    void setUp() {
-        intents = mock(ProvisioningIntentRepository.class);
-        keycloak = mock(KeycloakIdentityAdminClient.class);
-        when(keycloak.configuredOrganizationRef()).thenReturn("weave-dogfood");
-        audit = mock(AuditEventPublisher.class);
-        service = new MemberInvitationService(
-                intents,
-                keycloak,
-                new IdentityInvitationProperties(),
-                audit,
-                Clock.fixed(NOW, ZoneOffset.UTC));
-    }
+  private InMemoryProvisioningIntentRepository intents;
+  private InMemoryAuditEventPublisher audit;
+  private MemberInvitationService service;
 
-    @Test
-    void persistsOnlyTheCanonicalRoleAndLeavesGroupMappingToTheIamAdapter() {
-        when(intents.findPendingByEmail("weave-dogfood", "weave-dogfood", "member@example.invalid"))
-                .thenReturn(List.of());
-        when(intents.save(any(ProvisioningIntent.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(keycloak.issue("weave-dogfood", "member@example.invalid", "Member Example"))
-                .thenReturn(new ProviderInvitation(
-                        "invitation-1",
-                        "member@example.invalid",
-                        "Member Example",
-                        "pending",
-                        NOW.plusSeconds(3600),
-                        NOW));
+  @BeforeEach
+  void setUp() {
+    IdentityInvitationProperties properties = new IdentityInvitationProperties();
+    properties.bootstrapOwner().setTenantId(TENANT_ID);
+    intents = new InMemoryProvisioningIntentRepository();
+    audit = new InMemoryAuditEventPublisher();
+    lenient()
+        .when(references.invitation(anyString(), anyString()))
+        .thenAnswer(invocation -> "inv_" + invocation.getArgument(1, String.class));
+    service =
+        new MemberInvitationService(
+            intents,
+            keycloak,
+            properties,
+            references,
+            audit,
+            Clock.fixed(NOW, ZoneOffset.UTC));
+  }
 
-        var response = service.create(
-                "weave-dogfood",
-                new MemberInvitationRequest(
-                        "Member@Example.invalid",
-                        "Member Example",
-                        "member"),
-                "invite-once",
-                adminJwt());
+  @Test
+  void createsExactlyOneOwnerInvitationWhenTheHumanRealmIsEmpty() {
+    ProviderInvitation providerInvitation = providerInvitation();
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL)).thenReturn(List.of());
+    when(keycloak.issue(ORGANIZATION_ID, EMAIL, "Weave Owner"))
+        .thenReturn(providerInvitation);
 
-        assertThat(response.requestedRole()).isEqualTo("member");
-        ArgumentCaptor<ProvisioningIntent> saved = ArgumentCaptor.forClass(ProvisioningIntent.class);
-        verify(intents, org.mockito.Mockito.atLeastOnce()).save(saved.capture());
-        assertThat(saved.getAllValues()).allSatisfy(intent ->
-                assertThat(intent.requestedRole()).isEqualTo("member"));
-    }
+    var response =
+        service.bootstrapOwner(
+            new BootstrapOwnerInvitationRequest(" Owner@Example.org ", "Weave Owner"),
+            IDEMPOTENCY_KEY);
 
-    @Test
-    void rejectsCrossOrganizationInvitationBeforeCreatingProviderOrWorkState() {
-        assertThatThrownBy(() -> service.create(
-                "org-1",
-                new MemberInvitationRequest(
-                        "member@example.invalid",
-                        null,
-                        "member"),
-                "invite-escalation",
-                adminJwt()))
-                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
-                    assertThat(error.status().value()).isEqualTo(404);
-                    assertThat(error.code()).isEqualTo("member-invitation-not-found");
-                });
+    assertThat(response.invitationHandle()).isEqualTo("inv_invitation-1");
+    assertThat(response.organizationId()).isEqualTo(TENANT_ID);
+    assertThat(response.email()).isEqualTo(EMAIL);
+    assertThat(response.requestedRole()).isEqualTo("owner");
+    assertThat(response.provisioningStatus()).isEqualTo("pending");
 
-        verifyNoInteractions(intents, keycloak, audit);
-    }
+    List<ProvisioningIntent> saved =
+        intents.findPendingByEmail(TENANT_ID, ORGANIZATION_ID, EMAIL);
+    assertThat(saved).singleElement();
+    assertThat(saved.getFirst().invitedByIssuer()).isEqualTo("urn:weave:identity-bootstrap");
+    assertThat(saved.getFirst().invitedBySubject()).isEqualTo("bootstrap-owner-invitation");
+    assertThat(saved.getFirst().auditCorrelation()).isEqualTo(IDEMPOTENCY_KEY);
+    assertThat(audit.events()).hasSize(1);
+  }
 
-    @Test
-    void reconcilesOneVerifiedAuthenticatedMemberAndRequiresTokenRefresh() {
-        ProvisioningIntent pending = pendingIntent("member@example.invalid");
-        when(intents.findPendingByEmail(
-                        "weave-dogfood",
-                        "weave-dogfood",
-                        "member@example.invalid"))
-                .thenReturn(List.of(pending));
-        when(keycloak.isOrganizationMember("weave-dogfood", "member-1"))
-                .thenReturn(true);
-        when(intents.save(any(ProvisioningIntent.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+  @Test
+  void returnsTheSameUnambiguousPendingOwnerInvitationOnRetry() {
+    ProviderInvitation providerInvitation = providerInvitation();
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL))
+        .thenReturn(List.of(), List.of(providerInvitation));
+    when(keycloak.issue(ORGANIZATION_ID, EMAIL, "Weave Owner"))
+        .thenReturn(providerInvitation);
 
-        boolean accessUpdated = service.reconcileAuthenticated(memberJwt(true));
+    var first =
+        service.bootstrapOwner(
+            new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"), IDEMPOTENCY_KEY);
+    var replay =
+        service.bootstrapOwner(
+            new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"), IDEMPOTENCY_KEY);
 
-        assertThat(accessUpdated).isTrue();
-        verify(keycloak).applyOrganizationRole("weave-dogfood", "member-1", "member");
-        ArgumentCaptor<ProvisioningIntent> saved =
-                ArgumentCaptor.forClass(ProvisioningIntent.class);
-        verify(intents).save(saved.capture());
-        assertThat(saved.getValue().status()).isEqualTo(ProvisioningIntentStatus.APPLIED);
-        assertThat(saved.getValue().appliedSubject()).isEqualTo("member-1");
-    }
+    assertThat(replay).isEqualTo(first);
+    verify(keycloak).issue(ORGANIZATION_ID, EMAIL, "Weave Owner");
+    assertThat(intents.findPendingByEmail(TENANT_ID, ORGANIZATION_ID, EMAIL)).hasSize(1);
+    assertThat(audit.events()).hasSize(1);
+  }
 
-    @Test
-    void leavesAnAuthenticatedMemberUnchangedWhenNoIntentExists() {
-        when(intents.findPendingByEmail(
-                        "weave-dogfood",
-                        "weave-dogfood",
-                        "member@example.invalid"))
-                .thenReturn(List.of());
+  @Test
+  void rejectsBootstrapWhenAnyHumanIdentityAlreadyExists() {
+    when(keycloak.hasHumanUsers()).thenReturn(true);
 
-        assertThat(service.reconcileAuthenticated(memberJwt(true))).isFalse();
+    assertThatThrownBy(
+            () ->
+                service.bootstrapOwner(
+                    new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"),
+                    IDEMPOTENCY_KEY))
+        .isInstanceOfSatisfying(
+            ApiErrorException.class,
+            error -> {
+              assertThat(error.status()).isEqualTo(HttpStatus.CONFLICT);
+              assertThat(error.code()).isEqualTo("owner-bootstrap-not-empty");
+              assertThat(error.getMessage()).doesNotContain(EMAIL);
+            });
 
-        verify(keycloak, never()).isOrganizationMember(any(), any());
-        verify(keycloak, never()).applyOrganizationRole(any(), any(), any());
-        verify(intents, never()).save(any());
-    }
+    verify(keycloak, never()).issue(anyString(), anyString(), anyString());
+    assertThat(intents.findPendingByEmail(TENANT_ID, ORGANIZATION_ID, EMAIL)).isEmpty();
+    assertThat(audit.events()).isEmpty();
+  }
 
-    @Test
-    void rejectsUnverifiedEmailBeforeReadingProvisioningState() {
-        assertThatThrownBy(() -> service.reconcileAuthenticated(memberJwt(false)))
-                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
-                    assertThat(error.status()).isEqualTo(HttpStatus.FORBIDDEN);
-                    assertThat(error.code()).isEqualTo("identity-session-email-unverified");
-                });
+  @Test
+  void rejectsAnUncorrelatedProviderInvitationInsteadOfCreatingADuplicate() {
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL))
+        .thenReturn(List.of(providerInvitation()));
 
-        verifyNoInteractions(intents);
-        verify(keycloak, never()).isOrganizationMember(any(), any());
-    }
+    assertThatThrownBy(
+            () ->
+                service.bootstrapOwner(
+                    new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"),
+                    IDEMPOTENCY_KEY))
+        .isInstanceOfSatisfying(
+            ApiErrorException.class,
+            error -> assertThat(error.code()).isEqualTo("owner-bootstrap-not-empty"));
 
-    @Test
-    void rejectsAmbiguousPendingIntentsWithoutProviderMutation() {
-        ProvisioningIntent pending = pendingIntent("member@example.invalid");
-        when(intents.findPendingByEmail(
-                        "weave-dogfood",
-                        "weave-dogfood",
-                        "member@example.invalid"))
-                .thenReturn(List.of(pending, pending));
+    verify(keycloak, never()).issue(anyString(), anyString(), anyString());
+  }
 
-        assertThatThrownBy(() -> service.reconcileAuthenticated(memberJwt(true)))
-                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
-                    assertThat(error.status()).isEqualTo(HttpStatus.CONFLICT);
-                    assertThat(error.code())
-                            .isEqualTo("identity-session-reconciliation-ambiguous");
-                });
+  @Test
+  void correlatesOneProviderInvitationAfterLocalPostProcessingWasInterrupted() {
+    ProviderInvitation providerInvitation = providerInvitation();
+    ProvisioningIntent pending =
+        pendingIntent(null, ProvisioningIntentStatus.PENDING);
+    intents.save(pending);
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL))
+        .thenReturn(List.of(providerInvitation));
 
-        verify(keycloak, never()).applyOrganizationRole(any(), any(), any());
-        verify(intents, never()).save(any());
-    }
+    var recovered =
+        service.bootstrapOwner(
+            new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"),
+            IDEMPOTENCY_KEY);
 
-    @Test
-    void keepsPendingIntentRetryableWhenKeycloakReconciliationFails() {
-        ProvisioningIntent pending = pendingIntent("member@example.invalid");
-        when(intents.findPendingByEmail(
-                        "weave-dogfood",
-                        "weave-dogfood",
-                        "member@example.invalid"))
-                .thenReturn(List.of(pending));
-        when(keycloak.isOrganizationMember("weave-dogfood", "member-1"))
-                .thenReturn(true);
-        org.mockito.Mockito.doThrow(new IllegalStateException("provider unavailable"))
-                .when(keycloak)
-                .applyOrganizationRole("weave-dogfood", "member-1", "member");
+    assertThat(recovered.invitationHandle()).isEqualTo("inv_invitation-1");
+    assertThat(
+            intents
+                .findPendingByEmail(TENANT_ID, ORGANIZATION_ID, EMAIL)
+                .getFirst()
+                .providerInvitationId())
+        .isEqualTo("invitation-1");
+    verify(keycloak, never()).issue(anyString(), anyString(), anyString());
+  }
 
-        assertThatThrownBy(() -> service.reconcileAuthenticated(memberJwt(true)))
-                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
-                    assertThat(error.status()).isEqualTo(HttpStatus.BAD_GATEWAY);
-                    assertThat(error.code()).isEqualTo("identity-session-provider-unavailable");
-                });
+  @Test
+  void doesNotMaskServerOwnedHandleFailureAsAKeycloakProviderOutage() {
+    ProviderInvitation providerInvitation = providerInvitation();
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL)).thenReturn(List.of());
+    when(keycloak.issue(ORGANIZATION_ID, EMAIL, "Weave Owner"))
+        .thenReturn(providerInvitation);
+    when(references.invitation(ORGANIZATION_ID, "invitation-1"))
+        .thenThrow(new IllegalStateException("local reference failure"));
 
-        verify(intents, never()).save(any());
-    }
+    assertThatThrownBy(
+            () ->
+                service.bootstrapOwner(
+                    new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"),
+                    IDEMPOTENCY_KEY))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("local reference failure");
 
-    private ProvisioningIntent pendingIntent(String email) {
-        return new ProvisioningIntent(
-                UUID.fromString("6637d85d-09bf-47c1-b4a8-8b46cc0fcc19"),
-                "weave-dogfood",
-                "weave-dogfood",
-                email,
-                "0".repeat(64),
-                "member",
-                "invitation-1",
-                "https://auth.example.invalid/realms/weave",
-                "admin-1",
-                "invite-once",
-                ProvisioningIntentStatus.PENDING,
-                null,
-                null,
-                NOW.plusSeconds(3600),
-                NOW.minusSeconds(60),
-                NOW.minusSeconds(60));
-    }
+    assertThat(
+            intents
+                .findPendingByEmail(TENANT_ID, ORGANIZATION_ID, EMAIL)
+                .getFirst()
+                .providerInvitationId())
+        .isEqualTo("invitation-1");
+  }
 
-    private Jwt memberJwt(boolean emailVerified) {
-        return Jwt.withTokenValue("member-token")
-                .header("alg", "none")
-                .subject("member-1")
-                .issuer("https://auth.example.invalid/realms/weave")
-                .claim("weave_tenant", "weave-dogfood")
-                .claim("email", "Member@Example.invalid")
-                .claim("email_verified", emailVerified)
-                .claim(
-                        "resource_access",
-                        Map.of("weave-app", Map.of("roles", List.of())))
-                .build();
-    }
+  @Test
+  void mapsOnlyTheKeycloakMutationFailureToTheStableProviderError() {
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL)).thenReturn(List.of());
+    when(keycloak.issue(ORGANIZATION_ID, EMAIL, "Weave Owner"))
+        .thenThrow(new KeycloakAdminException(503, "provider unavailable", "invitation-create"));
 
-    private Jwt adminJwt() {
-        return Jwt.withTokenValue("admin-token")
-                .header("alg", "none")
-                .subject("admin-1")
-                .issuer("https://auth.example.invalid/realms/weave")
-                .claim("weave_tenant", "weave-dogfood")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("admin"))))
-                .build();
-    }
+    assertThatThrownBy(
+            () ->
+                service.bootstrapOwner(
+                    new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"),
+                    IDEMPOTENCY_KEY))
+        .isInstanceOfSatisfying(
+            ApiErrorException.class,
+            error -> {
+              assertThat(error.status()).isEqualTo(HttpStatus.BAD_GATEWAY);
+              assertThat(error.code()).isEqualTo("member-invitation-provider-unavailable");
+            });
+  }
+
+  @Test
+  void reconcilesOneVerifiedPendingIntentAgainstLiveOrganizationMembership() {
+    intents.save(pendingIntent("invitation-1", ProvisioningIntentStatus.PENDING));
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.isOrganizationMember(ORGANIZATION_ID, "owner-subject"))
+        .thenReturn(true);
+
+    assertThat(service.reconcileAuthenticated(authenticatedOwner())).isTrue();
+
+    verify(keycloak).applyRole("owner-subject", "owner");
+    assertThat(intents.findPendingByEmail(TENANT_ID, ORGANIZATION_ID, EMAIL))
+        .isEmpty();
+  }
+
+  @Test
+  void scopesCreationAndAcceptanceAuditIdempotencyKeysByLifecycleAction() {
+    ProviderInvitation providerInvitation = providerInvitation();
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL)).thenReturn(List.of());
+    when(keycloak.issue(ORGANIZATION_ID, EMAIL, "Weave Owner"))
+        .thenReturn(providerInvitation);
+    when(keycloak.isOrganizationMember(ORGANIZATION_ID, "owner-subject"))
+        .thenReturn(true);
+
+    service.bootstrapOwner(
+        new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"), IDEMPOTENCY_KEY);
+    assertThat(service.reconcileAuthenticated(authenticatedOwner())).isTrue();
+
+    assertThat(audit.events())
+        .extracting(event -> event.idempotencyKey())
+        .containsExactly(
+            IDEMPOTENCY_KEY + ":" + AuditAction.MEMBER_INVITATION_CREATED.wireName(),
+            IDEMPOTENCY_KEY + ":" + AuditAction.MEMBER_INVITATION_ACCEPTED.wireName())
+        .doesNotHaveDuplicates();
+  }
+
+  @Test
+  void rejectsAmbiguousPendingIntentsInsteadOfSelectingOne() {
+    intents.save(pendingIntent("invitation-1", ProvisioningIntentStatus.PENDING));
+    intents.save(pendingIntent("invitation-2", ProvisioningIntentStatus.PENDING));
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+
+    assertThatThrownBy(() -> service.reconcileAuthenticated(authenticatedOwner()))
+        .isInstanceOfSatisfying(
+            ApiErrorException.class,
+            error -> {
+              assertThat(error.status()).isEqualTo(HttpStatus.CONFLICT);
+              assertThat(error.code())
+                  .isEqualTo("identity-session-reconciliation-ambiguous");
+            });
+
+    verify(keycloak, never()).applyRole(anyString(), anyString());
+  }
+
+  private Jwt authenticatedOwner() {
+    return Jwt.withTokenValue("owner-token")
+        .header("alg", "none")
+        .issuer("https://auth.example.test/realms/weave")
+        .subject("owner-subject")
+        .claim("email", EMAIL)
+        .claim("email_verified", true)
+        .claim("organization", HumanJwtTestSupport.organizationWithRoles(List.of()))
+        .build();
+  }
+
+  private ProvisioningIntent pendingIntent(
+      String providerInvitationId, ProvisioningIntentStatus status) {
+    return new ProvisioningIntent(
+        UUID.randomUUID(),
+        TENANT_ID,
+        ORGANIZATION_ID,
+        EMAIL,
+        "email-sha256",
+        "owner",
+        providerInvitationId,
+        "urn:weave:identity-bootstrap",
+        "bootstrap-owner-invitation",
+        IDEMPOTENCY_KEY,
+        status,
+        null,
+        null,
+        NOW.plusSeconds(86_400),
+        NOW,
+        NOW);
+  }
+
+  private ProviderInvitation providerInvitation() {
+    return new ProviderInvitation(
+        "invitation-1",
+        EMAIL,
+        "Weave Owner",
+        "pending",
+        NOW.plusSeconds(86_400),
+        NOW);
+  }
 }

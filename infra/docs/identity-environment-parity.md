@@ -17,8 +17,9 @@ Only reviewed operator coordinates differ:
 
 Keycloak owns invitation tokens, expiry, resend, revoke, registration, credentials, email
 verification, and organization membership. Weave does not install a custom Keycloak provider JAR
-to make login correct. After authentication, the provider-neutral session-reconciliation use case
-checks current organization entitlement; when it reports changed access, the client performs
+to make login correct. After authentication, the server-owned session-reconciliation use case
+checks current organization entitlement in the fixed Keycloak authority; when it reports changed
+access, the client performs
 exactly one standard refresh-token grant before workspace bootstrap.
 
 ## iPhone Mailpit gate
@@ -42,5 +43,5 @@ An HTTP `403` means the phone is outside the reviewed private CIDR. A certificat
 the CA trust or SAN coverage is wrong. A DNS error must be fixed in private DNS; an IP-address URL
 is not a supported substitute because it breaks TLS and issuer validation.
 
-This page projects `WEAVE-DOMAIN-IDENTITY-IDM`, the provider-neutral identity contract, and the
-current runtime composition ADR from the pinned specification corpus.
+This page projects `WEAVE-PLATFORM-IDENTITY-SECURITY`, the fixed Keycloak authority contract, and
+the current runtime composition ADR from the pinned specification corpus.

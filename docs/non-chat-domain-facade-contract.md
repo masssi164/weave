@@ -46,7 +46,7 @@ The canonical contract vocabulary is the source of truth for Files, Calendar, Bo
 Role-specific surfaces are deliberately different:
 
 - Member/client APIs expose canonical domain concepts only. They must not expose provider-native domains, raw provider IDs, raw provider payloads, raw endpoints, adapter class names, SecretRef values, or operational diagnostics that belong to admin/support.
-- The workload-only MCP catalog is empty. A future tool must project the owning domain's canonical vocabulary and pass current domain authorization; no runtime-owned registry or RuntimeProfile field may invent a parallel capability model.
+- The workload-only MCP catalog contains only the Files read slice. Every tool must project the owning domain's canonical vocabulary and pass current domain authorization; no runtime-owned registry or RuntimeProfile field may invent a parallel capability model.
 - Admin/Weave-Control is the explicit control-plane surface for adapter assignment, selected provider mappings, readiness, provenance, SecretRefs, lossy replacement notes, and support-safe diagnostics. Admin visibility does not make those fields valid in member or MCP schemas.
 
 No implementation may introduce a parallel `calendar-events`, `files_documents`, or `boards_tasks` tool/domain vocabulary for these canonical non-chat domains. Drift tests should fail when a member facade or future MCP projection invents names outside the canonical contract.
@@ -54,4 +54,4 @@ No implementation may introduce a parallel `calendar-events`, `files_documents`,
 
 ## Spring AI MCP projection
 
-`weave-mcp-server` owns only the OAuth-protected Spring AI 2.0 stateful Streamable HTTP edge. It admits a bound per-cell workload, exchanges the token to the backend audience, and revalidates current ARC context in `weave/server`. Its tool, resource, and prompt catalogs remain empty. When a domain projection is eventually implemented, `weave/server` remains authoritative for policy, authorization, audit, provider selection, idempotency, reconciliation, and business logic; the MCP edge cannot call provider adapters directly or define another capability vocabulary. Admin/control-plane DTOs remain server-local.
+`weave-mcp-server` owns only the OAuth-protected Spring AI 2.0 stateful Streamable HTTP edge. It admits a bound per-cell workload, exchanges the token to the backend audience, and revalidates current ARC context in `weave/server`. Its active Files tool/resource pair consumes the existing WebDAV projection. `weave/server` remains authoritative for policy, authorization, audit, provider selection, idempotency, reconciliation, and business logic; the MCP edge cannot call provider adapters directly or define another capability vocabulary. Admin/control-plane DTOs remain server-local.

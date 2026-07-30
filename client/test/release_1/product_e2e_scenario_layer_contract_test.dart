@@ -76,14 +76,16 @@ void main() {
 
       final required = <String, Set<String>>{
         '@weave-product-org-domain-verification-provisioning': {
-          'identity-idm',
           'admin-health-ops',
         },
         '@weave-product-member-degraded-capability-state': {
           'admin-health-ops',
           'provider-portability',
         },
-        '@weave-product-guest-bounded-space-access': {'spaces', 'identity-idm'},
+        '@weave-product-guest-bounded-space-access': {
+          'spaces',
+          'admin-health-ops',
+        },
         '@weave-product-document-session-launch': {'documents-office', 'files'},
         '@weave-product-meeting-artifacts-followup': {
           'meetings-calls',

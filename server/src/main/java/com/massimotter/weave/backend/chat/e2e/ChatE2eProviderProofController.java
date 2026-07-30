@@ -178,7 +178,7 @@ public final class ChatE2eProviderProofController {
 
     private Set<String> fieldNames(JsonNode value) {
         java.util.Set<String> names = new java.util.HashSet<>();
-        value.propertyNames().forEach(names::add);
+        value.properties().forEach(entry -> names.add(entry.getKey()));
         return Set.copyOf(names);
     }
 

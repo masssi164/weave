@@ -38,7 +38,7 @@ public class ProviderCapabilityHealthController {
         this.workspaceCapabilityService = workspaceCapabilityService;
     }
 
-    @GetMapping({"/api/admin/provider-capability-health", "/api/v1/admin/provider-capability-health"})
+    @GetMapping("/api/admin/provider-capability-health")
     @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(
             operationId = "getProviderCapabilityHealth",

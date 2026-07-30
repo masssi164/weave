@@ -3,113 +3,112 @@ package com.massimotter.weave.backend.service.migration;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
-import jakarta.persistence.PersistenceException;
+import com.massimotter.weave.backend.persistence.jpa.migration.MigrationRunEvidenceJpaEntity;
+import com.massimotter.weave.backend.persistence.jpa.migration.MigrationRunEvidenceId;
+import com.massimotter.weave.backend.persistence.jpa.migration.MigrationRunEvidenceJpaRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.dao.DataAccessException;
-import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import static java.util.Objects.requireNonNull;
-
-/** Versioned relational adapter for support-safe provider migration evidence. */
-@Repository
-@Transactional(readOnly = true)
 public class JpaMigrationRunEvidenceRepository implements MigrationRunEvidenceRepository {
 
-    private static final TypeReference<Map<String, Integer>> OBJECT_COUNTS =
-            new TypeReference<>() {
-            };
-    private static final TypeReference<List<String>> STRING_LIST =
-            new TypeReference<>() {
-            };
-    private static final TypeReference<Map<String, String>> STRING_MAP =
-            new TypeReference<>() {
-            };
+    private static final TypeReference<Map<String, Integer>> OBJECT_COUNTS = new TypeReference<>() {
+    };
+    private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {
+    };
+    private static final TypeReference<Map<String, String>> STRING_MAP = new TypeReference<>() {
+    };
 
-    private final MigrationRunEvidenceJpaRepository evidence;
+    private final MigrationRunEvidenceJpaRepository repository;
     private final ObjectMapper objectMapper;
 
     public JpaMigrationRunEvidenceRepository(
-            MigrationRunEvidenceJpaRepository evidence,
+            MigrationRunEvidenceJpaRepository repository,
             ObjectMapper objectMapper) {
-        this.evidence = requireNonNull(evidence, "evidence");
-        this.objectMapper = requireNonNull(objectMapper, "objectMapper");
+        this.repository = repository;
+        this.objectMapper = objectMapper;
     }
 
     @Override
     @Transactional
-    public void save(MigrationRunEvidence value) {
-        if (value == null) {
-            throw new IllegalArgumentException("Migration run evidence must not be null.");
-        }
-        if (value.recordedAt() == null) {
-            throw new IllegalArgumentException(
-                    "Migration run evidence recordedAt must not be null.");
+    public void save(MigrationRunEvidence evidence) {
+        if (evidence == null || evidence.recordedAt() == null) {
+            throw new IllegalArgumentException("Migration run evidence and recordedAt are required.");
         }
         try {
-            MigrationRunEvidenceId id =
-                    new MigrationRunEvidenceId(value.runId(), value.domainKey());
-            MigrationRunEvidenceJpaEntity entity = evidence.findById(id)
-                    .orElseGet(() -> MigrationRunEvidenceJpaEntity.create(id));
-            entity.replaceWith(value, serialized(value));
-            evidence.saveAndFlush(entity);
-        } catch (MigrationRunEvidenceStoreException exception) {
-            throw exception;
-        } catch (DataAccessException | PersistenceException exception) {
+            MigrationRunEvidenceJpaEntity replacement = toEntity(evidence);
+            MigrationRunEvidenceJpaEntity entity = repository.findById(replacement.id())
+                    .map(observed -> {
+                        observed.replaceWith(replacement);
+                        return observed;
+                    })
+                    .orElse(replacement);
+            repository.saveAndFlush(entity);
+        } catch (DataAccessException failure) {
             throw new MigrationRunEvidenceStoreException(
-                    "Failed to persist durable migration run evidence.",
-                    exception);
+                    "Failed to persist durable migration run evidence.", failure);
         }
     }
 
     @Override
-    public Optional<MigrationRunEvidence> findCurrent(
-            String runId,
-            String domainKey,
-            Instant now) {
+    @Transactional(readOnly = true)
+    public Optional<MigrationRunEvidence> findCurrent(String runId, String domainKey, Instant now) {
         try {
-            return evidence.findById(new MigrationRunEvidenceId(runId, domainKey))
+            return repository.findById(new MigrationRunEvidenceId(runId, domainKey))
                     .map(this::toDomain)
-                    .filter(value -> !value.expired(now));
-        } catch (MigrationRunEvidenceStoreException exception) {
-            throw exception;
-        } catch (DataAccessException | PersistenceException exception) {
+                    .filter(evidence -> !evidence.expired(now));
+        } catch (DataAccessException failure) {
             throw new MigrationRunEvidenceStoreException(
-                    "Failed to load durable migration run evidence.",
-                    exception);
+                    "Failed to load durable migration run evidence.", failure);
         }
     }
 
     String persistencePosture() {
-        return "durable-relational-jpa-flyway";
+        return "portable-jpa-hibernate-validated";
     }
 
-    private MigrationRunEvidence toDomain(MigrationRunEvidenceJpaEntity entity) {
-        return entity.toDomain(
-                json -> read(json, OBJECT_COUNTS, Map.of()),
-                json -> read(json, STRING_LIST, List.of()),
-                json -> read(json, STRING_MAP, Map.of()));
-    }
-
-    private MigrationRunEvidenceSerialized serialized(MigrationRunEvidence value) {
-        return new MigrationRunEvidenceSerialized(
+    private MigrationRunEvidenceJpaEntity toEntity(MigrationRunEvidence value) {
+        return new MigrationRunEvidenceJpaEntity(
+                new MigrationRunEvidenceId(value.runId(), value.domainKey()),
+                value.lifecycle(),
                 json(value.objectCounts()),
                 json(value.contentHashes()),
                 json(value.auditRefs()),
                 json(value.artifactRefs()),
-                json(value.providerDiagnostics()));
+                json(value.providerDiagnostics()),
+                value.identityMappingComplete(),
+                value.auditSinkAvailable(),
+                value.adminApproved(),
+                value.recordedAt(),
+                value.expiresAt());
+    }
+
+    private MigrationRunEvidence toDomain(MigrationRunEvidenceJpaEntity value) {
+        return new MigrationRunEvidence(
+                value.id().runId(),
+                value.id().domainKey(),
+                value.lifecycle(),
+                read(value.objectCountsJson(), OBJECT_COUNTS, Map.of()),
+                read(value.contentHashesJson(), STRING_LIST, List.of()),
+                read(value.auditRefsJson(), STRING_LIST, List.of()),
+                read(value.artifactRefsJson(), STRING_MAP, Map.of()),
+                read(value.providerDiagnosticsJson(), STRING_LIST, List.of()),
+                value.identityMappingComplete(),
+                value.auditSinkAvailable(),
+                value.adminApproved(),
+                value.recordedAt(),
+                value.expiresAt());
     }
 
     private String json(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (JacksonException exception) {
+        } catch (JacksonException failure) {
             throw new MigrationRunEvidenceStoreException(
-                    "Failed to persist durable migration run evidence.",
-                    exception);
+                    "Failed to persist durable migration run evidence.", failure);
         }
     }
 
@@ -119,18 +118,9 @@ public class JpaMigrationRunEvidenceRepository implements MigrationRunEvidenceRe
         }
         try {
             return objectMapper.readValue(json, type);
-        } catch (JacksonException exception) {
+        } catch (JacksonException failure) {
             throw new MigrationRunEvidenceStoreException(
-                    "Failed to load durable migration run evidence.",
-                    exception);
+                    "Failed to load durable migration run evidence.", failure);
         }
-    }
-
-    record MigrationRunEvidenceSerialized(
-            String objectCounts,
-            String contentHashes,
-            String auditRefs,
-            String artifactRefs,
-            String providerDiagnostics) {
     }
 }

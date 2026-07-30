@@ -77,19 +77,22 @@ jq -e '
   and .activeRuntimeEvidence.backendContext == "standard-token-exchange-v2-and-current-arc-binding"
   and .activeRuntimeEvidence.security == "bound-cell-only-rfc9068-exact-audience-and-current-arc-context"
   and .activeRuntimeEvidence.oidcGatekeeper == "spring-security-oauth2-resource-server"
-  and .activeRuntimeEvidence.tools == []
-  and .activeRuntimeEvidence.resources == []
+  and .activeRuntimeEvidence.tools == ["files.search"]
+  and .activeRuntimeEvidence.resources == ["weave://files/{canonicalFileId}"]
   and .activeRuntimeEvidence.prompts == []
+  and .activeRuntimeEvidence.filesDataPlane.facade == "/dav/files"
+  and .activeRuntimeEvidence.filesDataPlane.canonicalIdProperty == "{urn:weave:files}canonical-id"
+  and .activeRuntimeEvidence.filesDataPlane.toolSpecificBackendEndpoint == false
   and .activeRuntimeEvidence.pythonFastMcpRemoved == true
   and .activeRuntimeEvidence.handwrittenJsonRpcRemoved == true
 ' "${CONTRACT}" >/dev/null || fail "Weave MCP tool contract is missing required support-safe/fail-closed controls"
 
-assert_contains "${DOC}" "Status: **Guarded / workload boundary active**"
+assert_contains "${DOC}" "Status: **Guarded / first read-only Files slice active**"
 assert_contains "${DOC}" "Each enabled Weaver cell receives its own confidential Keycloak workload client,"
 assert_contains "${DOC}" '`weaver-cell-{cellId}`, through Agent Runtime Control (ARC).'
 assert_contains "${DOC}" "Human access tokens"
-assert_contains "${DOC}" "The domain tool, resource, and prompt"
-assert_contains "${DOC}" "catalogs remain empty."
+assert_contains "${DOC}" '`files.search`'
+assert_contains "${DOC}" '`weave://files/{canonicalFileId}`'
 assert_contains "${PRODUCT_PLAN}" "Weave is planned product-first, not agent-first."
 assert_contains "${PRODUCT_PLAN}" "OpenClaw configuration remains ephemeral implementation output, not the product model."
 

@@ -77,8 +77,8 @@ void main() {
                 },
                 'protocols': {
                   'matrixClientServerBaseUrl': 'https://api.weave.test',
-                  'filesWebDavBaseUrl': 'https://api.weave.test/api/dav/files',
-                  'calendarCalDavBaseUrl': 'https://api.weave.test/api/caldav',
+                  'filesWebDavBaseUrl': 'https://api.weave.test/dav/files',
+                  'calendarCalDavBaseUrl': 'https://api.weave.test/caldav',
                 },
                 'releasePosture': 'dogfood',
                 'domains': [
@@ -164,15 +164,13 @@ void main() {
         expect(find.text('Organization access'), findsOneWidget);
 
         await tester.enterText(
-          _textFieldWithLabel(
-            'Weave server address, completion link, or QR content',
-          ),
+          _textFieldWithLabel('Server URI, invitation link, or QR payload'),
           'https://weave.test',
         );
         await tester.tap(find.text('Continue to organization'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Organization ready for sign-in'), findsOneWidget);
+        expect(find.text('Workspace ready for sign-in'), findsOneWidget);
         expect(find.text('https://matrix.weave.test'), findsNothing);
         expect(find.text('https://files.weave.test'), findsNothing);
         expect(find.text('Sign In'), findsWidgets);
@@ -270,7 +268,7 @@ void main() {
         expect(find.text('Connect Files'), findsWidgets);
         expect(
           filesRepository.lastConfiguredBaseUrl.toString(),
-          'https://api.weave.test/api/dav/files',
+          'https://api.weave.test/dav/files',
         );
 
         await tester.tap(find.text('Connect Files').first);

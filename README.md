@@ -23,11 +23,11 @@ Weave is an open-standards gateway and product surface, not a branded skin over 
 | Chat | Matrix Client-Server-compatible facade at the public API origin under `/_matrix/client/**` | Chat conversations, rooms, messages, decisions, and meeting capsules | Matrix/Synapse-class provider adapters or bridges, with federation disabled by default for MVP |
 | Files | WebDAV facade under `/dav/files/**` | Files, folders, download/upload, copy/move, lock state, quota/conflict errors, audit | Nextcloud/WebDAV-class storage adapter |
 | Calendar | CalDAV/iCalendar facade under `/caldav/**` | Workspace, team, and channel calendars with stable canonical meeting-thread references plus setup/readiness control plane | Nextcloud/CalDAV-class calendar adapter |
-| Identity | OIDC/SAML-compatible organization identity | One login, user profile, roles, policy, audit, support-safe diagnostics | Keycloak by default, adapter-friendly for Entra ID/Auth0/Authentik-style sources |
+| Platform identity/security | OIDC/OAuth2 with Keycloak as authority | One login, user profile, roles, policy, audit, workload identities, support-safe diagnostics | Keycloak; Entra ID/Auth0/Authentik/LDAP/AD may federate or broker upstream through Keycloak |
 | Boards/tasks | Weave product/control APIs while protocol parity matures | Provider-neutral task, board, readiness, mapping, authorization, and audit contracts | Local workspace today; OpenProject-class adapters remain gated |
 | Calls/meetings | Matrix v1.19 plus the revision-pinned MatrixRTC Profile 0 target | Matrix room, slot, membership, authorization, media-key, consent, and artifact contracts | LiveKit is the first replaceable RTC transport/SFU, not the member contract |
 | Agent Runtime Control | Signed RuntimeProfile v2 and an administrative lifecycle API | Entitlement, cell identity, desired state, profile issuance, workload reconciliation, encrypted external state, and audit | `weave/server`; Weaver/OpenClaw is the first runtime consumer |
-| Agent tools | Guarded OAuth-protected MCP at `/mcp` using Spring AI stateful Streamable HTTP | ARC-bound workload admission and current backend context are active; domain tools require current authorization and evidence | Keycloak Standard Token Exchange V2; tool/resource/prompt catalogs are still empty |
+| Agent tools | Guarded OAuth-protected MCP at `/mcp` using Spring AI stateful Streamable HTTP | ARC-bound workload admission plus `files.search` and `weave://files/{canonicalFileId}` over the canonical Files boundary | Keycloak Standard Token Exchange V2 and the existing Weave WebDAV projection; Calendar, Chat and write catalogs remain gated |
 
 Spring Boot is the server gatekeeper for OIDC, authorization, audit, readiness, and support-safe errors. The Matrix facade shares the public API origin; a `matrix.<tenant>` host is a southbound provider/operator endpoint, never a member-client setting. Matrix protocol shaping targets a shared Rust/Ruma core: server integration through JNI, Flutter integration through `flutter_rust_bridge`. Flutter consumes Weave-owned facades, not raw provider SDKs or provider secrets.
 
@@ -72,6 +72,7 @@ These checked-in visuals are support-safe proof assets for the current dogfood p
 - The current implementation moves normal member data planes to northbound standards: Chat through the OIDC-gated Matrix facade, Files through WebDAV, and Calendar through CalDAV/iCalendar. Legacy REST chat messages and calendar event data-plane routes are obsolete rather than compatibility targets.
 - Chat uses the client-owned Rust crypto engine for encrypted sync/send, durable device identity, SAS verification, recovery, and lost-device revocation. A support-safe hash binds each OIDC login session to its first Matrix device so a lost refresh session cannot rename itself after revocation. The OIDC refresh session, Matrix device ID, Keychain-held store passphrase, and encrypted app-support store survive normal force-quit, relaunch, and in-place app updates; only explicit account removal deletes that device state.
 - Agent Runtime Control now owns per-cell Keycloak workload identity, signed RuntimeProfile v2 issuance, lifecycle reconciliation, revocation/deletion, encrypted external RuntimeState generations, and separate least-privilege identity-administration credentials. The MCP edge admits only a current bound cell, validates RFC 9068 `at+jwt`, negotiates the MCP Client Credentials extension, exchanges rather than relays the workload token, and revalidates current context in the backend. Human and generic service-account access remains closed.
+- The first MCP domain slice is active: Spring AI publishes `files.search` and the canonical file resource, while the separate MCP process consumes the same OAuth-protected WebDAV `SEARCH`/`GET` projection as standards clients. It has no private MCP-only business API, persistence, provider adapter, or duplicate use case.
 - The obsolete member-oriented MCP v1 catalog, forwarded-member-token exchange, caller-supplied profile header, fake Scout UI, duplicated approval path, Python/FastMCP runtime, and handwritten JSON-RPC controller are removed without compatibility readers.
 - Weave treats admin/operator readiness as part of the product: provider categories, policy boundaries, evidence, and support-safe diagnostics belong in the control plane, not in member setup.
 - The release track already carries product-level proof for dogfood collaboration, governed assistance boundaries, portability dry-runs, operator recovery guardrails, and release-claim control.
@@ -80,7 +81,7 @@ These checked-in visuals are support-safe proof assets for the current dogfood p
 
 Weave is in active dogfood and does not claim public production readiness. The portability promise is no unaccounted data loss; perfect lossless migration is not claimed. In particular, universal provider interchangeability is not claimed. Encrypted history remains blocked from provider-switch apply when target fidelity or client-side key export cannot be proven. Matrix E2EE is an implemented release candidate, but the product claim remains gated on green live two-device, ciphertext-only, recovery, revocation, accessibility, and physical-iPhone relaunch evidence. Weaver remains optional and policy-bound, and unrestricted autonomous agents are not part of the current public claim.
 
-The workload identity and MCP context chain is implemented, but no domain tool is advertised yet. Read tools still need catalog/RuntimeProfile/domain-authorization intersection; writes additionally need signed single-use ApprovalDecisionEvidence v2 and immutable ActionEvidence v2. The file-key RuntimeState adapter is dogfood-only until external KMS custody and cross-node crash/restore evidence exist. Matrix v1.19 plus pinned MatrixRTC Profile 0 is the Calls target; the obsolete member Calls API and proprietary LiveKit join-grant slice have been removed. RTC Authorizer, TURN, media E2EE, consent/artifact, interoperability, and physical-device gates remain open.
+The workload identity, MCP context chain, and first read-only Files slice are implemented and remain Guarded pending exact deployed authorization evidence and RFC 8707 support. Calendar/Chat tools and every write tool remain absent. Writes additionally need signed single-use ApprovalDecisionEvidence v2 and immutable ActionEvidence v2. The file-key RuntimeState adapter is dogfood-only until external KMS custody and cross-node crash/restore evidence exist. Matrix v1.19 plus pinned MatrixRTC Profile 0 is the Calls target; the obsolete member Calls API and proprietary LiveKit join-grant slice have been removed. RTC Authorizer, TURN, media E2EE, consent/artifact, interoperability, and physical-device gates remain open.
 
 The detailed boundary lives in the [product trust claim matrix](docs/product-trust-provider-choice-claim-matrix.md), the [provider portability docs](docs/architecture/provider-portability.md), and the [roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md).
 
@@ -106,19 +107,21 @@ The active monorepo is intentionally split by clean-architecture ownership:
 
 - `client/` owns the Flutter member/admin experience and consumes Weave contracts;
 - `server/` owns product APIs, authorization, audit, persistence, and provider ports/adapters;
+- `weave-application-core/`, `weave-files-core/`, `weave-persistence-jpa/`, and the runtime adapter modules keep domain, persistence, security and provider dependencies directed inward;
 - `weave-mcp-server/` owns the workload-only MCP protocol edge, not product authority;
-- `infra/` owns Docker Compose profiles, Caddy, Keycloak/provider topology, backup/restore, smoke, and support evidence;
+- `weave-product-e2e/` owns the framework-free invitation/OIDC/WebDAV/MCP acceptance driver and no runtime beans;
+- `infra/` owns OpenTofu, Caddy, Keycloak/provider topology, backup/restore, smoke, and support evidence;
 - `rust/` owns shared Matrix protocol/crypto shaping used through explicit JNI/Flutter bridges;
 - `e2e/`, `release/`, and `docs/` own behavioral evidence and claim boundaries.
 
-For a local stack, build the two local images, then use the idempotent installer. The test principal
-is opt-in and is removed again when the flag returns to `false`:
+For a local stack, build the two local images, then use the idempotent installer. Human principals
+are created only through invitation and activation:
 
 ```bash
 ./gradlew :server:bootJar :weave-mcp-server:bootJar
 docker build -f server/Dockerfile -t weave-backend:local .
 docker build -f weave-mcp-server/Dockerfile -t weave-mcp-server:local .
-TF_VAR_create_test_user=false ./infra/weave-workspace/install.sh
+./infra/weave-workspace/install.sh
 ./infra/weave-workspace/smoke-test.sh
 ./infra/weave-workspace/operator-check.sh
 ```
@@ -127,6 +130,18 @@ Use the discovered Gradle and infra gates before opening a PR: `./gradlew check`
 `./gradlew infraStatic`, `tofu fmt -check -recursive`, and the repository-specific live checks
 appropriate to the changed contract. Generated secrets, plans, logs, and support bundles do not
 belong in commits.
+
+The complete Fresh product proof is one command:
+
+```bash
+./gradlew testApp
+```
+
+It builds the current Server and MCP images (or accepts only paired digest-pinned candidate
+images), creates a disposable labelled stack, completes real invitation/activation and PKCE,
+invokes `files.search` through MCP and WebDAV, proves revocation, writes support-safe evidence,
+and tears down only the exact run-owned resources. Human passwords and activation links remain
+inside the test JVM and are never written to files or Gradle properties.
 
 Repository delivery is GitHub-only: feature work flows into `dev`, validated candidates move to `dogfood`, and stable release-capable truth moves to `main` through protected GitHub pull requests and Actions. Physical-iPhone iterations use the stable Weave app identity, with TestFlight as the preferred human dogfood channel and development-signed in-place installs as an engineering fallback. Normal updates preserve the saved organization profile, OIDC refresh session, Matrix device ID, and encrypted crypto store; dogfood never relies on repeatedly trusting a developer certificate.
 

@@ -6,7 +6,11 @@ Weave uses three promotion lanes:
 
 - `dev`: normal integration branch and the base for feature branches. Feature PRs are cut from `dev` and return to `dev` after the review/refactor loop, feature-specific tests, acceptance/Gherkin/Cucumber mappings, docs/evidence, and PR-safe CI/contracts/unit/acceptance/docs gates.
 - `dogfood`: persistent LAN dogfood branch and candidate/test-stack promotion lane. Promotion PRs from `dev` to `dogfood` run the feature-relevant E2E/live/dogfood validation for that candidate; missing feature-relevant Gherkin/Cucumber scenarios or deterministic mappings must be added by this stage at the latest. Advancing this branch deploys or updates the local test stack on the dedicated Mac runner. This branch is named `dogfood` because legacy `test/...` branches already occupy Git's `refs/heads/test/` namespace.
-- `main`: stable/release-capable branch after dogfood validation. A commit may reach `main` only after it has been integrated through `dev`, passed isolated three-user collaboration twice, deployed idempotently to dogfood, produced the verified iOS candidate, and has a ready physical-iPhone human-testing manifest.
+- `main`: stable/release-capable branch after dogfood validation. A commit may
+  reach `main` only after it has passed the credential-free exact-candidate
+  `testApp` product flow, deployed idempotently to dogfood, produced the
+  verified iOS candidate, and has a ready physical-iPhone human-testing
+  manifest.
 
 ## Why this exists
 
@@ -21,7 +25,9 @@ Weave uses three promotion lanes:
 The test stack is deployed by the `Test Stack Deploy` GitHub Actions workflow:
 
 - workflow file: `.github/workflows/test-stack-deploy.yml`
-- trigger: successful exact-candidate `Live Stack E2E` `workflow_run` from a `dogfood` push, or a manual recovery dispatch that names a commit with existing successful isolated evidence
+- trigger: successful exact-candidate `Live Stack Product Flow` `workflow_run`
+  from a `dogfood` push, or a manual recovery dispatch that names a commit with
+  existing successful isolated evidence
 - candidate E2E workflow: `.github/workflows/live-stack-e2e.yml` on promotion PRs targeting `dogfood` and manual dispatch
 - runner: dedicated self-hosted macOS ARM64 runner `weave-live-mac-mini`
 - public local entrypoint: `https://weave.test:44443/`
@@ -51,7 +57,9 @@ The persistent test stack defaults to update mode:
 - run operator checks;
 - upload a support-safe `weave-test-stack-evidence` artifact.
 
-Persistent dogfood contains only the single configured human tester identity. Disposable author, collaborator, outsider, and legacy `test` automation identities belong only to the isolated E2E namespace and are removed with it.
+Persistent dogfood contains only configured human identities. Run-scoped
+`testApp` owners, members, files, cells, and workload clients belong only to the
+isolated namespace and are removed with it.
 
 There is no persistent reset input. Persistent state deletion is a separate protected recovery
 operation and is never part of normal promotion.
@@ -68,7 +76,14 @@ does not inventory every persistent resource.
 
 ## Dogfood candidate validation
 
-A promotion PR from `dev` to `dogfood` is the normal place for full or feature-relevant live validation. After the candidate lands, `Live Stack E2E` repeats the isolated evidence on the exact `dogfood` commit; only that successful run can trigger persistent `Test Stack Deploy`. The live workflow generates acceptance-contract evidence from `e2e/features/` and `e2e/scenario_mappings.json`, uses a booted iPhone Simulator for functional proof, and uploads only support-safe artifacts. It may destructively reset its temporary validation stack, but the persistent dogfood stack is updated separately and never receives its disposable identities.
+A promotion PR from `dev` to `dogfood` is the normal place for full or
+feature-relevant live validation. After the candidate lands, `Live Stack
+Product Flow` runs `./gradlew testApp` on the exact commit; only that successful
+run can trigger persistent `Test Stack Deploy`. It uses real Keycloak required
+actions in Chromium, PKCE, WebDAV, workload OAuth and MCP, uploads only the
+allowlisted `weave-test-app-evidence.json`, and tears down its temporary
+namespace. Flutter system-browser authentication and VoiceOver remain
+physical-device gates, never simulator or credential-injection lanes.
 
 The old pattern of a scheduled destructive full-E2E run from `main` is not the target model. `main` may keep lightweight smoke, release, or tag checks, but it must not be the primary noisy/destructive full-stack reset lane.
 

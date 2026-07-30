@@ -72,7 +72,7 @@
     "server/src/main/java/com/massimotter/weave/backend/service/interop/SlackSecretResolver.java",
     "server/src/main/java/com/massimotter/weave/backend/service/interop/SlackSignatureVerifier.java",
     "server/src/main/java/com/massimotter/weave/backend/service/migration/MigrationDryRunService.java",
-    "server/src/main/resources/application.yml",
+    "server/src/main/resources/application-base.yml",
     "server/src/main/resources/canonical-domain-registry-v1.json",
     "server/src/test/java/com/massimotter/weave/backend/bdd/ProviderStackReadinessStepDefinitions.java",
     "server/src/test/java/com/massimotter/weave/backend/chat/ChatDomainFacadeServiceTest.java",

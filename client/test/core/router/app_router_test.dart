@@ -15,7 +15,6 @@ import 'package:weave/features/chat/presentation/providers/chat_repository_provi
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
-import 'package:weave/features/app/data/services/persisted_client_upgrade_service.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
@@ -37,7 +36,6 @@ import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/profile_screen.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
-import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
@@ -352,60 +350,6 @@ void main() {
       expect(find.byType(ProfileScreen), findsOneWidget);
       expect(find.byType(NavigationBar), findsOneWidget);
     });
-
-    testWidgets(
-      'upgrades authenticated legacy storage directly into the app shell',
-      (tester) async {
-        final preferencesStore = InMemoryPreferencesStore({
-          ...buildStoredConfiguration(),
-          legacySetupCompleteKey: false,
-        });
-        final secureStore = InMemorySecureStore({
-          authSessionStorageKey: AuthSessionDto.fromSession(
-            buildTestAuthSession(),
-          ).encode(),
-          obsoleteProviderSessionStorageKey: 'obsolete-provider-session',
-        });
-        final container = createContainer(
-          configuration: null,
-          secureStore: secureStore,
-          preferencesStore: preferencesStore,
-          usePersistedConfiguration: true,
-        );
-        addTearDown(container.dispose);
-
-        await tester.pumpWidget(
-          UncontrolledProviderScope(
-            container: container,
-            child: const WeaveApp(),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        expect(find.byType(NavigationBar), findsOneWidget);
-        expect(find.byType(HomeScreen), findsOneWidget);
-        expect(await preferencesStore.getBool(legacySetupCompleteKey), isNull);
-        expect(secureStore.rawValue(authSessionStorageKey), isNotNull);
-        expect(secureStore.rawValue(obsoleteProviderSessionStorageKey), isNull);
-        expect(
-          container
-              .read(appRouterProvider)
-              .routeInformationProvider
-              .value
-              .uri
-              .path,
-          AppRoutes.home,
-        );
-        // LEGACY_FIRST_RUN_UPGRADE_RESULT is intentionally support-safe: it
-        // records only the upgrade outcomes, never configuration or tokens.
-        // ignore: avoid_print
-        print(
-          'LEGACY_FIRST_RUN_UPGRADE_RESULT '
-          'legacyPreferencesRemoved=true legacySecureStateRemoved=true '
-          'sessionPreserved=true appShell=true',
-        );
-      },
-    );
 
     testWidgets(
       'keeps every current member route reachable when Calendar is unavailable',

@@ -18,6 +18,8 @@ readonly DEFAULT_CONTAINERS=(
   "${RESOURCE_PREFIX}-nextcloud"
   "${RESOURCE_PREFIX}-mailpit"
   "${RESOURCE_PREFIX}-db"
+  "${RESOURCE_PREFIX}-schema-init"
+  "${RESOURCE_PREFIX}-runtime-state-init"
 )
 
 OUTPUT_DIR="${1:-${WEAVE_LIVE_STACK_FAILURE_DIAGNOSTICS_DIR:-${ROOT_DIR}/.generated/live-stack-failure-diagnostics}}"
@@ -42,14 +44,22 @@ redact_stream() {
     s#\bcredentialref://[^\s\r\n"'"'"']+#<redacted-credential-ref>#gi;
     s/\b(?:rpk|rsk)_[A-Za-z0-9_-]{20,64}\b/<redacted-key-ref>/g;
     s/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/<redacted-jwt>/g;
+    s/(flag provided but not defined:\s*)\S+/${1}<redacted>/gi;
     s/(([A-Za-z0-9_]*(?:password|passwd|token|secret|private[_-]?key|signing[_-]?key|credential|authorization|cookie)[A-Za-z0-9_]*\s*[=:]\s*)([^\s\r\n"'"'"']+))/${2}<redacted>/gi;
+  '
+}
+
+redact_evidence_paths() {
+  WEAVE_REDACT_EVIDENCE_ROOT="${OUTPUT_DIR}" perl -pe '
+    my $root = $ENV{"WEAVE_REDACT_EVIDENCE_ROOT"};
+    s/\Q$root\E/<evidence-root>/g if defined $root && length $root;
   '
 }
 
 scan_for_unredacted_secrets() {
   local path="$1" findings
   findings="$(grep -RIliE \
-    'BEGIN ((RSA|EC|OPENSSH) )?PRIVATE KEY|[a-z][a-z0-9+.-]*://[^[:space:]/@:]+:[^[:space:]/@]+@|Authorization:[[:space:]]+(Bearer|Basic)[[:space:]]+[^<[:space:]]|([A-Za-z0-9_]*(PASSWORD|TOKEN|SECRET|PRIVATE_KEY|SIGNING_KEY|CREDENTIAL)[A-Za-z0-9_]*[=:][[:space:]]*[^<[:space:]]+)|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}' \
+    'BEGIN ((RSA|EC|OPENSSH) )?PRIVATE KEY|[a-z][a-z0-9+.-]*://[^[:space:]/@:]+:[^[:space:]/@]+@|Authorization:[[:space:]]+(Bearer|Basic)[[:space:]]+[^<[:space:]]|flag provided but not defined:[[:space:]]+[^<[:space:]]|([A-Za-z0-9_]*(PASSWORD|TOKEN|SECRET|PRIVATE_KEY|SIGNING_KEY|CREDENTIAL)[A-Za-z0-9_]*[=:][[:space:]]*[^<[:space:]]+)|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}' \
     "${path}" 2>/dev/null || true)"
   if [[ -n "${findings}" ]]; then
     printf 'Failure diagnostics redaction check failed; possible secret material remains in:\n%s\n' "${findings}" >&2
@@ -59,14 +69,6 @@ scan_for_unredacted_secrets() {
 
 json_escape() {
   jq -Rs .
-}
-
-relative_or_absolute() {
-  local path="$1"
-  case "${path}" in
-    "${ROOT_DIR}"/*) printf '%s' "${path#"${ROOT_DIR}/"}" ;;
-    *) printf '%s' "${path}" ;;
-  esac
 }
 
 is_path_under() {
@@ -129,6 +131,52 @@ write_failed_markers() {
   printf '{"schema":"weave-live-stack-failed-markers-v1","status":"acceptance-evidence-not-generated"}\n' >"${target}"
 }
 
+write_redacted_container_diagnostic() {
+  local container="$1"
+  local target="$2"
+  mkdir -p "$(dirname -- "${target}")"
+  if ! command -v docker >/dev/null 2>&1; then
+    printf 'container diagnostic unavailable: docker is unavailable\n' >"${target}"
+    return
+  fi
+  if ! docker inspect "${container}" >/dev/null 2>&1; then
+    printf 'container diagnostic unavailable: container not found\n' >"${target}"
+    return
+  fi
+  docker logs --tail 200 "${container}" 2>&1 |
+    redact_stream |
+    redact_evidence_paths >"${target}"
+}
+
+write_backend_readiness_diagnostic() {
+  local container="$1"
+  local target="$2"
+  mkdir -p "$(dirname -- "${target}")"
+  if ! command -v docker >/dev/null 2>&1 ||
+      ! docker inspect "${container}" >/dev/null 2>&1; then
+    printf '{"schema":"weave-backend-readiness-diagnostic-v1","status":"unavailable"}\n' >"${target}"
+    return
+  fi
+  set +e
+  docker exec "${container}" \
+      curl --silent --show-error --max-time 5 http://127.0.0.1:8080/api/health/ready 2>/dev/null |
+    jq '{
+      schema: "weave-backend-readiness-diagnostic-v1",
+      status: (.status // "unavailable"),
+      checks: [(.checks // [])[] | {
+        key: (.key // "unknown"),
+        status: (.status // "unknown"),
+        readiness: (.readiness // "unknown"),
+        actionRequired: ((.action // "") != "")
+      }]
+    }' >"${target}"
+  local status=${PIPESTATUS[0]}
+  set -e
+  if ((status != 0)) || [[ ! -s "${target}" ]]; then
+    printf '{"schema":"weave-backend-readiness-diagnostic-v1","status":"unavailable"}\n' >"${target}"
+  fi
+}
+
 write_support_bundle() {
   local target_dir="$1"
   mkdir -p "${target_dir}"
@@ -138,7 +186,8 @@ write_support_bundle() {
     bash "${ROOT_DIR}/support-bundle.sh" "${WEAVE_PROFILE:-test}" "${target_dir}" >"${target_dir}/support-bundle-command.txt" 2>&1
   local status=$?
   set -e
-  redact_stream <"${target_dir}/support-bundle-command.txt" >"${target_dir}/support-bundle-command.redacted.txt"
+  redact_stream <"${target_dir}/support-bundle-command.txt" |
+    redact_evidence_paths >"${target_dir}/support-bundle-command.redacted.txt"
   mv "${target_dir}/support-bundle-command.redacted.txt" "${target_dir}/support-bundle-command.txt"
   printf '%s\n' "${status}" >"${target_dir}/support-bundle-exit-status.txt"
   find "${target_dir}" -maxdepth 1 -name 'weave-compose-support-*.tar.gz' -print -quit
@@ -180,10 +229,23 @@ main() {
   local operator_status="${OUTPUT_DIR}/health-checks/operator-check-exit-status.txt"
   local failed_markers="${OUTPUT_DIR}/failed-markers.json"
   local private_status="${OUTPUT_DIR}/private-raw-logs-status.txt"
+  local schema_init_diagnostic="${OUTPUT_DIR}/one-shot/schema-init.log"
+  local runtime_state_init_diagnostic="${OUTPUT_DIR}/one-shot/runtime-state-init.log"
+  local keycloak_runtime_diagnostic="${OUTPUT_DIR}/runtime/keycloak.log"
 
   write_container_status "${container_status}"
   write_operator_check "${operator_check}" "${operator_status}"
   write_failed_markers "${failed_markers}"
+  write_redacted_container_diagnostic \
+    "${RESOURCE_PREFIX}-schema-init" "${schema_init_diagnostic}"
+  write_redacted_container_diagnostic \
+    "${RESOURCE_PREFIX}-runtime-state-init" "${runtime_state_init_diagnostic}"
+  write_redacted_container_diagnostic \
+    "${RESOURCE_PREFIX}-keycloak" "${keycloak_runtime_diagnostic}"
+  write_redacted_container_diagnostic \
+    "${RESOURCE_PREFIX}-backend" "${OUTPUT_DIR}/runtime/backend-startup.log"
+  write_backend_readiness_diagnostic \
+    "${RESOURCE_PREFIX}-backend" "${OUTPUT_DIR}/health-checks/backend-readiness.json"
   local support_bundle=""
   support_bundle="$(write_support_bundle "${OUTPUT_DIR}/support-bundle" || true)"
   write_private_raw_logs_if_requested "${OUTPUT_DIR}" "${private_status}"
@@ -193,7 +255,7 @@ main() {
   support_exit="$(cat "${OUTPUT_DIR}/support-bundle/support-bundle-exit-status.txt")"
   private_status_text="$(cat "${private_status}" | redact_stream)"
   if [[ -n "${support_bundle}" ]]; then
-    bundle_reference="$(relative_or_absolute "${support_bundle}")"
+    bundle_reference="support-bundle/$(basename -- "${support_bundle}")"
   else
     bundle_reference="support bundle not written; see support-bundle/support-bundle-command.txt"
   fi
@@ -207,7 +269,12 @@ This directory is support-safe by default. It intentionally does not dump raw co
 
 - Container status: \`container-status.tsv\`
 - Readiness check output: \`health-checks/operator-check.txt\` (exit ${operator_exit})
+- Support-safe backend readiness state: \`health-checks/backend-readiness.json\`
 - Failed or missing acceptance markers: \`failed-markers.json\`
+- Redacted schema initializer diagnostic: \`one-shot/schema-init.log\`
+- Redacted RuntimeState initializer diagnostic: \`one-shot/runtime-state-init.log\`
+- Redacted Keycloak runtime diagnostic: \`runtime/keycloak.log\`
+- Redacted backend startup diagnostic: \`runtime/backend-startup.log\`
 - Redacted support bundle: \`${bundle_reference}\` (exit ${support_exit})
 - Private raw logs: ${private_status_text}
 
@@ -223,7 +290,12 @@ MD
     printf '  "rawContainerLogsIncluded": false,\n'
     printf '  "containerStatus": "container-status.tsv",\n'
     printf '  "operatorCheck": {"path": "health-checks/operator-check.txt", "exitStatus": %s},\n' "${operator_exit}"
+    printf '  "backendReadiness": "health-checks/backend-readiness.json",\n'
     printf '  "failedMarkers": "failed-markers.json",\n'
+    printf '  "schemaInitDiagnostic": "one-shot/schema-init.log",\n'
+    printf '  "runtimeStateInitDiagnostic": "one-shot/runtime-state-init.log",\n'
+    printf '  "keycloakRuntimeDiagnostic": "runtime/keycloak.log",\n'
+    printf '  "backendStartupDiagnostic": "runtime/backend-startup.log",\n'
     printf '  "supportBundleReference": %s,\n' "$(printf '%s' "${bundle_reference}" | json_escape)"
     printf '  "privateRawLogs": %s\n' "$(printf '%s' "${private_status_text}" | json_escape)"
     printf '}\n'

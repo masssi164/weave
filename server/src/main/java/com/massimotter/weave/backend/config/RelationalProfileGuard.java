@@ -35,5 +35,10 @@ public final class RelationalProfileGuard implements SmartInitializingSingleton 
             throw new IllegalStateException(
                     "The test/prod server profiles require the PostgreSQL driver");
         }
+        String ddlMode = environment.getProperty("spring.jpa.hibernate.ddl-auto", "");
+        if (!"validate".equals(ddlMode)) {
+            throw new IllegalStateException(
+                    "The test/prod serving profiles require Hibernate validate");
+        }
     }
 }

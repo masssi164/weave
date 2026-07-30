@@ -26,6 +26,7 @@ TEXT_SECRETS = (
     "keycloak-bootstrap-admin-password",
     "postgres-admin-password",
     "backend-db-password",
+    "identity-reference-hmac-key",
     "keycloak-db-password",
     "mas-db-password",
     "synapse-db-password",
@@ -34,21 +35,33 @@ TEXT_SECRETS = (
     "nextcloud-admin-password",
     "nextcloud-actor-token",
     "keycloak-weave-identity-admin",
-    "keycloak-weave-agent-runtime-admin",
     "keycloak-nextcloud",
     "keycloak-matrix-mas",
-    "mas-encryption-secret",
     "mas-matrix-secret",
     "synapse-registration-shared-secret",
     "synapse-macaroon-secret-key",
     "synapse-form-secret",
     "matrix-appservice-as-token",
     "matrix-appservice-hs-token",
+    "runtime-state-s3-secret-key",
 )
+MINIO_ACCESS_KEY_SECRETS = ("runtime-state-s3-access-key",)
+HEX_SECRETS = (
+    # MAS requires exactly 32 bytes encoded as 64 lowercase hexadecimal
+    # characters for database/cookie encryption.
+    "mas-encryption-secret",
+)
+TEST_ONLY_SECRETS = ("identity-bootstrap-owner-token",)
 PROD_ONLY_SECRETS = ("smtp-username", "smtp-password")
 RSA_JWKS = (
     ("keycloak-weave-backend-jwk.json", "weave-backend-current"),
     ("keycloak-weave-mcp-server-jwk.json", "weave-mcp-server-current"),
+)
+RUNTIME_RSA_JWKS = (
+    (
+        "agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin",
+        "weave-agent-runtime-admin-current",
+    ),
 )
 PEM_KEYS = (
     ("mas-signing-key.pem", "RSA"),
@@ -86,6 +99,14 @@ def _atomic_write(path: Path, payload: bytes) -> None:
 
 def _random_secret() -> bytes:
     return base64.urlsafe_b64encode(secrets.token_bytes(48)).rstrip(b"=") + b"\n"
+
+
+def _random_hex_secret() -> bytes:
+    return secrets.token_hex(32).encode("ascii") + b"\n"
+
+
+def _random_minio_access_key() -> bytes:
+    return secrets.token_hex(10).upper().encode("ascii") + b"\n"
 
 
 def _read_der_length(value: bytes, offset: int) -> tuple[int, int]:
@@ -164,11 +185,100 @@ def _pem(algorithm: str) -> bytes:
     return subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout
 
 
+def _generate_leaf_certificate(
+    temporary_root: Path,
+    ca_key: Path,
+    ca_cert: Path,
+    name: str,
+    hosts: list[str],
+) -> tuple[Path, Path]:
+    key = temporary_root / f"{name}-key.pem"
+    request = temporary_root / f"{name}-request.pem"
+    cert = temporary_root / f"{name}-cert.pem"
+    extension = temporary_root / f"{name}-extension.cnf"
+    extension.write_text(
+        "\n".join(
+            (
+                "basicConstraints=critical,CA:FALSE",
+                "keyUsage=critical,digitalSignature,keyEncipherment",
+                "extendedKeyUsage=serverAuth",
+                "subjectAltName=" + ",".join(f"DNS:{host}" for host in hosts),
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    subprocess.run(
+        [
+            OPENSSL,
+            "genpkey",
+            "-algorithm",
+            "RSA",
+            "-pkeyopt",
+            "rsa_keygen_bits:3072",
+            "-out",
+            key,
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+    subprocess.run(
+        [
+            OPENSSL,
+            "req",
+            "-new",
+            "-key",
+            key,
+            "-subj",
+            f"/CN={hosts[0]}",
+            "-out",
+            request,
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            OPENSSL,
+            "x509",
+            "-req",
+            "-in",
+            request,
+            "-CA",
+            ca_cert,
+            "-CAkey",
+            ca_key,
+            "-CAcreateserial",
+            "-days",
+            "397",
+            "-sha256",
+            "-extfile",
+            extension,
+            "-out",
+            cert,
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return key, cert
+
+
 def _generate_tls(context: ComposeContext) -> None:
     root = context.tls_root
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(root, 0o700)
-    paths = {name: root / name for name in ("ca.pem", "ca-key.pem", "cert.pem", "key.pem")}
+    paths = {
+        name: root / name
+        for name in (
+            "ca.pem",
+            "ca-key.pem",
+            "cert.pem",
+            "key.pem",
+            "mailpit-cert.pem",
+            "mailpit-key.pem",
+        )
+    }
     if all(path.exists() for path in paths.values()):
         for path in paths.values():
             _assert_private_file(path)
@@ -189,33 +299,66 @@ def _generate_tls(context: ComposeContext) -> None:
         temp = Path(temporary)
         ca_key = temp / "ca-key.pem"
         ca_cert = temp / "ca.pem"
-        key = temp / "key.pem"
-        request = temp / "request.pem"
-        cert = temp / "cert.pem"
-        extension = temp / "extension.cnf"
-        extension.write_text("subjectAltName=" + ",".join(f"DNS:{host}" for host in hosts) + "\n", encoding="utf-8")
         subprocess.run([OPENSSL, "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:3072", "-out", ca_key], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         subprocess.run([OPENSSL, "req", "-x509", "-new", "-key", ca_key, "-sha256", "-days", "825", "-subj", "/CN=Weave Local Compose CA", "-out", ca_cert], check=True)
-        subprocess.run([OPENSSL, "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:3072", "-out", key], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-        subprocess.run([OPENSSL, "req", "-new", "-key", key, "-subj", f"/CN={hosts[0]}", "-out", request], check=True)
-        subprocess.run([OPENSSL, "x509", "-req", "-in", request, "-CA", ca_cert, "-CAkey", ca_key, "-CAcreateserial", "-days", "397", "-sha256", "-extfile", extension, "-out", cert], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        for source, target in ((ca_key, paths["ca-key.pem"]), (ca_cert, paths["ca.pem"]), (key, paths["key.pem"]), (cert, paths["cert.pem"])):
+        gateway_key, gateway_cert = _generate_leaf_certificate(
+            temp,
+            ca_key,
+            ca_cert,
+            "gateway",
+            hosts,
+        )
+        mailpit_key, mailpit_cert = _generate_leaf_certificate(
+            temp,
+            ca_key,
+            ca_cert,
+            "mailpit",
+            ["mailpit"],
+        )
+        generated = (
+            (ca_key, paths["ca-key.pem"]),
+            (ca_cert, paths["ca.pem"]),
+            (gateway_key, paths["key.pem"]),
+            (gateway_cert, paths["cert.pem"]),
+            (mailpit_key, paths["mailpit-key.pem"]),
+            (mailpit_cert, paths["mailpit-cert.pem"]),
+        )
+        for source, target in generated:
             _atomic_write(target, source.read_bytes())
 
 
 def _validate_existing(context: ComposeContext) -> None:
-    required = list(TEXT_SECRETS) + [name for name, _ in RSA_JWKS] + [name for name, _ in PEM_KEYS]
+    required = (
+        list(TEXT_SECRETS)
+        + list(MINIO_ACCESS_KEY_SECRETS)
+        + list(HEX_SECRETS)
+        + [name for name, _ in RSA_JWKS]
+        + [name for name, _ in RUNTIME_RSA_JWKS]
+        + [name for name, _ in PEM_KEYS]
+    )
+    if context.profile == "test":
+        required.extend(TEST_ONLY_SECRETS)
     if context.profile == "prod":
         required.extend(PROD_ONLY_SECRETS)
     for name in required:
         _assert_private_file(context.secret_root / name)
+    for name in HEX_SECRETS:
+        value = (context.secret_root / name).read_text(encoding="ascii").strip()
+        if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+            raise ContractError(f"secret must be a 32-byte lowercase hex value: {name}")
+    for name in MINIO_ACCESS_KEY_SECRETS:
+        value = (context.secret_root / name).read_text(encoding="ascii").strip()
+        if not 3 <= len(value) <= 20 or any(
+            character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" for character in value
+        ):
+            raise ContractError(f"MinIO access key must be 3-20 uppercase alphanumeric characters: {name}")
     appservice_tokens = tuple(
         (context.secret_root / name).read_bytes().strip()
         for name in ("matrix-appservice-as-token", "matrix-appservice-hs-token")
     )
     if not all(len(value) >= 64 for value in appservice_tokens) or len(set(appservice_tokens)) != 2:
         raise ContractError("Matrix Application Service tokens must be distinct high-entropy SecretRefs")
-    for name, _ in RSA_JWKS:
+    for name, _ in RSA_JWKS + RUNTIME_RSA_JWKS:
         value = json.loads((context.secret_root / name).read_text(encoding="utf-8"))
         required_fields = {"kty", "kid", "n", "e", "d", "p", "q", "dp", "dq", "qi"}
         if (
@@ -232,6 +375,11 @@ def _validate_existing(context: ComposeContext) -> None:
         raise ContractError(
             f"MCP private JWK owner uid is {mcp_jwk.stat().st_uid}; runtime requires {expected_uid}"
         )
+    runtime_admin_jwk = context.secret_root / RUNTIME_RSA_JWKS[0][0]
+    if runtime_admin_jwk.stat().st_uid != expected_uid:
+        raise ContractError(
+            "runtime-admin private JWK owner does not match the configured runtime uid"
+        )
     if context.profile == "prod":
         for name in ("ca.pem", "cert.pem", "key.pem"):
             _assert_private_file(context.tls_root / name)
@@ -243,12 +391,51 @@ def initialize(context: ComposeContext) -> None:
     if context.profile == "prod":
         _validate_existing(context)
         return
+    runtime_key_root = (
+        context.secret_root / "agent-runtime/workloads/weave/keycloak"
+    )
+    runtime_key_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(runtime_key_root, 0o700)
+    runtime_uid = int(context.env["WEAVE_RUNTIME_UID"])
+    runtime_gid = int(context.env["WEAVE_RUNTIME_GID"])
+    for parent in (
+        context.secret_root / "agent-runtime",
+        context.secret_root / "agent-runtime/workloads",
+        context.secret_root / "agent-runtime/workloads/weave",
+        runtime_key_root,
+    ):
+        os.chmod(parent, 0o700)
+        if parent.stat().st_uid != runtime_uid or parent.stat().st_gid != runtime_gid:
+            try:
+                os.chown(parent, runtime_uid, runtime_gid)
+            except PermissionError as error:
+                raise ContractError(
+                    "runtime-admin SecretRef directory ownership is invalid"
+                ) from error
     for name in TEXT_SECRETS:
         _atomic_write(context.secret_root / name, _random_secret())
+    for name in MINIO_ACCESS_KEY_SECRETS:
+        _atomic_write(context.secret_root / name, _random_minio_access_key())
+    for name in HEX_SECRETS:
+        _atomic_write(context.secret_root / name, _random_hex_secret())
+    if context.profile == "test":
+        for name in TEST_ONLY_SECRETS:
+            _atomic_write(context.secret_root / name, _random_secret())
     for name, kid in RSA_JWKS:
         path = context.secret_root / name
         if not path.exists():
             _atomic_write(path, _rsa_jwk(kid))
+    for name, kid in RUNTIME_RSA_JWKS:
+        path = context.secret_root / name
+        if not path.exists():
+            _atomic_write(path, _rsa_jwk(kid))
+        if path.stat().st_uid != runtime_uid or path.stat().st_gid != runtime_gid:
+            try:
+                os.chown(path, runtime_uid, runtime_gid)
+            except PermissionError as error:
+                raise ContractError(
+                    "runtime-admin private JWK ownership is invalid"
+                ) from error
     for name, algorithm in PEM_KEYS:
         path = context.secret_root / name
         if not path.exists():
@@ -259,9 +446,17 @@ def initialize(context: ComposeContext) -> None:
         "schemaVersion": "weave.compose-secret-generation.v1",
         "environment": context.profile,
         "generationFingerprint": "sha256:" + hashlib.sha256(
-            canonical_json(sorted(path.name for path in context.secret_root.iterdir() if path.is_file()))
+            canonical_json(
+                sorted(
+                    str(path.relative_to(context.secret_root))
+                    for path in context.secret_root.rglob("*")
+                    if path.is_file()
+                )
+            )
         ).hexdigest(),
-        "secretCount": len([path for path in context.secret_root.iterdir() if path.is_file()]),
+        "secretCount": len(
+            [path for path in context.secret_root.rglob("*") if path.is_file()]
+        ),
         "containsSecretValues": False,
     }
     manifest_path = context.generated_root / "secret-generation.json"

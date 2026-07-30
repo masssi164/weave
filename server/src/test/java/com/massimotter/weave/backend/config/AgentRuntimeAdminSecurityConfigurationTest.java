@@ -25,12 +25,16 @@ class AgentRuntimeAdminSecurityConfigurationTest {
     }
 
     @Test
-    void canonicalWeaveAppClientRoleGrantsAdminAuthority() {
+    void selectedOrganizationWeaveAppClientRoleGrantsAdminAuthority() {
         Jwt jwt = token()
                 .claim("scope", AgentRuntimeAdminSecurityConfiguration.ADMIN_SCOPE)
-                .claim("resource_access", Map.of(
-                        "weave-app",
-                        Map.of("roles", List.of("admin"))))
+                .claim(
+                        "organization",
+                        Map.of(
+                                "weave-dogfood",
+                                Map.of(
+                                        "resource_access",
+                                        Map.of("weave-app", Map.of("roles", List.of("admin"))))))
                 .build();
 
         assertThat(security.authorities(jwt))
@@ -38,6 +42,20 @@ class AgentRuntimeAdminSecurityConfigurationTest {
                 .containsExactlyInAnyOrder(
                         AgentRuntimeAdminSecurityConfiguration.ADMIN_AUTHORITY,
                         AgentRuntimeAdminSecurityConfiguration.ADMIN_ROLE_AUTHORITY);
+    }
+
+    @Test
+    void topLevelWeaveAppClientRoleCannotGrantAdminAuthority() {
+        Jwt jwt = token()
+                .claim("scope", AgentRuntimeAdminSecurityConfiguration.ADMIN_SCOPE)
+                .claim(
+                        "resource_access",
+                        Map.of("weave-app", Map.of("roles", List.of("admin"))))
+                .build();
+
+        assertThat(security.authorities(jwt))
+                .extracting(Object::toString)
+                .containsExactly(AgentRuntimeAdminSecurityConfiguration.ADMIN_AUTHORITY);
     }
 
     private Jwt.Builder token() {

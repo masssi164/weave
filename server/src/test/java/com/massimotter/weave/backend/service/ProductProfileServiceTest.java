@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.model.ProductProfileResponse;
 import com.massimotter.weave.backend.model.UpdateProductProfileRequest;
@@ -106,8 +108,11 @@ class ProductProfileServiceTest {
                 .claim("timezone", "UTC")
                 .claim("azp", "weave-app")
                 .claim("aud", List.of("weave-app", "account"))
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                .claim("groups", List.of("team-alpha"))
+                .claim(
+                        "organization",
+                        HumanJwtTestSupport
+                                .organizationWithRolesAndGroups(
+                                        List.of("member"), List.of("team-alpha")))
                 .build();
     }
 }

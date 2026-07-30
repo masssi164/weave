@@ -18,7 +18,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.flywaydb.core.Flyway;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -256,7 +256,7 @@ class JpaCanonicalChatStoreTest {
 
         CanonicalChatStore.EvidenceSnapshot evidence = restarted.evidence(
                 author.tenantId(), room.conversationId(), PROVIDER);
-        assertThat(evidence.persistencePosture()).isEqualTo("durable-relational-jpa-flyway");
+        assertThat(evidence.persistencePosture()).isEqualTo("durable-relational-jpa-code-first");
         assertThat(evidence.canonicalCommittedEventCount()).isEqualTo(1);
         assertThat(evidence.canonicalEncryptedEventCount()).isEqualTo(1);
         assertThat(evidence.canonicalPlaintextEventCount()).isZero();
@@ -544,7 +544,7 @@ class JpaCanonicalChatStoreTest {
     }
 
     private JpaCanonicalChatStore store(DriverManagerDataSource dataSource) {
-        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+        JpaTestDatabase.initializeSchema(dataSource);
         return new JpaCanonicalChatStore(
                 CanonicalChatJpaTestFactory.authority(dataSource),
                 tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
@@ -564,12 +564,7 @@ class JpaCanonicalChatStoreTest {
     }
 
     private DriverManagerDataSource dataSource() {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName("org.h2.Driver");
-        dataSource.setUrl("jdbc:h2:mem:" + UUID.randomUUID()
-                + ";MODE=PostgreSQL;DATABASE_TO_UPPER=true;DB_CLOSE_DELAY=-1");
-        dataSource.setUsername("sa");
-        dataSource.setPassword("");
-        return dataSource;
+        return com.massimotter.weave.backend.testing.JpaTestDatabase
+                .dataSource("canonical-chat");
     }
 }

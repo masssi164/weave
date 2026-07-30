@@ -11,9 +11,11 @@ ROOT = Path(__file__).resolve().parents[1]
 MARKERS = (
     "SPRING_AI_MCP_STATEFUL_TRANSPORT",
     "MCP_WORKLOAD_EDGE_BOUND_CELL_ONLY",
-    "MCP_DOMAIN_CATALOGS_EMPTY",
+    "MCP_FILES_READ_SLICE_ACTIVE",
+    "MCP_CALENDAR_CATALOG_GUARDED",
+    "MCP_CHAT_CATALOG_GUARDED",
     "MCP_PROVIDER_NEUTRAL_OUTPUT",
-    "MCP_RUNTIME_CONTEXT_ACTIVE",
+    "MCP_STANDARD_SERVER_PROJECTION_ACTIVE",
     "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED",
     "MCP_LEGACY_RUNTIME_REMOVED",
 )
@@ -43,10 +45,22 @@ def require_absent(path: str) -> None:
 def main() -> int:
     require(
         "weave-mcp-server/build.gradle",
-        "org.springframework.boot' version '4.1.0",
-        "spring-ai-bom:2.0.0",
+        "alias(libs.plugins.spring.boot)",
+        'apply from: "${projectDir}/gradle/scripts/java-and-dependencies.gradle"',
+        'apply from: "${projectDir}/gradle/tasks/verification.gradle"',
+    )
+    require(
+        "weave-mcp-server/gradle/scripts/java-and-dependencies.gradle",
+        "spring-ai-bom:${libs.versions.spring.ai.get()}",
         "spring-ai-starter-mcp-server-webmvc",
+        "spring-boot-starter-restclient",
+        "spring-boot-starter-security-oauth2-client",
         "spring-boot-starter-security-oauth2-resource-server",
+    )
+    require(
+        "gradle/libs.versions.toml",
+        'spring-boot = "4.1.0"',
+        'spring-ai = "2.0.0"',
     )
     require(
         "weave-mcp-server/src/main/resources/application.yml",
@@ -57,7 +71,8 @@ def main() -> int:
     )
     require(
         "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpSecurityConfiguration.java",
-        '.requestMatchers("/mcp", "/mcp/**").authenticated()',
+        '.requestMatchers("/mcp", "/mcp/**")',
+        ".authenticated()",
         "McpAccessTokenTypeValidator",
         "PROTECTED_RESOURCE_METADATA_PATH",
         ".oauth2ResourceServer",
@@ -66,32 +81,20 @@ def main() -> int:
         "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpRequestAdmissionFilter.java",
         "CLIENT_CREDENTIALS_EXTENSION",
         "exchange.exchange(",
-        "exchangedTokens.authenticate(",
-        "authorization.authorize(",
-        "WORKLOAD_PRINCIPAL_ATTRIBUTE",
+        "EXCHANGED_TOKEN_ATTRIBUTE",
+        "Set.copyOf(properties.exchangeScopes())",
     )
     require(
-        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpExchangedTokenAuthenticator.java",
-        "decoder.decode(",
-        "policy.resolve(jwt)",
+        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/FilesMcpProjection.java",
+        'name = "files.search"',
+        'uri = "weave://files/{canonicalFileRef}"',
+        "readOnlyHint = true",
     )
     require(
-        "weave-runtime-security-adapters/src/main/java/com/massimotter/weave/backend/agentruntime/adapter/McpExchangedTokenPolicy.java",
-        "Exact claim-shape policy",
-        "new HashSet<>(jwt.getAudience()).equals(Set.of(apiResource))",
-        "requireNoRoles(jwt.getClaimAsMap(\"realm_access\"))",
-        "requireNoRoles(jwt.getClaimAsMap(\"resource_access\"))",
-    )
-    require(
-        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpApplicationCoreConfiguration.java",
-        "new Ed25519JcsRuntimeProfileVerifier(",
-        "new McpWorkloadAuthorizationService(",
-    )
-    require(
-        "weave-application-core/src/main/java/com/massimotter/weave/backend/agentruntime/application/McpWorkloadAuthorizationService.java",
-        "verifier.verify(envelope, now)",
-        "workloadIdentities.requireCurrentBinding(",
-        "entitlementAuthority.observe(",
+        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/FilesWebDavClient.java",
+        'HttpMethod.valueOf("SEARCH")',
+        "<w:canonical-id/>",
+        "<d:eq>",
     )
     require(
         "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpTransportConfiguration.java",
@@ -99,33 +102,52 @@ def main() -> int:
         ".mcpEndpoint(endpoint)",
     )
     require(
+        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/SpringSecurityMcpBackendTokenExchange.java",
+        "TokenExchangeOAuth2AuthorizedClientProvider",
+    )
+    require(
+        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpAuthorizationConfiguration.java",
+        "RestClientTokenExchangeTokenResponseClient",
+        "NimbusJwtClientAuthenticationParametersConverter",
+        "ClientAuthenticationMethod.PRIVATE_KEY_JWT",
+        "AuthorizationGrantType.TOKEN_EXCHANGE",
+        "OAuth2ParameterNames.AUDIENCE",
+    )
+    require(
         "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
         "publishesProtectedResourceMetadataWithoutAuthentication",
         "humanBearerCannotDiscoverTheMcpCatalog",
         "extensionNegotiationIsMandatoryForWorkloadClientCredentials",
         "boundCellIsExchangedAndDispatchedThroughTheFrameworkTransport",
+        "discoversTheCuratedFilesToolAndCanonicalResourceTemplate",
     )
     require(
-        "infra/weave-workspace/compose.yaml",
-        "WEAVE_MCP_IMAGE",
-        "/run/secrets/weave/mcp-private-jwk.json",
-        '"127.0.0.1:${WEAVE_MCP_HOST_PORT:-48085}:8091"',
+        "server/src/main/java/com/massimotter/weave/backend/config/FilesWebDavSecurityConfiguration.java",
+        '@Qualifier("filesMcpWorkloadJwtDecoder")',
+        '.securityMatcher("/dav/files", "/dav/files/**")',
+        "SCOPE_files.read",
     )
     require(
         "infra/weave-workspace/scripts/render_config.py",
-        '"WEAVE_OIDC_JWK_SET_URI": "http://keycloak:8080/realms/weave/protocol/openid-connect/certs"',
-        '"WEAVE_MCP_TOKEN_URI": "http://keycloak:8080/realms/weave/protocol/openid-connect/token"',
-        '"WEAVE_MCP_EXCHANGE_CLIENT_KEY_FILE": "/run/secrets/weave/mcp-private-jwk.json"',
-        '"WEAVE_MCP_REQUIRED_SCOPES": "mcp.tools,calendar.read"',
+        '"WEAVE_OIDC_ISSUER_URI": issuer',
+        '"WEAVE_MCP_REQUIRED_SCOPES": "mcp.tools,files.read"',
+        '"WEAVE_MCP_EXCHANGE_CLIENT_JWK_FILE": "/run/secrets/weave/mcp-private-jwk.json"',
+        '"WEAVE_MCP_BACKEND_FILES_URI": "http://backend:8080/dav/files"',
+        '"WEAVE_MCP_EXCHANGE_SCOPES": "files.read"',
+    )
+    require(
+        "infra/weave-workspace/compose.yaml",
+        "${WEAVE_GENERATED_ROOT:-./.generated/dev}/mcp/public.env",
+        '"127.0.0.1:${WEAVE_MCP_HOST_PORT:-48085}:8091"',
+        "/run/secrets/weave/mcp-private-jwk.json",
     )
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpJsonRpcController.java")
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/CanonicalMcpFeatures.java")
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpToolApprovalService.java")
-    require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/HttpMcpBackendContextResolver.java")
-    require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpBackendContextResolver.java")
-    require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpBackendContext.java")
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/WeaveTokenExchangeClient.java")
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/WeaveServerClient.java")
+    require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/HttpMcpBackendContextResolver.java")
+    require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/HttpMcpBackendTokenExchange.java")
     require_absent("server/src/main/java/com/massimotter/weave/backend/config/McpWorkloadBridgeSecurityConfiguration.java")
     require_absent("server/src/main/java/com/massimotter/weave/backend/controller/AgentRuntimeMcpContextController.java")
     require_absent("server/src/main/java/com/massimotter/weave/backend/service/WeaverMcpBridgeService.java")

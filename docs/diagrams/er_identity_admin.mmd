@@ -2,12 +2,12 @@ erDiagram
   ORGANIZATION ||--o{ USER : owns
   ORGANIZATION ||--o{ GROUP : owns
   ORGANIZATION ||--o{ ROLE : owns
-  ORGANIZATION ||--o{ PROVIDER_CONFIG : selects
+  ORGANIZATION ||--o{ IDENTITY_SOURCE_CONFIG : federates
   ORGANIZATION ||--o{ CAPABILITY_POLICY : governs
   ORGANIZATION ||--o{ WHITELIST : restricts
   ORGANIZATION ||--o{ AUDIT_EVENT : records
-  PROVIDER_CONFIG ||--o{ SECRET_REF : references
-  PROVIDER_CONFIG ||--o{ READINESS : reports
+  IDENTITY_SOURCE_CONFIG ||--o{ SECRET_REF : references
+  IDENTITY_SOURCE_CONFIG ||--o{ READINESS : reports
   USER }o--o{ GROUP : member_of
   USER }o--o{ ROLE : assigned
   GROUP }o--o{ ROLE : grants
@@ -45,12 +45,12 @@ erDiagram
     string scope
     string composite
   }
-  PROVIDER_CONFIG {
+  IDENTITY_SOURCE_CONFIG {
     string id PK
     string organizationId FK
-    string capability
-    string providerType
-    string posture
+    string platformAuthority
+    string upstreamSourceKind
+    string federationProtocol
     string state
     string endpointRefs
   }
@@ -72,14 +72,14 @@ erDiagram
   }
   SECRET_REF {
     string id PK
-    string providerConfigId FK
+    string identitySourceConfigId FK
     string name
     string resolverKey
     string rotatedAt
   }
   READINESS {
     string id PK
-    string providerConfigId FK
+    string identitySourceConfigId FK
     string status
     string checkedAt
     string supportSafeSummary

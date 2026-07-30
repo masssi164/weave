@@ -8,17 +8,11 @@ import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.port.StaleRuntimeCellException;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Instant;
-import java.util.UUID;
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 class JpaRuntimeProfileRepositoryTest {
     private static final Instant NOW = Instant.parse("2026-07-20T09:00:00Z");
@@ -31,20 +25,15 @@ class JpaRuntimeProfileRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        EmbeddedDatabase database = new EmbeddedDatabaseBuilder()
-                .setType(EmbeddedDatabaseType.H2)
-                .setName("arc-profile-" + UUID.randomUUID() + ";MODE=PostgreSQL")
-                .build();
-        new ResourceDatabasePopulator(new ClassPathResource(
-                "db/migration/V011__agent_runtime_control_foundation.sql"))
-                .execute(database);
-        new JdbcTemplate(database).execute(
-                "alter table weave_agent_runtime_profiles add column version bigint not null default 0");
+        var database = JpaTestDatabase.entityFirstDataSource("arc-profile");
         jdbc = new JdbcTemplate(database);
         var persistence = AgentRuntimeJpaTestFactory.create(database);
         cells = persistence.cells();
         profiles = persistence.profiles();
-        cell = cells.insert(cell());
+        RuntimeMemberBinding memberBinding = new RuntimeMemberBinding(ISSUER, "member-example");
+        var entitlement = AgentRuntimeJpaTestFactory.activateEntitlement(
+                persistence, "org:example", "person:example", memberBinding, NOW);
+        cell = cells.insert(cell(memberBinding, entitlement.entitlementRevision()));
     }
 
     @Test
@@ -145,16 +134,18 @@ class JpaRuntimeProfileRepositoryTest {
                 .hasMessageContaining("other semantics");
     }
 
-    private static RuntimeCell cell() {
+    private static RuntimeCell cell(
+            RuntimeMemberBinding memberBinding,
+            String entitlementRevision) {
         return RuntimeCell.provisioning(
                 "org:example", "person:example",
-                new RuntimeMemberBinding(ISSUER, "member-example"),
+                memberBinding,
                 "cell:example",
                 new RuntimeWorkloadBinding(
                         ISSUER, "service-account-weaver-cell-example", "weaver-cell-example",
                         RuntimeWorkloadBinding.AuthenticationMethod.PRIVATE_KEY_JWT,
                         "credentialref://weave/runtime/example"),
-                "entitlement:1", "workspace:1", "webdav-manifest:workspace:1",
+                entitlementRevision, "workspace:1", "webdav-manifest:workspace:1",
                 "runtime-state://org/example/person/example/state/1", "audit:example", NOW);
     }
 

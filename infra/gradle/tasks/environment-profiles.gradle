@@ -38,12 +38,6 @@
 }
 
 registerInfraCommandTask(
-    'identityTestUsersFile',
-    ['python3', 'infra/weave-workspace/scripts/create_test_users_file.py', '--output', 'infra/weave-workspace/.generated/test/test-users.json'],
-    'Create the idempotent mode-0600 local member fixture used automatically by the test profile; its random secret is never logged.'
-)
-
-registerInfraCommandTask(
     'composeDevDependenciesReady',
     ['python3', 'infra/weave-workspace/scripts/prepare_dev_dependencies.py', '--root', 'infra/weave-workspace'],
     'Build exact local trust images and reconcile the dev Compose provider dependencies for a host Spring Boot process.'
@@ -56,7 +50,7 @@ registerInfraCommandTask(
 )
 
 registerInfraCommandTask(
-    'keycloakStockImageResolve',
+    'keycloakRuntimeImageBuild',
     ['python3', 'infra/weave-workspace/scripts/build_keycloak_image.py', '--root', '.'],
-    'Pull and verify the approved stock Keycloak OCI index digest without rebuilding or relabelling it.'
+    'Build the version-pinned downstream Keycloak runtime with the built-in workload registration policy.'
 )

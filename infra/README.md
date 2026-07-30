@@ -121,15 +121,14 @@ Optional providers are fail-closed by default:
 - `weave-workspace/teardown.sh`: destructive cleanup for an exact isolated-E2E namespace only; persistent profiles have no destructive teardown path.
 - `weave-workspace/release-verify.sh`: public endpoint verification for non-local single-host installs.
 - `weave-workspace/operator-check.sh`: host-local container and health checks.
-- `weave-workspace/isolated-e2e-identities.sh`: run-scoped author/collaborator/outsider identity and real ReBAC startup inputs for disposable stacks only.
-- `weave-workspace/isolated-e2e-authorization-probes.sh`: isolated-only missing-capability, expired-token, and revoked-Matrix-session probes with strict restoration and support-safe evidence.
+- `../gradle/tasks/test-app.sh`: the single run-scoped invitation, Keycloak activation, PKCE, WebDAV, ARC, MCP, revocation, and cleanup proof.
 - `weave-workspace/isolated-e2e-calendar-outage.sh`: isolated-only Calendar outage/recovery fixture that deletes only the backend actor's disposable `weave-workspace` calendar and proves cached domain-local degradation while Files stays available.
 - `weave-workspace/persistent-dogfood-observation.sh`: read-only before/after hashes and counts for non-destructive persistent dogfood deployment evidence.
 - `weave-workspace/nextcloud-auth-security-audit.sh`: support-safe classification of recent invalid-authentication/throttle sources without counter reset or raw addresses.
 - `weave-workspace/backup.sh`, `adoption-rehearsal.sh`, `restore-private-backup.sh`, and `support-bundle.sh`: private consistency backup, isolated adoption proof, integrity-only guarded restore preflight, and support-safe diagnostics.
 - `weave-workspace/weave-mcp-tool-contract.json`: support-safe canonical domain contract and active Spring AI MCP runtime evidence.
 - `weave-workspace/compose.yaml` plus `compose.dev.yaml`, `compose.test.yaml`, and `compose.prod.yaml`: the one supported process graph and its three overlays.
-- `weave-workspace/keycloak/`: rootless one-shot Identity Ops and its test-user schema.
+- `weave-workspace/keycloak/`: rootless one-shot Desired-State Identity Ops without human-user fixtures.
 
 ## Validation
 

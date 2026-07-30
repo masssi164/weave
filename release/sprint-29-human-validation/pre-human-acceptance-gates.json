@@ -98,7 +98,7 @@
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
       "commands": ["./gradlew :server:test --tests 'com.massimotter.weave.backend.agentruntime.adapter.JdbcEncryptedRuntimeStateStoreTest'"],
-      "evidence": ["server/src/main/resources/db/migration/V013__agent_runtime_external_state.sql", "docs/evidence/weaver-security-privacy-accessibility-report.md"]
+      "evidence": ["server/src/main/resources/db/migration/V001__weave_baseline.sql", "docs/evidence/weaver-security-privacy-accessibility-report.md"]
     },
     {
       "id": "mcp-workload-identity",
@@ -106,7 +106,7 @@
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
       "commands": ["./gradlew mcpCi"],
-      "evidence": ["docs/weave-contract-java-mcp.md", "infra/docs/weave-mcp-tool-contract.md"]
+      "evidence": ["docs/weave-mcp-projection.md", "infra/docs/weave-mcp-tool-contract.md"]
     },
     {
       "id": "runtime-revoke-delete",

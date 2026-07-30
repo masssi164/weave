@@ -67,6 +67,7 @@ public class WorkspaceCapabilityService {
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
     private final AgentRuntimeEntitlementProperties runtimeEntitlementProperties;
     private final ProviderCapabilityHealthService providerHealthService;
+    private final OrganizationIdentityContextResolver identityContexts;
 
     public WorkspaceCapabilityService(
             OAuth2ResourceServerProperties resourceServerProperties,
@@ -77,7 +78,8 @@ public class WorkspaceCapabilityService {
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
                 AgentRuntimeEntitlementProperties.disabled(),
-                (ProviderCapabilityHealthService) null);
+                (ProviderCapabilityHealthService) null,
+                OrganizationIdentityContextResolver.defaults());
     }
 
     @Autowired
@@ -86,13 +88,17 @@ public class WorkspaceCapabilityService {
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
             AgentRuntimeEntitlementProperties runtimeEntitlementProperties,
-            ObjectProvider<ProviderCapabilityHealthService> providerHealthServiceProvider) {
+            ObjectProvider<ProviderCapabilityHealthService> providerHealthServiceProvider,
+            OrganizationIdentityContextResolver identityContexts) {
         this(
                 resourceServerProperties,
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
                 runtimeEntitlementProperties,
-                providerHealthServiceProvider == null ? null : providerHealthServiceProvider.getIfAvailable());
+                providerHealthServiceProvider == null
+                        ? null
+                        : providerHealthServiceProvider.getIfAvailable(),
+                identityContexts);
     }
 
     public WorkspaceCapabilityService(
@@ -105,7 +111,8 @@ public class WorkspaceCapabilityService {
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
                 runtimeEntitlementProperties,
-                (ProviderCapabilityHealthService) null);
+                (ProviderCapabilityHealthService) null,
+                OrganizationIdentityContextResolver.defaults());
     }
 
     WorkspaceCapabilityService(
@@ -114,11 +121,28 @@ public class WorkspaceCapabilityService {
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
             AgentRuntimeEntitlementProperties runtimeEntitlementProperties,
             ProviderCapabilityHealthService providerHealthService) {
+        this(
+                resourceServerProperties,
+                weaveSecurityProperties,
+                workspaceCapabilityProperties,
+                runtimeEntitlementProperties,
+                providerHealthService,
+                OrganizationIdentityContextResolver.defaults());
+    }
+
+    WorkspaceCapabilityService(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            AgentRuntimeEntitlementProperties runtimeEntitlementProperties,
+            ProviderCapabilityHealthService providerHealthService,
+            OrganizationIdentityContextResolver identityContexts) {
         this.resourceServerProperties = resourceServerProperties;
         this.weaveSecurityProperties = weaveSecurityProperties;
         this.workspaceCapabilityProperties = workspaceCapabilityProperties;
         this.runtimeEntitlementProperties = runtimeEntitlementProperties;
         this.providerHealthService = providerHealthService;
+        this.identityContexts = identityContexts;
     }
 
     WorkspaceCapabilityService(
@@ -145,7 +169,7 @@ public class WorkspaceCapabilityService {
                 status(
                         workspaceCapabilityProperties.shellAccess(),
                         shellAccessReadiness,
-                        "identity/IDM",
+                        "platform identity",
                         List.of(),
                         policy,
                         "Weave SSO shell access is available."),
@@ -232,10 +256,10 @@ public class WorkspaceCapabilityService {
         requireCapability(jwt, "admin_control_plane.readiness_read", "workspace-capability-policy", "read");
         EffectivePolicy policy = effectivePolicy(jwt);
         return new WorkspaceCapabilityPolicyResponse(
-                "identity/IDM",
-                "OIDC/SAML selected IDM",
-                "OIDC/SAML adapter contract; Keycloak is only the dogfood default, not product truth",
-                "OIDC role claims plus group claims from the selected IDM",
+                "platform identity and security",
+                "Keycloak",
+                "Keycloak federation and brokering contract for upstream LDAP, Active Directory, OIDC, and SAML sources",
+                "issuer, subject, role, and group claims issued by Keycloak",
                 policy.roles(),
                 policy.groups(),
                 policy.profileKeys(),
@@ -252,7 +276,7 @@ public class WorkspaceCapabilityService {
     }
 
     public EffectivePolicyResponse effectivePolicySnapshot(Jwt jwt, String context) {
-        OrganizationIdentityContext identity = jwt == null ? null : OrganizationIdentityContextFactory.fromJwt(jwt);
+        OrganizationIdentityContext identity = jwt == null ? null : identityContexts.resolve(jwt);
         EffectivePolicy policy = effectivePolicy(identity);
         String subject = identity == null ? "system" : identity.subject();
         String organization = identity == null ? "weave-dogfood" : identity.organizationId();
@@ -530,7 +554,7 @@ public class WorkspaceCapabilityService {
     }
 
     private EffectivePolicy effectivePolicy(Jwt jwt) {
-        return effectivePolicy(jwt == null ? null : OrganizationIdentityContextFactory.fromJwt(jwt));
+        return effectivePolicy(jwt == null ? null : identityContexts.resolve(jwt));
     }
 
     private EffectivePolicy effectivePolicy(OrganizationIdentityContext identity) {

@@ -6,18 +6,23 @@ operator-facing implementation projection of the
 
 ## Architectural boundary
 
-Keycloak is the default self-hosted identity authority, not the Weave product API. OIDC,
-OAuth 2.0, SAML, SCIM, and LDAP are the standards-facing seams. Weave domain use cases consume
-provider-neutral identity ports, and provider adapters translate those ports to Keycloak or to
-another IDM. No client may depend on Keycloak Admin REST shapes.
+Keycloak is Weave's fixed identity-management backbone and identity authority, not the Weave
+product API. Human authentication, local users, organizations, groups, roles, invitations,
+required actions, credentials, sessions, workload clients, and upstream identity integration are
+all administered through Keycloak. OIDC and OAuth 2.0 are the client-facing seams; SAML,
+OIDC brokering, and LDAP/AD federation are Keycloak-managed upstream seams. Identity is not a
+runtime-selectable southbound provider category and does not enter the provider patch panel. No
+client may depend on Keycloak Admin REST shapes.
 
 The fixed realm baseline is reconciled only by the `infra` module. Server startup, the Flutter
 client, Admin Console, and MCP server do not import or mutate realm state. Dynamic Weaver
 workload clients remain Agent Runtime Control scope and are not inferred from a human role.
 
-The organization roles are `owner`, `admin`, `member`, and `guest`. Canonical organization
-membership is represented with native Keycloak organization/group/role capabilities defined by
-the pinned desired state. Provider-specific identifiers stay behind the adapter boundary.
+The organization roles are `owner`, `admin`, `member`, and `guest`. Their flat Keycloak
+projections are `/owners`, `/admins`, `/members`, and `/guests`. The independent Weaver
+capability `agent-runtime.entitled` projects to `/capabilities/weaver`; that group path is an IDM
+implementation detail and never a Flutter, MCP, public API, or domain contract. Human role and
+Weaver capability remain orthogonal.
 
 ## Exact runtime profiles
 
@@ -74,14 +79,28 @@ The `infra` module owns environment and Identity Ops tasks under
 ./gradlew :infra:identityDevApply
 ./gradlew :infra:identityDevVerify
 
-./gradlew :infra:identityTestUsersFile
 ./gradlew :infra:identityOpsImageBuild
-./gradlew :infra:keycloakStockImageResolve
+./gradlew :infra:keycloakRuntimeImageBuild
 ```
 
 The same `plan`/`apply`/`verify` task family exists for `test` and `prod`. Test and prod require a
-private reviewed `WEAVE_ENV_FILE`; prod rejects a test-users file before any mutation. The
-mode-0600 test-user fixture is test-only, idempotent, and never logs its generated secret.
+private reviewed `WEAVE_ENV_FILE`. Desired State never contains human users or passwords.
+Automated product proof creates the owner/member through Weave invitations, completes Keycloak
+required actions in a real browser, and retains generated passwords only in process memory.
+The realm keeps native email verification enabled. Invitation registration therefore follows
+the organization action link and Keycloak's subsequent one-time `VERIFY_EMAIL` action link in
+the same browser session before credential setup. Neither Identity Ops nor Weave Server marks
+email as verified through an administrative API.
+
+Identity Ops verifies the positive delegated-administration boundary after convergence: the
+bounded service account must be able to read the exact primary organization and its own
+service-account user. Keycloak 26.7 cannot combine the required all-Users lifecycle permission
+with a realm-wide negative password-reset permission, so Weave makes no false provider-level
+deny claim. The administrative client remains Guarded behind a closed backend operation
+allowlist and an internal network boundary. Credential, required-action, impersonation,
+session-creation, and general session routes are absent; only member-bound logout after current
+organization membership verification is allowed for revocation/offboarding. A failed positive
+probe blocks apply/readiness without retaining the token or provider response.
 
 ## Session correctness
 

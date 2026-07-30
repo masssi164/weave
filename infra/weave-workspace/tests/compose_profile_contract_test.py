@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 import tempfile
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -15,16 +17,215 @@ import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
 from compose_env import ContractError, load_context  # noqa: E402
-from compose_runtime import resource_inventory, test_user_volume, validate_adoption_receipt  # noqa: E402
-from render_config import _image_digest, _render_desired  # noqa: E402
+from compose_runtime import (  # noqa: E402
+    AGENT_RUNTIME_ROOT,
+    PROFILE_SIGNING_TARGET,
+    STATE_WRAPPING_TARGET,
+    WORKLOADS_TARGET,
+    compose,
+    labels,
+    normalized_mount_graph,
+    preflight_protected_sources,
+    resource_inventory,
+    resource_labels_match,
+    validate_mount_contract,
+    validate_adoption_receipt,
+)
+from render_config import _backend_env, _image_digest, _render_desired  # noqa: E402
 
 
 def materialize_example(profile: str, destination: Path) -> Path:
     source = ROOT / f"environments/{profile}.env.example"
     value = re.sub(r"sha256:replace-with-[a-zA-Z0-9.-]+", "sha256:" + "a" * 64, source.read_text())
+    for key, suffix in (
+        ("WEAVE_GENERATED_ROOT", f"{profile}-generated"),
+        ("WEAVE_SECRET_ROOT", f"{profile}-secrets"),
+        ("WEAVE_TLS_ROOT", f"{profile}-tls"),
+    ):
+        value = re.sub(
+            rf"^{key}=.*$",
+            f"{key}={destination.parent / suffix}",
+            value,
+            flags=re.MULTILINE,
+        )
     destination.write_text(value, encoding="utf-8")
     os.chmod(destination, 0o600)
     return destination
+
+
+def resolved_model(context) -> dict[str, object]:
+    for name in ("backend", "mcp"):
+        root = context.generated_root / name
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "public.env").touch(mode=0o600)
+    result = compose(context, "config", "--format", "json", capture=True)
+    return json.loads(result.stdout)
+
+
+def expect_contract_rejection(action, message: str) -> None:
+    try:
+        action()
+    except ContractError:
+        return
+    raise AssertionError(message)
+
+
+def assert_agent_runtime_mount_boundary(model: dict[str, object]) -> None:
+    graph = validate_mount_contract(model)
+    backend = {
+        entry["target"]: entry
+        for entry in graph
+        if entry["service"] == "backend"
+        and (
+            entry["target"] == str(AGENT_RUNTIME_ROOT)
+            or str(AGENT_RUNTIME_ROOT) + "/" in entry["target"]
+        )
+    }
+    assert set(backend) == {
+        str(WORKLOADS_TARGET),
+        str(PROFILE_SIGNING_TARGET),
+        str(STATE_WRAPPING_TARGET),
+    }
+    assert backend[str(WORKLOADS_TARGET)]["access"] == "read-write"
+    assert backend[str(PROFILE_SIGNING_TARGET)]["access"] == "read-only"
+    assert backend[str(STATE_WRAPPING_TARGET)]["access"] == "read-only"
+    assert {
+        entry["target"]
+        for entry in graph
+        if entry["service"] == "backend"
+        and "weave-identity-admin" in (entry["source"] + entry["target"])
+    } == {
+        "/run/secrets/weave/spring.security.oauth2.client.registration.weave-identity-admin.client-secret"
+    }
+    initializer = {
+        entry["target"]: entry
+        for entry in graph
+        if entry["service"] == "agent-runtime-keys-init"
+    }
+    assert set(initializer) == {
+        str(PROFILE_SIGNING_TARGET),
+        str(STATE_WRAPPING_TARGET),
+    }
+    assert {entry["access"] for entry in initializer.values()} == {"read-write"}
+    runtime_admin_entries = []
+    for entry in graph:
+        coordinate = entry["source"] + entry["target"]
+        if "weave-agent-runtime-admin" in coordinate:
+            runtime_admin_entries.append(entry)
+        if entry["service"] in {
+            "mcp",
+            "mcp-secret-check",
+            "mcp-keycloak-connectivity-check",
+        }:
+            assert "weave-identity-admin" not in coordinate
+            assert "weave-backend-jwk" not in coordinate
+            assert "/agent-runtime/workloads/" not in coordinate
+    assert {
+        (entry["service"], entry["target"], entry["access"])
+        for entry in runtime_admin_entries
+    } == {
+        (
+            "identity-ops",
+            "/run/secrets/agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin",
+            "read-only",
+        )
+    }
+
+
+def assert_schema_init_boundary(model: dict[str, object]) -> None:
+    services = model["services"]
+    initializer = services["schema-init"]
+    verifier = services["schema-receipt-check"]
+    backend = services["backend"]
+    assert initializer["image"] == backend["image"] == verifier["image"]
+    assert initializer["command"] == ["schema-init"]
+    assert verifier["command"] == ["schema-receipt-check"]
+    assert initializer["restart"] == "no"
+    assert verifier["restart"] == "no"
+    assert set(initializer["networks"]) == {"weave"}
+    assert verifier["network_mode"] == "none"
+    assert initializer["depends_on"]["postgres-reconcile"]["condition"] == (
+        "service_completed_successfully"
+    )
+    assert verifier["depends_on"]["schema-init"]["condition"] == (
+        "service_completed_successfully"
+    )
+    assert backend["depends_on"]["schema-receipt-check"]["condition"] == (
+        "service_completed_successfully"
+    )
+    graph = normalized_mount_graph(model)
+    receipt_writers = {
+        entry["service"]
+        for entry in graph
+        if entry["target"].startswith("/run/weave-schema-init")
+        and entry["access"] == "read-write"
+    }
+    assert receipt_writers == {"schema-init"}
+    assert {
+        entry["service"]
+        for entry in graph
+        if entry["target"].startswith("/run/weave-schema-init")
+        and entry["access"] == "read-only"
+    } == {"schema-receipt-check"}
+    assert {
+        secret["source"]
+        for secret in initializer.get("secrets", [])
+    } == {"backend-db-password"}
+    assert not verifier.get("secrets")
+
+
+def assert_protected_source_preflight(dev, root: Path) -> None:
+    root.mkdir(mode=0o700)
+    secret_root = root / "secrets"
+    tls_root = root / "tls"
+    secret_root.mkdir(mode=0o700)
+    tls_root.mkdir(mode=0o700)
+    protected = secret_root / "probe-secret"
+    protected.write_text("withheld\n", encoding="utf-8")
+    os.chmod(protected, 0o600)
+    env = {
+        **dev.env,
+        "WEAVE_SECRET_ROOT": str(secret_root),
+        "WEAVE_TLS_ROOT": str(tls_root),
+        "WEAVE_RUNTIME_UID": str(os.getuid()),
+        "WEAVE_RUNTIME_GID": str(os.getgid()),
+    }
+    context = replace(dev, env=env)
+
+    def model_for(source: Path) -> dict[str, object]:
+        return {
+            "services": {
+                "probe": {
+                    "user": f"{os.getuid()}:{os.getgid()}",
+                    "secrets": [{"source": "probe-secret", "target": "probe-secret"}],
+                }
+            },
+            "secrets": {"probe-secret": {"file": str(source)}},
+        }
+
+    valid_model = model_for(protected)
+    graph = validate_mount_contract(valid_model)
+    preflight_protected_sources(context, valid_model, graph)
+
+    os.chmod(protected, 0o640)
+    weak_model = model_for(protected)
+    expect_contract_rejection(
+        lambda: preflight_protected_sources(
+            context, weak_model, normalized_mount_graph(weak_model)
+        ),
+        "mode-0640 protected source was accepted",
+    )
+    os.chmod(protected, 0o600)
+
+    symlink = secret_root / "probe-symlink"
+    symlink.symlink_to(protected)
+    symlink_model = model_for(symlink)
+    expect_contract_rejection(
+        lambda: preflight_protected_sources(
+            context, symlink_model, normalized_mount_graph(symlink_model)
+        ),
+        "symlink protected source was accepted",
+    )
 
 
 def main() -> None:
@@ -32,6 +233,30 @@ def main() -> None:
     assert dev.profile == "dev"
     assert dev.env["WEAVE_DEPLOYMENT_CONTEXT"] == "developer"
     assert dev.compose_files[1].name == "compose.dev.yaml"
+    dev_model = resolved_model(dev)
+    validate_mount_contract(dev_model)
+    assert "backend" not in dev_model["services"]
+    historical = labels(dev, "network", dev.env["WEAVE_DOCKER_NETWORK"])
+    historical.update(
+        {
+            "com.massimotter.weave.spec-commit": "1" * 40,
+            "com.massimotter.weave.spec-digest": "sha256:" + "2" * 64,
+            "com.massimotter.weave.candidate-commit": "3" * 40,
+            "com.massimotter.weave.candidate-manifest-digest": "sha256:" + "4" * 64,
+        }
+    )
+    assert resource_labels_match(
+        dev, "network", dev.env["WEAVE_DOCKER_NETWORK"], historical
+    )
+    wrong_generation = {**historical, "com.massimotter.weave.generation": "retired"}
+    assert not resource_labels_match(
+        dev, "network", dev.env["WEAVE_DOCKER_NETWORK"], wrong_generation
+    )
+    incomplete_provenance = dict(historical)
+    incomplete_provenance.pop("com.massimotter.weave.candidate-commit")
+    assert not resource_labels_match(
+        dev, "network", dev.env["WEAVE_DOCKER_NETWORK"], incomplete_provenance
+    )
     try:
         _image_digest(dev)
     except ContractError:
@@ -43,10 +268,42 @@ def main() -> None:
         "keycloakVersion": "26.7.0",
         "environment": "test",
         "revision": "",
-        "clientPolicies": [],
+        "clientPolicies": [
+            {
+                "key": "policy:weaver-cell-registration",
+                "name": "weaver-cell-registration",
+                "enabled": True,
+                "conditionProvider": "any-client",
+                "executorProvider": "weave-workload-client-registration-enforcer",
+                "executorVersion": "1",
+                "keycloakVersion": "26.7.0",
+                "runtimeAdminClientKey": "client:weave-agent-runtime-admin",
+                "registrationProvider": "openid-connect",
+                "identifierMetadata": "client_name",
+                "workloadRoleRef": "role:weaver-runtime",
+            }
+        ],
         "provenance": {"overlayRevision": ""},
         "realm": {"adminPermissionsEnabled": True, "frontendUrl": "", "smtp": {}},
         "organizations": [{"key": "organization:weave-primary", "alias": "weave"}],
+        "clientScopes": [
+            {
+                "key": "scope:audience-contract",
+                "mappers": [
+                    {
+                        "includedCustomAudience": "https://api.weave.test/api",
+                    },
+                    {
+                        "includedCustomAudience": "https://api.weave.test/mcp",
+                    },
+                    {
+                        "includedCustomAudience": (
+                            "https://api.weave.test/api/v1/agent-runtime"
+                        ),
+                    },
+                ],
+            },
+        ],
         "organizationGroups": [
             {
                 "key": f"organization-group:{name}",
@@ -80,13 +337,22 @@ def main() -> None:
         "serviceAccountRoleGrants": [
             {
                 "clientKey": "client:weave-identity-admin",
-                "roleRefs": ["builtin-role:realm-management:query-organizations"],
+                "roleRefs": [
+                    "builtin-role:realm-management:query-organizations",
+                    "builtin-role:realm-management:query-users",
+                ],
+            },
+            {
+                "clientKey": "client:weave-agent-runtime-admin",
+                "roleRefs": [
+                    "builtin-role:realm-management:create-client",
+                ],
             }
         ],
     }
     overlay = {
         "publicUrls": {
-            "api": "https://api.weave.local/api",
+            "api": "https://api.weave.test:9443/api",
             "auth": "https://auth.weave.local",
             "matrix": "https://matrix.weave.local",
             "weave": "https://weave.local",
@@ -112,12 +378,16 @@ def main() -> None:
         pass
     else:
         raise AssertionError("renderer accepted a legacy desired-state groups field")
-    try:
-        _render_desired({**canonical, "clientPolicies": [{"executors": ["custom"]}]}, overlay)
-    except ContractError:
-        pass
-    else:
-        raise AssertionError("renderer silently accepted unmanaged custom clientPolicies")
+    assert rendered["clientPolicies"] == canonical["clientPolicies"]
+    assert rendered["serviceAccountRoleGrants"] == canonical["serviceAccountRoleGrants"]
+    assert [
+        mapper["includedCustomAudience"]
+        for mapper in rendered["clientScopes"][0]["mappers"]
+    ] == [
+        "https://api.weave.test:9443/api",
+        "https://api.weave.test:9443/mcp",
+        "https://api.weave.test:9443/api/v1/agent-runtime",
+    ]
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary)
         test = load_context("test", ROOT, str(materialize_example("test", root / "test.env")))
@@ -132,6 +402,58 @@ def main() -> None:
         assert "--optimized" not in test_overlay
         assert _image_digest(test) == "sha256:" + "a" * 64
         assert _image_digest(prod) == "sha256:" + "a" * 64
+        backend_env = _backend_env(test)
+        assert (
+            f"WEAVE_API_BASE_URL={test.env['WEAVE_API_URL']}\n"
+            in backend_env
+        )
+        assert "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED=true\n" in backend_env
+        assert (
+            "WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID=weave-agent-runtime-admin\n"
+            in backend_env
+        )
+        assert (
+            "WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF="
+            "credentialref://weave/keycloak/weave-agent-runtime-admin\n"
+            in backend_env
+        )
+        for rendered_backend_env in (backend_env, _backend_env(prod)):
+            assert (
+                "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_ENABLED=true\n"
+                in rendered_backend_env
+            )
+            assert (
+                "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_ORGANIZATION_REF="
+                "tenant-default\n"
+                in rendered_backend_env
+            )
+            assert (
+                "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_ADAPTER_KEY="
+                "nextcloud-webdav\n"
+                in rendered_backend_env
+            )
+            assert (
+                "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_CONFIGURATION_REF="
+                "secretref:files:nextcloud\n"
+                in rendered_backend_env
+            )
+        test_model = resolved_model(test)
+        prod_model = resolved_model(prod)
+        assert_agent_runtime_mount_boundary(test_model)
+        assert_agent_runtime_mount_boundary(prod_model)
+        assert_schema_init_boundary(test_model)
+        assert_schema_init_boundary(prod_model)
+        regression = json.loads(
+            (
+                ROOT
+                / "tests/fixtures/compose/readonly-agent-runtime-parent.json"
+            ).read_text(encoding="utf-8")
+        )
+        expect_contract_rejection(
+            lambda: validate_mount_contract(regression),
+            "former read-only Agent Runtime parent topology was accepted",
+        )
+        assert_protected_source_preflight(dev, root / "protected-source-preflight")
         local_image_id = "sha256:" + "b" * 64
         isolated_overrides = {
             "WEAVE_E2E_STACK_SCOPE": "isolated",
@@ -149,7 +471,42 @@ def main() -> None:
             isolated = load_context("test", ROOT, str(root / "test.env"))
             assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
             assert isolated.env["WEAVE_KEYCLOAK_IMAGE"] == local_image_id
+            assert isolated.env["WEAVE_RUNTIME_STATE_VOLUME"].endswith(
+                "_runtime_state"
+            )
+            assert isolated.env["WEAVE_RUNTIME_STATE_IMAGE"].startswith(
+                "minio/minio@sha256:"
+            )
             assert _image_digest(isolated) == local_image_id
+            isolated_backend_env = _backend_env(isolated)
+            assert (
+                f"WEAVE_API_BASE_URL={isolated.env['WEAVE_API_URL']}\n"
+                in isolated_backend_env
+            )
+            expected_member = (
+                "weave-e2e-"
+                + hashlib.sha256(
+                    isolated_overrides["WEAVE_E2E_RUN_ID"].encode("ascii")
+                ).hexdigest()[:20]
+                + "-member"
+            )
+            assert (
+                "WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM=preferred_username\n"
+                in isolated_backend_env
+            )
+            assert (
+                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF="
+                f"user:{expected_member}\n"
+                in isolated_backend_env
+            )
+            assert (
+                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=MEMBER\n"
+                in isolated_backend_env
+            )
+            assert (
+                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF="
+                not in backend_env
+            )
             os.environ["WEAVE_E2E_STACK_SCOPE"] = "persistent"
             try:
                 load_context("test", ROOT, str(root / "test.env"))
@@ -166,7 +523,16 @@ def main() -> None:
                 else:
                     os.environ[name] = value
         runtime_source = (ROOT / "scripts/compose_runtime.py").read_text(encoding="utf-8")
-        assert 'context.root / ".generated/test/test-users.json"' in runtime_source
+        assert "WEAVE_TEST_USERS_FILE" not in runtime_source
+        assert "test-users.json" not in runtime_source
+        assert '"dev": ("caddy", "mailpit")' in runtime_source
+        assert '"test": ("caddy", "mailpit", "mcp")' in runtime_source
+        assert '"prod": ("caddy", "mcp")' in runtime_source
+        assert "HOST_APPLICATION_SERVICES" in runtime_source
+        assert '"rm",\n                "--stop",\n                "--force",' in runtime_source
+        assert 'elif command == "down":\n        if context.profile == "dev":' in runtime_source
+        assert '"--wait-timeout",\n            "600",' in runtime_source
+        assert 'script(context, "nextcloud_reconcile.py")' in runtime_source
         invalid = root / "invalid.env"
         invalid.write_text((root / "test.env").read_text().replace("WEAVE_ENVIRONMENT=test", "WEAVE_ENVIRONMENT=dogfood"))
         try:
@@ -175,27 +541,6 @@ def main() -> None:
             pass
         else:
             raise AssertionError("legacy profile value was accepted")
-        private_users = root / "users.json"
-        private_users.write_text("[]\n", encoding="utf-8")
-        os.chmod(private_users, 0o600)
-        test.env["WEAVE_TEST_USERS_FILE"] = str(private_users)
-        assert test_user_volume(test)[0] == "--volume"
-        symlink = root / "users-link.json"
-        symlink.symlink_to(private_users)
-        test.env["WEAVE_TEST_USERS_FILE"] = str(symlink)
-        try:
-            test_user_volume(test)
-        except ContractError:
-            pass
-        else:
-            raise AssertionError("symlinked test-user file was accepted")
-        prod.env["WEAVE_TEST_USERS_FILE"] = ""
-        try:
-            test_user_volume(prod)
-        except ContractError:
-            pass
-        else:
-            raise AssertionError("prod accepted an explicitly configured test-user file input")
         test.env["WEAVE_GENERATED_ROOT"] = str(root / "generated")
         candidate = "b" * 40
         receipt = test.generated_root / "adoption/adoption-receipt.json"
@@ -264,6 +609,8 @@ def main() -> None:
     assert "\n  - dogfood\n" not in compose
     assert "\n  - main\n" not in compose
     assert "\n  - test\n" in compose and "\n  - prod\n" in compose
+    assert "/run/secrets/agent-runtime:ro" not in compose
+    assert "${WEAVE_TLS_ROOT:-./.generated/dev/tls}:/certs:ro" not in compose
     print("compose profile contract tests passed")
 
 

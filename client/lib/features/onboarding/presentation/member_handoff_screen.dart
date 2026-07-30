@@ -152,6 +152,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
                     message: l10n.memberHandoffReadyTitle,
                     guidance: l10n.memberHandoffReadyGuidance(
                       access.organizationLabel,
+                      access.workspaceLabel,
                     ),
                     actionLabel: _signInBusy
                         ? l10n.signInInProgress

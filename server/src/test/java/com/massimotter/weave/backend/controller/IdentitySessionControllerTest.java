@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -49,8 +51,9 @@ class IdentitySessionControllerTest {
                 .claim("email", "member@example.invalid")
                 .claim("email_verified", true)
                 .claim(
-                        "resource_access",
-                        Map.of("weave-app", Map.of("roles", List.of())))
+                        "organization",
+                        HumanJwtTestSupport
+                                .organizationWithRoles(List.of()))
                 .build();
     }
 }

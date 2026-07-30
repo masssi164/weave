@@ -1,63 +1,121 @@
 package com.massimotter.weave.backend.identity.invitation;
 
+import com.massimotter.weave.backend.persistence.jpa.identity.ProvisioningIntentJpaEntity;
+import com.massimotter.weave.backend.persistence.jpa.identity.ProvisioningIntentJpaRepository;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import static java.util.Objects.requireNonNull;
-
-/**
- * JPA adapter for invite-first provisioning work state.
- *
- * <p>The intent is versioned in place and is not an organization-membership authorization source.
- */
-@Repository
-@Transactional(readOnly = true)
 public class JpaProvisioningIntentRepository implements ProvisioningIntentRepository {
 
     private final ProvisioningIntentJpaRepository intents;
 
     public JpaProvisioningIntentRepository(ProvisioningIntentJpaRepository intents) {
-        this.intents = requireNonNull(intents, "intents");
+        this.intents = intents;
     }
 
     @Override
     @Transactional
     public ProvisioningIntent save(ProvisioningIntent intent) {
-        ProvisioningIntent requested = requireNonNull(intent, "intent");
-        ProvisioningIntentJpaEntity entity = intents.findById(requested.intentId())
-                .orElseGet(() -> ProvisioningIntentJpaEntity.create(requested));
-        entity.apply(requested);
-        return intents.saveAndFlush(entity).toDomain();
+        ProvisioningIntentJpaEntity entity = intents.findById(intent.intentId())
+                .map(existing -> update(existing, intent))
+                .orElseGet(() -> toEntity(intent));
+        intents.saveAndFlush(entity);
+        return toDomain(entity);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<ProvisioningIntent> findById(UUID id) {
-        return intents.findById(requireNonNull(id, "id"))
-                .map(ProvisioningIntentJpaEntity::toDomain);
+        return intents.findById(id).map(this::toDomain);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<ProvisioningIntent> findByProviderInvitationId(String id) {
-        return intents.findByProviderInvitationId(requireNonNull(id, "id"))
-                .map(ProvisioningIntentJpaEntity::toDomain);
+        return intents.findByProviderInvitationId(id).map(this::toDomain);
     }
 
     @Override
-    public List<ProvisioningIntent> findPendingByEmail(
-            String tenant,
-            String organization,
-            String email) {
+    @Transactional(readOnly = true)
+    public List<ProvisioningIntent> findPendingByEmail(String tenant, String org, String email) {
         return intents
                 .findByTenantIdAndOrganizationIdAndInvitedEmailIgnoreCaseAndStatusOrderByCreatedAtDesc(
-                        tenant,
-                        organization,
-                        email,
-                        ProvisioningIntentStatus.PENDING)
+                        tenant, org, email, ProvisioningIntentStatus.PENDING.name())
                 .stream()
-                .map(ProvisioningIntentJpaEntity::toDomain)
+                .map(this::toDomain)
                 .toList();
     }
+
+    private ProvisioningIntentJpaEntity toEntity(ProvisioningIntent value) {
+        return new ProvisioningIntentJpaEntity(
+                value.intentId(),
+                value.tenantId(),
+                value.organizationId(),
+                value.invitedEmail(),
+                value.invitedEmailSha256(),
+                value.requestedRole(),
+                value.providerInvitationId(),
+                value.invitedByIssuer(),
+                value.invitedBySubject(),
+                value.auditCorrelation(),
+                value.status().name(),
+                value.appliedSubject(),
+                value.failureCode(),
+                persistedInstant(value.expiresAt()),
+                persistedInstant(value.createdAt()),
+                persistedInstant(value.updatedAt()));
+    }
+
+    private ProvisioningIntentJpaEntity update(
+            ProvisioningIntentJpaEntity existing,
+            ProvisioningIntent value) {
+        if (!existing.tenantId().equals(value.tenantId())
+                || !existing.organizationId().equals(value.organizationId())
+                || !existing.invitedEmail().equals(value.invitedEmail())
+                || !existing.invitedEmailSha256().equals(value.invitedEmailSha256())
+                || !existing.requestedRole().equals(value.requestedRole())
+                || !existing.invitedByIssuer().equals(value.invitedByIssuer())
+                || !existing.invitedBySubject().equals(value.invitedBySubject())
+                || !existing.auditCorrelation().equals(value.auditCorrelation())
+                || !existing.expiresAt().equals(persistedInstant(value.expiresAt()))
+                || !existing.createdAt().equals(persistedInstant(value.createdAt()))) {
+            throw new IllegalStateException("provisioning intent immutable identity changed");
+        }
+        existing.updateMutableState(
+                value.providerInvitationId(),
+                value.status().name(),
+                value.appliedSubject(),
+                value.failureCode(),
+                persistedInstant(value.updatedAt()));
+        return existing;
+    }
+
+    private static Instant persistedInstant(Instant value) {
+        return value.truncatedTo(ChronoUnit.MILLIS);
+    }
+
+    private ProvisioningIntent toDomain(ProvisioningIntentJpaEntity value) {
+        return new ProvisioningIntent(
+                value.intentId(),
+                value.tenantId(),
+                value.organizationId(),
+                value.invitedEmail(),
+                value.invitedEmailSha256(),
+                value.requestedRole(),
+                value.providerInvitationId(),
+                value.invitedByIssuer(),
+                value.invitedBySubject(),
+                value.auditCorrelation(),
+                ProvisioningIntentStatus.valueOf(value.status()),
+                value.appliedSubject(),
+                value.failureCode(),
+                value.expiresAt(),
+                value.createdAt(),
+                value.updatedAt());
+    }
+
 }

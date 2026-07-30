@@ -55,4 +55,5 @@ public class ChatRuntimeConfiguration {
         return new SynapseBackedCanonicalChatAdapter(
                 canonicalChatStore, provider, properties.matrix(), objectMapper, Clock.systemUTC());
     }
+
 }

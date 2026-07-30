@@ -191,6 +191,15 @@ class CandidateSourceMappingTest(unittest.TestCase):
             labels = {"org.opencontainers.image.revision": self.source}
             if name == "identity-ops":
                 labels["com.massimotter.weave.component"] = "keycloak-identity-ops"
+            if name == "keycloak":
+                labels.update(
+                    {
+                        "com.massimotter.weave.module": module.KEYCLOAK_MODULE,
+                        "com.massimotter.weave.provider-id": module.KEYCLOAK_PROVIDER,
+                        "com.massimotter.weave.keycloak-patch-sha256": "a" * 64,
+                        "com.massimotter.weave.keycloak-patched-services-sha256": "b" * 64,
+                    }
+                )
             return subprocess.CompletedProcess(
                 arguments,
                 0,
@@ -198,11 +207,7 @@ class CandidateSourceMappingTest(unittest.TestCase):
                     {
                         "Id": image_id,
                         "Config": {"Labels": labels},
-                        "RepoDigests": (
-                            [module.STOCK_KEYCLOAK_REFERENCE]
-                            if name == "keycloak"
-                            else []
-                        ),
+                        "RepoDigests": [],
                     }
                 ),
                 "",

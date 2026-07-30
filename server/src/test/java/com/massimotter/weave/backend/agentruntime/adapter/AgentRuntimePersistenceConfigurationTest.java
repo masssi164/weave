@@ -13,7 +13,7 @@ class AgentRuntimePersistenceConfigurationTest {
     @Test
     void canonicalConfigurationHasNoRuntimeStorageSelector() throws Exception {
         String application = new String(
-                getClass().getResourceAsStream("/application.yml").readAllBytes(),
+                getClass().getResourceAsStream("/application-base.yml").readAllBytes(),
                 StandardCharsets.UTF_8);
 
         assertThat(application)

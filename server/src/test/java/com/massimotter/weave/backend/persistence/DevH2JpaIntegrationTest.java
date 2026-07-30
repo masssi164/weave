@@ -7,7 +7,6 @@ import com.massimotter.weave.backend.persistence.jpa.OrganizationBootstrapJpaRep
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +15,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.core.env.Environment;
 import org.springframework.test.context.ActiveProfiles;
 
-@DataJpaTest
+@DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=update")
 @Tag("dev-h2-integration")
 @ActiveProfiles("dev")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -26,13 +25,10 @@ class DevH2JpaIntegrationTest {
     private Environment environment;
 
     @Autowired
-    private Flyway flyway;
-
-    @Autowired
     private OrganizationBootstrapJpaRepository repository;
 
     @Test
-    void devProfileRunsFlywayThenHibernateValidationAndPersistsThroughJpa() {
+    void devProfileUsesPortableEntityGeneratedH2AndPersistsThroughJpa() {
         assertThat(environment.getActiveProfiles()).containsExactly("dev");
         assertThat(environment.getRequiredProperty("spring.datasource.url"))
                 .startsWith("jdbc:h2:mem:weave-dev")
@@ -40,12 +36,9 @@ class DevH2JpaIntegrationTest {
         assertThat(environment.getRequiredProperty("spring.datasource.driver-class-name"))
                 .isEqualTo("org.h2.Driver");
         assertThat(environment.getRequiredProperty("spring.jpa.hibernate.ddl-auto"))
-                .isEqualTo("validate");
+                .isEqualTo("update");
         assertThat(environment.getRequiredProperty("spring.jpa.open-in-view"))
                 .isEqualTo("false");
-        assertThat(flyway.info().current()).isNotNull();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("020");
-
         OffsetDateTime bootstrappedAt = OffsetDateTime.of(
                 2026, 7, 22, 12, 30, 0, 0, ZoneOffset.UTC);
         repository.saveAndFlush(new OrganizationBootstrapEntity(

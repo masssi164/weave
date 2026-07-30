@@ -8,6 +8,7 @@ public record RuntimeEntitlementObservation(
         String organizationRef,
         String personRef,
         RuntimeMemberBinding memberBinding,
+        String contextPrincipalClaim,
         String sourceProvider,
         String sourceGroupRef,
         String capabilityRevision,
@@ -18,6 +19,7 @@ public record RuntimeEntitlementObservation(
         requireText(organizationRef, "organizationRef");
         requireText(personRef, "personRef");
         Objects.requireNonNull(memberBinding, "memberBinding");
+        requireText(contextPrincipalClaim, "contextPrincipalClaim");
         requireText(sourceProvider, "sourceProvider");
         requireFingerprint(sourceGroupRef, "sourceGroupRef");
         requireFingerprint(capabilityRevision, "capabilityRevision");

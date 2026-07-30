@@ -72,15 +72,20 @@ public final class FileRuntimeStateKeyWrapper
     private final ObjectMapper mapper;
     private final Clock clock;
     private final SecureRandom secureRandom;
+    private final FileSecretStoreAccess access;
     private final ReentrantLock localLock = new ReentrantLock();
 
     public FileRuntimeStateKeyWrapper(
             Path root,
             ObjectMapper objectMapper,
             Clock clock,
-            SecureRandom secureRandom) {
+            SecureRandom secureRandom,
+            FileSecretStoreAccess access) {
         if (root == null || objectMapper == null || clock == null || secureRandom == null) {
             throw new IllegalArgumentException("wrapping-key root, mapper, clock, and randomness are required");
+        }
+        if (access == null) {
+            throw new IllegalArgumentException("wrapping-key store access is required");
         }
         if (!root.isAbsolute()) {
             throw new IllegalArgumentException("wrapping-key root must be an explicit absolute path");
@@ -96,6 +101,7 @@ public final class FileRuntimeStateKeyWrapper
                 .build();
         this.clock = clock;
         this.secureRandom = secureRandom;
+        this.access = access;
         ensureSecretDirectories();
     }
 
@@ -410,15 +416,21 @@ public final class FileRuntimeStateKeyWrapper
             if (Files.exists(root, LinkOption.NOFOLLOW_LINKS) && Files.isSymbolicLink(root)) {
                 throw unavailable("The runtime-state wrapping-key root cannot be a symbolic link", null);
             }
-            Files.createDirectories(root);
-            Files.createDirectories(keyDirectory);
+            if (access == FileSecretStoreAccess.READ_WRITE) {
+                Files.createDirectories(root);
+                Files.createDirectories(keyDirectory);
+            }
             if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)
                     || !Files.isDirectory(keyDirectory, LinkOption.NOFOLLOW_LINKS)
                     || Files.isSymbolicLink(keyDirectory)) {
                 throw unavailable("The runtime-state wrapping-key root is invalid", null);
             }
-            setPermissions(root, DIRECTORY_PERMISSIONS);
-            setPermissions(keyDirectory, DIRECTORY_PERMISSIONS);
+            if (access == FileSecretStoreAccess.READ_WRITE) {
+                setPermissions(root, DIRECTORY_PERMISSIONS);
+                setPermissions(keyDirectory, DIRECTORY_PERMISSIONS);
+            }
+            requirePrivatePermissions(root);
+            requirePrivatePermissions(keyDirectory);
         } catch (RuntimeStateStoreException failure) {
             throw failure;
         } catch (IOException failure) {
@@ -489,10 +501,21 @@ public final class FileRuntimeStateKeyWrapper
     }
 
     private <T> T readLocked(Operation<T> operation) {
+        if (access == FileSecretStoreAccess.READ_ONLY) {
+            localLock.lock();
+            try {
+                return operation.run();
+            } finally {
+                localLock.unlock();
+            }
+        }
         return locked(true, operation);
     }
 
     private <T> T writeLocked(Operation<T> operation) {
+        if (access != FileSecretStoreAccess.READ_WRITE) {
+            throw unavailable("The runtime-state wrapping-key root is read-only", null);
+        }
         return locked(false, operation);
     }
 

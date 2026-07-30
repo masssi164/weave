@@ -76,15 +76,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Project'), findsAtLeastNWidgets(1));
-    expect(find.text('Context for this room'), findsOneWidget);
-    expect(find.text('Current room'), findsOneWidget);
-    expect(find.text('Selected files'), findsOneWidget);
-    expect(find.text('Linked tasks'), findsOneWidget);
-    expect(find.text('Recent decisions'), findsOneWidget);
-    expect(
-      find.text('No agent is reading this room in the background.'),
-      findsOneWidget,
-    );
     expect(
       find.text('Decisions, risks, questions, and evidence'),
       findsOneWidget,

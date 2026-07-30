@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.domainfacade;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -50,7 +52,11 @@ class CanonicalDomainFacadeServicesTest {
             assertThat(contract.policyEvaluatedBeforeProviderAccess()).isTrue();
             assertThat(contract.unknownCapabilitiesFailClosed()).isTrue();
             assertThat(contract.normalMembersConfigureProviders()).isFalse();
-            assertThat(contract.providerCategoryKeys()).isNotEmpty();
+            if ("identity-admin-policy".equals(contract.domain())) {
+                assertThat(contract.providerCategoryKeys()).isEmpty();
+            } else {
+                assertThat(contract.providerCategoryKeys()).isNotEmpty();
+            }
             assertThat(contract.canonicalObjectKinds()).isNotEmpty();
             assertThat(contract.adapterBoundaryOperations()).isNotEmpty();
             assertThat(contract.unsupportedUntilAdapterMapped()).isNotEmpty();
@@ -94,8 +100,10 @@ class CanonicalDomainFacadeServicesTest {
             CanonicalDomainReadiness readiness = service.memberReadiness(memberJwt());
             CanonicalDomainItems items = service.items(memberJwt());
 
-            assertThat(readiness.memberState()).isEqualTo(CanonicalMemberState.MISCONFIGURED);
-            assertThat(readiness.failClosed()).isTrue();
+            boolean platformIdentity = "identity-admin-policy".equals(service.contract().domain());
+            assertThat(readiness.memberState()).isEqualTo(
+                    platformIdentity ? CanonicalMemberState.READY : CanonicalMemberState.MISCONFIGURED);
+            assertThat(readiness.failClosed()).isEqualTo(!platformIdentity);
             assertThat(readiness.supportSafe()).isTrue();
             assertThat(readiness.memberClientMayConfigureProvider()).isFalse();
             assertThat(readiness.downstreamDiagnosticsExposedToMember()).isFalse();
@@ -123,13 +131,16 @@ class CanonicalDomainFacadeServicesTest {
             CanonicalDomainReadiness readiness = service.adminReadiness(adminJwt());
 
             assertThat(readiness.memberState()).isEqualTo(CanonicalMemberState.READY);
-            assertThat(readiness.providerMappings()).isNotEmpty();
+            if ("identity-admin-policy".equals(service.contract().domain())) {
+                assertThat(readiness.providerMappings()).isEmpty();
+            } else {
+                assertThat(readiness.providerMappings()).isNotEmpty();
+            }
             assertThat(readiness.supportSafeDiagnostics())
                     .containsEntry("diagnosticsRedacted", true)
                     .containsEntry("secretRefOnly", true)
                     .containsEntry("rawProviderErrorsReturned", false);
-            assertThat(readiness.providerMappings())
-                    .allSatisfy(mapping -> {
+            assertThat(readiness.providerMappings()).allSatisfy(mapping -> {
                         assertThat(mapping.selectedByAdmin()).isTrue();
                         assertThat(mapping.configured()).isTrue();
                         assertThat(mapping.secretRefConfigured()).isTrue();
@@ -328,7 +339,7 @@ class CanonicalDomainFacadeServicesTest {
 
     private WorkspaceCapabilitiesResponse allowedCapabilities() {
         return new WorkspaceCapabilitiesResponse(
-                capability("identity/IDM", List.of("identity.sign_in", "identity.groups", "identity.roles", "policy.read"), WorkspaceCapabilityPolicyState.ALLOWED),
+                capability("platform-identity", List.of("identity.sign_in", "identity.groups", "identity.roles", "policy.read"), WorkspaceCapabilityPolicyState.ALLOWED),
                 capability("chat", List.of("chat.read"), WorkspaceCapabilityPolicyState.ALLOWED),
                 capability("files", List.of("files.read", "files.upload", "documents.view", "documents.edit"), WorkspaceCapabilityPolicyState.ALLOWED),
                 capability("calendar", List.of("calendar.read", "calendar.manage_events", "meetings.join"), WorkspaceCapabilityPolicyState.ALLOWED),
@@ -338,7 +349,7 @@ class CanonicalDomainFacadeServicesTest {
 
     private WorkspaceCapabilitiesResponse blockedCapabilities() {
         return new WorkspaceCapabilitiesResponse(
-                capability("identity/IDM", List.of(), WorkspaceCapabilityPolicyState.POLICY_BLOCKED),
+                capability("platform-identity", List.of(), WorkspaceCapabilityPolicyState.POLICY_BLOCKED),
                 capability("chat", List.of(), WorkspaceCapabilityPolicyState.POLICY_BLOCKED),
                 capability("files", List.of(), WorkspaceCapabilityPolicyState.POLICY_BLOCKED),
                 capability("calendar", List.of(), WorkspaceCapabilityPolicyState.POLICY_BLOCKED),
@@ -368,7 +379,6 @@ class CanonicalDomainFacadeServicesTest {
         selections.save(selection("calendar", "generic-calendar"));
         selections.save(selection("meetings-calls", "generic-meetings"));
         selections.save(selection("boards-tasks", "generic-boards"));
-        selections.save(selection("identity-idm", "generic-identity"));
         return selections;
     }
 
@@ -392,8 +402,7 @@ class CanonicalDomainFacadeServicesTest {
                 new StaticProviderPort(configuredProvider(ProviderModule.OFFICE, "generic-document-session", Set.of("documents.view", "documents.edit"))),
                 new StaticProviderPort(configuredProvider(ProviderModule.CALENDAR, "generic-calendar", Set.of("calendar.read", "calendar.manage_events"))),
                 new StaticProviderPort(configuredProvider(ProviderModule.MEETINGS, "generic-meetings", Set.of("meetings.join", "meetings.host"))),
-                new StaticProviderPort(configuredProvider(ProviderModule.BOARDS, "generic-boards", Set.of("boards.read", "boards.update_task"))),
-                new StaticProviderPort(configuredProvider(ProviderModule.IDENTITY_REALM, "generic-identity", Set.of("identity.sign_in", "identity.groups", "identity.roles"))));
+                new StaticProviderPort(configuredProvider(ProviderModule.BOARDS, "generic-boards", Set.of("boards.read", "boards.update_task"))));
     }
 
     private ProviderStatusResponse configuredProvider(ProviderModule module, String key, Set<String> capabilities) {
@@ -422,7 +431,7 @@ class CanonicalDomainFacadeServicesTest {
                 .header("alg", "none")
                 .subject("member-123")
                 .claim("weave_tenant", "weave-dogfood")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                 .build();
     }
 
@@ -431,7 +440,7 @@ class CanonicalDomainFacadeServicesTest {
                 .header("alg", "none")
                 .subject("admin-123")
                 .claim("weave_tenant", "weave-dogfood")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("admin"))))
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
                 .build();
     }
 
@@ -440,7 +449,7 @@ class CanonicalDomainFacadeServicesTest {
                 .header("alg", "none")
                 .subject("guest-123")
                 .claim("weave_tenant", "weave-dogfood")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("guest"))))
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("guest"))
                 .build();
     }
 }

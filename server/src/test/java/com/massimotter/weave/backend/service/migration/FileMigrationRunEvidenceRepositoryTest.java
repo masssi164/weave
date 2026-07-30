@@ -1,10 +1,8 @@
 package com.massimotter.weave.backend.service.migration;
 
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.ObjectWriter;
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
@@ -14,10 +12,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class FileMigrationRunEvidenceRepositoryTest {
 
@@ -63,11 +57,9 @@ class FileMigrationRunEvidenceRepositoryTest {
 
     @Test
     void failedFilePersistDoesNotLeaveObservableInMemoryEvidence() throws IOException {
-        Path storagePath = tempDir.resolve("migration-run-evidence.json");
-        ObjectMapper objectMapper = mock(ObjectMapper.class);
-        ObjectWriter writer = mock(ObjectWriter.class);
-        when(objectMapper.writerWithDefaultPrettyPrinter()).thenReturn(writer);
-        doThrow(new JacksonException("write failed") {}).when(writer).writeValue(any(File.class), any());
+        Path blockedParent = Files.writeString(tempDir.resolve("not-a-directory"), "blocked");
+        Path storagePath = blockedParent.resolve("migration-run-evidence.json");
+        ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
         Instant now = Instant.parse("2026-05-31T08:00:00Z");
         var repository = new FileMigrationRunEvidenceRepository(objectMapper, storagePath);
         MigrationRunEvidence evidence = new MigrationRunEvidence(

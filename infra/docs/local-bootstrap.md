@@ -90,16 +90,20 @@ contains no `SPRING_DATASOURCE_URL`, so `application-dev.yml` remains the H2 aut
 Never attach the generated, secret, or TLS roots to support issues. `support-bundle.sh dev` has a
 strict allowlist and excludes them.
 
-## Disposable three-identity E2E
+## Disposable Fresh product E2E
 
-`isolated-e2e-identities.sh prepare --run-id <unique-run>` creates a private credential env, a
-startup env, and a support-safe hashed manifest. The Compose boundary independently derives the
-same namespace as `weave-e2e-<sha256(run-id)[:16]>`, requires all ten unique bounded host ports,
-and rejects persistent dogfood membership inputs or a caller-selected namespace.
+`./gradlew testApp` creates one private, run-scoped Compose test context. Owner
+and member identities are created only through Weave invitations, Mailpit
+activation links, Keycloak required actions, and Authorization Code with PKCE.
+The proof then exercises WebDAV, governed Agent Runtime Control,
+`private_key_jwt`, OAuth token exchange, and MCP `files.search`.
 
-After stack readiness, run `provision` with `WEAVE_E2E_STACK_SCOPE=isolated`; it creates only marker-owned Keycloak users/groups and verifies the isolated backend actually loaded all three ReBAC facts. Run `cleanup` after the two collaboration passes. Keycloak cleanup is idempotent, and provider/context data is removed by destruction of that isolated stack namespace. The helper refuses persistent dogfood scope.
-
-Before the collaboration passes, run `isolated-e2e-authorization-probes.sh --run-id <same-run>` with the integration variables printed by `prepare`. The helper proves a missing Calendar capability returns `403`, a genuinely expired Keycloak token returns `401` through Chat, Files, and Calendar, and Matrix logout immediately revokes the presented Chat token. It is isolated-only, verifies exact user and backend namespace markers, restores the Calendar group plus temporary realm/client settings with an exit trap, and writes only subject hashes, booleans, and status codes to `WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH`.
+Passwords, activation links, bearer tokens, and private keys stay in the
+bounded test process or their mounted SecretRefs. The only retained artifacts
+are allowlisted support-safe product-flow and teardown evidence. The cleanup
+accepts only the deterministic `weave-e2e-<sha256(run-id)[:16]>` namespace,
+verifies ownership labels, removes its external volumes and network, and
+removes its exact generated SecretRef tree.
 
 The domain-local failure-containment fixture is also isolated-only. Run `isolated-e2e-calendar-outage.sh begin` before checking that Calendar alone becomes unavailable, then always run `isolated-e2e-calendar-outage.sh restore`. `begin` deletes only the backend actor's disposable `weave-workspace` calendar and waits for cached Calendar status `0` while cached Files remains `2`; `restore` recreates that exact calendar and waits for cached status `2`. A failed `begin` trap recreates the calendar automatically. The documented recovery command is safe to repeat:
 

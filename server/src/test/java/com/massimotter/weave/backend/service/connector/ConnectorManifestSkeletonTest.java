@@ -19,7 +19,7 @@ class ConnectorManifestSkeletonTest {
     void manifestContractDocumentsReadOnlyFailClosedConnectorSkeleton() throws Exception {
         var schema = new ObjectMapper().readTree(Files.readString(Path.of("src/main/resources/contracts/connector-manifest.schema.json")));
 
-        assertThat(schema.path("title").asText()).contains("Internal Connector Manifest Skeleton");
+        assertThat(schema.path("title").asString()).contains("Internal Connector Manifest Skeleton");
         assertThat(schema.path("properties").path("provider_writes_enabled").path("const").asBoolean()).isFalse();
         assertThat(schema.path("properties").path("release_status").path("enum").toString())
                 .contains("disabled")
@@ -27,7 +27,7 @@ class ConnectorManifestSkeletonTest {
         assertThat(schema.path("properties").path("support_safe_errors").path("items").path("enum").toString())
                 .contains("rate_limited")
                 .contains("provider_unavailable");
-        assertThat(schema.path("properties").path("webhook_refs").path("additionalProperties").path("pattern").asText())
+        assertThat(schema.path("properties").path("webhook_refs").path("additionalProperties").path("pattern").asString())
                 .isEqualTo("^webhook://.+");
     }
 

@@ -23,8 +23,6 @@ void main() {
           'chatHomeUnreadMetric',
           'chatHomeChannelsMetric',
           'chatHomePeopleMetric',
-          'chatHomeAiMetricReady',
-          'chatHomeAiMetricDisabled',
           'chatHomeContinueButton',
           'chatOverviewSectionCount',
           'chatFavoritesSectionTitle',
@@ -36,9 +34,6 @@ void main() {
           'chatChannelsSectionTitle',
           'chatChannelsSectionDescription',
           'chatChannelsSectionEmpty',
-          'chatAiChatsSectionTitle',
-          'chatAiChatsSectionDescription',
-          'chatAiChatsSectionEmpty',
         };
 
         return entry.key.startsWith('channelWorkspace') ||

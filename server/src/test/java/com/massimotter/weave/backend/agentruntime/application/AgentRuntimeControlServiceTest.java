@@ -19,21 +19,14 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthori
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthorityException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementDeniedException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZoneId;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 class AgentRuntimeControlServiceTest {
     private static final Instant NOW = Instant.parse("2026-07-20T09:00:00Z");
@@ -48,12 +41,7 @@ class AgentRuntimeControlServiceTest {
 
     @BeforeEach
     void setUp() {
-        EmbeddedDatabase database = new EmbeddedDatabaseBuilder()
-                .setType(EmbeddedDatabaseType.H2)
-                .setName("arc-service-" + UUID.randomUUID() + ";MODE=PostgreSQL")
-                .build();
-        Flyway.configure().dataSource(database)
-                .locations("classpath:db/migration").load().migrate();
+        var database = JpaTestDatabase.entityFirstDataSource("arc-service");
         var persistence = AgentRuntimeJpaTestFactory.create(database);
         cells = persistence.cells();
         workloadAdmin = new CountingWorkloadAdmin();
@@ -233,7 +221,7 @@ class AgentRuntimeControlServiceTest {
                 throw new RuntimeEntitlementAuthorityException("simulated authority outage");
             }
             return new RuntimeEntitlementObservation(
-                    command.organizationRef(), command.personRef(), command.memberBinding(), "keycloak",
+                    command.organizationRef(), command.personRef(), command.memberBinding(), "test-member", "keycloak",
                     "sha256:" + "1".repeat(64), capabilityRevision,
                     NOW, NOW.plusSeconds(300));
         }

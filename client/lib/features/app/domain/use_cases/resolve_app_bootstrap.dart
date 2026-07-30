@@ -1,7 +1,7 @@
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
-import 'package:weave/features/app/domain/ports/client_upgrade_port.dart';
+import 'package:weave/features/app/domain/ports/identity_session_port.dart';
 import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
 import 'package:weave/features/app/domain/use_cases/reconcile_identity_session.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
@@ -13,16 +13,13 @@ class ResolveAppBootstrap {
     required AppAuthPort authPort,
     required ReconcileIdentitySession reconcileIdentitySession,
     required ServerConfigurationPort serverConfigurationPort,
-    ClientUpgradePort? clientUpgradePort,
   }) : _authPort = authPort,
        _reconcileIdentitySession = reconcileIdentitySession,
-       _serverConfigurationPort = serverConfigurationPort,
-       _clientUpgradePort = clientUpgradePort;
+       _serverConfigurationPort = serverConfigurationPort;
 
   final AppAuthPort _authPort;
   final ReconcileIdentitySession _reconcileIdentitySession;
   final ServerConfigurationPort _serverConfigurationPort;
-  final ClientUpgradePort? _clientUpgradePort;
 
   Future<BootstrapState> call() async {
     try {
@@ -35,12 +32,15 @@ class ResolveAppBootstrap {
       final authConfiguration = _toAuthConfiguration(configuration);
       final authState = await _authPort.restoreSession(authConfiguration);
       if (authState.isAuthenticated) {
-        await _reconcileIdentitySession(
-          authConfiguration: authConfiguration,
+        final reconciliation = await _reconcileIdentitySession(
           backendApiBaseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
           authenticated: authState,
         );
-        await _removeObsoleteAuthenticatedState();
+        if (reconciliation ==
+            IdentitySessionReconciliation.reauthorizationRequired) {
+          await _authPort.clearLocalSession();
+          return const BootstrapState.needsSignIn();
+        }
         return const BootstrapState.ready();
       }
 
@@ -60,15 +60,6 @@ class ResolveAppBootstrap {
           cause: error,
         ),
       );
-    }
-  }
-
-  Future<void> _removeObsoleteAuthenticatedState() async {
-    try {
-      await _clientUpgradePort?.removeObsoleteAuthenticatedState();
-    } catch (_) {
-      // Upgrade cleanup cannot turn a valid authenticated launch into a global
-      // bootstrap failure. Current configuration and OIDC state stay primary.
     }
   }
 

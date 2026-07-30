@@ -1,28 +1,49 @@
 {
   "schemaVersion": "weave.compose-restore-receipt.v2",
   "supportSafe": true,
-  "generatedAt": "2026-06-04T05:49:03Z",
+  "generatedAt": "2026-07-26T19:18:52Z",
   "backupBinding": {
-    "manifestSha256": "1111111111111111111111111111111111111111111111111111111111111111",
-    "backupIdSha256": "2222222222222222222222222222222222222222222222222222222222222222",
-    "candidateCommit": "cccccccccccccccccccccccccccccccccccccccc",
+    "manifestSha256": "4a1202671a704ad5363cd9867c07f4893c4e7463310a1c0225903f125eb2b634",
+    "backupIdSha256": "48f010d8a0e63c26b376f0dd3e379b7cc81924a563f5962a1e7ac9ee45b09bf5",
+    "candidateCommit": "4f25fb17725c1bd6eac38927dca081e3c61cbd94",
     "profile": "test",
     "composeProject": "weave-disposable-proof"
   },
-  "restoreRunId": "disposable-restore-proof-issue-642-local-proof",
+  "restoreRunId": "disposable-restore-proof-architecture-hard-cut",
   "validationMode": "disposable_stack_rehearsal",
   "status": "passed",
-  "destroyStep": {"performed": true, "reason": "approved isolated disposable fixture-volume restore rehearsal"},
+  "destroyStep": {
+    "performed": true,
+    "reason": "approved disposable restore rehearsal using isolated weave_disposable_restore_* Docker volumes"
+  },
   "checks": [
-    {"name": "backup_integrity_verified", "status": "passed"},
-    {"name": "post_restore_operator_check", "status": "passed"},
-    {"name": "domain_data_recovered", "status": "passed"},
-    {"name": "no_production_volumes_touched", "status": "passed"}
+    {
+      "name": "backup_integrity_verified",
+      "status": "passed"
+    },
+    {
+      "name": "post_restore_operator_check",
+      "status": "passed"
+    },
+    {
+      "name": "domain_data_recovered",
+      "status": "passed"
+    },
+    {
+      "name": "no_production_volumes_touched",
+      "status": "passed"
+    }
   ],
   "domainDataProof": {
     "method": "seeded disposable domain fixture hashes matched after backup, destroy, restore, and validate",
-    "hashProofRef": "release/provider-lab/operator-recovery/domain-data-hashes.disposable.json",
-    "domains": ["identity-idm", "chat", "files", "calendar", "health"]
+    "hashProofRef": "domain-data-hashes.json",
+    "domains": [
+      "identity-idm",
+      "chat",
+      "files",
+      "calendar",
+      "health"
+    ]
   },
   "provesRestoredDomainData": true,
   "releaseEligible": true,

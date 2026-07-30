@@ -3,9 +3,7 @@ package com.massimotter.weave.backend.provider;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum ProviderModule {
-    IDENTITY_REALM("identity-realm"),
     MATRIX("matrix"),
-    MATRIX_AUTH("matrix-auth"),
     FILES("files"),
     OFFICE("office"),
     CALENDAR("calendar"),

@@ -39,24 +39,28 @@ public final class McpExchangedTokenPolicy {
     public ExchangedWorkloadToken resolve(Jwt jwt) {
         if (jwt == null || jwt.getIssuer() == null || blank(jwt.getSubject())
                 || jwt.getIssuedAt() == null || jwt.getExpiresAt() == null || blank(jwt.getId())) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.TOKEN_REQUIRED_CLAIMS);
         }
         if (!"at+jwt".equalsIgnoreCase(String.valueOf(jwt.getHeaders().getOrDefault("typ", "")))) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.TOKEN_TYPE);
         }
         if (!edgeClientId.equals(jwt.getClaimAsString("azp"))) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.TOKEN_REQUESTER);
         }
         String clientId = jwt.getClaimAsString("client_id");
         if (clientId != null && !edgeClientId.equals(clientId)) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.TOKEN_REQUESTER);
         }
         if (!new HashSet<>(jwt.getAudience()).equals(Set.of(apiResource)) || jwt.getAudience().size() != 1) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.TOKEN_AUDIENCE);
         }
         Set<String> scopes = exactScopes(jwt.getClaimAsString("scope"));
-        requireNoRoles(jwt.getClaimAsMap("realm_access"));
-        requireNoRoles(jwt.getClaimAsMap("resource_access"));
+        requireNoRoles(
+                jwt.getClaimAsMap("realm_access"),
+                McpWorkloadAuthorizationException.Reason.TOKEN_REALM_ROLES);
+        requireNoRoles(
+                jwt.getClaimAsMap("resource_access"),
+                McpWorkloadAuthorizationException.Reason.TOKEN_CLIENT_ROLES);
         return new ExchangedWorkloadToken(
                 jwt.getIssuer().toString(),
                 jwt.getSubject(),
@@ -69,20 +73,22 @@ public final class McpExchangedTokenPolicy {
 
     private static Set<String> exactScopes(String scopeClaim) {
         if (scopeClaim == null || scopeClaim.isBlank()) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.TOKEN_SCOPE);
         }
         String[] values = scopeClaim.trim().split("\\s+");
         LinkedHashSet<String> scopes = new LinkedHashSet<>(List.of(values));
         if (scopes.size() != values.length || scopes.isEmpty() || scopes.size() > 16
                 || scopes.stream().anyMatch(scope -> scope.isBlank() || FORBIDDEN_SCOPES.contains(scope))) {
-            throw denied();
+            throw denied(McpWorkloadAuthorizationException.Reason.TOKEN_SCOPE);
         }
         return Set.copyOf(scopes);
     }
 
-    private static void requireNoRoles(Map<String, Object> access) {
+    private static void requireNoRoles(
+            Map<String, Object> access,
+            McpWorkloadAuthorizationException.Reason reason) {
         if (access != null && !access.isEmpty()) {
-            throw denied();
+            throw denied(reason);
         }
     }
 
@@ -90,8 +96,9 @@ public final class McpExchangedTokenPolicy {
         return value == null || value.isBlank();
     }
 
-    private static McpWorkloadAuthorizationException denied() {
-        return new McpWorkloadAuthorizationException(false);
+    private static McpWorkloadAuthorizationException denied(
+            McpWorkloadAuthorizationException.Reason reason) {
+        return new McpWorkloadAuthorizationException(false, reason);
     }
 
 }

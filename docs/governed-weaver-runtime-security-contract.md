@@ -96,8 +96,9 @@ downscoped token and asks `weave-backend` to resolve current
 inbound bearer is never relayed. Public member tokens, the fixed MCP server service account, and
 unbound service accounts cannot discover or invoke tools.
 
-The domain tool, resource, and prompt catalogs are currently empty. A future catalog is a
-capability ceiling only. Discovery and invocation must intersect the fixed contract with the
+The first active catalog entry is the read-only Files projection: `files.search` plus bounded
+canonical file resources over the Weave WebDAV facade. The catalog remains a capability ceiling
+only. Discovery and invocation must intersect the fixed contract with the
 current RuntimeProfile, current entitlement, current domain permission, and runtime readiness.
 Every receiving domain independently reauthorizes the effective person and authenticated cell at
 execution time; a RuntimeProfile or approval artifact can never grant a domain permission.

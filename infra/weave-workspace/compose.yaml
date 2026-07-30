@@ -1,12 +1,23 @@
 name: ${WEAVE_COMPOSE_PROJECT:-weave-dev}
 
+x-weave-resource-labels: &weave-resource-labels
+  com.massimotter.weave.managed: "true"
+  com.massimotter.weave.environment: ${WEAVE_RESOURCE_ENVIRONMENT:-dev}
+  com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+  com.massimotter.weave.stack: ${WEAVE_RESOURCE_STACK:-weave}
+  com.massimotter.weave.generation: ${WEAVE_RESOURCE_GENERATION:-fresh-v1}
+  com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
+  com.massimotter.weave.fresh-start-eligible: "true"
+  com.massimotter.weave.spec-commit: ${WEAVE_SPEC_COMMIT:-0000000000000000000000000000000000000000}
+  com.massimotter.weave.spec-digest: ${WEAVE_SPEC_DIGEST:-sha256:0000000000000000000000000000000000000000000000000000000000000000}
+  com.massimotter.weave.candidate-commit: ${WEAVE_CANDIDATE_COMMIT:-0000000000000000000000000000000000000000}
+  com.massimotter.weave.candidate-manifest-digest: ${WEAVE_CANDIDATE_MANIFEST_DIGEST:-sha256:0000000000000000000000000000000000000000000000000000000000000000}
+
 x-weave-service: &weave-service
   restart: unless-stopped
   labels:
-    com.massimotter.weave.managed: "true"
-    com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
-    com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
-    com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+    <<: *weave-resource-labels
+    com.massimotter.weave.data-class: runtime-ephemeral
   networks:
     weave:
 
@@ -18,6 +29,10 @@ x-core-profiles: &core-profiles
 services:
   postgres:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: postgres
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles: *core-profiles
     image: ${WEAVE_POSTGRES_IMAGE:-postgres:16.9-alpine}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-db
@@ -44,10 +59,10 @@ services:
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-postgres-reconcile
     restart: "no"
     labels:
-      com.massimotter.weave.managed: "true"
-      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
-      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
-      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: postgres
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
       com.massimotter.weave.one-shot: "true"
     depends_on:
       postgres:
@@ -86,6 +101,10 @@ services:
 
   caddy:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: gateway
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles: *core-profiles
     image: ${WEAVE_CADDY_IMAGE:-caddy:2.10.0-alpine}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-proxy
@@ -111,7 +130,9 @@ services:
           - ${WEAVE_FILES_SUBDOMAIN:-files}.${WEAVE_TENANT_DOMAIN:-weave.test}
     volumes:
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}:/certs:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/certs/ca.pem:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/cert.pem:/certs/cert.pem:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/key.pem:/certs/key.pem:ro
       - caddy-data:/data
       - caddy-config:/config
     healthcheck:
@@ -127,6 +148,10 @@ services:
 
   keycloak:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: identity
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles: *core-profiles
     image: ${WEAVE_KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7.0}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-keycloak
@@ -150,11 +175,13 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_MANAGEMENT_PORT: "9000"
       KC_PROXY_HEADERS: xforwarded
+      KC_TRUSTSTORE_PATHS: /opt/weave/trust/ca.pem
     secrets:
       - keycloak-db-password
       - keycloak-bootstrap-admin-password
     volumes:
       - ./scripts/run-keycloak.sh:/opt/weave/run-keycloak.sh:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/opt/weave/trust/ca.pem:ro
       - keycloak-data:/opt/keycloak/data
     ports:
       - "127.0.0.1:${WEAVE_KEYCLOAK_HOST_PORT:-48080}:8080"
@@ -203,11 +230,6 @@ services:
         uid: "${WEAVE_RUNTIME_UID:-1000}"
         gid: "${WEAVE_RUNTIME_GID:-1000}"
         mode: 0600
-      - source: agent-runtime-admin-client-secret
-        target: keycloak-weave-agent-runtime-admin
-        uid: "${WEAVE_RUNTIME_UID:-1000}"
-        gid: "${WEAVE_RUNTIME_GID:-1000}"
-        mode: 0600
       - source: backend-client-jwk
         target: keycloak-weave-backend-jwk.json
         uid: "${WEAVE_RUNTIME_UID:-1000}"
@@ -215,6 +237,11 @@ services:
         mode: 0600
       - source: mcp-server-client-jwk
         target: keycloak-weave-mcp-server-jwk.json
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0600
+      - source: runtime-admin-client-jwk
+        target: agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin
         uid: "${WEAVE_RUNTIME_UID:-1000}"
         gid: "${WEAVE_RUNTIME_GID:-1000}"
         mode: 0600
@@ -231,14 +258,18 @@ services:
     networks:
       weave:
     labels:
-      com.massimotter.weave.managed: "true"
-      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
-      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
-      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: identity-ops
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
       com.massimotter.weave.one-shot: "true"
 
   mailpit:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: mail
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles:
       - dev
       - test
@@ -252,7 +283,8 @@ services:
       MP_SMTP_TLS_KEY: /run/mailpit/tls/key.pem
     volumes:
       - mailpit-data:/data
-      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/mailpit/tls:/run/mailpit/tls:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/mailpit-cert.pem:/run/mailpit/tls/cert.pem:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/mailpit-key.pem:/run/mailpit/tls/key.pem:ro
     ports:
       - "127.0.0.1:${WEAVE_MAILPIT_WEB_HOST_PORT:-48025}:8025"
     healthcheck:
@@ -266,6 +298,10 @@ services:
 
   mas:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: matrix-auth
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles: *core-profiles
     image: ${WEAVE_MAS_IMAGE:-ghcr.io/element-hq/matrix-authentication-service:1.15.0}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mas
@@ -315,10 +351,10 @@ services:
     restart: "no"
     user: "0:0"
     labels:
-      com.massimotter.weave.managed: "true"
-      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
-      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
-      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: chat
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
       com.massimotter.weave.one-shot: "true"
     entrypoint:
       - /bin/sh
@@ -348,6 +384,10 @@ services:
 
   synapse:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: chat
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles: *core-profiles
     image: ${WEAVE_SYNAPSE_IMAGE:-matrixdotorg/synapse:v1.136.0}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-synapse
@@ -383,6 +423,10 @@ services:
 
   nextcloud:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: files-calendar
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles: *core-profiles
     image: ${WEAVE_NEXTCLOUD_IMAGE:-nextcloud:31.0.7-apache}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-nextcloud
@@ -418,8 +462,221 @@ services:
       retries: 60
       start_period: 30s
 
+  runtime-state:
+    <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: runtime-state
+      com.massimotter.weave.data-class: runtime-state-sensitive
+      com.massimotter.weave.protocol: s3-compatible
+    profiles:
+      - test
+    image: ${WEAVE_RUNTIME_STATE_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-runtime-state
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/runtime-state-s3-access-key
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/runtime-state-s3-secret-key
+      MC_CONFIG_DIR: /tmp/.mc
+    command:
+      - server
+      - /data
+      - --console-address
+      - :9001
+    secrets:
+      - source: runtime-state-s3-access-key
+        target: runtime-state-s3-access-key
+        mode: 0400
+      - source: runtime-state-s3-secret-key
+        target: runtime-state-s3-secret-key
+        mode: 0400
+    volumes:
+      - runtime-state-data:/data
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mc ready local
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  runtime-state-init:
+    profiles:
+      - test
+    image: ${WEAVE_RUNTIME_STATE_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-runtime-state-init
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      MC_CONFIG_DIR: /tmp/.mc
+    entrypoint:
+      - /bin/sh
+      - -euc
+    command:
+      - |
+        access_key="$$(cat /run/secrets/runtime-state-s3-access-key)"
+        secret_key="$$(cat /run/secrets/runtime-state-s3-secret-key)"
+        mc alias set -- runtime-state http://runtime-state:9000 "$${access_key}" "$${secret_key}" >/dev/null
+        mc mb --ignore-existing runtime-state/weave-runtime-state >/dev/null
+        mc version enable runtime-state/weave-runtime-state >/dev/null
+        mc stat runtime-state/weave-runtime-state >/dev/null
+    depends_on:
+      runtime-state:
+        condition: service_healthy
+    secrets:
+      - source: runtime-state-s3-access-key
+        target: runtime-state-s3-access-key
+        mode: 0400
+      - source: runtime-state-s3-secret-key
+        target: runtime-state-s3-secret-key
+        mode: 0400
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    networks:
+      weave:
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: runtime-state
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
+      com.massimotter.weave.one-shot: "true"
+      com.massimotter.weave.operation: bucket-initialize
+
+  agent-runtime-keys-init:
+    profiles:
+      - test
+      - prod
+    image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-agent-runtime-keys-init
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    network_mode: none
+    entrypoint:
+      - /bin/bash
+      - -euc
+    command:
+      - |
+        if test -s /run/secrets/agent-runtime/profile-signing/runtime-profile-signing-keys.json; then
+          java -jar /app/app.jar runtime-profile-signing-keys --action=status --root=/run/secrets/agent-runtime/profile-signing >/dev/null
+        else
+          java -jar /app/app.jar runtime-profile-signing-keys --action=initialize --root=/run/secrets/agent-runtime/profile-signing --operation-ref=compose:fresh-start:profile-signing >/dev/null
+        fi
+        if test -s /run/secrets/agent-runtime/state-wrapping/runtime-state-wrapping-keys.json; then
+          java -jar /app/app.jar runtime-state-wrapping-keys --action=status --root=/run/secrets/agent-runtime/state-wrapping >/dev/null
+        else
+          java -jar /app/app.jar runtime-state-wrapping-keys --action=initialize --root=/run/secrets/agent-runtime/state-wrapping --operation-ref=compose:fresh-start:state-wrapping >/dev/null
+        fi
+    volumes:
+      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/profile-signing:/run/secrets/agent-runtime/profile-signing
+      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/state-wrapping:/run/secrets/agent-runtime/state-wrapping
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: agent-runtime-control
+      com.massimotter.weave.data-class: credential-sensitive
+      com.massimotter.weave.fresh-start-eligible: "false"
+      com.massimotter.weave.one-shot: "true"
+      com.massimotter.weave.operation: key-initialize
+
+  schema-init:
+    profiles:
+      - test
+      - prod
+    image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-schema-init
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      postgres-reconcile:
+        condition: service_completed_successfully
+    command:
+      - schema-init
+    env_file:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/backend/public.env
+    environment:
+      WEAVE_CANDIDATE_COMMIT: ${WEAVE_CANDIDATE_COMMIT}
+      WEAVE_PERSISTENCE_PASSWORD_FILE: /run/secrets/backend-db-password
+      WEAVE_SCHEMA_INIT_RECEIPT_FILE: /run/weave-schema-init/receipt.json
+    secrets:
+      - source: backend-db-password
+        target: backend-db-password
+    volumes:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/schema-init:/run/weave-schema-init
+    networks:
+      - weave
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: server-schema
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
+      com.massimotter.weave.one-shot: "true"
+      com.massimotter.weave.operation: schema-initialize
+
+  schema-receipt-check:
+    profiles:
+      - test
+      - prod
+    image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-schema-receipt-check
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
+    restart: "no"
+    read_only: true
+    network_mode: none
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      schema-init:
+        condition: service_completed_successfully
+    command:
+      - schema-receipt-check
+    environment:
+      WEAVE_CANDIDATE_COMMIT: ${WEAVE_CANDIDATE_COMMIT}
+      WEAVE_SCHEMA_INIT_RECEIPT_FILE: /run/weave-schema-init/receipt.json
+    volumes:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/schema-init:/run/weave-schema-init:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: server-schema
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
+      com.massimotter.weave.one-shot: "true"
+      com.massimotter.weave.operation: schema-receipt-verify
+
   backend:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: server
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles:
       - test
       - prod
@@ -427,10 +684,12 @@ services:
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-backend
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
     depends_on:
-      postgres-reconcile:
+      schema-receipt-check:
         condition: service_completed_successfully
       keycloak:
         condition: service_healthy
+      agent-runtime-keys-init:
+        condition: service_completed_successfully
       synapse:
         condition: service_healthy
       nextcloud:
@@ -443,14 +702,18 @@ services:
       - source: backend-db-password
         target: weave/spring.datasource.password
       - source: identity-admin-client-secret
-        target: weave/weave.identity.invitations.keycloak.client-secret
+        target: weave/spring.security.oauth2.client.registration.weave-identity-admin.client-secret
+      - source: identity-reference-hmac-key
+        target: identity-reference-hmac-key
       - source: nextcloud-actor-token
         target: weave/weave.nextcloud.files.actor-token
       - source: nextcloud-actor-token
         target: weave/weave.calendar.caldav.backend-token
     volumes:
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/agent-runtime-policy.json:/app/agent-runtime-policy.json:ro
-      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime:/run/secrets/agent-runtime:ro
+      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/workloads:/run/secrets/agent-runtime/workloads
+      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/profile-signing:/run/secrets/agent-runtime/profile-signing:ro
+      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/state-wrapping:/run/secrets/agent-runtime/state-wrapping:ro
       - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/matrix-appservice-as-token:/run/secrets/matrix/as-token:ro
       - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/matrix-appservice-hs-token:/run/secrets/matrix/hs-token:ro
     ports:
@@ -495,10 +758,10 @@ services:
     networks:
       weave:
     labels:
-      com.massimotter.weave.managed: "true"
-      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
-      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
-      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: mcp
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
       com.massimotter.weave.one-shot: "true"
 
   mcp-keycloak-connectivity-check:
@@ -527,14 +790,18 @@ services:
     networks:
       weave:
     labels:
-      com.massimotter.weave.managed: "true"
-      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
-      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
-      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: mcp
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
       com.massimotter.weave.one-shot: "true"
 
   mcp:
     <<: *weave-service
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: mcp
+      com.massimotter.weave.data-class: runtime-ephemeral
     profiles:
       - test
       - prod
@@ -598,18 +865,24 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/nextcloud-admin-password
   identity-admin-client-secret:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-identity-admin
-  agent-runtime-admin-client-secret:
-    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-agent-runtime-admin
+  identity-reference-hmac-key:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/identity-reference-hmac-key
   backend-client-jwk:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-backend-jwk.json
   mcp-server-client-jwk:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-mcp-server-jwk.json
+  runtime-admin-client-jwk:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin
   nextcloud-client-secret:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-nextcloud
   matrix-mas-client-secret:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-matrix-mas
   nextcloud-actor-token:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/nextcloud-actor-token
+  runtime-state-s3-access-key:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/runtime-state-s3-access-key
+  runtime-state-s3-secret-key:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/runtime-state-s3-secret-key
 
 volumes:
   caddy-data:
@@ -636,6 +909,9 @@ volumes:
   matrix-appservice:
     external: true
     name: ${WEAVE_MATRIX_APPSERVICE_VOLUME:-weave_matrix_chat_appservice_runtime}
+  runtime-state-data:
+    external: true
+    name: ${WEAVE_RUNTIME_STATE_VOLUME:-weave_runtime_state}
 
 networks:
   weave:

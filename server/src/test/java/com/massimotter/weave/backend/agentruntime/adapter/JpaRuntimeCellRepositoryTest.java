@@ -9,36 +9,28 @@ import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.port.StaleRuntimeCellException;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Duration;
 import java.time.Instant;
+import javax.sql.DataSource;
 import java.util.UUID;
 import java.util.Set;
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 class JpaRuntimeCellRepositoryTest {
     private static final Instant NOW = Instant.parse("2026-07-20T09:00:00Z");
 
-    private EmbeddedDatabase database;
+    private DataSource database;
+    private AgentRuntimeJpaTestFactory.Context persistence;
     private JpaRuntimeCellRepository repository;
 
     @BeforeEach
     void setUp() {
-        database = new EmbeddedDatabaseBuilder()
-                .setType(EmbeddedDatabaseType.H2)
-                .setName("arc-" + UUID.randomUUID() + ";MODE=PostgreSQL")
-                .build();
-        new ResourceDatabasePopulator(new ClassPathResource(
-                "db/migration/V011__agent_runtime_control_foundation.sql"))
-                .execute(database);
-        repository = AgentRuntimeJpaTestFactory.create(database).cells();
+        database = JpaTestDatabase.entityFirstDataSource("arc");
+        persistence = AgentRuntimeJpaTestFactory.create(database);
+        repository = persistence.cells();
     }
 
     @Test
@@ -115,7 +107,8 @@ class JpaRuntimeCellRepositoryTest {
                 "cell:example", lease, NOW, NOW.plusSeconds(60));
 
         RuntimeCell revoked = repository.revoke(
-                "org:example", "person:example", "entitlement:revoked:2", "audit:revoke", NOW.plusSeconds(1));
+                "org:example", "person:example", acquired.entitlementRevision(),
+                "audit:revoke", NOW.plusSeconds(1));
 
         assertThat(revoked.entitlementState()).isEqualTo(RuntimeEntitlementState.REVOKED);
         assertThat(revoked.desiredState()).isEqualTo(RuntimeCellState.REVOKING);
@@ -154,7 +147,7 @@ class JpaRuntimeCellRepositoryTest {
     void revokedCellsCanStillEnterTheExplicitDeletionSidePath() {
         RuntimeCell inserted = repository.insert(cell("example"));
         RuntimeCell revoked = repository.revoke(
-                inserted.organizationRef(), inserted.personRef(), "entitlement:revoked:2",
+                inserted.organizationRef(), inserted.personRef(), inserted.entitlementRevision(),
                 "audit:revoke", NOW.plusSeconds(1));
 
         RuntimeCell deleting = repository.transitionDesiredState(
@@ -166,11 +159,15 @@ class JpaRuntimeCellRepositoryTest {
         assertThat(deleting.desiredState()).isEqualTo(RuntimeCellState.DELETING);
     }
 
-    private static RuntimeCell cell(String id) {
+    private RuntimeCell cell(String id) {
+        RuntimeMemberBinding memberBinding = new RuntimeMemberBinding(
+                "https://auth.weave.test/realms/weave", "member-" + id);
+        var entitlement = AgentRuntimeJpaTestFactory.activateEntitlement(
+                persistence, "org:example", "person:" + id, memberBinding, NOW);
         return RuntimeCell.provisioning(
                 "org:example",
                 "person:" + id,
-                new RuntimeMemberBinding("https://auth.weave.test/realms/weave", "member-" + id),
+                memberBinding,
                 "cell:" + id,
                 new RuntimeWorkloadBinding(
                         "https://auth.weave.test/realms/weave",
@@ -178,7 +175,7 @@ class JpaRuntimeCellRepositoryTest {
                         "weaver-cell-" + id,
                         RuntimeWorkloadBinding.AuthenticationMethod.PRIVATE_KEY_JWT,
                         "credentialref://weave/runtime/" + id),
-                "entitlement:1",
+                entitlement.entitlementRevision(),
                 "workspace:1",
                 "webdav-manifest:workspace:1",
                 "runtime-state://org/example/person/" + id + "/state/1",

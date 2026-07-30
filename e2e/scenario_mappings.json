@@ -4,67 +4,11 @@
   "scenarios": [
     {
       "tag": "@weave-live-auth-shell",
-      "scenario": "Sign-in restores the Weave workspace and profile",
+      "scenario": "Activation and sign-in restore the workspace and refresh session",
       "feature": "e2e/features/live_stack_app.feature",
-      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
+      "executableTest": "client/integration_test/system_browser_auth_e2e_test.dart",
       "evidenceMarkers": [
-        "AUTH_RESULT",
-        "PROFILE_RESULT"
-      ],
-      "evidenceMode": "live-runtime"
-    },
-    {
-      "tag": "@weave-live-chat-content",
-      "scenario": "Weave chat sends and reads a workspace message through the backend facade",
-      "feature": "e2e/features/live_stack_app.feature",
-      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
-      "evidenceMarkers": [
-        "CHAT_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "additionalEvidence": [
-        {
-          "path": "client/test/architecture/backend_facade_contract_test.dart",
-          "fragments": [
-            "primary chat provider is wired through the Matrix Client-Server projection",
-            "member Chat screen stays on Weave-domain readiness language"
-          ]
-        },
-        {
-          "path": "client/test/features/chat/chat_room_screen_test.dart",
-          "fragments": [
-            "keeps a failed outgoing message visible with retry actions",
-            "renders encrypted and unsupported messages accessibly"
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@weave-live-matrix-e2ee",
-      "scenario": "Chat encryption diagnostic status is proved honestly",
-      "feature": "e2e/features/live_stack_app.feature",
-      "executableTest": "client/test/features/chat/domain/chat_security_state_test.dart",
-      "evidenceMarkers": [
-        "E2EE_RESULT"
-      ],
-      "evidenceMode": "offline-spec",
-      "additionalEvidence": [
-        {
-          "path": "client/test/features/chat/domain/chat_security_state_test.dart",
-          "fragments": [
-            "distinguishes Matrix signed-out from signed-in readiness",
-            "distinguishes E2EE unavailable and encrypted timeline states"
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@weave-live-files-boundary",
-      "scenario": "Files are uploaded, shown, downloaded, and cleaned up in Weave",
-      "feature": "e2e/features/live_stack_app.feature",
-      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
-      "evidenceMarkers": [
-        "FILES_RESULT"
+        "PHYSICAL_AUTH_SESSION_RESULT"
       ],
       "evidenceMode": "live-runtime"
     },
@@ -244,72 +188,6 @@
       ]
     },
     {
-      "tag": "@weave-live-provider-stack-readiness",
-      "scenario": "Provider stack readiness stays backend-owned and support-safe",
-      "feature": "e2e/features/live_stack_app.feature",
-      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
-      "evidenceMarkers": [
-        "PROVIDER_STACK_RESULT"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "client/test/live_stack_contract_test.dart",
-          "fragments": [
-            "provider stack readiness stays behind admin/operator backend facades",
-            "direct Flutter provider calls remain blocked for optional provider stack modules"
-          ]
-        },
-        {
-          "path": "client/test/architecture/backend_facade_contract_test.dart",
-          "fragments": [
-            "primary files provider is wired through the backend-facade seam",
-            "primary chat provider is wired through the Matrix Client-Server projection",
-            "workspace API DTOs use generated OpenAPI response models",
-            "profile facade uses generated OpenAPI DTO source of truth"
-          ]
-        }
-      ],
-      "evidenceMode": "live-runtime"
-    },
-    {
-      "tag": "@weave-live-workspace-loop",
-      "scenario": "Workspace loop links Space, Channel, Chat, Files, and Decision",
-      "feature": "e2e/features/live_stack_app.feature",
-      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
-      "evidenceMarkers": [
-        "WORKSPACE_LOOP_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "additionalEvidence": [
-        {
-          "path": "docs/v0.1-golden-path.md",
-          "fragments": [
-            "Release evidence states whether a capability is available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later.",
-            "Evidence artifacts must be sanitized: no secrets, tokens, cookies, private keys, credential-bearing URLs, raw provider bodies, or full private live logs."
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@weave-live-provider-reality-vertical",
-      "scenario": "Provider reality vertical reports domain availability honestly",
-      "feature": "e2e/features/live_stack_app.feature",
-      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
-      "evidenceMarkers": [
-        "PROVIDER_REALITY_RESULT"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "docs/evidence/sprint-11-manual-accessibility-evidence-template.md",
-          "fragments": [
-            "Status: evidence template pending live assistive-technology execution",
-            "This file is not pass evidence until every result cell is completed"
-          ]
-        }
-      ],
-      "evidenceMode": "live-runtime"
-    },
-    {
       "tag": "@weave-v01-home-daily-loop",
       "scenario": "Weave Home starts the daily work loop",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
@@ -339,7 +217,7 @@
           "fragments": [
             "Your organization workspace",
             "3 unread items",
-            "AI governed by workspace policy",
+            "Personal messages",
             "Open next work item"
           ]
         }
@@ -547,10 +425,10 @@
         {
           "path": ".github/workflows/dogfood-pending-identity-recovery.yml",
           "fragments": [
-            "Dogfood Pending Identity Recovery (Guarded)",
-            "acknowledge-recovery-is-guarded",
             "Pending-identity retirement is guarded.",
-            "Use normal invitation resend and authenticated session reconciliation"
+            "acknowledge-recovery-is-guarded",
+            "test-profile Identity Ops authority",
+            "isolated backup/restore rehearsal"
           ]
         }
       ]
@@ -567,7 +445,7 @@
         {
           "path": "docs/product-line-and-weaver-plan.md",
           "fragments": [
-            "Agent Runtime Control as bounded",
+            "Agent Runtime Control bounded contexts",
             "the MatrixRTC Calls target",
             "Agent Runtime Control remains optional and fail-closed"
           ]
@@ -583,7 +461,7 @@
         {
           "path": "docs/release-v0.1-dogfood-plan.md",
           "fragments": [
-            "Provider categories are first-class product/admin concepts",
+            "Selectable provider categories are chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Agent Runtime Control",
             "Agent Runtime Control is entitlement-bound",
             "never raw provider setup, service endpoints, provider secrets, or diagnostics"
           ]
@@ -639,7 +517,9 @@
           "fragments": [
             "Weave Client and Organization/Admin Console split",
             "The Weave Client owns member work surfaces",
-            "The Organization/Admin Console owns organization bootstrap, provider choice, policy, readiness, diagnostics, and whitelisting"
+            "The Organization/Admin Console owns organization bootstrap",
+            "collaborative-domain provider choice, policy, readiness, diagnostics, and",
+            "whitelisting"
           ]
         },
         {
@@ -647,7 +527,7 @@
           "fragments": [
             "Organization discovery and manifest contract",
             "provider setup, endpoint rotation, diagnostics, and whitelisting are never member-client responsibilities",
-            "Member manifests expose only provider-neutral capability states"
+            "Those states are limited to `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`"
           ]
         },
         {
@@ -674,14 +554,13 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/ProviderRegistryControllerTest.java",
           "fragments": [
             "providerStatusReportsAllFacadeSeamsWithoutSecrets",
-            "identity-idm",
+            "categories[?(@.category == 'identity-idm')]",
             "policy_blocked",
             "misconfigured",
             "documents-collaboration",
             "microsoft-teams",
             "sharepoint",
             "recommended_self_hosted_default",
-            "managed_cloud_provider",
             "secretsReturned"
           ]
         },
@@ -780,7 +659,7 @@
             "Drive, Node, Folder, File, Version, Share, Permission, Lock, and EditSession",
             "Calendar, Event, Attendee, Recurrence, Availability, Resource, Meeting, Participant, Recording, Captions, and MediaSession",
             "Board, List, Task, Status, Assignee, Comment, Attachment, Dependency, and CustomField",
-            "Organization, User, Group, Role, ProviderConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent"
+            "Organization, User, Group, Role, IdentitySourceConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent"
           ]
         },
         {
@@ -835,7 +714,7 @@
           "path": "docs/diagrams/er_identity_admin.mmd",
           "fragments": [
             "ORGANIZATION ||--o{ USER",
-            "PROVIDER_CONFIG ||--o{ SECRET_REF"
+            "IDENTITY_SOURCE_CONFIG ||--o{ SECRET_REF"
           ]
         }
       ],
@@ -882,7 +761,7 @@
           "fragments": [
             "Policy is deny-by-default.",
             "authorization hooks that evaluate `CapabilityPolicy` before any provider access",
-            "PR C should prove the first vertical slice with Identity/Keycloak plus Boards/Tasks/OpenProject and a Planner-like placeholder"
+            "PR C should prove the fixed Keycloak platform-identity boundary plus Boards/Tasks/OpenProject and a Planner-like placeholder"
           ]
         },
         {
@@ -896,18 +775,18 @@
       "evidenceMode": "offline-spec"
     },
     {
-      "tag": "@weave-v01-idm-rbac-capability-policy",
-      "scenario": "IDM roles and groups decide capability profiles before Weaver runtime",
+      "tag": "@weave-v01-keycloak-rbac-capability-policy",
+      "scenario": "Keycloak roles and groups decide capability profiles before Weaver runtime",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
       "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/WorkspaceCapabilityServiceTest.java",
       "evidenceMarkers": [
-        "V01_IDM_RBAC_CAPABILITY_POLICY"
+        "V01_KEYCLOAK_RBAC_CAPABILITY_POLICY"
       ],
       "additionalEvidence": [
         {
           "path": "docs/product-line-and-weaver-plan.md",
           "fragments": [
-            "IDM/RBAC capability profiles and whitelisting",
+            "Keycloak/RBAC capability profiles and whitelisting",
             "Capability profiles are deny-by-default",
             "Agent Runtime Control remains fail-closed without current entitlement"
           ]
@@ -915,7 +794,7 @@
         {
           "path": "docs/admin-provisioned-first-use.md",
           "fragments": [
-            "IDM/RBAC capability profiles",
+            "Keycloak/RBAC capability profiles",
             "Members only see provider-neutral manifest states",
             "Admins/operators see support-safe effective policy state"
           ]
@@ -923,8 +802,8 @@
         {
           "path": "docs/architecture.md",
           "fragments": [
-            "IDM/RBAC capability profile contract",
-            "Keycloak is the self-hosted default IDM",
+            "Platform identity and RBAC capability profile contract",
+            "Keycloak is the platform authority",
             "category-level capability keys"
           ]
         }
@@ -953,7 +832,7 @@
           "fragments": [
             "## Agent Runtime Control contract",
             "RuntimeProfile v2 is a signed, short-lived desired-state projection",
-            "The active MCP catalog is empty"
+            "The active MCP catalog is limited to the read-only Files projection over WebDAV"
           ]
         },
         {
@@ -987,7 +866,7 @@
     },
     {
       "tag": "@weave-v01-mcp-workload-boundary",
-      "scenario": "MCP admits only a current entitled workload and advertises no tools yet",
+      "scenario": "MCP admits only a current entitled workload and advertises the guarded Files read slice",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
       "executableTest": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
       "evidenceMarkers": [
@@ -998,7 +877,7 @@
           "path": "docs/governed-weaver-runtime-security-contract.md",
           "fragments": [
             "MCP is an AI-workload surface, never a human member API",
-            "The domain tool, resource, and prompt catalogs are currently empty",
+            "The first active catalog entry is the read-only Files projection",
             "inbound bearer is never relayed",
             "ApprovalDecisionEvidence v2"
           ]
@@ -1006,10 +885,10 @@
         {
           "path": "infra/docs/weave-mcp-tool-contract.md",
           "fragments": [
-            "workload boundary active",
+            "first read-only Files slice active",
             "Human access tokens",
             "Standard Token Exchange V2",
-            "catalogs remain empty"
+            "`files.search`"
           ]
         }
       ],
@@ -1155,7 +1034,7 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
           "fragments": [
             "meetingCapsuleCreateAndReadStayFailClosedWithoutProviderLeakage",
-            "/api/v1/chat/conversations/channel-general/meeting-capsules",
+            "/api/chat/conversations/channel-general/meeting-capsules",
             "meeting-backend-capability-unavailable",
             "liveKitProviderDetailsExposed",
             "matrixE2eeClaimedForMedia"
@@ -1190,7 +1069,7 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
           "fragments": [
             "decisionLedgerCreateAndReadUseSourceLinkedLifecycleRecords",
-            "/api/v1/chat/conversations/channel-general/decisions",
+            "/api/chat/conversations/channel-general/decisions",
             "source-linked",
             "DECISION_LEDGER_RECORD_CREATED"
           ]
@@ -1333,10 +1212,9 @@
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
           "fragments": [
-            "providerReplacementDryRunReturnsBackendOwnedPortableSwitchContract",
-            "provider-switch-preflight",
-            "portable-export-import-contract",
-            "rollback-recovery-plan"
+            "matrixChatReplacementDryRunShowsCrossDomainImpactAndBlocksCutoverClaims",
+            "migrationDryRunRequired",
+            "rollback archive refs"
           ]
         },
         {
@@ -1516,18 +1394,9 @@
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
           "fragments": [
-            "providerReplacementDryRunReturnsBackendOwnedPortableSwitchContract",
-            "identityDesiredStateRoutesAreRemovedInFavorOfProtectedIdentityOps"
-          ]
-        },
-        {
-          "path": "infra/weave-workspace/tests/identity_ops_contract_test.py",
-          "fragments": [
-            "weave.keycloak-desired-state/v2",
-            "organizationGroups",
-            "plan",
-            "apply",
-            "verify"
+            "adminControlPlaneOverviewIsSupportSafeAndProviderNeutral",
+            "platformIdentityCannotEnterProviderReplacementPatchPanel",
+            "platformIdentityReadinessIsBackendOwnedAndMembersCannotReadIt"
           ]
         },
         {
@@ -1584,8 +1453,9 @@
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
           "fragments": [
-            "providerReplacementDryRunReturnsBackendOwnedPortableSwitchContract",
-            "identityDesiredStateRoutesAreRemovedInFavorOfProtectedIdentityOps"
+            "adminControlPlaneOverviewIsSupportSafeAndProviderNeutral",
+            "platformIdentityCannotEnterProviderReplacementPatchPanel",
+            "platformIdentityReadinessIsBackendOwnedAndMembersCannotReadIt"
           ]
         },
         {
@@ -1695,7 +1565,7 @@
           "fragments": [
             "MCP is an AI-workload surface, never a human member API",
             "zero durable cell-local bytes",
-            "domain tool, resource, and prompt catalogs are currently empty"
+            "The first active catalog entry is the read-only Files projection"
           ]
         }
       ]
@@ -1788,26 +1658,26 @@
       "feature": "e2e/features/sprint_27_cross_domain_provider_proof.feature",
       "executableTest": "tools/cross_domain_provider_proof_check.py",
       "evidenceMode": "offline-spec",
-      "tag": "@sprint27-identity-provider-boundary",
-      "scenario": "Identity switch proof names mapping risk boundaries without secrets",
+      "tag": "@sprint27-platform-identity-federation-boundary",
+      "scenario": "Platform identity federation proof keeps Keycloak authoritative without secrets",
       "evidenceMarkers": [
-        "SPRINT27_IDENTITY_PROVIDER_BOUNDARY_PROOF"
+        "SPRINT27_PLATFORM_IDENTITY_FEDERATION_PROOF"
       ],
       "additionalEvidence": [
         {
-          "path": "release/provider-lab/cross-domain-provider-proof/identity-keycloak-authentik.fixture.json",
+          "path": "release/provider-lab/cross-domain-provider-proof/platform-identity-federation.fixture.json",
           "fragments": [
-            "weave-sprint-27-identity-boundary-proof-v1",
-            "keycloak",
-            "authentik",
+            "weave-sprint-27-platform-identity-federation-proof-v2",
+            "platformAuthority",
+            "authentik-oidc",
             "containsSecrets"
           ]
         },
         {
           "path": "docs/evidence/sprint-27-cross-domain-provider-proof.md",
           "fragments": [
-            "Identity proof (#645)",
-            "Keycloak -> Authentik",
+            "Platform identity federation proof (#645)",
+            "fixed platform identity authority",
             "Evidence contains no secrets"
           ]
         }
@@ -2205,12 +2075,12 @@
       "evidenceMode": "offline-spec"
     },
     {
-      "tag": "@northstar-identity-rbac-provider-switch",
-      "scenario": "Identity/RBAC is the first provider-switch proof",
+      "tag": "@northstar-platform-identity-federation",
+      "scenario": "Platform identity keeps Keycloak authoritative while upstream sources remain federated",
       "feature": "e2e/features/northstar_spec_decisions.feature",
       "executableTest": "e2e/features/northstar_spec_decisions.feature",
       "evidenceMarkers": [
-        "NORTHSTAR_IDENTITY_RBAC_SWITCH"
+        "NORTHSTAR_PLATFORM_IDENTITY_FEDERATION"
       ],
       "evidenceMode": "offline-spec"
     },
@@ -3955,8 +3825,9 @@
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
           "fragments": [
-            "dryRun",
-            "rollback"
+            "providerReplacementDryRunRecordsNoDriftEvidenceAgainstPersistedReadModels",
+            "boundedProof",
+            "migrationEvidenceRecorded"
           ]
         }
       ]
@@ -4036,7 +3907,7 @@
         {
           "path": "specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json",
           "fragments": [
-            "/capabilities/weaver",
+            "WEAVE-SPEC-0011-weaver-runtime-governance",
             "agent-runtime.entitled"
           ]
         },
@@ -4198,11 +4069,13 @@
         {
           "path": "docs/architecture.md",
           "fragments": [
-            "OIDC/OAuth2 for Identity",
+            "OIDC/OAuth2 for identity",
             "WebDAV for Files",
-            "CalDAV/iCalendar for Calendar",
+            "CalDAV/iCalendar for",
+            "Calendar",
             "Matrix Client-Server API for Chat",
-            "pinned MatrixRTC Profile 0 plus WebRTC for Calls",
+            "pinned MatrixRTC Profile 0 plus",
+            "WebRTC for Calls",
             "workload-only MCP for Agents"
           ]
         },
@@ -4356,20 +4229,21 @@
         {
           "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
           "fragments": [
-            "Flyway Core",
-            "Testcontainers PostgreSQL",
-            "H2 cannot satisfy a PostgreSQL or release claim"
+            "one persistent, non-cancelling schema initializer",
+            "Testcontainers JUnit/PostgreSQL",
+            "H2 only for fast development/unit feedback",
+            "PostgreSQL as the authoritative integration"
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/resources/db/migration/V001__provider_selection_foundation.sql",
+          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/provider/ProviderSelectionJpaEntity.java",
           "fragments": [
             "weave_provider_selections",
-            "weave_provider_selection_notes"
+            "ProviderSelectionJpaEntity"
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/resources/db/migration/V002__product_profile_override_foundation.sql",
+          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/profile/ProductProfileOverrideJpaEntity.java",
           "fragments": [
             "weave_product_profile_overrides",
             "accessibility_preferences_json"
@@ -4378,17 +4252,15 @@
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/provider/JpaProviderSelectionRepositoryTest.java",
           "fragments": [
-            "relationalProviderSelectionSurvivesRepositoryRestart",
-            "relationalPathPreservesTheCanonicalProviderSelectionContract",
-            "testcontainersPostgresDependencyIsPresentButProductionReadinessIsNotClaimedByH2Proof"
+            "selectionSurvivesAdapterRestartAndRetainsCanonicalOrdering",
+            "portable-jpa-hibernate-validated"
           ]
         },
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/service/JpaProductProfileOverrideRepositoryTest.java",
           "fragments": [
-            "relationalProductProfileOverrideSurvivesRepositoryRestart",
-            "relationalPathPreservesTheCanonicalProfileOverrideContract",
-            "durable-relational-jpa-flyway"
+            "profileSurvivesAdapterRestartWithStructuredAccessibilityPreferences",
+            "portable-jpa-hibernate-validated"
           ]
         }
       ]
@@ -4406,13 +4278,13 @@
         {
           "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
           "fragments": [
-            "single production persistence composition root",
-            "JpaAuditEventPublisher",
-            "#1019"
+            "the only production storage mode for strategic Weave-owned state",
+            "append-only evidence streams",
+            "they are not alternative strategic database authorities"
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/resources/db/migration/V003__audit_event_persistence_foundation.sql",
+          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/audit/AuditEventJpaEntity.java",
           "fragments": [
             "weave_audit_events",
             "uq_weave_audit_events_idempotency"
@@ -4421,16 +4293,15 @@
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/audit/JpaAuditEventPublisherTest.java",
           "fragments": [
-            "relationalAuditEventsSurvivePublisherRestart",
-            "relationalAuditEventsAreRetrySafeByIdempotencyKey",
-            "conflictingAuditEventsWithSameIdempotencyKeyFailClosed"
+            "appendOnlyEventSurvivesRestartAndIdempotentRetryRejectsDifferentPayload",
+            "portable-jpa-hibernate-validated"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/config/BoardsRuntimeConfigurationTest.java",
           "fragments": [
-            "productionCannotReintroduceVolatileOrFilePersistenceFallbacks",
-            "FileAuditEventPublisher"
+            "boardsConfigurationDoesNotCreateAPersistenceFallback",
+            "persistenceCompositionPublishesOnlyTheJpaAuditAuthority"
           ]
         }
       ]
@@ -4448,30 +4319,29 @@
         {
           "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
           "fragments": [
-            "JpaMigrationRunEvidenceRepository",
-            "strategic file/JSON",
-            "#1019"
+            "the only production storage mode for strategic Weave-owned state",
+            "migration evidence",
+            "they are not alternative strategic database authorities"
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/resources/db/migration/V004__migration_run_evidence_persistence_foundation.sql",
+          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/migration/MigrationRunEvidenceJpaEntity.java",
           "fragments": [
             "weave_migration_run_evidence",
-            "primary key (run_id, domain_key)"
+            "@EmbeddedId"
           ]
         },
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/service/migration/JpaMigrationRunEvidenceRepositoryTest.java",
           "fragments": [
-            "relationalMigrationRunEvidenceSurvivesRepositoryRestartAndExpiresFailClosed",
-            "typedJpaPathPreservesTheCanonicalMigrationEvidenceContract",
-            "relationalMigrationRunEvidenceCanBeReplacedByRunAndDomain"
+            "evidenceSurvivesAdapterRestartAndExpiresAtTheContractBoundary",
+            "portable-jpa-hibernate-validated"
           ]
         },
         {
           "path": "server/src/main/java/com/massimotter/weave/backend/service/migration/JpaMigrationRunEvidenceRepository.java",
           "fragments": [
-            "durable-relational-jpa-flyway",
+            "portable-jpa-hibernate-validated",
             "Failed to persist durable migration run evidence.",
             "Failed to load durable migration run evidence."
           ]
@@ -4586,113 +4456,39 @@
       "feature": "e2e/features/oidc_protocol_access.feature",
       "executableTest": "client/test/live_stack_contract_test.dart",
       "evidenceMarkers": [
-        "OIDC_PROTOCOL_ACCESS_RESULT"
+        "OIDC_PROTOCOL_ACCESS_CONTRACT"
       ],
-      "evidenceMode": "live-runtime",
-      "additionalEvidence": [
-        {
-          "path": "client/test/live_stack_contract_test.dart",
-          "fragments": [
-            "OIDC bearer reaches every Weave-owned collaboration protocol facade",
-            "/dav/files",
-            "/caldav",
-            "/_matrix/client",
-            "platformAligned=true"
-          ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
-          "fragments": [
-            "requiresOidcBearerWorkspaceScopeForFirstPartyClients"
-          ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
-          "fragments": [
-            "whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject",
-            "spring-boot-resource-server"
-          ]
-        }
-      ]
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@oidc-revoked-token",
       "scenario": "Revoked or expired bearer token fails support-safely",
       "feature": "e2e/features/oidc_protocol_access.feature",
-      "executableTest": "client/test/live_stack_contract_test.dart",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
       "evidenceMarkers": [
-        "OIDC_REVOKED_TOKEN_SUPPORT_SAFE"
+        "MATRIX_TOKEN_REVOCATION_FACADE"
       ],
-      "evidenceMode": "live-runtime",
-      "additionalEvidence": [
-        {
-          "path": "client/test/live_stack_contract_test.dart",
-          "fragments": [
-            "invalid-live-e2e-token",
-            "M_UNKNOWN_TOKEN",
-            "providerMaterialExposed=false"
-          ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
-          "fragments": [
-            "logoutRevokesThePresentedMatrixToken",
-            "M_UNKNOWN_TOKEN"
-          ]
-        }
-      ]
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@webdav-device-credential",
       "scenario": "Files WebDAV device credential can be issued, used, revoked, and denied after revoke",
       "feature": "e2e/features/oidc_protocol_access.feature",
-      "executableTest": "client/test/live_stack_contract_test.dart",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
-        "WEBDAV_DEVICE_CREDENTIAL_RESULT"
+        "WEBDAV_DEVICE_CREDENTIAL_CONTRACT"
       ],
-      "evidenceMode": "live-runtime",
-      "additionalEvidence": [
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
-          "fragments": [
-            "WEBDAV_DEVICE_CREDENTIAL_CONTRACT",
-            "secretMaterialReturned",
-            "device-credential-invalid"
-          ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/security/device/JpaDeviceCredentialRepositoryTest.java",
-          "fragments": [
-            "revokedAt"
-          ]
-        }
-      ]
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@caldav-device-credential",
       "scenario": "Calendar CalDAV device credential can be issued, used, revoked, and denied after revoke",
       "feature": "e2e/features/oidc_protocol_access.feature",
-      "executableTest": "client/test/live_stack_contract_test.dart",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
-        "CALDAV_DEVICE_CREDENTIAL_RESULT"
+        "CALDAV_DEVICE_CREDENTIAL_CONTRACT"
       ],
-      "evidenceMode": "live-runtime",
-      "additionalEvidence": [
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
-          "fragments": [
-            "CALDAV_DEVICE_CREDENTIAL_CONTRACT",
-            "secretMaterialReturned",
-            "device-credential-invalid"
-          ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/security/device/JpaDeviceCredentialRepositoryTest.java",
-          "fragments": [
-            "revokedAt"
-          ]
-        }
-      ]
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@no-provider-credentials",
@@ -4700,28 +4496,9 @@
       "feature": "e2e/features/oidc_protocol_access.feature",
       "executableTest": "client/test/live_stack_contract_test.dart",
       "evidenceMarkers": [
-        "NO_PROVIDER_CREDENTIALS_RESULT"
+        "NO_PROVIDER_CREDENTIALS_CONTRACT"
       ],
-      "evidenceMode": "live-runtime",
-      "additionalEvidence": [
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
-          "fragments": [
-            "secretMaterialReturned",
-            "not(org.hamcrest.Matchers.containsString(\"Bearer\"))",
-            "not(org.hamcrest.Matchers.containsString(\"app_password\"))"
-          ]
-        },
-        {
-          "path": "client/test/live_stack_contract_test.dart",
-          "fragments": [
-            "protocol surface contract does not expose provider credentials",
-            "remote.php",
-            "app_password",
-            "providerMaterialExposed=false"
-          ]
-        }
-      ]
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@files-webdav-propfind",
@@ -5151,13 +4928,6 @@
             "meeting:channel-engineering-general:79cc2c616b93",
             "events.events.single.threadRef.meetingThreadId"
           ]
-        },
-        {
-          "path": "client/integration_test/live_stack_app_e2e_test.dart",
-          "fragments": [
-            "calendarMeetingThreadStable",
-            "_channelMeetingThreadReady"
-          ]
         }
       ]
     },
@@ -5201,13 +4971,6 @@
             "connect opens the OIDC-gated encrypted Rust session",
             "cryptoSession.synchronizeValues"
           ]
-        },
-        {
-          "path": "client/integration_test/live_stack_app_e2e_test.dart",
-          "fragments": [
-            "MATRIX_FACADE_RESULT",
-            "chatRepository.connect()"
-          ]
         }
       ]
     },
@@ -5247,14 +5010,6 @@
             "MATRIX_MESSAGE_CONTRACT",
             "send, decrypt, and receipt stay inside the Rust Matrix core",
             "bridge.sentMessages"
-          ]
-        },
-        {
-          "path": "client/integration_test/live_stack_app_e2e_test.dart",
-          "fragments": [
-            "MATRIX_FACADE_RESULT",
-            "chatRepository.sendMessage(",
-            "matchedMessages=${deliveredMessage.length}"
           ]
         }
       ]
@@ -5376,16 +5131,7 @@
       "evidenceMarkers": [
         "MATRIX_TOKEN_REVOCATION_FACADE"
       ],
-      "evidenceMode": "offline-spec",
-      "additionalEvidence": [
-        {
-          "path": "client/test/live_stack_contract_test.dart",
-          "fragments": [
-            "OIDC_REVOKED_TOKEN_SUPPORT_SAFE",
-            "M_UNKNOWN_TOKEN"
-          ]
-        }
-      ]
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@flutter-matrix-boundary",
@@ -5658,11 +5404,11 @@
     },
     {
       "tag": "@mcp-files-facade",
-      "scenario": "MCP Files catalog stays empty until the Files action contract is complete",
+      "scenario": "MCP Files read slice projects the existing authorized WebDAV facade",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_DOMAIN_CATALOGS_EMPTY"
+        "MCP_FILES_READ_SLICE_ACTIVE"
       ],
       "evidenceMode": "offline-spec"
     },
@@ -5672,7 +5418,7 @@
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_DOMAIN_CATALOGS_EMPTY"
+        "MCP_CALENDAR_CATALOG_GUARDED"
       ],
       "evidenceMode": "offline-spec"
     },
@@ -5682,7 +5428,7 @@
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_DOMAIN_CATALOGS_EMPTY"
+        "MCP_CHAT_CATALOG_GUARDED"
       ],
       "evidenceMode": "offline-spec"
     },
@@ -5714,8 +5460,7 @@
       "evidenceMarkers": [
         "MCP_PROVIDER_NEUTRAL_OUTPUT"
       ],
-      "evidenceMode": "offline-spec",
-      "additionalEvidence": []
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@spring-ai-mcp-transport",
@@ -5755,8 +5500,8 @@
             "missingBearerReceivesDiscoverableRfc9728Challenge",
             "humanBearerCannotDiscoverTheMcpCatalog",
             "status().isUnauthorized()",
-            "workloadBearerWithWrongOrAdditionalAudienceCannotDiscoverTheCatalog",
-            "multipleAudiences ? List.of(RESOURCE, EDGE) : List.of(RESOURCE)",
+            "wrongAudienceWorkloadCannotDiscoverTheMcpCatalog",
+            "List.of(RESOURCE, EDGE)",
             "weaver-runtime"
           ]
         }
@@ -5764,11 +5509,11 @@
     },
     {
       "tag": "@mcp-runtime-approved-discovery",
-      "scenario": "Runtime-approved MCP context is active while domain catalogs stay guarded",
+      "scenario": "Runtime-approved MCP workload reaches the standard Server projection while other catalogs stay guarded",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_RUNTIME_CONTEXT_ACTIVE"
+        "MCP_STANDARD_SERVER_PROJECTION_ACTIVE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -5776,32 +5521,10 @@
           "path": "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpRequestAdmissionFilter.java",
           "fragments": [
             "CLIENT_CREDENTIALS_EXTENSION",
+            "tokenPolicy.resolve(",
             "exchange.exchange(",
-            "exchangedTokens.authenticate(",
-            "authorization.authorize(",
-            "WORKLOAD_PRINCIPAL_ATTRIBUTE"
-          ]
-        },
-        {
-          "path": "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpExchangedTokenAuthenticator.java",
-          "fragments": [
-            "decoder.decode(",
-            "policy.resolve(jwt)"
-          ]
-        },
-        {
-          "path": "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpApplicationCoreConfiguration.java",
-          "fragments": [
-            "new Ed25519JcsRuntimeProfileVerifier(",
-            "new McpWorkloadAuthorizationService("
-          ]
-        },
-        {
-          "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/RuntimeCompositionArchitectureTest.java",
-          "fragments": [
-            "mcpHasNoAdminIdentityCredentialOrPrivateBridge",
-            ".doesNotContain(\"/api/internal/agent-runtime/mcp-context\")",
-            ".doesNotContain(\"McpBackendContextResolver\")"
+            "EXCHANGED_TOKEN_ATTRIBUTE",
+            "Set.copyOf(properties.exchangeScopes())"
           ]
         }
       ]
@@ -6098,105 +5821,6 @@
       ]
     },
     {
-      "tag": "@matrix-e2ee-ciphertext-only",
-      "scenario": "Encrypted room content is opaque to the server",
-      "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "client/integration_test/matrix_e2ee_live_e2e_test.dart",
-      "evidenceMarkers": [
-        "MATRIX_E2EE_CIPHERTEXT_ONLY"
-      ],
-      "evidenceMode": "live-runtime",
-      "additionalEvidence": [
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
-          "fragments": [
-            "encryptedRoomRejectsPlaintextAndProjectsOpaqueCiphertext",
-            "m.room.encrypted",
-            "MATRIX_E2EE_CIPHERTEXT_ONLY"
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@matrix-e2ee-iphone-relaunch",
-      "scenario": "Closing and updating the iPhone preserves encrypted chat state",
-      "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "client/integration_test/matrix_e2ee_live_e2e_test.dart",
-      "evidenceMarkers": [
-        "MATRIX_E2EE_IPHONE_RELAUNCH"
-      ],
-      "evidenceMode": "live-runtime",
-      "additionalEvidence": [
-        {
-          "path": "client/test/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator_test.dart",
-          "fragments": [
-            "MATRIX_E2EE_IPHONE_RELAUNCH",
-            "app relaunch restores the same profile, device, and crypto store",
-            "disposePreservingCryptoState"
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@matrix-e2ee-two-device-verification",
-      "scenario": "A member verifies a second device accessibly",
-      "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "client/integration_test/matrix_e2ee_live_e2e_test.dart",
-      "evidenceMarkers": [
-        "MATRIX_E2EE_TWO_DEVICE_VERIFIED"
-      ],
-      "evidenceMode": "live-runtime",
-      "additionalEvidence": [
-        {
-          "path": "client/test/features/chat/presentation/widgets/chat_security_settings_section_test.dart",
-          "fragments": [
-            "announces SAS emoji labels and numbers accessibly",
-            "find.bySemanticsLabel",
-            "Emoji match"
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@matrix-e2ee-recovery",
-      "scenario": "Recovery restores encrypted history on a new device",
-      "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "client/integration_test/matrix_e2ee_live_e2e_test.dart",
-      "evidenceMarkers": [
-        "MATRIX_E2EE_RECOVERY_RESTORED"
-      ],
-      "evidenceMode": "live-runtime",
-      "additionalEvidence": [
-        {
-          "path": "client/lib/features/chat/data/repositories/rust_matrix_core_chat_security_repository.dart",
-          "fragments": [
-            "restoreSecurity",
-            "recoveryKeyOrPassphrase",
-            "ChatKeyBackupState.ready"
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@matrix-e2ee-lost-device",
-      "scenario": "Revoking a lost device preserves encryption for remaining devices",
-      "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "client/integration_test/matrix_e2ee_live_e2e_test.dart",
-      "evidenceMarkers": [
-        "MATRIX_E2EE_LOST_DEVICE_REVOKED"
-      ],
-      "evidenceMode": "live-runtime",
-      "additionalEvidence": [
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
-          "fragments": [
-            "keyLifecycleToDeviceSyncAndLostDeviceRevocationAreDeviceScoped",
-            "M_UNKNOWN_TOKEN"
-          ]
-        }
-      ]
-    },
-    {
       "tag": "@matrix-e2ee-provider-switch",
       "scenario": "Provider replacement accounts for encrypted history",
       "feature": "e2e/features/chat_matrix_e2ee.feature",
@@ -6215,242 +5839,6 @@
         "MATRIX_E2EE_CLIENT_FAILS_CLOSED"
       ],
       "evidenceMode": "offline-spec"
-    },
-    {
-      "tag": "@matrix-synapse-durable-collaboration",
-      "scenario": "Encrypted collaboration is committed by the selected Chat provider",
-      "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "infra/weave-workspace/isolated-e2e-chat-provider-proof.sh",
-      "evidenceMarkers": [
-        "MATRIX_SYNAPSE_PROVIDER_PERSISTENCE_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "runtimeSources": [
-        "live-stack-e2e"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "client/integration_test/multi_user_collaboration_e2e_test.dart",
-          "fragments": [
-            "MULTI_USER_CHAT_RESULT",
-            "ciphertextOnlyTransport"
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@matrix-synapse-outage-idempotency",
-      "scenario": "A Chat provider outage cannot expose or duplicate a message",
-      "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "infra/weave-workspace/isolated-e2e-chat-provider-proof.sh",
-      "evidenceMarkers": [
-        "MATRIX_SYNAPSE_PROVIDER_EXACTLY_ONCE_RESULT",
-        "MATRIX_SYNAPSE_PROVIDER_REPLAY_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "runtimeSources": [
-        "live-stack-e2e"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "tools/multi_user_e2e_evidence.py",
-          "fragments": [
-            "providerPersistence",
-            "southboundProviderAdapterVerified"
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@human-ready-auth-shell",
-      "scenario": "Disposable members restore independent authenticated shells",
-      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
-      "evidenceMarkers": [
-        "MULTI_USER_AUTH_SHELL_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "runtimeSources": [
-        "live-stack-e2e"
-      ]
-    },
-    {
-      "tag": "@human-ready-home-collaboration",
-      "scenario": "Shared Home activity is visible only to authorized members",
-      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
-      "evidenceMarkers": [
-        "MULTI_USER_HOME_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "runtimeSources": [
-        "live-stack-e2e"
-      ]
-    },
-    {
-      "tag": "@human-ready-chat-collaboration",
-      "scenario": "Chat collaboration crosses fresh authorized sessions",
-      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
-      "evidenceMarkers": [
-        "MULTI_USER_CHAT_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "runtimeSources": [
-        "live-stack-e2e"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "client/integration_test/matrix_e2ee_live_e2e_test.dart",
-          "fragments": [
-            "MATRIX_E2EE_CIPHERTEXT_ONLY",
-            "MATRIX_E2EE_TWO_DEVICE_VERIFIED"
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@human-ready-files-collaboration",
-      "scenario": "Files collaboration preserves content and authorization",
-      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
-      "evidenceMarkers": [
-        "MULTI_USER_FILES_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "runtimeSources": [
-        "live-stack-e2e"
-      ]
-    },
-    {
-      "tag": "@human-ready-calendar-collaboration",
-      "scenario": "Calendar collaboration crosses fresh authorized sessions",
-      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
-      "evidenceMarkers": [
-        "MULTI_USER_CALENDAR_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "runtimeSources": [
-        "live-stack-e2e"
-      ]
-    },
-    {
-      "tag": "@human-ready-settings-profile",
-      "scenario": "Settings and Profile remain independently durable",
-      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
-      "evidenceMarkers": [
-        "MULTI_USER_SETTINGS_PROFILE_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "runtimeSources": [
-        "live-stack-e2e"
-      ]
-    },
-    {
-      "tag": "@human-ready-failure-containment",
-      "scenario": "Calendar failure remains local to Calendar",
-      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
-      "evidenceMarkers": [
-        "MULTI_USER_FAILURE_CONTAINMENT_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "runtimeSources": [
-        "live-stack-e2e"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "infra/weave-workspace/isolated-e2e-calendar-outage.sh",
-          "fragments": [
-            "CALENDAR_OUTAGE_FIXTURE_RESULT",
-            "poll_cached_health 0",
-            "poll_cached_health 2",
-            "explicit isolated stack scope is required"
-          ]
-        },
-        {
-          "path": "tools/multi_user_e2e_evidence.py",
-          "fragments": [
-            "require_calendar_outage_recovery",
-            "artifact:isolated-calendar-outage.json"
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@human-ready-authorization",
-      "scenario": "Representative collaboration operations fail closed",
-      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
-      "evidenceMarkers": [
-        "MULTI_USER_AUTHORIZATION_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "runtimeSources": [
-        "live-stack-e2e"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "infra/weave-workspace/isolated-e2e-authorization-probes.sh",
-          "fragments": [
-            "weave.isolated-e2e-authorization.v1",
-            "MULTI_USER_AUTHORIZATION_FIXTURES_RESULT",
-            "capability-policy-blocked"
-          ]
-        },
-        {
-          "path": "tools/multi_user_e2e_evidence.py",
-          "fragments": [
-            "--authorization-evidence",
-            "require_authorization_evidence",
-            "artifact:isolated-authorization.json"
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@human-ready-cleanup",
-      "scenario": "Disposable collaboration cleans only its own namespace",
-      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "infra/weave-workspace/isolated-e2e-identities.sh",
-      "evidenceMarkers": [
-        "MULTI_USER_CLEANUP_RESULT"
-      ],
-      "evidenceMode": "live-runtime",
-      "runtimeSources": [
-        "live-stack-e2e"
-      ]
-    },
-    {
-      "tag": "@human-ready-legacy-upgrade",
-      "scenario": "Legacy first-run state cannot return the obsolete screen",
-      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "client/test/core/router/app_router_test.dart",
-      "evidenceMarkers": [
-        "LEGACY_FIRST_RUN_UPGRADE_RESULT"
-      ],
-      "evidenceMode": "offline-spec",
-      "additionalEvidence": [
-        {
-          "path": "client/test/architecture/obsolete_member_entry_contract_test.dart",
-          "fragments": [
-            "firstRunStatusProvider",
-            "FirstRunScreen",
-            "/api/onboarding/status",
-            "Erststart-Status"
-          ]
-        },
-        {
-          "path": "tools/obsolete_first_run_contract_check.py",
-          "fragments": [
-            "OBSOLETE_FIRST_RUN_CONTRACT_REMOVED",
-            "server/src/main",
-            "/api/onboarding/status"
-          ]
-        }
-      ]
     },
     {
       "tag": "@human-ready-dogfood-deployment",

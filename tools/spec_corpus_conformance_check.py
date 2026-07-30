@@ -27,10 +27,10 @@ REQUIRED_CORPUS_FILES = [
     "steering/provider-portability-principles.md",
     "steering/devops-conformance.md",
     "steering/openclaw-orchestrator-pattern.md",
+    "platform/identity-security/spec.md",
     "generated/manifest.json",
 ]
 REQUIRED_DOMAIN_DIRS = [
-    "identity-idm",
     "spaces",
     "chat",
     "files",
@@ -186,7 +186,7 @@ def main() -> None:
         "WEAVE-STEERING-PRODUCT-CONSTITUTION",
         "WEAVE-STEERING-SDD-FRAMEWORK",
         "WEAVE-STEERING-DEVOPS-CONFORMANCE",
-        "WEAVE-DOMAIN-IDENTITY-IDM",
+        "WEAVE-PLATFORM-IDENTITY-SECURITY",
         "WEAVE-DOMAIN-DOCUMENTS-OFFICE",
         "WEAVE-DOMAIN-AGENT-RUNTIME-CONTROL",
         "WEAVE-DOMAIN-MEETINGS-CALLS",

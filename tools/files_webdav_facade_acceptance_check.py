@@ -125,7 +125,10 @@ def require_webdav_write_mvp() -> None:
         "filesFacadeService.putWebDavFile(",
         "filesFacadeService.createWebDavFolder(",
         "filesFacadeService.deleteWebDavPath(",
-        "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL",
+        "OPTIONS, PROPFIND, SEARCH, GET, HEAD, PUT, DELETE, MKCOL",
+        "filesFacadeService.webDavSearch(",
+        "urn:weave:files",
+        "canonical-id",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",

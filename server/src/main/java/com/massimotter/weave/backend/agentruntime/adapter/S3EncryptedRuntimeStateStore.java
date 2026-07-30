@@ -15,10 +15,14 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -33,6 +37,8 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -40,9 +46,10 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
  * AES-256-GCM envelope encryption before immutable S3/MinIO generation objects.
  * PostgreSQL/JPA owns only binding, CAS head, key metadata, deletion and audit authority.
  *
- * <p>This adapter deliberately reports Guarded: PostgreSQL and S3 do not share a transaction.
- * Release profiles reject activation until a durable outbox/reconciler proves orphan cleanup,
- * delete completion, crash recovery and conditional-write ambiguity handling.
+ * <p>PostgreSQL and S3 do not share a transaction. Readiness therefore performs a complete,
+ * read-only reconciliation of relational heads and generations against the paginated immutable
+ * object namespace. Ambiguous writes, missing objects, orphans and inconsistent heads fail
+ * closed before runtime traffic is served.
  */
 public final class S3EncryptedRuntimeStateStore implements RuntimeStateStore {
     private static final String ENCRYPTION_ALGORITHM = "AES-256-GCM+A256KWP";
@@ -147,13 +154,13 @@ public final class S3EncryptedRuntimeStateStore implements RuntimeStateStore {
         });
         requireBinding(head, command.organizationRef(), command.personRef(), command.cellRef());
 
-        Optional<StoredGeneration> replay = findByIdempotency(
+        Optional<PersistedRuntimeStateGeneration> replay = findByIdempotency(
                 command.runtimeStateStoreRef(), command.idempotencyKey());
         if (replay.isPresent()) {
             RestoredRuntimeState restored = restore(replay.orElseThrow(), head);
             byte[] previous = restored.state();
             try {
-                StoredGeneration stored = replay.orElseThrow();
+                PersistedRuntimeStateGeneration stored = replay.orElseThrow();
                 if (stored.previousGeneration() != command.expectedGeneration()
                         || !stored.generationRef().equals(generationRef)
                         || !stored.runtimeProfileHash().equals(command.runtimeProfileHash())
@@ -219,7 +226,7 @@ public final class S3EncryptedRuntimeStateStore implements RuntimeStateStore {
                 if (head.currentGenerationRef() == null) {
                     return Optional.empty();
                 }
-                StoredGeneration generation = findGeneration(head.currentGenerationRef())
+                PersistedRuntimeStateGeneration generation = findGeneration(head.currentGenerationRef())
                         .orElseThrow(() -> unavailable(
                                 "The external runtime-state head is inconsistent", null));
                 if (generation.generation() != head.currentGeneration()
@@ -248,10 +255,10 @@ public final class S3EncryptedRuntimeStateStore implements RuntimeStateStore {
     }
 
     private void deleteTransaction(DeleteRuntimeStateCommand command) {
-        Optional<Deletion> prior = findDeletion(
+        Optional<PersistedRuntimeStateDeletion> prior = findDeletion(
                 command.organizationRef(), command.personRef(), command.idempotencyKey());
         if (prior.isPresent()) {
-            Deletion deletion = prior.orElseThrow();
+            PersistedRuntimeStateDeletion deletion = prior.orElseThrow();
             if (!deletion.cellRef().equals(command.cellRef())
                     || !deletion.runtimeStateStoreRef().equals(command.runtimeStateStoreRef())) {
                 throw conflict("The runtime-state deletion idempotency key was reused");
@@ -299,18 +306,91 @@ public final class S3EncryptedRuntimeStateStore implements RuntimeStateStore {
         }
         try {
             objectStore.headBucket(HeadBucketRequest.builder().bucket(bucket).build());
-            long count = generations.count();
-            return new StoreReadiness(
-                    false,
-                    "guarded-cross-store-reconciliation-required",
-                    count);
+            List<PersistedRuntimeStateGeneration> storedGenerations = generations.findAll().stream()
+                    .map(RuntimeStateGenerationJpaEntity::stored)
+                    .toList();
+            if (!relationalHeadsAreConsistent(storedGenerations)
+                    || !objectNamespaceIsConsistent(storedGenerations)) {
+                return new StoreReadiness(false, "cross-store-inconsistent", storedGenerations.size());
+            }
+            return new StoreReadiness(true, "reconciled", storedGenerations.size());
         } catch (DataAccessException | S3Exception | SdkClientException failure) {
             return new StoreReadiness(false, "storage-unavailable", 0);
         }
     }
 
+    private boolean relationalHeadsAreConsistent(
+            List<PersistedRuntimeStateGeneration> storedGenerations) {
+        Map<String, PersistedRuntimeStateGeneration> byReference = new HashMap<>();
+        Set<String> storesWithGenerations = new HashSet<>();
+        for (PersistedRuntimeStateGeneration generation : storedGenerations) {
+            if (byReference.putIfAbsent(generation.generationRef(), generation) != null) {
+                return false;
+            }
+            storesWithGenerations.add(generation.runtimeStateStoreRef());
+        }
+        Set<String> headStores = new HashSet<>();
+        for (RuntimeStateHeadJpaEntity head : heads.findAll()) {
+            if (!headStores.add(head.runtimeStateStoreRef())
+                    || head.currentGeneration() <= 0
+                    || head.currentGenerationRef() == null) {
+                return false;
+            }
+            PersistedRuntimeStateGeneration current = byReference.get(head.currentGenerationRef());
+            if (current == null
+                    || !current.runtimeStateStoreRef().equals(head.runtimeStateStoreRef())
+                    || current.generation() != head.currentGeneration()) {
+                return false;
+            }
+        }
+        return headStores.equals(storesWithGenerations);
+    }
+
+    private boolean objectNamespaceIsConsistent(
+            List<PersistedRuntimeStateGeneration> storedGenerations) {
+        Map<String, Long> expected = new HashMap<>();
+        for (PersistedRuntimeStateGeneration generation : storedGenerations) {
+            if (generation.ciphertextBytes() < 0
+                    || expected.putIfAbsent(
+                            objectKey(generation.generationRef()),
+                            generation.ciphertextBytes()) != null) {
+                return false;
+            }
+        }
+
+        Map<String, Long> observed = new HashMap<>();
+        Set<String> continuationTokens = new HashSet<>();
+        String continuationToken = null;
+        do {
+            ListObjectsV2Response response = objectStore.listObjectsV2(ListObjectsV2Request.builder()
+                    .bucket(bucket)
+                    .prefix("runtime-state/generations/")
+                    .continuationToken(continuationToken)
+                    .build());
+            for (software.amazon.awssdk.services.s3.model.S3Object object : response.contents()) {
+                if (object.key() == null
+                        || object.size() == null
+                        || object.size() < 0
+                        || observed.putIfAbsent(object.key(), object.size()) != null) {
+                    return false;
+                }
+            }
+            if (!response.isTruncated()) {
+                continuationToken = null;
+            } else {
+                continuationToken = response.nextContinuationToken();
+                if (continuationToken == null
+                        || continuationToken.isBlank()
+                        || !continuationTokens.add(continuationToken)) {
+                    return false;
+                }
+            }
+        } while (continuationToken != null);
+        return observed.equals(expected);
+    }
+
     private RestoredRuntimeState restore(
-            StoredGeneration stored,
+            PersistedRuntimeStateGeneration stored,
             RuntimeStateHeadJpaEntity head) {
         if (!stored.runtimeStateStoreRef().equals(head.runtimeStateStoreRef())) {
             throw unavailable("The external runtime-state generation is inconsistent", null);
@@ -445,7 +525,9 @@ public final class S3EncryptedRuntimeStateStore implements RuntimeStateStore {
         return lock ? heads.lockByStoreRef(storeRef) : heads.findById(storeRef);
     }
 
-    private Optional<StoredGeneration> findByIdempotency(String storeRef, String idempotencyKey) {
+    private Optional<PersistedRuntimeStateGeneration> findByIdempotency(
+            String storeRef,
+            String idempotencyKey) {
         return generations
                 .findByRuntimeStateStoreRefAndIdempotencyKey(
                         storeRef,
@@ -453,12 +535,15 @@ public final class S3EncryptedRuntimeStateStore implements RuntimeStateStore {
                 .map(RuntimeStateGenerationJpaEntity::stored);
     }
 
-    private Optional<StoredGeneration> findGeneration(String generationRef) {
+    private Optional<PersistedRuntimeStateGeneration> findGeneration(String generationRef) {
         return generations.findById(generationRef)
                 .map(RuntimeStateGenerationJpaEntity::stored);
     }
 
-    private Optional<Deletion> findDeletion(String organizationRef, String personRef, String idempotencyKey) {
+    private Optional<PersistedRuntimeStateDeletion> findDeletion(
+            String organizationRef,
+            String personRef,
+            String idempotencyKey) {
         return deletions.findById(new RuntimeStateDeletionId(
                         organizationRef,
                         personRef,
@@ -466,7 +551,7 @@ public final class S3EncryptedRuntimeStateStore implements RuntimeStateStore {
                 .map(RuntimeStateDeletionJpaEntity::deletion);
     }
 
-    private static RuntimeStateGeneration projection(StoredGeneration stored) {
+    private static RuntimeStateGeneration projection(PersistedRuntimeStateGeneration stored) {
         return new RuntimeStateGeneration(
                 stored.generationRef(), stored.runtimeStateStoreRef(), stored.generation(),
                 stored.runtimeProfileHash(), stored.plaintextBytes(), stored.chunkCount(),
@@ -550,25 +635,6 @@ public final class S3EncryptedRuntimeStateStore implements RuntimeStateStore {
         return cause == null
                 ? new RuntimeStateStoreException(message)
                 : new RuntimeStateStoreException(message, cause);
-    }
-
-    record StoredGeneration(
-            String generationRef,
-            String runtimeStateStoreRef,
-            long generation,
-            long previousGeneration,
-            String runtimeProfileHash,
-            String encryptionAlgorithm,
-            String wrappingKeyRef,
-            byte[] wrappedDataKey,
-            byte[] nonce,
-            long plaintextBytes,
-            long ciphertextBytes,
-            int chunkCount,
-            Instant committedAt) {
-    }
-
-    record Deletion(String cellRef, String runtimeStateStoreRef) {
     }
 
     private record EncryptedGeneration(

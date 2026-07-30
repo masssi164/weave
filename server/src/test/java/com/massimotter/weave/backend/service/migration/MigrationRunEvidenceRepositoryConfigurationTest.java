@@ -1,16 +1,16 @@
 package com.massimotter.weave.backend.service.migration;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-
-import tools.jackson.databind.ObjectMapper;
+import com.massimotter.weave.backend.persistence.jpa.migration.MigrationRunEvidenceJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class MigrationRunEvidenceRepositoryConfigurationTest {
 
     @Test
-    void migrationEvidenceHasOneJpaAuthority() {
+    void jpaModeCreatesTheSingleDurableMigrationEvidenceAuthority() {
         contextRunner().run(context -> {
             assertThat(context).hasSingleBean(MigrationRunEvidenceRepository.class);
             assertThat(context).hasSingleBean(JpaMigrationRunEvidenceRepository.class);
@@ -19,7 +19,7 @@ class MigrationRunEvidenceRepositoryConfigurationTest {
     }
 
     @Test
-    void obsoleteStorageSelectorsCannotRestoreTheFileFallback() {
+    void obsoleteFileSelectorCannotDisableOrReplaceTheJpaAuthority() {
         contextRunner()
                 .withPropertyValues("weave.migration.evidence.storage.mode=file")
                 .run(context -> {
@@ -31,10 +31,9 @@ class MigrationRunEvidenceRepositoryConfigurationTest {
 
     private ApplicationContextRunner contextRunner() {
         return new ApplicationContextRunner()
-                .withUserConfiguration(JpaMigrationRunEvidenceRepository.class)
-                .withBean(ObjectMapper.class, () -> tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build())
-                .withBean(
-                        MigrationRunEvidenceJpaRepository.class,
-                        () -> mock(MigrationRunEvidenceJpaRepository.class));
+                .withBean(JpaMigrationRunEvidenceRepository.class,
+                        () -> new JpaMigrationRunEvidenceRepository(
+                                mock(MigrationRunEvidenceJpaRepository.class),
+                                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build()));
     }
 }

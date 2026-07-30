@@ -19,7 +19,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave"
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
+        "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://auth.weave.test/realms/weave/protocol/openid-connect/certs"
 })
 @AutoConfigureMockMvc
 class ProviderHealthActuatorMetricsTest {
@@ -59,7 +60,7 @@ class ProviderHealthActuatorMetricsTest {
                 .andExpect(jsonPath("$.availableTags[?(@.tag == 'status')].values",
                         contains(hasItems("available", "degraded", "unavailable"))));
 
-        mockMvc.perform(get("/api/v1/admin/provider-capability-health"))
+        mockMvc.perform(get("/api/admin/provider-capability-health"))
                 .andExpect(status().isUnauthorized());
 
         verify(nextcloudFilesAdapter, never()).healthProbe();

@@ -153,6 +153,7 @@ class SignInScreen extends ConsumerWidget {
                         ],
                         const SizedBox(height: 24),
                         AccessibleButton(
+                          key: const ValueKey('weave.auth.sign-in'),
                           onPressed: authState.isBusy
                               ? null
                               : () async {

@@ -20,6 +20,9 @@ import static java.util.Objects.requireNonNull;
 @Transactional(readOnly = true)
 public class JpaRuntimeCellRepository implements RuntimeCellRepository {
 
+    private static final RuntimeCellPersistenceMapper MAPPER =
+            RuntimeCellPersistenceMapper.INSTANCE;
+
     private final RuntimeCellJpaRepository cells;
 
     public JpaRuntimeCellRepository(RuntimeCellJpaRepository cells) {
@@ -29,7 +32,7 @@ public class JpaRuntimeCellRepository implements RuntimeCellRepository {
     @Override
     @Transactional
     public RuntimeCell insert(RuntimeCell cell) {
-        return cells.saveAndFlush(RuntimeCellJpaEntity.from(cell)).toDomain();
+        return MAPPER.toDomain(cells.saveAndFlush(MAPPER.toEntity(cell)));
     }
 
     @Override
@@ -37,12 +40,12 @@ public class JpaRuntimeCellRepository implements RuntimeCellRepository {
             String organizationRef,
             String personRef) {
         return cells.findByOrganizationRefAndPersonRef(organizationRef, personRef)
-                .map(RuntimeCellJpaEntity::toDomain);
+                .map(MAPPER::toDomain);
     }
 
     @Override
     public Optional<RuntimeCell> findByCellRef(String cellRef) {
-        return cells.findByCellRef(cellRef).map(RuntimeCellJpaEntity::toDomain);
+        return cells.findByCellRef(cellRef).map(MAPPER::toDomain);
     }
 
     @Override
@@ -53,13 +56,13 @@ public class JpaRuntimeCellRepository implements RuntimeCellRepository {
                 .findByWorkloadIssuerAndWorkloadSubject(
                         workloadIssuer,
                         workloadSubject)
-                .map(RuntimeCellJpaEntity::toDomain);
+                .map(MAPPER::toDomain);
     }
 
     @Override
     public List<RuntimeCell> findAll() {
         return cells.findAllByOrderByCellRef().stream()
-                .map(RuntimeCellJpaEntity::toDomain)
+                .map(MAPPER::toDomain)
                 .toList();
     }
 
@@ -73,14 +76,14 @@ public class JpaRuntimeCellRepository implements RuntimeCellRepository {
         requireLeaseWindow(now, expiresAt);
         RuntimeCellJpaEntity cell = lock(cellRef);
         if (cell.sameCurrentLease(leaseId, now)) {
-            return cell.toDomain();
+            return MAPPER.toDomain(cell);
         }
         if (!cell.leaseAvailable(now)) {
             throw new StaleRuntimeCellException(
                     "runtime cell already has a current lease");
         }
         cell.acquireLease(leaseId, now, expiresAt);
-        return cells.saveAndFlush(cell).toDomain();
+        return MAPPER.toDomain(cells.saveAndFlush(cell));
     }
 
     @Override
@@ -97,7 +100,7 @@ public class JpaRuntimeCellRepository implements RuntimeCellRepository {
             throw new StaleRuntimeCellException(
                     "runtime cell lease is missing, expired, or fenced");
         }
-        return cells.saveAndFlush(cell).toDomain();
+        return MAPPER.toDomain(cells.saveAndFlush(cell));
     }
 
     @Override
@@ -119,7 +122,7 @@ public class JpaRuntimeCellRepository implements RuntimeCellRepository {
             throw new StaleRuntimeCellException(
                     "runtime cell observation rejected by lease, fence, or entitlement");
         }
-        return cells.saveAndFlush(cell).toDomain();
+        return MAPPER.toDomain(cells.saveAndFlush(cell));
     }
 
     @Override
@@ -133,14 +136,14 @@ public class JpaRuntimeCellRepository implements RuntimeCellRepository {
             Instant now) {
         RuntimeCellJpaEntity cell = lockByPerson(organizationRef, personRef);
         if (cell.sameEntitlement(entitlementRevision)) {
-            return cell.toDomain();
+            return MAPPER.toDomain(cell);
         }
         if (cell.version() != expectedVersion) {
             throw new StaleRuntimeCellException(
                     "runtime cell entitlement changed concurrently");
         }
         cell.bindEntitlement(entitlementRevision, auditRef, now);
-        return cells.saveAndFlush(cell).toDomain();
+        return MAPPER.toDomain(cells.saveAndFlush(cell));
     }
 
     @Override
@@ -160,7 +163,7 @@ public class JpaRuntimeCellRepository implements RuntimeCellRepository {
         }
         RuntimeCellJpaEntity cell = lockByPerson(organizationRef, personRef);
         if (cell.desiredState() == desiredState) {
-            return cell.toDomain();
+            return MAPPER.toDomain(cell);
         }
         if (cell.version() != expectedVersion
                 || !allowedFrom.contains(cell.desiredState())) {
@@ -168,7 +171,7 @@ public class JpaRuntimeCellRepository implements RuntimeCellRepository {
                     "runtime cell rejects the requested desired-state transition");
         }
         cell.transitionDesiredState(desiredState, auditRef, now);
-        return cells.saveAndFlush(cell).toDomain();
+        return MAPPER.toDomain(cells.saveAndFlush(cell));
     }
 
     @Override
@@ -181,14 +184,14 @@ public class JpaRuntimeCellRepository implements RuntimeCellRepository {
             Instant now) {
         RuntimeCellJpaEntity cell = lockByPerson(organizationRef, personRef);
         if (cell.sameRevocation(entitlementRevision)) {
-            return cell.toDomain();
+            return MAPPER.toDomain(cell);
         }
         if (cell.entitlementState() == RuntimeEntitlementState.REVOKED) {
             throw new StaleRuntimeCellException(
                     "runtime cell was revoked at another entitlement revision");
         }
         cell.revoke(entitlementRevision, auditRef, now);
-        return cells.saveAndFlush(cell).toDomain();
+        return MAPPER.toDomain(cells.saveAndFlush(cell));
     }
 
     private RuntimeCellJpaEntity lock(String cellRef) {

@@ -1,6 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:weave/core/persistence/flutter_secure_store.dart';
-import 'package:weave/features/app/data/services/persisted_client_upgrade_service.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
 import 'package:weave/features/app/domain/ports/chat_session_port.dart';
@@ -63,7 +61,6 @@ final reconcileIdentitySessionProvider = Provider<ReconcileIdentitySession>((
   ref,
 ) {
   return ReconcileIdentitySession(
-    authPort: ref.watch(appAuthPortProvider),
     identitySessionPort: ref.watch(identitySessionPortProvider),
   );
 });
@@ -73,9 +70,6 @@ final resolveAppBootstrapProvider = Provider<ResolveAppBootstrap>((ref) {
     authPort: ref.watch(appAuthPortProvider),
     reconcileIdentitySession: ref.watch(reconcileIdentitySessionProvider),
     serverConfigurationPort: ref.watch(serverConfigurationPortProvider),
-    clientUpgradePort: PersistedClientUpgradeService(
-      secureStore: ref.watch(secureStoreProvider),
-    ),
   );
 });
 
@@ -163,8 +157,8 @@ class _WeaveApiIdentitySessionPort implements IdentitySessionPort {
     return switch (result) {
       IdentitySessionReconcileResult.unchanged =>
         IdentitySessionReconciliation.unchanged,
-      IdentitySessionReconcileResult.accessUpdated =>
-        IdentitySessionReconciliation.accessUpdated,
+      IdentitySessionReconcileResult.reauthorizationRequired =>
+        IdentitySessionReconciliation.reauthorizationRequired,
     };
   }
 }

@@ -8,8 +8,9 @@ import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.persistence.jpa.readiness.JpaPersistenceReadinessProbe;
 import com.massimotter.weave.backend.service.LocalDependencyReadinessService;
-import com.massimotter.weave.backend.service.PersistenceHealthProbe;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.PlatformContractService;
 import com.massimotter.weave.backend.service.ProviderCapabilityHealthService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
@@ -36,6 +37,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
         controllers = {PlatformController.class, HealthController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
         LocalDependencyReadinessService.class,
         PlatformContractService.class,
@@ -69,11 +71,11 @@ class PlatformControllerTest {
     private ProviderCapabilityHealthService providerCapabilityHealthService;
 
     @MockitoBean
-    private PersistenceHealthProbe persistenceHealth;
+    private JpaPersistenceReadinessProbe persistenceHealth;
 
     @BeforeEach
     void persistenceIsReady() {
-        org.mockito.Mockito.when(persistenceHealth.ready()).thenReturn(true);
+        org.mockito.Mockito.when(persistenceHealth.isReady()).thenReturn(true);
     }
 
     @Test
@@ -86,8 +88,8 @@ class PlatformControllerTest {
                 .andExpect(jsonPath("$.oidc.issuer").value("https://auth.weave.test/realms/weave"))
                 .andExpect(jsonPath("$.oidc.clientId").value("weave-app"))
                 .andExpect(jsonPath("$.protocols.matrixClientServerBaseUrl").value("https://api.weave.test"))
-                .andExpect(jsonPath("$.protocols.filesWebDavBaseUrl").value("https://api.weave.test/api/dav/files"))
-                .andExpect(jsonPath("$.protocols.calendarCalDavBaseUrl").value("https://api.weave.test/api/caldav"))
+                .andExpect(jsonPath("$.protocols.filesWebDavBaseUrl").value("https://api.weave.test/dav/files"))
+                .andExpect(jsonPath("$.protocols.calendarCalDavBaseUrl").value("https://api.weave.test/caldav"))
                 .andExpect(jsonPath("$.releasePosture").value("dogfood"))
                 .andExpect(jsonPath("$.domains.length()").value(6))
                 .andExpect(jsonPath("$.domains[?(@.domain == 'chat')].state").value("available"))

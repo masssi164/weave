@@ -1,13 +1,13 @@
 # Sprint 27 domain-proof implementation result
 
-Scope: #643, #644, #645, and #646. Historical #665 Forgejo evidence is obsolete; current GitHub delivery evidence remains separate from this Calendar/Files/Identity aggregate proof.
+Scope: #643, #644, #645, and #646. Historical #665 Forgejo evidence is obsolete; current GitHub delivery evidence remains separate from this Calendar/Files/platform-identity aggregate proof.
 
 ## Implemented
 
 - Added support-safe provider-boundary artifacts under `release/provider-lab/cross-domain-provider-proof/`:
   - Calendar Nextcloud CalDAV -> Radicale proof for #643.
   - Files Nextcloud -> MinIO S3 proof for #644.
-  - Identity Keycloak -> Authentik proof for #645.
+  - Fixed Keycloak authority plus upstream Authentik OIDC federation-readiness proof for #645.
   - Sprint 27 cross-domain scoreboard and provider-neutrality claim gate for #646.
 - Added executable gate `tools/cross_domain_provider_proof_check.py`.
 - Wired Gradle task `crossDomainProviderProofCheck` and included it in `releaseEvidenceCheck` and CI evidence metadata.

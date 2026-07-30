@@ -12,15 +12,11 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustBundle
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustKeyProvider;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileVerifier;
 import java.time.Clock;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnExpression(
-        "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
-                + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'")
 public class AgentRuntimeProfileConfiguration {
 
     @Bean

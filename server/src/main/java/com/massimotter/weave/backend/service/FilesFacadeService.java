@@ -4,6 +4,10 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
+import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
+import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
+import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
+import com.massimotter.weave.backend.agentruntime.port.McpWorkloadAuthorizationException;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
@@ -41,6 +45,8 @@ import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
+import com.massimotter.weave.backend.service.files.WebDavSearchRequest;
+import com.massimotter.weave.backend.service.files.WebDavSearchResult;
 import com.massimotter.weave.backend.security.device.DeviceCredential;
 import com.massimotter.weave.backend.security.device.DeviceCredentialException;
 import com.massimotter.weave.backend.security.device.DeviceCredentialService;
@@ -52,6 +58,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.ArrayDeque;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -61,6 +68,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
@@ -75,18 +84,48 @@ import org.springframework.web.multipart.MultipartFile;
 public class FilesFacadeService {
 
     private static final String DEFAULT_CONTEXT_ID = "workspace-default";
+    private static final Logger LOGGER = LoggerFactory.getLogger(FilesFacadeService.class);
 
     private final FilesProviderPort filesProviderPort;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final OrganizationIdentityContextResolver identityContexts;
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final AuditEventPublisher auditEventPublisher;
     private final DeviceCredentialService deviceCredentialService;
     private final FilesLockService filesLockService;
     private final FilesMutationIntentService filesMutationIntentService;
+    private final McpWorkloadAuthorizationService mcpWorkloadAuthorizationService;
+    private final McpExchangedTokenPolicy mcpExchangedTokenPolicy;
 
     @Autowired
     public FilesFacadeService(
+            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContexts,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            DeviceCredentialService deviceCredentialService,
+            AuditEventPublisher auditEventPublisher,
+            FilesLockService filesLockService,
+            FilesMutationIntentService filesMutationIntentService,
+            ObjectProvider<McpWorkloadAuthorizationService> mcpWorkloadAuthorizationServiceProvider,
+            ObjectProvider<McpExchangedTokenPolicy> mcpExchangedTokenPolicyProvider) {
+        this(
+                filesProviderPortProvider,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                identityContexts,
+                workspaceCapabilityService,
+                deviceCredentialService,
+                auditEventPublisher,
+                filesLockService,
+                filesMutationIntentService,
+                mcpWorkloadAuthorizationServiceProvider.getIfAvailable(),
+                mcpExchangedTokenPolicyProvider.getIfAvailable());
+    }
+
+    FilesFacadeService(
             ObjectProvider<FilesProviderPort> filesProviderPortProvider,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
@@ -94,15 +133,46 @@ public class FilesFacadeService {
             DeviceCredentialService deviceCredentialService,
             AuditEventPublisher auditEventPublisher,
             FilesLockService filesLockService,
-            FilesMutationIntentService filesMutationIntentService) {
+            FilesMutationIntentService filesMutationIntentService,
+            McpWorkloadAuthorizationService mcpWorkloadAuthorizationService,
+            McpExchangedTokenPolicy mcpExchangedTokenPolicy) {
+        this(
+                filesProviderPortProvider,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                OrganizationIdentityContextResolver.configured(contextAuthorizationProperties),
+                workspaceCapabilityService,
+                deviceCredentialService,
+                auditEventPublisher,
+                filesLockService,
+                filesMutationIntentService,
+                mcpWorkloadAuthorizationService,
+                mcpExchangedTokenPolicy);
+    }
+
+    FilesFacadeService(
+            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContexts,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            DeviceCredentialService deviceCredentialService,
+            AuditEventPublisher auditEventPublisher,
+            FilesLockService filesLockService,
+            FilesMutationIntentService filesMutationIntentService,
+            McpWorkloadAuthorizationService mcpWorkloadAuthorizationService,
+            McpExchangedTokenPolicy mcpExchangedTokenPolicy) {
         this.filesProviderPort = filesProviderPortProvider.getIfAvailable();
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.identityContexts = Objects.requireNonNull(identityContexts, "identityContexts");
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.deviceCredentialService = deviceCredentialService;
         this.auditEventPublisher = auditEventPublisher;
         this.filesLockService = filesLockService;
         this.filesMutationIntentService = filesMutationIntentService;
+        this.mcpWorkloadAuthorizationService = mcpWorkloadAuthorizationService;
+        this.mcpExchangedTokenPolicy = mcpExchangedTokenPolicy;
     }
 
     public FilesFacadeService(
@@ -113,7 +183,8 @@ public class FilesFacadeService {
             DeviceCredentialService deviceCredentialService,
             AuditEventPublisher auditEventPublisher) {
         this(filesProviderPortProvider, contextAuthorizationPort, contextAuthorizationProperties,
-                workspaceCapabilityService, deviceCredentialService, auditEventPublisher, null, null);
+                workspaceCapabilityService, deviceCredentialService, auditEventPublisher, null, null,
+                (McpWorkloadAuthorizationService) null, (McpExchangedTokenPolicy) null);
     }
 
     public FilesFacadeService(
@@ -125,7 +196,30 @@ public class FilesFacadeService {
             AuditEventPublisher auditEventPublisher,
             FilesLockService filesLockService) {
         this(filesProviderPortProvider, contextAuthorizationPort, contextAuthorizationProperties,
-                workspaceCapabilityService, deviceCredentialService, auditEventPublisher, filesLockService, null);
+                workspaceCapabilityService, deviceCredentialService, auditEventPublisher, filesLockService, null,
+                (McpWorkloadAuthorizationService) null, (McpExchangedTokenPolicy) null);
+    }
+
+    FilesFacadeService(
+            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            DeviceCredentialService deviceCredentialService,
+            AuditEventPublisher auditEventPublisher,
+            McpWorkloadAuthorizationService mcpWorkloadAuthorizationService,
+            McpExchangedTokenPolicy mcpExchangedTokenPolicy) {
+        this(
+                filesProviderPortProvider,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                workspaceCapabilityService,
+                deviceCredentialService,
+                auditEventPublisher,
+                null,
+                null,
+                mcpWorkloadAuthorizationService,
+                mcpExchangedTokenPolicy);
     }
 
     public FileListResponse list(String path) {
@@ -163,6 +257,60 @@ public class FilesFacadeService {
         }
     }
 
+    /**
+     * Executes the deliberately bounded Weave profile of RFC 5323 basicsearch.
+     *
+     * <p>The traversal remains on the canonical Files port. Provider URLs and identifiers never
+     * enter the northbound result.
+     */
+    public WebDavSearchResult webDavSearch(WebDavSearchRequest request) {
+        String operation = "webdav-search";
+        PrincipalContext principal = requireContextPermission(ContextPermission.VIEW, operation);
+        String scopePath = FilePathCodec.normalizeProductPath(request.scopePath());
+        String needle = request.query().toLowerCase(Locale.ROOT);
+        ArrayDeque<SearchNode> pending = new ArrayDeque<>();
+        pending.add(new SearchNode(scopePath, 0));
+        List<WebDavPropfindResource> matches = new java.util.ArrayList<>();
+        int scanned = 0;
+        try {
+            FilesProviderPort adapter = configuredAdapter(operation);
+            while (!pending.isEmpty() && matches.size() < request.limit()) {
+                SearchNode node = pending.removeFirst();
+                VersionedListing listing = adapter.list(new FilePath(node.path()));
+                for (FileObject item : listing.listing().children()) {
+                    if (++scanned > 1_000) {
+                        WebDavSearchResult bounded = new WebDavSearchResult(matches);
+                        publishWorkloadReadAudit(
+                                principal, "files.search", scopePath, "bounded", bounded.resources().size());
+                        return bounded;
+                    }
+                    String searchable = request.matchField() == WebDavSearchRequest.MatchField.CANONICAL_ID
+                            ? item.id().value().toLowerCase(Locale.ROOT)
+                            : (item.name() + "\n" + item.path().value()).toLowerCase(Locale.ROOT);
+                    boolean matchesQuery = request.matchField() == WebDavSearchRequest.MatchField.CANONICAL_ID
+                            ? searchable.equals(needle)
+                            : searchable.contains(needle);
+                    if (matchesQuery) {
+                        matches.add(webDavResource(item, listing.childVersions().get(item.path())));
+                        if (matches.size() >= request.limit()) {
+                            break;
+                        }
+                    }
+                    if (item.kind() == Kind.COLLECTION && node.depth() < 8) {
+                        pending.addLast(new SearchNode(item.path().value(), node.depth() + 1));
+                    }
+                }
+            }
+            WebDavSearchResult result = new WebDavSearchResult(matches);
+            publishWorkloadReadAudit(
+                    principal, "files.search", scopePath, "completed", result.resources().size());
+            return result;
+        } catch (ApiErrorException exception) {
+            publishWorkloadReadAudit(principal, "files.search", scopePath, "failed", 0);
+            throw supportSafeStorageError(exception, operation);
+        }
+    }
+
     public FileItemResponse createFolder(CreateFolderRequest request) {
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, "create-folder");
         throw webDavWritePolicyRequired("create-folder", principal, FilePathCodec.childPath(request.parentPath(), request.name()), null);
@@ -174,11 +322,14 @@ public class FilesFacadeService {
     }
 
     public DownloadedFile download(String id) {
-        requireContextPermission(ContextPermission.VIEW, "download-file");
+        PrincipalContext principal =
+                requireContextPermission(ContextPermission.VIEW, "download-file");
         try {
             FileContent content = configuredAdapter("download-file").read(new FileId(id));
+            publishWorkloadReadAudit(principal, "files.resource.read", id, "completed", 1);
             return new DownloadedFile(content.item().name(), content.item().mediaType(), content.bytes());
         } catch (ApiErrorException exception) {
+            publishWorkloadReadAudit(principal, "files.resource.read", id, "failed", 0);
             throw supportSafeStorageError(exception, "download-file");
         }
     }
@@ -714,6 +865,9 @@ public class FilesFacadeService {
                     Map.of("module", "files", "operation", operation));
         }
         Jwt jwt = jwtPrincipal(authentication, operation);
+        if ("weave-mcp-server".equals(jwt.getClaimAsString("azp"))) {
+            return requireWorkloadContextPermission(jwt, permission, operation);
+        }
         workspaceCapabilityService.requireCapability(jwt, capabilityFor(permission), "files", operation);
         PrincipalContext principalContext = principalContext(jwt, operation);
         var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
@@ -736,6 +890,76 @@ public class FilesFacadeService {
         return principalContext;
     }
 
+    private PrincipalContext requireWorkloadContextPermission(
+            Jwt jwt,
+            ContextPermission permission,
+            String operation) {
+        if (permission != ContextPermission.VIEW
+                || mcpWorkloadAuthorizationService == null
+                || mcpExchangedTokenPolicy == null) {
+            throw invalidAuthentication(operation, "workload authorization is unavailable");
+        }
+        WeaverWorkloadPrincipal workload;
+        try {
+            workload = mcpWorkloadAuthorizationService.authorize(
+                    mcpExchangedTokenPolicy.resolve(jwt));
+        } catch (McpWorkloadAuthorizationException denied) {
+            LOGGER.warn("MCP workload authorization rejected reason={}", denied.reasonCode());
+            throw new ApiErrorException(
+                    denied.authorityUnavailable()
+                            ? HttpStatus.SERVICE_UNAVAILABLE
+                            : HttpStatus.FORBIDDEN,
+                    denied.authorityUnavailable()
+                            ? "mcp-workload-authority-unavailable"
+                            : "mcp-workload-files-forbidden",
+                    denied.authorityUnavailable()
+                            ? "The MCP workload authority is temporarily unavailable."
+                            : "The MCP workload has no current Files authorization.",
+                    Map.of("module", "files", "operation", operation));
+        }
+        if (!workload.scopes().contains("files.read")
+                || !workload.visibleToolClasses().contains("files.read")) {
+            throw new ApiErrorException(
+                    HttpStatus.FORBIDDEN,
+                    "mcp-workload-files-forbidden",
+                    "The MCP workload has no current Files authorization.",
+                    Map.of("module", "files", "operation", operation));
+        }
+        String memberSubject = workload.memberBinding().subject();
+        PrincipalContext principal = new PrincipalContext(
+                workload.organizationRef(),
+                contextAuthorizationProperties.principalRef(workload.contextPrincipalClaim()),
+                memberSubject,
+                workload.personRef(),
+                "runtime-profile:" + workload.runtimeProfileHash(),
+                "runtime-entitlement:" + workload.entitlementRevision(),
+                new WorkloadAuditContext(
+                        workload.issuer(),
+                        workload.workloadSubject(),
+                        workload.workloadClientId(),
+                        workload.mcpEdgeClientId(),
+                        workload.cellRef(),
+                        workload.personRef()));
+        var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
+                principal.tenantId(),
+                DEFAULT_CONTEXT_ID,
+                principal.principalRef(),
+                permission));
+        if (!decision.allowed()) {
+            throw new ApiErrorException(
+                    HttpStatus.FORBIDDEN,
+                    "files-forbidden",
+                    "Files access is not allowed for this Context/Space.",
+                    Map.of(
+                            "module", "files",
+                            "operation", operation,
+                            "reason", decision.reason(),
+                            "contextId", DEFAULT_CONTEXT_ID,
+                            "permission", permission.name().toLowerCase()));
+        }
+        return principal;
+    }
+
     private Jwt jwtPrincipal(Authentication authentication, String operation) {
         if (authentication.getPrincipal() instanceof Jwt jwt) {
             return jwt;
@@ -748,30 +972,21 @@ public class FilesFacadeService {
     }
 
     private PrincipalContext principalContext(Jwt jwt, String operation) {
+        OrganizationIdentityContext identity = identityContexts.resolve(jwt);
         String username = firstNonBlank(jwt.getClaimAsString("preferred_username"), jwt.getSubject());
         return new PrincipalContext(
-                jwtTenantId(jwt, operation),
+                identity.organizationId(),
                 jwtPrincipalRef(jwt, operation),
-                jwt.getSubject(),
+                identity.subject(),
                 username,
                 revisionClaim(jwt, "weave_policy_revision", "policy:unversioned"),
-                revisionClaim(jwt, "weave_entitlement_revision", "entitlement:unversioned"));
+                revisionClaim(jwt, "weave_entitlement_revision", "entitlement:unversioned"),
+                null);
     }
 
     private String revisionClaim(Jwt jwt, String claimName, String fallback) {
         Object value = jwt.getClaim(claimName);
         return value == null || value.toString().isBlank() ? fallback : claimName + ":" + value;
-    }
-
-    private String jwtTenantId(Jwt jwt, String operation) {
-        String tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantClaim());
-        if (tenantId == null) {
-            tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantFallbackClaim());
-        }
-        if (tenantId == null) {
-            throw invalidAuthentication(operation, "tenant claim is missing");
-        }
-        return tenantId;
     }
 
     private String jwtPrincipalRef(Jwt jwt, String operation) {
@@ -814,7 +1029,20 @@ public class FilesFacadeService {
             String subject,
             String username,
             String policyRevision,
-            String entitlementRevision) {
+            String entitlementRevision,
+            WorkloadAuditContext workload) {
+    }
+
+    private record WorkloadAuditContext(
+            String issuer,
+            String subject,
+            String workloadClientId,
+            String mcpEdgeClientId,
+            String cellRef,
+            String personRef) {
+    }
+
+    private record SearchNode(String path, int depth) {
     }
 
     private FilesProviderPort configuredAdapter(String operation) {
@@ -959,6 +1187,40 @@ public class FilesFacadeService {
                         "supportSafe", true)));
         return auditRef;
     }
+
+    private void publishWorkloadReadAudit(
+            PrincipalContext principal,
+            String tool,
+            String objectReference,
+            String result,
+            int matchCount) {
+        WorkloadAuditContext workload = principal.workload();
+        if (workload == null) {
+            return;
+        }
+        auditEventPublisher.publish(new AuditEvent(
+                principal.tenantId(),
+                DEFAULT_CONTEXT_ID,
+                contextAuthorizationProperties.principalRef(principal.subject()),
+                "files:mcp",
+                AuditAction.WEAVER_TOOL_INVOCATION_RECORDED,
+                Instant.now(),
+                "files-mcp-read:" + UUID.randomUUID(),
+                AuditRedactionLevel.SUPPORT_SAFE,
+                Map.of(
+                        "domain", "files",
+                        "tool", tool,
+                        "workloadSubjectSha256",
+                                sha256(workload.issuer() + "\u0000" + workload.subject()),
+                        "workloadClientId", workload.workloadClientId(),
+                        "mcpEdgeClientId", workload.mcpEdgeClientId(),
+                        "cellRef", workload.cellRef(),
+                        "personRef", workload.personRef(),
+                        "providerBindingKey", "files.default",
+                        "objectRefSha256", sha256(objectReference == null ? "/" : objectReference),
+                        "result", result + ":" + matchCount)));
+    }
+
 
     private WebDavMutationResult reconcilePut(
             FilesProviderPort adapter, String normalizedPath, byte[] expectedContent, String operation) {

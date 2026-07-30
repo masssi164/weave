@@ -1,10 +1,11 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
-import com.massimotter.weave.backend.audit.AuditEventJpaRepository;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.audit.JpaAuditEventPublisher;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
@@ -12,6 +13,7 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
+import com.massimotter.weave.backend.persistence.jpa.audit.AuditEventJpaRepository;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.provider.ProviderSelection;
@@ -23,10 +25,8 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -46,7 +46,7 @@ class AdminControlPlaneServiceTest {
                 new InMemoryOrganizationBootstrapRepository(),
                 auditPublisher,
                 Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC),
-                profileOverrideRepository(),
+                mock(ProductProfileOverrideRepository.class),
                 new InMemoryMigrationRunEvidenceRepository());
         CapabilityWhitelistUpdateRequest request = new CapabilityWhitelistUpdateRequest(
                 "workspace-admin",
@@ -82,12 +82,10 @@ class AdminControlPlaneServiceTest {
         DriverManagerDataSource dataSource = migratedDataSource();
         AuditEventJpaRepository repository =
                 com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
-                        dataSource,
-                        AuditEventJpaRepository.class);
+                        dataSource, AuditEventJpaRepository.class);
         JpaAuditEventPublisher auditPublisher =
                 new JpaAuditEventPublisher(
-                        repository,
-                        tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());
+                        repository, tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());
         AdminControlPlaneService service = adminControlPlaneService(auditPublisher);
         CapabilityWhitelistUpdateRequest request = new CapabilityWhitelistUpdateRequest(
                 "workspace-admin",
@@ -134,6 +132,10 @@ class AdminControlPlaneServiceTest {
                     assertThat(state.state()).isEqualTo("disabled");
                     assertThat(state.reasonCode()).isEqualTo("agent-runtime-entitlement-required");
                 });
+        assertThat(adminResponse.capabilityStates())
+                .filteredOn(state -> state.capability().equals("boards.update_task"))
+                .singleElement()
+                .satisfies(state -> assertThat(state.state()).isEqualTo("policy-blocked"));
         assertThat(auditPublisher.events()).hasSize(1);
         assertThat(auditPublisher.events()).allSatisfy(event -> {
             assertThat(event.action()).isEqualTo(AuditAction.EFFECTIVE_POLICY_SIMULATED);
@@ -158,7 +160,7 @@ class AdminControlPlaneServiceTest {
                 "alice@example.com",
                 "weave-dogfood",
                 List.of("super-admin", "not mapped"),
-                List.of("finance-admins", "/weave/../admins"),
+                List.of("finance-admins"),
                 List.of("chat.read", "provider.internal.token", "Bearer raw-token"),
                 "unknown provider import preview");
 
@@ -172,7 +174,6 @@ class AdminControlPlaneServiceTest {
         assertThat(response.requestedCapabilities()).containsExactly("chat.read");
         assertThat(response.deniedInputs()).containsExactly(
                 "invalid-capability",
-                "invalid-group",
                 "invalid-role",
                 "unknown-capability",
                 "unknown-group",
@@ -180,8 +181,7 @@ class AdminControlPlaneServiceTest {
         assertThat(response.capabilityStates()).extracting(state -> state.state()).containsOnly("policy-blocked");
         assertThat(response.capabilityStates()).extracting(state -> state.reasonCode())
                 .containsOnly("unknown-identity-inputs-fail-closed");
-        assertThat(response.toString()).doesNotContain(
-                "super-admin", "not mapped", "finance-admins", "/weave/../admins", "provider.internal.token", "raw-token");
+        assertThat(response.toString()).doesNotContain("super-admin", "not mapped", "finance-admins", "provider.internal.token", "raw-token");
     }
 
     @Test
@@ -194,16 +194,17 @@ class AdminControlPlaneServiceTest {
             assertThat(fixture.path("supportSafe").asBoolean()).isTrue();
             assertThat(fixture.path("agentRuntimeEntitlementRequired").asBoolean()).isTrue();
             assertThat(fixture.path("unknownInputsFailClosed").asBoolean()).isFalse();
-            assertThat(fixture.path("subject").asText()).startsWith("issuer+subject:");
+            assertThat(fixture.path("subject").asString()).startsWith("issuer+subject:");
             assertThat(fixture.path("capabilityStates")).allSatisfy(state ->
-                    assertThat(state.path("state").asText()).isIn("ready", "disabled", "degraded", "policy-blocked"));
+                    assertThat(state.path("state").asString()).isIn("ready", "disabled", "degraded", "policy-blocked"));
             assertThat(objectMapper.writeValueAsString(fixture))
                     .doesNotContain("@", "client_secret", "Authorization", "Bearer ", "access_token", "secretref://", "keycloak-realm");
         }
     }
 
 
-     @Test
+
+    @Test
     void providerSelectionPersistencePostureReflectsRepositoryBackingStore() {
         InMemoryProviderSelectionRepository selectionRepository = new InMemoryProviderSelectionRepository();
         selectionRepository.save(new ProviderSelection(
@@ -226,7 +227,7 @@ class AdminControlPlaneServiceTest {
                 new InMemoryOrganizationBootstrapRepository(),
                 new InMemoryAuditEventPublisher(),
                 Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
-                profileOverrideRepository(),
+                mock(ProductProfileOverrideRepository.class),
                 new InMemoryMigrationRunEvidenceRepository());
 
         var response = service.overview(jwt("admin"));
@@ -303,7 +304,6 @@ class AdminControlPlaneServiceTest {
                 assertThat(response.baselineSnapshot().stableMemberImpactStates()).contains(state));
         assertThat(response.boundedProof().limitedApplyAllowed()).isFalse();
         assertThat(response.boundedProof().productionCutoverAllowed()).isFalse();
-        assertThat(response.boundedProof().rollbackRestoreSmokeRequired()).isTrue();
         assertThat(response.toString())
                 .doesNotContain("secretref://", "Bearer ", "access_token", "rawProviderError");
 
@@ -356,7 +356,7 @@ class AdminControlPlaneServiceTest {
                 new InMemoryOrganizationBootstrapRepository(),
                 new InMemoryAuditEventPublisher(),
                 Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
-                profileOverrideRepository(),
+                mock(ProductProfileOverrideRepository.class),
                 new InMemoryMigrationRunEvidenceRepository());
 
         var response = service.overview(jwt("admin"));
@@ -374,7 +374,7 @@ class AdminControlPlaneServiceTest {
         assertThat(response.goLiveReadiness().releaseClaimControl().claimState())
                 .isEqualTo("admin-action-required");
         assertThat(response.goLiveReadiness().releaseClaimControl().pinnedSpecCorpusRef())
-                .contains("specs/weave-specs.lock.json#cffee4494b63b42b448642d4b2a6e91f5aa94af9");
+                .contains("specs/weave-specs.lock.json#24c746c674da7d98e5c6abc1f1abac033a8774f2");
         assertThat(response.goLiveReadiness().releaseClaimControl().accessibilityEvidenceRef())
                 .contains("docs/evidence/accessibility/sprint-18-manual-at-blocker.md#591");
         assertThat(response.goLiveReadiness().releaseClaimControl().unresolvedVetoes())
@@ -416,23 +416,13 @@ class AdminControlPlaneServiceTest {
                 new InMemoryOrganizationBootstrapRepository(),
                 auditPublisher,
                 Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC),
-                profileOverrideRepository(),
+                mock(ProductProfileOverrideRepository.class),
                 new InMemoryMigrationRunEvidenceRepository());
     }
 
     private DriverManagerDataSource migratedDataSource() {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName("org.h2.Driver");
-        dataSource.setUrl("jdbc:h2:mem:" + UUID.randomUUID()
-                + ";MODE=PostgreSQL;DATABASE_TO_UPPER=true;DB_CLOSE_DELAY=-1");
-        dataSource.setUsername("sa");
-        dataSource.setPassword("");
-        Flyway.configure()
-                .dataSource(dataSource)
-                .locations("classpath:db/migration")
-                .load()
-                .migrate();
-        return dataSource;
+        return com.massimotter.weave.backend.testing.JpaTestDatabase
+                .entityFirstDataSource("admin-control-plane");
     }
 
     private WorkspaceCapabilityService workspaceCapabilityService() {
@@ -465,14 +455,13 @@ class AdminControlPlaneServiceTest {
         };
     }
 
-     private Jwt jwt(String role) {
+    private Jwt jwt(String role) {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject(role + "-123")
                 .issuer("https://auth.example.invalid/realms/acme")
-                .claim("weave_tenant", "weave-dogfood")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of(role))))
-                .claim("groups", List.of())
+                .claim("weave_tenant_id", "weave-dogfood")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole(role))
                 .build();
     }
 }

@@ -31,7 +31,6 @@
     "provider_unexportable"
   ],
   "compatibility_aliases": {
-    "identity-idm": "identity",
     "boards-tasks": "boards",
     "meetings-calls": "calls",
     "documents-collaboration": "documents",
@@ -41,78 +40,6 @@
     "manuals-help": "health"
   },
   "domains": [
-    {
-      "key": "identity",
-      "version": 1,
-      "display_name": "Identity",
-      "purpose": "Provider-neutral Weave-owned domain contract.",
-      "canonical_objects": [
-        "Subject",
-        "IdentitySource",
-        "Group",
-        "Role",
-        "CapabilityProfile",
-        "LoginSession"
-      ],
-      "capability_keys": [
-        "identity.read",
-        "identity.search",
-        "identity.export",
-        "identity.import",
-        "identity.dryRun",
-        "identity.apply",
-        "identity.write",
-        "identity.delete",
-        "identity.adminConfigure"
-      ],
-      "member_states": [
-        "available",
-        "disabled_by_policy",
-        "not_configured",
-        "degraded",
-        "unavailable",
-        "coming_later"
-      ],
-      "admin_states": [
-        "provider_not_configured",
-        "secret_missing",
-        "ready",
-        "degraded",
-        "dry_run_required",
-        "lossy_mapping_pending",
-        "apply_blocked",
-        "migration_ready"
-      ],
-      "source_of_truth_modes": [
-        "weave_owned",
-        "selected_provider_owned",
-        "hybrid_composite",
-        "external_existing_provider",
-        "archive_only"
-      ],
-      "portability_requirements": [
-        "source_of_truth_declared",
-        "export_delete_boundary_declared",
-        "provider_mapping_refs_required",
-        "loss_classification_required",
-        "dry_run_required_before_apply",
-        "support_safe_migration_evidence_required",
-        "audit_ref_required"
-      ],
-      "adapter_manifest_requirements": [
-        "supported_domain_key",
-        "supported_capabilities",
-        "canonical_object_coverage",
-        "source_of_truth_mode",
-        "export_manifest_support",
-        "import_manifest_support",
-        "lossy_mapping_report_support",
-        "conflict_report_support",
-        "secret_ref_only",
-        "support_safe_diagnostics"
-      ],
-      "provider_reality_level_by_candidate": {}
-    },
     {
       "key": "people",
       "version": 1,

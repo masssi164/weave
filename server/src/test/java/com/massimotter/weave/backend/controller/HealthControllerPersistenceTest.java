@@ -2,8 +2,8 @@ package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
+import com.massimotter.weave.backend.persistence.jpa.readiness.JpaPersistenceReadinessProbe;
 import com.massimotter.weave.backend.service.LocalDependencyReadinessService;
-import com.massimotter.weave.backend.service.PersistenceHealthProbe;
 import com.massimotter.weave.backend.service.PlatformContractService;
 import com.massimotter.weave.backend.service.ProviderCapabilityHealthService;
 import java.util.List;
@@ -39,7 +39,7 @@ class HealthControllerPersistenceTest {
     private PlatformContractService platformContractService;
 
     @MockitoBean
-    private PersistenceHealthProbe persistenceHealth;
+    private JpaPersistenceReadinessProbe persistenceReadinessProbe;
 
     @MockitoBean
     private ProviderCapabilityHealthService providerCapabilityHealthService;
@@ -54,12 +54,12 @@ class HealthControllerPersistenceTest {
 
     @Test
     void reportsReadyWhenConfiguredJpaPersistenceIsReachable() throws Exception {
-        when(persistenceHealth.ready()).thenReturn(true);
+        when(persistenceReadinessProbe.isReady()).thenReturn(true);
 
-        mockMvc.perform(get("/api/health/ready").header("X-Request-Id", "jdbc-ready"))
+        mockMvc.perform(get("/api/health/ready").header("X-Request-Id", "jpa-ready"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("up"))
-                .andExpect(jsonPath("$.requestId").value("jdbc-ready"))
+                .andExpect(jsonPath("$.requestId").value("jpa-ready"))
                 .andExpect(jsonPath("$.checks[?(@.key == 'persistence')].status").value("up"))
                 .andExpect(jsonPath("$.checks[?(@.key == 'persistence')].readiness").value("ready"))
                 .andExpect(jsonPath("$.actions").isEmpty());
@@ -69,14 +69,14 @@ class HealthControllerPersistenceTest {
 
     @Test
     void reportsServiceUnavailableWithSupportSafePersistenceFailure() throws Exception {
-        when(persistenceHealth.ready())
+        when(persistenceReadinessProbe.isReady())
                 .thenThrow(new IllegalStateException(
-                        "jdbc:postgresql://db.internal/weave?password=do-not-expose"));
+                        "postgresql://db.internal/weave?password=do-not-expose"));
 
-        mockMvc.perform(get("/api/health/ready").header("X-Request-Id", "jdbc-failed"))
+        mockMvc.perform(get("/api/health/ready").header("X-Request-Id", "jpa-failed"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.status").value("blocked"))
-                .andExpect(jsonPath("$.requestId").value("jdbc-failed"))
+                .andExpect(jsonPath("$.requestId").value("jpa-failed"))
                 .andExpect(jsonPath("$.checks[?(@.key == 'persistence')].status").value("blocked"))
                 .andExpect(jsonPath("$.checks[?(@.key == 'persistence')].readiness").value("blocked"))
                 .andExpect(jsonPath("$.checks[?(@.key == 'persistence')].message")
@@ -95,7 +95,8 @@ class HealthControllerPersistenceTest {
                 .andExpect(jsonPath("$.requestId").value("live-process-only"))
                 .andExpect(jsonPath("$.checks[0].key").value("backend"));
 
-        verifyNoInteractions(platformContractService, persistenceHealth, providerCapabilityHealthService);
+        verifyNoInteractions(
+                platformContractService, persistenceReadinessProbe, providerCapabilityHealthService);
     }
 
     private PlatformStatusResponse readyStatus(String requestId) {

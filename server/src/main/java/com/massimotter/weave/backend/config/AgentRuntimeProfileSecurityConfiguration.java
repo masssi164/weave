@@ -1,8 +1,7 @@
 package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeWorkloadTokenPolicy;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -11,20 +10,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
-import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.util.StringUtils;
 
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnExpression(
-        "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
-                + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'")
 public class AgentRuntimeProfileSecurityConfiguration {
     public static final String PROFILE_PATH = "/api/v1/agent-runtime/runtime-profiles/**";
     public static final String TRUST_PATH = "/api/v1/agent-runtime/trust/jwks.json";
@@ -33,21 +24,8 @@ public class AgentRuntimeProfileSecurityConfiguration {
     @Order(0)
     SecurityFilterChain agentRuntimeProfileSecurityFilterChain(
             HttpSecurity http,
-            OAuth2ResourceServerProperties resourceServerProperties,
-            PlatformContractProperties platform,
+            @Qualifier("agentRuntimeProfileJwtDecoder") JwtDecoder decoder,
             ApiErrorResponseWriter errors) throws Exception {
-        String issuer = resourceServerProperties.getJwt().getIssuerUri();
-        JwtDecoder decoder = StringUtils.hasText(issuer)
-                ? JwtDecoderConfig.configuredRfc9068Decoder(
-                        resourceServerProperties,
-                        new DelegatingOAuth2TokenValidator<Jwt>(
-                                new JwtTimestampValidator(),
-                                new JwtIssuerValidator(issuer),
-                                JwtDecoderConfig.rfc9068AccessTokenTypeValidator(),
-                                JwtDecoderConfig.requiredAudienceValidator(platform.agentRuntimeControlResource())))
-                : JwtDecoderConfig.configuredRfc9068Decoder(
-                        resourceServerProperties,
-                        token -> org.springframework.security.oauth2.core.OAuth2TokenValidatorResult.success());
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(new JwtGrantedAuthoritiesConverter());
 

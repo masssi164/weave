@@ -216,7 +216,9 @@ void main() {
       expect(result.isValid, isFalse);
       expect(
         result.findings.map((finding) => finding.message).join('\n'),
-        contains('runtime evidence did not observe marker AUTH_RESULT'),
+        contains(
+          'runtime evidence did not observe marker PHYSICAL_AUTH_SESSION_RESULT',
+        ),
       );
     },
   );
@@ -439,7 +441,7 @@ ACCESSIBILITY_RESULT accessible=true accessibility=ok accessToken=redacted acces
     expect(manifest['lane'], 'release-candidate-live-evidence');
     expect(
       manifest['rcPromotionRule'],
-      contains('green-credentialed-live-stack-e2e'),
+      contains('green-test-app-product-flow-e2e'),
     );
     expect(manifest['artifacts'], contains('release-evidence-manifest.json'));
     expect(encoded, isNot(contains('authorization')));

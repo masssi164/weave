@@ -16,7 +16,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import org.flywaydb.core.Flyway;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -34,7 +34,7 @@ class JpaFilesAuthorityRepositoryPostgresTest {
     @Test
     void movePreservesCanonicalIdentityAndLocksPersistOnlyTokenDigests() {
         DriverManagerDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+        JpaTestDatabase.initializeSchema(dataSource);
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         var repository = repository(dataSource);
         Instant now = Instant.parse("2026-07-22T01:00:00Z");

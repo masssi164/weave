@@ -17,6 +17,7 @@ public record WeaverWorkloadPrincipal(
         String organizationRef,
         String personRef,
         RuntimeMemberBinding memberBinding,
+        String contextPrincipalClaim,
         String cellRef,
         String runtimeProfileId,
         String runtimeProfileHash,
@@ -35,6 +36,7 @@ public record WeaverWorkloadPrincipal(
         requireText(organizationRef, "organizationRef");
         requireText(personRef, "personRef");
         Objects.requireNonNull(memberBinding, "memberBinding");
+        requireText(contextPrincipalClaim, "contextPrincipalClaim");
         requireText(cellRef, "cellRef");
         requireText(runtimeProfileId, "runtimeProfileId");
         requireText(runtimeProfileHash, "runtimeProfileHash");

@@ -17,6 +17,9 @@ import static java.util.Objects.requireNonNull;
 @Transactional(readOnly = true)
 public class JpaRuntimeProfileRepository implements RuntimeProfileRepository {
 
+    private static final RuntimeCellPersistenceMapper CELL_MAPPER =
+            RuntimeCellPersistenceMapper.INSTANCE;
+
     private final RuntimeProfileJpaRepository profiles;
     private final RuntimeProfileSignatureJpaRepository signatures;
     private final RuntimeCellJpaRepository cells;
@@ -113,7 +116,7 @@ public class JpaRuntimeProfileRepository implements RuntimeProfileRepository {
         cells.lockByCellRef(cellRef)
                 .flatMap(cell -> profiles.findByCellRefAndProfileHash(
                         cellRef,
-                        cell.toDomain().runtimeProfileHash()))
+                        CELL_MAPPER.toDomain(cell).runtimeProfileHash()))
                 .ifPresent(profile -> profile.revoke(revocationCode, now));
     }
 }

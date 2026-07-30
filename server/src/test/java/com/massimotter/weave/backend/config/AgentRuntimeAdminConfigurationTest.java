@@ -6,6 +6,8 @@ import static org.mockito.Mockito.mock;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeAdminService;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeControlService;
+import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeStateKeyWrapper;
+import com.massimotter.weave.backend.agentruntime.adapter.FileSecretStoreAccess;
 import com.massimotter.weave.backend.agentruntime.adapter.RuntimeStateJpaAuthority;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandRepository;
@@ -18,6 +20,8 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAd
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.SecureRandom;
+import java.time.Clock;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -32,6 +36,14 @@ class AgentRuntimeAdminConfigurationTest {
             throws Exception {
         Path accessKey = privateSecret("access-key", "test-access-key");
         Path secretKey = privateSecret("secret-key", "test-secret-key");
+        Path wrappingKeys = temporary.resolve("state-wrapping").toAbsolutePath();
+        new FileRuntimeStateKeyWrapper(
+                wrappingKeys,
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
+                Clock.systemUTC(),
+                new SecureRandom(),
+                FileSecretStoreAccess.READ_WRITE)
+                .initialize("test:agent-runtime-admin-configuration");
         new ApplicationContextRunner()
                 .withUserConfiguration(
                         AgentRuntimeAdminConfiguration.class,
@@ -52,7 +64,7 @@ class AgentRuntimeAdminConfigurationTest {
                         "weave.agent-runtime.policy.enabled=true",
                         "weave.agent-runtime.profile-signing.enabled=true",
                         "weave.agent-runtime.state-store.enabled=true",
-                        "weave.agent-runtime.state-store.wrapping-key-root=" + temporary,
+                        "weave.agent-runtime.state-store.wrapping-key-root=" + wrappingKeys,
                         "weave.agent-runtime.state-store.endpoint=http://127.0.0.1:9000",
                         "weave.agent-runtime.state-store.region=us-east-1",
                         "weave.agent-runtime.state-store.bucket=weave-runtime-state-test",

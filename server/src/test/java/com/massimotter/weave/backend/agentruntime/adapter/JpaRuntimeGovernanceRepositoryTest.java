@@ -12,17 +12,12 @@ import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeRevocation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Instant;
 import java.util.UUID;
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 class JpaRuntimeGovernanceRepositoryTest {
     private static final Instant NOW = Instant.parse("2026-07-20T09:00:00Z");
@@ -36,18 +31,7 @@ class JpaRuntimeGovernanceRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        EmbeddedDatabase database = new EmbeddedDatabaseBuilder()
-                .setType(EmbeddedDatabaseType.H2)
-                .setName("arc-governance-" + UUID.randomUUID() + ";MODE=PostgreSQL")
-                .build();
-        new ResourceDatabasePopulator(
-                new ClassPathResource(
-                        "db/migration/V011__agent_runtime_control_foundation.sql"),
-                new ClassPathResource(
-                        "db/migration/V012__agent_runtime_governance_facts.sql"))
-                .execute(database);
-        new JdbcTemplate(database).execute(
-                "alter table weave_agent_runtime_entitlements add column version bigint not null default 0");
+        var database = JpaTestDatabase.entityFirstDataSource("arc-governance");
         jdbc = new JdbcTemplate(database);
         var persistence = AgentRuntimeJpaTestFactory.create(database);
         repository = persistence.governance();
@@ -117,7 +101,7 @@ class JpaRuntimeGovernanceRepositoryTest {
         return new RuntimeEntitlementObservation(
                 "org:example", "person:example",
                 new RuntimeMemberBinding("https://auth.weave.test/realms/weave", "member-1"),
-                "keycloak", HASH_ONE, HASH_TWO, observedAt, expiresAt);
+                "member-1", "keycloak", HASH_ONE, HASH_TWO, observedAt, expiresAt);
     }
 
     private static RuntimeAuditCorrelation correlation(String correlationRef) {

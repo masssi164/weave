@@ -4,18 +4,6 @@ server:
 spring:
   application:
     name: weave-mcp-server
-  profiles:
-    default: dev
-  flyway:
-    enabled: false
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate:
-        jdbc:
-          time_zone: UTC
   security:
     oauth2:
       resourceserver:
@@ -30,13 +18,13 @@ spring:
         type: SYNC
         name: weave-workload-tools
         version: 0.3.0
-        instructions: Workload-only tools; every call requires a current Agent Runtime Control cell binding.
+        instructions: Workload-only semantic Files tools; every call requires a current Agent Runtime Control cell binding and domain authorization.
         tool-callback-converter: true
         annotation-scanner:
           enabled: true
         capabilities:
-          tool: false
-          resource: false
+          tool: true
+          resource: true
           prompt: false
           completion: false
         streamable-http:
@@ -48,30 +36,19 @@ weave:
     resource-uri: ${WEAVE_MCP_RESOURCE_URI:https://api.weave.test/mcp}
     resource-metadata-uri: ${WEAVE_MCP_RESOURCE_METADATA_URI:https://api.weave.test/.well-known/oauth-protected-resource/mcp}
     authorization-server: ${WEAVE_MCP_AUTHORIZATION_SERVER:https://auth.weave.test/realms/weave}
-    required-scopes: ${WEAVE_MCP_REQUIRED_SCOPES:mcp.tools,calendar.read}
+    required-scopes: ${WEAVE_MCP_REQUIRED_SCOPES:mcp.tools,files.read}
     token-uri: ${WEAVE_MCP_TOKEN_URI:https://auth.weave.test/realms/weave/protocol/openid-connect/token}
     exchange-client-id: ${WEAVE_MCP_EXCHANGE_CLIENT_ID:weave-mcp-server}
-    exchange-client-key-file: ${WEAVE_MCP_EXCHANGE_CLIENT_KEY_FILE:/run/secrets/weave/mcp-private-jwk.json}
-    exchange-client-key-id: ${WEAVE_MCP_EXCHANGE_CLIENT_KEY_ID:weave-mcp-server-current}
-    exchange-client-assertion-ttl: ${WEAVE_MCP_EXCHANGE_CLIENT_ASSERTION_TTL:30s}
+    exchange-client-jwk-file: ${WEAVE_MCP_EXCHANGE_CLIENT_JWK_FILE:/run/secrets/weave/mcp-client-private.jwk}
     backend-resource-uri: ${WEAVE_MCP_BACKEND_RESOURCE_URI:https://api.weave.test/api}
-    exchange-scopes: ${WEAVE_MCP_EXCHANGE_SCOPES:calendar.read}
+    backend-files-uri: ${WEAVE_MCP_BACKEND_FILES_URI:https://api.weave.test/dav/files}
+    exchange-scopes: ${WEAVE_MCP_EXCHANGE_SCOPES:files.read}
     request-timeout: ${WEAVE_MCP_REQUEST_TIMEOUT:10s}
     maximum-token-ttl: ${WEAVE_MCP_MAXIMUM_TOKEN_TTL:60s}
     maximum-request-bytes: ${WEAVE_MCP_MAXIMUM_REQUEST_BYTES:1048576}
-    application-core:
-      enabled: ${WEAVE_MCP_APPLICATION_CORE_ENABLED:true}
-      profile-trust-manifest: ${WEAVE_MCP_PROFILE_TRUST_MANIFEST:/run/secrets/weave/runtime-profile-signing-keys.json}
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
-  endpoint:
-    health:
-      probes:
-        enabled: true
-      group:
-        readiness:
-          include: readinessState,weaveSchemaVersion,mcpWorkloadBoundary

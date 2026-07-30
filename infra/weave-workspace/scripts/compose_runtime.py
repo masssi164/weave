@@ -11,7 +11,8 @@ import stat
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import Any
 
 from compose_env import ComposeContext, ContractError, compose_environment, load_context, run
 
@@ -31,6 +32,17 @@ COMMANDS = (
     "identity-apply",
     "identity-verify",
 )
+RUNTIME_ROOT_SERVICES = {
+    "dev": ("caddy", "mailpit"),
+    "test": ("caddy", "mailpit", "mcp"),
+    "prod": ("caddy", "mcp"),
+}
+HOST_APPLICATION_SERVICES = (
+    "backend",
+    "mcp",
+    "mcp-secret-check",
+    "mcp-keycloak-connectivity-check",
+)
 ADOPTION_RECEIPT_MAX_AGE = timedelta(hours=6)
 VOLUME_KEYS = (
     "WEAVE_CADDY_DATA_VOLUME",
@@ -41,6 +53,45 @@ VOLUME_KEYS = (
     "WEAVE_NEXTCLOUD_DATA_VOLUME",
     "WEAVE_SYNAPSE_DATA_VOLUME",
     "WEAVE_MATRIX_APPSERVICE_VOLUME",
+    "WEAVE_RUNTIME_STATE_VOLUME",
+)
+RESOURCE_METADATA = {
+    "WEAVE_CADDY_DATA_VOLUME": ("gateway", "tls-sensitive"),
+    "WEAVE_CADDY_CONFIG_VOLUME": ("gateway", "configuration-sensitive"),
+    "WEAVE_DB_DATA_VOLUME": ("postgres", "database-sensitive"),
+    "WEAVE_KEYCLOAK_DATA_VOLUME": ("identity", "identity-sensitive"),
+    "WEAVE_MAILPIT_DATA_VOLUME": ("mail", "activation-sensitive"),
+    "WEAVE_NEXTCLOUD_DATA_VOLUME": ("files-calendar", "collaboration-sensitive"),
+    "WEAVE_SYNAPSE_DATA_VOLUME": ("chat", "collaboration-sensitive"),
+    "WEAVE_MATRIX_APPSERVICE_VOLUME": ("chat-appservice", "credential-sensitive"),
+    "WEAVE_RUNTIME_STATE_VOLUME": ("runtime-state", "runtime-state-sensitive"),
+}
+RESOURCE_PROVENANCE_LABEL_PATTERNS = {
+    "com.massimotter.weave.spec-commit": re.compile(r"^[0-9a-f]{40}$"),
+    "com.massimotter.weave.spec-digest": re.compile(r"^sha256:[0-9a-f]{64}$"),
+    "com.massimotter.weave.candidate-commit": re.compile(r"^[0-9a-f]{40}$"),
+    "com.massimotter.weave.candidate-manifest-digest": re.compile(r"^sha256:[0-9a-f]{64}$"),
+}
+AGENT_RUNTIME_ROOT = PurePosixPath("/run/secrets/agent-runtime")
+PROFILE_SIGNING_TARGET = AGENT_RUNTIME_ROOT / "profile-signing"
+STATE_WRAPPING_TARGET = AGENT_RUNTIME_ROOT / "state-wrapping"
+WORKLOADS_TARGET = AGENT_RUNTIME_ROOT / "workloads"
+RUNTIME_ADMIN_TARGET = (
+    WORKLOADS_TARGET / "weave/keycloak/weave-agent-runtime-admin"
+)
+AGENT_RUNTIME_MOUNT_POLICY = {
+    ("agent-runtime-keys-init", str(PROFILE_SIGNING_TARGET)): ("read-write", "directory"),
+    ("agent-runtime-keys-init", str(STATE_WRAPPING_TARGET)): ("read-write", "directory"),
+    ("backend", str(WORKLOADS_TARGET)): ("read-write", "directory"),
+    ("backend", str(PROFILE_SIGNING_TARGET)): ("read-only", "directory"),
+    ("backend", str(STATE_WRAPPING_TARGET)): ("read-only", "directory"),
+    ("identity-ops", str(RUNTIME_ADMIN_TARGET)): ("read-only", "file"),
+}
+MCP_PROTECTED_SECRET_MARKERS = (
+    "weave-agent-runtime-admin",
+    "weave-identity-admin",
+    "weave-backend-jwk",
+    "/agent-runtime/workloads/",
 )
 
 
@@ -55,12 +106,37 @@ def compose(context: ComposeContext, *arguments: str, capture: bool = False) -> 
     return run((*context.compose_base_command, *arguments), context, capture=capture)
 
 
-def labels(context: ComposeContext) -> dict[str, str]:
+def resource_metadata(context: ComposeContext, kind: str, name: str) -> tuple[str, str]:
+    if kind == "network" and name == context.env["WEAVE_DOCKER_NETWORK"]:
+        return "network", "connectivity"
+    matches = [
+        metadata
+        for key, metadata in RESOURCE_METADATA.items()
+        if kind == "volume" and context.env[key] == name
+    ]
+    if len(matches) != 1:
+        raise ContractError(f"no unique resource metadata for Docker {kind} {name}")
+    return matches[0]
+
+
+def labels(context: ComposeContext, kind: str, name: str) -> dict[str, str]:
+    component, data_class = resource_metadata(context, kind, name)
     return {
         "com.massimotter.weave.managed": "true",
-        "com.massimotter.weave.environment": context.profile,
-        "com.massimotter.weave.namespace": context.env["WEAVE_RESOURCE_PREFIX"],
+        "com.massimotter.weave.environment": context.env["WEAVE_RESOURCE_ENVIRONMENT"],
         "com.massimotter.weave.scope": context.env["WEAVE_STACK_SCOPE"],
+        "com.massimotter.weave.stack": context.env["WEAVE_RESOURCE_STACK"],
+        "com.massimotter.weave.generation": context.env["WEAVE_RESOURCE_GENERATION"],
+        "com.massimotter.weave.namespace": context.env["WEAVE_RESOURCE_PREFIX"],
+        "com.massimotter.weave.component": component,
+        "com.massimotter.weave.data-class": data_class,
+        "com.massimotter.weave.fresh-start-eligible": "true",
+        "com.massimotter.weave.spec-commit": context.env["WEAVE_SPEC_COMMIT"],
+        "com.massimotter.weave.spec-digest": context.env["WEAVE_SPEC_DIGEST"],
+        "com.massimotter.weave.candidate-commit": context.env["WEAVE_CANDIDATE_COMMIT"],
+        "com.massimotter.weave.candidate-manifest-digest": context.env[
+            "WEAVE_CANDIDATE_MANIFEST_DIGEST"
+        ],
     }
 
 
@@ -81,8 +157,31 @@ def inspect_resource(context: ComposeContext, kind: str, name: str) -> tuple[boo
     if inspected.returncode != 0:
         return False, False
     observed = json.loads(inspected.stdout) or {}
-    owned = all(observed.get(key) == value for key, value in labels(context).items())
-    return True, owned
+    return True, resource_labels_match(context, kind, name, observed)
+
+
+def resource_labels_match(
+    context: ComposeContext,
+    kind: str,
+    name: str,
+    observed: dict[str, str],
+) -> bool:
+    """Verify stable identity and the immutable creating provenance tuple.
+
+    Persistent resources intentionally retain the spec/candidate provenance
+    from their creation. Routine deployments therefore validate the shape and
+    completeness of that immutable tuple, while requiring every stable
+    ownership label (including the contract generation) to match exactly.
+    """
+    owned = all(
+        observed.get(key) == value
+        for key, value in labels(context, kind, name).items()
+        if key not in RESOURCE_PROVENANCE_LABEL_PATTERNS
+    ) and all(
+        pattern.fullmatch(observed.get(key, "")) is not None
+        for key, pattern in RESOURCE_PROVENANCE_LABEL_PATTERNS.items()
+    )
+    return owned
 
 
 def adoption_status(context: ComposeContext) -> dict[str, object]:
@@ -182,19 +281,341 @@ def ensure_resource(context: ComposeContext, kind: str, name: str) -> None:
             return
         raise ContractError(f"refusing unowned existing Docker {kind} {name}")
     command = ["docker", kind, "create"]
-    for key, value in sorted(labels(context).items()):
+    for key, value in sorted(labels(context, kind, name).items()):
         command.extend(("--label", f"{key}={value}"))
     command.append(name)
     subprocess.run(command, check=True, stdout=subprocess.DEVNULL)
 
 
-def prepare(context: ComposeContext) -> None:
+def _normalize_secret_target(target: str) -> str:
+    return target if target.startswith("/") else f"/run/secrets/{target}"
+
+
+def _source_type(path: Path) -> str:
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return "missing"
+    if stat.S_ISLNK(metadata.st_mode):
+        return "symlink"
+    if stat.S_ISREG(metadata.st_mode):
+        return "file"
+    if stat.S_ISDIR(metadata.st_mode):
+        return "directory"
+    return "other"
+
+
+def _target_is_within(target: str, parent: PurePosixPath) -> bool:
+    candidate = PurePosixPath(target)
+    return candidate == parent or parent in candidate.parents
+
+
+def normalized_mount_graph(model: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the resolved, support-safe mount responsibility model.
+
+    Compose `uid`, `gid`, and `mode` fields are recorded as declarations only.
+    Source-file security is established separately from host `lstat` results.
+    """
+
+    graph: list[dict[str, Any]] = []
+    top_level_secrets = model.get("secrets", {})
+    for service_name, service in sorted(model.get("services", {}).items()):
+        user = str(service.get("user", "image-default"))
+        lifecycle = (
+            "one-shot"
+            if service.get("labels", {}).get("com.massimotter.weave.one-shot") == "true"
+            else "running"
+        )
+        for mount in service.get("volumes", []):
+            source = str(mount.get("source", ""))
+            target = str(mount.get("target", ""))
+            read_only = bool(mount.get("read_only", False))
+            actual_type = (
+                "directory"
+                if mount.get("type") == "volume"
+                else _source_type(Path(source))
+            )
+            policy = AGENT_RUNTIME_MOUNT_POLICY.get((service_name, target))
+            graph.append(
+                {
+                    "service": service_name,
+                    "source": source,
+                    "target": target,
+                    "mountKind": str(mount.get("type", "")),
+                    "sourceType": actual_type,
+                    "expectedSourceType": policy[1] if policy else actual_type,
+                    "access": "read-only" if read_only else "read-write",
+                    "runtimeUser": user,
+                    "lifecycle": lifecycle,
+                    "parentTargets": [],
+                    "declaredUid": None,
+                    "declaredGid": None,
+                    "declaredMode": None,
+                }
+            )
+        for secret in service.get("secrets", []):
+            secret_name = str(secret.get("source", ""))
+            source = str((top_level_secrets.get(secret_name) or {}).get("file", ""))
+            graph.append(
+                {
+                    "service": service_name,
+                    "source": source,
+                    "target": _normalize_secret_target(str(secret.get("target", secret_name))),
+                    "mountKind": "compose-secret",
+                    "sourceType": _source_type(Path(source)),
+                    "expectedSourceType": "file",
+                    "access": "read-only",
+                    "runtimeUser": user,
+                    "lifecycle": lifecycle,
+                    "parentTargets": [],
+                    "declaredUid": secret.get("uid"),
+                    "declaredGid": secret.get("gid"),
+                    "declaredMode": secret.get("mode"),
+                }
+            )
+    for entry in graph:
+        target = PurePosixPath(entry["target"])
+        entry["parentTargets"] = sorted(
+            other["target"]
+            for other in graph
+            if other["service"] == entry["service"]
+            and other is not entry
+            and PurePosixPath(other["target"]) in target.parents
+        )
+    return graph
+
+
+def validate_mount_contract(model: dict[str, Any]) -> list[dict[str, Any]]:
+    graph = normalized_mount_graph(model)
+    services = model.get("services", {})
+    for child in graph:
+        for parent_target in child["parentTargets"]:
+            parent = next(
+                entry
+                for entry in graph
+                if entry["service"] == child["service"] and entry["target"] == parent_target
+            )
+            if parent["access"] == "read-only":
+                raise ContractError(
+                    "read-only parent mount collides with a required child mount: "
+                    f"{child['service']}:{parent_target}"
+                )
+
+    agent_entries = [
+        entry
+        for entry in graph
+        if _target_is_within(entry["target"], AGENT_RUNTIME_ROOT)
+    ]
+    for entry in agent_entries:
+        expected = AGENT_RUNTIME_MOUNT_POLICY.get((entry["service"], entry["target"]))
+        if expected is None:
+            raise ContractError(
+                "service receives an undeclared Agent Runtime SecretRef target: "
+                f"{entry['service']}:{entry['target']}"
+            )
+        if (entry["access"], entry["expectedSourceType"]) != expected:
+            raise ContractError(
+                "Agent Runtime SecretRef target has the wrong access or source type: "
+                f"{entry['service']}:{entry['target']}"
+            )
+
+    if "backend" in services:
+        expected_backend = {
+            key[1] for key in AGENT_RUNTIME_MOUNT_POLICY if key[0] == "backend"
+        }
+        observed_backend = {
+            entry["target"] for entry in agent_entries if entry["service"] == "backend"
+        }
+        if observed_backend != expected_backend:
+            raise ContractError("backend Agent Runtime SecretRef boundary is incomplete")
+        identity_admin_targets = {
+            entry["target"]
+            for entry in graph
+            if entry["service"] == "backend"
+            and "weave-identity-admin" in (entry["source"] + entry["target"])
+        }
+        if identity_admin_targets != {
+            "/run/secrets/weave/spring.security.oauth2.client.registration.weave-identity-admin.client-secret"
+        }:
+            raise ContractError(
+                "backend identity-admin access must remain one exact Identity adapter SecretRef"
+            )
+
+    if "agent-runtime-keys-init" in services:
+        expected_initializer = {
+            key[1]
+            for key in AGENT_RUNTIME_MOUNT_POLICY
+            if key[0] == "agent-runtime-keys-init"
+        }
+        observed_initializer = {
+            entry["target"]
+            for entry in agent_entries
+            if entry["service"] == "agent-runtime-keys-init"
+        }
+        if observed_initializer != expected_initializer:
+            raise ContractError("Agent Runtime key initializer has an overbroad or incomplete mount set")
+
+    for target in (PROFILE_SIGNING_TARGET, STATE_WRAPPING_TARGET):
+        writers = {
+            entry["service"]
+            for entry in graph
+            if entry["access"] == "read-write"
+            and _target_is_within(entry["target"], target)
+        }
+        if writers and writers != {"agent-runtime-keys-init"}:
+            raise ContractError(f"{target} is writable outside the one-time initializer")
+
+    workload_writers = {
+        entry["service"]
+        for entry in graph
+        if entry["access"] == "read-write"
+        and _target_is_within(entry["target"], WORKLOADS_TARGET)
+    }
+    if "backend" in services and workload_writers != {"backend"}:
+        raise ContractError("only backend may write the Agent Runtime workload tree")
+
+    for entry in graph:
+        if entry["service"] in {"mcp", "mcp-secret-check", "mcp-keycloak-connectivity-check"}:
+            coordinate = entry["source"] + entry["target"]
+            if any(marker in coordinate for marker in MCP_PROTECTED_SECRET_MARKERS):
+                raise ContractError(
+                    f"MCP service receives an administrative or Cell SecretRef: {entry['service']}"
+                )
+        if entry["mountKind"] == "bind" and entry["target"] in {
+            "/run/secrets",
+            "/run/secrets/weave",
+            "/certs",
+        }:
+            raise ContractError(
+                f"service receives a broader protected subtree than required: {entry['service']}:{entry['target']}"
+            )
+    return graph
+
+
+def _path_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _assert_protected_source(
+    source: Path,
+    *,
+    source_type: str,
+    writable: bool,
+    runtime_uid: int,
+    runtime_gid: int,
+    container_coordinate: str,
+) -> None:
+    actual_type = _source_type(source)
+    if actual_type != source_type:
+        raise ContractError(
+            f"protected source for {container_coordinate} must be a regular non-symlink {source_type}"
+        )
+    metadata = source.lstat()
+    expected_mode = 0o600 if source_type == "file" else 0o700
+    if stat.S_IMODE(metadata.st_mode) != expected_mode:
+        raise ContractError(
+            f"protected source for {container_coordinate} must have mode {expected_mode:04o}"
+        )
+    if metadata.st_uid != runtime_uid or metadata.st_gid != runtime_gid:
+        raise ContractError(
+            f"protected source for {container_coordinate} has the wrong runtime owner"
+        )
+    if not metadata.st_mode & stat.S_IRUSR:
+        raise ContractError(f"runtime uid cannot read protected source for {container_coordinate}")
+    if writable and not metadata.st_mode & stat.S_IWUSR:
+        raise ContractError(f"runtime uid cannot write protected source for {container_coordinate}")
+    if metadata.st_mode & (stat.S_IRWXG | stat.S_IRWXO):
+        raise ContractError(
+            f"unrelated service uids could access protected source for {container_coordinate}"
+        )
+
+
+def preflight_protected_sources(
+    context: ComposeContext, model: dict[str, Any], graph: list[dict[str, Any]]
+) -> None:
+    runtime_uid = int(context.env["WEAVE_RUNTIME_UID"])
+    runtime_gid = int(context.env["WEAVE_RUNTIME_GID"])
+    protected_roots = (context.secret_root, context.tls_root)
+    for root in protected_roots:
+        _assert_protected_source(
+            root,
+            source_type="directory",
+            writable=True,
+            runtime_uid=runtime_uid,
+            runtime_gid=runtime_gid,
+            container_coordinate="protected-root",
+        )
+    checked: set[tuple[Path, str, bool]] = set()
+    for entry in graph:
+        source = Path(entry["source"])
+        root = next(
+            (candidate for candidate in protected_roots if _path_within(source, candidate)),
+            None,
+        )
+        if root is None or entry["mountKind"] not in {"bind", "compose-secret"}:
+            continue
+        expected_type = entry["expectedSourceType"]
+        writable = entry["access"] == "read-write"
+        key = (source, expected_type, writable)
+        if key in checked:
+            continue
+        coordinate = f"{entry['service']}:{entry['target']}"
+        _assert_protected_source(
+            source,
+            source_type=expected_type,
+            writable=writable,
+            runtime_uid=runtime_uid,
+            runtime_gid=runtime_gid,
+            container_coordinate=coordinate,
+        )
+        current = source.parent
+        while _path_within(current, root):
+            _assert_protected_source(
+                current,
+                source_type="directory",
+                writable=True,
+                runtime_uid=runtime_uid,
+                runtime_gid=runtime_gid,
+                container_coordinate=coordinate,
+            )
+            if current == root:
+                break
+            current = current.parent
+        if expected_type == "directory":
+            for descendant in source.rglob("*"):
+                descendant_type = _source_type(descendant)
+                if descendant_type not in {"file", "directory"}:
+                    raise ContractError(
+                        f"protected subtree for {coordinate} contains a non-regular object"
+                    )
+                _assert_protected_source(
+                    descendant,
+                    source_type=descendant_type,
+                    writable=writable,
+                    runtime_uid=runtime_uid,
+                    runtime_gid=runtime_gid,
+                    container_coordinate=coordinate,
+                )
+        checked.add(key)
+
+    serialized = json.dumps(model, sort_keys=True).encode("utf-8")
+    for root in protected_roots:
+        for candidate in root.rglob("*"):
+            if _source_type(candidate) != "file":
+                continue
+            payload = candidate.read_bytes().strip()
+            if len(payload) >= 8 and payload in serialized:
+                raise ContractError("normalized Compose diagnostics contain a protected SecretRef value")
+
+
+def prepare_runtime_paths(context: ComposeContext) -> None:
     manifest = context.generated_root / "render-manifest.json"
     if manifest.is_symlink() or not manifest.is_file():
         raise ContractError("render-manifest.json is missing; run render first")
-    ensure_resource(context, "network", context.env["WEAVE_DOCKER_NETWORK"])
-    for key in VOLUME_KEYS:
-        ensure_resource(context, "volume", context.env[key])
     evidence_root = context.generated_root / "identity-ops"
     evidence_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(evidence_root, 0o700)
@@ -205,9 +626,34 @@ def prepare(context: ComposeContext) -> None:
             os.chown(evidence_root, runtime_uid, runtime_gid)
         except PermissionError as error:
             raise ContractError("Identity Ops evidence directory is not writable by the rootless runtime uid/gid") from error
+    for path in (
+        context.secret_root / "agent-runtime/workloads",
+        context.secret_root / "agent-runtime/workloads/weave/keycloak",
+        context.secret_root / "agent-runtime/profile-signing",
+        context.secret_root / "agent-runtime/state-wrapping",
+    ):
+        path.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(path, 0o700)
+        if path.stat().st_uid != runtime_uid or path.stat().st_gid != runtime_gid:
+            try:
+                os.chown(path, runtime_uid, runtime_gid)
+            except PermissionError as error:
+                raise ContractError(
+                    "Agent Runtime SecretRef directory is not writable by the rootless runtime uid/gid"
+                ) from error
 
 
-def normalized_config(context: ComposeContext, emit: bool) -> None:
+def prepare(context: ComposeContext) -> None:
+    prepare_runtime_paths(context)
+    model = normalized_config(context, emit=False)
+    graph = validate_mount_contract(model)
+    preflight_protected_sources(context, model, graph)
+    ensure_resource(context, "network", context.env["WEAVE_DOCKER_NETWORK"])
+    for key in VOLUME_KEYS:
+        ensure_resource(context, "volume", context.env[key])
+
+
+def normalized_config(context: ComposeContext, emit: bool) -> dict[str, Any]:
     result = compose(context, "config", "--format", "json", capture=True)
     model = json.loads(result.stdout)
     services = model.get("services", {})
@@ -222,35 +668,13 @@ def normalized_config(context: ComposeContext, emit: bool) -> None:
         raise ContractError("dev must keep the application tier on the host")
     if context.profile in {"test", "prod"} and not {"backend", "mcp"}.issubset(services):
         raise ContractError(f"{context.profile} normalized model is missing the application tier")
+    validate_mount_contract(model)
     if emit:
         print(json.dumps(model, indent=2, sort_keys=True))
-
-
-def test_user_volume(context: ComposeContext) -> tuple[str, ...]:
-    if context.profile == "prod" and "WEAVE_TEST_USERS_FILE" in context.env:
-        raise ContractError("prod rejects WEAVE_TEST_USERS_FILE before Identity Ops mutation")
-    supplied = context.env.get("WEAVE_TEST_USERS_FILE", "")
-    if context.profile == "test" and not supplied:
-        supplied = str(context.root / ".generated/test/test-users.json")
-    if not supplied:
-        return ()
-    supplied_path = Path(supplied).expanduser()
-    try:
-        supplied_metadata = supplied_path.lstat()
-    except FileNotFoundError as error:
-        raise ContractError("WEAVE_TEST_USERS_FILE is unavailable") from error
-    if stat.S_ISLNK(supplied_metadata.st_mode) or not stat.S_ISREG(supplied_metadata.st_mode):
-        raise ContractError("WEAVE_TEST_USERS_FILE must be a regular non-symlink file")
-    path = supplied_path.resolve()
-    metadata = path.stat()
-    if stat.S_IMODE(metadata.st_mode) != 0o600 or metadata.st_uid != os.getuid():
-        raise ContractError("WEAVE_TEST_USERS_FILE must be owner-controlled mode-0600")
-    json.loads(path.read_text(encoding="utf-8"))
-    return ("--volume", f"{path}:/run/weave/test-users.json:ro")
+    return model
 
 
 def identity_ops(context: ComposeContext, action: str) -> None:
-    test_users = test_user_volume(context)
     prepare(context)
     compose(context, "stop", "keycloak")
     compose(
@@ -277,7 +701,6 @@ def identity_ops(context: ComposeContext, action: str) -> None:
         "run",
         "--rm",
         "--no-deps",
-        *test_users,
         "identity-ops",
         command,
     )
@@ -291,7 +714,6 @@ def adopt_secret_updates(context: ComposeContext) -> None:
         return
     allowed = {
         "keycloak-weave-identity-admin",
-        "keycloak-weave-agent-runtime-admin",
         "keycloak-nextcloud",
         "keycloak-matrix-mas",
     }
@@ -322,15 +744,43 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
     elif command == "adoption-check":
         print(json.dumps(adoption_status(context), indent=2, sort_keys=True))
     elif command == "up":
-        test_user_volume(context)
         script(context, "init_secrets.py")
         script(context, "render_config.py")
         prepare(context)
-        normalized_config(context, emit=False)
+        if context.profile == "dev":
+            # Explicitly targeting a Compose service activates its otherwise
+            # disabled profile. Remove application-tier containers left by an
+            # older/dev-drifted invocation before converging the provider-only
+            # host-development topology.
+            compose(
+                context,
+                "rm",
+                "--stop",
+                "--force",
+                *HOST_APPLICATION_SERVICES,
+            )
         compose(context, "up", "-d", "postgres", "postgres-reconcile")
         identity_ops(context, "identity-apply")
-        compose(context, "up", "-d", "--remove-orphans")
+        compose(
+            context,
+            "up",
+            "-d",
+            "--remove-orphans",
+            "--wait",
+            "--wait-timeout",
+            "600",
+            *RUNTIME_ROOT_SERVICES[context.profile],
+        )
+        script(context, "nextcloud_reconcile.py")
     elif command == "down":
+        if context.profile == "dev":
+            compose(
+                context,
+                "rm",
+                "--stop",
+                "--force",
+                *HOST_APPLICATION_SERVICES,
+            )
         compose(context, "down", *extra)
     elif command in {"ps", "logs"}:
         compose(context, command, *extra)

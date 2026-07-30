@@ -5,62 +5,80 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly ROOT_DIR
+REPOSITORY_ROOT="$(cd -- "${ROOT_DIR}/../.." && pwd)"
+readonly REPOSITORY_ROOT
 PYTHON_BIN="$(command -v python3)"
 readonly PYTHON_BIN
-TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/weave-keycloak-resolver-test.XXXXXX")"
+TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/weave-keycloak-builder-test.XXXXXX")"
 readonly TEMP_ROOT
 trap 'rm -rf -- "$TEMP_ROOT"' EXIT
 
-MOCK_BIN="${TEMP_ROOT}/bin"
-EVIDENCE_FILE="${TEMP_ROOT}/stock-keycloak-image.json"
-mkdir -p "${MOCK_BIN}"
+export REPOSITORY_ROOT TEMP_ROOT
+"${PYTHON_BIN}" - <<'PY'
+import importlib.util
+import os
+import stat
+from pathlib import Path
 
-cat >"${MOCK_BIN}/docker" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
+repository = Path(os.environ["REPOSITORY_ROOT"])
+temporary = Path(os.environ["TEMP_ROOT"])
+script = repository / "infra/weave-workspace/scripts/build_keycloak_image.py"
+spec = importlib.util.spec_from_file_location("build_keycloak_image", script)
+assert spec is not None and spec.loader is not None
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
 
-readonly STOCK_REFERENCE='quay.io/keycloak/keycloak@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13'
-readonly IMAGE_ID='sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+assert module.UPSTREAM_COMMIT == "6c73e3027811d9c7b22683edd825e839272e9547"
+assert module.ARCHIVE_SHA256 == "32267c4f45db91874c46a097415c336d137ee184d25c3481a513905a92669186"
+assert module.STOCK_SERVICES_SHA256 == "052169f7907a21f4e26679bca5c7365627db91b071a7a2fcaeee00230e6b1419"
+assert module.SPEC_COMMIT == "d44ca90a1010616c9430fe0b45cdf0876d507774"
+try:
+    module.resolve_candidate(repository, "1" * 40)
+except SystemExit as failure:
+    assert "differs from the local source HEAD" in str(failure)
+else:
+    raise AssertionError("Keycloak builder accepted evidence for a different source commit")
 
-case "${1:-}" in
-  pull)
-    [[ "${2:-}" == "${STOCK_REFERENCE}" ]]
-    printf 'mock pull progress that must not contaminate resolver stdout\n'
-    ;;
-  image)
-    [[ "${2:-}" == inspect ]]
-    [[ "${3:-}" == "${STOCK_REFERENCE}" ]]
-    printf '{"Id":"%s","RepoDigests":["%s"]}\n' "${IMAGE_ID}" "${STOCK_REFERENCE}"
-    ;;
-  *)
-    printf 'unexpected docker invocation\n' >&2
-    exit 2
-    ;;
-esac
-EOF
-chmod 700 "${MOCK_BIN}/docker"
+evidence = temporary / "evidence.json"
+module.atomic_write(evidence, {"containsSecretValues": False, "supportSafe": True})
+assert stat.S_IMODE(evidence.stat().st_mode) == 0o600
 
-actual="$(
-  PATH="${MOCK_BIN}:${PATH}" "${PYTHON_BIN}" \
-    "${ROOT_DIR}/scripts/build_keycloak_image.py" \
-    --root "${ROOT_DIR}" \
-    --candidate-commit 1111111111111111111111111111111111111111 \
-    --output "${EVIDENCE_FILE}"
-)"
+patch = repository / module.PATCH_RELATIVE
+dockerfile = repository / module.DOCKERFILE_RELATIVE
+assert patch.is_file() and dockerfile.is_file()
+patch_text = patch.read_text(encoding="utf-8")
+dockerfile_text = dockerfile.read_text(encoding="utf-8")
+assert "WeaveWorkloadClientRegistrationExecutorFactory" in patch_text
+assert "weave-workload-client-registration-enforcer" in patch_text
+assert "context instanceof AdminClientRegisteredContext" in patch_text
+assert "representation.setScope(null)" in patch_text
+assert "attributes.entrySet().removeIf(entry -> entry.getValue() == null)" in patch_text
+assert "client.removeAttribute(ClientSecretConstants.CLIENT_SECRET_CREATION_TIME)" in patch_text
+assert "FIXED_ATTRIBUTES.forEach(client::setAttribute)" in patch_text
+assert "OIDCConfigAttributes.USE_RFC9068_ACCESS_TOKEN_HEADER_TYPE" in patch_text
+assert "OIDCConfigAttributes.ACCESS_TOKEN_LIFESPAN" in patch_text
+assert "attributes.putIfAbsent(" in patch_text
+assert "@@ -92,4 +93,9 @@" in patch_text
+assert "@@ -94,0" not in patch_text
+assert "keycloak-server-spi-private" not in patch_text
+assert "FROM ${WEAVE_KEYCLOAK_BASE} AS builder" in dockerfile_text
+assert "kc.sh build --db=postgres" in dockerfile_text
+assert "com.massimotter.weave.keycloak-patch-sha256" in dockerfile_text
+assert "com.massimotter.weave.spec-digest" in dockerfile_text
 
-expected='sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-[[ "${actual}" == "${expected}" ]] || {
-  printf 'resolver stdout was not exactly one immutable image ID: %q\n' "${actual}" >&2
-  exit 1
-}
-
-jq -e \
-  --arg imageId "${expected}" \
-  '.schemaVersion == "weave.stock-keycloak-image.v1" and
-   .imageId == $imageId and
-   .evidenceForCandidateCommit == "1111111111111111111111111111111111111111" and
-   .supportSafe == true and
-   .containsSecretValues == false' \
-  "${EVIDENCE_FILE}" >/dev/null
+services = temporary / "keycloak-services-26.7.0.jar"
+services.write_bytes(b"fixture")
+context = temporary / "prepared-context"
+module.prepare_build_context(context, services, dockerfile)
+assert (context / services.name).read_bytes() == b"fixture"
+assert (context / "Dockerfile.runtime").read_text(encoding="utf-8") == dockerfile_text
+assert stat.S_IMODE((context / services.name).stat().st_mode) == 0o600
+try:
+    module.prepare_build_context(context, services, dockerfile)
+except SystemExit as failure:
+    assert "already exists" in str(failure)
+else:
+    raise AssertionError("Keycloak builder overwrote a prepared build context")
+PY
 
 printf 'build-keycloak-image-helper-test: ok\n'

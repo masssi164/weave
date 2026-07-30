@@ -63,7 +63,7 @@ Start with:
 8. [Weaver/OpenClaw runtime projection](architecture/weaver-openclaw-profile.md) — RuntimeProfile v2, disposable-cell authorities, workload identity, MCP, and remaining promotion gates.
 9. [Canonical feature models](canonical-feature-models.md) — provider-neutral domain vocabulary.
 10. [Accessible workflow context contract](workflow-context-contract.md) — linear workflow primitives, context references, agent dry-run rules, and the MVP slice before a visual builder.
-11. [Architecture](architecture.md) and [Diagrams](diagrams/index.md) — facades, data flow, and domain diagrams.
+11. [Architecture](architecture.md), [JVM module and bean contract](architecture/jvm-module-and-bean-contract.md), and [Diagrams](diagrams/index.md) — facades, module dependencies, runtime beans, data flow, and domain diagrams.
 
 ### Security / compliance reviewer
 
@@ -133,7 +133,7 @@ Historical/context docs:
 
 The canonical product/domain truth is the pinned Weave Specification Corpus referenced by `specs/weave-specs.lock.json`. This repo projects the active direction through [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md): Weave is product-first and provider-neutral. Admin/provider setup, IDM/RBAC, readiness, whitelisting, and support-safe diagnostics come before optional Weaver personal-assistant runtime work.
 
-Weaver remains optional, governed, auditable, support-safe, and disabled by default. Each entitled cell consumes a signed RuntimeProfile v2 projected from current Weave policy and follows the rule: user-rights, organization-whitelisted capabilities. OpenClaw owns its native approval lifecycle; Weave owns fresh domain authorization plus argument-bound decision and action evidence. See [Weaver/OpenClaw runtime projection](architecture/weaver-openclaw-profile.md) and [MCP implementation boundary](weave-contract-java-mcp.md).
+Weaver remains optional, governed, auditable, support-safe, and disabled by default. Each entitled cell consumes a signed RuntimeProfile v2 projected from current Weave policy and follows the rule: user-rights, organization-whitelisted capabilities. OpenClaw owns its native approval lifecycle; Weave owns fresh domain authorization plus argument-bound decision and action evidence. See [Weaver/OpenClaw runtime projection](architecture/weaver-openclaw-profile.md) and [MCP projection boundary](weave-mcp-projection.md).
 
 v0.1 is a dogfood-ready review baseline, not a general production release claim or scaffold preview. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration or provider secrets. The shortest status summary for reviewers is [v0.1 Golden Path readiness](v0.1-golden-path.md). The latest published prerelease audit is [v0.1.0-rc.3 release evidence](release-v0.1-rc3-evidence.md); current post-publication release readiness still blocks on #591 manual assistive-technology evidence.
 

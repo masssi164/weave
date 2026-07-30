@@ -65,12 +65,12 @@ public class OrganizationManifestService {
                 "organization-admin-console",
                 List.of(
                         "accept organization auth URL, invite link, or deep link",
-                        "complete SSO with the selected identity provider",
+                        "complete OIDC Authorization Code with PKCE through the organization authority",
                         "consume effective organization manifest and capability states",
                         "render only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later member states"),
                 List.of(
                         "create and bootstrap organizations",
-                        "select and configure identity providers and category providers",
+                        "manage Keycloak identity, upstream federation, and selectable category providers",
                         "manage provider endpoint URLs, rotation, readiness, and support-safe diagnostics",
                         "manage users, groups, roles, capability profiles, and deny-by-default policy",
                         "own provider, tool, and agent whitelisting plus privacy/compliance risk notes",
@@ -179,7 +179,7 @@ public class OrganizationManifestService {
 
     private Map<String, CapabilityManifestState> memberStates(WorkspaceCapabilitiesResponse capabilities) {
         Map<String, CapabilityManifestState> states = new LinkedHashMap<>();
-        states.put("idm-rbac", memberState(capabilities.shellAccess()));
+        states.put("platform-identity", memberState(capabilities.shellAccess()));
         states.put("chat-channels", memberState(capabilities.chat()));
         states.put("files-docs", memberState(capabilities.files()));
         states.put("boards-tasks", memberState(capabilities.boards()));

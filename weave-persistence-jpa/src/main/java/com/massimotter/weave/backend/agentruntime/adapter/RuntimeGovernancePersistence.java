@@ -16,11 +16,13 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.query.Param;
 
 @Entity
@@ -223,9 +225,8 @@ interface RuntimeEntitlementJpaRepository
               and entitlement.capabilityRevision = :capabilityRevision
               and entitlement.state = :state
             order by entitlement.lastObservedAt desc, entitlement.createdAt desc
-            limit 1
             """)
-    Optional<RuntimeEntitlementJpaEntity> lockReusable(
+    List<RuntimeEntitlementJpaEntity> lockReusable(
             @Param("organizationRef") String organizationRef,
             @Param("personRef") String personRef,
             @Param("memberIssuer") String memberIssuer,
@@ -233,7 +234,8 @@ interface RuntimeEntitlementJpaRepository
             @Param("sourceProvider") String sourceProvider,
             @Param("sourceGroupRef") String sourceGroupRef,
             @Param("capabilityRevision") String capabilityRevision,
-            @Param("state") RuntimeEntitlementState state);
+            @Param("state") RuntimeEntitlementState state,
+            Pageable page);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

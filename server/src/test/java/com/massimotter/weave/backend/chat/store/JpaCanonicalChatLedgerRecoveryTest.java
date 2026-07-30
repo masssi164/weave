@@ -19,7 +19,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
-import org.flywaydb.core.Flyway;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -436,7 +436,7 @@ class JpaCanonicalChatLedgerRecoveryTest {
     private JpaCanonicalChatStore store(
             DriverManagerDataSource dataSource,
             MatrixSynapseCompatibilityProfile profile) {
-        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+        JpaTestDatabase.initializeSchema(dataSource);
         return storeWithoutMigration(dataSource, profile);
     }
 
@@ -451,12 +451,7 @@ class JpaCanonicalChatLedgerRecoveryTest {
     }
 
     private DriverManagerDataSource dataSource() {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName("org.h2.Driver");
-        dataSource.setUrl("jdbc:h2:mem:" + UUID.randomUUID()
-                + ";MODE=PostgreSQL;DATABASE_TO_UPPER=true;DB_CLOSE_DELAY=-1");
-        dataSource.setUsername("sa");
-        dataSource.setPassword("");
-        return dataSource;
+        return com.massimotter.weave.backend.testing.JpaTestDatabase
+                .dataSource("canonical-chat-ledger");
     }
 }

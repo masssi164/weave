@@ -20,12 +20,7 @@ if [[ "${PROFILE}" != "dev" && -z "${WEAVE_ENV_FILE:-}" ]]; then
   exit 2
 fi
 
-"${ROOT_DIR}/compose.sh" "${PROFILE}" secrets-init
-"${ROOT_DIR}/compose.sh" "${PROFILE}" render
-"${ROOT_DIR}/compose.sh" "${PROFILE}" config >/dev/null
-"${ROOT_DIR}/compose.sh" "${PROFILE}" prepare
-"${ROOT_DIR}/compose.sh" "${PROFILE}" keycloak-apply
 "${ROOT_DIR}/compose.sh" "${PROFILE}" up
-"${ROOT_DIR}/compose.sh" "${PROFILE}" keycloak-verify
+"${ROOT_DIR}/compose.sh" "${PROFILE}" identity-verify
 
 printf 'install: %s exact-candidate stack is running and verified\n' "${PROFILE}"

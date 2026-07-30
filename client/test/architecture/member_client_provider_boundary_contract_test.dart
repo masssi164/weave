@@ -17,7 +17,7 @@ void main() {
         'deploy_new',
         'attach_existing',
         'hybrid setup',
-        '/admin/identity/readiness',
+        '/admin/platform/identity/readiness',
         '/identity/readiness',
         '/admin/providers',
         '/admin/policies',

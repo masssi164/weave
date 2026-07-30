@@ -46,7 +46,7 @@ artifacts:
     corpusCandidates:
       - steering/product-constitution.md
       - steering/domain-context-map.md
-      - domains/identity-idm/spec.md
+      - platform/identity-security/spec.md
       - domains/admin-health-ops/spec.md
   - path: specs/0002-context-driven-workflows
     status: transitional-conformance

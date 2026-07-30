@@ -215,7 +215,7 @@ public class ChatFacadeService {
 
         List<String> conflicts = new ArrayList<>();
         if (request.identityConflictCount() > 0) {
-            conflicts.add("Membership identity conflicts require admin resolution against the IDM/RBAC mapping before cutover.");
+            conflicts.add("Membership identity conflicts require admin resolution against the Keycloak role/group mapping before cutover.");
         }
         if (sourceAdapter.equals(targetAdapter)) {
             conflicts.add("Source and target adapters are identical; no provider replacement should be scheduled.");

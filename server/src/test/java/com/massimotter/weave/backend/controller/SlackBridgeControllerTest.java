@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.service.interop.SlackSecretResolver;
 import java.nio.charset.StandardCharsets;
 import javax.crypto.Mac;
@@ -149,7 +151,11 @@ class SlackBridgeControllerTest {
         return jwt().jwt(jwt -> jwt
                         .issuer("https://auth.example.invalid/realms/weave")
                         .subject("owner-123")
-                        .claim("workspace_id", "weave-dev"))
+                        .claim("workspace_id", "weave-dev")
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("owner")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

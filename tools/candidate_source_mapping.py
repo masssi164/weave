@@ -22,10 +22,8 @@ IMAGE_NAMES = (
     "mcp",
 )
 SOURCE_IMAGE_NAMES = {"backend", "identity-ops", "mcp"}
-STOCK_KEYCLOAK_REFERENCE = (
-    "quay.io/keycloak/keycloak@"
-    "sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13"
-)
+KEYCLOAK_MODULE = "keycloak-runtime"
+KEYCLOAK_PROVIDER = "weave-workload-client-registration-enforcer"
 IMAGE_ENVIRONMENT = {
     "backend": "WEAVE_BACKEND_IMAGE",
     "identity-ops": "WEAVE_IDENTITY_OPS_IMAGE",
@@ -147,11 +145,11 @@ def assert_local_images(images: dict[str, str], source_candidate: str) -> None:
             raise MappingError(
                 f"attested image identity changed: {name}"
             )
+        if labels.get("org.opencontainers.image.revision") != source_candidate:
+            raise MappingError(
+                f"attested source image revision changed: {name}"
+            )
         if name in SOURCE_IMAGE_NAMES:
-            if labels.get("org.opencontainers.image.revision") != source_candidate:
-                raise MappingError(
-                    f"attested source image revision changed: {name}"
-                )
             if (
                 name == "identity-ops"
                 and labels.get("com.massimotter.weave.component")
@@ -160,9 +158,23 @@ def assert_local_images(images: dict[str, str], source_candidate: str) -> None:
                 raise MappingError(
                     "attested Identity Ops image has no component provenance"
                 )
-        elif STOCK_KEYCLOAK_REFERENCE not in (inspected.get("RepoDigests") or []):
+        elif (
+            labels.get("com.massimotter.weave.module") != KEYCLOAK_MODULE
+            or labels.get("com.massimotter.weave.provider-id") != KEYCLOAK_PROVIDER
+            or not re.fullmatch(
+                r"[0-9a-f]{64}",
+                labels.get("com.massimotter.weave.keycloak-patch-sha256", ""),
+            )
+            or not re.fullmatch(
+                r"[0-9a-f]{64}",
+                labels.get(
+                    "com.massimotter.weave.keycloak-patched-services-sha256",
+                    "",
+                ),
+            )
+        ):
             raise MappingError(
-                "attested Keycloak image is not the approved stock upstream digest"
+                "attested Keycloak image has incomplete downstream provenance"
             )
 
 

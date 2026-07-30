@@ -5,7 +5,7 @@
   "mode": "attach_existing",
   "cannotBeSatisfiedBy": ["deploy_new_pipeline_run", "github_live_stack_e2e_only", "dispatch_preflight_only"],
   "inputRefs": {
-    "identity": "CredentialRef:identity-existing-demo",
+    "platformIdentity": "CredentialRef:keycloak-authority-existing-demo",
     "chat": "CredentialRef:chat-existing-demo",
     "files": "CredentialRef:files-existing-demo"
   },
@@ -16,7 +16,7 @@
     "separateApprovalRequiredForMutation": true
   },
   "readinessMapping": [
-    {"domain": "identity-idm", "memberState": "available", "adminReadiness": "attach_preflight_ready"},
+    {"domain": "platform-identity", "memberState": "available", "adminReadiness": "keycloak_authority_preflight_ready"},
     {"domain": "chat", "memberState": "degraded", "adminReadiness": "manual_review_required"},
     {"domain": "files", "memberState": "not_configured", "adminReadiness": "missing_secretref"}
   ],

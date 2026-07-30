@@ -29,20 +29,13 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeStateStoreAdmin;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
 import com.massimotter.weave.backend.model.agentruntime.AgentRuntimeProjectionResponse;
 import com.massimotter.weave.backend.model.agentruntime.StopAgentRuntimeRequest;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 class AgentRuntimeAdminServiceTest {
     private static final Instant NOW = Instant.parse("2026-07-20T10:00:00Z");
@@ -68,12 +61,7 @@ class AgentRuntimeAdminServiceTest {
 
     @BeforeEach
     void setUp() {
-        EmbeddedDatabase database = new EmbeddedDatabaseBuilder()
-                .setType(EmbeddedDatabaseType.H2)
-                .setName("arc-admin-" + UUID.randomUUID() + ";MODE=PostgreSQL")
-                .build();
-        Flyway.configure().dataSource(database)
-                .locations("classpath:db/migration").load().migrate();
+        var database = JpaTestDatabase.entityFirstDataSource("arc-admin");
         var persistence = AgentRuntimeJpaTestFactory.create(database);
         cells = persistence.cells();
         JpaRuntimeCommandRepository commands = persistence.commands();
@@ -81,7 +69,7 @@ class AgentRuntimeAdminServiceTest {
         JpaRuntimeGovernanceRepository governance = persistence.governance();
         workloads = new CountingWorkloadAdmin();
         RuntimeEntitlementAuthority entitlement = command -> new RuntimeEntitlementObservation(
-                command.organizationRef(), command.personRef(), command.memberBinding(), "keycloak",
+                command.organizationRef(), command.personRef(), command.memberBinding(), "test-member", "keycloak",
                 "sha256:" + "1".repeat(64), "sha256:" + "2".repeat(64),
                 NOW, NOW.plusSeconds(300));
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);

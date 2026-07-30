@@ -100,7 +100,7 @@ Mapping must be previewable before activation. The preview answers: "What can th
 
 Admins select providers by category, not by member-facing feature names:
 
-- identity/IDM;
+- fixed Keycloak platform-identity boundary;
 - chat;
 - files and documents;
 - calendar;

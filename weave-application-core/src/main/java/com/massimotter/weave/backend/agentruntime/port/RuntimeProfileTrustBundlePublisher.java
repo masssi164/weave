@@ -5,5 +5,5 @@ import java.time.Instant;
 import java.util.Optional;
 
 public interface RuntimeProfileTrustBundlePublisher {
-    Optional<RuntimeProfileJwkSet> publish(Instant now);
+  Optional<RuntimeProfileJwkSet> publish(Instant now);
 }

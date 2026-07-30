@@ -3,15 +3,41 @@
 ## Overview
 Weave uses a feature-first clean architecture with deterministic bootstrap before routing. App-level OIDC bootstrap is resolved before navigation, while protocol-specific or platform-specific code lives either inside the owning feature or in `lib/integrations/<integration>/` when the boundary is shared across multiple features.
 
-Weave is product-first and provider-neutral. It models organization capabilities such as identity, chat, files, calendar, boards/tasks, calls, decisions, documents/collaboration, embedded manuals, release evidence, and Agent Runtime Control. Weaver/OpenClaw is an optional ARC runtime provider, not a canonical collaboration domain. Concrete systems such as Keycloak, Entra ID, Matrix, Teams, Slack, Nextcloud, SharePoint, OpenProject, Jira, or LiveKit attach as provider adapters behind Weave domain contracts. The server is the canonical domain, policy, validation, and control-plane authority. Northbound data planes use open standards where the domain has one: OIDC/OAuth2 for Identity, WebDAV for Files, CalDAV/iCalendar for Calendar, Matrix Client-Server API for Chat, pinned MatrixRTC Profile 0 plus WebRTC for Calls, workload-only MCP for Agents, and OpenAPI/REST for Admin/control-plane work. Calls has no member REST API: MAS fronts Matrix Native OAuth with Keycloak upstream, and an internal RTC Authorizer—not identity proof alone—controls short-lived SFU access. The Matrix facade uses a shared Rust/Ruma protocol core through server JNI and Flutter `flutter_rust_bridge`; Synapse or another homeserver can be a southbound provider or fixture, not the northbound product boundary. See [ADR-004: Server OpenAPI is the control-plane contract authority](architecture/adr-004-server-openapi-contract-authority.md). The first Files WebDAV projection decisions are captured in [ADR-005: Files WebDAV facade slice](architecture/adr-005-files-webdav-facade-slice.md). See also [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md), [Organization embedding contract](organization-embedding-contract.md), [Identity provisioning strategy](identity-provisioning-strategy.md), [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md), [Canonical domains](architecture/canonical-domains.md), [Provider portability contract](architecture/provider-portability.md), and [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md).
+Weave is product-first and provider-neutral for collaborative domains. It models
+organization capabilities such as chat, files, calendar, boards/tasks, calls,
+decisions, documents/collaboration, embedded manuals, release evidence, and
+Agent Runtime Control. Keycloak is the fixed platform identity and security
+authority; upstream Entra ID, LDAP/Active Directory, Authentik, Auth0, or other
+OIDC/SAML sources integrate through Keycloak federation or brokering and do not
+become interchangeable Weave domain adapters. Matrix, Teams, Slack, Nextcloud,
+SharePoint, OpenProject, Jira, or LiveKit remain replaceable southbound domain
+providers. The server is the canonical domain, policy, validation, and
+control-plane authority. Northbound data planes use open standards where the
+domain has one: OIDC/OAuth2 for identity, WebDAV for Files, CalDAV/iCalendar for
+Calendar, Matrix Client-Server API for Chat, pinned MatrixRTC Profile 0 plus
+WebRTC for Calls, workload-only MCP for Agents, and OpenAPI/REST for
+Admin/control-plane work.
+
+The concrete Java dependency direction, allowed runtime libraries, composition roots, security
+chains, and bean cardinalities are recorded in the
+[JVM module, dependency, and bean contract](architecture/jvm-module-and-bean-contract.md).
 
 ## Provider-neutral capability contracts
 
 Canonical feature models come before control-plane, Admin Console, infra, or concrete adapter implementation. The active canonical model strategy is documented in [Canonical feature models and provider facades](canonical-feature-models.md), with Mermaid domain diagrams in [`docs/diagrams/`](diagrams/index.md). Server facades expose Weave-owned models per capability; they are not thin provider proxies and must not leak provider IDs, raw provider payloads, secrets, or downstream diagnostics into member or Admin Console product contracts.
 
-Workspace/Admin Health is organized around feature capability categories, not concrete systems. The stable contract categories are identity/IDM, chat, files/documents, calendar, boards/tasks, meetings/calls, decisions/evidence, manuals/help, release evidence, admin control plane, model provider, and Agent Runtime Control. Each category publishes category-level capability keys, current dogfood/default adapters, external adapter placeholders, and operational readiness modules. Member manifests expose only provider-neutral capability states: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`.
+Workspace/Admin Health is organized around replaceable collaborative feature
+categories, not concrete systems. Platform identity/security is a separate
+fixed Keycloak readiness section. The replaceable categories are chat,
+files/documents, calendar, boards/tasks, meetings/calls, decisions/evidence,
+manuals/help, release evidence, admin control plane, model provider, and Agent
+Runtime Control.
 
-The dogfood stack maps Keycloak, Matrix/Synapse, Nextcloud, OpenProject, ONLYOFFICE, LiveKit as the first replaceable SFU, and Weaver/OpenClaw as the first guarded ARC runtime provider. External adapters such as Entra ID, Microsoft Teams, SharePoint/OneDrive, Microsoft 365 Office/Graph, Planner/Jira, Authentik/Auth0/OIDC/SAML, and other providers attach behind the same category contracts. Normal members never configure raw provider endpoints, secrets, OIDC clients, or diagnostics; admins/operators choose adapters and see support-safe readiness through backend-owned facades.
+The dogfood stack uses Keycloak as platform authority and maps Matrix/Synapse,
+Nextcloud, OpenProject, ONLYOFFICE, LiveKit, and Weaver/OpenClaw behind their
+own domain contracts. Microsoft Teams, SharePoint/OneDrive, Microsoft 365
+Office/Graph, and Planner/Jira are future domain adapters. External identity
+sources remain behind Keycloak federation/brokering.
 
 Provider choices carry an explicit admin-visible posture:
 
@@ -19,7 +45,9 @@ Provider choices carry an explicit admin-visible posture:
 - `external_existing_provider`: an organization keeps an existing category provider, for example Teams chat or SharePoint files, while Weave records data residency, retention, audit, export, and support-boundary risks.
 - `managed_cloud_provider`: a cloud/SaaS adapter posture that is valid behind the same capability contract but must surface privacy, compliance, availability, export, and vendor-lock-in risks to admins/operators.
 
-This means a mixed deployment such as Keycloak identity, Teams chat, SharePoint/OneDrive files, and OpenProject tasks is architecturally valid. It must not change member-facing state vocabulary or allow direct Flutter-to-provider calls.
+This means a deployment can use Keycloak with an upstream enterprise directory,
+Teams chat, SharePoint/OneDrive files, and OpenProject tasks. The Keycloak
+authority remains stable while collaborative domain providers may change.
 
 Provider replacement is also a backend/admin concern. If an organization swaps a domain provider, for example Slack to Synapse/Matrix for Chat, the server/admin control plane owns preflight, dry-run, mapping, migration, conflict reporting, lossy-field warnings, audit, and readiness. The member client continues to consume canonical Weave Chat models and support-safe impact states.
 
@@ -27,11 +55,14 @@ Design evidence for these seams comes from established interoperability contract
 
 ## Organization discovery and manifest contract
 
-The member setup path is intentionally small: a person opens an invite/deep link or enters an organization auth URL, completes SSO, and then the Weave Client fetches `/api/v1/organization/manifest` with the authenticated Weave token. The manifest is the client handoff from organization discovery/auth to member work state.
+The member setup path is intentionally small: a person opens an invite/deep link or enters an organization auth URL, completes SSO, and then the Weave Client fetches `/api/organization/manifest` with the authenticated Weave token. The manifest is the client handoff from organization discovery/auth to member work state.
 
 The manifest may contain the organization display name, the organization auth URL, client-owned responsibilities, Admin Console-owned responsibilities, and effective member capability states. Those states are limited to `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later` and are derived from backend capability policy/readiness without exposing provider internals. In plain contract language: available, disabled by policy, not configured, degraded, unavailable, or coming later. The manifest must be support-safe: provider setup, endpoint rotation, diagnostics, and whitelisting are never member-client responsibilities and must not appear as raw provider URLs, secrets, raw downstream errors, or admin-only diagnostics.
 
-The Organization/Admin Console remains the control plane for organization bootstrap, identity-provider configuration, category provider selection, endpoint URL management and rotation, readiness/health, support-safe diagnostics, RBAC/capability profiles, deny-by-default policy, provider/tool/agent whitelisting, risk notes, audit logs, and org-wide defaults. The Weave Client only consumes the resulting manifest/capabilities and renders authenticated member work surfaces.
+The Organization/Admin Console remains the control plane for organization
+bootstrap, Keycloak federation/readiness, category provider selection, endpoint
+management, support-safe diagnostics, RBAC/capability profiles,
+deny-by-default policy, whitelisting, audit, and organization defaults.
 
 ## App startup
 The app now resolves bootstrap before `MaterialApp.router` is built.
@@ -79,20 +110,19 @@ Shell destinations:
 
 `/chat` is the first Weave Home surface. It is intentionally more structured than a flat Matrix room list:
 
-- **Favorites** collect pinned/favorited people, channels, and AI chats once that metadata is available.
+- **Favorites** collect pinned/favorited people and channels once that metadata is available.
 - **Personal messages** contain direct human-to-human conversations.
 - **Channels** contain team/topic rooms and remain the main collaboration spine for future channel workspaces.
-- **AI chats** provide a distinct home for specialized assistant and agent chats instead of mixing them into ordinary DMs.
 
 The member Chat data plane is the Matrix Client-Server API projection over Weave Chat; Slack and Teams stay southbound bridge/provider adapters. Flutter wires `ChatRepository` to the Matrix projection for normal sync/send. `/api/chat/*` remains only for readiness, admin/operator migration evidence, decisions, and meeting capsules. REST conversation/message and Weaver Scout compatibility routes are obsolete and removed; member sync/send must enter through `/_matrix/client/**`. Channel detail treats a channel as a workspace container, but normal member copy may only show available product surfaces or impact-level unavailable states. Files, board/task, calendar, and meeting setup details stay behind admin/operator Workspace Health until the corresponding backend capability is enabled; channel UX must not expose provider setup diagnostics or preview claims.
 
 The server owns a Chat domain facade seam and an OIDC-gated Matrix Client-Server projection. `/_matrix/client/**` is served on the public API origin as a Weave northbound facade, not a Synapse container or raw provider passthrough; a `matrix.<tenant>` origin remains a southbound provider/operator detail. The facade projects canonical Chat conversations/messages and delegates protocol-shape work to the Rust/Ruma core boundary. Calendar event REST CRUD is obsolete as a member data plane; Calendar sync and event CRUD move through `/caldav/**`, while `/api/calendar/**` remains setup/readiness/access-policy control plane. Admin/operator routes under `/api/admin/chat/*` may show support-safe selected mapping, redacted readiness diagnostics, and migration dry-run/preflight reports; destructive migration apply is intentionally out of scope.
 
-The remaining canonical server domain facades are represented by non-Chat skeleton contracts for Files/Documents, Calendar/Meetings, Boards/Tasks, and Identity/Admin/Policy. They are Weave product contracts, not provider proxies: each names canonical object kinds and adapter-boundary operations, evaluates capability policy before provider lookup, fails closed for unknown capabilities, returns empty Weave-domain collections until a promoted adapter exists, and exposes only support-safe admin mappings with SecretRef presence flags rather than secret material, raw provider URLs, downstream payloads, or provider errors.
+The remaining canonical server domain facades are represented by non-Chat skeleton contracts for Files/Documents, Calendar/Meetings, Boards/Tasks, and Platform Identity/Admin/Policy. They are Weave product contracts, not provider proxies: each names canonical object kinds and adapter-boundary operations, evaluates capability policy before provider lookup, fails closed for unknown capabilities, returns empty Weave-domain collections until a promoted adapter exists, and exposes only support-safe admin mappings with SecretRef presence flags rather than secret material, raw provider URLs, downstream payloads, or provider errors.
 
 ## Organization bootstrap configuration
 
-`GET /api/platform/config` returns the strict provider-neutral `OrgManifest` v1 pinned by the canonical specification corpus. The member client resolves it from the organization origin and consumes only the OIDC contract plus Weave-owned Matrix Client-Server, WebDAV Files, and CalDAV Calendar facade bases. The manifest includes provider-neutral state for Identity, Chat, Files, Calendar, Boards, and Health; it contains no provider identifier, provider URL, provider reality level, or editable provider override.
+`GET /api/platform/config` returns the strict provider-neutral `OrgManifest` v1 pinned by the canonical specification corpus. The member client resolves it from the organization origin and consumes only the OIDC contract plus Weave-owned Matrix Client-Server, WebDAV Files, and CalDAV Calendar facade bases. The manifest includes fixed `platform-identity` state plus provider-neutral state for Chat, Files, Calendar, Boards, and Health; it contains no provider identifier, provider URL, provider reality level, or editable provider override.
 
 `features/server_config/` persists the resolved OIDC and Weave facade configuration needed for session restore. When older preference data is loaded, stale Matrix or Files-provider endpoint values are discarded and reconstructed from the Weave control-plane base. Manual setup exposes the organization/identity and Weave API boundary only; provider endpoints are not member-editable settings.
 
@@ -215,9 +245,12 @@ Refactors in this area must preserve:
 - readable focus order in setup/settings
 - clear announcements for bootstrap loading and retry states
 
-## IDM/RBAC capability profile contract
+## Platform identity and RBAC capability profile contract
 
-Weave derives workspace capability visibility from the selected IDM and backend-owned policy evaluation. Keycloak is the self-hosted default IDM for dogfood deployments, but the contract is adapter-friendly for OIDC/SAML providers such as Entra ID, Authentik, and Auth0.
+Weave derives workspace capability visibility from Keycloak claims and
+backend-owned policy evaluation. Keycloak is the platform authority. Entra ID,
+LDAP/Active Directory, Authentik, Auth0, and other sources may be federated or
+brokered through Keycloak; they do not replace the server's identity boundary.
 
 The backend consumes normalized identity claims for member-visible capability profiles and grants only category-level capability keys. Examples include `chat.read`, `chat.send`, `files.read`, `files.upload`, `calendar.read`, `calendar.manage_events`, `boards.read`, `boards.update_task`, and `agent-runtime.entitled`. Unknown roles/groups are deny-by-default.
 
@@ -231,4 +264,4 @@ Each cell receives a unique Keycloak confidential client using `private_key_jwt`
 
 Runtime provisioning remains fail-closed unless Keycloak entitlement, policy evaluation, profile signing, workload identity, external encrypted state, and lifecycle reconciliation are all enabled. Cells retain zero durable local bytes; runtime-internal state is encrypted outside the cell and canonical collaboration content remains in its owning domain.
 
-Lifecycle and profile changes publish support-safe audit correlation. The active MCP catalog is empty until individual collaboration-domain facade contracts and action-evidence gates are implemented and verified.
+Lifecycle and profile changes publish support-safe audit correlation. The active MCP catalog is limited to the read-only Files projection over WebDAV; further domains and every write tool remain gated by their collaboration-domain and action-evidence contracts.

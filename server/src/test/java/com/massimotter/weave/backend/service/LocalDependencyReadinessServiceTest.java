@@ -1,22 +1,32 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeWorkloadReconciliationService;
+import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadReconciliationReport;
+import com.massimotter.weave.backend.persistence.jpa.readiness.JpaPersistenceReadinessProbe;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeWorkloadReconciliationService;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadReconciliationReport;
-import java.util.Optional;
-import org.junit.jupiter.api.Test;
-
 class LocalDependencyReadinessServiceTest {
 
     @Test
-    void delegatesThePersistenceProbeToTheSpringBootHealthIndicator() {
-        PersistenceHealthProbe persistence = mock(PersistenceHealthProbe.class);
-        when(persistence.ready()).thenReturn(true);
+    void omitsPersistenceCheckWhenJpaIsNotConfigured() {
         LocalDependencyReadinessService service = new LocalDependencyReadinessService(
-                persistence, Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty());
+
+        assertThat(service.checks()).isEmpty();
+    }
+
+    @Test
+    void reportsReadyWhenJpaProbeSucceeds() {
+        JpaPersistenceReadinessProbe probe = mock(JpaPersistenceReadinessProbe.class);
+        when(probe.isReady()).thenReturn(true);
+
+        LocalDependencyReadinessService service = new LocalDependencyReadinessService(
+                Optional.of(probe), Optional.empty(), Optional.empty());
 
         assertThat(service.checks()).singleElement().satisfies(check -> {
             assertThat(check.key()).isEqualTo("persistence");
@@ -28,12 +38,12 @@ class LocalDependencyReadinessServiceTest {
 
     @Test
     void redactsJpaFailureDetails() {
-        PersistenceHealthProbe persistence = mock(PersistenceHealthProbe.class);
-        when(persistence.ready())
+        JpaPersistenceReadinessProbe probe = mock(JpaPersistenceReadinessProbe.class);
+        when(probe.isReady())
                 .thenThrow(new IllegalStateException(
                         "jdbc:postgresql://db.internal/weave?password=do-not-expose"));
         LocalDependencyReadinessService service = new LocalDependencyReadinessService(
-                persistence, Optional.empty(), Optional.empty());
+                Optional.of(probe), Optional.empty(), Optional.empty());
 
         assertThat(service.checks()).singleElement().satisfies(check -> {
             assertThat(check.key()).isEqualTo("persistence");
@@ -55,15 +65,13 @@ class LocalDependencyReadinessServiceTest {
         when(reconciliation.supportSafeSnapshot()).thenReturn(report);
         when(report.state()).thenReturn(RuntimeWorkloadReconciliationReport.State.CONVERGED);
         LocalDependencyReadinessService service = new LocalDependencyReadinessService(
-                readyPersistence(), Optional.empty(), Optional.of(reconciliation));
+                Optional.empty(), Optional.empty(), Optional.of(reconciliation));
 
-        assertThat(service.checks()).filteredOn(check ->
-                        "agent-runtime-workload-identities".equals(check.key()))
-                .singleElement()
-                .satisfies(check -> {
-                    assertThat(check.readiness()).isEqualTo("ready");
-                    assertThat(check.action()).isNull();
-                });
+        assertThat(service.checks()).singleElement().satisfies(check -> {
+            assertThat(check.key()).isEqualTo("agent-runtime-workload-identities");
+            assertThat(check.readiness()).isEqualTo("ready");
+            assertThat(check.action()).isNull();
+        });
     }
 
     @Test
@@ -74,21 +82,12 @@ class LocalDependencyReadinessServiceTest {
         when(reconciliation.supportSafeSnapshot()).thenReturn(report);
         when(report.state()).thenReturn(RuntimeWorkloadReconciliationReport.State.BLOCKED);
         LocalDependencyReadinessService service = new LocalDependencyReadinessService(
-                readyPersistence(), Optional.empty(), Optional.of(reconciliation));
+                Optional.empty(), Optional.empty(), Optional.of(reconciliation));
 
-        assertThat(service.checks()).filteredOn(check ->
-                        "agent-runtime-workload-identities".equals(check.key()))
-                .singleElement()
-                .satisfies(check -> {
-                    assertThat(check.readiness()).isEqualTo("blocked");
-                    assertThat(check.toString())
-                            .doesNotContain("credentialref", "weaver-cell-", "keycloak/clients");
-                });
-    }
-
-    private PersistenceHealthProbe readyPersistence() {
-        PersistenceHealthProbe persistence = mock(PersistenceHealthProbe.class);
-        when(persistence.ready()).thenReturn(true);
-        return persistence;
+        assertThat(service.checks()).singleElement().satisfies(check -> {
+            assertThat(check.key()).isEqualTo("agent-runtime-workload-identities");
+            assertThat(check.readiness()).isEqualTo("blocked");
+            assertThat(check.toString()).doesNotContain("credentialref", "weaver-cell-", "keycloak/clients");
+        });
     }
 }

@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
@@ -22,7 +24,7 @@ import static org.mockito.Mockito.when;
 
 class WorkspaceCapabilityServiceTest {
 
-    // V01_IDM_RBAC_CAPABILITY_POLICY
+    // V01_KEYCLOAK_RBAC_CAPABILITY_POLICY
 
     @Test
     void delegatedMcpTokenRetainsMemberCapabilitiesThroughTheWeaveAppClientRole() {
@@ -35,10 +37,12 @@ class WorkspaceCapabilityServiceTest {
                 .subject("user-1")
                 .issuer("https://auth.weave.test/realms/weave")
                 .claim("azp", "weave-mcp-server")
-                .claim("resource_access", Map.of(
-                        "weave-app",
-                        Map.of("roles", List.of("member"))))
-                .claim("groups", List.of("/capabilities/weaver"))
+                .claim(
+                        "organization",
+                        HumanJwtTestSupport
+                                .organizationWithRolesAndGroups(
+                                        List.of("member"),
+                                        List.of("/members", "/capabilities/weaver")))
                 .build();
 
         assertThat(service.grantedCapabilities(delegated))
@@ -356,8 +360,8 @@ class WorkspaceCapabilityServiceTest {
 
         var policy = service.policySnapshot(jwt(List.of("admin"), List.of("/capabilities/weaver")));
 
-        assertThat(policy.defaultIdmProvider()).isEqualTo("OIDC/SAML selected IDM");
-        assertThat(policy.adapterContract()).contains("OIDC/SAML");
+        assertThat(policy.platformIdentityAuthority()).isEqualTo("Keycloak");
+        assertThat(policy.federationContract()).contains("LDAP", "OIDC", "SAML");
         assertThat(policy.roles()).containsExactly("admin");
         assertThat(policy.groups()).containsExactly("/capabilities/weaver");
         assertThat(policy.profileKeys()).contains("workspace-admin", "group:/capabilities/weaver");
@@ -481,8 +485,10 @@ class WorkspaceCapabilityServiceTest {
                 .header("alg", "none")
                 .subject("user-1")
                 .issuer("https://auth.example.invalid/realms/acme")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", roles)))
-                .claim("groups", groups)
+                .claim(
+                        "organization",
+                        HumanJwtTestSupport
+                                .organizationWithRolesAndGroups(roles, groups))
                 .build();
     }
 

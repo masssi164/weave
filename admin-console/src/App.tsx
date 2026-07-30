@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   AppBar,
@@ -28,7 +28,6 @@ import {
 } from "@mui/material";
 import {
   AdminControlPlaneApi,
-  AdminApiError,
   adminConsoleConfig,
   AgentRuntimeLifecycleAction,
   AgentRuntimeProjection,
@@ -189,33 +188,6 @@ interface ProviderSelectionDryRunEvidence {
   trustedBackendEvidence: boolean;
 }
 
-type InvitationLoadState = "loading" | "loaded" | "error";
-type InvitationAction = "resend" | "revoke";
-
-function supportSafeInvitationError(
-  cause: unknown,
-  actionCode: string,
-): string {
-  if (cause instanceof AdminApiError) {
-    return `${actionCode} (WEAVE-ADMIN-INVITATION-HTTP-${cause.status})`;
-  }
-  return `${actionCode} (WEAVE-ADMIN-INVITATION-UNAVAILABLE)`;
-}
-
-function formatInvitationDate(
-  value: string | undefined,
-  locale: AdminConsoleLocale,
-  unavailable: string,
-): string {
-  if (!value) return unavailable;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return unavailable;
-  return new Intl.DateTimeFormat(locale === "de" ? "de-DE" : "en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
 function isEvidenceFresh(
   evidence: ProviderSelectionDryRunEvidence | null,
 ): boolean {
@@ -284,15 +256,9 @@ export default function App({
   const [invitationDisplayName, setInvitationDisplayName] = useState("");
   const [invitationRole, setInvitationRole] =
     useState<OrganizationRole>("member");
-  const [invitationCreateBusy, setInvitationCreateBusy] = useState(false);
-  const [invitationActions, setInvitationActions] = useState<
-    Record<string, InvitationAction>
-  >({});
-  const [invitationLoadState, setInvitationLoadState] =
-    useState<InvitationLoadState>("loading");
+  const [invitationCapabilities, setInvitationCapabilities] = useState("");
+  const [invitationBusy, setInvitationBusy] = useState(false);
   const [invitationError, setInvitationError] = useState<string | null>(null);
-  const [invitationNotice, setInvitationNotice] = useState<string | null>(null);
-  const invitationFeedbackRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -313,24 +279,18 @@ export default function App({
         setLoadState("loaded");
         setStatusMessage(copy.loadedStatus);
         if (canConfigure) {
-          setInvitationLoadState("loading");
           void api
             .listOrganizationInvitations(response.organization.id)
             .then((items) => {
-              if (alive) {
-                setInvitations(items);
-                setInvitationLoadState("loaded");
-              }
+              if (alive) setInvitations(items);
             })
-            .catch(() => {
+            .catch((cause: unknown) => {
               if (alive) {
                 setInvitationError(
-                  supportSafeInvitationError(
-                    null,
-                    copy.invitationListError,
-                  ),
+                  cause instanceof Error
+                    ? cause.message
+                    : "Invitation lifecycle is unavailable.",
                 );
-                setInvitationLoadState("error");
               }
             });
         }
@@ -348,14 +308,7 @@ export default function App({
     return () => {
       alive = false;
     };
-  }, [
-    api,
-    canConfigure,
-    copy.invitationListError,
-    copy.loadedStatus,
-    copy.offlineSampleStatus,
-    copy.unavailableSampleError,
-  ]);
+  }, [api, canConfigure, copy.loadedStatus, copy.offlineSampleStatus, copy.unavailableSampleError]);
 
   const selectedCategoryDetails = useMemo(
     () =>
@@ -542,111 +495,73 @@ export default function App({
       controlPlane.organization.id,
     );
     setInvitations(items);
-    setInvitationLoadState("loaded");
-  }
-
-  function focusInvitationFeedback() {
-    globalThis.setTimeout(() => invitationFeedbackRef.current?.focus(), 0);
-  }
-
-  async function retryInvitations() {
-    setInvitationLoadState("loading");
-    setInvitationError(null);
-    setInvitationNotice(null);
-    try {
-      await refreshInvitations();
-      setInvitationNotice(copy.invitationListLoaded);
-    } catch (cause) {
-      setInvitationLoadState("error");
-      setInvitationError(
-        supportSafeInvitationError(cause, copy.invitationListError),
-      );
-    } finally {
-      focusInvitationFeedback();
-    }
   }
 
   async function createInvitation() {
     if (!canConfigure || !invitationEmail.trim()) return;
-    setInvitationCreateBusy(true);
+    setInvitationBusy(true);
     setInvitationError(null);
-    setInvitationNotice(null);
     try {
       await api.createOrganizationInvitation(controlPlane.organization.id, {
         email: invitationEmail.trim(),
         displayName: invitationDisplayName.trim() || undefined,
         role: invitationRole,
+        capabilities: invitationCapabilities
+          .split(",")
+          .map((capability) => capability.trim())
+          .filter(Boolean),
       });
       await refreshInvitations();
       setInvitationEmail("");
       setInvitationDisplayName("");
-      setInvitationNotice(copy.invitationCreated);
-      setStatusMessage(copy.invitationCreated);
+      setInvitationCapabilities("");
+      setStatusMessage(
+        "Invitation created. Keycloak owns delivery, activation, expiry, and membership.",
+      );
     } catch (cause) {
       setInvitationError(
-        supportSafeInvitationError(cause, copy.invitationCreateError),
+        cause instanceof Error ? cause.message : "Invitation could not be created.",
       );
     } finally {
-      setInvitationCreateBusy(false);
-      focusInvitationFeedback();
+      setInvitationBusy(false);
     }
   }
 
   async function resendInvitation(providerInvitationId: string) {
-    setInvitationActions((current) => ({
-      ...current,
-      [providerInvitationId]: "resend",
-    }));
+    setInvitationBusy(true);
     setInvitationError(null);
-    setInvitationNotice(null);
     try {
       await api.resendOrganizationInvitation(
         controlPlane.organization.id,
         providerInvitationId,
       );
       await refreshInvitations();
-      setInvitationNotice(copy.invitationResent);
-      setStatusMessage(copy.invitationResent);
+      setStatusMessage("Keycloak invitation resent.");
     } catch (cause) {
       setInvitationError(
-        supportSafeInvitationError(cause, copy.invitationResendError),
+        cause instanceof Error ? cause.message : "Invitation could not be resent.",
       );
     } finally {
-      setInvitationActions((current) => {
-        const next = { ...current };
-        delete next[providerInvitationId];
-        return next;
-      });
-      focusInvitationFeedback();
+      setInvitationBusy(false);
     }
   }
 
   async function revokeInvitation(providerInvitationId: string) {
-    setInvitationActions((current) => ({
-      ...current,
-      [providerInvitationId]: "revoke",
-    }));
+    setInvitationBusy(true);
     setInvitationError(null);
-    setInvitationNotice(null);
     try {
       await api.revokeOrganizationInvitation(
         controlPlane.organization.id,
         providerInvitationId,
       );
       await refreshInvitations();
-      setInvitationNotice(copy.invitationRevoked);
-      setStatusMessage(copy.invitationRevoked);
+      setStatusMessage("Keycloak invitation revoked.");
     } catch (cause) {
       setInvitationError(
-        supportSafeInvitationError(cause, copy.invitationRevokeError),
+        cause instanceof Error ? cause.message : "Invitation could not be revoked.",
       );
     } finally {
-      setInvitationActions((current) => {
-        const next = { ...current };
-        delete next[providerInvitationId];
-        return next;
-      });
-      focusInvitationFeedback();
+      setInvitationBusy(false);
     }
   }
 
@@ -862,72 +777,41 @@ export default function App({
                       variant="h2"
                       sx={{ fontSize: "1.35rem", mb: 1 }}
                     >
-                      {copy.invitationsHeading}
+                      Member invitations
                     </Typography>
                     <Alert severity="info" sx={{ mb: 2 }}>
-                      {copy.invitationOwnershipNotice}
+                      Keycloak owns email delivery, activation, expiry, and
+                      organization membership. Weave records only temporary
+                      role and product-capability provisioning intent.
                     </Alert>
                     {invitationError ? (
-                      <Alert
-                        ref={invitationFeedbackRef}
-                        severity="error"
-                        role="alert"
-                        tabIndex={-1}
-                        action={
-                          invitationLoadState === "error" ? (
-                            <Button
-                              color="inherit"
-                              onClick={() => void retryInvitations()}
-                            >
-                              {copy.invitationRetryButton}
-                            </Button>
-                          ) : undefined
-                        }
-                        sx={{ mb: 2 }}
-                      >
+                      <Alert severity="error" sx={{ mb: 2 }}>
                         {invitationError}
                       </Alert>
                     ) : null}
-                    {invitationNotice ? (
-                      <Alert
-                        ref={invitationFeedbackRef}
-                        severity="success"
-                        aria-live="polite"
-                        tabIndex={-1}
-                        sx={{ mb: 2 }}
-                      >
-                        {invitationNotice}
-                      </Alert>
-                    ) : null}
-                    <Stack
-                      spacing={2}
-                      component="form"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        void createInvitation();
-                      }}
-                    >
+                    <Stack spacing={2} component="form" onSubmit={(event) => {
+                      event.preventDefault();
+                      void createInvitation();
+                    }}>
                       <TextField
                         required
                         type="email"
-                        label={copy.invitationEmailLabel}
+                        label="Member email"
                         value={invitationEmail}
                         onChange={(event) => setInvitationEmail(event.target.value)}
                       />
                       <TextField
-                        label={copy.invitationDisplayNameLabel}
+                        label="Display name (optional)"
                         value={invitationDisplayName}
                         onChange={(event) =>
                           setInvitationDisplayName(event.target.value)
                         }
                       />
                       <FormControl>
-                        <InputLabel id="invitation-role-label">
-                          {copy.invitationRoleLabel}
-                        </InputLabel>
+                        <InputLabel id="invitation-role-label">Role</InputLabel>
                         <Select
                           labelId="invitation-role-label"
-                          label={copy.invitationRoleLabel}
+                          label="Role"
                           value={invitationRole}
                           onChange={(event) =>
                             setInvitationRole(event.target.value as OrganizationRole)
@@ -942,141 +826,74 @@ export default function App({
                           )}
                         </Select>
                       </FormControl>
-                      <Alert severity="info">
-                        {copy.invitationCanonicalGroupHelper}
-                      </Alert>
+                      <TextField
+                        label="Additional product capabilities (optional)"
+                        helperText="Comma-separated stable Weave capability identifiers; provider group names are never accepted."
+                        value={invitationCapabilities}
+                        onChange={(event) =>
+                          setInvitationCapabilities(event.target.value)
+                        }
+                      />
                       <Box>
                         <Button
                           type="submit"
                           variant="contained"
-                          disabled={
-                            invitationCreateBusy || !invitationEmail.trim()
-                          }
+                          disabled={invitationBusy || !invitationEmail.trim()}
                         >
-                          {invitationCreateBusy
-                            ? copy.invitationCreatingButton
-                            : copy.invitationCreateButton}
+                          Invite member
                         </Button>
                       </Box>
                     </Stack>
                     <Divider sx={{ my: 3 }} />
                     <Typography variant="h3" sx={{ fontSize: "1.1rem" }}>
-                      {copy.invitationCurrentHeading}
+                      Current Keycloak invitations
                     </Typography>
-                    {invitationLoadState === "loading" ? (
-                      <Alert
-                        severity="info"
-                        aria-live="polite"
-                        sx={{ mt: 1 }}
-                      >
-                        {copy.invitationLoading}
-                      </Alert>
-                    ) : invitationLoadState === "loaded" &&
-                      invitations.length === 0 ? (
-                      <Alert
-                        severity="info"
-                        aria-live="polite"
-                        sx={{ mt: 1 }}
-                      >
-                        {copy.invitationEmpty}
-                      </Alert>
-                    ) : invitationLoadState === "loaded" ? (
-                      <List aria-label={copy.invitationListLabel}>
-                        {invitations.map((invitation, index) => {
-                          const invitationId =
-                            invitation.providerInvitationId ?? "";
-                          const invitationEmailValue =
-                            invitation.email ?? copy.invitationUnknownMember;
-                          const activeAction = invitationId
-                            ? invitationActions[invitationId]
-                            : undefined;
-                          return (
-                            <ListItem
-                              key={
-                                invitationId ||
-                                `${invitationEmailValue}-${index}`
-                              }
-                              alignItems="flex-start"
-                              disableGutters
-                              divider={index < invitations.length - 1}
-                            >
-                              <Stack spacing={1.25} sx={{ width: "100%", py: 1 }}>
-                                <ListItemText
-                                  primary={
-                                    invitation.displayName
-                                      ? `${invitation.displayName} — ${invitationEmailValue}`
-                                      : invitationEmailValue
-                                  }
-                                  secondary={`${copy.invitationRoleLabel}: ${readableState(invitation.requestedRole ?? copy.none)}`}
-                                />
-                                <Stack
-                                  direction={{ xs: "column", sm: "row" }}
-                                  spacing={1}
-                                  useFlexGap
-                                  sx={{ flexWrap: "wrap" }}
-                                >
-                                  <Chip
-                                    label={`${copy.invitationLifecycleLabel}: ${readableState(invitation.lifecycleStatus ?? copy.none)}`}
-                                    color="info"
-                                    variant="outlined"
-                                  />
-                                  <Chip
-                                    label={`${copy.invitationProvisioningLabel}: ${readableState(invitation.provisioningStatus ?? copy.none)}`}
-                                    color={
-                                      invitation.provisioningStatus === "failed"
-                                        ? "error"
-                                        : invitation.provisioningStatus ===
-                                            "applied"
-                                          ? "success"
-                                          : "default"
-                                    }
-                                    variant="outlined"
-                                  />
-                                </Stack>
-                                <Typography variant="body2">
-                                  {copy.invitationExpiresLabel}:{" "}
-                                  {formatInvitationDate(
-                                    invitation.expiresAt,
-                                    locale,
-                                    copy.invitationExpiryUnavailable,
-                                  )}
-                                </Typography>
-                                <Stack
-                                  direction={{ xs: "column", sm: "row" }}
-                                  spacing={1}
-                                  sx={{ alignItems: { sm: "flex-start" } }}
-                                >
-                                  <Button
-                                    disabled={!invitationId || Boolean(activeAction)}
-                                    aria-label={`${copy.invitationResendButton}: ${invitationEmailValue}`}
-                                    onClick={() =>
-                                      void resendInvitation(invitationId)
-                                    }
-                                  >
-                                    {activeAction === "resend"
-                                      ? copy.invitationResendingButton
-                                      : copy.invitationResendButton}
-                                  </Button>
-                                  <Button
-                                    color="error"
-                                    disabled={!invitationId || Boolean(activeAction)}
-                                    aria-label={`${copy.invitationRevokeButton}: ${invitationEmailValue}`}
-                                    onClick={() =>
-                                      void revokeInvitation(invitationId)
-                                    }
-                                  >
-                                    {activeAction === "revoke"
-                                      ? copy.invitationRevokingButton
-                                      : copy.invitationRevokeButton}
-                                  </Button>
-                                </Stack>
-                              </Stack>
-                            </ListItem>
-                          );
-                        })}
-                      </List>
+                    {invitations.length === 0 ? (
+                      <Typography sx={{ mt: 1 }}>
+                        No active invitations were returned by Keycloak.
+                      </Typography>
                     ) : (
-                      <Box sx={{ mt: 1 }} />
+                      <List aria-label="Current Keycloak invitations">
+                        {invitations.map((invitation) => (
+                          <ListItem
+                            key={invitation.providerInvitationId}
+                            alignItems="flex-start"
+                            disableGutters
+                            secondaryAction={
+                              <Stack direction="row" spacing={1}>
+                                <Button
+                                  disabled={invitationBusy}
+                                  onClick={() =>
+                                    void resendInvitation(
+                                      invitation.providerInvitationId,
+                                    )
+                                  }
+                                >
+                                  Resend
+                                </Button>
+                                <Button
+                                  color="error"
+                                  disabled={invitationBusy}
+                                  onClick={() =>
+                                    void revokeInvitation(
+                                      invitation.providerInvitationId,
+                                    )
+                                  }
+                                >
+                                  Revoke
+                                </Button>
+                              </Stack>
+                            }
+                          >
+                            <ListItemText
+                              primary={invitation.displayName
+                                ? `${invitation.displayName} — ${invitation.email}`
+                                : invitation.email}
+                              secondary={`Invitation: ${readableState(invitation.lifecycleStatus)} · Provisioning: ${readableState(invitation.provisioningStatus)} · Role: ${invitation.requestedRole}${invitation.capabilities.length ? ` · Capabilities: ${invitation.capabilities.join(", ")}` : ""}`}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
                     )}
                   </CardContent>
                 </Card>
@@ -1259,8 +1076,8 @@ export default function App({
                   <List aria-label={copy.betaReadinessChecklistLabel}>
                     <ListItem alignItems="flex-start">
                       <ListItemText
-                        primary={`IDM and RBAC posture: ${readableState(controlPlane.identityProviderReadiness.overallState)}`}
-                        secondary={`Backend-owned identity facade: ${controlPlane.identityProviderReadiness.backendOwnedFacade ? "yes" : "no"}; member identity-provider setup controls: ${controlPlane.identityProviderReadiness.memberClientMayConfigureIdentityProvider ? "exposed" : "blocked"}.`}
+                        primary={`Keycloak and RBAC posture: ${readableState(controlPlane.platformIdentityReadiness.overallState)}`}
+                        secondary={`Backend-owned platform-identity facade: ${controlPlane.platformIdentityReadiness.backendOwnedFacade ? "yes" : "no"}; member platform-security setup controls: ${controlPlane.platformIdentityReadiness.memberClientMayConfigurePlatformSecurity ? "exposed" : "blocked"}.`}
                       />
                     </ListItem>
                     <ListItem alignItems="flex-start">
@@ -1495,10 +1312,10 @@ export default function App({
                       variant="h2"
                       sx={{ fontSize: "1.35rem", mb: 2 }}
                     >
-                      {copy.identityReadinessHeading}
+                      {copy.platformIdentityReadinessHeading}
                     </Typography>
                     <Alert severity="info" sx={{ mb: 2 }}>
-                      {copy.identityReadinessDescription}
+                      {copy.platformIdentityReadinessDescription}
                     </Alert>
                     <Alert severity="info" sx={{ mb: 2 }}>
                       {copy.identityAuthorityNotice}
@@ -1508,27 +1325,27 @@ export default function App({
                         Contract:{" "}
                         <code>
                           {
-                            controlPlane.identityProviderReadiness
+                            controlPlane.platformIdentityReadiness
                               .contractVersion
                           }
                         </code>
                         ; overall state:{" "}
                         <strong>
                           {readableState(
-                            controlPlane.identityProviderReadiness.overallState,
+                            controlPlane.platformIdentityReadiness.overallState,
                           )}
                         </strong>
                         ; backend-owned facade:{" "}
                         <strong>
-                          {controlPlane.identityProviderReadiness
+                          {controlPlane.platformIdentityReadiness
                             .backendOwnedFacade
                             ? "yes"
                             : "no"}
                         </strong>
-                        ; member provider setup:{" "}
+                        ; member platform-security setup:{" "}
                         <strong>
-                          {controlPlane.identityProviderReadiness
-                            .memberClientMayConfigureIdentityProvider
+                          {controlPlane.platformIdentityReadiness
+                            .memberClientMayConfigurePlatformSecurity
                             ? "allowed"
                             : "blocked"}
                         </strong>
@@ -1536,13 +1353,13 @@ export default function App({
                       </Typography>
                       <Typography>
                         Stable states:{" "}
-                        {controlPlane.identityProviderReadiness.stableStates
+                        {controlPlane.platformIdentityReadiness.stableStates
                           .map(readableState)
                           .join(", ")}
                       </Typography>
                     </Stack>
                     <Stack spacing={2} sx={{ mt: 2 }}>
-                      {controlPlane.identityProviderReadiness.cards.map(
+                      {controlPlane.platformIdentityReadiness.cards.map(
                         (card) => (
                           <Card key={card.key} variant="outlined">
                             <CardContent>

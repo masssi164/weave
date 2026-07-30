@@ -32,7 +32,7 @@ Feature: Enterprise target architecture evidence spine
     Given a vertical domain slice has a target standard projection or domain use case
     When the slice replaces historical JSON, OpenAPI data-plane, provider-shaped, or route-mirrored behavior
     Then the old path is deleted, blocked, or fenced as fixture/import-only evidence
-    And file-backed persistence defaults remain explicit #1019 retirement debt rather than target compatibility
+    And strategic runtime state has one JPA authority without a selectable file-store fallback
 
   @enterprise-target-boundary-gate
   Scenario: Server boundary drift fails before broad package migration
@@ -53,25 +53,26 @@ Feature: Enterprise target architecture evidence spine
   @enterprise-target-persistence-foundation
   Scenario: Strategic control-plane state gains a gated relational persistence foundation
     Given Admin Console provider selections and product profile overrides are strategic Weave-owned mutable state
-    When the server composes its single production persistence boundary
-    Then Flyway creates handwritten canonical tables and Hibernate validates the mappings
-    And Spring Data JPA adapters preserve read/write and restart behavior without a production file fallback
-    And H2 is limited to the dev runtime profile while PostgreSQL integration evidence gates test and prod
+    When the Server composes its production persistence authority
+    Then explicit code-first JPA entities define provider selections and product profile overrides
+    And the one-shot Server schema initializer converges and fingerprints that entity model before serving Hibernate validation
+    And read/write ordering and restart recovery are proven without a selectable file-store fallback
+    And H2-only evidence is not claimed as PostgreSQL production readiness
 
   @enterprise-target-audit-persistence-foundation
   Scenario: Support-safe audit events gain a gated relational persistence foundation
     Given support-safe audit events are append-only control-plane evidence for provider and policy decisions
-    When the JPA audit publisher appends an event through the canonical repository port
-    Then Flyway creates a handwritten canonical audit-event table with tenant idempotency uniqueness
-    And no production file, in-memory, JDBC repository, or generic SQL executor can become an alternate authority
+    When the Server composes the JPA audit authority
+    Then an explicit code-first JPA entity defines the audit-event model and tenant idempotency uniqueness
+    And no file-backed audit publisher is composed as a fallback
     And retrying the same audit event is safe while conflicting idempotency reuse fails closed without leaking database details
 
   @enterprise-target-migration-evidence-persistence-foundation
   Scenario: Provider-switch migration run evidence gains a gated relational persistence foundation
     Given provider-switch dry-run and apply-gate evidence determines whether no-drift claims may proceed
-    When migration evidence is persisted through its typed JPA adapter
-    Then Flyway creates a handwritten canonical migration-run evidence table keyed by run and domain
-    And test-only file fixtures cannot become a production persistence fallback
+    When the Server composes the JPA migration-evidence authority
+    Then an explicit code-first JPA entity defines migration-run evidence keyed by run and domain
+    And no file-backed migration-evidence repository is composed as a fallback
     And restart recovery preserves support-safe object counts, artifact refs, audit refs, and expiration behavior without enabling provider-switch apply
 
   @enterprise-target-provider-switch-no-drift-foundation

@@ -146,7 +146,10 @@ def fetch_json(url: str) -> Any:
 def assert_support_safe(name: str, payload: Any) -> None:
     serialized = json.dumps(payload, sort_keys=True)
     require(not SECRET_PATTERN.search(serialized), f"{name} contains secret-like text")
-    require("login-actions/action-token" not in serialized, f"{name} contains an activation action link")
+    require(
+        "protocol/openid-connect/registrations" not in serialized,
+        f"{name} contains an activation action link",
+    )
 
 
 def object_field(payload: dict[str, Any], key: str) -> dict[str, Any]:

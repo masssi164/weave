@@ -1,0 +1,111 @@
+registerRootCommandTask('acceptanceContract', ['bash', '-lc', 'cd client && dart run tool/acceptance_contract.dart guard --root .. --features e2e/features --mapping e2e/scenario_mappings.json && cd .. && python3 tools/e2e_structure_check.py && python3 tools/files_webdav_facade_acceptance_check.py && python3 tools/enterprise_target_architecture_spine_check.py && python3 tools/spring_ai_mcp_facade_acceptance_check.py && python3 tools/open_standards_gateway_archive_gap_check.py'], 'Verify Gherkin scenario mappings, acceptance contracts, and professional E2E suite coverage.')
+registerRootCommandTask('e2eStructureCheck', ['python3', 'tools/e2e_structure_check.py'], 'Validate the professional E2E suite catalog covers every mapped scenario by suite, persona, domain, and evidence lane.')
+registerRootCommandTask('filesWebDavFacadeAcceptanceCheck', ['python3', 'tools/files_webdav_facade_acceptance_check.py'], 'Verify the Files WebDAV facade Cucumber scenarios against deterministic implementation evidence.')
+registerRootCommandTask('enterpriseTargetArchitectureSpineCheck', ['python3', 'tools/enterprise_target_architecture_spine_check.py'], 'Validate the Enterprise Target Architecture E2E evidence spine.')
+registerRootCommandTask('matrixRustCoreTest', ['cargo', 'test', '-p', 'weave-matrix-core', '--all-features'], 'Run the shared Rust/Ruma Matrix core contract tests, including JNI and Flutter bridge features.')
+registerRootCommandTask('matrixSdkVendorProvenanceCheck', ['bash', '-lc', 'python3 tools/matrix_sdk_vendor_provenance_test.py && python3 tools/matrix_sdk_vendor_provenance.py'], 'Verify the vendored Matrix SDK crypto crate checksum and narrow Weave patch allowlist.')
+registerRootCommandTask('synapseCompatibilityProbeTest', ['python3', 'tools/synapse_compatibility_probe_test.py'], 'Validate support-safe pinned/candidate Synapse compatibility probe semantics without starting containers.')
+tasks.named('matrixRustCoreTest') {
+    dependsOn 'matrixSdkVendorProvenanceCheck'
+}
+registerCommandTask('clientCi', file('client'), ['bash', '-lc', 'flutter gen-l10n && dart run build_runner build --delete-conflicting-outputs && dart format --output=none --set-exit-if-changed . && flutter analyze --fatal-infos && flutter test && make marketing-screenshots && git -C .. diff --exit-code -- client/lib client/test docs/assets/marketing docs/assets/roadmap && make offline-contract-test'], 'Run Flutter generated-code, format, analysis, tests, screenshots, and offline contract checks.')
+tasks.register('serverCi') {
+    group = 'verification'
+    description = 'Run fast server tests plus the authoritative PostgreSQL JPA contract gate.'
+    dependsOn ':server:test', ':server:postgresJpaTest'
+}
+registerCommandTask('adminCi', file('admin-console'), ['npm', 'run', 'ci'], 'Run admin console npm CI checks.')
+registerRootCommandTask('generateOpenApiContract', ['bash', 'tools/generate_openapi_contract.sh'], 'Generate the server-owned OpenAPI artifact used by typed consumers.')
+registerRootCommandTask('checkOpenApiContractFresh', ['bash', 'tools/check_openapi_contract_fresh.sh'], 'Fail when the checked-in server OpenAPI artifact is stale.')
+tasks.named('generateOpenApiContract') {
+    dependsOn ':server:openApiContractExport'
+    environment 'WEAVE_OPENAPI_SKIP_EXPORT', 'true'
+}
+tasks.named('checkOpenApiContractFresh') {
+    dependsOn ':server:openApiContractExport'
+    environment 'WEAVE_OPENAPI_SKIP_EXPORT', 'true'
+}
+registerRootCommandTask('generateAdminOpenApiTypes', ['python3', 'tools/generate_admin_openapi_types.py'], 'Generate Admin Console TypeScript types from the server-owned OpenAPI artifact.')
+registerRootCommandTask('checkAdminOpenApiTypesFresh', ['bash', '-lc', 'tmp=$(mktemp); cp admin-console/src/generated/openapi.ts "$tmp"; python3 tools/generate_admin_openapi_types.py; cmp -s "$tmp" admin-console/src/generated/openapi.ts || { echo "Admin OpenAPI generated types are stale. Run ./gradlew generateAdminOpenApiTypes and commit the result." >&2; git --no-pager diff -- admin-console/src/generated/openapi.ts >&2 || true; rm -f "$tmp"; exit 1; }; rm -f "$tmp"'], 'Fail when Admin Console generated OpenAPI types are stale.')
+registerRootCommandTask('generateClientOpenApiModels', ['bash', '-lc', 'python3 tools/generate_client_openapi_models.py && dart format client/lib/generated/openapi_models.dart'], 'Generate Flutter/Dart JSON models from the server-owned OpenAPI artifact.')
+registerRootCommandTask('checkClientOpenApiModelsFresh', ['bash', '-lc', 'tmp=$(mktemp); cp client/lib/generated/openapi_models.dart "$tmp"; python3 tools/generate_client_openapi_models.py; dart format client/lib/generated/openapi_models.dart >/dev/null; cmp -s "$tmp" client/lib/generated/openapi_models.dart || { echo "Flutter OpenAPI generated models are stale. Run ./gradlew generateClientOpenApiModels and commit the result." >&2; git --no-pager diff -- client/lib/generated/openapi_models.dart >&2 || true; rm -f "$tmp"; exit 1; }; rm -f "$tmp"'], 'Fail when Flutter/Dart generated OpenAPI models are stale.')
+registerCommandTask('clientOpenApiDriftPrevention', file('client'), ['bash', '-lc', 'FLUTTER_BIN="${FLUTTER_BIN:-$(command -v flutter || true)}"; if [ -z "$FLUTTER_BIN" ] && [ -x "$HOME/flutter/bin/flutter" ]; then FLUTTER_BIN="$HOME/flutter/bin/flutter"; fi; if [ -z "$FLUTTER_BIN" ]; then echo "flutter not found; install Flutter or set FLUTTER_BIN" >&2; exit 127; fi; "$FLUTTER_BIN" test test/architecture/openapi_drift_prevention_contract_test.dart'], 'Block client OpenAPI facade drift for DTOs, raw JSON parsing, provider reachability, and hardcoded copy.')
+tasks.named('clientCi') {
+    dependsOn 'checkClientOpenApiModelsFresh', 'clientOpenApiDriftPrevention'
+}
+tasks.register('javaMcpServerCi') {
+    group = 'verification'
+    description = 'Run Java weave-mcp-server checks through the root Gradle multiproject build.'
+    dependsOn ':weave-mcp-server:test'
+}
+registerRootCommandTask('mcpProjectionContract', ['bash', '-lc', 'python3 tools/spring_ai_mcp_facade_acceptance_check.py && bash infra/weave-workspace/tests/weave-mcp-tool-contract-test.sh'], 'Verify Spring AI transport, OIDC, canonical dispatch, approval, provider-neutral output, and infrastructure contract evidence.')
+tasks.register('mcpCi') {
+    group = 'verification'
+    description = 'Run the OIDC-protected Spring AI MCP server and canonical-domain bridge checks.'
+    dependsOn 'javaMcpServerCi', 'mcpProjectionContract'
+}
+tasks.register('contractAuthorityArchitectureCheck') {
+    group = 'verification'
+    description = 'Verify the root-orchestrated server/OpenAPI contract authority baseline without running live infrastructure.'
+    dependsOn ':server:test', 'mcpCi', 'docsStructureCheck', 'checkOpenApiContractFresh', 'checkAdminOpenApiTypesFresh', 'checkClientOpenApiModelsFresh'
+}
+registerRootCommandTask('infraStatic', ['bash', '-lc', "find infra/weave-workspace/tests -maxdepth 1 -type f -name '*-test.sh' -print0 | sort -z | xargs -0 -n1 bash"], 'Run the canonical Compose, Keycloak Identity Ops, and static infrastructure contract checks.')
+registerRootCommandTask('docsBuild', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; rm -rf build/docs/user build/docs/admin; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/user; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/admin'], 'Build deterministic user and admin MkDocs outputs with strict validation.')
+registerRootCommandTask('docsStructureCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py'], 'Run lightweight documentation structure checks.')
+registerRootCommandTask('docsServe', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs serve'], 'Serve the MkDocs site locally.')
+registerRootCommandTask('releaseNotesLabelCheck', ['bash', '-lc', 'if [ -n "${PR_LABELS_JSON:-}" ]; then python3 tools/release_notes_label_check.py; else echo "release-notes-label-check: skipped (PR_LABELS_JSON is not set)"; fi'], 'Validate the current PR release-notes label set from PR_LABELS_JSON when available.')
+registerRootCommandTask('screenshotEvidenceCheck', ['python3', 'tools/screenshot_evidence_check.py'], 'Validate deterministic README and roadmap screenshot evidence assets and claim boundaries.')
+registerRootCommandTask('specCorpusConformance', ['python3', 'tools/spec_corpus_conformance_check.py'], 'Validate the pinned Weave Specification Corpus and the spec-truth vs implementation-evidence boundary.')
+registerRootCommandTask('sprintBootstrapAudit', ['python3', 'tools/sprint_bootstrap.py', '--plan', 'tools/fixtures/sprint_bootstrap_sprint12.json', '--audit-only'], 'Audit sprint milestone, issue DAG, and Weave Delivery Board wiring from a file-backed sprint plan.')
+registerRootCommandTask('specContract', ['bash', '-lc', 'python3 tools/spec_contract_check.py && python3 tools/mcp_domain_tool_name_check.py'], 'Validate transitional repo-local Weave specs, lifecycle metadata, implementation-ready clarification state, and Spec 0009 MCP domain-first tool names.')
+registerRootCommandTask('mcpDomainToolNameCheck', ['python3', 'tools/mcp_domain_tool_name_check.py'], 'Validate Spec 0009 MCP discovery, contract, and fixture tool names stay domain-first.')
+registerRootCommandTask('domainRegistryCheck', ['python3', 'tools/domain_registry_check.py'], 'Validate the canonical domain registry v1 machine-readable contract.')
+registerRootCommandTask('spaceAnchorCheck', ['python3', 'tools/space_anchor_check.py'], 'Validate the Space anchor contract fixture.')
+registerRootCommandTask('portabilityContractCheck', ['python3', 'tools/portability_contract_check.py'], 'Validate provider portability and no-unaccounted-data-loss migration schemas.')
+registerRootCommandTask('productTrustClaimMatrixCheck', ['python3', 'tools/product_trust_claim_matrix_check.py'], 'Validate Sprint 14 product-trust claim matrix evidence boundaries and overclaim guards.')
+registerRootCommandTask('productRealityClaimGateCheck', ['python3', 'tools/product_reality_claim_gate_check.py'], 'Validate Sprint 21 product-reality levels and forbidden release-claim gates.')
+registerRootCommandTask('providerLabCheck', ['python3', 'tools/provider_lab_check.py'], 'Validate Sprint 22 free-provider-lab manifests, fixture completeness, redaction evidence, and Sprint 23 entry gate scoreboard.')
+registerRootCommandTask('chatProviderSwitchCheck', ['python3', 'tools/chat_provider_switch_check.py'], 'Validate Sprint 23 Chat Provider Switch canonical object coverage, LossyFieldReport enforcement, and ProviderRef redaction fixtures.')
+registerRootCommandTask('operatorRecoveryCheck', ['python3', 'tools/operator_recovery_check.py'], 'Validate Sprint 26 operator recovery BackupManifest, RestoreReceipt, support redaction, KnownLimitations, and release blocker fixtures.')
+registerRootCommandTask('weaveControlModesCheck', ['python3', 'tools/weave_control_modes_check.py'], 'Validate Weave Control deploy-new, attach-existing, and hybrid setup-mode scenario fixtures.')
+registerRootCommandTask('bootstrapFoundationCheck', ['python3', 'tools/bootstrap_foundation_check.py'], 'Validate the enterprise bootstrap foundation contract, profile matrix, component matrix, and non-client deployment boundary.')
+registerRootCommandTask('sprint29HumanValidationCheck', ['python3', 'tools/sprint29_human_validation_check.py'], 'Validate Sprint 29 human-in-the-loop release validation artifacts, manual templates, and no-fake-signoff guard posture.')
+registerRootCommandTask('commercialAdapterReadinessCheck', ['python3', 'tools/commercial_adapter_readiness_check.py'], 'Validate Sprint 28 commercial adapter readiness specs, go/no-go matrix, and implementation-start guard.')
+registerRootCommandTask('sprint30HotPhaseCheck', ['python3', 'tools/sprint30_hot_phase_check.py'], 'Validate Sprint 30 hot-phase slogan, unified setup, member onboarding, support-safe evidence, and Weaver governance guardrails.')
+registerRootCommandTask('sprint31LanDogfoodCheck', ['python3', 'tools/sprint31_lan_dogfood_check.py'], 'Validate Sprint 31 physical iPhone LAN dogfood command, handoff, client boundary, and support-safe evidence.')
+registerRootCommandTask('dogfoodActivationMailCheckTest', ['python3', 'tools/dogfood_activation_mail_check_test.py'], 'Run fixture tests for support-safe dogfood activation mail evidence checks.')
+registerRootCommandTask('dogfoodIosSessionContinuityCheckTest', ['python3', 'tools/dogfood_ios_session_continuity_check_test.py'], 'Run fixture tests for support-safe physical iPhone session restoration evidence.')
+registerRootCommandTask('iosDogfoodDistributionCheck', ['python3', 'tools/ios_dogfood_distribution_check.py'], 'Validate the GitHub-only stable iOS TestFlight dogfood distribution contract.')
+registerRootCommandTask('liveStackRunnerHygieneCheck', ['bash', '-lc', 'python3 tools/ios_simulator_xcrun_test.py && python3 tools/live_phase_outcomes_test.py && python3 tools/live_stack_runner_hygiene_check.py'], 'Validate bounded self-hosted Live Stack cleanup, independent support-safe phase outcomes, simulator VM discovery, headroom, and evidence ordering.')
+registerRootCommandTask('crossDomainProviderProofCheck', ['python3', 'tools/cross_domain_provider_proof_check.py'], 'Validate Sprint 27 Calendar, Files, Identity provider-boundary fixtures, scoreboard, claim gate, and acceptance mapping.')
+registerRootCommandTask('specContractTest', ['python3', 'tools/spec_contract_check_test.py'], 'Run fixture tests for the repo-local Weave spec contract guard.')
+registerRootCommandTask('androidReleaseIdentityCheck', ['python3', 'tools/android_release_identity_check.py'], 'Validate Android package identity and release-signing fail-safe posture.')
+registerRootCommandTask('adminDependencyPolicyCheck', ['python3', 'tools/admin_console_dependency_policy_check.py'], 'Validate Admin Console dependency pins and lockfile policy.')
+registerRootCommandTask('generateReleaseNotes', ['python3', 'tools/release_notes_generate.py', '--input', 'tools/fixtures/release_notes_prs.json'], 'Generate reviewable release notes under build/release-notes by default.')
+registerRootCommandTask('updateReadmeReleaseNotes', ['python3', 'tools/readme_release_notes.py', '--update'], 'Explicitly update the managed README release-notes evidence block.')
+registerRootCommandTask('projectReadinessEvidenceCheck', ['python3', 'tools/project_readiness_evidence_check.py'], 'Validate Sprint 5 project-readiness evidence remains mapped and support-safe.')
+registerRootCommandTask('enterpriseReleaseGateCheck', ['python3', 'tools/release_gate_check.py'], 'Validate the Sprint 6 enterprise release lane/gate contract and support-safe evidence requirements.')
+registerRootCommandTask('releaseReadinessFixtureTest', ['python3', 'tools/release_readiness_check_test.py'], 'Run fixture tests for the support-safe RC readiness check.')
+registerRootCommandTask('humanTestingReadinessManifestTest', ['bash', '-lc', 'python3 tools/human_testing_readiness_manifest_test.py && python3 tools/human_testing_readiness_assemble_test.py'], 'Validate assembly and fail-closed evaluation of the versioned support-safe human-testing readiness manifest.')
+registerRootCommandTask('multiUserE2EEvidenceTest', ['python3', 'tools/multi_user_e2e_evidence_test.py'], 'Validate two-pass three-user collaboration aggregation, hashed identity isolation, and scoped cleanup evidence.')
+registerRootCommandTask('matrixToDeviceEvidenceValidatorTest', ['python3', 'tools/validate_matrix_to_device_evidence_test.py'], 'Validate fail-closed reconstruction of count-only Matrix to-device live evidence.')
+registerRootCommandTask('dogfoodDeploymentEvidenceTest', ['python3', 'tools/dogfood_deployment_evidence_test.py'], 'Validate loopback cached-provider metrics and non-destructive persistent dogfood deployment evidence.')
+registerRootCommandTask('candidatePipelineCheck', ['python3', 'tools/candidate_pipeline_check.py'], 'Validate the ordered exact-candidate isolated E2E, dogfood, TestFlight, physical acceptance, and promotion chain.')
+registerRootCommandTask('obsoleteFirstRunContractCheck', ['python3', 'tools/obsolete_first_run_contract_check.py'], 'Reject the obsolete first-run screen, provider, route, API, and member copy in client/server production sources.')
+registerRootCommandTask('gradleStructureCheck', ['python3', 'tools/gradle_structure_check.py'], 'Keep root and JVM module build files thin while module-owned scripts and tasks contain implementation.')
+
+registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/screenshot_evidence_check.py && python3 tools/release_claim_matrix_check.py && python3 tools/product_trust_claim_matrix_check.py && python3 tools/product_reality_claim_gate_check.py && python3 tools/provider_lab_check.py && python3 tools/chat_provider_switch_check.py && python3 tools/operator_recovery_check.py && python3 tools/operator_recovery_check_test.py && python3 tools/weave_control_modes_check.py && python3 tools/bootstrap_foundation_check.py && python3 tools/cross_domain_provider_proof_check.py && python3 tools/commercial_adapter_readiness_check.py && python3 tools/sprint30_hot_phase_check.py && python3 tools/sprint31_lan_dogfood_check.py && python3 tools/dogfood_activation_mail_check_test.py && python3 tools/dogfood_ios_session_continuity_check_test.py && python3 tools/ios_dogfood_distribution_check.py && python3 tools/sprint29_human_validation_check.py && python3 tools/human_testing_readiness_manifest_test.py && python3 tools/human_testing_readiness_assemble_test.py && python3 tools/multi_user_e2e_evidence_test.py && python3 tools/dogfood_deployment_evidence_test.py && python3 tools/candidate_pipeline_check.py && python3 tools/obsolete_first_run_contract_check.py && python3 tools/release_trust_claim_control_check.py && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py && python3 tools/release_readiness_check_test.py'], 'Validate release notes, README markers, screenshot evidence, provider reality, current claim matrices, labels, generator fixtures, project readiness, enterprise release gates, and RC readiness fixtures.')
+
+tasks.register('docsCheck') {
+    group = 'verification'
+    description = 'Run documentation structure checks and strict MkDocs build.'
+    dependsOn 'docsStructureCheck', 'docsBuild'
+}
+
+tasks.register('liveStackHelp') {
+    group = 'help'
+    description = 'Explain how to run Live Stack E2E release evidence.'
+    doLast {
+        println 'Live Stack E2E is available by default on the dedicated self-hosted live runner. Use the GitHub workflow for manual release-candidate evidence; nightly runs also produce live-stack acceptance evidence when infrastructure is healthy.'
+    }
+}

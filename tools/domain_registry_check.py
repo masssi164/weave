@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 REGISTRY=ROOT/'specs/0004-domain-registry/canonical-domain-registry-v1.json'
 SERVER_COPY=ROOT/'server/src/main/resources/canonical-domain-registry-v1.json'
-REQUIRED_KEYS=['identity','people','spaces','chat','files','documents','calendar','boards','calls','decisions','notifications','health','agent-runtime-control']
+REQUIRED_KEYS=['people','spaces','chat','files','documents','calendar','boards','calls','decisions','notifications','health','agent-runtime-control']
 MEMBER=['available','disabled_by_policy','not_configured','degraded','unavailable','coming_later']
 ADMIN=['provider_not_configured','secret_missing','ready','degraded','dry_run_required','lossy_mapping_pending','apply_blocked','migration_ready']
 MANIFEST=['adapterKey','domainKeys','apiProfile','canonicalObjects','capabilityKeys','readinessChecks','unsupportedFields','migrationLimits','auditEvents','secretBoundary']
@@ -66,7 +66,7 @@ def main():
    if alias in by_key: fail(f'{key} alias duplicates canonical key {alias}')
    prior=aliases.setdefault(alias,key)
    if prior!=key: fail(f'alias {alias} points to both {prior} and {key}')
- for required_alias in ['identity-idm','files-docs','documents-collaboration','boards-tasks','meetings-calls','decisions-evidence','admin-control-plane','release-evidence']:
+ for required_alias in ['files-docs','documents-collaboration','boards-tasks','meetings-calls','decisions-evidence','admin-control-plane','release-evidence']:
   if required_alias not in aliases: fail(f'missing compatibility alias {required_alias}')
  print('domain-registry-check: ok')
 if __name__=='__main__': main()

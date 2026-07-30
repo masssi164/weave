@@ -43,16 +43,16 @@ public class MemberInvitationController {
         return service.list(organizationId, jwt);
     }
 
-    @PostMapping("/{invitationId}/resend")
-    public MemberInvitationResponse resend(@PathVariable String organizationId, @PathVariable String invitationId,
+    @PostMapping("/{invitationHandle}/resend")
+    public MemberInvitationResponse resend(@PathVariable String organizationId, @PathVariable String invitationHandle,
             @RequestHeader("Idempotency-Key") String idempotencyKey, @AuthenticationPrincipal Jwt jwt) {
-        return service.resend(organizationId, invitationId, idempotencyKey, jwt);
+        return service.resend(organizationId, invitationHandle, idempotencyKey, jwt);
     }
 
-    @DeleteMapping("/{invitationId}")
+    @DeleteMapping("/{invitationHandle}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void revoke(@PathVariable String organizationId, @PathVariable String invitationId,
+    public void revoke(@PathVariable String organizationId, @PathVariable String invitationHandle,
             @RequestHeader("Idempotency-Key") String idempotencyKey, @AuthenticationPrincipal Jwt jwt) {
-        service.revoke(organizationId, invitationId, idempotencyKey, jwt);
+        service.revoke(organizationId, invitationHandle, idempotencyKey, jwt);
     }
 }

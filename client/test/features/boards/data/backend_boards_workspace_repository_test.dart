@@ -132,7 +132,7 @@ void main() {
           headers: {'content-type': 'application/json'},
         );
       }),
-      apiBaseUrl: Uri.parse('https://api.weave.test'),
+      apiBaseUrl: Uri.parse('https://api.weave.test/api'),
       accessToken: 'token',
     );
 

@@ -5,17 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCommandReceipt;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandConflictException;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Instant;
-import java.util.UUID;
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 class JpaRuntimeCommandRepositoryTest {
     private static final Instant NOW = Instant.parse("2026-07-20T09:00:00Z");
@@ -24,15 +17,7 @@ class JpaRuntimeCommandRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        EmbeddedDatabase database = new EmbeddedDatabaseBuilder()
-                .setType(EmbeddedDatabaseType.H2)
-                .setName("arc-command-" + UUID.randomUUID() + ";MODE=PostgreSQL")
-                .build();
-        new ResourceDatabasePopulator(new ClassPathResource(
-                "db/migration/V011__agent_runtime_control_foundation.sql"))
-                .execute(database);
-        new JdbcTemplate(database).execute(
-                "alter table weave_agent_runtime_commands add column version bigint not null default 0");
+        var database = JpaTestDatabase.entityFirstDataSource("arc-command");
         repository = AgentRuntimeJpaTestFactory.create(database).commands();
     }
 

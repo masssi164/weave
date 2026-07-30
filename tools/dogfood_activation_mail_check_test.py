@@ -122,7 +122,10 @@ class DogfoodActivationMailCheckTest(unittest.TestCase):
                         "mode": "keycloak-required-actions-email",
                         "requiredActions": ["VERIFY_EMAIL", "UPDATE_PASSWORD"],
                         "mailSent": True,
-                        "debugActionLink": "https://auth.weave.test/realms/weave/login-actions/action-token?key=secret",
+                        "debugActionLink": (
+                            "https://auth.weave.test/realms/weave/"
+                            "protocol/openid-connect/registrations?key=secret"
+                        ),
                     },
                     "qrOrDeeplinkCarriesSecret": False,
                     "appStoresActivationSecret": False,

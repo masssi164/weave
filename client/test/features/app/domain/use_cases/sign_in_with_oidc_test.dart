@@ -18,6 +18,7 @@ class _FakeAppAuthPort implements AppAuthPort {
   int clearCalls = 0;
   AuthConfiguration? lastSignInConfiguration;
   AuthState signInResult = AuthState.authenticated(buildTestAuthSession());
+  AuthState? reauthorizationResult;
   AuthState refreshResult = AuthState.authenticated(
     buildTestAuthSession(accessToken: 'refreshed-access-token'),
   );
@@ -42,7 +43,9 @@ class _FakeAppAuthPort implements AppAuthPort {
   Future<AuthState> signIn(AuthConfiguration configuration) async {
     signInCalls++;
     lastSignInConfiguration = configuration;
-    return signInResult;
+    return signInCalls == 2 && reauthorizationResult != null
+        ? reauthorizationResult!
+        : signInResult;
   }
 
   @override
@@ -88,7 +91,6 @@ SignInWithOidc _buildUseCase({
   return SignInWithOidc(
     authPort: authPort,
     reconcileIdentitySession: ReconcileIdentitySession(
-      authPort: authPort,
       identitySessionPort: identitySessionPort,
     ),
     serverConfigurationPort: _FakeServerConfigurationPort(
@@ -125,32 +127,34 @@ void main() {
       expect(authPort.refreshCalls, 0);
     });
 
-    test('refreshes exactly once when reconciliation updates access', () async {
-      final authPort = _FakeAppAuthPort();
-      final identitySessionPort = _FakeIdentitySessionPort()
-        ..result = IdentitySessionReconciliation.accessUpdated;
-      final useCase = _buildUseCase(
-        authPort: authPort,
-        identitySessionPort: identitySessionPort,
-        configuration: buildTestConfiguration(),
-      );
+    test(
+      'reauthorizes exactly once when reconciliation updates access',
+      () async {
+        final authPort = _FakeAppAuthPort();
+        final identitySessionPort = _FakeIdentitySessionPort()
+          ..result = IdentitySessionReconciliation.reauthorizationRequired;
+        final useCase = _buildUseCase(
+          authPort: authPort,
+          identitySessionPort: identitySessionPort,
+          configuration: buildTestConfiguration(),
+        );
 
-      await useCase.call(isInteractiveSignInSupported: true);
+        await useCase.call(isInteractiveSignInSupported: true);
 
-      expect(identitySessionPort.calls, 1);
-      expect(authPort.refreshCalls, 1);
-      expect(authPort.clearCalls, 0);
-    });
+        expect(identitySessionPort.calls, 1);
+        expect(authPort.signInCalls, 2);
+        expect(authPort.refreshCalls, 0);
+        expect(authPort.clearCalls, 0);
+      },
+    );
 
     test(
-      'clears a stale session when reconciliation needs an unavailable refresh',
+      'clears a stale session when required reauthorization is rejected',
       () async {
         final authPort = _FakeAppAuthPort()
-          ..signInResult = AuthState.authenticated(
-            buildTestAuthSession(refreshToken: null),
-          );
+          ..reauthorizationResult = const AuthState.signedOut();
         final identitySessionPort = _FakeIdentitySessionPort()
-          ..result = IdentitySessionReconciliation.accessUpdated;
+          ..result = IdentitySessionReconciliation.reauthorizationRequired;
         final useCase = _buildUseCase(
           authPort: authPort,
           identitySessionPort: identitySessionPort,
@@ -169,6 +173,7 @@ void main() {
         );
 
         expect(authPort.clearCalls, 1);
+        expect(authPort.signInCalls, 2);
         expect(authPort.refreshCalls, 0);
       },
     );

@@ -4,7 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import org.flywaydb.core.Flyway;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -26,10 +26,10 @@ class JpaMigrationRunEvidenceRepositoryPostgresTest {
         DriverManagerDataSource dataSource = postgresDataSource();
         migrate(dataSource);
         Instant now = Instant.parse("2026-05-31T08:00:00Z");
-        MigrationRunEvidenceJpaRepository springData =
+        com.massimotter.weave.backend.persistence.jpa.migration.MigrationRunEvidenceJpaRepository springData =
                 com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
                         dataSource,
-                        MigrationRunEvidenceJpaRepository.class);
+                        com.massimotter.weave.backend.persistence.jpa.migration.MigrationRunEvidenceJpaRepository.class);
         var repository = new JpaMigrationRunEvidenceRepository(
                 springData,
                 tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());
@@ -68,10 +68,6 @@ class JpaMigrationRunEvidenceRepositoryPostgresTest {
     }
 
     private void migrate(DriverManagerDataSource dataSource) {
-        Flyway.configure()
-                .dataSource(dataSource)
-                .locations("classpath:db/migration")
-                .load()
-                .migrate();
+        JpaTestDatabase.initializeSchema(dataSource);
     }
 }

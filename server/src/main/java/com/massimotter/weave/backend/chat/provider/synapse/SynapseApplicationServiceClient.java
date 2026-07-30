@@ -89,7 +89,7 @@ final class SynapseApplicationServiceClient {
                         "username", localpart,
                         "inhibit_login", true),
                 Set.of(200, 400));
-        if (response.path("errcode").asText("").equals("M_USER_IN_USE")) {
+        if (response.path("errcode").asString("").equals("M_USER_IN_USE")) {
             return new ChatSouthboundProvider.ProviderAck(providerUserRef, "existing");
         }
         if (response.hasNonNull("errcode")) {
@@ -233,7 +233,7 @@ final class SynapseApplicationServiceClient {
     boolean authenticatedReadiness(String senderLocalpart) {
         String sender = "@" + senderLocalpart + ":" + serverName;
         JsonNode response = request("GET", "/_matrix/client/v3/account/whoami", sender, null, Set.of(200));
-        return sender.equals(response.path("user_id").asText());
+        return sender.equals(response.path("user_id").asString());
     }
 
     ProviderRoomEvidence readRoomEvidence(
@@ -263,12 +263,12 @@ final class SynapseApplicationServiceClient {
         List<String> encryptedEventRefs = new ArrayList<>();
         List<String> ciphertextHashes = new ArrayList<>();
         for (JsonNode event : messages.path("chunk")) {
-            String type = event.path("type").asText();
+            String type = event.path("type").asString();
             if ("m.room.encrypted".equals(type)) {
                 encrypted++;
-                encryptedEventRefs.add(event.path("event_id").asText(""));
+                encryptedEventRefs.add(event.path("event_id").asString(""));
                 JsonNode ciphertext = event.path("content").path("ciphertext");
-                ciphertextHashes.add(sha256(ciphertext.isTextual() ? ciphertext.textValue() : ciphertext.toString()));
+                ciphertextHashes.add(sha256(ciphertext.isString() ? ciphertext.stringValue() : ciphertext.toString()));
             } else if ("m.room.message".equals(type)) {
                 plaintext++;
             }
@@ -287,13 +287,13 @@ final class SynapseApplicationServiceClient {
             }
         }
         List<String> joinedIds = new ArrayList<>();
-        joined.path("joined").propertyNames().forEach(joinedIds::add);
+        joined.path("joined").properties().forEach(entry -> joinedIds.add(entry.getKey()));
         boolean membershipExact = exactSet(joinedIds, expectedJoinedActors);
         return new ProviderRoomEvidence(
                 membershipExact,
                 outsiderActorRef == null || !joinedIds.contains(outsiderActorRef),
                 outsiderDenied,
-                ChatEncryptedEnvelope.MEGOLM_V1.equals(encryption.path("algorithm").asText()),
+                ChatEncryptedEnvelope.MEGOLM_V1.equals(encryption.path("algorithm").asString()),
                 exactSet(encryptedEventRefs, expectedEncryptedEventRefs),
                 exactSet(ciphertextHashes, expectedCiphertextHashes),
                 encrypted,
@@ -382,7 +382,7 @@ final class SynapseApplicationServiceClient {
     }
 
     private ChatSouthboundProvider.ProviderAck requiredAck(JsonNode response, String field) {
-        String providerRef = response.path(field).asText("");
+        String providerRef = response.path(field).asString("");
         if (providerRef.isBlank()) {
             throw new SynapseProviderException("chat-provider-ack-invalid", null);
         }
@@ -451,7 +451,7 @@ final class SynapseApplicationServiceClient {
         }
         try {
             JsonNode value = objectMapper.readTree(bytes);
-            String errcode = value.path("errcode").asText(null);
+            String errcode = value.path("errcode").asString(null);
             return errcode != null && errcode.matches("M_[A-Z0-9_]{1,80}") ? errcode : null;
         } catch (JacksonException exception) {
             return null;

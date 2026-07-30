@@ -125,7 +125,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.pump();
 
-        expect(find.text('Organization ready for sign-in'), findsOneWidget);
+        expect(find.text('Workspace ready for sign-in'), findsOneWidget);
         expect(find.textContaining('massimo-dogfood'), findsOneWidget);
         expect(find.text('Sign In'), findsOneWidget);
 
@@ -408,10 +408,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('We could not check organization access'),
-        findsOneWidget,
-      );
+      expect(find.text('We could not open this Weave invite'), findsOneWidget);
       expect(
         find.textContaining(
           'Weave could not reach the workspace start configuration over trusted TLS.',
