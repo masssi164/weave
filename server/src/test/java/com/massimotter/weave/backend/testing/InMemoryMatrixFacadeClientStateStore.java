@@ -33,6 +33,11 @@ public final class InMemoryMatrixFacadeClientStateStore implements MatrixFacadeC
             throw new IllegalArgumentException(
                 "Matrix user is already bound to another canonical actor.");
           }
+          if (existing != null
+              && existing.authorizationPrincipalRef().equals(
+                  projection.authorizationPrincipalRef())) {
+            return existing;
+          }
           if (existing != null && projection.updatedAt().isBefore(existing.updatedAt())) {
             throw new IllegalArgumentException(
                 "Matrix identity projection update cannot move backwards.");
@@ -48,7 +53,7 @@ public final class InMemoryMatrixFacadeClientStateStore implements MatrixFacadeC
         sessionHash,
         requested,
         (existing, replacement) -> {
-          if (!existing.equals(replacement)) {
+          if (!existing.expiresAt().equals(replacement.expiresAt())) {
             throw new IllegalArgumentException(
                 "Matrix revocation digest is already bound to another session window.");
           }

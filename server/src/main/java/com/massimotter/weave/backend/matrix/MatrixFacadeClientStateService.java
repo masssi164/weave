@@ -72,8 +72,13 @@ public class MatrixFacadeClientStateService {
         ChatResolvedIdentity resolvedIdentity = new ChatResolvedIdentity(
                 new ChatIdentityRef(tenantId, identityIssuer, actorRef), authorizationPrincipalRef);
         ScopedMatrixUser scopedUser = new ScopedMatrixUser(tenantId, identityIssuer, userId);
+        try {
+            persistIdentityProjection(scopedUser, resolvedIdentity);
+        } catch (MatrixFacadeClientStateStore.ConcurrentWriteException conflict) {
+            throw new MatrixProtocolException(
+                    "M_UNKNOWN", "The Matrix identity binding is temporarily unavailable.");
+        }
         actorsByMatrixUserId.put(scopedUser, resolvedIdentity);
-        persistIdentityProjection(scopedUser, resolvedIdentity);
         return new MatrixIdentity(
                 userId,
                 actorRef,
@@ -158,7 +163,12 @@ public class MatrixFacadeClientStateService {
             Instant expires = jwt.getExpiresAt() == null
                     ? now.plusSeconds(86_400)
                     : jwt.getExpiresAt();
-            stateStore.revokeSession(hash, now, expires);
+            try {
+                stateStore.revokeSession(hash, now, expires);
+            } catch (MatrixFacadeClientStateStore.ConcurrentWriteException conflict) {
+                throw new MatrixProtocolException(
+                        "M_UNKNOWN", "The Matrix session revocation is temporarily unavailable.");
+            }
         }
     }
 
