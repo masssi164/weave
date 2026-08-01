@@ -167,6 +167,13 @@ contains "${FLOW}" '/api/bootstrap/owner-invitation'
 contains "${FLOW}" '/api/v1/identity/session/reconcile'
 contains "${FLOW}" '"access_updated"'
 contains "${FLOW}" 'organizationGroups(claims)'
+contains "${FLOW}" '/api/admin/providers/selections'
+contains "${FLOW}" 'new ProviderSelection("chat", "synapse-homeserver")'
+contains "${FLOW}" 'new ProviderSelection("files", "nextcloud-files")'
+contains "${FLOW}" 'new ProviderSelection("calendar", "nextcloud-caldav")'
+contains "${FLOW}" '"recommended_self_hosted_default"'
+contains "${FLOW}" '/api/chat/readiness'
+contains "${FLOW}" '"available".equals(observedState)'
 absent "${FLOW}" 'claims.path("groups")'
 contains "${FLOW}" 'authorization_code_pkce_s256'
 contains "${FLOW}" 'client_credentials_private_key_jwt'
@@ -207,6 +214,18 @@ absent "${FLOW}" 'org.springframework'
 absent "${FLOW}" 'jakarta.persistence'
 absent "${MCP_FLOW}" 'org.springframework'
 absent "${MCP_FLOW}" 'jakarta.persistence'
+
+python3 - "${FLOW}" <<'PY'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+selection = source.index("configureRequiredProviders(ownerSession.accessToken())")
+readiness = source.index("awaitChatReadiness(ownerSession.accessToken())")
+collaboration = source.index("CollaborationJourney collaboration")
+if not selection < readiness < collaboration:
+    raise SystemExit("Fresh product flow must apply providers and await readiness before collaboration")
+PY
 
 contains "${CANDIDATE_WORKFLOW}" 'fresh-product-proof:'
 contains "${CANDIDATE_WORKFLOW}" 'needs: build-candidate'

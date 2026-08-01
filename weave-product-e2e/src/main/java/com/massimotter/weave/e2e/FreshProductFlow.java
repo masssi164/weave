@@ -120,6 +120,8 @@ public final class FreshProductFlow {
               browser, ownerSession, "owner", ownerEmail, ownerPassword);
       ownerSession = awaitAuthority(browser, ownerSession, "/owners", "owner");
       validateHumanWorkspaceToken(browser.jwtPayload(ownerSession.accessToken()), "weave-app");
+      configureRequiredProviders(ownerSession.accessToken());
+      awaitChatReadiness(ownerSession.accessToken());
 
       Instant memberInvitedAt = Instant.now();
       inviteActor(
@@ -524,6 +526,66 @@ public final class FreshProductFlow {
     if (!readiness.path("supportSafe").asBoolean(false)) {
       throw new ProductFlowException("profile readiness was not support-safe");
     }
+  }
+
+  private void configureRequiredProviders(String ownerToken) {
+    List<ProviderSelection> requiredProviders =
+        List.of(
+            new ProviderSelection("chat", "synapse-homeserver"),
+            new ProviderSelection("files", "nextcloud-files"),
+            new ProviderSelection("calendar", "nextcloud-caldav"));
+    for (ProviderSelection selection : requiredProviders) {
+      ObjectNode request = http.mapper().createObjectNode();
+      request.put("category", selection.category());
+      request.put("providerKey", selection.providerKey());
+      request.put("choiceModel", "recommended_self_hosted_default");
+      request.put("dryRun", false);
+      request.putArray("lossyMappingNotes");
+      request.put("reason", "configure the isolated Fresh Stack product path");
+      JsonNode response =
+          http.json(
+              "apply " + selection.category() + " provider selection",
+              "POST",
+              environment.api("/api/admin/providers/selections"),
+              bearer(ownerToken, Map.of()),
+              request,
+              Set.of(200));
+      if (!selection.category().equals(response.path("category").asString())
+          || !selection.providerKey().equals(response.path("providerKey").asString())
+          || !"recommended_self_hosted_default".equals(
+              response.path("choiceModel").asString())
+          || !response.path("applied").asBoolean(false)
+          || response.path("dryRun").asBoolean(true)
+          || !response.path("supportSafe").asBoolean(false)) {
+        throw new ProductFlowException(
+            selection.category() + " provider selection did not converge");
+      }
+    }
+  }
+
+  private void awaitChatReadiness(String ownerToken) {
+    Instant deadline = Instant.now().plus(environment.convergenceTimeout());
+    String observedState = "unavailable";
+    while (Instant.now().isBefore(deadline)) {
+      JsonNode readiness =
+          http.json(
+              "read Chat provider readiness",
+              "GET",
+              environment.api("/api/chat/readiness"),
+              bearer(ownerToken, Map.of()),
+              null,
+              Set.of(200));
+      observedState = readiness.path("memberState").asString();
+      if ("available".equals(observedState)
+          && "chat".equals(readiness.path("domain").asString())
+          && !readiness.path("failClosed").asBoolean(true)
+          && readiness.path("supportSafe").asBoolean(false)) {
+        return;
+      }
+      sleep();
+    }
+    throw new ProductFlowException(
+        "Chat provider readiness did not converge observedState=" + observedState);
   }
 
   private OidcBrowserJourney.TokenSet reconcileIdentitySession(
@@ -1039,4 +1101,6 @@ public final class FreshProductFlow {
         .replaceAll("(?i)bearer\\s+\\S+", "bearer [redacted]")
         .replaceAll("(?i)(token|password|assertion)=\\S+", "$1=[redacted]");
   }
+
+  private record ProviderSelection(String category, String providerKey) {}
 }

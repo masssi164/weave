@@ -70,6 +70,33 @@ class ChatDomainFacadeServiceTest {
     }
 
     @Test
+    void adminSelectionUnlocksConversationCreationWithoutBypassingReadiness() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        ChatDomainFacadeService service = service(selections, true, capability());
+
+        assertThatThrownBy(() -> service.createConversation(
+                "create-before-selection",
+                "Blocked conversation",
+                "channel",
+                List.of(),
+                memberJwt()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Chat is not ready.");
+
+        selections.save(selection("chat", "in-memory-test", false, List.of()));
+
+        var created = service.createConversation(
+                "create-after-selection",
+                "Selected conversation",
+                "channel",
+                List.of(),
+                memberJwt());
+
+        assertThat(created.title()).isEqualTo("Selected conversation");
+        assertThat(service.memberReadiness(memberJwt()).memberState()).isEqualTo(ChatMemberState.READY);
+    }
+
+    @Test
     void adminReadinessShowsSupportSafeMappingWhileSelectedProviderIsUnconfigured() {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "slack", true, List.of("Thread replies need Weave annotations.")));
