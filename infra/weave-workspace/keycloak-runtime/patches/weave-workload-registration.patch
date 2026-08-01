@@ -1,19 +1,36 @@
 diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
 new file mode 100644
+index 0000000..5c985a8
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,502 @@
+@@ -0,0 +1,912 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
++import com.fasterxml.jackson.databind.JsonNode;
++import com.fasterxml.jackson.databind.node.ArrayNode;
++import com.fasterxml.jackson.databind.node.ObjectNode;
 +import jakarta.ws.rs.core.Response;
++import java.io.IOException;
++import java.nio.charset.StandardCharsets;
++import java.security.MessageDigest;
++import java.security.NoSuchAlgorithmException;
++import java.util.ArrayList;
++import java.util.Base64;
++import java.util.Collection;
++import java.util.Comparator;
++import java.util.HexFormat;
 +import java.util.HashMap;
 +import java.util.HashSet;
++import java.util.LinkedHashMap;
++import java.util.LinkedHashSet;
 +import java.util.List;
 +import java.util.Map;
 +import java.util.Objects;
 +import java.util.Set;
++import java.util.TreeMap;
 +import java.util.regex.Pattern;
 +import java.util.stream.Collectors;
++import jakarta.ws.rs.core.MultivaluedMap;
 +import org.keycloak.OAuthErrorException;
 +import org.keycloak.authentication.authenticators.client.JWTClientAuthenticator;
 +import org.keycloak.crypto.Algorithm;
@@ -47,6 +64,7 @@ new file mode 100644
 +import org.keycloak.services.clientpolicy.context.DynamicClientUpdatedContext;
 +import org.keycloak.services.clientpolicy.context.DynamicClientViewContext;
 +import org.keycloak.services.clientregistration.ClientRegistrationTokenUtils;
++import org.keycloak.util.JsonSerialization;
 +
 +/**
 + * Built-in Keycloak 26.7 policy for the Weave per-Cell workload registration namespace.
@@ -108,6 +126,23 @@ new file mode 100644
 +            "Weave workload client metadata is not permitted [constraint=final-roles].";
 +    static final String CROSS_CELL_DETAIL =
 +            "Weave workload client lifecycle authority does not match the target client.";
++    public static final String HANDOFF_HEADER = "Weave-Registration-Handoff";
++    public static final String HANDOFF_STATE_HEADER =
++            "Weave-Registration-Handoff-State";
++    public static final String HANDOFF_OPERATION_HEADER =
++            "Weave-Registration-Handoff-Operation";
++    public static final String HANDOFF_DIGEST_ATTRIBUTE =
++            "weave.registration.handoff.sha256";
++    public static final String HANDOFF_STATE_ATTRIBUTE =
++            "weave.registration.handoff.state.sha256";
++    public static final String HANDOFF_OPERATION_ATTRIBUTE =
++            "weave.registration.handoff.operation";
++    private static final Pattern HANDOFF_CAPABILITY =
++            Pattern.compile("^[A-Za-z0-9_-]{43}$");
++    private static final Pattern SHA256 =
++            Pattern.compile("^sha256:[a-f0-9]{64}$");
++    private static final Set<String> HANDOFF_OPERATIONS =
++            Set.of("create", "rotate", "disable", "reenable");
 +
 +    private static final String USE_REFRESH_TOKENS = "use.refresh.tokens";
 +    private static final String BACKCHANNEL_LOGOUT_SESSION_REQUIRED =
@@ -133,6 +168,10 @@ new file mode 100644
 +            BACKCHANNEL_LOGOUT_SESSION_REQUIRED,
 +            BACKCHANNEL_LOGOUT_REVOKE_OFFLINE_TOKENS,
 +            FRONTCHANNEL_LOGOUT_SESSION_REQUIRED);
++    private static final Set<String> IN_FLIGHT_ATTRIBUTES = Set.of(
++            HANDOFF_DIGEST_ATTRIBUTE,
++            HANDOFF_STATE_ATTRIBUTE,
++            HANDOFF_OPERATION_ATTRIBUTE);
 +    private static final Map<String, String> FIXED_ATTRIBUTES = Map.of(
 +            OIDCConfigAttributes.USE_JWKS_STRING, Boolean.TRUE.toString(),
 +            OIDCConfigAttributes.USE_JWKS_URL, Boolean.FALSE.toString(),
@@ -152,6 +191,7 @@ new file mode 100644
 +            OIDCConfigAttributes.JWT_AUTHORIZATION_GRANT_ENABLED);
 +
 +    private final KeycloakSession session;
++    private HandoffHeaders handoffHeaders;
 +
 +    public WeaveWorkloadClientRegistrationExecutor(KeycloakSession session) {
 +        this.session = Objects.requireNonNull(session, "session");
@@ -173,6 +213,9 @@ new file mode 100644
 +        }
 +        if (context instanceof DynamicClientRegisterContext) {
 +            requireRuntimeAdmin(crud);
++            handoffHeaders = parseHandoffHeaders(
++                    session.getContext().getRequestHeaders().getRequestHeaders(),
++                    "create");
 +            prepareRegistration(crud.getProposedClientRepresentation());
 +            return;
 +        }
@@ -184,14 +227,21 @@ new file mode 100644
 +        if (context instanceof DynamicClientRegisteredContext) {
 +            requireRuntimeAdmin(crud);
 +            enforceFinalState(target);
++            commitHandoff(target, requireHandoffHeaders("create"));
 +        } else if (context instanceof DynamicClientUpdateContext) {
 +            requireBoundRegistrationAccessToken(crud, target);
++            String expectedOperation = updateOperation(
++                    crud.getProposedClientRepresentation(), target);
++            handoffHeaders = parseHandoffHeaders(
++                    session.getContext().getRequestHeaders().getRequestHeaders(),
++                    expectedOperation);
 +            prepareUpdate(crud.getProposedClientRepresentation(), target.getClientId());
 +        } else if (context instanceof DynamicClientUpdatedContext) {
 +            // The pre-update event bound the request RAT. Keycloak rotates the stored token ID
 +            // before this post-update event, so the old request token cannot match the new ID.
 +            // Final-state enforcement still runs inside the same transactional update.
 +            enforceFinalState(target);
++            commitHandoff(target, requireHandoffHeaders(null));
 +        } else if (context instanceof DynamicClientViewContext
 +                || context instanceof DynamicClientUnregisterContext) {
 +            requireBoundRegistrationAccessToken(crud, target);
@@ -372,11 +422,12 @@ new file mode 100644
 +        if (serviceAccount == null) {
 +            throw invalid(INVALID_DETAIL);
 +        }
-+        Set<String> directRoleNames = serviceAccount.getRoleMappingsStream()
-+                .map(RoleModel::getName)
++        Set<RoleIdentity> directRoles = serviceAccount.getRoleMappingsStream()
++                .map(WeaveWorkloadClientRegistrationExecutor::roleIdentity)
 +                .collect(Collectors.toUnmodifiableSet());
-+        Set<String> effectiveRoleNames = RoleUtils.getDeepUserRoleMappings(serviceAccount).stream()
-+                .map(RoleModel::getName)
++        Set<RoleIdentity> effectiveRoles =
++                RoleUtils.getDeepUserRoleMappings(serviceAccount).stream()
++                .map(WeaveWorkloadClientRegistrationExecutor::roleIdentity)
 +                .collect(Collectors.toUnmodifiableSet());
 +
 +        if (!isWorkloadClient(client.getClientId())
@@ -402,7 +453,13 @@ new file mode 100644
 +                || !OPTIONAL_SCOPES.equals(client.getClientScopes(false).keySet())) {
 +            throw invalid(INVALID_FINAL_SCOPES_DETAIL);
 +        }
-+        if (!ALLOWED_ATTRIBUTES.equals(attributes.keySet())) {
++        Set<String> expectedAttributeKeys = new HashSet<>(ALLOWED_ATTRIBUTES);
++        boolean hasAnyHandoff =
++                attributes.keySet().stream().anyMatch(IN_FLIGHT_ATTRIBUTES::contains);
++        if (hasAnyHandoff) {
++            expectedAttributeKeys.addAll(IN_FLIGHT_ATTRIBUTES);
++        }
++        if (!expectedAttributeKeys.equals(attributes.keySet())) {
 +            throw invalid(INVALID_FINAL_ATTRIBUTE_SET_DETAIL);
 +        }
 +        if (!Boolean.TRUE.toString().equals(attributes.get(OIDCConfigAttributes.USE_JWKS_STRING))
@@ -429,10 +486,27 @@ new file mode 100644
 +                attributes.get(FRONTCHANNEL_LOGOUT_SESSION_REQUIRED))) {
 +            throw invalid(INVALID_FINAL_FRONTCHANNEL_SESSION_DETAIL);
 +        }
-+        if (!Set.of(WORKLOAD_ROLE).equals(directRoleNames)
-+                || !Set.of(WORKLOAD_ROLE).equals(effectiveRoleNames)) {
++        validateExactRoles(client.getRealm().getId(), directRoles, effectiveRoles);
++    }
++
++    static void validateExactRoles(
++            String realmId,
++            Set<RoleIdentity> directRoles,
++            Set<RoleIdentity> effectiveRoles)
++            throws ClientPolicyException {
++        RoleIdentity expected =
++                new RoleIdentity("realm", realmId, WORKLOAD_ROLE);
++        if (!Set.of(expected).equals(directRoles)
++                || !Set.of(expected).equals(effectiveRoles)) {
 +            throw invalid(INVALID_FINAL_ROLES_DETAIL);
 +        }
++    }
++
++    static RoleIdentity roleIdentity(RoleModel role) {
++        return new RoleIdentity(
++                role.isClientRole() ? "client" : "realm",
++                role.getContainerId(),
++                role.getName());
 +    }
 +
 +    private static void rejectAdminBypass(ClientCRUDContext context)
@@ -453,11 +527,338 @@ new file mode 100644
 +    private static void requireRuntimeAdmin(ClientCRUDContext context)
 +            throws ClientPolicyException {
 +        ClientModel authenticated = context.getAuthenticatedClient();
++        JsonWebToken token = context.getToken();
 +        if (authenticated == null
 +                || !RUNTIME_ADMIN_CLIENT_ID.equals(authenticated.getClientId())
-+                || context.getAuthenticatedUser() == null) {
++                || context.getAuthenticatedUser() == null
++                || !exactRuntimeAdminToken(token, authenticated.getRealm())) {
 +            throw invalid(INVALID_DETAIL);
 +        }
++    }
++
++    public static boolean exactRuntimeAdminToken(
++            JsonWebToken token, RealmModel realm) {
++        String realmManagement = realm.getName().equals(org.keycloak.Config.getAdminRealm())
++                ? realm.getMasterAdminClient().getClientId()
++                : org.keycloak.models.Constants.REALM_MANAGEMENT_CLIENT_ID;
++        return exactRuntimeAdminToken(token, realmManagement);
++    }
++
++    public static boolean exactRuntimeAdminToken(
++            JsonWebToken token, String realmManagementClientId) {
++        if (!(token instanceof org.keycloak.representations.AccessToken accessToken)
++                || !RUNTIME_ADMIN_CLIENT_ID.equals(accessToken.getIssuedFor())
++                || accessToken.getRealmAccess() != null
++                        && accessToken.getRealmAccess().getRoles() != null
++                        && !accessToken.getRealmAccess().getRoles().isEmpty()) {
++            return false;
++        }
++        Map<String, org.keycloak.representations.AccessToken.Access> resourceAccess =
++                accessToken.getResourceAccess();
++        if (resourceAccess == null
++                || !Set.of(realmManagementClientId).equals(resourceAccess.keySet())) {
++            return false;
++        }
++        Set<String> roles = resourceAccess.get(realmManagementClientId).getRoles();
++        return Set.of(org.keycloak.models.AdminRoles.CREATE_CLIENT)
++                .equals(Objects.requireNonNullElse(roles, Set.of()));
++    }
++
++    public static boolean exactRuntimeAdminClient(ClientModel client) {
++        if (client == null) {
++            return false;
++        }
++        Map<String, String> attributes = client.getAttributes();
++        return RUNTIME_ADMIN_CLIENT_ID.equals(client.getClientId())
++                && client.isEnabled()
++                && OIDCLoginProtocol.LOGIN_PROTOCOL.equals(client.getProtocol())
++                && JWTClientAuthenticator.PROVIDER_ID.equals(
++                        client.getClientAuthenticatorType())
++                && client.isServiceAccountsEnabled()
++                && !client.isPublicClient()
++                && !client.isBearerOnly()
++                && !client.isStandardFlowEnabled()
++                && !client.isImplicitFlowEnabled()
++                && !client.isDirectAccessGrantsEnabled()
++                && !client.isFullScopeAllowed()
++                && !hasText(client.getSecret())
++                && !hasValues(client.getRedirectUris())
++                && !hasValues(client.getWebOrigins())
++                && !hasText(client.getRootUrl())
++                && !hasText(client.getBaseUrl())
++                && !hasText(client.getManagementUrl())
++                && client.getProtocolMappersStream().findAny().isEmpty()
++                && Algorithm.PS256.equals(
++                        attributes.get(OIDCConfigAttributes.TOKEN_ENDPOINT_AUTH_SIGNING_ALG))
++                && Boolean.TRUE.toString().equals(
++                        attributes.get(OIDCConfigAttributes.USE_JWKS_STRING))
++                && Boolean.FALSE.toString().equals(
++                        attributes.get(OIDCConfigAttributes.USE_JWKS_URL))
++                && hasText(attributes.get(OIDCConfigAttributes.JWKS_STRING));
++    }
++
++    private static String updateOperation(
++            ClientRepresentation proposed, ClientModel current)
++            throws ClientPolicyException {
++        boolean currentRevoked = hasRevocationOnlyJwk(
++                current.getAttribute(OIDCConfigAttributes.JWKS_STRING));
++        String proposedJwks = proposed == null || proposed.getAttributes() == null
++                ? null
++                : proposed.getAttributes().get(OIDCConfigAttributes.JWKS_STRING);
++        boolean proposedRevoked = hasRevocationOnlyJwk(proposedJwks);
++        if (proposedRevoked) {
++            return "disable";
++        }
++        return currentRevoked ? "reenable" : "rotate";
++    }
++
++    private static boolean hasRevocationOnlyJwk(String encoded)
++            throws ClientPolicyException {
++        try {
++            JsonNode root = JsonSerialization.mapper.readTree(encoded);
++            JsonNode keys = root == null ? null : root.get("keys");
++            return keys instanceof ArrayNode array
++                    && array.size() == 1
++                    && array.get(0).path("kid").asText("").startsWith("revoked_");
++        } catch (IOException | RuntimeException failure) {
++            throw invalid(INVALID_CREDENTIAL_ATTRIBUTES_DETAIL);
++        }
++    }
++
++    public static HandoffHeaders parseHandoffHeaders(
++            MultivaluedMap<String, String> headers, String expectedOperation)
++            throws ClientPolicyException {
++        String capability = exactHeader(headers, HANDOFF_HEADER);
++        String state = exactHeader(headers, HANDOFF_STATE_HEADER);
++        String operation = exactHeader(headers, HANDOFF_OPERATION_HEADER);
++        if (!HANDOFF_CAPABILITY.matcher(capability).matches()
++                || !SHA256.matcher(state).matches()
++                || !HANDOFF_OPERATIONS.contains(operation)
++                || expectedOperation != null && !expectedOperation.equals(operation)) {
++            throw invalidHandoff();
++        }
++        byte[] decoded;
++        try {
++            decoded = Base64.getUrlDecoder().decode(capability);
++        } catch (IllegalArgumentException failure) {
++            throw invalidHandoff();
++        }
++        if (decoded.length != 32
++                || !capability.equals(
++                        Base64.getUrlEncoder().withoutPadding().encodeToString(decoded))) {
++            throw invalidHandoff();
++        }
++        return new HandoffHeaders(
++                capability,
++                sha256(decoded),
++                state,
++                operation);
++    }
++
++    private static String exactHeader(
++            MultivaluedMap<String, String> headers, String name)
++            throws ClientPolicyException {
++        List<String> values = headers == null ? null : headers.get(name);
++        if (values == null
++                || values.size() != 1
++                || values.get(0) == null
++                || values.get(0).isBlank()
++                || values.get(0).length() > 128
++                || !values.get(0).equals(values.get(0).strip())
++                || values.get(0).contains(",")) {
++            throw invalidHandoff();
++        }
++        return values.get(0);
++    }
++
++    private HandoffHeaders requireHandoffHeaders(String operation)
++            throws ClientPolicyException {
++        if (handoffHeaders == null
++                || operation != null && !operation.equals(handoffHeaders.operation())) {
++            throw invalidHandoff();
++        }
++        return handoffHeaders;
++    }
++
++    private void commitHandoff(ClientModel client, HandoffHeaders headers)
++            throws ClientPolicyException {
++        client.setAttribute(HANDOFF_DIGEST_ATTRIBUTE, headers.capabilityDigest());
++        client.setAttribute(HANDOFF_STATE_ATTRIBUTE, headers.stateDigest());
++        client.setAttribute(HANDOFF_OPERATION_ATTRIBUTE, headers.operation());
++        String observed = canonicalStateDigest(client, headers.operation());
++        if (!MessageDigest.isEqual(
++                observed.getBytes(StandardCharsets.US_ASCII),
++                headers.stateDigest().getBytes(StandardCharsets.US_ASCII))) {
++            throw new ClientPolicyException(
++                    OAuthErrorException.INVALID_CLIENT_METADATA,
++                    "Weave workload registration state does not match the prepared handoff.",
++                    Response.Status.CONFLICT);
++        }
++        validateFinalState(client);
++    }
++
++    public String canonicalStateDigest(ClientModel client, String operation)
++            throws ClientPolicyException {
++        validateFinalState(client);
++        try {
++            ObjectNode root = JsonSerialization.mapper.createObjectNode();
++            root.put("clientId", client.getClientId());
++            root.set("defaultClientScopes", sortedStrings(
++                    client.getClientScopes(true).keySet()));
++            ArrayNode roles = root.putArray("effectiveRoles");
++            UserModel serviceAccount = session.users().getServiceAccount(client);
++            RoleUtils.getDeepUserRoleMappings(serviceAccount).stream()
++                    .map(WeaveWorkloadClientRegistrationExecutor::roleIdentity)
++                    .sorted(Comparator.comparing(RoleIdentity::kind)
++                            .thenComparing(RoleIdentity::containerId)
++                            .thenComparing(RoleIdentity::name))
++                    .forEach(role -> {
++                        ObjectNode value = JsonSerialization.mapper.createObjectNode();
++                        value.put("containerId", role.containerId());
++                        value.put("kind", role.kind());
++                        value.put("name", role.name());
++                        roles.add(value);
++                    });
++            ObjectNode attributes = root.putObject("fixedAttributes");
++            new TreeMap<>(FIXED_ATTRIBUTES).forEach(attributes::put);
++            ObjectNode flows = root.putObject("flows");
++            flows.put("authorizationCode", client.isStandardFlowEnabled());
++            flows.put("ciba", Boolean.parseBoolean(
++                    client.getAttribute("oidc.ciba.grant.enabled")));
++            flows.put("device", Boolean.parseBoolean(
++                    client.getAttribute("oauth2.device.authorization.grant.enabled")));
++            flows.put("directAccessGrant", client.isDirectAccessGrantsEnabled());
++            flows.put("implicit", client.isImplicitFlowEnabled());
++            flows.put("jwtAuthorizationGrant", Boolean.parseBoolean(
++                    client.getAttribute(OIDCConfigAttributes.JWT_AUTHORIZATION_GRANT_ENABLED)));
++            flows.put("serviceAccounts", client.isServiceAccountsEnabled());
++            flows.put("standardTokenExchange", Boolean.parseBoolean(
++                    client.getAttribute(OIDCConfigAttributes.STANDARD_TOKEN_EXCHANGE_ENABLED)));
++            flows.put("uma", false);
++            root.put("operation", operation);
++            root.set("optionalClientScopes", sortedStrings(
++                    client.getClientScopes(false).keySet()));
++            root.set("protocolMappers", JsonSerialization.mapper.createArrayNode());
++            root.set("publicJwks", normalizedJwks(
++                    client.getAttribute(OIDCConfigAttributes.JWKS_STRING)));
++            ObjectNode token = root.putObject("tokenEndpointAuthentication");
++            token.put("algorithm", Algorithm.PS256);
++            token.put("method", JWTClientAuthenticator.PROVIDER_ID);
++            root.set("uris", JsonSerialization.mapper.createArrayNode());
++            root.set("webOrigins", JsonSerialization.mapper.createArrayNode());
++            return sha256(JsonSerialization.writeValueAsBytes(root));
++        } catch (IOException | RuntimeException failure) {
++            throw invalid(INVALID_FINAL_STATE_DETAIL);
++        }
++    }
++
++    public HandoffState requireRecoverableHandoff(
++            ClientModel client, HandoffHeaders headers)
++            throws ClientPolicyException {
++        if (client == null || headers == null) {
++            throw handoffDenied(Response.Status.NOT_FOUND);
++        }
++        validateFinalState(client);
++        if (!constantTimeEquals(
++                        client.getAttribute(HANDOFF_DIGEST_ATTRIBUTE),
++                        headers.capabilityDigest())
++                || !constantTimeEquals(
++                        client.getAttribute(HANDOFF_STATE_ATTRIBUTE),
++                        headers.stateDigest())
++                || !constantTimeEquals(
++                        client.getAttribute(HANDOFF_OPERATION_ATTRIBUTE),
++                        headers.operation())) {
++            throw handoffDenied(Response.Status.FORBIDDEN);
++        }
++        String observed = canonicalStateDigest(client, headers.operation());
++        if (!constantTimeEquals(observed, headers.stateDigest())) {
++            throw new ClientPolicyException(
++                    "registration_handoff_state_mismatch",
++                    "The registration handoff state does not match.",
++                    Response.Status.CONFLICT);
++        }
++        UserModel serviceAccount = session.users().getServiceAccount(client);
++        if (serviceAccount == null || serviceAccount.getId() == null) {
++            throw new ClientPolicyException(
++                    "registration_handoff_state_mismatch",
++                    "The registration handoff state does not match.",
++                    Response.Status.CONFLICT);
++        }
++        return new HandoffState(
++                observed,
++                sha256(serviceAccount.getId().getBytes(StandardCharsets.UTF_8)));
++    }
++
++    public void finalizeHandoff(ClientModel client, HandoffHeaders headers)
++            throws ClientPolicyException {
++        requireRecoverableHandoff(client, headers);
++        client.removeAttribute(HANDOFF_DIGEST_ATTRIBUTE);
++        client.removeAttribute(HANDOFF_STATE_ATTRIBUTE);
++        client.removeAttribute(HANDOFF_OPERATION_ATTRIBUTE);
++        validateFinalState(client);
++    }
++
++    private static boolean constantTimeEquals(String left, String right) {
++        return left != null
++                && right != null
++                && MessageDigest.isEqual(
++                        left.getBytes(StandardCharsets.US_ASCII),
++                        right.getBytes(StandardCharsets.US_ASCII));
++    }
++
++    private static ClientPolicyException handoffDenied(Response.Status status) {
++        return new ClientPolicyException(
++                "registration_handoff_denied",
++                "The registration handoff is not permitted.",
++                status);
++    }
++
++    private static ArrayNode sortedStrings(Collection<String> values) {
++        ArrayNode array = JsonSerialization.mapper.createArrayNode();
++        values.stream().sorted().forEach(array::add);
++        return array;
++    }
++
++    private static ObjectNode normalizedJwks(String encoded)
++            throws IOException, ClientPolicyException {
++        JsonNode parsed = JsonSerialization.mapper.readTree(encoded);
++        JsonNode keys = parsed == null ? null : parsed.get("keys");
++        if (!(keys instanceof ArrayNode input) || input.isEmpty()) {
++            throw invalid(INVALID_CREDENTIAL_ATTRIBUTES_DETAIL);
++        }
++        List<JsonNode> ordered = new ArrayList<>();
++        input.forEach(ordered::add);
++        ordered.sort(Comparator.comparing(key -> key.path("kid").asText()));
++        ObjectNode result = JsonSerialization.mapper.createObjectNode();
++        ArrayNode normalized = result.putArray("keys");
++        for (JsonNode key : ordered) {
++            ObjectNode value = JsonSerialization.mapper.createObjectNode();
++            for (String field : List.of("alg", "e", "kid", "kty", "n", "use")) {
++                JsonNode item = key.get(field);
++                if (item == null || !item.isTextual() || item.asText().isBlank()) {
++                    throw invalid(INVALID_CREDENTIAL_ATTRIBUTES_DETAIL);
++                }
++                value.put(field, item.asText());
++            }
++            normalized.add(value);
++        }
++        return result;
++    }
++
++    private static String sha256(byte[] value) {
++        try {
++            return "sha256:" + HexFormat.of().formatHex(
++                    MessageDigest.getInstance("SHA-256").digest(value));
++        } catch (NoSuchAlgorithmException impossible) {
++            throw new IllegalStateException(impossible);
++        }
++    }
++
++    private static ClientPolicyException invalidHandoff() {
++        return new ClientPolicyException(
++                "invalid_registration_handoff",
++                "The registration handoff is invalid.",
++                Response.Status.BAD_REQUEST);
 +    }
 +
 +    private static void requireBoundRegistrationAccessToken(
@@ -504,9 +905,20 @@ new file mode 100644
 +                detail,
 +                Response.Status.BAD_REQUEST);
 +    }
++
++    public record HandoffHeaders(
++            String capability,
++            String capabilityDigest,
++            String stateDigest,
++            String operation) {}
++
++    public record RoleIdentity(String kind, String containerId, String name) {}
++
++    public record HandoffState(String stateDigest, String subjectDigest) {}
 +}
 diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorFactory.java b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorFactory.java
 new file mode 100644
+index 0000000..974930c
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorFactory.java
 @@ -0,0 +1,49 @@
@@ -559,29 +971,109 @@ new file mode 100644
 +        return List.of();
 +    }
 +}
+diff --git a/services/src/main/java/org/keycloak/services/clientregistration/ClientRegistrationAuth.java b/services/src/main/java/org/keycloak/services/clientregistration/ClientRegistrationAuth.java
+index 6164d86..2336aaa 100644
+--- a/services/src/main/java/org/keycloak/services/clientregistration/ClientRegistrationAuth.java
++++ b/services/src/main/java/org/keycloak/services/clientregistration/ClientRegistrationAuth.java
+@@ -45,6 +45,7 @@ import org.keycloak.protocol.oidc.utils.AuthorizeClientUtil;
+ import org.keycloak.representations.AccessToken;
+ import org.keycloak.services.ErrorResponseException;
+ import org.keycloak.services.clientpolicy.ClientPolicyException;
++import org.keycloak.services.clientpolicy.executor.WeaveWorkloadClientRegistrationExecutor;
+ import org.keycloak.services.clientpolicy.context.DynamicClientRegisterContext;
+ import org.keycloak.services.clientpolicy.context.DynamicClientUnregisterContext;
+ import org.keycloak.services.clientpolicy.context.DynamicClientUpdateContext;
+@@ -259,6 +260,39 @@ public class ClientRegistrationAuth {
+         return RegistrationAuth.AUTHENTICATED;
+     }
+
++    /**
++     * Authenticates the bounded Weave handoff recovery authority without granting general
++     * registration view, update, delete, or enumeration access.
++     */
++    public boolean isExactWeaveRecoveryBearer() {
++        init();
++        if (!isBearerToken()) {
++            return false;
++        }
++        try {
++            AuthenticationManager.resolveLightweightAccessTokenRoles(session, jwt, realm);
++            ClientModel runtimeAdmin = realm.getClientByClientId(jwt.getIssuedFor());
++            return WeaveWorkloadClientRegistrationExecutor.exactRuntimeAdminClient(
++                            runtimeAdmin)
++                    && WeaveWorkloadClientRegistrationExecutor.exactRuntimeAdminToken(
++                            jwt, realm);
++        } catch (RuntimeException failure) {
++            return false;
++        }
++    }
++
++    /**
++     * Authenticates only the current Registration Access Token bound to the exact client.
++     */
++    public boolean isExactWeaveFinalizeToken(ClientModel client) {
++        init();
++        return isRegistrationAccessToken()
++                && client != null
++                && client.isEnabled()
++                && client.getRegistrationToken() != null
++                && client.getRegistrationToken().equals(jwt.getId());
++    }
++
+     public RegistrationAuth requireUpdate(ClientRegistrationContext context, ClientModel client) {
+         RegistrationAuth regAuth = requireUpdateAuth(client);
+
 diff --git a/services/src/main/java/org/keycloak/services/clientregistration/oidc/OIDCClientRegistrationProvider.java b/services/src/main/java/org/keycloak/services/clientregistration/oidc/OIDCClientRegistrationProvider.java
+index 6f931eb..7630732 100755
 --- a/services/src/main/java/org/keycloak/services/clientregistration/oidc/OIDCClientRegistrationProvider.java
 +++ b/services/src/main/java/org/keycloak/services/clientregistration/oidc/OIDCClientRegistrationProvider.java
-@@ -41,6 +41,7 @@ import org.keycloak.protocol.oidc.utils.SubjectType;
+@@ -16,10 +16,14 @@
+  */
+ package org.keycloak.services.clientregistration.oidc;
+
++import java.io.IOException;
++import java.io.InputStream;
+ import java.net.URI;
+ import java.util.ArrayList;
+ import java.util.Collection;
++import java.util.LinkedHashMap;
+ import java.util.List;
++import java.util.Map;
+ import java.util.concurrent.atomic.AtomicBoolean;
+ import java.util.stream.Collectors;
+
+@@ -53,12 +57,16 @@ import org.keycloak.protocol.oidc.utils.SubjectType;
  import org.keycloak.representations.idm.ClientRepresentation;
  import org.keycloak.representations.idm.ProtocolMapperRepresentation;
  import org.keycloak.representations.oidc.OIDCClientRepresentation;
++import org.keycloak.representations.idm.OAuth2ErrorRepresentation;
 +import org.keycloak.services.clientpolicy.executor.WeaveWorkloadClientRegistrationExecutor;
  import org.keycloak.services.ErrorResponseException;
  import org.keycloak.services.ServicesLogger;
  import org.keycloak.services.Urls;
-@@ -92,4 +93,9 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationP
+ import org.keycloak.services.clientregistration.AbstractClientRegistrationProvider;
+ import org.keycloak.services.clientregistration.ClientRegistrationException;
++import org.keycloak.services.clientregistration.ClientRegistrationTokenUtils;
+ import org.keycloak.services.clientregistration.ErrorCodes;
++import org.keycloak.services.clientregistration.policy.RegistrationAuth;
+ import org.keycloak.services.cors.Cors;
+ import org.keycloak.urls.UrlType;
+
+@@ -91,6 +99,11 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
+         if (clientOIDC.getClientId() != null) {
              throw new ErrorResponseException(ErrorCodes.INVALID_CLIENT_METADATA, "Client Identifier included", Response.Status.BAD_REQUEST);
          }
--
 +        try {
 +            WeaveWorkloadClientRegistrationExecutor.validateOidcMetadata(clientOIDC, null);
 +        } catch (org.keycloak.services.clientpolicy.ClientPolicyException failure) {
 +            throw new ErrorResponseException(ErrorCodes.INVALID_CLIENT_METADATA, "Client metadata invalid", Response.Status.BAD_REQUEST);
 +        }
-+
+
          try {
-@@ -138,2 +144,7 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationP
+             ClientRepresentation client = DescriptionConverter.toInternal(session, clientOIDC);
+@@ -136,6 +149,11 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
+         event.event(EventType.CLIENT_UPDATE);
+         Cors cors = cors();
          try {
 +            try {
 +                WeaveWorkloadClientRegistrationExecutor.validateOidcMetadata(clientOIDC, clientId);
@@ -589,24 +1081,166 @@ diff --git a/services/src/main/java/org/keycloak/services/clientregistration/oid
 +                throw new ClientRegistrationException("Client metadata invalid");
 +            }
              ClientRepresentation client = DescriptionConverter.toInternal(session, clientOIDC);
+
+             if (clientOIDC.getScope() != null) {
+@@ -175,6 +193,135 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
+         return cors.add(Response.noContent());
+     }
+
++    @POST
++    @Path("{clientId}/weave-registration-handoff/recover")
++    @Produces(MediaType.APPLICATION_JSON)
++    public Response recoverRegistrationHandoff(
++            @PathParam("clientId") String clientId, InputStream body) {
++        requireEmptyBody(body);
++        WeaveWorkloadClientRegistrationExecutor.HandoffHeaders headers =
++                handoffHeaders(null);
++        if (!auth.isExactWeaveRecoveryBearer()) {
++            throw protocolError(
++                    "invalid_token",
++                    "The registration handoff authority is invalid.",
++                    Response.Status.UNAUTHORIZED);
++        }
++        ClientModel client =
++                session.getContext().getRealm().getClientByClientId(clientId);
++        if (client == null) {
++            throw protocolError(
++                    "registration_handoff_denied",
++                    "The registration handoff is not permitted.",
++                    Response.Status.NOT_FOUND);
++        }
++        try {
++            WeaveWorkloadClientRegistrationExecutor executor =
++                    new WeaveWorkloadClientRegistrationExecutor(session);
++            WeaveWorkloadClientRegistrationExecutor.HandoffState state =
++                    executor.requireRecoverableHandoff(client, headers);
++            String registrationAccessToken =
++                    ClientRegistrationTokenUtils.updateRegistrationAccessToken(
++                            session,
++                            client,
++                            RegistrationAuth.AUTHENTICATED,
++                            getAllowedOrigins());
++            Map<String, Object> response = new LinkedHashMap<>();
++            response.put("client_id", client.getClientId());
++            response.put(
++                    "registration_client_uri",
++                    getRegistrationClientUri(client).toString());
++            response.put("state_digest", state.stateDigest());
++            response.put("subject_digest", state.subjectDigest());
++            response.put("registration_access_token", registrationAccessToken);
++            return noStore(Response.ok(response)).build();
++        } catch (org.keycloak.services.clientpolicy.ClientPolicyException failure) {
++            throw protocolError(
++                    failure.getError(),
++                    failure.getErrorDetail(),
++                    failure.getErrorStatus());
++        }
++    }
++
++    @POST
++    @Path("{clientId}/weave-registration-handoff/finalize")
++    public Response finalizeRegistrationHandoff(
++            @PathParam("clientId") String clientId, InputStream body) {
++        requireEmptyBody(body);
++        WeaveWorkloadClientRegistrationExecutor.HandoffHeaders headers =
++                handoffHeaders(null);
++        ClientModel client =
++                session.getContext().getRealm().getClientByClientId(clientId);
++        if (client == null) {
++            throw protocolError(
++                    "registration_handoff_denied",
++                    "The registration handoff is not permitted.",
++                    Response.Status.NOT_FOUND);
++        }
++        if (!auth.isExactWeaveFinalizeToken(client)) {
++            throw protocolError(
++                    "invalid_token",
++                    "The registration handoff authority is invalid.",
++                    Response.Status.UNAUTHORIZED);
++        }
++        try {
++            new WeaveWorkloadClientRegistrationExecutor(session)
++                    .finalizeHandoff(client, headers);
++            return noStore(Response.noContent()).build();
++        } catch (org.keycloak.services.clientpolicy.ClientPolicyException failure) {
++            throw protocolError(
++                    failure.getError(),
++                    failure.getErrorDetail(),
++                    failure.getErrorStatus());
++        }
++    }
++
++    private WeaveWorkloadClientRegistrationExecutor.HandoffHeaders handoffHeaders(
++            String expectedOperation) {
++        try {
++            return WeaveWorkloadClientRegistrationExecutor.parseHandoffHeaders(
++                    session.getContext().getRequestHeaders().getRequestHeaders(),
++                    expectedOperation);
++        } catch (org.keycloak.services.clientpolicy.ClientPolicyException failure) {
++            throw protocolError(
++                    "invalid_registration_handoff",
++                    "The registration handoff is invalid.",
++                    Response.Status.BAD_REQUEST);
++        }
++    }
++
++    static void requireEmptyBody(InputStream body) {
++        try {
++            if (body != null && body.read() != -1) {
++                throw protocolError(
++                        "invalid_registration_handoff",
++                        "The registration handoff is invalid.",
++                        Response.Status.BAD_REQUEST);
++            }
++        } catch (IOException failure) {
++            throw protocolError(
++                    "invalid_registration_handoff",
++                    "The registration handoff is invalid.",
++                    Response.Status.BAD_REQUEST);
++        }
++    }
++
++    static Response.ResponseBuilder noStore(Response.ResponseBuilder response) {
++        return response.header("Cache-Control", "no-store")
++                .header("Pragma", "no-cache");
++    }
++
++    private static ErrorResponseException protocolError(
++            String error, String description, Response.Status status) {
++        OAuth2ErrorRepresentation representation =
++                new OAuth2ErrorRepresentation(error, description);
++        return new ErrorResponseException(
++                noStore(Response.status(status)
++                                .entity(representation)
++                                .type(MediaType.APPLICATION_JSON_TYPE))
++                        .build());
++    }
++
+     private Cors cors() {
+         return Cors.builder().auth().checkAllowedOrigins(getAllowedOrigins());
+     }
 diff --git a/services/src/main/resources/META-INF/services/org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory b/services/src/main/resources/META-INF/services/org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory
+index bcb129b..c4a7b71 100644
 --- a/services/src/main/resources/META-INF/services/org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory
 +++ b/services/src/main/resources/META-INF/services/org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory
-@@ -37,2 +37,3 @@ org.keycloak.services.clientpolicy.executor.JWTClaimEnforcerExecutorFactory
+@@ -36,3 +36,4 @@ org.keycloak.services.clientpolicy.executor.DownscopeAssertionGrantEnforcerExecu
+ org.keycloak.services.clientpolicy.executor.JWTClaimEnforcerExecutorFactory
  org.keycloak.services.clientpolicy.executor.TlsClientAuthCASubjectDNExecutorFactory
  org.keycloak.protocol.oauth2.cimd.clientpolicy.executor.ClientIdMetadataDocumentExecutorFactory
 +org.keycloak.services.clientpolicy.executor.WeaveWorkloadClientRegistrationExecutorFactory
 diff --git a/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java b/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java
 new file mode 100644
+index 0000000..8e56e65
 --- /dev/null
 +++ b/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,98 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 +import static org.junit.jupiter.api.Assertions.assertNull;
 +import static org.junit.jupiter.api.Assertions.assertThrows;
 +
++import java.util.Set;
 +import org.junit.jupiter.api.Test;
 +import org.keycloak.representations.idm.ClientRepresentation;
 +import org.keycloak.representations.oidc.OIDCClientRepresentation;
@@ -662,6 +1296,33 @@ new file mode 100644
 +                        representation));
 +    }
 +
++    @Test
++    void rejectsAnInjectedExtraEffectiveServiceAccountRole() {
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.validateExactRoles(
++                        "weave",
++                        Set.of(new WeaveWorkloadClientRegistrationExecutor.RoleIdentity(
++                                "realm", "weave", "weaver-runtime")),
++                        Set.of(
++                                new WeaveWorkloadClientRegistrationExecutor.RoleIdentity(
++                                        "realm", "weave", "weaver-runtime"),
++                                new WeaveWorkloadClientRegistrationExecutor.RoleIdentity(
++                                        "client", "realm-management", "manage-clients"))));
++    }
++
++    @Test
++    void rejectsAClientRoleWithTheApprovedRealmRoleName() {
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.validateExactRoles(
++                        "weave",
++                        Set.of(new WeaveWorkloadClientRegistrationExecutor.RoleIdentity(
++                                "client", "workload-client", "weaver-runtime")),
++                        Set.of(new WeaveWorkloadClientRegistrationExecutor.RoleIdentity(
++                                "client", "workload-client", "weaver-runtime"))));
++    }
++
 +    private static OIDCClientRepresentation representation(
 +            String clientName, String scopes) {
 +        OIDCClientRepresentation representation = new OIDCClientRepresentation();
@@ -669,5 +1330,231 @@ new file mode 100644
 +        representation.setScope(scopes);
 +        representation.setSubjectType("public");
 +        return representation;
++    }
++}
+diff --git a/services/src/test/java/org/keycloak/services/clientregistration/WeaveClientRegistrationAuthTest.java b/services/src/test/java/org/keycloak/services/clientregistration/WeaveClientRegistrationAuthTest.java
+new file mode 100644
+index 0000000..de6c429
+--- /dev/null
++++ b/services/src/test/java/org/keycloak/services/clientregistration/WeaveClientRegistrationAuthTest.java
+@@ -0,0 +1,39 @@
++package org.keycloak.services.clientregistration;
++
++import static org.junit.jupiter.api.Assertions.assertFalse;
++import static org.junit.jupiter.api.Assertions.assertTrue;
++
++import java.util.Map;
++import java.util.Set;
++import org.junit.jupiter.api.Test;
++import org.keycloak.representations.AccessToken;
++import org.keycloak.services.clientpolicy.executor.WeaveWorkloadClientRegistrationExecutor;
++
++class WeaveClientRegistrationAuthTest {
++
++    @Test
++    void acceptsOnlyTheExactRuntimeAdminCreateClientProjection() {
++        AccessToken token = new AccessToken().issuedFor("weave-agent-runtime-admin");
++        token.setResourceAccess(Map.of(
++                "realm-management",
++                new AccessToken.Access().roles(Set.of("create-client"))));
++
++        assertTrue(WeaveWorkloadClientRegistrationExecutor.exactRuntimeAdminToken(
++                token, "realm-management"));
++
++        token.setResourceAccess(Map.of(
++                "realm-management",
++                new AccessToken.Access().roles(
++                        Set.of("create-client", "manage-clients"))));
++        assertFalse(WeaveWorkloadClientRegistrationExecutor.exactRuntimeAdminToken(
++                token, "realm-management"));
++
++        token.setResourceAccess(Map.of(
++                "realm-management",
++                new AccessToken.Access().roles(Set.of("create-client")),
++                "account",
++                new AccessToken.Access().roles(Set.of("view-profile"))));
++        assertFalse(WeaveWorkloadClientRegistrationExecutor.exactRuntimeAdminToken(
++                token, "realm-management"));
++    }
++}
+diff --git a/services/src/test/java/org/keycloak/services/clientregistration/oidc/WeaveRegistrationHandoffTest.java b/services/src/test/java/org/keycloak/services/clientregistration/oidc/WeaveRegistrationHandoffTest.java
+new file mode 100644
+index 0000000000..a9ffef8c7d
+--- /dev/null
++++ b/services/src/test/java/org/keycloak/services/clientregistration/oidc/WeaveRegistrationHandoffTest.java
+@@ -0,0 +1,175 @@
++package org.keycloak.services.clientregistration.oidc;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertThrows;
++import static org.junit.jupiter.api.Assertions.assertTrue;
++
++import jakarta.ws.rs.POST;
++import jakarta.ws.rs.Path;
++import jakarta.ws.rs.core.MultivaluedHashMap;
++import jakarta.ws.rs.core.Response;
++import java.io.ByteArrayInputStream;
++import java.lang.reflect.Method;
++import java.util.Base64;
++import org.junit.jupiter.api.Test;
++import org.keycloak.services.ErrorResponseException;
++import org.keycloak.services.clientpolicy.ClientPolicyException;
++import org.keycloak.services.clientpolicy.executor.WeaveWorkloadClientRegistrationExecutor;
++
++class WeaveRegistrationHandoffTest {
++
++    private static final String CAPABILITY =
++            Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[32]);
++    private static final String STATE = "sha256:" + "a".repeat(64);
++
++    @Test
++    void acceptsOnlyTheClosedCanonicalHeaderShape() throws Exception {
++        MultivaluedHashMap<String, String> headers = headers();
++
++        var parsed = WeaveWorkloadClientRegistrationExecutor.parseHandoffHeaders(
++                headers, "create");
++        assertEquals("create", parsed.operation());
++        assertTrue(parsed.capabilityDigest().matches("sha256:[a-f0-9]{64}"));
++
++        MultivaluedHashMap<String, String> duplicated = headers();
++        duplicated.add(
++                WeaveWorkloadClientRegistrationExecutor.HANDOFF_HEADER, CAPABILITY);
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.parseHandoffHeaders(
++                        duplicated, "create"));
++        MultivaluedHashMap<String, String> padded = headers();
++        padded.putSingle(
++                WeaveWorkloadClientRegistrationExecutor.HANDOFF_HEADER,
++                CAPABILITY + "=");
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.parseHandoffHeaders(
++                        padded, "create"));
++    }
++
++    @Test
++    void rejectsNonCanonicalCapabilityStateAndOperationHeaders() {
++        for (String capability : new String[] {
++            CAPABILITY.substring(1),
++            CAPABILITY + "A",
++            CAPABILITY.substring(0, 42) + "+",
++            CAPABILITY.substring(0, 42) + "/",
++            " " + CAPABILITY,
++            CAPABILITY + " ",
++            CAPABILITY.substring(0, 21) + "," + CAPABILITY.substring(22),
++            "A".repeat(129)
++        }) {
++            MultivaluedHashMap<String, String> invalid = headers();
++            invalid.putSingle(
++                    WeaveWorkloadClientRegistrationExecutor.HANDOFF_HEADER,
++                    capability);
++            assertInvalid(invalid, "create");
++        }
++
++        for (String state : new String[] {
++            "sha256:" + "A".repeat(64),
++            "sha256:" + "a".repeat(63),
++            "sha256:" + "a".repeat(65),
++            " " + STATE,
++            STATE + " "
++        }) {
++            MultivaluedHashMap<String, String> invalid = headers();
++            invalid.putSingle(
++                    WeaveWorkloadClientRegistrationExecutor.HANDOFF_STATE_HEADER,
++                    state);
++            assertInvalid(invalid, "create");
++        }
++
++        for (String operation : new String[] {
++            "CREATE", "delete", "create ", " create", ""
++        }) {
++            MultivaluedHashMap<String, String> invalid = headers();
++            invalid.putSingle(
++                    WeaveWorkloadClientRegistrationExecutor.HANDOFF_OPERATION_HEADER,
++                    operation);
++            assertInvalid(invalid, "create");
++        }
++        assertInvalid(headers(), "rotate");
++    }
++
++    @Test
++    void rejectsMissingAndDuplicatedHandoffHeaders() {
++        for (String header : new String[] {
++            WeaveWorkloadClientRegistrationExecutor.HANDOFF_HEADER,
++            WeaveWorkloadClientRegistrationExecutor.HANDOFF_STATE_HEADER,
++            WeaveWorkloadClientRegistrationExecutor.HANDOFF_OPERATION_HEADER
++        }) {
++            MultivaluedHashMap<String, String> missing = headers();
++            missing.remove(header);
++            assertInvalid(missing, "create");
++
++            MultivaluedHashMap<String, String> duplicated = headers();
++            duplicated.add(header, duplicated.getFirst(header));
++            assertInvalid(duplicated, "create");
++        }
++    }
++
++    @Test
++    void exposesOnlyPostSubresourcesAndRejectsBodies() throws Exception {
++        Method recover = OIDCClientRegistrationProvider.class.getMethod(
++                "recoverRegistrationHandoff", String.class, java.io.InputStream.class);
++        Method finalize = OIDCClientRegistrationProvider.class.getMethod(
++                "finalizeRegistrationHandoff", String.class, java.io.InputStream.class);
++
++        assertTrue(recover.isAnnotationPresent(POST.class));
++        assertEquals(
++                "{clientId}/weave-registration-handoff/recover",
++                recover.getAnnotation(Path.class).value());
++        assertTrue(finalize.isAnnotationPresent(POST.class));
++        assertEquals(
++                "{clientId}/weave-registration-handoff/finalize",
++                finalize.getAnnotation(Path.class).value());
++        assertThrows(
++                ErrorResponseException.class,
++                () -> OIDCClientRegistrationProvider.requireEmptyBody(
++                        new ByteArrayInputStream(new byte[] {1})));
++    }
++
++    @Test
++    void responsesAreExplicitlyNonCacheable() {
++        try (Response response = OIDCClientRegistrationProvider
++                .noStore(Response.noContent())
++                .build()) {
++            assertEquals("no-store", response.getHeaderString("Cache-Control"));
++            assertEquals("no-cache", response.getHeaderString("Pragma"));
++        }
++        try (Response response = invokeProtocolError().getResponse()) {
++            assertEquals("no-store", response.getHeaderString("Cache-Control"));
++            assertEquals("no-cache", response.getHeaderString("Pragma"));
++            assertEquals(400, response.getStatus());
++        }
++    }
++
++    private static ErrorResponseException invokeProtocolError() {
++        return assertThrows(
++                ErrorResponseException.class,
++                () -> OIDCClientRegistrationProvider.requireEmptyBody(
++                        new ByteArrayInputStream(new byte[] {1})));
++    }
++
++    private static void assertInvalid(
++            MultivaluedHashMap<String, String> headers, String operation) {
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.parseHandoffHeaders(
++                        headers, operation));
++    }
++
++    private static MultivaluedHashMap<String, String> headers() {
++        MultivaluedHashMap<String, String> headers = new MultivaluedHashMap<>();
++        headers.putSingle(
++                WeaveWorkloadClientRegistrationExecutor.HANDOFF_HEADER, CAPABILITY);
++        headers.putSingle(
++                WeaveWorkloadClientRegistrationExecutor.HANDOFF_STATE_HEADER, STATE);
++        headers.putSingle(
++                WeaveWorkloadClientRegistrationExecutor.HANDOFF_OPERATION_HEADER,
++                "create");
++        return headers;
 +    }
 +}

@@ -15,8 +15,10 @@ from pathlib import Path
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--commit", required=True)
+    parser.add_argument("--specification-commit", required=True)
     parser.add_argument("--spec-digest", required=True)
     parser.add_argument("--build-evidence-ref", required=True)
+    parser.add_argument("--keycloak-build-evidence-digest", required=True)
     parser.add_argument(
         "--image",
         action="append",
@@ -30,19 +32,22 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    images = [
-        {
+    images = []
+    for component, reference, sbom_digest, provenance_digest in args.image:
+        image = {
             "component": component,
             "reference": reference,
             "sbomDigest": sbom_digest,
             "provenanceDigest": provenance_digest,
         }
-        for component, reference, sbom_digest, provenance_digest in args.image
-    ]
+        if component == "keycloak-runtime":
+            image["buildEvidenceDigest"] = args.keycloak_build_evidence_digest
+        images.append(image)
     payload = {
-        "schemaVersion": "weave.release.candidate-manifest.v1",
+        "schemaVersion": "weave.release.candidate-manifest.v2",
         "supportSafe": True,
         "commit": args.commit,
+        "specificationCommit": args.specification_commit,
         "specDigest": args.spec_digest,
         "buildEvidenceRef": args.build_evidence_ref,
         "images": sorted(images, key=lambda image: image["component"]),

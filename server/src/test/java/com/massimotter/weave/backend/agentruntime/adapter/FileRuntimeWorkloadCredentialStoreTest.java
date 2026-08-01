@@ -26,6 +26,7 @@ import java.time.ZoneOffset;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -183,6 +184,62 @@ class FileRuntimeWorkloadCredentialStoreTest {
     }
 
     @Test
+    void distinctStoreInstancesSerializeOneRegistrationLifecycle() throws Exception {
+        FileRuntimeWorkloadCredentialStore secondStore =
+                new FileRuntimeWorkloadCredentialStore(
+                        temporary,
+                        mapper,
+                        Clock.fixed(Instant.parse("2026-07-20T10:00:00Z"), ZoneOffset.UTC),
+                        new SecureRandom());
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch secondEntered = new CountDownLatch(1);
+
+        try (var workers = Executors.newFixedThreadPool(2)) {
+            var first = workers.submit(() -> store.withRegistrationLifecycleLock(CLIENT_ID, () -> {
+                firstEntered.countDown();
+                if (!releaseFirst.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("fixture lifecycle release timed out");
+                }
+                return "first";
+            }));
+            assertThat(firstEntered.await(5, TimeUnit.SECONDS)).isTrue();
+
+            var second = workers.submit(() -> secondStore.withRegistrationLifecycleLock(CLIENT_ID, () -> {
+                secondEntered.countDown();
+                return "second";
+            }));
+
+            assertThat(secondEntered.await(200, TimeUnit.MILLISECONDS)).isFalse();
+            releaseFirst.countDown();
+            assertThat(first.get(5, TimeUnit.SECONDS)).isEqualTo("first");
+            assertThat(second.get(5, TimeUnit.SECONDS)).isEqualTo("second");
+            assertThat(secondEntered.getCount()).isZero();
+        } finally {
+            releaseFirst.countDown();
+        }
+    }
+
+    @Test
+    void registrationLifecycleLockRejectsAPreCreatedSymlink() throws Exception {
+        Path lockDirectory = temporary.resolve(
+                "weave/agent-runtime/registration-lifecycle-locks");
+        Files.createDirectories(lockDirectory);
+        Path outside = temporary.resolve("outside-registration-lifecycle-lock");
+        Files.writeString(outside, "outside");
+        Files.createSymbolicLink(lockDirectory.resolve(CLIENT_ID + ".lock"), outside);
+
+        assertThatThrownBy(() -> store.withRegistrationLifecycleLock(
+                        CLIENT_ID,
+                        () -> {
+                            throw new AssertionError("the protected operation must not run");
+                        }))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("regular non-symlink");
+        assertThat(Files.readString(outside)).isEqualTo("outside");
+    }
+
+    @Test
     void registrationAuthorityIsBoundToTheExactPublicRealmAndClient() {
         URI issuer = URI.create("https://auth.weave.test/realms/weave");
         FileRuntimeWorkloadCredentialStore strict =
@@ -232,6 +289,146 @@ class FileRuntimeWorkloadCredentialStoreTest {
         assertThat(strict.registrationAuthority(CLIENT_ID, OWNER))
                 .hasValueSatisfying(authority ->
                         assertThat(authority.registrationUri()).isEqualTo(expected));
+    }
+
+    @Test
+    void registrationHandoffIsPreparedAndStagedOwnerOnlyUntilTheExactCommit() throws Exception {
+        URI issuer = URI.create("https://auth.weave.test/realms/weave");
+        FileRuntimeWorkloadCredentialStore strict =
+                new FileRuntimeWorkloadCredentialStore(temporary, mapper, issuer);
+        RuntimeWorkloadCredentialState credential = strict.create(command());
+        URI registration =
+                URI.create(issuer + "/clients-registrations/openid-connect/" + CLIENT_ID);
+        byte[] initial = "fixture-registration-authority-initial"
+                .getBytes(StandardCharsets.UTF_8);
+        byte[] rotated = "fixture-registration-authority-rotated"
+                .getBytes(StandardCharsets.UTF_8);
+        strict.bindRegistrationAuthority(
+                CLIENT_ID,
+                OWNER,
+                OWNER,
+                OWNER,
+                OWNER,
+                registration,
+                initial,
+                "service-account-subject");
+
+        String currentFingerprint =
+                strict.registrationAuthority(CLIENT_ID, OWNER).orElseThrow().tokenFingerprint();
+        String intendedStateDigest =
+                "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+        FileRuntimeWorkloadCredentialStore.RegistrationHandoff prepared =
+                strict.prepareRegistrationHandoff(
+                CLIENT_ID,
+                OWNER,
+                registration,
+                OWNER,
+                OWNER,
+                OWNER,
+                intendedStateDigest,
+                credential.publicJwks(),
+                OWNER,
+                currentFingerprint,
+                false,
+                FileRuntimeWorkloadCredentialStore.RegistrationHandoffOperation.ROTATE);
+
+        Path handoff = temporary.resolve(
+                "weave/agent-runtime/registration-handoffs/" + CLIENT_ID);
+        assertThat(Files.isRegularFile(handoff)).isTrue();
+        if (Files.getFileStore(handoff).supportsFileAttributeView("posix")) {
+            assertThat(Files.getPosixFilePermissions(handoff))
+                    .isEqualTo(PosixFilePermissions.fromString("rw-------"));
+        }
+        assertThat(prepared.phase())
+                .isEqualTo(FileRuntimeWorkloadCredentialStore.RegistrationHandoffPhase.PREPARED);
+        assertThat(strict.registrationHandoffCommitted(CLIENT_ID, OWNER)).isFalse();
+        AtomicReference<byte[]> observedCapability = new AtomicReference<>();
+        strict.withRegistrationHandoffSecrets(
+                CLIENT_ID,
+                OWNER,
+                (pending, capability, replacement) -> {
+                    observedCapability.set(capability);
+                    assertThat(pending.operation())
+                            .isEqualTo(FileRuntimeWorkloadCredentialStore
+                                    .RegistrationHandoffOperation.ROTATE);
+                    assertThat(capability).hasSize(32);
+                    assertThat(replacement).isNull();
+                    return null;
+                });
+        assertThat(observedCapability.get()).containsOnly((byte) 0);
+        assertThatThrownBy(() -> strict.registrationHandoff(CLIENT_ID, OTHER_OWNER))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("another immutable cell binding");
+
+        strict.stageRegistrationHandoff(
+                CLIENT_ID,
+                OWNER,
+                prepared.capabilityFingerprint(),
+                rotated,
+                intendedStateDigest,
+                OWNER);
+        AtomicReference<byte[]> observedReplacement = new AtomicReference<>();
+        strict.withRegistrationHandoffSecrets(
+                CLIENT_ID,
+                OWNER,
+                (pending, capability, replacement) -> {
+                    observedReplacement.set(replacement);
+                    assertThat(pending.phase())
+                            .isEqualTo(FileRuntimeWorkloadCredentialStore
+                                    .RegistrationHandoffPhase.STAGED);
+                    assertThat(replacement).isEqualTo(rotated);
+                    return null;
+                });
+        assertThat(observedReplacement.get()).containsOnly((byte) 0);
+
+        strict.replaceRegistrationAuthority(
+                CLIENT_ID,
+                OWNER,
+                currentFingerprint,
+                registration,
+                rotated,
+                "service-account-subject",
+                false);
+        assertThat(strict.registrationHandoffCommitted(CLIENT_ID, OWNER)).isTrue();
+        strict.clearRegistrationHandoff(
+                CLIENT_ID, OWNER, prepared.capabilityFingerprint());
+
+        assertThat(strict.registrationHandoff(CLIENT_ID, OWNER)).isEmpty();
+        assertThat(Files.exists(handoff)).isFalse();
+    }
+
+    @Test
+    void registrationHandoffRefusesASymlinkedSecretRoot() throws Exception {
+        URI issuer = URI.create("https://auth.weave.test/realms/weave");
+        FileRuntimeWorkloadCredentialStore strict =
+                new FileRuntimeWorkloadCredentialStore(temporary, mapper, issuer);
+        RuntimeWorkloadCredentialState credential = strict.create(command());
+        Path runtimeRoot = temporary.resolve("weave/agent-runtime");
+        Path outside = temporary.resolve("outside-handoffs");
+        Files.createDirectory(outside);
+        Files.createSymbolicLink(
+                runtimeRoot.resolve("registration-handoffs"), outside);
+
+        assertThatThrownBy(() -> strict.prepareRegistrationHandoff(
+                        CLIENT_ID,
+                        OWNER,
+                        URI.create(
+                                issuer
+                                        + "/clients-registrations/openid-connect/"
+                                        + CLIENT_ID),
+                        OWNER,
+                        OWNER,
+                        OWNER,
+                        "sha256:"
+                                + "c".repeat(64),
+                        credential.publicJwks(),
+                        OWNER,
+                        null,
+                        true,
+                        FileRuntimeWorkloadCredentialStore
+                                .RegistrationHandoffOperation.CREATE))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("symbolic");
     }
 
     private static CreateCredentialCommand command() {

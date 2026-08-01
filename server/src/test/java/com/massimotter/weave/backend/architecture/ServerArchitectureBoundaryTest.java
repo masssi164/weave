@@ -433,6 +433,63 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
+    void workloadRegistrationAuthorityRemainsAnAdapterPrivateSecretRefProtocol()
+            throws IOException {
+        List<JavaSource> providerAdapters =
+                moduleProductionSources("weave-runtime-provider-adapters");
+        JavaSource transport = providerAdapters.stream()
+                .filter(source -> source.path().endsWith(
+                        Path.of("agentruntime", "adapter",
+                                "KeycloakClientRegistrationTransport.java")))
+                .findFirst()
+                .orElseThrow();
+        JavaSource fileStore = providerAdapters.stream()
+                .filter(source -> source.path().endsWith(
+                        Path.of("agentruntime", "adapter",
+                                "FileRuntimeWorkloadCredentialStore.java")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(transport.text())
+                .contains(
+                        "JsonNode create(\n"
+                                + "            JsonNode metadata,\n"
+                                + "            String administrationAccessToken,\n"
+                                + "            RegistrationHandoffProof handoff)")
+                .contains(
+                        "JsonNode update(\n"
+                                + "            String clientId,\n"
+                                + "            URI registrationUri,\n"
+                                + "            JsonNode metadata,\n"
+                                + "            byte[] registrationAccessToken,\n"
+                                + "            RegistrationHandoffProof handoff)")
+                .contains("JsonNode recover(")
+                .contains("FinalizeResult finalizeHandoff(")
+                .doesNotContain(
+                        "RegistrationRecovery",
+                        "default JsonNode",
+                        "default FinalizeResult",
+                        "default void");
+        assertThat(fileStore.text())
+                .containsOnlyOnce("root.resolve(\"weave/agent-runtime/cells\")")
+                .containsOnlyOnce(
+                        "root.resolve(\"weave/agent-runtime/registration-handoffs\")")
+                .containsOnlyOnce(
+                        "root.resolve(\"weave/agent-runtime/registration-lifecycle-locks\")")
+                .containsOnlyOnce(
+                        "root.resolve(\"weave/agent-runtime/registration-deletions\")")
+                .doesNotContain("RegistrationRecovery");
+        assertThat(moduleProductionSources("weave-application-core"))
+                .allSatisfy(source -> assertThat(source.text())
+                        .as(source.path().toString())
+                        .doesNotContain(
+                                "RegistrationAccessToken",
+                                "registrationAccessToken",
+                                "KeycloakClientRegistrationTransport",
+                                "RegistrationHandoffProof"));
+    }
+
+    @Test
     void matrixProtocolCoreBoundaryDefinesRustJniAndFlutterBridgeTarget() throws IOException {
         JavaSource matrixCore = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("matrix", "MatrixProtocolCoreService.java")))
@@ -479,6 +536,19 @@ class ServerArchitectureBoundaryTest {
                 ? Path.of("../weave-persistence-jpa/src/main/java")
                 : Path.of("weave-persistence-jpa/src/main/java");
         try (var paths = Files.walk(persistenceRoot)) {
+            return paths
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .map(ServerArchitectureBoundaryTest::readSource)
+                    .toList();
+        }
+    }
+
+    private static List<JavaSource> moduleProductionSources(String module)
+            throws IOException {
+        Path moduleRoot = Files.isDirectory(Path.of("src/main/java"))
+                ? Path.of("..", module, "src/main/java")
+                : Path.of(module, "src/main/java");
+        try (var paths = Files.walk(moduleRoot)) {
             return paths
                     .filter(path -> path.toString().endsWith(".java"))
                     .map(ServerArchitectureBoundaryTest::readSource)

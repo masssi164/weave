@@ -46,6 +46,7 @@ def main() -> None:
             },
         }
     )
+    assert realm["id"] == "weave"
     assert "frontendUrl" not in realm
     assert realm["attributes"]["frontendUrl"] == "https://auth.weave.local"
     assert realm["verifyEmail"] is True
@@ -208,13 +209,35 @@ def main() -> None:
             separators=(",", ":"),
         ).encode("utf-8")
     ).rstrip(b"=").decode("ascii")
-    assert identity_ops.access_token_client_roles(
-        f"test.{token_claims}.signature",
-        "realm-management",
-    ) == {"create-client"}
-    assert not identity_ops.access_token_client_roles(
-        "malformed",
-        "realm-management",
+    assert identity_ops.access_token_role_projection(
+        f"test.{token_claims}.signature"
+    ) == (set(), {"realm-management": {"create-client"}})
+    try:
+        identity_ops.access_token_role_projection("malformed")
+        raise AssertionError("malformed role projection was accepted")
+    except identity_ops.IdentityOpsError as error:
+        assert "token withheld" in str(error)
+
+    broad_token_claims = base64.urlsafe_b64encode(
+        json.dumps(
+            {
+                "realm_access": {"roles": ["manage-realm"]},
+                "resource_access": {
+                    "realm-management": {"roles": ["create-client"]},
+                    "other-client": {"roles": ["create-client"]},
+                },
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).rstrip(b"=").decode("ascii")
+    assert identity_ops.access_token_role_projection(
+        f"test.{broad_token_claims}.signature"
+    ) == (
+        {"manage-realm"},
+        {
+            "realm-management": {"create-client"},
+            "other-client": {"create-client"},
+        },
     )
 
     def rejected_urlopen(request: object, **_kwargs: object) -> None:
@@ -475,13 +498,15 @@ def main() -> None:
     original_private_value = identity_ops.private_value
     identity_ops.private_value = lambda _path: json.dumps(runtime_private_jwk)
     try:
-        runtime_admin = identity_ops.client_payload(
-            {
-                "key": "client:weave-agent-runtime-admin",
-                "clientId": "weave-agent-runtime-admin",
-                "authenticationMethod": "private_key_jwt",
-                "keyRef": "secretref:keycloak/weave-agent-runtime-admin-jwk",
-            }
+        runtime_admin_contract = {
+            "key": "client:weave-agent-runtime-admin",
+            "clientId": "weave-agent-runtime-admin",
+            "authenticationMethod": "private_key_jwt",
+            "keyRef": "secretref:keycloak/weave-agent-runtime-admin-jwk",
+        }
+        runtime_admin = identity_ops.client_payload(runtime_admin_contract)
+        runtime_admin_create = identity_ops.client_creation_payload(
+            runtime_admin_contract
         )
     finally:
         identity_ops.private_value = original_private_value
@@ -493,6 +518,61 @@ def main() -> None:
     assert runtime_admin["attributes"]["use.jwks.string"] == "true"
     assert runtime_public_jwk["key_ops"] == ["verify"]
     assert "d" not in runtime_public_jwk
+    assert runtime_admin_create["secret"] == ""
+    assert runtime_admin_create["attributes"]["weave.desired-digest"] == (
+        identity_ops.marker(
+            "client:weave-agent-runtime-admin",
+            runtime_admin,
+            list_values=False,
+        )["weave.desired-digest"]
+    )
+    assert "secret" not in runtime_admin
+
+    class PrivateKeyJwtSecretKcadm:
+        def __init__(self, value: object) -> None:
+            self.value = value
+            self.calls: list[tuple[str, ...]] = []
+
+        def call(self, *arguments: str, payload: object = None) -> object:
+            assert payload is None
+            self.calls.append(arguments)
+            return {"value": self.value}
+
+    stale_secret_kcadm = PrivateKeyJwtSecretKcadm("withheld-fixture-secret")
+    clear_secret = identity_ops.private_key_jwt_secret_reconciliation(
+        stale_secret_kcadm,
+        "weave",
+        {
+            "key": "client:weave-agent-runtime-admin",
+            "authenticationMethod": "private_key_jwt",
+        },
+        {"id": "runtime-admin-id"},
+    )
+    assert clear_secret == identity_ops.Operation(
+        "clear-unused-secret",
+        "client:weave-agent-runtime-admin:unused-client-secret",
+        "clients",
+        "runtime-admin-id",
+        {"secret": ""},
+    )
+    assert stale_secret_kcadm.calls == [
+        (
+            "get",
+            "clients/runtime-admin-id/client-secret",
+            "-r",
+            "weave",
+        )
+    ]
+    assert identity_ops.private_key_jwt_secret_reconciliation(
+        PrivateKeyJwtSecretKcadm(""),
+        "weave",
+        {
+            "key": "client:weave-agent-runtime-admin",
+            "authenticationMethod": "private_key_jwt",
+        },
+        {"id": "runtime-admin-id"},
+    ) is None
+
     assert identity_ops.client_scope_payload(
         {
             "name": "weave:workspace",
@@ -895,6 +975,164 @@ def main() -> None:
     )
     assert missing == {"create-client"}
     assert remove == {"query-clients", "manage-clients"}
+
+    class RuntimeRoleInventoryKcadm:
+        def call(self, *arguments: str, payload: object = None) -> object:
+            assert payload is None
+            endpoint = arguments[1]
+            if endpoint == "clients":
+                assert arguments == (
+                    "get",
+                    "clients",
+                    "-r",
+                    "weave",
+                    "-q",
+                    "max=10000",
+                )
+                return [
+                    {"id": "realm-management-id", "clientId": "realm-management"},
+                    {"id": "other-client-id", "clientId": "other-client"},
+                ]
+            roles = {
+                "users/runtime-account/role-mappings/realm": [
+                    {
+                        "name": "unexpected-realm-role",
+                        "containerId": "weave",
+                        "clientRole": False,
+                    }
+                ],
+                "users/runtime-account/role-mappings/realm/composite": [
+                    {
+                        "name": "unexpected-realm-role",
+                        "containerId": "weave",
+                        "clientRole": False,
+                    }
+                ],
+                (
+                    "users/runtime-account/role-mappings/clients/"
+                    "realm-management-id"
+                ): [
+                    {
+                        "name": "create-client",
+                        "containerId": "realm-management-id",
+                        "clientRole": True,
+                    }
+                ],
+                (
+                    "users/runtime-account/role-mappings/clients/"
+                    "realm-management-id/composite"
+                ): [
+                    {
+                        "name": "create-client",
+                        "containerId": "realm-management-id",
+                        "clientRole": True,
+                    }
+                ],
+                (
+                    "users/runtime-account/role-mappings/clients/other-client-id"
+                ): [
+                    {
+                        "name": "create-client",
+                        "containerId": "other-client-id",
+                        "clientRole": True,
+                    }
+                ],
+                (
+                    "users/runtime-account/role-mappings/clients/"
+                    "other-client-id/composite"
+                ): [
+                    {
+                        "name": "create-client",
+                        "containerId": "other-client-id",
+                        "clientRole": True,
+                    }
+                ],
+            }
+            return roles[endpoint]
+
+    direct_roles, effective_roles = identity_ops.runtime_admin_role_inventory(
+        RuntimeRoleInventoryKcadm(),
+        "weave",
+        "runtime-account",
+    )
+    assert identity_ops.RoleIdentity(
+        "client", "realm-management-id", "create-client"
+    ) in effective_roles
+    assert identity_ops.DirectRoleMapping(
+        identity_ops.RoleIdentity(
+            "client", "other-client-id", "create-client"
+        ),
+        "other-client",
+    ) in direct_roles
+    assert identity_ops.DirectRoleMapping(
+        identity_ops.RoleIdentity(
+            "realm", "weave", "unexpected-realm-role"
+        ),
+        None,
+    ) in direct_roles
+    expected_runtime_role = identity_ops.RoleIdentity(
+        "client", "realm-management-id", "create-client"
+    )
+    direct_extras, missing_expected = (
+        identity_ops.runtime_admin_role_reconciliation(
+            direct_roles,
+            effective_roles,
+            expected_runtime_role,
+        )
+    )
+    assert direct_extras
+    assert not missing_expected
+    assert identity_ops.runtime_admin_role_reconciliation(
+        set(),
+        set(),
+        expected_runtime_role,
+    ) == (set(), True)
+    try:
+        identity_ops.runtime_admin_role_reconciliation(
+            {
+                identity_ops.DirectRoleMapping(
+                    expected_runtime_role,
+                    "realm-management",
+                )
+            },
+            {
+                expected_runtime_role,
+                identity_ops.RoleIdentity(
+                    "client", "other-client-id", "manage-clients"
+                ),
+            },
+            expected_runtime_role,
+        )
+    except identity_ops.IdentityOpsError as error:
+        assert "effective role expansion" in str(error)
+    else:
+        raise AssertionError("unexplained effective runtime-admin role was accepted")
+
+    class RemoveRealmRoleKcadm:
+        def __init__(self) -> None:
+            self.arguments: tuple[str, ...] = ()
+
+        def call(self, *arguments: str, payload: object = None) -> None:
+            assert payload is None
+            self.arguments = arguments
+
+    remove_realm = RemoveRealmRoleKcadm()
+    identity_ops.apply_operation(
+        remove_realm,
+        "weave",
+        identity_ops.Operation(
+            "remove-role",
+            "realm-role:test",
+            "remove-roles",
+            None,
+            {
+                "username": "service-account-weave-agent-runtime-admin",
+                "clientId": None,
+                "roleName": "unexpected-realm-role",
+            },
+        ),
+    )
+    assert "--cclientid" not in remove_realm.arguments
     workload_policy = {
         "key": "policy:weaver-cell-registration",
         "name": "weaver-cell-registration",

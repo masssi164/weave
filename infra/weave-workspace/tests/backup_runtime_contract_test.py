@@ -269,6 +269,45 @@ class BackupRuntimeContractTest(unittest.TestCase):
             with self.assertRaisesRegex(ContractError, "exact candidate"):
                 backup_runtime.backup(self.context)
 
+    def test_pending_registration_handoff_blocks_backup_before_runtime_mutation(
+        self,
+    ) -> None:
+        handoffs = (
+            self.secrets
+            / "agent-runtime/workloads/weave/agent-runtime/registration-handoffs"
+        )
+        handoffs.mkdir(parents=True)
+        (handoffs / "weaver-cell-example").write_text(
+            "protected-fixture", encoding="utf-8"
+        )
+
+        with (
+            mock.patch.dict(os.environ, self._environment(), clear=False),
+            mock.patch.object(backup_runtime, "_running_services") as running,
+        ):
+            with self.assertRaisesRegex(
+                ContractError, "pending registration authority operation"
+            ):
+                backup_runtime.backup(self.context)
+        running.assert_not_called()
+
+    def test_unsafe_registration_operation_root_blocks_backup(self) -> None:
+        operation_parent = (
+            self.secrets / "agent-runtime/workloads/weave/agent-runtime"
+        )
+        operation_parent.mkdir(parents=True)
+        outside = Path(self.temporary.name) / "outside"
+        outside.mkdir()
+        (operation_parent / "registration-deletions").symlink_to(
+            outside, target_is_directory=True
+        )
+
+        with mock.patch.dict(os.environ, self._environment(), clear=False):
+            with self.assertRaisesRegex(
+                ContractError, "registration authority operation root is unsafe"
+            ):
+                backup_runtime.backup(self.context)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -327,6 +327,34 @@ def _archive_private_config(context: ComposeContext, target: Path) -> None:
             seen.add(resolved)
 
 
+def _require_no_pending_registration_operations(context: ComposeContext) -> None:
+    workload_root = context.secret_root / "agent-runtime/workloads"
+    if workload_root.is_symlink():
+        raise ContractError("workload SecretRef root is unsafe")
+    if not workload_root.exists():
+        return
+    if not workload_root.is_dir():
+        raise ContractError("workload SecretRef root is unsafe")
+    for operation in ("registration-handoffs", "registration-deletions"):
+        directory = workload_root / "weave/agent-runtime" / operation
+        if directory.is_symlink():
+            raise ContractError("registration authority operation root is unsafe")
+        if not directory.exists():
+            continue
+        if not directory.is_dir():
+            raise ContractError("registration authority operation root is unsafe")
+        try:
+            pending = next(directory.iterdir(), None)
+        except OSError as failure:
+            raise ContractError(
+                "registration authority operation inventory is unavailable"
+            ) from failure
+        if pending is not None:
+            raise ContractError(
+                "pending registration authority operation blocks private backup"
+            )
+
+
 def backup(context: ComposeContext) -> Path:
     if context.profile not in ("test", "prod"):
         raise ContractError("private consistency backups are required for test/prod, not H2 host-dev")
@@ -355,6 +383,7 @@ def backup(context: ComposeContext) -> Path:
     destination = backup_root / backup_id
     if destination.exists() or destination.is_symlink():
         raise ContractError("candidate-bound private backup already exists")
+    _require_no_pending_registration_operations(context)
     running, inventory = _running_services(context)
     to_stop = [name for name in QUIESCED_SERVICES if name in running]
     staging = backup_root / (
