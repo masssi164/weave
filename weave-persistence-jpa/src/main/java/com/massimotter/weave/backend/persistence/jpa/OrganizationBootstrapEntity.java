@@ -65,4 +65,15 @@ public class OrganizationBootstrapEntity {
     public OffsetDateTime bootstrappedAt() {
         return bootstrappedAt;
     }
+
+    public void replaceBootstrap(
+            String bootstrapMode,
+            String actorPrimaryIdentityKey,
+            String retainedAdminPrimaryIdentityKeysJson,
+            OffsetDateTime bootstrappedAt) {
+        this.bootstrapMode = bootstrapMode;
+        this.actorPrimaryIdentityKey = actorPrimaryIdentityKey;
+        this.retainedAdminPrimaryIdentityKeysJson = retainedAdminPrimaryIdentityKeysJson;
+        this.bootstrappedAt = bootstrappedAt;
+    }
 }

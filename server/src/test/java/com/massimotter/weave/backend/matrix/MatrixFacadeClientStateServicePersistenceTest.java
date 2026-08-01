@@ -46,12 +46,15 @@ class MatrixFacadeClientStateServicePersistenceTest {
         Jwt session = jwt();
         MatrixFacadeClientStateService.MatrixIdentity registered =
                 first.register(session, "WEAVEDEVICEPROJECTION");
+        MatrixFacadeClientStateService.MatrixIdentity registeredAgain =
+                first.register(session, "WEAVEDEVICEPROJECTION");
         first.revoke(session);
         MatrixFacadeClientStateService restarted =
                 new MatrixFacadeClientStateService(
                         protocol, stateStore(dataSource), authorization, identityContextResolver);
 
         assertThat(registered.userId()).isEqualTo(matrixUserId);
+        assertThat(registeredAgain).isEqualTo(registered);
         assertThat(restarted.identityForMatrixUserId(
                 matrixUserId,
                 "tenant-projection",

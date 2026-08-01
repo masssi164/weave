@@ -49,9 +49,15 @@ public class JpaMatrixFacadeClientStateStore implements MatrixFacadeClientStateS
         if (existing != null && projection.updatedAt().isBefore(existing.updatedAt())) {
             throw new IllegalArgumentException("Matrix identity projection update cannot move backwards.");
         }
-        identityProjections.saveAndFlush(new MatrixIdentityProjectionJpaEntity(
-                projection.tenantId(), projection.identityIssuer(), projection.matrixUserId(),
-                projection.actorRef(), projection.authorizationPrincipalRef(), projection.updatedAt()));
+        if (existing == null) {
+            identityProjections.saveAndFlush(new MatrixIdentityProjectionJpaEntity(
+                    projection.tenantId(), projection.identityIssuer(), projection.matrixUserId(),
+                    projection.actorRef(), projection.authorizationPrincipalRef(), projection.updatedAt()));
+            return;
+        }
+        existing.refreshAuthorizationProjection(
+                projection.authorizationPrincipalRef(), projection.updatedAt());
+        identityProjections.flush();
     }
 
     @Override

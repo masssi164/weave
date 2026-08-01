@@ -22,8 +22,16 @@ class JpaProductProfileOverrideRepositoryTest {
                 "organization");
 
         repository.saveForPrimaryIdentityKey("issuer#subject", profile);
+        ProductProfileOverride updated = new ProductProfileOverride(
+                "Massimo Updated",
+                "weave://avatars/updated",
+                "en-GB",
+                "Europe/London",
+                Map.of("reducedMotion", "false"),
+                "private");
+        repository.saveForPrimaryIdentityKey("issuer#subject", updated);
 
-        assertThat(repository(dataSource).findByPrimaryIdentityKey("issuer#subject")).isEqualTo(profile);
+        assertThat(repository(dataSource).findByPrimaryIdentityKey("issuer#subject")).isEqualTo(updated);
         assertThat(repository.findByPrimaryIdentityKey(" ")).isNull();
         assertThat(repository.persistencePosture()).isEqualTo("portable-jpa-hibernate-validated");
     }

@@ -11,25 +11,94 @@ import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
 import com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
 import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
+import com.massimotter.weave.backend.chat.port.ChatSouthboundProvider;
+import com.massimotter.weave.backend.chat.provider.synapse.MatrixSynapseChatSouthboundAdapter;
+import com.massimotter.weave.backend.chat.provider.synapse.SynapseBackedCanonicalChatAdapter;
+import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class JpaCanonicalChatStoreTest {
 
     private static final Clock FIXED = Clock.fixed(Instant.parse("2026-07-15T08:00:00Z"), ZoneOffset.UTC);
     private static final String PROVIDER = "matrix-synapse";
+
+    @Test
+    void encryptedConversationTraversesTheCanonicalStoreAndSynapseAdapter() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        MatrixSynapseChatSouthboundAdapter provider = mock(MatrixSynapseChatSouthboundAdapter.class);
+        when(provider.providerKey()).thenReturn(PROVIDER);
+        when(provider.ensureVirtualUser(anyString())).thenAnswer(invocation -> {
+            String providerActor = invocation.getArgument(0, String.class);
+            return new ChatSouthboundProvider.ProviderAck(providerActor, "registered");
+        });
+        when(provider.createRoom(
+                anyString(), anyString(), anyString(), anyList(), anyString()))
+                .thenReturn(new ChatSouthboundProvider.ProviderAck(
+                        "!isolated-room:matrix.internal",
+                        "!isolated-room:matrix.internal"));
+        SynapseBackedCanonicalChatAdapter adapter = new SynapseBackedCanonicalChatAdapter(
+                store,
+                provider,
+                new ChatRuntimeProperties.Matrix(
+                        "http://synapse:8008",
+                        "matrix.internal",
+                        "weave-chat-synapse",
+                        "_weave_",
+                        "",
+                        "",
+                        Duration.ofSeconds(5),
+                        Duration.ofSeconds(10),
+                        Duration.ofSeconds(60),
+                        1_048_576,
+                        100),
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
+                FIXED);
+        ChatRequestContext author = new ChatRequestContext(
+                "tenant-test-app",
+                "workspace-default",
+                "https://auth.weave.test/realms/weave",
+                new ChatActorRef("user:11111111-1111-1111-1111-111111111111"),
+                "11111111-1111-1111-1111-111111111111");
+        ChatRequestContext collaborator = new ChatRequestContext(
+                author.tenantId(),
+                author.contextId(),
+                author.identityIssuer(),
+                new ChatActorRef("user:22222222-2222-2222-2222-222222222222"),
+                "22222222-2222-2222-2222-222222222222");
+
+        var conversation = adapter.createConversation(
+                author,
+                new ChatTransactionId("create-" + "a".repeat(64)),
+                "Weave isolated collaboration",
+                "channel",
+                List.of(ChatResolvedIdentity.from(collaborator)),
+                ChatEncryptionState.matrixMegolm());
+
+        assertThat(conversation.encryptionState().encrypted()).isTrue();
+        assertThat(conversation.memberships()).hasSize(2);
+        assertThat(store.evidence(
+                author.tenantId(), new com.massimotter.weave.backend.chat.domain.ConversationId(
+                        conversation.conversationId()), PROVIDER)
+                .pendingOperationCount()).isZero();
+    }
 
     @Test
     void redactionPresentationContentIsNarrowlyBounded() {
