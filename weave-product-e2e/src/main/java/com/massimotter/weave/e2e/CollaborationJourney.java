@@ -101,13 +101,13 @@ final class CollaborationJourney {
       String updatedCalendar = calendar(eventUid, "Updated " + suffix);
       String calendarEtag = createCalendar(authorIdentity, eventUid, initialCalendar);
       calendarCreated = true;
-      requireBody(
+      requireCalendar(
           collaboratorIdentity,
           "/caldav/workspace/" + encode(eventUid) + ".ics",
           initialCalendar,
           "shared calendar event");
       updateCalendar(authorIdentity, eventUid, calendarEtag, updatedCalendar);
-      requireBody(
+      requireCalendar(
           collaboratorIdentity,
           "/caldav/workspace/" + encode(eventUid) + ".ics",
           updatedCalendar,
@@ -660,6 +660,21 @@ final class CollaborationJourney {
     if (!expected.equals(response.bodyText())) {
       throw new ProductFlowException(operation + " did not match exactly");
     }
+  }
+
+  private void requireCalendar(
+      Identity identity, String path, String expected, String operation) {
+    JsonHttpClient.Response response =
+        http.send(
+            "read " + operation,
+            "GET",
+            environment.api(path),
+            bearer(identity.token(), Map.of()),
+            null,
+            null,
+            Set.of(200));
+    IcalendarProjectionAssertions.requireWorkspaceProjection(
+        expected, response.bodyText(), operation);
   }
 
   private void proveProfileIsolation(
