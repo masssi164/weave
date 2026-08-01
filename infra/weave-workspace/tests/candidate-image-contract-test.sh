@@ -11,6 +11,8 @@ readonly MCP_IMAGE="${REPOSITORY_ROOT}/weave-mcp-server/Dockerfile"
 readonly IDENTITY_OPS_IMAGE="${REPOSITORY_ROOT}/infra/weave-workspace/keycloak/Dockerfile.identity-ops"
 readonly KEYCLOAK_RUNTIME_IMAGE="${REPOSITORY_ROOT}/infra/weave-workspace/keycloak/Dockerfile.runtime"
 readonly WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/candidate-images.yml"
+readonly LIVE_STACK_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/live-stack-e2e.yml"
+readonly TEST_STACK_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/test-stack-deploy.yml"
 readonly DOCTOR_TASK="${REPOSITORY_ROOT}/gradle/tasks/ci-lifecycle.gradle"
 
 fail() {
@@ -80,6 +82,17 @@ contains "${WORKFLOW}" 'file: infra/weave-workspace/keycloak/Dockerfile.identity
 [[ "$(grep -Fc 'ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}' "${WORKFLOW}")" -eq 2 ]] ||
   fail "${WORKFLOW} must authenticate both specification-corpus checkouts through the deploy key"
 contains "${WORKFLOW}" "printf '/canonical-weave-specs/\\n' >> .git/info/exclude"
+
+for spec_workflow in "${WORKFLOW}" "${LIVE_STACK_WORKFLOW}" "${TEST_STACK_WORKFLOW}"; do
+  contains "${spec_workflow}" 'spec_commit="$(' # fail-closed assignment
+  contains "${spec_workflow}" '.specCorpus.gitCommit | select(type == "string" and test("^[0-9a-f]{40}$"))'
+  contains "${spec_workflow}" "printf 'commit=%s\\n'"
+  reject "${spec_workflow}" 'echo "commit=$(jq'
+  reject "${spec_workflow}" 'test(\"'
+done
+[[ "$(grep -Fc 'spec_commit="$(' "${WORKFLOW}")" -eq 2 ]] ||
+  fail "${WORKFLOW} must resolve the pinned specification fail-closed in both candidate jobs"
+
 reject "${WORKFLOW}" 'opentofu/setup-opentofu'
 reject "${WORKFLOW}" 'tofu_version'
 reject "${DOCTOR_TASK}" "checkCommand('tofu'"
