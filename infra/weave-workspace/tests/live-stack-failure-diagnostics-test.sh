@@ -93,6 +93,7 @@ grep -Fq $'weave-runtime-state\trunning\tnone\t0\tfalse\t0\tnone' "${output_dir}
 [[ -s "${output_dir}/one-shot/runtime-state-init.log" ]] || { echo "missing RuntimeState initializer diagnostic" >&2; exit 1; }
 [[ -s "${output_dir}/runtime/backend-startup.log" ]] || { echo "missing backend startup diagnostic" >&2; exit 1; }
 [[ -s "${output_dir}/runtime/keycloak.log" ]] || { echo "missing Keycloak runtime diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/runtime/synapse.log" ]] || { echo "missing Synapse runtime diagnostic" >&2; exit 1; }
 [[ -s "${output_dir}/health-checks/backend-readiness.json" ]] || { echo "missing backend readiness diagnostic" >&2; exit 1; }
 grep -Fq 'intentionally does not dump raw container logs' "${output_dir}/failure-summary.md"
 grep -Fq 'rawContainerLogsIncluded": false' "${output_dir}/failure-summary.json"
@@ -106,6 +107,7 @@ grep -Fq '<redacted>' "${output_dir}/one-shot/runtime-state-init.log"
 ! grep -Fq -- '-generated-secret-value' "${output_dir}/one-shot/runtime-state-volume-init.log"
 ! grep -Fq -- '-generated-secret-value' "${output_dir}/one-shot/runtime-state-init.log"
 grep -Fq '<redacted>' "${output_dir}/runtime/backend-startup.log"
+grep -Fq '<redacted>' "${output_dir}/runtime/synapse.log"
 grep -Fq '"key": "persistence"' "${output_dir}/health-checks/backend-readiness.json"
 grep -Fq '"actionRequired": true' "${output_dir}/health-checks/backend-readiness.json"
 ! grep -Fq 'private-request-id' "${output_dir}/health-checks/backend-readiness.json"
