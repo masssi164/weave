@@ -58,7 +58,10 @@ HEX_SECRETS = (
     # characters for database/cookie encryption.
     "mas-encryption-secret",
 )
-TEST_ONLY_SECRETS = ("identity-bootstrap-owner-token",)
+TEST_ONLY_SECRETS = (
+    "identity-bootstrap-owner-token",
+    "chat-e2e-proof-token",
+)
 PROD_ONLY_SECRETS = ("smtp-username", "smtp-password")
 RSA_JWKS = (
     ("keycloak-weave-backend-jwk.json", "weave-backend-current"),

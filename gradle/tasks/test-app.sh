@@ -73,8 +73,8 @@ validate_runtime_image() {
   local image="$1" expected_title="$2" expected_platform="$3"
   [[ "$(image_label "${image}" org.opencontainers.image.title)" == "${expected_title}" ]] ||
     fail "${expected_title} image title label is invalid"
-  [[ "$(image_label "${image}" org.opencontainers.image.revision)" == "${candidate_commit}" ]] ||
-    fail "${expected_title} image revision is not the exact candidate"
+  [[ "$(image_label "${image}" org.opencontainers.image.revision)" == "${image_source_commit}" ]] ||
+    fail "${expected_title} image revision is not the exact source candidate"
   [[ "$(image_label "${image}" com.massimotter.weave.spec-digest)" == "${spec_digest}" ]] ||
     fail "${expected_title} image specification digest is invalid"
   [[ "$(image_label "${image}" com.massimotter.weave.dependency-platform)" == "${expected_platform}" ]] ||
@@ -133,6 +133,9 @@ require_free_disk_space
 candidate_commit="${WEAVE_CANDIDATE_COMMIT:-$(git -C "${REPOSITORY_ROOT}" rev-parse HEAD)}"
 [[ "${candidate_commit}" =~ ^[0-9a-f]{40}$ ]] ||
   fail "the candidate commit must be an exact lowercase Git object ID"
+image_source_commit="${WEAVE_IMAGE_SOURCE_COMMIT:-${candidate_commit}}"
+[[ "${image_source_commit}" =~ ^[0-9a-f]{40}$ ]] ||
+  fail "the image source commit must be an exact lowercase Git object ID"
 [[ -z "$(git -C "${REPOSITORY_ROOT}" status --porcelain=v1 --untracked-files=all)" ]] ||
   fail "testApp requires a clean worktree so every runtime artifact identifies exact source"
 
@@ -151,7 +154,7 @@ context="$(
 )"
 eval "${context}"
 CONTEXT_PREPARED=true
-export WEAVE_E2E_RUN_ID WEAVE_E2E_RUN_NAMESPACE WEAVE_ENV_FILE
+export WEAVE_E2E_RUN_ID WEAVE_E2E_RUN_NAMESPACE WEAVE_E2E_NAMESPACE WEAVE_ENV_FILE
 export WEAVE_TEST_APP_RUN_ROOT WEAVE_TEST_APP_RESTART_EVIDENCE_PATH
 export WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH
 export WEAVE_PROXY_HTTP_HOST_PORT WEAVE_PROXY_HTTPS_HOST_PORT
@@ -160,6 +163,7 @@ export WEAVE_MAILPIT_WEB_HOST_PORT WEAVE_MAS_HOST_PORT WEAVE_SYNAPSE_HOST_PORT
 export WEAVE_NEXTCLOUD_HOST_PORT WEAVE_BACKEND_HOST_PORT WEAVE_MCP_HOST_PORT
 export WEAVE_E2E_STACK_SCOPE=isolated
 export WEAVE_CANDIDATE_COMMIT="${candidate_commit}"
+export WEAVE_IMAGE_SOURCE_COMMIT="${image_source_commit}"
 
 spec_lock="${REPOSITORY_ROOT}/specs/weave-specs.lock.json"
 [[ -f "${spec_lock}" ]] || fail "the pinned specification lock is unavailable"
@@ -201,6 +205,8 @@ fi
 export WEAVE_CANDIDATE_MANIFEST_DIGEST="${candidate_manifest_digest}"
 
 if [[ -z "${SERVER_IMAGE}" && -z "${MCP_IMAGE}" ]]; then
+  [[ "${image_source_commit}" == "${candidate_commit}" ]] ||
+    fail "a lane promotion must consume manifest-bound source images without rebuilding"
   LOCAL_SERVER_TAG="weave-backend:test-app-${WEAVE_E2E_RUN_NAMESPACE}"
   LOCAL_MCP_TAG="weave-mcp-server:test-app-${WEAVE_E2E_RUN_NAMESPACE}"
   SERVER_IMAGE="${LOCAL_SERVER_TAG}"
@@ -249,7 +255,7 @@ if [[ -z "${IDENTITY_OPS_IMAGE}" ]]; then
   IDENTITY_OPS_IMAGE="$(
     python3 "${WORKSPACE_ROOT}/scripts/build_identity_ops_image.py" \
       --root "${WORKSPACE_ROOT}" \
-      --candidate-commit "${candidate_commit}" |
+      --candidate-commit "${image_source_commit}" |
       tail -n 1
   )"
 else
@@ -261,7 +267,7 @@ if [[ -z "${KEYCLOAK_IMAGE}" ]]; then
   KEYCLOAK_IMAGE="$(
     python3 "${WORKSPACE_ROOT}/scripts/build_keycloak_image.py" \
       --root "${REPOSITORY_ROOT}" \
-      --candidate-commit "${candidate_commit}"
+      --candidate-commit "${image_source_commit}"
   )"
 else
   [[ "${KEYCLOAK_IMAGE}" =~ @sha256:[0-9a-f]{64}$ ]] ||
@@ -279,7 +285,7 @@ validate_runtime_image \
 
 if [[ -n "${candidate_manifest_path}" ]]; then
   jq -e \
-    --arg candidate_commit "${candidate_commit}" \
+    --arg source_candidate_commit "${image_source_commit}" \
     --arg specification_commit "${specification_commit}" \
     --arg spec_digest "${spec_digest}" \
     --arg server "${SERVER_IMAGE}" \
@@ -287,7 +293,7 @@ if [[ -n "${candidate_manifest_path}" ]]; then
     --arg identity_ops "${IDENTITY_OPS_IMAGE}" \
     --arg keycloak "${KEYCLOAK_IMAGE}" '
       .schemaVersion == "weave.release.candidate-manifest.v2" and
-      .commit == $candidate_commit and
+      .commit == $source_candidate_commit and
       .specificationCommit == $specification_commit and
       .specDigest == $spec_digest and
       .supportSafe == true and
@@ -317,6 +323,7 @@ bash "${WORKSPACE_ROOT}/operator-check.sh" test
 
 runtime_image_evidence_arguments=(
   --candidate-commit "${candidate_commit}"
+  --source-candidate-commit "${image_source_commit}"
   --specification-commit "${specification_commit}"
   --spec-digest "${spec_digest}"
   --candidate-manifest-digest "${candidate_manifest_digest}"
@@ -339,7 +346,8 @@ for required in \
   "${WEAVE_TEST_APP_TLS_ROOT}/mailpit-cert.pem" \
   "${WEAVE_TEST_APP_TLS_ROOT}/mailpit-key.pem" \
   "${WEAVE_TEST_APP_SECRET_ROOT}/identity-reference-hmac-key" \
-  "${WEAVE_TEST_APP_SECRET_ROOT}/identity-bootstrap-owner-token"; do
+  "${WEAVE_TEST_APP_SECRET_ROOT}/identity-bootstrap-owner-token" \
+  "${WEAVE_TEST_APP_SECRET_ROOT}/chat-e2e-proof-token"; do
   [[ -f "${required}" && ! -L "${required}" ]] ||
     fail "an exact TLS or bootstrap SecretRef input is unavailable"
 done
@@ -369,6 +377,7 @@ python3 "${DCR_CONTRACT_PROBE}" \
   --output "${dcr_evidence}"
 jq -e \
   --arg candidate_commit "${candidate_commit}" \
+  --arg source_candidate_commit "${image_source_commit}" \
   --arg specification_commit "${specification_commit}" \
   --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
   .schemaVersion == "weave.keycloak-dcr-live-proof/v1" and
@@ -408,6 +417,7 @@ log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
   --max-workers=2 \
   "-Dweave.e2e.run-id=${RUN_ID}" \
   "-Dweave.e2e.candidate-commit=${candidate_commit}" \
+  "-Dweave.e2e.source-candidate-commit=${image_source_commit}" \
   "-Dweave.e2e.specification-commit=${specification_commit}" \
   "-Dweave.e2e.compose-project=${WEAVE_E2E_RUN_NAMESPACE}" \
   "-Dweave.e2e.product-origin=${WEAVE_TEST_APP_PRODUCT_ORIGIN}" \
@@ -415,10 +425,12 @@ log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
   "-Dweave.e2e.issuer=${WEAVE_TEST_APP_ISSUER}" \
   "-Dweave.e2e.mailpit-api=${WEAVE_TEST_APP_MAILPIT_API}" \
   "-Dweave.e2e.mcp-endpoint=${WEAVE_TEST_APP_MCP_ENDPOINT}" \
+  "-Dweave.e2e.chat-proof-origin=${WEAVE_TEST_APP_CHAT_PROOF_ORIGIN}" \
   "-Dweave.e2e.ca-certificate=${WEAVE_TEST_APP_TLS_ROOT}/ca.pem" \
   "-Dweave.e2e.tls-leaf-certificate=${WEAVE_TEST_APP_TLS_ROOT}/cert.pem" \
   "-Dweave.e2e.hosts-file=${WEAVE_TEST_APP_HOSTS_FILE}" \
   "-Dweave.e2e.bootstrap-owner-token=${WEAVE_TEST_APP_SECRET_ROOT}/identity-bootstrap-owner-token" \
+  "-Dweave.e2e.chat-proof-token=${WEAVE_TEST_APP_SECRET_ROOT}/chat-e2e-proof-token" \
   "-Dweave.e2e.workload-credential-root=${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads" \
   "-Dweave.e2e.evidence-file=${WEAVE_TEST_APP_EVIDENCE_PATH}" \
   "-Dweave.e2e.persistence-restart-command=${COMPOSE}" \
@@ -429,11 +441,13 @@ log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
 
 jq -e \
   --arg candidate_commit "${candidate_commit}" \
+  --arg source_candidate_commit "${image_source_commit}" \
   --arg specification_commit "${specification_commit}" \
   --arg candidate_manifest_digest "${candidate_manifest_digest}" \
   --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
   .schemaVersion == "weave.test-app-product-flow/v1" and
   .candidateCommit == $candidate_commit and
+  .sourceCandidateCommit == $source_candidate_commit and
   .specificationCommit == $specification_commit and
   .candidateManifestDigest == $candidate_manifest_digest and
   .composeProject == $compose_project and
@@ -450,6 +464,32 @@ jq -e \
   .sameMcpCellAfterRestart == true and
   (.persistenceRestartEvidenceSha256 | test("^sha256:[0-9a-f]{64}$")) and
   .revocationDenied == true and
+  .regrantRestored == true and
+  .sameHumanSubjectAfterRegrant == true and
+  .samePersonRefAfterRegrant == true and
+  .collaboration.repeatCount == 2 and
+  (.collaboration.identityRefHashes.author | test("^sha256:[0-9a-f]{64}$")) and
+  (.collaboration.identityRefHashes.collaborator | test("^sha256:[0-9a-f]{64}$")) and
+  (.collaboration.identityRefHashes.outsider | test("^sha256:[0-9a-f]{64}$")) and
+  ([.collaboration.identityRefHashes[]] | unique | length) == 3 and
+  ([.collaboration.passes[].pass] | sort) == [1, 2] and
+  ([.collaboration.passes[] |
+    .freshAuthorizationCodePkce and
+    .chatPassed and
+    .filesPassed and
+    .calendarPassed and
+    .homePassed and
+    .profilePassed and
+    .outsiderDenied and
+    .canonicalJpaVerified and
+    .directSynapseVerified and
+    .callbackReplayVerified and
+    .cleanupComplete and
+    (.providerCorrelationHash | test("^[0-9a-f]{64}$"))] | all) and
+  (.collaboration.passes[] | select(.pass == 1) |
+    .restartContinuityVerified == false) and
+  (.collaboration.passes[] | select(.pass == 2) |
+    .restartContinuityVerified == true) and
   .credentialsIncluded == false and
   .actionLinksIncluded == false and
   .supportSafe == true
@@ -486,11 +526,13 @@ jq -e \
 
 jq -e \
   --arg candidate_commit "${candidate_commit}" \
+  --arg source_candidate_commit "${image_source_commit}" \
   --arg specification_commit "${specification_commit}" \
   --arg candidate_manifest_digest "${candidate_manifest_digest}" \
   --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
   .schemaVersion == "weave.test-app-runtime-images/v1" and
   .candidateCommit == $candidate_commit and
+  .sourceCandidateCommit == $source_candidate_commit and
   .specificationCommit == $specification_commit and
   .candidateManifestDigest == $candidate_manifest_digest and
   .composeProject == $compose_project and

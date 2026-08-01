@@ -682,21 +682,9 @@ def _backend_env(context: ComposeContext) -> str:
             raise ContractError(
                 "isolated backend authorization requires the validated E2E run ID"
             )
-        member_username = (
-            "weave-e2e-"
-            + hashlib.sha256(run_id.encode("ascii")).hexdigest()[:20]
-            + "-member"
-        )
         values.update(
             {
                 "WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM": "preferred_username",
-                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_TENANT_ID": "tenant-default",
-                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_CONTEXT_ID": "workspace-default",
-                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF":
-                    "user:" + member_username,
-                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE": "MEMBER",
-                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE":
-                    "isolated-testapp-keycloak-member",
             }
         )
     return "".join(f"{key}={value}\n" for key, value in sorted(values.items()))

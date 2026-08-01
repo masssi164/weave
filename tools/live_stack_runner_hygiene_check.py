@@ -30,14 +30,17 @@ def main() -> int:
 
     ordered_steps = (
         "- name: Verify bounded runner",
-        "- name: Check out Weave",
+        "- name: Check out exact lane candidate",
+        "- name: Resolve protected dev source candidate",
         "- name: Set up Java 21",
         "- name: Set up Gradle",
+        "- name: Resolve immutable candidate manifest",
+        "- name: Pull and bind all immutable candidate images",
         "- name: Verify runtime prerequisites",
         "- name: Capture persistent dogfood resources",
-        "- name: Run the credential-free Fresh product proof",
-        "- name: Verify persistent dogfood preservation",
-        "- name: Upload support-safe product-flow evidence",
+        "- name: Run the manifest-bound Fresh product proof",
+        "- name: Verify product proof and persistent dogfood preservation",
+        "- name: Upload support-safe live-stack evidence",
     )
     positions = [workflow.index(step) for step in ordered_steps]
     require(positions == sorted(positions), "product-flow stages are misordered")
@@ -76,13 +79,18 @@ def main() -> int:
         ".credentialsIncluded == false",
         ".actionLinksIncluded == false",
         ".supportSafe == true",
+        ".collaboration.repeatCount == 2",
+        ".directSynapseVerified == true",
+        "human_testing_automated_evidence.py live",
     ):
         require(marker in workflow, f"support-safe evidence gate is missing {marker!r}")
     require(
-        "REQUESTED_SERVER_IMAGE" in workflow
-        and "REQUESTED_MCP_IMAGE" in workflow
-        and "== *@sha256:*" in workflow,
-        "runtime overrides must be paired immutable digests",
+        'component_ref server' in workflow
+        and 'component_ref mcp-server' in workflow
+        and 'component_ref identity-ops' in workflow
+        and 'component_ref keycloak-runtime' in workflow
+        and '[[ "$image" == *@sha256:* ]]' in workflow,
+        "all runtime images must come from the immutable candidate manifest",
     )
     require(
         workflow.count("persistent_dogfood_resource_guard.sh") == 2

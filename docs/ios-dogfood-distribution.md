@@ -6,7 +6,7 @@ Weave uses one stable iOS application identity for engineering builds, TestFligh
 
 TestFlight is the preferred physical-iPhone dogfood channel. Testers install through Apple instead of trusting an Apple Development certificate on the device, and subsequent builds retain the application and Keychain identity. The development-signed profile runner remains an engineering fallback for local deeplink and LAN diagnostics. If that fallback requests repeated Developer App trust after an ordinary update, use TestFlight instead of asking the tester to repeat the trust action.
 
-The GitHub `iOS Dogfood` workflow runs after a successful `Test Stack Deploy` for the exact `dogfood` commit, or by an explicit manual recovery dispatch that names the candidate and deployment run. It verifies the matching isolated Live Stack E2E result before archive work. Its upload job uses the protected `ios-dogfood` environment.
+The GitHub `iOS Dogfood` workflow runs after a successful `Test Stack Deploy` for the exact `dogfood` lane commit, or by an explicit manual recovery dispatch that names the candidate and deployment run. It resolves the protected `dev` source commit from deployment evidence and consumes only the isolated Live Stack run URL recorded in that deployment's test-stack manifest; it never selects a merely recent successful run. Candidate-manifest digest and all four immutable runtime image references must agree across deployment, live automation, Simulator, and distribution evidence, while the isolated and persistent Compose namespaces remain deliberately distinct. Before any archive or physical-device installation, a fresh iPhone Simulator runs the current member surfaces (Home, Chat, Files, Calendar, Settings, and nested Profile) from that exact source. Simulator output is explicitly recorded as `fixture-ui`; the workflow combines it with the provider-backed Live Stack artifact, and never upgrades fixture repositories into identity, authorization, or provider evidence. Raw Flutter, Xcode and device-install output remains private in both the Simulator and stable-signing fallback lanes; only allowlisted support-safe markers, exact cleanup records and candidate-bound evidence are uploaded. The upload job uses the protected `ios-dogfood` environment.
 
 Environment ownership is role-based and must be configured in GitHub:
 
@@ -26,7 +26,28 @@ Superseded pending iOS candidates are cancelled through workflow concurrency whi
 
 Create the App Store Connect app record and TestFlight tester group once. Configure automatic distribution for the intended internal tester group, or complete Apple's beta review before using an external tester group. The workflow validates the archive bundle/build identity, uploads with Apple's command-line tooling, and emits support-safe evidence without certificate, profile, API key, or member credential material.
 
-The archive embeds and exposes the candidate commit, version, build number, bundle identifier, and workflow evidence reference in support-safe Settings diagnostics. The physical acceptance gate must verify that installed identity before testing. Simulator archive or smoke results do not substitute for physical-iPhone VoiceOver acceptance.
+The archive embeds and exposes the source candidate commit, version, build number, bundle identifier, and workflow evidence reference in support-safe Settings diagnostics. Distribution evidence separately records the `dogfood` lane commit and candidate-manifest digest. The physical acceptance gate must verify both identities before testing. Simulator archive or smoke results do not substitute for physical-iPhone VoiceOver acceptance, session continuity, system-browser authentication, or interaction.
+
+## Tester-confirmed physical protocol
+
+Physical outcomes are recorded only after the tester performs them. The protected
+`Physical iPhone Human Test` workflow accepts a base64-encoded, support-safe
+`weave.physical-iphone-human-submission.v1` document and validates it against the exact successful
+deployment and iOS distribution runs. The submission contains no tester identity, email,
+credential, token, private path, or raw provider identifier; it carries only a hashed tester
+reference, aggregate VoiceOver/session/navigation statuses, and the structured protocol.
+
+The protocol has exactly twenty rows: invitation receipt and open, Keycloak activation, signed app
+launch, Authorization Code with PKCE, normal session, refresh, logout/relogin, Files UI, Calendar
+UI, Calls UI, Weaver grant, MCP discovery, `files.search`, File resource open, revoke, immediate
+rejection, regrant, restored access, and identity continuity. Every row records expected outcome,
+actual outcome, UTC timestamp, status, and a support-safe evidence reference. A missing Calls or
+other required UI capability is recorded as `blocked`; it is never converted into a pass.
+
+The final `Human Testing Readiness` workflow accepts only the successful physical workflow run ID.
+It downloads the immutable protocol artifact and verifies the entire live → deployment → iOS →
+physical run graph before emitting schema-v3 readiness evidence. It cannot synthesize physical
+outcomes itself.
 
 The Flutter native-assets hook derives `IPHONEOS_DEPLOYMENT_TARGET` from the iOS target version supplied by Flutter and passes it explicitly to the Matrix Rust bridge build. Keep that value target-derived: Xcode build phases can otherwise replace the Cargo child process deployment target with an older default, producing Rust and C objects that cannot be linked into the app. Non-iOS bridge builds must not receive the iOS variable.
 

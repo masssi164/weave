@@ -36,7 +36,7 @@ assert module.UPSTREAM_COMMIT == "6c73e3027811d9c7b22683edd825e839272e9547"
 assert module.UPSTREAM_TAG == "26.7.0"
 assert module.ARCHIVE_SHA256 == "32267c4f45db91874c46a097415c336d137ee184d25c3481a513905a92669186"
 assert module.STOCK_SERVICES_SHA256 == "052169f7907a21f4e26679bca5c7365627db91b071a7a2fcaeee00230e6b1419"
-assert module.SPEC_COMMIT == "1bf52621b3a414999c24308ebd7e204a04240c43"
+assert module.SPEC_COMMIT == "498e5f4d07abb75b3b6dd8dda80fee6e64dc7399"
 assert module.DOWNSTREAM_TEST_CLASSES == (
     "org.keycloak.services.clientpolicy.executor.WeaveWorkloadClientRegistrationExecutorTest",
     "org.keycloak.services.clientregistration.WeaveClientRegistrationAuthTest",

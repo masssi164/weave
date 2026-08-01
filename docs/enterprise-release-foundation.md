@@ -10,7 +10,7 @@ The machine-readable contract lives at `release/enterprise-release-gates.json` a
 
 - Delivery is ordered `dev` → isolated candidate E2E → `dogfood` → protected iOS distribution → physical acceptance → `main`.
 - No main or `humanTestingReady=true` claim without an exact-candidate readiness manifest in state `ready`.
-- Current-surface collaboration, deployment, distribution, in-place session upgrade, and physical-iPhone VoiceOver gates are mandatory and cannot be waived into a ready state.
+- Current-surface collaboration, deployment, distribution, in-place session upgrade, and physical-iPhone VoiceOver gates are mandatory and cannot be waived into a ready state. The readiness manifest binds the candidate-manifest digest, four immutable runtime images, live and fixture proof origins, and the tester-confirmed twenty-step physical protocol.
 - Provider-specific IDs, raw endpoints, SecretRefs, credential-bearing URLs, downstream bodies, and private live logs stay out of public/support artifacts.
 - Weaver remains governed, opt-in, capability-whitelisted, audited, and default-disabled; it must not be used to bypass release evidence.
 - The `weave-co-leader` orchestrates cross-domain delivery; specialist agents implement scoped slices, while release evidence remains deterministic and human-reviewable.
@@ -39,13 +39,17 @@ Required gates:
 
 - `test-app-product-flow-e2e` via `.github/workflows/live-stack-e2e.yml`;
   Flutter physical-device authentication is a separate AppAuth evidence gate.
-- `testApp` proves invitation, Keycloak required actions in Chromium,
-  Authorization Code + PKCE, Files WebDAV, per-cell `private_key_jwt`, Spring AI
-  MCP discovery/tool invocation, revocation, and namespace cleanup.
+- `testApp` proves real owner/collaborator/outsider invitations, Keycloak required actions in Chromium,
+  fresh Authorization Code + PKCE sessions, two-pass Chat/Files/Calendar/Home/Profile collaboration,
+  direct Synapse and canonical JPA/PostgreSQL state, backend/Synapse restart continuity, provider
+  outage exactly-once recovery, callback replay idempotency, per-cell `private_key_jwt`, Spring AI
+  MCP discovery/tool invocation, revoke/regrant, and exact namespace cleanup.
 
 Required artifacts:
 
 - `weave-live-stack-acceptance-evidence/weave-test-app-evidence.json`
+- `weave-live-stack-acceptance-evidence/human-testing-live-automated-evidence.json`
+- `weave-live-stack-acceptance-evidence/teardown-evidence.json`
 
 The bounded runner also emits the support-safe `WEAVE_TEST_APP_RESULT` marker;
 the JSON artifact remains the durable evidence authority.
@@ -74,11 +78,11 @@ Purpose: run `persistent-dogfood-deployment` for the accepted candidate under th
 
 ### `ios-dogfood-distribution`
 
-Purpose: run `ios-dogfood-distribution` only after the exact candidate's persistent deployment succeeds. `.github/workflows/ios-dogfood.yml` is triggered by that successful workflow result, verifies the earlier isolated E2E run for the same commit, builds immutable diagnostics, and uploads through the protected `ios-dogfood` environment. A waiting environment review is `blocked`, not success.
+Purpose: run `ios-dogfood-distribution` only after the exact candidate's persistent deployment succeeds. `.github/workflows/ios-dogfood.yml` is triggered by that successful workflow result, verifies the earlier isolated E2E run, runs the five release-required shell tabs plus nested Profile on a fresh iPhone Simulator, binds the resulting `fixture-ui` artifact to the live provider evidence, builds immutable diagnostics, and uploads through the protected `ios-dogfood` environment. The separate Help surface is not claimed by this six-surface evidence contract. TestFlight and development-signed fallback jobs both depend on this Simulator gate. A waiting environment review is `blocked`, not success.
 
 ### `physical-human-acceptance`
 
-Purpose: close `physical-iphone-voiceover` and `human-testing-readiness-manifest` after the candidate is installed in place. `.github/workflows/human-testing-readiness.yml` records support-safe physical-device evidence and validates `human-testing-readiness.json`. Simulator evidence is functional evidence only and cannot satisfy this lane.
+Purpose: close `physical-iphone-voiceover` and `human-testing-readiness-manifest` after the candidate is installed in place. `.github/workflows/human-testing-readiness.yml` consumes the tester-confirmed physical-device evidence, then runs under the persistent dogfood runner lock to reverify the exact four running image identities and collect a new cached, support-safe provider-health snapshot immediately before validating `human-testing-readiness.json`. It never reuses the deployment-time snapshot as current health. Simulator evidence is functional evidence only and cannot satisfy this lane.
 
 ### `release-promotion`
 
@@ -149,8 +153,8 @@ If the CI summary is absent, the tool writes a local pointer under `build/eviden
    namespace.
 3. Let `Test Stack Deploy` update and verify persistent dogfood twice without changing the human member.
 4. Let the successful deployment trigger the protected `iOS Dogfood` candidate build and TestFlight upload.
-5. Install the build in place and complete the protected physical-iPhone VoiceOver/session/navigation acceptance workflow.
-6. Export a support-safe release-blocker summary and the final `human-testing-readiness.json` artifact.
+5. Install the build in place, perform every required physical-iPhone row, and submit the support-safe tester-confirmed protocol through `Physical iPhone Human Test`.
+6. Feed that exact physical workflow run into `Human Testing Readiness`; the latter validates rather than creates human outcomes, reverifies the manifest-bound persistent runtime plus current provider health, and exports the schema-v3 manifest.
 7. Run `tools/release_readiness_check.py` for the exact candidate and record the result with rollback notes.
 8. Only a `ready` result may proceed to `main`, tagging, or a human-testing-ready claim.
 

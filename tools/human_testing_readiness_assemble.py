@@ -15,6 +15,10 @@ from human_testing_readiness_manifest import ManifestError, evaluate_manifest
 
 
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+IMMUTABLE_IMAGE_PATTERN = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
+AUTOMATED_IMAGE_COMPONENTS = {"server", "mcp-server", "identity-ops", "keycloak-runtime"}
+DEPLOYMENT_IMAGE_COMPONENTS = {"backend", "mcp", "identity-ops", "keycloak"}
 
 
 def load_object(path: Path, label: str) -> dict[str, Any]:
@@ -32,7 +36,7 @@ def load_object(path: Path, label: str) -> dict[str, Any]:
 
 
 def require_candidate(evidence: dict[str, Any], candidate: str, label: str) -> None:
-    observed = str(evidence.get("candidateCommit", evidence.get("commit", ""))).lower()
+    observed = str(evidence.get("candidateCommit", "")).lower()
     if observed != candidate:
         raise ManifestError(f"{label} evidence targets {observed or 'no commit'}, expected {candidate}")
 
@@ -57,25 +61,105 @@ def evidence_refs(*documents: dict[str, Any]) -> list[str]:
     return list(dict.fromkeys(refs))
 
 
+def require_automated_origins(automated: dict[str, Any]) -> dict[str, Any]:
+    if automated.get("evidenceModes") != ["live-provider-backed", "fixture-ui"]:
+        raise ManifestError("automated evidence must retain both live-provider-backed and fixture-ui modes")
+    surfaces = require_object(automated, "surfaces", "automated")
+    live_required = {"authenticationSession", "home", "chat", "files", "calendar", "profile"}
+    fixture_required = {"home", "chat", "files", "calendar", "settings", "profile"}
+    if set(surfaces) != live_required | fixture_required:
+        raise ManifestError("automated surfaces are incomplete")
+    for name, value in surfaces.items():
+        if not isinstance(value, dict) or value.get("status") != "passed":
+            raise ManifestError(f"automated surface {name} did not pass")
+        proof_kinds = value.get("proofKinds")
+        if not isinstance(proof_kinds, list) or any(not isinstance(item, str) for item in proof_kinds):
+            raise ManifestError(f"automated surface {name} lost proofKinds")
+        if name in live_required and "live-provider-backed" not in proof_kinds:
+            raise ManifestError(f"automated surface {name} lost live-provider-backed proof")
+        if name in fixture_required and "fixture-ui" not in proof_kinds:
+            raise ManifestError(f"automated surface {name} lost fixture-ui proof")
+    return surfaces
+
+
 def assemble(
     *,
     candidate: str,
     automated: dict[str, Any],
     deployment: dict[str, Any],
+    provider_health: dict[str, Any],
     distribution: dict[str, Any],
     physical: dict[str, Any],
 ) -> dict[str, Any]:
     for label, document in (
         ("automated", automated),
         ("deployment", deployment),
-        ("distribution", distribution),
+        ("provider health", provider_health),
         ("physical", physical),
     ):
         require_candidate(document, candidate, label)
 
+    distribution_lane = str(distribution.get("laneCandidateCommit", "")).lower()
+    if distribution_lane != candidate:
+        raise ManifestError(
+            f"distribution evidence targets {distribution_lane or 'no lane commit'}, expected {candidate}"
+        )
+    source_candidate = str(deployment.get("sourceCandidateCommit", "")).lower()
+    if not COMMIT_PATTERN.fullmatch(source_candidate):
+        raise ManifestError("deployment.sourceCandidateCommit must be a full lowercase commit")
+    for label, document in (
+        ("automated", automated),
+        ("provider health", provider_health),
+        ("distribution", distribution),
+    ):
+        observed_source = str(document.get("sourceCandidateCommit", "")).lower()
+        if observed_source != source_candidate:
+            raise ManifestError(
+                f"{label} source candidate targets {observed_source or 'no commit'}, expected {source_candidate}"
+            )
+    if str(distribution.get("commit", "")).lower() != source_candidate:
+        raise ManifestError("distribution build commit does not match source candidate")
+
+    automated_manifest = str(automated.get("candidateManifestDigest", ""))
+    deployment_manifest = str(deployment.get("candidateManifestDigest", ""))
+    distribution_manifest = str(distribution.get("candidateManifestDigest", ""))
+    health_manifest = str(provider_health.get("candidateManifestDigest", ""))
+    if (
+        DIGEST_PATTERN.fullmatch(automated_manifest) is None
+        or automated_manifest != deployment_manifest
+        or automated_manifest != health_manifest
+        or automated_manifest != distribution_manifest
+    ):
+        raise ManifestError("automated, deployment, and distribution evidence disagree on candidate manifest")
+    automated_images = automated.get("images")
+    deployment_images = deployment.get("candidateImages")
+    health_images = provider_health.get("images")
+    if (
+        not isinstance(automated_images, dict)
+        or set(automated_images) != AUTOMATED_IMAGE_COMPONENTS
+        or any(
+            not isinstance(reference, str)
+            or IMMUTABLE_IMAGE_PATTERN.fullmatch(reference) is None
+            for reference in automated_images.values()
+        )
+        or not isinstance(deployment_images, dict)
+        or set(deployment_images) != DEPLOYMENT_IMAGE_COMPONENTS
+        or any(DIGEST_PATTERN.fullmatch(str(image_id)) is None for image_id in deployment_images.values())
+        or health_images != automated_images
+    ):
+        raise ManifestError("candidate image evidence is incomplete or mutable")
+    if distribution.get("deploymentRunUrl") != deployment.get("runUrl"):
+        raise ManifestError("distribution is not bound to the selected deployment run")
+    if distribution.get("liveE2eRunUrl") != automated.get("liveE2eRunUrl"):
+        raise ManifestError("distribution is not bound to the selected isolated live run")
+    if provider_health.get("deploymentRunUrl") != deployment.get("runUrl"):
+        raise ManifestError("fresh provider health is not bound to the selected deployment run")
+
     spec_commit = automated.get("specCorpusCommit")
     if not isinstance(spec_commit, str) or not COMMIT_PATTERN.fullmatch(spec_commit):
         raise ManifestError("automated.specCorpusCommit must be a full lowercase commit")
+    if provider_health.get("specCorpusCommit") != spec_commit:
+        raise ManifestError("fresh provider health targets another specification commit")
 
     distribution_result = str(distribution.get("result", distribution.get("status", "not_run")))
     distribution_status = {
@@ -88,22 +172,27 @@ def assemble(
         "blocked": "blocked",
     }.get(distribution_result, "not_run")
     client_build = {
-        "commit": candidate,
+        "commit": source_candidate,
         "version": str(distribution.get("version", "")),
         "buildNumber": str(distribution.get("buildNumber", "")),
         "bundleId": str(distribution.get("bundleId", "")),
     }
     physical_acceptance = require_object(physical, "physicalAcceptance", "physical")
     blockers: list[Any] = []
-    for document in (automated, deployment, distribution, physical):
+    for document in (automated, deployment, provider_health, distribution, physical):
         values = document.get("blockers", [])
         if isinstance(values, list):
             blockers.extend(values)
 
+    surfaces = require_automated_origins(automated)
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 3,
         "candidateCommit": candidate,
+        "sourceCandidateCommit": source_candidate,
         "specCorpusCommit": spec_commit,
+        "candidateManifestDigest": automated_manifest,
+        "images": dict(sorted(automated_images.items())),
+        "evidenceModes": automated["evidenceModes"],
         "generatedAtUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "state": "blocked",
         "humanTestingReady": False,
@@ -111,10 +200,10 @@ def assemble(
             "backend": require_object(deployment, "backendBuild", "deployment"),
             "client": client_build,
         },
-        "surfaces": require_object(automated, "surfaces", "automated"),
+        "surfaces": surfaces,
         "collaboration": require_object(automated, "collaboration", "automated"),
         "deployment": require_object(deployment, "deployment", "deployment"),
-        "providerHealth": require_object(deployment, "providerHealth", "deployment"),
+        "providerHealth": require_object(provider_health, "providerHealth", "provider health"),
         "distribution": {
             "status": distribution_status,
             "channel": str(distribution.get("channel", "none")),
@@ -122,7 +211,7 @@ def assemble(
         },
         "physicalAcceptance": physical_acceptance,
         "blockers": blockers,
-        "evidence": evidence_refs(automated, deployment, distribution, physical),
+        "evidence": evidence_refs(automated, deployment, provider_health, distribution, physical),
     }
 
 
@@ -131,6 +220,7 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--candidate-commit", required=True)
     value.add_argument("--automated-evidence", type=Path, required=True)
     value.add_argument("--deployment-evidence", type=Path, required=True)
+    value.add_argument("--provider-health-evidence", type=Path, required=True)
     value.add_argument("--distribution-evidence", type=Path, required=True)
     value.add_argument("--physical-evidence", type=Path, required=True)
     value.add_argument("--output", type=Path, required=True)
@@ -148,12 +238,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         automated = load_object(args.automated_evidence, "automated")
         deployment = load_object(args.deployment_evidence, "deployment")
+        provider_health = load_object(args.provider_health_evidence, "provider health")
         distribution = load_object(args.distribution_evidence, "distribution")
         physical = load_object(args.physical_evidence, "physical")
         manifest = assemble(
             candidate=candidate,
             automated=automated,
             deployment=deployment,
+            provider_health=provider_health,
             distribution=distribution,
             physical=physical,
         )

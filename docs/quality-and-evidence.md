@@ -64,23 +64,38 @@ not require human credentials.
 
 The live-stack path is expensive and runs on a dedicated self-hosted macOS ARM64 runner. Use it when a change affects sign-in, backend facade contracts, Matrix/files/calendar live behavior, acceptance scenarios, or integration boundaries.
 
-There are three deliberately separated lanes:
+There are five deliberately separated lanes:
 
 - `Live Stack Product Flow` (`.github/workflows/live-stack-e2e.yml`) runs
-  `./gradlew testApp`. The bounded Java process creates owner/member invitations,
+  `./gradlew testApp`. The bounded Java process creates owner/collaborator/outsider invitations,
   reads one-time activation links from Mailpit, completes Keycloak required
-  actions in Chromium, performs Authorization Code with PKCE, proves Files
-  WebDAV and workload-only MCP `files.search`, proves revocation, writes one
-  allowlisted evidence file, and tears down only its namespace.
+  actions in Chromium, performs fresh Authorization Code with PKCE sessions,
+  repeats real cross-identity Chat, Files, Calendar, Home, and Profile behavior
+  twice, proves canonical JPA/PostgreSQL and direct Synapse state plus restart,
+  outage/retry, callback-replay and outsider-denial behavior, proves workload-only
+  MCP `files.search` revoke/regrant, writes allowlisted support-safe evidence, and
+  tears down only its namespace.
+- `iOS Dogfood` runs the current member UI surfaces on a newly created iPhone
+  Simulator before archive or physical installation. Its repositories are
+  fixtures and its artifact is labelled `fixture-ui`; only the validator may
+  combine it with the exact live artifact. It is not authentication, provider,
+  multi-user, VoiceOver, or physical-device evidence.
 - `physical-device-auth-e2e` is interactive and never runs on a simulator. It
   uses the production Flutter `flutter_appauth` client and accepts only public
   endpoints/client ID as build arguments. The human enters credentials directly
   in Keycloak's system-browser surface.
+- `Physical iPhone Human Test` validates a tester-supplied, support-safe twenty-step protocol
+  against the exact manifest-bound deployment and iOS distribution. `Human Testing Readiness`
+  consumes that artifact and cannot manufacture human outcomes, timestamps, or confirmation. Its
+  final persistent-runner step independently reverifies all four running image identities and
+  captures a new cached provider-health observation; the older deployment snapshot is historical
+  evidence only and cannot satisfy the final freshness gate.
 - `Test Stack Deploy` (`.github/workflows/test-stack-deploy.yml`) is the persistent LAN dogfood stack for the `dogfood` branch. It starts only from successful exact-candidate isolated evidence, applies the candidate twice, runs the non-destructive operator checks without the automation-user smoke suite, proves OpenTofu and runtime idempotency plus persistent human/Mailpit/TLS/session invariants, and leaves the verified stack running for human testing.
 
 The persistent test stack is the required bridge between `dev` and `main`: a commit may be promoted to `main` only after it is contained in `dev`, contained in `dogfood`, and has a successful `Test Stack Deploy` run on `dogfood`. See [Dev/Dogfood/Main promotion flow](dev-test-main-promotion-flow.md).
 
-The disposable workflow uploads only `weave-test-app-evidence.json`. It binds
+The disposable workflow uploads the product result, exact teardown result, immutable
+candidate manifest/mapping, and a derived live-only automation summary. Each binds
 the exact implementation commit, pinned specification commit, and isolated
 Compose project and contains timestamps, hashes, protocol/result enums, the MCP
 tool/projection, and explicit `credentialsIncluded=false`,

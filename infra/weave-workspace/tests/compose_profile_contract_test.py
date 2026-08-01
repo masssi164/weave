@@ -12,7 +12,6 @@ import tempfile
 import urllib.error
 import urllib.parse
 from dataclasses import replace
-from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,10 +30,8 @@ from compose_runtime import (  # noqa: E402
     labels,
     normalized_mount_graph,
     preflight_protected_sources,
-    resource_inventory,
     resource_labels_match,
     validate_mount_contract,
-    validate_adoption_receipt,
 )
 from render_config import _backend_env, _image_digest, _render_desired  # noqa: E402
 
@@ -634,7 +631,7 @@ def main() -> None:
         root = Path(temporary)
         test = load_context("test", ROOT, str(materialize_example("test", root / "test.env")))
         prod = load_context("prod", ROOT, str(materialize_example("prod", root / "prod.env")))
-        assert test.env["WEAVE_DEPLOYMENT_CONTEXT"] == "persistent-adoption"
+        assert test.env["WEAVE_DEPLOYMENT_CONTEXT"] == "persistent-dogfood"
         assert prod.env["WEAVE_DEPLOYMENT_CONTEXT"] == "production"
         assert test.compose_files[1].name == "compose.test.yaml"
         assert prod.compose_files[1].name == "compose.prod.yaml"
@@ -724,6 +721,7 @@ def main() -> None:
             os.environ.update(isolated_overrides)
             isolated = load_context("test", ROOT, str(root / "test.env"))
             assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
+            assert isolated.compose_files[2].name == "compose.isolated-e2e.yaml"
             assert isolated.env["WEAVE_KEYCLOAK_IMAGE"] == local_image_id
             assert isolated.env["WEAVE_RUNTIME_STATE_VOLUME"].endswith(
                 "_runtime_state"
@@ -737,25 +735,19 @@ def main() -> None:
                 f"WEAVE_API_BASE_URL={isolated.env['WEAVE_API_URL']}\n"
                 in isolated_backend_env
             )
-            expected_member = (
-                "weave-e2e-"
-                + hashlib.sha256(
-                    isolated_overrides["WEAVE_E2E_RUN_ID"].encode("ascii")
-                ).hexdigest()[:20]
-                + "-member"
-            )
             assert (
                 "WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM=preferred_username\n"
                 in isolated_backend_env
             )
             assert (
                 "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF="
-                f"user:{expected_member}\n"
-                in isolated_backend_env
+                not in isolated_backend_env
             )
             assert (
-                "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=MEMBER\n"
-                in isolated_backend_env
+                isolated.compose_files[2].read_text(encoding="utf-8").count(
+                    "context-authorization-memberships.json"
+                )
+                == 3
             )
             assert (
                 "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF="
@@ -795,108 +787,6 @@ def main() -> None:
             pass
         else:
             raise AssertionError("legacy profile value was accepted")
-        test.env["WEAVE_GENERATED_ROOT"] = str(root / "generated")
-        candidate = "b" * 40
-        receipt = test.generated_root / "adoption/adoption-receipt.json"
-        receipt.parent.mkdir(parents=True)
-        receipt_data = {
-            "schemaVersion": "weave.compose-adoption-receipt.v1",
-            "profile": "test",
-            "composeProject": test.env["WEAVE_COMPOSE_PROJECT"],
-            "candidateCommit": candidate,
-            "candidateManifestDigest": test.env[
-                "WEAVE_CANDIDATE_MANIFEST_DIGEST"
-            ],
-            "backupRef": "evidence:private-backup:sha256:" + "1" * 64,
-            "databaseFingerprint": "sha256:" + "2" * 64,
-            "postgresDumpClientImage": "postgres@sha256:" + "3" * 64,
-            "postgresDatabaseInventoryDigest": "sha256:" + "4" * 64,
-            "postgresDatabaseCount": 3,
-            "backupVerified": True,
-            "isolatedRestoreVerified": True,
-            "restoreHelperImage": "nextcloud@sha256:" + "5" * 64,
-            "restoredVolumeInventories": [
-                {
-                    "artifact": artifact,
-                    "entryCount": 1,
-                    "regularFileCount": 1,
-                    "regularFileBytes": 1,
-                    "inventoryDigest": "sha256:" + str(index + 1) * 64,
-                    "rootMetadata": {"uid": 0, "gid": 0, "mode": 0o700},
-                    "verified": True,
-                }
-                for index, artifact in enumerate(
-                    (
-                        "caddy-config.tgz",
-                        "caddy-data.tgz",
-                        "keycloak-data.tgz",
-                        "matrix-appservice.tgz",
-                        "nextcloud-data.tgz",
-                        "synapse-data.tgz",
-                    )
-                )
-            ],
-            "isolatedNamespace": "weave-restore-123456789abc",
-            "verifiedDatabaseCount": 3,
-            "verifiedServiceDatabaseCount": 2,
-            "verifiedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "cleanupVerified": True,
-            "secretContinuityVerified": True,
-            "secretMigrationReceiptRef": (
-                "evidence:legacy-secret-migration:sha256:" + "6" * 64
-            ),
-            "resources": [
-                {"kind": kind, "name": name}
-                for kind, name in sorted(resource_inventory(test))
-            ],
-            "supportSafe": True,
-            "containsSecretValues": False,
-        }
-
-        def write_receipt() -> None:
-            receipt.write_text(json.dumps(receipt_data) + "\n", encoding="utf-8")
-            os.chmod(receipt, 0o600)
-
-        def require_receipt_rejection(reason: str) -> None:
-            try:
-                validate_adoption_receipt(test, "volume", test.env["WEAVE_DB_DATA_VOLUME"])
-            except ContractError:
-                return
-            raise AssertionError(f"{reason} adoption receipt was accepted")
-
-        write_receipt()
-        previous_receipt = os.environ.get("WEAVE_ADOPTION_RECEIPT")
-        previous_candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT")
-        try:
-            os.environ["WEAVE_CANDIDATE_COMMIT"] = candidate
-            os.environ.pop("WEAVE_ADOPTION_RECEIPT", None)
-            require_receipt_rejection("missing")
-            os.environ["WEAVE_ADOPTION_RECEIPT"] = str(receipt)
-            validate_adoption_receipt(test, "volume", test.env["WEAVE_DB_DATA_VOLUME"])
-            os.environ["WEAVE_CANDIDATE_COMMIT"] = "c" * 40
-            require_receipt_rejection("wrong-candidate")
-            os.environ["WEAVE_CANDIDATE_COMMIT"] = candidate
-            receipt_data["verifiedAt"] = "2020-01-01T00:00:00Z"
-            write_receipt()
-            require_receipt_rejection("stale")
-            receipt_data["verifiedAt"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-            complete_resources = receipt_data["resources"]
-            receipt_data["resources"] = complete_resources[:-1]
-            write_receipt()
-            require_receipt_rejection("resource-incomplete")
-            receipt_data["resources"] = complete_resources
-            write_receipt()
-            os.chmod(receipt, 0o644)
-            require_receipt_rejection("weakly-permissioned")
-        finally:
-            if previous_receipt is None:
-                os.environ.pop("WEAVE_ADOPTION_RECEIPT", None)
-            else:
-                os.environ["WEAVE_ADOPTION_RECEIPT"] = previous_receipt
-            if previous_candidate is None:
-                os.environ.pop("WEAVE_CANDIDATE_COMMIT", None)
-            else:
-                os.environ["WEAVE_CANDIDATE_COMMIT"] = previous_candidate
     compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
     assert "\n  - dogfood\n" not in compose
     assert "\n  - main\n" not in compose

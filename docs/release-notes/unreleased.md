@@ -17,6 +17,7 @@ Use this page for release-affecting changes that have merged but are not include
   module/runtime/platform labels, numeric non-root users, embedded SBOM/provenance attestations,
   and post-publish metadata verification.
 - Adds a versioned enterprise dogfood readiness manifest and ordered candidate chain covering exact-commit three-user collaboration, non-destructive persistent deployment, TestFlight distribution, and mandatory physical-iPhone VoiceOver signoff before any human-testing-ready or main-promotion claim.
+- Adds manifest-bound schema-v3 human readiness: all four runtime image digests and live/fixture proof origins remain explicit, while a separate protected workflow validates the tester-confirmed twenty-step physical-iPhone protocol instead of deriving human success from workflow checkboxes.
 - Adds a client-owned Matrix E2EE release candidate through the Apache-2.0 Matrix Rust SDK and `flutter_rust_bridge`: encrypted room sync/send, encrypted SQLite state, stable device identity, cross-signing, accessible SAS verification, recovery, lost-device denial, opaque server persistence, and live E2E evidence gates.
 - Adds stable physical-iPhone session continuity for in-place TestFlight iterations. The saved organization profile, OIDC refresh session, Matrix device ID, Keychain-held crypto-store passphrase, and encrypted history survive ordinary close, relaunch, and app update; explicit account removal remains the destructive boundary.
 - Sprint 22 adds a CI-safe free provider lab gate, manifests, fixture evidence, and operator runbook for Keycloak, Authentik, Matrix/Synapse, Zulip, Nextcloud, MinIO, Radicale, and OpenProject without claiming provider interchangeability or release readiness. Agent runtimes are not provider-lab adapters.
@@ -44,6 +45,8 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Fixed
 
+- Splits isolated SecretRef mounts by runtime ownership, rejects read-only parent/child collisions and weak or symlinked source files before startup, and keeps runtime-admin, identity-admin, Cell, and signing material out of the MCP container.
+- Adds a fresh iPhone Simulator current-surface gate after exact two-pass live collaboration; the resulting evidence remains explicitly `fixture-ui` and cannot replace live provider, physical-device, system-browser, or VoiceOver proof.
 - Bounds iPhone Simulator VM-service discovery and replays only the exact same-process launch event when Xcode 26.5 live unified logging misses it, preventing Live Stack E2E from hanging before application assertions without persisting the service URI or weakening product checks.
 - Removes the obsolete first-run client path permanently, upgrades legacy stored state into the normal AppShell without discarding the current OIDC session, and exposes support-safe client build identity for in-place dogfood verification.
 - Makes Live Stack collaboration use three disposable identities, fresh encrypted Matrix rooms, real cross-user Files/Calendar/Home observations, isolated authorization probes, exact artifact cleanup, a real Calendar outage/recovery fixture, and a fresh per-run iPhone Simulator.

@@ -17,8 +17,8 @@ from urllib.parse import urlsplit
 PROFILES = ("dev", "test", "prod")
 DEPLOYMENT_CONTEXTS = {
     "dev": {"developer", "disposable"},
-    "test": {"disposable", "persistent-adoption"},
-    "prod": {"production", "persistent-adoption"},
+    "test": {"disposable", "persistent-dogfood"},
+    "prod": {"production"},
 }
 KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 ISOLATED_RUN_RE = re.compile(r"^[a-z0-9][a-z0-9-]{5,39}$")
@@ -39,7 +39,6 @@ DEPLOYMENT_PROCESS_OVERRIDES = {
     "WEAVE_MCP_IMAGE",
 }
 OPERATOR_PROCESS_INPUTS = {
-    "WEAVE_ADOPTION_RECEIPT",
     "WEAVE_BACKUP_ROOT",
     "WEAVE_CANDIDATE_COMMIT",
     "WEAVE_CANDIDATE_MANIFEST_DIGEST",
@@ -82,8 +81,11 @@ class ComposeContext:
     isolated_namespace: str | None
 
     @property
-    def compose_files(self) -> tuple[Path, Path]:
-        return self.root / "compose.yaml", self.root / f"compose.{self.profile}.yaml"
+    def compose_files(self) -> tuple[Path, ...]:
+        files = [self.root / "compose.yaml", self.root / f"compose.{self.profile}.yaml"]
+        if self.isolated_namespace is not None:
+            files.append(self.root / "compose.isolated-e2e.yaml")
+        return tuple(files)
 
     @property
     def generated_root(self) -> Path:
@@ -154,6 +156,8 @@ def _isolated_overrides(profile: str, env: dict[str, str]) -> tuple[dict[str, st
     if scope not in ("", "persistent", "isolated"):
         fail("WEAVE_E2E_STACK_SCOPE must be persistent or isolated")
     if scope != "isolated":
+        if os.environ.get("WEAVE_E2E_NAMESPACE") or os.environ.get("WEAVE_E2E_RUN_NAMESPACE"):
+            fail("persistent deployments reject isolated E2E namespace inputs")
         env["WEAVE_STACK_SCOPE"] = "persistent"
         return env, None
     if profile != "test":
@@ -165,6 +169,9 @@ def _isolated_overrides(profile: str, env: dict[str, str]) -> tuple[dict[str, st
     declared_namespace = os.environ.get("WEAVE_E2E_RUN_NAMESPACE", namespace)
     if declared_namespace != namespace:
         fail("WEAVE_E2E_RUN_NAMESPACE does not match the deterministic isolated run namespace")
+    contract_namespace = os.environ.get("WEAVE_E2E_NAMESPACE", namespace)
+    if contract_namespace != namespace:
+        fail("WEAVE_E2E_NAMESPACE does not match the deterministic isolated run namespace")
     root = f"./.generated/isolated/{namespace}"
     volume_prefix = namespace.replace("-", "_")
     env.update(
@@ -176,6 +183,7 @@ def _isolated_overrides(profile: str, env: dict[str, str]) -> tuple[dict[str, st
             "WEAVE_COMPOSE_PROJECT": namespace,
             "WEAVE_RESOURCE_PREFIX": namespace,
             "WEAVE_E2E_RUN_NAMESPACE": namespace,
+            "WEAVE_E2E_NAMESPACE": namespace,
             "WEAVE_STACK_SCOPE": "isolated",
             "WEAVE_DOCKER_NETWORK": f"{namespace}_network",
             "WEAVE_GENERATED_ROOT": root,
@@ -256,7 +264,7 @@ def load_context(profile: str, root: Path, supplied_env_file: str | None = None)
     resource_environment = (
         "persistent-dogfood"
         if profile == "test"
-        and env.get("WEAVE_DEPLOYMENT_CONTEXT") == "persistent-adoption"
+        and env.get("WEAVE_DEPLOYMENT_CONTEXT") == "persistent-dogfood"
         and os.environ.get("WEAVE_E2E_STACK_SCOPE") != "isolated"
         else profile
     )
@@ -290,6 +298,9 @@ def load_context(profile: str, root: Path, supplied_env_file: str | None = None)
     )
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", candidate_manifest_digest):
         fail("WEAVE_CANDIDATE_MANIFEST_DIGEST must be one full SHA-256 digest")
+    source_candidate_commit = os.environ.get("WEAVE_IMAGE_SOURCE_COMMIT", candidate_commit)
+    if not COMMIT_RE.fullmatch(source_candidate_commit):
+        fail("WEAVE_IMAGE_SOURCE_COMMIT must be one immutable implementation commit")
     env.update(
         {
             "WEAVE_RESOURCE_ENVIRONMENT": resource_environment,
@@ -298,6 +309,7 @@ def load_context(profile: str, root: Path, supplied_env_file: str | None = None)
             "WEAVE_SPEC_COMMIT": spec_commit,
             "WEAVE_SPEC_DIGEST": spec_digest,
             "WEAVE_CANDIDATE_COMMIT": candidate_commit,
+            "WEAVE_IMAGE_SOURCE_COMMIT": source_candidate_commit,
             "WEAVE_CANDIDATE_MANIFEST_DIGEST": candidate_manifest_digest,
         }
     )

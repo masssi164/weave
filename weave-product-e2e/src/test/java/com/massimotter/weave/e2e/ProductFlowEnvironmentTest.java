@@ -86,6 +86,7 @@ class ProductFlowEnvironmentTest {
                 new ProductFlowEnvironment(
                     "fixture-run-42",
                     "1".repeat(40),
+                    "4".repeat(40),
                     "2".repeat(40),
                     "weave-e2e-0123456789abcdef",
                     URI.create("https://weave.test:44443"),
@@ -93,10 +94,12 @@ class ProductFlowEnvironmentTest {
                     URI.create("https://auth.weave.test:44443/realms/weave"),
                     URI.create("http://127.0.0.1:38025/api/v1"),
                     URI.create("https://api.weave.test:44443/mcp"),
+                    URI.create("http://127.0.0.1:39025"),
                     input("ca.pem"),
                     input("leaf.pem"),
                     hosts("hosts"),
                     link,
+                    input("chat-proof-link-test.token"),
                     Files.createDirectories(temporaryDirectory.resolve("credentials-link-test")),
                     temporaryDirectory.resolve("evidence-link-test.json"),
                     input("restart-command"),
@@ -112,6 +115,7 @@ class ProductFlowEnvironmentTest {
     return new ProductFlowEnvironment(
         "fixture-run-42",
         "1".repeat(40),
+        "4".repeat(40),
         "2".repeat(40),
         "weave-e2e-0123456789abcdef",
         URI.create("https://weave.test:44443"),
@@ -119,10 +123,12 @@ class ProductFlowEnvironmentTest {
         issuer,
         mailpit,
         URI.create("https://api.weave.test:44443/mcp"),
+        URI.create("http://127.0.0.1:39025"),
         input("ca-" + temporaryDirectory.toFile().list().length + ".pem"),
         input("leaf-" + temporaryDirectory.toFile().list().length + ".pem"),
         hosts("hosts-" + temporaryDirectory.toFile().list().length),
         input("bootstrap-" + temporaryDirectory.toFile().list().length + ".token"),
+        input("chat-proof-" + temporaryDirectory.toFile().list().length + ".token"),
         Files.createDirectories(
             temporaryDirectory.resolve(
                 "credentials-" + temporaryDirectory.toFile().list().length)),

@@ -15,12 +15,11 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from compose_env import ComposeContext, ContractError, compose_environment, load_context, run
-from recovery_receipt import ReceiptContractError, validate_receipt
 
 
 COMMANDS = (
@@ -29,7 +28,6 @@ COMMANDS = (
     "config",
     "prepare",
     "provider-prepare",
-    "adoption-check",
     "up",
     "down",
     "ps",
@@ -38,6 +36,9 @@ COMMANDS = (
     "identity-apply",
     "identity-verify",
     "persistence-restart-proof",
+    "chat-provider-stop-proof",
+    "chat-provider-start-proof",
+    "collaboration-restart-proof",
 )
 RUNTIME_ROOT_SERVICES = {
     "dev": ("caddy", "mailpit"),
@@ -50,7 +51,6 @@ HOST_APPLICATION_SERVICES = (
     "mcp-secret-check",
     "mcp-keycloak-connectivity-check",
 )
-ADOPTION_RECEIPT_MAX_AGE = timedelta(hours=6)
 VOLUME_KEYS = (
     "WEAVE_CADDY_DATA_VOLUME",
     "WEAVE_CADDY_CONFIG_VOLUME",
@@ -191,100 +191,10 @@ def resource_labels_match(
     return owned
 
 
-def adoption_status(context: ComposeContext) -> dict[str, object]:
-    resources = []
-    for kind, name in sorted(resource_inventory(context)):
-        present, owned = inspect_resource(context, kind, name)
-        resources.append(
-            {
-                "kind": kind,
-                "name": name,
-                "state": "owned" if owned else "requires-adoption" if present else "absent",
-            }
-        )
-    database_volume = context.env["WEAVE_DB_DATA_VOLUME"]
-    return {
-        "schemaVersion": "weave.compose-adoption-preflight.v1",
-        "profile": context.profile,
-        "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
-        "deploymentContext": context.env["WEAVE_DEPLOYMENT_CONTEXT"],
-        "adoptionRequired": any(item["state"] == "requires-adoption" for item in resources),
-        "databaseVolumePresent": any(
-            item["kind"] == "volume" and item["name"] == database_volume and item["state"] != "absent"
-            for item in resources
-        ),
-        "resources": resources,
-        "supportSafe": True,
-        "containsSecretValues": False,
-    }
-
-
-def validate_adoption_receipt(context: ComposeContext, kind: str, name: str) -> None:
-    supplied = os.environ.get("WEAVE_ADOPTION_RECEIPT", "")
-    canonical = (context.generated_root / "adoption/adoption-receipt.json").resolve()
-    if not supplied:
-        raise ContractError(f"persistent adoption of Docker {kind} {name} requires WEAVE_ADOPTION_RECEIPT")
-    path = Path(supplied).expanduser()
-    try:
-        metadata = path.lstat()
-    except FileNotFoundError as error:
-        raise ContractError("WEAVE_ADOPTION_RECEIPT is unavailable") from error
-    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
-        raise ContractError("WEAVE_ADOPTION_RECEIPT must be a regular non-symlink file")
-    if path.resolve() != canonical:
-        raise ContractError("WEAVE_ADOPTION_RECEIPT must use the canonical generated-state path")
-    if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o600:
-        raise ContractError("WEAVE_ADOPTION_RECEIPT must be owner-controlled mode-0600")
-    try:
-        receipt = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
-        raise ContractError("WEAVE_ADOPTION_RECEIPT is not valid JSON") from error
-    candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
-    if not re.fullmatch(r"[0-9a-f]{40}", candidate):
-        raise ContractError("persistent adoption requires an exact WEAVE_CANDIDATE_COMMIT")
-    try:
-        validate_receipt(
-            receipt,
-            purpose="adoption",
-            candidate=candidate,
-            candidate_manifest_digest=context.env[
-                "WEAVE_CANDIDATE_MANIFEST_DIGEST"
-            ],
-            profile=context.profile,
-            compose_project=context.env["WEAVE_COMPOSE_PROJECT"],
-            maximum_age=ADOPTION_RECEIPT_MAX_AGE,
-        )
-    except ReceiptContractError as error:
-        raise ContractError(
-            "WEAVE_ADOPTION_RECEIPT does not authorize this exact adoption"
-        ) from error
-    supplied_resources = receipt.get("resources")
-    if not isinstance(supplied_resources, list):
-        raise ContractError("WEAVE_ADOPTION_RECEIPT has no resource inventory")
-    try:
-        observed_inventory = {
-            (item["kind"], item["name"])
-            for item in supplied_resources
-            if isinstance(item, dict) and set(item) == {"kind", "name"}
-        }
-    except (KeyError, TypeError) as error:
-        raise ContractError("WEAVE_ADOPTION_RECEIPT has an invalid resource inventory") from error
-    expected_inventory = resource_inventory(context)
-    if len(supplied_resources) != len(expected_inventory) or observed_inventory != expected_inventory:
-        raise ContractError("WEAVE_ADOPTION_RECEIPT resource inventory is incomplete or ambiguous")
-    if (
-        (kind, name) not in observed_inventory
-    ):
-        raise ContractError("WEAVE_ADOPTION_RECEIPT does not authorize this exact adoption")
-
-
 def ensure_resource(context: ComposeContext, kind: str, name: str) -> None:
     present, owned = inspect_resource(context, kind, name)
     if present:
         if owned:
-            return
-        if context.env["WEAVE_DEPLOYMENT_CONTEXT"] == "persistent-adoption":
-            validate_adoption_receipt(context, kind, name)
             return
         raise ContractError(f"refusing unowned existing Docker {kind} {name}")
     command = ["docker", kind, "create"]
@@ -786,8 +696,14 @@ def bootstrap_authority_available(context: ComposeContext) -> bool:
         ) from error
 
 
-def _service_container(context: ComposeContext, service: str) -> dict[str, Any]:
-    selected = compose(context, "ps", "-q", service, capture=True).stdout.strip().splitlines()
+def _service_container(
+    context: ComposeContext, service: str, *, include_stopped: bool = False
+) -> dict[str, Any]:
+    arguments = ["ps"]
+    if include_stopped:
+        arguments.append("--all")
+    arguments.extend(("-q", service))
+    selected = compose(context, *arguments, capture=True).stdout.strip().splitlines()
     if len(selected) != 1 or not re.fullmatch(r"[0-9a-f]{64}", selected[0]):
         raise ContractError(f"{service} does not resolve to one exact running container")
     inspected = subprocess.run(
@@ -812,8 +728,10 @@ def _service_container(context: ComposeContext, service: str) -> dict[str, Any]:
     return container
 
 
-def _service_snapshot(context: ComposeContext, service: str) -> dict[str, Any]:
-    container = _service_container(context, service)
+def _service_snapshot(
+    context: ComposeContext, service: str, *, include_stopped: bool = False
+) -> dict[str, Any]:
+    container = _service_container(context, service, include_stopped=include_stopped)
     state = container.get("State", {})
     health = state.get("Health", {}).get("Status", "none")
     return {
@@ -1065,6 +983,49 @@ def persistence_restart_proof(context: ComposeContext) -> None:
     )
 
 
+def isolated_collaboration_control(context: ComposeContext, operation: str) -> None:
+    if context.profile != "test" or context.isolated_namespace is None:
+        raise ContractError(
+            "collaboration service control is restricted to isolated testApp stacks"
+        )
+    if operation == "stop-provider":
+        before = _service_snapshot(context, "synapse")
+        compose(context, "stop", "--timeout", "20", "synapse")
+        snapshot = _service_snapshot(context, "synapse", include_stopped=True)
+        if snapshot["containerId"] != before["containerId"] or snapshot["running"]:
+            raise ContractError("isolated Synapse provider did not stop")
+        print("WEAVE_CHAT_PROVIDER_CONTROL_RESULT state=stopped supportSafe=true")
+        return
+    if operation == "start-provider":
+        compose(context, "start", "synapse")
+        _await_healthy(context, "synapse")
+        _await_healthy(context, "backend")
+        print("WEAVE_CHAT_PROVIDER_CONTROL_RESULT state=healthy supportSafe=true")
+        return
+    if operation == "restart-collaboration":
+        synapse_before = _service_snapshot(context, "synapse")
+        backend_before = _service_snapshot(context, "backend")
+        compose(context, "restart", "--no-deps", "--timeout", "20", "synapse")
+        synapse_after = _await_healthy(context, "synapse")
+        compose(context, "restart", "--no-deps", "--timeout", "20", "backend")
+        backend_after = _await_healthy(context, "backend")
+        if (
+            synapse_after["containerId"] != synapse_before["containerId"]
+            or synapse_after["startedAt"] == synapse_before["startedAt"]
+            or backend_after["containerId"] != backend_before["containerId"]
+            or backend_after["startedAt"] == backend_before["startedAt"]
+        ):
+            raise ContractError(
+                "collaboration service restart identity did not advance exactly"
+            )
+        print(
+            "WEAVE_COLLABORATION_RESTART_RESULT backend=healthy "
+            "synapse=healthy supportSafe=true"
+        )
+        return
+    raise ContractError("unsupported isolated collaboration control operation")
+
+
 def adopt_secret_updates(context: ComposeContext) -> None:
     updates = context.generated_root / "identity-ops/secret-updates"
     if not updates.exists():
@@ -1098,8 +1059,6 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         prepare(context)
     elif command == "provider-prepare":
         subprocess.run([str(context.root / "provision-matrix-default-workspace.sh")], cwd=context.root, env=compose_environment(context), check=True)
-    elif command == "adoption-check":
-        print(json.dumps(adoption_status(context), indent=2, sort_keys=True))
     elif command == "up":
         script(context, "init_secrets.py")
         script(context, "render_config.py")
@@ -1145,6 +1104,19 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         if extra:
             raise ContractError("persistence-restart-proof does not accept command arguments")
         persistence_restart_proof(context)
+    elif command in {
+        "chat-provider-stop-proof",
+        "chat-provider-start-proof",
+        "collaboration-restart-proof",
+    }:
+        if extra:
+            raise ContractError(f"{command} does not accept command arguments")
+        operation = {
+            "chat-provider-stop-proof": "stop-provider",
+            "chat-provider-start-proof": "start-provider",
+            "collaboration-restart-proof": "restart-collaboration",
+        }[command]
+        isolated_collaboration_control(context, operation)
     else:
         identity_ops(context, command)
 
