@@ -50,6 +50,7 @@ public class BoardsFacadeService {
     private final BoardsRepository boardsRepository;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final OrganizationIdentityContextResolver identityContexts;
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final AuditEventPublisher auditEventPublisher;
 
@@ -59,14 +60,33 @@ public class BoardsFacadeService {
             BoardsRepository boardsRepository,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContexts,
             WorkspaceCapabilityService workspaceCapabilityService,
             AuditEventPublisher auditEventPublisher) {
         this.runtimeGuard = runtimeGuard;
         this.boardsRepository = boardsRepository;
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.identityContexts = java.util.Objects.requireNonNull(identityContexts, "identityContexts");
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.auditEventPublisher = auditEventPublisher;
+    }
+
+    public BoardsFacadeService(
+            BoardsRuntimeGuard runtimeGuard,
+            BoardsRepository boardsRepository,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            AuditEventPublisher auditEventPublisher) {
+        this(
+                runtimeGuard,
+                boardsRepository,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                OrganizationIdentityContextResolver.configured(contextAuthorizationProperties),
+                workspaceCapabilityService,
+                auditEventPublisher);
     }
 
     public BoardsWorkspaceResponse workspace(Jwt jwt) {
@@ -211,13 +231,7 @@ public class BoardsFacadeService {
         if (jwt == null) {
             throw invalidAuthentication("JWT is missing");
         }
-        String tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantClaim());
-        if (tenantId == null) {
-            tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantFallbackClaim());
-        }
-        if (tenantId == null) {
-            throw invalidAuthentication("tenant claim is missing");
-        }
+        String tenantId = identityContexts.resolve(jwt).organizationId();
         String configuredClaim = jwtClaim(jwt, contextAuthorizationProperties.principalClaim());
         String principalRef = contextAuthorizationProperties.principalRef(configuredClaim != null ? configuredClaim : jwt.getSubject());
         if (principalRef == null) {

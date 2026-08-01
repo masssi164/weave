@@ -29,25 +29,26 @@ public class OrganizationManifestService {
 
     private final OAuth2ResourceServerProperties resourceServerProperties;
     private final WorkspaceCapabilityService workspaceCapabilityService;
-    private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final OrganizationIdentityContextResolver identityContexts;
     private final Clock clock;
 
     @Autowired
     public OrganizationManifestService(
             OAuth2ResourceServerProperties resourceServerProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
-            ContextAuthorizationProperties contextAuthorizationProperties) {
-        this(resourceServerProperties, workspaceCapabilityService, contextAuthorizationProperties, Clock.systemUTC());
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContexts) {
+        this(resourceServerProperties, workspaceCapabilityService, identityContexts, Clock.systemUTC());
     }
 
     OrganizationManifestService(
             OAuth2ResourceServerProperties resourceServerProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
-            ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContexts,
             Clock clock) {
         this.resourceServerProperties = resourceServerProperties;
         this.workspaceCapabilityService = workspaceCapabilityService;
-        this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.identityContexts = java.util.Objects.requireNonNull(identityContexts, "identityContexts");
         this.clock = clock;
     }
 
@@ -81,18 +82,15 @@ public class OrganizationManifestService {
     }
 
     private String organizationId(Jwt jwt) {
-        String tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantClaim());
-        if (tenantId == null) {
-            tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantFallbackClaim());
-        }
-        if (tenantId == null) {
+        try {
+            return identityContexts.resolve(jwt).organizationId();
+        } catch (RuntimeException exception) {
             throw new ApiErrorException(
                     HttpStatus.UNAUTHORIZED,
                     "organization-manifest-unauthorized",
                     "Organization manifest requires an authenticated organization tenant.",
-                    Map.of("reason", "tenant claim is missing"));
+                    Map.of("reason", "organization identity is missing"));
         }
-        return tenantId;
     }
 
     private String organizationDisplayName(Jwt jwt) {

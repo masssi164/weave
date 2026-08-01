@@ -50,6 +50,7 @@ public class ChatFacadeService {
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final OrganizationIdentityContextResolver identityContexts;
     private final ChatDomainFacadeService chatDomainFacadeService;
     private final AuditEventPublisher auditEventPublisher;
     private final ConcurrentMap<String, ChannelContextState> channelContexts = new ConcurrentHashMap<>();
@@ -62,15 +63,34 @@ public class ChatFacadeService {
             WorkspaceCapabilityService workspaceCapabilityService,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContexts,
             ChatDomainFacadeService chatDomainFacadeService,
             AuditEventPublisher auditEventPublisher) {
         this.workspaceCapabilityProperties = workspaceCapabilityProperties;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.identityContexts = java.util.Objects.requireNonNull(identityContexts, "identityContexts");
         this.chatDomainFacadeService = chatDomainFacadeService;
         this.auditEventPublisher = auditEventPublisher;
         seedChannelContexts();
+    }
+
+    public ChatFacadeService(
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            ChatDomainFacadeService chatDomainFacadeService,
+            AuditEventPublisher auditEventPublisher) {
+        this(
+                workspaceCapabilityProperties,
+                workspaceCapabilityService,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                OrganizationIdentityContextResolver.configured(contextAuthorizationProperties),
+                chatDomainFacadeService,
+                auditEventPublisher);
     }
 
     public DecisionLedgerRecordsResponse decisions(Jwt jwt, String conversationId) {
@@ -288,13 +308,7 @@ public class ChatFacadeService {
                     "Chat access requires an authenticated principal.",
                     Map.of("module", DOMAIN));
         }
-        String tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantClaim());
-        if (tenantId == null) {
-            tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantFallbackClaim());
-        }
-        if (tenantId == null) {
-            tenantId = contextAuthorizationProperties.defaultTenantId();
-        }
+        String tenantId = identityContexts.resolve(jwt).organizationId();
         String configuredClaim = jwtClaim(jwt, contextAuthorizationProperties.principalClaim());
         String principalRef = contextAuthorizationProperties.principalRef(configuredClaim != null ? configuredClaim : jwt.getSubject());
         if (principalRef == null) {

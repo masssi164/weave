@@ -385,6 +385,21 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
+    void organizationIdentityResolverExclusivelyOwnsHumanTenantClaimPrecedence()
+            throws IOException {
+        List<String> owners = productionSources().stream()
+                .filter(source -> source.text().contains(".tenantClaim()")
+                        || source.text().contains(".tenantFallbackClaim()"))
+                .map(source -> source.path().getFileName().toString())
+                .sorted()
+                .toList();
+
+        assertThat(owners)
+                .as("Human product services must consume the canonical Keycloak organization identity context.")
+                .containsExactly("OrganizationIdentityContextResolver.java");
+    }
+
+    @Test
     void serverCompositionContainsNoJpaEntityOrSpringDataRepositoryDeclaration()
             throws IOException {
         assertThat(productionSources())
