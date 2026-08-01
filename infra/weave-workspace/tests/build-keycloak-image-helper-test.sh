@@ -36,7 +36,11 @@ assert module.UPSTREAM_COMMIT == "6c73e3027811d9c7b22683edd825e839272e9547"
 assert module.UPSTREAM_TAG == "26.7.0"
 assert module.ARCHIVE_SHA256 == "32267c4f45db91874c46a097415c336d137ee184d25c3481a513905a92669186"
 assert module.STOCK_SERVICES_SHA256 == "052169f7907a21f4e26679bca5c7365627db91b071a7a2fcaeee00230e6b1419"
-assert module.SPEC_COMMIT == "498e5f4d07abb75b3b6dd8dda80fee6e64dc7399"
+specification_commit, specification_digest = module.specification_pin(repository)
+assert specification_commit == "6bbfb0ec1d85bdd9e24a9ce7785cb5c506c9edf0"
+assert specification_digest == "sha256:" + hashlib.sha256(
+    (repository / "specs/weave-specs.lock.json").read_bytes()
+).hexdigest()
 assert module.DOWNSTREAM_TEST_CLASSES == (
     "org.keycloak.services.clientpolicy.executor.WeaveWorkloadClientRegistrationExecutorTest",
     "org.keycloak.services.clientregistration.WeaveClientRegistrationAuthTest",
@@ -71,7 +75,7 @@ candidate = "a" * 40
 projection = {
     "schemaVersion": "weave.downstream-keycloak-build-evidence.v1",
     "candidateCommit": candidate,
-    "specificationCommit": module.SPEC_COMMIT,
+    "specificationCommit": specification_commit,
     "specificationLockDigest": "sha256:" + "1" * 64,
     "keycloakVersion": module.UPSTREAM_TAG,
     "upstreamCommit": module.UPSTREAM_COMMIT,
@@ -99,7 +103,7 @@ module.atomic_write(
     {
         "schemaVersion": "weave.downstream-keycloak-image.v1",
         "evidenceForCandidateCommit": candidate,
-        "specificationCommit": module.SPEC_COMMIT,
+        "specificationCommit": specification_commit,
         "upstreamCommit": projection["upstreamCommit"],
         "upstreamArchiveSha256": projection["upstreamArchiveSha256"],
         "stockReference": projection["stockReference"],
@@ -132,7 +136,7 @@ subprocess.run(
         "--candidate-commit",
         candidate,
         "--specification-commit",
-        module.SPEC_COMMIT,
+        specification_commit,
     ],
     check=True,
     stdout=subprocess.PIPE,
@@ -152,7 +156,7 @@ rejected = subprocess.run(
         "--candidate-commit",
         candidate,
         "--specification-commit",
-        module.SPEC_COMMIT,
+        specification_commit,
     ],
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,

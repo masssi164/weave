@@ -157,6 +157,7 @@ CONTEXT_PREPARED=true
 export WEAVE_E2E_RUN_ID WEAVE_E2E_RUN_NAMESPACE WEAVE_E2E_NAMESPACE WEAVE_ENV_FILE
 export WEAVE_TEST_APP_RUN_ROOT WEAVE_TEST_APP_RESTART_EVIDENCE_PATH
 export WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH
+export WEAVE_TEST_APP_TENANT_ID
 export WEAVE_PROXY_HTTP_HOST_PORT WEAVE_PROXY_HTTPS_HOST_PORT
 export WEAVE_KEYCLOAK_HOST_PORT WEAVE_KEYCLOAK_MANAGEMENT_HOST_PORT
 export WEAVE_MAILPIT_WEB_HOST_PORT WEAVE_MAS_HOST_PORT WEAVE_SYNAPSE_HOST_PORT
@@ -420,6 +421,7 @@ log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
   "-Dweave.e2e.source-candidate-commit=${image_source_commit}" \
   "-Dweave.e2e.specification-commit=${specification_commit}" \
   "-Dweave.e2e.compose-project=${WEAVE_E2E_RUN_NAMESPACE}" \
+  "-Dweave.e2e.tenant-id=${WEAVE_TEST_APP_TENANT_ID}" \
   "-Dweave.e2e.product-origin=${WEAVE_TEST_APP_PRODUCT_ORIGIN}" \
   "-Dweave.e2e.api-origin=${WEAVE_TEST_APP_API_ORIGIN}" \
   "-Dweave.e2e.issuer=${WEAVE_TEST_APP_ISSUER}" \

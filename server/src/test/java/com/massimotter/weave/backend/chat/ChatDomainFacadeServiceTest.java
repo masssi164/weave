@@ -150,6 +150,42 @@ class ChatDomainFacadeServiceTest {
     }
 
     @Test
+    void canonicalContextUsesTheConfiguredTenantWhenHumanTokensOmitTenantClaims() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "synapse-homeserver", false, List.of()));
+        WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
+        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+                capability(), capability(), capability(), capability(), capability(), capability());
+        when(capabilities.snapshot()).thenReturn(snapshot);
+        when(capabilities.snapshot(any())).thenReturn(snapshot);
+        ChatProviderPort provider = Mockito.mock(ChatProviderPort.class);
+        when(provider.configured()).thenReturn(true);
+        when(provider.providerSelectionKeys()).thenReturn(Set.of("synapse-homeserver"));
+        when(provider.readiness()).thenReturn(ProviderReadiness.ready("chat-provider-ready"));
+        when(provider.currentCursor(any(ChatRequestContext.class))).thenReturn(new ChatCursor("chat-revision-8"));
+        ChatDomainFacadeService service = new ChatDomainFacadeService(
+                new ProviderRegistry(List.of(chatProvider(true)), capabilities, selections),
+                selections,
+                capabilities,
+                new InMemoryAuditEventPublisher(),
+                provider,
+                allowAllContexts(),
+                contextProperties(),
+                FIXED);
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .issuer("https://auth.example/realms/weave")
+                .subject("member-with-configured-tenant")
+                .build();
+
+        assertThat(service.syncCursor(jwt)).isEqualTo("chat-revision-8");
+        ArgumentCaptor<ChatRequestContext> context = ArgumentCaptor.forClass(ChatRequestContext.class);
+        verify(provider).currentCursor(context.capture());
+        assertThat(context.getValue().tenantId()).isEqualTo("tenant-default");
+        assertThat(context.getValue().identityIssuer()).isEqualTo("https://auth.example/realms/weave");
+    }
+
+    @Test
     void matrixSendUsesCanonicalProviderAndPublishesSupportSafeAudit() {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "in-memory-test", false, List.of()));

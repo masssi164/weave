@@ -25,6 +25,7 @@ class ProductFlowEnvironmentTest {
 
     assertThat(environment.productOrigin()).isEqualTo(URI.create("https://weave.test:44443/"));
     assertThat(environment.apiOrigin()).isEqualTo(URI.create("https://api.weave.test:44443/"));
+    assertThat(environment.tenantId()).isEqualTo("tenant-default");
     assertThat(environment.api("/api/profile/readiness"))
         .isEqualTo(URI.create("https://api.weave.test:44443/api/profile/readiness"));
     assertThat(environment.oidc("/protocol/openid-connect/token"))
@@ -89,6 +90,7 @@ class ProductFlowEnvironmentTest {
                     "4".repeat(40),
                     "2".repeat(40),
                     "weave-e2e-0123456789abcdef",
+                    "tenant-default",
                     URI.create("https://weave.test:44443"),
                     URI.create("https://api.weave.test:44443"),
                     URI.create("https://auth.weave.test:44443/realms/weave"),
@@ -118,6 +120,7 @@ class ProductFlowEnvironmentTest {
         "4".repeat(40),
         "2".repeat(40),
         "weave-e2e-0123456789abcdef",
+        "tenant-default",
         URI.create("https://weave.test:44443"),
         apiOrigin,
         issuer,

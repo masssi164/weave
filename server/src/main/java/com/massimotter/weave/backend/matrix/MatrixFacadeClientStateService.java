@@ -4,6 +4,9 @@ import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatIdentityRef;
 import com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.service.OrganizationIdentityContext;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -31,17 +34,21 @@ public class MatrixFacadeClientStateService {
     private final java.util.Set<String> revokedTokenHashes = ConcurrentHashMap.newKeySet();
     private final MatrixFacadeClientStateStore stateStore;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final OrganizationIdentityContextResolver identityContextResolver;
     private final AtomicLong filterSequence = new AtomicLong();
 
     public MatrixFacadeClientStateService(
             MatrixProtocolCoreService matrixProtocolCoreService,
             MatrixFacadeClientStateStore stateStore,
-            ContextAuthorizationProperties contextAuthorizationProperties) {
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContextResolver) {
         this.matrixProtocolCoreService = java.util.Objects.requireNonNull(
                 matrixProtocolCoreService, "matrixProtocolCoreService");
         this.stateStore = java.util.Objects.requireNonNull(stateStore, "stateStore");
         this.contextAuthorizationProperties = java.util.Objects.requireNonNull(
                 contextAuthorizationProperties, "contextAuthorizationProperties");
+        this.identityContextResolver = java.util.Objects.requireNonNull(
+                identityContextResolver, "identityContextResolver");
     }
 
     public MatrixIdentity register(Jwt jwt, String requestedDeviceId) {
@@ -53,9 +60,10 @@ public class MatrixFacadeClientStateService {
         if (!(rawUserId instanceof String userId) || userId.isBlank()) {
             throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Matrix identity could not be projected.");
         }
-        String tenantId = tenantId(jwt);
-        String identityIssuer = identityIssuer(jwt);
-        ChatActorRef actorRef = new ChatActorRef("user:" + jwt.getSubject());
+        OrganizationIdentityContext identityContext = identityContextResolver.resolve(jwt);
+        String tenantId = identityContext.organizationId();
+        String identityIssuer = identityContext.issuer();
+        ChatActorRef actorRef = new ChatActorRef("user:" + identityContext.subject());
         String policyClaim = jwt.getClaimAsString(contextAuthorizationProperties.principalClaim());
         String authorizationPrincipalRef = contextAuthorizationProperties.principalRef(policyClaim);
         if (authorizationPrincipalRef == null) {
@@ -189,21 +197,24 @@ public class MatrixFacadeClientStateService {
         if (jwt == null) {
             return null;
         }
-        String tenant = jwt.getClaimAsString("weave_tenant_id");
-        String issuer = jwt.getIssuer() == null ? null : jwt.getIssuer().toString();
-        if (tenant == null || tenant.isBlank() || issuer == null || issuer.isBlank()
-                || jwt.getSubject() == null || jwt.getSubject().isBlank()) {
+        OrganizationIdentityContext identityContext;
+        try {
+            identityContext = identityContextResolver.resolve(jwt);
+        } catch (ApiErrorException invalidIdentity) {
             return null;
         }
+        String tenant = identityContext.organizationId();
+        String issuer = identityContext.issuer();
+        String subject = identityContext.subject();
         String tokenId = jwt.getClaimAsString("jti");
         if (tokenId != null && !tokenId.isBlank()) {
-            return tenant + "\u0000" + issuer + "\u0000" + jwt.getSubject() + "\u0000jti:" + tokenId;
+            return tenant + "\u0000" + issuer + "\u0000" + subject + "\u0000jti:" + tokenId;
         }
         String session = jwt.getClaimAsString("sid");
         if (session == null || session.isBlank()) {
             session = jwt.getClaimAsString("session_state");
         }
-        return tenant + "\u0000" + issuer + "\u0000" + jwt.getSubject()
+        return tenant + "\u0000" + issuer + "\u0000" + subject
                 + "\u0000session:" + session
                 + "\u0000issued:" + jwt.getIssuedAt() + "\u0000expires:" + jwt.getExpiresAt();
     }
@@ -246,29 +257,6 @@ public class MatrixFacadeClientStateService {
 
     private boolean validDeviceId(String value) {
         return value.matches("[A-Za-z0-9._=-]{8,128}");
-    }
-
-    private String tenantId(Jwt jwt) {
-        String value = jwt.getClaimAsString("weave_tenant_id");
-        if (value != null && !value.isBlank()) {
-            return value.trim();
-        }
-        throw new MatrixProtocolException(
-                "M_FORBIDDEN",
-                "The authoritative Weave tenant identity is missing.");
-    }
-
-    private String identityIssuer(Jwt jwt) {
-        if (jwt.getIssuer() == null || jwt.getIssuer().toString().isBlank()) {
-            throw new MatrixProtocolException("M_FORBIDDEN", "The OIDC identity issuer is missing.");
-        }
-        return jwt.getIssuer().toString();
-    }
-
-    private static ContextAuthorizationProperties defaultContextAuthorizationProperties() {
-        return new ContextAuthorizationProperties(
-                "weave_tenant_id", "tenant_id", "tenant-default", "sub", "user:",
-                List.of(), List.of(), List.of());
     }
 
     public record MatrixIdentity(

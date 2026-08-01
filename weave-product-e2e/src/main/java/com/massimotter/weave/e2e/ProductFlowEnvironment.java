@@ -19,6 +19,7 @@ record ProductFlowEnvironment(
     String sourceCandidateCommit,
     String specificationCommit,
     String composeProject,
+    String tenantId,
     URI productOrigin,
     URI apiOrigin,
     URI issuer,
@@ -41,6 +42,7 @@ record ProductFlowEnvironment(
       Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{7,159}");
   private static final Pattern GIT_COMMIT = Pattern.compile("[0-9a-f]{40}");
   private static final Pattern COMPOSE_PROJECT = Pattern.compile("weave-e2e-[0-9a-f]{16}");
+  private static final Pattern TENANT_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{0,127}");
   private static final Pattern SHA256 = Pattern.compile("sha256:[0-9a-f]{64}");
 
   ProductFlowEnvironment {
@@ -58,6 +60,9 @@ record ProductFlowEnvironment(
     }
     if (composeProject == null || !COMPOSE_PROJECT.matcher(composeProject).matches()) {
       throw new IllegalArgumentException("weave.e2e.compose-project is invalid");
+    }
+    if (tenantId == null || !TENANT_ID.matcher(tenantId).matches()) {
+      throw new IllegalArgumentException("weave.e2e.tenant-id is invalid");
     }
     productOrigin = requireHttpsOrigin(productOrigin, "weave.e2e.product-origin");
     apiOrigin = requireHttpsOrigin(apiOrigin, "weave.e2e.api-origin");
@@ -124,6 +129,7 @@ record ProductFlowEnvironment(
         required("source-candidate-commit"),
         required("specification-commit"),
         required("compose-project"),
+        required("tenant-id"),
         URI.create(required("product-origin")),
         URI.create(required("api-origin")),
         URI.create(required("issuer")),

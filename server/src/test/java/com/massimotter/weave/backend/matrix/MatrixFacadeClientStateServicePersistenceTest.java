@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixIdentityProjec
 import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixRevokedSessionJpaRepository;
 
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -29,20 +30,26 @@ class MatrixFacadeClientStateServicePersistenceTest {
         ContextAuthorizationProperties authorization = new ContextAuthorizationProperties(
                 "weave_tenant_id",
                 "tenant_id",
-                "tenant-default",
+                "tenant-projection",
                 "sub",
                 "user:",
                 List.of(),
                 List.of(),
                 List.of());
         MatrixFacadeClientStateStore stateStore = stateStore(dataSource);
+        OrganizationIdentityContextResolver identityContextResolver =
+                OrganizationIdentityContextResolver.configured(authorization);
         MatrixFacadeClientStateService first =
-                new MatrixFacadeClientStateService(protocol, stateStore, authorization);
+                new MatrixFacadeClientStateService(
+                        protocol, stateStore, authorization, identityContextResolver);
 
+        Jwt session = jwt();
         MatrixFacadeClientStateService.MatrixIdentity registered =
-                first.register(jwt(), "WEAVEDEVICEPROJECTION");
+                first.register(session, "WEAVEDEVICEPROJECTION");
+        first.revoke(session);
         MatrixFacadeClientStateService restarted =
-                new MatrixFacadeClientStateService(protocol, stateStore(dataSource), authorization);
+                new MatrixFacadeClientStateService(
+                        protocol, stateStore(dataSource), authorization, identityContextResolver);
 
         assertThat(registered.userId()).isEqualTo(matrixUserId);
         assertThat(restarted.identityForMatrixUserId(
@@ -53,17 +60,17 @@ class MatrixFacadeClientStateServicePersistenceTest {
                     assertThat(identity.actorRef().value()).isEqualTo("user:subject-projection");
                     assertThat(identity.authorizationPrincipalRef()).isEqualTo("user:subject-projection");
                 });
+        assertThat(restarted.revoked(session)).isTrue();
     }
 
     private Jwt jwt() {
-        Instant issuedAt = Instant.parse("2026-07-15T10:00:00Z");
+        Instant issuedAt = Instant.now().minusSeconds(60);
         return Jwt.withTokenValue("opaque-token")
                 .header("alg", "none")
                 .subject("subject-projection")
                 .issuer("https://auth.example/realms/weave")
                 .issuedAt(issuedAt)
                 .expiresAt(issuedAt.plusSeconds(3600))
-                .claim("weave_tenant_id", "tenant-projection")
                 .claim("sid", "session-projection")
                 .build();
     }

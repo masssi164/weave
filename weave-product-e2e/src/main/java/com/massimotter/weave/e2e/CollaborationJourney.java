@@ -249,10 +249,8 @@ final class CollaborationJourney {
       OidcBrowserJourney.TokenSet session, JsonNode claims, String role) {
     String issuer = claims.path("iss").asString();
     String subject = claims.path("sub").asString();
-    String tenant = claims.path("weave_tenant_id").asString();
     if (issuer.isBlank()
         || subject.isBlank()
-        || tenant.isBlank()
         || !issuer.equals(environment.issuer().toString())) {
       throw new ProductFlowException(role + " collaboration identity claims are incomplete");
     }
@@ -260,7 +258,7 @@ final class CollaborationJourney {
         role,
         session.accessToken(),
         issuer,
-        tenant,
+        environment.tenantId(),
         "user:" + subject,
         "sha256:" + Hashing.sha256(issuer + "\u0000" + subject));
   }

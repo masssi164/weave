@@ -52,7 +52,7 @@ public final class OrganizationIdentityContextResolver {
         return new OrganizationIdentityContextResolver(defaultProperties());
     }
 
-    static OrganizationIdentityContextResolver configured(
+    public static OrganizationIdentityContextResolver configured(
             ContextAuthorizationProperties properties) {
         return new OrganizationIdentityContextResolver(properties);
     }

@@ -28,6 +28,7 @@ import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateStore;
 import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.testing.InMemoryMatrixFacadeClientStateStore;
 import java.time.Instant;
 import java.util.List;
@@ -79,6 +80,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiExceptionHandler.class,
         MatrixProtocolCoreService.class,
         MatrixFacadeClientStateService.class,
+        OrganizationIdentityContextResolver.class,
         InMemoryMatrixFacadeClientStateStore.class,
         MatrixE2eeStateService.class
 })
@@ -1056,7 +1058,6 @@ class MatrixClientServerProjectionControllerTest {
                         .claim("sid", "weave-test-session-" + tokenValue)
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("aud", List.of("weave-app"))
-                        .claim("weave_tenant_id", "tenant-default")
                         .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
