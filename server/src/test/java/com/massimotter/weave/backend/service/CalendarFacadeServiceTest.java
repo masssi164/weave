@@ -96,6 +96,22 @@ class CalendarFacadeServiceTest {
     }
 
     @Test
+    void resolvesTheConfiguredOrganizationWhenLegacyTenantClaimsAreAbsent() {
+        AtomicReference<ContextAuthorizationRequest> capturedRequest = new AtomicReference<>();
+        ContextAuthorizationPort authorization = request -> {
+            capturedRequest.set(request);
+            return ContextAuthorizationDecision.allow("test allow");
+        };
+        SecurityContextHolder.getContext().setAuthentication(
+                new TestingAuthenticationToken(jwtWithoutLegacyTenantClaims(), null));
+
+        service(new StubCalendarProvider(), authorization).scopes();
+
+        assertThat(capturedRequest.get().tenantId()).isEqualTo("tenant-default");
+        assertThat(capturedRequest.get().principalRef()).isEqualTo("user:massimo");
+    }
+
+    @Test
     void listReturnsChannelScopedEventsWithoutProviderReferences() {
         AtomicReference<CalendarScope> capturedScope = new AtomicReference<>();
         CalendarProviderPort adapter = new StubCalendarProvider() {
@@ -481,6 +497,7 @@ class CalendarFacadeServiceTest {
                 "https://files.weave.test",
                 contextAuthorizationPort,
                 contextAuthorizationProperties(),
+                OrganizationIdentityContextResolver.configured(contextAuthorizationProperties()),
                 new DeviceCredentialService(new InMemoryDeviceCredentialRepository()),
                 workspaceCapabilityService());
     }
@@ -556,6 +573,16 @@ class CalendarFacadeServiceTest {
                 .subject("user-123")
                 .claim("preferred_username", "massimo")
                 .claim("weave_tenant_id", "tenant-default")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
+                .build();
+    }
+
+    private Jwt jwtWithoutLegacyTenantClaims() {
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .issuer("https://auth.weave.test/realms/weave")
+                .subject("user-123")
+                .claim("preferred_username", "massimo")
                 .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
                 .build();
     }

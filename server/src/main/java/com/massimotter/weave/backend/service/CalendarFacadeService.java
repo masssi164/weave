@@ -75,6 +75,7 @@ public class CalendarFacadeService {
     private final String calDavPublicBaseUrl;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final OrganizationIdentityContextResolver identityContexts;
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final AppleMobileConfigProfileRenderer appleProfileRenderer;
     private final DeviceCredentialService deviceCredentialService;
@@ -87,6 +88,7 @@ public class CalendarFacadeService {
             @Value("${weave.calendar.caldav.public-base-url:https://calendar.weave.test}") String calDavPublicBaseUrl,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContexts,
             DeviceCredentialService deviceCredentialService,
             WorkspaceCapabilityService workspaceCapabilityService) {
         this.calendarProviderPortProvider = calendarProviderPortProvider;
@@ -94,6 +96,7 @@ public class CalendarFacadeService {
         this.contextAuthorizationProperties = contextAuthorizationProperties == null
                 ? new ContextAuthorizationProperties(null, null, null, null, null, null, null, null)
                 : contextAuthorizationProperties;
+        this.identityContexts = java.util.Objects.requireNonNull(identityContexts, "identityContexts");
         this.calDavPublicBaseUrl = calDavPublicBaseUrl == null || calDavPublicBaseUrl.isBlank()
                 ? "https://calendar.weave.test"
                 : calDavPublicBaseUrl.trim();
@@ -1041,7 +1044,9 @@ public class CalendarFacadeService {
 
     private PrincipalContext principalContext(Authentication authentication) {
         if (authentication.getPrincipal() instanceof Jwt jwt) {
-            return new PrincipalContext(jwtTenantId(jwt), jwtPrincipalRef(jwt));
+            return new PrincipalContext(
+                    identityContexts.resolve(jwt).organizationId(),
+                    jwtPrincipalRef(jwt));
         }
         String principalRef = contextAuthorizationProperties.principalRef(authentication.getName());
         if (principalRef == null) {
@@ -1060,17 +1065,6 @@ public class CalendarFacadeService {
                     Map.of("module", "calendar"));
         }
         return principalContext(authentication);
-    }
-
-    private String jwtTenantId(Jwt jwt) {
-        String tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantClaim());
-        if (tenantId == null) {
-            tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantFallbackClaim());
-        }
-        if (tenantId == null) {
-            throw invalidAuthentication("tenant claim is missing");
-        }
-        return tenantId;
     }
 
     private String jwtPrincipalRef(Jwt jwt) {
