@@ -11,7 +11,7 @@ services:
 
   backend:
     environment:
-      WEAVE_RELEASE_POSTURE: test
+      WEAVE_RELEASE_POSTURE: dogfood
     depends_on:
       runtime-state-init:
         condition: service_completed_successfully

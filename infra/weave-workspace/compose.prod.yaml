@@ -6,4 +6,4 @@ services:
 
   backend:
     environment:
-      WEAVE_RELEASE_POSTURE: prod
+      WEAVE_RELEASE_POSTURE: stable
