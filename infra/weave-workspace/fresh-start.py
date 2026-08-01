@@ -105,7 +105,7 @@ def classify_labels(
         f"{LABEL_PREFIX}{key}" for key in REQUIRED_CURRENT_LABELS
     }
     if not ownership_label_keys.intersection(labels):
-        return "legacy-exact-allowlist", {}
+        return "legacy-exact-allowlist", dict(sorted(weave_labels.items()))
     missing = [f"{LABEL_PREFIX}{key}" for key in REQUIRED_CURRENT_LABELS if f"{LABEL_PREFIX}{key}" not in labels]
     mismatched = {
         key: {"expected": value, "actual": labels.get(key)}
@@ -478,13 +478,7 @@ def assert_snapshot_unchanged(target: dict[str, Any], label: str) -> None:
         key: value for key, value in current_labels.items() if key.startswith(LABEL_PREFIX)
     }
     if current_id != target["resourceId"] or current_weave_labels != target["ownershipLabels"]:
-        if target.get("ownershipClassification") == "legacy-exact-allowlist":
-            if current_id != target["resourceId"] or any(
-                key.startswith(LABEL_PREFIX) for key in current_labels
-            ):
-                fail(f"{label} {target['name']} changed after planning")
-        else:
-            fail(f"{label} {target['name']} changed after planning")
+        fail(f"{label} {target['name']} changed after planning")
     if target.get("imageId") and image_id != target["imageId"]:
         fail(f"{label} container image changed for {target['name']}")
 

@@ -66,7 +66,7 @@ kind="${1:-}"
 operation="${2:-}"
 name="${3:-}"
 if [[ "${operation}" == ls ]]; then
-  [[ "${MOCK_LABEL_MODE:-legacy}" != legacy ]] || exit 0
+  [[ "${MOCK_LABEL_MODE:-legacy}" == current || "${MOCK_LABEL_MODE:-legacy}" == partial ]] || exit 0
   case "${kind}" in
     container)
       [[ -f "${MOCK_STATE}/container-weave-backend" ]] ||
@@ -112,7 +112,8 @@ if [[ "${operation}" == inspect ]]; then
       labels='{"com.massimotter.weave.managed":"true"}'
       ;;
     metadata-only)
-      labels='{"com.massimotter.weave.keycloak.version":"26.7.0"}'
+      labels="$(jq -cn --arg version "${MOCK_METADATA_VERSION:-26.7.0}" \
+        '{"com.massimotter.weave.keycloak.version":$version}')"
       ;;
   esac
   suffix=""
@@ -171,6 +172,27 @@ plan() {
       --output "${PLAN}"
 }
 
+write_approval() {
+  python3 - "${APPROVAL_EVIDENCE}" "$1" <<'PY'
+import json
+import sys
+
+path, digest = sys.argv[1:]
+payload = {
+    "schemaVersion": "weave.infra.fresh-start-approval.v1",
+    "supportSafe": True,
+    "decision": "approved",
+    "environment": "persistent-dogfood",
+    "planSha256": digest,
+    "operationNonce": "fresh-start-op-0001",
+    "approverRole": "weave-platform-ops-lead",
+    "evidenceRef": "https://evidence.weave.test/fresh-start/approval",
+}
+with open(path, "wb") as output:
+    output.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode())
+PY
+}
+
 plan legacy >/dev/null
 first_digest="$(shasum -a 256 "${PLAN}" | awk '{print $1}')"
 cp "${PLAN}" "${TMP_DIR}/first-plan.json"
@@ -189,24 +211,7 @@ jq -e --arg specDigest "${SPEC_DIGEST}" '
   all(.targets[]; .ownershipClassification == "legacy-exact-allowlist")
 ' "${PLAN}" >/dev/null
 
-python3 - "${APPROVAL_EVIDENCE}" "${first_digest}" <<'PY'
-import json
-import sys
-
-path, digest = sys.argv[1:]
-payload = {
-    "schemaVersion": "weave.infra.fresh-start-approval.v1",
-    "supportSafe": True,
-    "decision": "approved",
-    "environment": "persistent-dogfood",
-    "planSha256": digest,
-    "operationNonce": "fresh-start-op-0001",
-    "approverRole": "weave-platform-ops-lead",
-    "evidenceRef": "https://evidence.weave.test/fresh-start/approval",
-}
-with open(path, "wb") as output:
-    output.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode())
-PY
+write_approval "${first_digest}"
 
 if PATH="${MOCK_BIN}:${PATH}" MOCK_REMOVALS="${REMOVALS}" \
   MOCK_STATE="${MOCK_STATE}" "${SCRIPT}" apply --manifest "${PLAN}" \
@@ -260,7 +265,29 @@ if plan partial >/dev/null 2>&1; then
 fi
 
 plan metadata-only >/dev/null
-jq -e 'all(.targets[]; .ownershipClassification == "legacy-exact-allowlist")' "${PLAN}" >/dev/null
+jq -e '
+  all(.targets[];
+    .ownershipClassification == "legacy-exact-allowlist" and
+    .ownershipLabels == {"com.massimotter.weave.keycloak.version":"26.7.0"}
+  )
+' "${PLAN}" >/dev/null
+metadata_digest="$(shasum -a 256 "${PLAN}" | awk '{print $1}')"
+write_approval "${metadata_digest}"
+if PATH="${MOCK_BIN}:${PATH}" MOCK_LABEL_MODE=metadata-only MOCK_METADATA_VERSION=26.7.1 \
+  MOCK_REMOVALS="${REMOVALS}" MOCK_STATE="${MOCK_STATE}" \
+  "${SCRIPT}" apply --manifest "${PLAN}" --allowlist "${ALLOWLIST}" \
+    --approval-evidence "${APPROVAL_EVIDENCE}" \
+    --lock-file "${TMP_DIR}/fresh-start.lock" \
+    --confirm "DELETE_OLD_WEAVE:${metadata_digest}" >/dev/null 2>&1; then
+  echo "changed informational metadata was accepted" >&2
+  exit 1
+fi
+PATH="${MOCK_BIN}:${PATH}" MOCK_LABEL_MODE=metadata-only MOCK_REMOVALS="${REMOVALS}" \
+  MOCK_STATE="${MOCK_STATE}" "${SCRIPT}" apply --manifest "${PLAN}" \
+    --allowlist "${ALLOWLIST}" --approval-evidence "${APPROVAL_EVIDENCE}" \
+    --lock-file "${TMP_DIR}/fresh-start.lock" \
+    --confirm "DELETE_OLD_WEAVE:${metadata_digest}" >/dev/null
+rm -f "${MOCK_STATE}"/*
 
 plan current >/dev/null
 jq -e 'all(.targets[]; .ownershipClassification == "current-exact-labels")' "${PLAN}" >/dev/null
