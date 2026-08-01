@@ -6,6 +6,7 @@ import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixRevokedSession
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -181,7 +182,18 @@ class MatrixFacadeClientStateServicePersistenceTest {
             assertThat(identities.count()).isEqualTo(1);
 
             List<Future<?>> revocationsInFlight = new ArrayList<>();
-            Jwt revocationSession = jwt();
+            Instant revocationIssuedAt = Instant.now()
+                    .minusSeconds(60)
+                    .truncatedTo(ChronoUnit.SECONDS)
+                    .plusNanos(123_456_789);
+            Jwt revocationSession = Jwt.withTokenValue("opaque-token-subject-projection")
+                    .header("alg", "none")
+                    .subject("subject-projection")
+                    .issuer("https://auth.example/realms/weave")
+                    .issuedAt(revocationIssuedAt)
+                    .expiresAt(revocationIssuedAt.plusSeconds(3600))
+                    .claim("sid", "session-projection")
+                    .build();
             for (int index = 0; index < 2; index++) {
                 revocationsInFlight.add(executor.submit(() -> {
                     outerTransaction.revoke(service, revocationSession);

@@ -10,6 +10,7 @@ import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixRevokedSession
 import jakarta.persistence.OptimisticLockException;
 import jakarta.persistence.PersistenceException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -110,13 +111,18 @@ public class JpaMatrixFacadeClientStateStore implements MatrixFacadeClientStateS
 
     @Override
     public void revokeSession(String sessionHash, Instant revokedAt, Instant expiresAt) {
+        Instant persistedRevokedAt = databaseInstant(revokedAt);
+        Instant persistedExpiresAt = databaseInstant(expiresAt);
         RuntimeException lastConflict = null;
         for (int attempt = 1; attempt <= MAX_CONCURRENT_WRITE_ATTEMPTS; attempt++) {
             boolean[] attemptedCreate = {false};
             try {
                 transactions.executeWithoutResult(
                         status -> revokeSessionInTransaction(
-                                sessionHash, revokedAt, expiresAt, attemptedCreate));
+                                sessionHash,
+                                persistedRevokedAt,
+                                persistedExpiresAt,
+                                attemptedCreate));
                 return;
             } catch (OptimisticLockingFailureException | OptimisticLockException conflict) {
                 lastConflict = conflict;
@@ -155,6 +161,10 @@ public class JpaMatrixFacadeClientStateStore implements MatrixFacadeClientStateS
         attemptedCreate[0] = true;
         revokedSessions.saveAndFlush(
                 new MatrixRevokedSessionJpaEntity(sessionHash, revokedAt, expiresAt));
+    }
+
+    private Instant databaseInstant(Instant value) {
+        return requireNonNull(value, "Matrix session timestamp").truncatedTo(ChronoUnit.MICROS);
     }
 
     @Override
