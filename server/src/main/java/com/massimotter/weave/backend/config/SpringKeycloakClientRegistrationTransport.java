@@ -320,14 +320,41 @@ public final class SpringKeycloakClientRegistrationTransport
   }
 
   private static void requireNonCacheable(HttpHeaders headers) {
-    String cacheControl = headers == null ? null : headers.getCacheControl();
     if (headers == null
-        || cacheControl == null
-        || !cacheControl.contains("no-store")
+        || !containsValuelessCacheControlDirective(headers, "no-store")
         || !"no-cache".equalsIgnoreCase(headers.getFirst("Pragma"))) {
       throw new RuntimeWorkloadIdentityException(
           "Keycloak returned an unsafe registration handoff response");
     }
+  }
+
+  private static boolean containsValuelessCacheControlDirective(
+      HttpHeaders headers, String requiredDirective) {
+    for (String headerValue : headers.getOrEmpty(HttpHeaders.CACHE_CONTROL)) {
+      boolean quoted = false;
+      boolean escaped = false;
+      int directiveStart = 0;
+      for (int index = 0; index <= headerValue.length(); index++) {
+        boolean atEnd = index == headerValue.length();
+        char character = atEnd ? '\0' : headerValue.charAt(index);
+        if (!atEnd && quoted && character == '\\' && !escaped) {
+          escaped = true;
+          continue;
+        }
+        if (!atEnd && character == '"' && !escaped) {
+          quoted = !quoted;
+        }
+        if (atEnd || (!quoted && character == ',')) {
+          String directive = headerValue.substring(directiveStart, index).strip();
+          if (requiredDirective.equalsIgnoreCase(directive)) {
+            return true;
+          }
+          directiveStart = index + 1;
+        }
+        escaped = false;
+      }
+    }
+    return false;
   }
 
   private static JsonNode exchangeJson(Exchange<JsonNode> exchange) {

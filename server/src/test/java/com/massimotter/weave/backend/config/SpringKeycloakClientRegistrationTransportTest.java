@@ -72,11 +72,22 @@ class SpringKeycloakClientRegistrationTransportTest {
                 403,
                 "{\"error\":\"insufficient_scope\","
                     + "\"error_description\":\"Policy 'Allowed Client Scopes' rejected request\"}");
+          } else if ("Bearer misleading-cache-control".equals(authorization.get())) {
+            exchange.getResponseHeaders().set("Cache-Control", "private=\"no-store\"");
+            exchange.getResponseHeaders().set("Pragma", "no-cache");
+            respond(exchange, 200, "{}");
           } else if (exchange
               .getRequestURI()
               .getPath()
               .endsWith("/weave-registration-handoff/recover")) {
-            noStore(exchange);
+            if ("Bearer mixed-case-cache-control".equals(authorization.get())) {
+              exchange
+                  .getResponseHeaders()
+                  .set("Cache-Control", "private, No-Store, MAX-AGE=0");
+              exchange.getResponseHeaders().set("Pragma", "No-Cache");
+            } else {
+              noStore(exchange);
+            }
             respond(exchange, 200, "{}");
           } else if (exchange
               .getRequestURI()
@@ -219,6 +230,47 @@ class SpringKeycloakClientRegistrationTransportTest {
                 .KeycloakClientRegistrationTransport.FinalizeResult.FINALIZED);
     assertThat(body).hasValue("");
     assertThat(authorization).hasValue("Bearer rat-current");
+  }
+
+  @Test
+  void acceptsCaseInsensitiveNoStoreAsAnExactCacheControlDirective() {
+    SpringKeycloakClientRegistrationTransport transport =
+        new SpringKeycloakClientRegistrationTransport(
+            base, ISSUER, "weave", Duration.ofSeconds(2));
+    URI registration =
+        URI.create(
+            "https://auth.weave.test/realms/weave/clients-registrations/openid-connect/"
+                + CLIENT_ID);
+
+    transport.recover(
+        CLIENT_ID,
+        registration,
+        "mixed-case-cache-control",
+        proof(RegistrationHandoffOperation.CREATE));
+
+    assertThat(authorization).hasValue("Bearer mixed-case-cache-control");
+  }
+
+  @Test
+  void rejectsNoStoreTextInsideAnotherCacheControlDirectiveValue() {
+    SpringKeycloakClientRegistrationTransport transport =
+        new SpringKeycloakClientRegistrationTransport(
+            base, ISSUER, "weave", Duration.ofSeconds(2));
+    URI registration =
+        URI.create(
+            "https://auth.weave.test/realms/weave/clients-registrations/openid-connect/"
+                + CLIENT_ID);
+
+    assertThatThrownBy(
+            () ->
+                transport.recover(
+                    CLIENT_ID,
+                    registration,
+                    "misleading-cache-control",
+                    proof(RegistrationHandoffOperation.CREATE)))
+        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .hasMessageContaining("unsafe registration handoff response")
+        .hasMessageNotContaining("misleading-cache-control");
   }
 
   @Test
