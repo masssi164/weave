@@ -221,6 +221,25 @@ class FileRuntimeWorkloadCredentialStoreTest {
     }
 
     @Test
+    void registrationLifecycleLockRejectsAPreCreatedSymlink() throws Exception {
+        Path lockDirectory = temporary.resolve(
+                "weave/agent-runtime/registration-lifecycle-locks");
+        Files.createDirectories(lockDirectory);
+        Path outside = temporary.resolve("outside-registration-lifecycle-lock");
+        Files.writeString(outside, "outside");
+        Files.createSymbolicLink(lockDirectory.resolve(CLIENT_ID + ".lock"), outside);
+
+        assertThatThrownBy(() -> store.withRegistrationLifecycleLock(
+                        CLIENT_ID,
+                        () -> {
+                            throw new AssertionError("the protected operation must not run");
+                        }))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("regular non-symlink");
+        assertThat(Files.readString(outside)).isEqualTo("outside");
+    }
+
+    @Test
     void registrationAuthorityIsBoundToTheExactPublicRealmAndClient() {
         URI issuer = URI.create("https://auth.weave.test/realms/weave");
         FileRuntimeWorkloadCredentialStore strict =

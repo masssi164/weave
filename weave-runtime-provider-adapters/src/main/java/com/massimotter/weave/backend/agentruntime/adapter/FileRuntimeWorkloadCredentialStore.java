@@ -547,12 +547,8 @@ public final class FileRuntimeWorkloadCredentialStore
         local.lock();
         try {
             ensureDirectory(lockPath.getParent());
-            try (FileChannel channel = FileChannel.open(
-                            lockPath,
-                            StandardOpenOption.CREATE,
-                            StandardOpenOption.WRITE);
+            try (FileChannel channel = openOwnerLockFile(lockPath);
                     FileLock ignored = channel.lock()) {
-                setFilePermissions(lockPath, OWNER_FILE_PERMISSIONS);
                 return operation.call();
             } catch (RuntimeWorkloadIdentityException failure) {
                 throw failure;
@@ -1697,12 +1693,8 @@ public final class FileRuntimeWorkloadCredentialStore
         try {
             ensureDirectory(target.getParent());
             Path lockPath = target.resolveSibling(target.getFileName() + ".lock");
-            try (FileChannel channel = FileChannel.open(
-                            lockPath,
-                            StandardOpenOption.CREATE,
-                            StandardOpenOption.WRITE);
+            try (FileChannel channel = openOwnerLockFile(lockPath);
                     FileLock ignored = channel.lock()) {
-                setFilePermissions(lockPath, OWNER_FILE_PERMISSIONS);
                 return operation.call();
             } catch (RuntimeWorkloadIdentityException exception) {
                 throw exception;
@@ -1882,6 +1874,36 @@ public final class FileRuntimeWorkloadCredentialStore
                     PosixFilePermissions.asFileAttribute(OWNER_FILE_PERMISSIONS));
         } catch (UnsupportedOperationException unsupported) {
             return Files.createTempFile(directory, prefix, suffix);
+        }
+    }
+
+    private static FileChannel openOwnerLockFile(Path lockPath) throws IOException {
+        if (Files.exists(lockPath, LinkOption.NOFOLLOW_LINKS)
+                && (!Files.isRegularFile(lockPath, LinkOption.NOFOLLOW_LINKS)
+                        || Files.isSymbolicLink(lockPath))) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The SecretRef lock must be a regular non-symlink file");
+        }
+        Set<java.nio.file.OpenOption> options = Set.of(
+                StandardOpenOption.CREATE,
+                StandardOpenOption.WRITE,
+                LinkOption.NOFOLLOW_LINKS);
+        FileChannel channel;
+        try {
+            channel = FileChannel.open(
+                    lockPath,
+                    options,
+                    PosixFilePermissions.asFileAttribute(OWNER_FILE_PERMISSIONS));
+        } catch (UnsupportedOperationException unsupported) {
+            channel = FileChannel.open(lockPath, options);
+        }
+        try {
+            setFilePermissions(lockPath, OWNER_FILE_PERMISSIONS);
+            requireSecureRegularFile(lockPath);
+            return channel;
+        } catch (IOException | RuntimeException failure) {
+            channel.close();
+            throw failure;
         }
     }
 
