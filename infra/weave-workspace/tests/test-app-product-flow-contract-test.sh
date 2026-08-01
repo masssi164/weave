@@ -43,6 +43,46 @@ python3 -m py_compile \
   "${RUNTIME_IMAGE_EVIDENCE}"
 python3 -m unittest "${DCR_CONTRACT_PROBE_TEST}"
 
+CONTEXT_TEST_OUTPUT_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/weave-testapp-context-contract.XXXXXX")"
+CONTEXT_TEST_NAMESPACE=""
+cleanup_context_contract() {
+  local status="$?" cleanup_status=0
+  set +e
+  if [[ -n "${CONTEXT_TEST_NAMESPACE}" ]]; then
+    python3 "${RUNTIME_CLEANUP}" \
+      --repository-root "${REPOSITORY_ROOT}" \
+      --output-root "${CONTEXT_TEST_OUTPUT_ROOT}" \
+      --namespace "${CONTEXT_TEST_NAMESPACE}" >/dev/null || cleanup_status=$?
+  fi
+  rm -rf -- "${CONTEXT_TEST_OUTPUT_ROOT}" || cleanup_status=$?
+  if ((status != 0)); then
+    return "${status}"
+  fi
+  return "${cleanup_status}"
+}
+trap cleanup_context_contract EXIT
+context_assignments="$(
+  python3 "${CONTEXT_HELPER}" \
+    --repository-root "${REPOSITORY_ROOT}" \
+    --output-root "${CONTEXT_TEST_OUTPUT_ROOT}" \
+    --run-id contract-tenant-42
+)"
+eval "${context_assignments}"
+CONTEXT_TEST_NAMESPACE="${WEAVE_E2E_RUN_NAMESPACE}"
+python3 - "${WEAVE_TEST_APP_CONTEXT_MEMBERSHIPS}" "${WEAVE_TEST_APP_TENANT_ID}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+seed = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+tenant = sys.argv[2]
+memberships = seed.get("memberships")
+if not isinstance(memberships, list) or not memberships:
+    raise SystemExit("testApp context contract omitted memberships")
+if {membership.get("tenantId") for membership in memberships} != {tenant}:
+    raise SystemExit("testApp tenant does not match every context membership")
+PY
+
 contains "${GRADLE_TASKS}" "tasks.register('testApp', Exec)"
 contains "${GRADLE_TASKS}" "commandLine 'bash', 'gradle/tasks/test-app.sh'"
 contains "${LIFECYCLE}" 'prepare_test_app_context.py'

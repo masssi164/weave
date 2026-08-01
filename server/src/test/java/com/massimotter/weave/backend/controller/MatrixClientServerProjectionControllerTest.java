@@ -161,6 +161,24 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void malformedOidcIdentityRemainsAStableMatrixAuthorizationFailure() throws Exception {
+        var endpoint = get("/_matrix/client/v3/account/whoami")
+                .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEINVALIDIDENTITY");
+
+        mockMvc.perform(endpoint.with(workspaceJwtWithoutIssuer()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errcode").value("M_FORBIDDEN"))
+                .andExpect(content().string(not(containsString("missing-issuer"))));
+
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEINVALIDSUBJECT")
+                        .with(workspaceJwtWithSubject("invalid subject")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errcode").value("M_FORBIDDEN"))
+                .andExpect(content().string(not(containsString("invalid-identity-claim"))));
+    }
+
+    @Test
     void oidcSessionCannotRenameItselfToBypassDeviceRevocation() throws Exception {
         String token = "stable-oidc-device-session";
 
@@ -1051,14 +1069,35 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt(String tokenValue) {
+        return workspaceJwtWithSubject(tokenValue, "user@example.com", true);
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithoutIssuer() {
+        return workspaceJwtWithSubject("missing-issuer-token", "user@example.com", false);
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithSubject(String subject) {
+        return workspaceJwtWithSubject("invalid-subject-token", subject, true);
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithSubject(
+            String tokenValue,
+            String subject,
+            boolean includeIssuer) {
         return jwt().jwt(jwt -> jwt
                         .tokenValue(tokenValue)
-                        .subject("user@example.com")
+                        .subject(subject)
                         .claim("jti", tokenValue)
                         .claim("sid", "weave-test-session-" + tokenValue)
-                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("aud", List.of("weave-app"))
-                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
+                        .claims(claims -> {
+                            if (includeIssuer) {
+                                claims.put("iss", "https://auth.example.invalid/realms/acme");
+                            } else {
+                                claims.remove("iss");
+                            }
+                        }))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

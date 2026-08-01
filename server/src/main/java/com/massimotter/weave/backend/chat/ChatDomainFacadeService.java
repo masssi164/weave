@@ -33,6 +33,7 @@ import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.provider.ProviderCapabilityContracts;
@@ -787,14 +788,14 @@ public class ChatDomainFacadeService {
         if (jwt == null) {
             throw new ChatAccessDeniedException();
         }
-        return identityContextResolver.resolve(jwt).organizationId();
+        return requireIdentityContext(jwt).organizationId();
     }
 
     private ChatRequestContext requestContext(Jwt jwt) {
         if (jwt == null) {
             throw new ChatAccessDeniedException();
         }
-        OrganizationIdentityContext identityContext = identityContextResolver.resolve(jwt);
+        OrganizationIdentityContext identityContext = requireIdentityContext(jwt);
         String configuredPrincipalClaim = jwt.getClaimAsString(contextAuthorizationProperties.principalClaim());
         String authorizationPrincipalRef = contextAuthorizationProperties.principalRef(configuredPrincipalClaim);
         if (authorizationPrincipalRef == null) {
@@ -813,6 +814,14 @@ public class ChatDomainFacadeService {
                 identityContext.issuer(),
                 new ChatActorRef(actorRef(jwt)),
                 authorizationPrincipalRef);
+    }
+
+    private OrganizationIdentityContext requireIdentityContext(Jwt jwt) {
+        try {
+            return identityContextResolver.resolve(jwt);
+        } catch (ApiErrorException invalidIdentity) {
+            throw new ChatAccessDeniedException();
+        }
     }
 
     private String actorRef(Jwt jwt) {

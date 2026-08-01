@@ -112,15 +112,34 @@ class ProductFlowEnvironmentTest {
         .hasMessageContaining("regular non-symlink file");
   }
 
+  @Test
+  void rejectsAnUnsafeConfiguredTenantIdentifier() throws Exception {
+    assertThatThrownBy(
+            () ->
+                environment(
+                    URI.create("https://api.weave.test:44443"),
+                    URI.create("https://auth.weave.test:44443/realms/weave"),
+                    URI.create("http://127.0.0.1:38025/api/v1"),
+                    Duration.ofMinutes(2),
+                    "tenant with spaces"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("weave.e2e.tenant-id is invalid");
+  }
+
   private ProductFlowEnvironment environment(
       URI apiOrigin, URI issuer, URI mailpit, Duration timeout) throws Exception {
+    return environment(apiOrigin, issuer, mailpit, timeout, "tenant-default");
+  }
+
+  private ProductFlowEnvironment environment(
+      URI apiOrigin, URI issuer, URI mailpit, Duration timeout, String tenantId) throws Exception {
     return new ProductFlowEnvironment(
         "fixture-run-42",
         "1".repeat(40),
         "4".repeat(40),
         "2".repeat(40),
         "weave-e2e-0123456789abcdef",
-        "tenant-default",
+        tenantId,
         URI.create("https://weave.test:44443"),
         apiOrigin,
         issuer,

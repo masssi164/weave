@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.chat;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -11,6 +12,7 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.chat.adapter.WeaveCanonicalChatAdapter;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
+import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightRequest;
 import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
@@ -183,6 +185,26 @@ class ChatDomainFacadeServiceTest {
         verify(provider).currentCursor(context.capture());
         assertThat(context.getValue().tenantId()).isEqualTo("tenant-default");
         assertThat(context.getValue().identityIssuer()).isEqualTo("https://auth.example/realms/weave");
+    }
+
+    @Test
+    void malformedOidcIdentityRemainsAChatAuthorizationFailure() {
+        ChatDomainFacadeService service = service(
+                new InMemoryProviderSelectionRepository(), true, capability());
+        Jwt missingIssuer = Jwt.withTokenValue("missing-issuer")
+                .header("alg", "none")
+                .subject("member")
+                .build();
+        Jwt invalidSubject = Jwt.withTokenValue("invalid-subject")
+                .header("alg", "none")
+                .issuer("https://auth.example/realms/weave")
+                .subject("invalid subject")
+                .build();
+
+        assertThatThrownBy(() -> service.syncCursor(missingIssuer))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        assertThatThrownBy(() -> service.syncCursor(invalidSubject))
+                .isInstanceOf(ChatAccessDeniedException.class);
     }
 
     @Test

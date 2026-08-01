@@ -60,7 +60,7 @@ public class MatrixFacadeClientStateService {
         if (!(rawUserId instanceof String userId) || userId.isBlank()) {
             throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Matrix identity could not be projected.");
         }
-        OrganizationIdentityContext identityContext = identityContextResolver.resolve(jwt);
+        OrganizationIdentityContext identityContext = requireIdentityContext(jwt);
         String tenantId = identityContext.organizationId();
         String identityIssuer = identityContext.issuer();
         ChatActorRef actorRef = new ChatActorRef("user:" + identityContext.subject());
@@ -217,6 +217,16 @@ public class MatrixFacadeClientStateService {
         return tenant + "\u0000" + issuer + "\u0000" + subject
                 + "\u0000session:" + session
                 + "\u0000issued:" + jwt.getIssuedAt() + "\u0000expires:" + jwt.getExpiresAt();
+    }
+
+    private OrganizationIdentityContext requireIdentityContext(Jwt jwt) {
+        try {
+            return identityContextResolver.resolve(jwt);
+        } catch (ApiErrorException invalidIdentity) {
+            throw new MatrixProtocolException(
+                    "M_FORBIDDEN",
+                    "The OIDC identity is not valid for the Matrix projection.");
+        }
     }
 
     private String oidcSessionHash(Jwt jwt) {
