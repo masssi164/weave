@@ -36,7 +36,13 @@ jobs:
 
       - name: Resolve pinned specification corpus
         id: spec-corpus
-        run: echo "commit=$(jq -r '.specCorpus.gitCommit' specs/weave-specs.lock.json)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          spec_commit="$(
+            jq -er '.specCorpus.gitCommit | select(type == "string" and test("^[0-9a-f]{40}$"))' \
+              specs/weave-specs.lock.json
+          )"
+          printf 'commit=%s\n' "$spec_commit" >> "$GITHUB_OUTPUT"
 
       - name: Check out pinned Weave Specification Corpus
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0

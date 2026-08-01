@@ -12,7 +12,9 @@ readonly IDENTITY_OPS_IMAGE="${REPOSITORY_ROOT}/infra/weave-workspace/keycloak/D
 readonly KEYCLOAK_RUNTIME_IMAGE="${REPOSITORY_ROOT}/infra/weave-workspace/keycloak/Dockerfile.runtime"
 readonly WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/candidate-images.yml"
 readonly CI_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/ci.yml"
+readonly HUMAN_TESTING_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/human-testing-readiness.yml"
 readonly LIVE_STACK_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/live-stack-e2e.yml"
+readonly MAIN_PROMOTION_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/main-promotion-gate.yml"
 readonly TEST_STACK_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/test-stack-deploy.yml"
 readonly DOCTOR_TASK="${REPOSITORY_ROOT}/gradle/tasks/ci-lifecycle.gradle"
 
@@ -84,7 +86,13 @@ contains "${WORKFLOW}" 'file: infra/weave-workspace/keycloak/Dockerfile.identity
   fail "${WORKFLOW} must authenticate both specification-corpus checkouts through the deploy key"
 contains "${WORKFLOW}" "printf '/canonical-weave-specs/\\n' >> .git/info/exclude"
 
-for spec_workflow in "${WORKFLOW}" "${CI_WORKFLOW}" "${LIVE_STACK_WORKFLOW}" "${TEST_STACK_WORKFLOW}"; do
+for spec_workflow in \
+  "${WORKFLOW}" \
+  "${CI_WORKFLOW}" \
+  "${HUMAN_TESTING_WORKFLOW}" \
+  "${LIVE_STACK_WORKFLOW}" \
+  "${MAIN_PROMOTION_WORKFLOW}" \
+  "${TEST_STACK_WORKFLOW}"; do
   contains "${spec_workflow}" 'spec_commit="$(' # fail-closed assignment
   contains "${spec_workflow}" '.specCorpus.gitCommit | select(type == "string" and test("^[0-9a-f]{40}$"))'
   contains "${spec_workflow}" "printf 'commit=%s\\n'"
