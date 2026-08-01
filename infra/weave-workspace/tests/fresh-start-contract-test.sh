@@ -111,6 +111,9 @@ if [[ "${operation}" == inspect ]]; then
     partial)
       labels='{"com.massimotter.weave.managed":"true"}'
       ;;
+    metadata-only)
+      labels='{"com.massimotter.weave.keycloak.version":"26.7.0"}'
+      ;;
   esac
   suffix=""
   [[ "${MOCK_CHANGED_ID:-false}" != true ]] || suffix="-changed"
@@ -255,6 +258,9 @@ if plan partial >/dev/null 2>&1; then
   echo "partial ownership labels were accepted" >&2
   exit 1
 fi
+
+plan metadata-only >/dev/null
+jq -e 'all(.targets[]; .ownershipClassification == "legacy-exact-allowlist")' "${PLAN}" >/dev/null
 
 plan current >/dev/null
 jq -e 'all(.targets[]; .ownershipClassification == "current-exact-labels")' "${PLAN}" >/dev/null

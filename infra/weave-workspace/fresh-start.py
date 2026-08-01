@@ -101,7 +101,10 @@ def classify_labels(
     labels: dict[str, str], expected: dict[str, str], name: str
 ) -> tuple[str, dict[str, str]]:
     weave_labels = {key: value for key, value in labels.items() if key.startswith(LABEL_PREFIX)}
-    if not weave_labels:
+    ownership_label_keys = {
+        f"{LABEL_PREFIX}{key}" for key in REQUIRED_CURRENT_LABELS
+    }
+    if not ownership_label_keys.intersection(labels):
         return "legacy-exact-allowlist", {}
     missing = [f"{LABEL_PREFIX}{key}" for key in REQUIRED_CURRENT_LABELS if f"{LABEL_PREFIX}{key}" not in labels]
     mismatched = {
