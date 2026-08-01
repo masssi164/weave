@@ -264,6 +264,7 @@ public class ChatFacadeService {
     }
 
     private void requireChatReady(Jwt jwt, String capability, String operation) {
+        requireOrganizationIdentity(jwt);
         workspaceCapabilityService.requireCapability(jwt, capability, DOMAIN, operation);
         WorkspaceCapabilityProperties.Capability chat = workspaceCapabilityProperties.chat();
         if (!chat.enabled()) {
@@ -275,6 +276,17 @@ public class ChatFacadeService {
         }
         String impact = configured == WorkspaceCapabilityReadiness.UNAVAILABLE ? "unavailable" : "degraded";
         throw chatUnavailable(impact, "Chat is not ready through the Weave Chat facade.", operation);
+    }
+
+    private void requireOrganizationIdentity(Jwt jwt) {
+        if (jwt == null) {
+            throw invalidAuthentication("JWT is missing");
+        }
+        try {
+            identityContexts.resolve(jwt);
+        } catch (ApiErrorException exception) {
+            throw invalidAuthentication("organization identity is missing or invalid");
+        }
     }
 
     private PrincipalContext requireContextPermission(Jwt jwt, ContextPermission permission) {
@@ -308,7 +320,12 @@ public class ChatFacadeService {
                     "Chat access requires an authenticated principal.",
                     Map.of("module", DOMAIN));
         }
-        String tenantId = identityContexts.resolve(jwt).organizationId();
+        String tenantId;
+        try {
+            tenantId = identityContexts.resolve(jwt).organizationId();
+        } catch (ApiErrorException exception) {
+            throw invalidAuthentication("organization identity is missing or invalid");
+        }
         String configuredClaim = jwtClaim(jwt, contextAuthorizationProperties.principalClaim());
         String principalRef = contextAuthorizationProperties.principalRef(configuredClaim != null ? configuredClaim : jwt.getSubject());
         if (principalRef == null) {
@@ -320,6 +337,14 @@ public class ChatFacadeService {
         }
         String contextId = claimOrDefault(jwt, "weave_context_id", "context_id", DEFAULT_CONTEXT_ID);
         return new PrincipalContext(tenantId, contextId, principalRef);
+    }
+
+    private ApiErrorException invalidAuthentication(String reason) {
+        return new ApiErrorException(
+                HttpStatus.UNAUTHORIZED,
+                "unauthorized",
+                "Chat access requires an authenticated principal.",
+                Map.of("module", DOMAIN, "reason", reason));
     }
 
     private String claimOrDefault(Jwt jwt, String primaryClaim, String fallbackClaim, String defaultValue) {
@@ -592,5 +617,5 @@ public class ChatFacadeService {
             return List.copyOf(messages);
         }
 
+        }
     }
-}

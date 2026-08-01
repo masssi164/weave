@@ -208,8 +208,8 @@ public class BoardsFacadeService {
 
     private PrincipalContext requireContextPermission(Jwt jwt, ContextPermission permission) {
         requireEnabled();
-        workspaceCapabilityService.requireCapability(jwt, capabilityFor(permission), "boards", operationFor(permission));
         PrincipalContext principalContext = principalContext(jwt);
+        workspaceCapabilityService.requireCapability(jwt, capabilityFor(permission), "boards", operationFor(permission));
         var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
                 principalContext.tenantId(),
                 principalContext.contextId(),
@@ -231,7 +231,12 @@ public class BoardsFacadeService {
         if (jwt == null) {
             throw invalidAuthentication("JWT is missing");
         }
-        String tenantId = identityContexts.resolve(jwt).organizationId();
+        String tenantId;
+        try {
+            tenantId = identityContexts.resolve(jwt).organizationId();
+        } catch (ApiErrorException exception) {
+            throw invalidAuthentication("organization identity is missing or invalid");
+        }
         String configuredClaim = jwtClaim(jwt, contextAuthorizationProperties.principalClaim());
         String principalRef = contextAuthorizationProperties.principalRef(configuredClaim != null ? configuredClaim : jwt.getSubject());
         if (principalRef == null) {

@@ -1,6 +1,5 @@
 package com.massimotter.weave.backend.service;
 
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.CapabilityManifestState;
 import com.massimotter.weave.backend.model.ClientAccessCredentialLifecycleResponse;
@@ -36,7 +35,6 @@ public class OrganizationManifestService {
     public OrganizationManifestService(
             OAuth2ResourceServerProperties resourceServerProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
-            ContextAuthorizationProperties contextAuthorizationProperties,
             OrganizationIdentityContextResolver identityContexts) {
         this(resourceServerProperties, workspaceCapabilityService, identityContexts, Clock.systemUTC());
     }
@@ -84,7 +82,7 @@ public class OrganizationManifestService {
     private String organizationId(Jwt jwt) {
         try {
             return identityContexts.resolve(jwt).organizationId();
-        } catch (RuntimeException exception) {
+        } catch (ApiErrorException exception) {
             throw new ApiErrorException(
                     HttpStatus.UNAUTHORIZED,
                     "organization-manifest-unauthorized",
