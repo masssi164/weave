@@ -28,6 +28,7 @@ final class CollaborationJourney {
   private static final String MATRIX_DEVICE_HEADER = "X-Weave-Matrix-Device-Id";
   private static final String MEGOLM = "m.megolm.v1.aes-sha2";
   private static final Duration PROCESS_TIMEOUT = Duration.ofMinutes(3);
+  private static final Duration PROCESS_CLEANUP_TIMEOUT = Duration.ofSeconds(10);
 
   private final ProductFlowEnvironment environment;
   private final JsonHttpClient http;
@@ -931,6 +932,7 @@ final class CollaborationJourney {
 
   private void control(String command, String marker) {
     Path output = environment.evidenceFile().resolveSibling(".collaboration-control.log");
+    Process process = null;
     try {
       Files.deleteIfExists(output);
       Files.createFile(output);
@@ -939,7 +941,7 @@ final class CollaborationJourney {
       } catch (UnsupportedOperationException ignored) {
         // The parent evidence directory remains private.
       }
-      Process process =
+      process =
           new ProcessBuilder(
                   "bash",
                   environment.persistenceRestartCommand().toString(),
@@ -949,7 +951,7 @@ final class CollaborationJourney {
               .redirectOutput(output.toFile())
               .start();
       if (!process.waitFor(PROCESS_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
-        process.destroyForcibly();
+        BoundedProcessTree.terminate(process, PROCESS_CLEANUP_TIMEOUT);
         throw new ProductFlowException("collaboration service control exceeded its bounded timeout");
       }
       String diagnostic = Files.readString(output, StandardCharsets.UTF_8);
@@ -959,7 +961,13 @@ final class CollaborationJourney {
     } catch (IOException failure) {
       throw new ProductFlowException("collaboration service control could not execute", failure);
     } catch (InterruptedException interrupted) {
-      Thread.currentThread().interrupt();
+      try {
+        if (process != null) {
+          BoundedProcessTree.terminate(process, PROCESS_CLEANUP_TIMEOUT);
+        }
+      } finally {
+        Thread.currentThread().interrupt();
+      }
       throw new ProductFlowException("collaboration service control was interrupted", interrupted);
     } finally {
       try {

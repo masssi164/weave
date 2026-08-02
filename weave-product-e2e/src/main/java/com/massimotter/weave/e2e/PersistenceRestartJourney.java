@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 /** Bounded bridge to the isolated Compose persistence-restart proof. */
 final class PersistenceRestartJourney {
   private static final Duration PROCESS_TIMEOUT = Duration.ofMinutes(7);
+  private static final Duration PROCESS_CLEANUP_TIMEOUT = Duration.ofSeconds(10);
   private static final int MAXIMUM_DIAGNOSTIC_BYTES = 32_768;
   private static final Set<PosixFilePermission> OWNER_FILE_PERMISSIONS =
       PosixFilePermissions.fromString("rw-------");
@@ -31,12 +32,13 @@ final class PersistenceRestartJourney {
     Path command = environment.persistenceRestartCommand();
     Path evidence = environment.persistenceRestartEvidence();
     Path processOutput = evidence.resolveSibling(".persistence-restart-process.log");
+    Process process = null;
     try {
       Files.deleteIfExists(evidence);
       Files.deleteIfExists(processOutput);
       Files.createFile(processOutput);
       setPrivatePermissions(processOutput);
-      Process process =
+      process =
           new ProcessBuilder(
                   "bash",
                   command.toString(),
@@ -48,10 +50,7 @@ final class PersistenceRestartJourney {
       boolean completed =
           process.waitFor(PROCESS_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
       if (!completed) {
-        process.destroy();
-        if (!process.waitFor(10, TimeUnit.SECONDS)) {
-          process.destroyForcibly();
-        }
+        BoundedProcessTree.terminate(process, PROCESS_CLEANUP_TIMEOUT);
         throw new ProductFlowException("persistence restart proof exceeded its bounded timeout");
       }
       String diagnostic = boundedDiagnostic(processOutput);
@@ -73,7 +72,13 @@ final class PersistenceRestartJourney {
     } catch (IOException failure) {
       throw new ProductFlowException("persistence restart proof could not be executed", failure);
     } catch (InterruptedException interrupted) {
-      Thread.currentThread().interrupt();
+      try {
+        if (process != null) {
+          BoundedProcessTree.terminate(process, PROCESS_CLEANUP_TIMEOUT);
+        }
+      } finally {
+        Thread.currentThread().interrupt();
+      }
       throw new ProductFlowException("persistence restart proof was interrupted", interrupted);
     } finally {
       try {

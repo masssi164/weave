@@ -42,6 +42,7 @@ def main() -> int:
         "- name: Verify runtime prerequisites",
         "- name: Capture persistent dogfood resources",
         "- name: Run the manifest-bound Fresh product proof",
+        "- name: Ensure exact isolated Fresh namespace is absent",
         "- name: Verify product proof and persistent dogfood preservation",
         "- name: Upload support-safe live-stack evidence",
     )
@@ -111,6 +112,25 @@ def main() -> int:
         "./gradlew --no-daemon testApp" in workflow
         and "WEAVE_TEST_APP_OUTPUT_ROOT" in workflow,
         "the workflow must use the one authoritative Fresh product-flow task",
+    )
+    require(
+        "timeout-minutes: 75" in workflow
+        and "Run the manifest-bound Fresh product proof\n        timeout-minutes: 60"
+        in workflow
+        and "Ensure exact isolated Fresh namespace is absent\n        if: always()\n        timeout-minutes: 10"
+        in workflow,
+        "the live job must reserve a bounded exact-cleanup window",
+    )
+    require(
+        "WEAVE_EXPECTED_E2E_NAMESPACE" in workflow
+        and "infra/weave-workspace/teardown.sh test" in workflow
+        and "cleanup_test_app_runtime.py" in workflow
+        and 'label=com.docker.compose.project=$namespace' in workflow
+        and workflow.count('label=com.massimotter.weave.namespace=$namespace') == 2
+        and "weave-live-stack-failure-cleanup-evidence" in workflow
+        and '("CLEANUP_ROOT", "weave-live-stack-failure-cleanup-")'
+        in workflow,
+        "workflow-level recovery must teardown and prove the exact isolated namespace absent",
     )
     for marker in (
         '"weave.test-app-product-flow/v1"',
