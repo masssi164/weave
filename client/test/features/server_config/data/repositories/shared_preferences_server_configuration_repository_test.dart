@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:riverpod/riverpod.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
@@ -38,48 +39,13 @@ void main() {
       );
       expect(
         loaded?.serviceEndpoints.nextcloudBaseUrl.toString(),
-        'https://api.home.internal/api/dav/files',
+        'https://api.home.internal/dav/files',
       );
       expect(
         loaded?.serviceEndpoints.backendApiBaseUrl.toString(),
         configuration.serviceEndpoints.backendApiBaseUrl.toString(),
       );
     });
-
-    test('removes the legacy setup key when saving', () async {
-      final store = InMemoryPreferencesStore({legacySetupCompleteKey: true});
-      final container = ProviderContainer.test(
-        overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
-      );
-      addTearDown(container.dispose);
-      final repository = container.read(serverConfigurationRepositoryProvider);
-
-      await repository.saveConfiguration(buildTestConfiguration());
-
-      expect(await store.getBool(legacySetupCompleteKey), isNull);
-    });
-
-    test(
-      'removes the legacy setup key after validating saved config',
-      () async {
-        final store = InMemoryPreferencesStore({
-          ...buildStoredConfiguration(),
-          legacySetupCompleteKey: false,
-        });
-        final container = ProviderContainer.test(
-          overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
-        );
-        addTearDown(container.dispose);
-        final repository = container.read(
-          serverConfigurationRepositoryProvider,
-        );
-
-        final loaded = await repository.loadConfiguration();
-
-        expect(loaded, isNotNull);
-        expect(await store.getBool(legacySetupCompleteKey), isNull);
-      },
-    );
 
     test('clears the stored configuration', () async {
       final store = InMemoryPreferencesStore(buildStoredConfiguration());
@@ -95,7 +61,7 @@ void main() {
     });
 
     test(
-      'derives the backend API URL for legacy saved configurations',
+      'rejects a saved profile without the canonical backend API URL',
       () async {
         final store = InMemoryPreferencesStore({
           serverConfigurationStorageKey: encodeTestConfiguration(
@@ -110,16 +76,14 @@ void main() {
           serverConfigurationRepositoryProvider,
         );
 
-        final loaded = await repository.loadConfiguration();
-
-        expect(
-          loaded?.serviceEndpoints.backendApiBaseUrl.toString(),
-          'https://api.home.internal/api',
+        await expectLater(
+          repository.loadConfiguration,
+          throwsA(isA<AppFailure>()),
         );
       },
     );
 
-    test('normalizes a blank stored client ID to weave-app', () async {
+    test('rejects a blank stored client ID', () async {
       final store = InMemoryPreferencesStore(
         buildStoredConfiguration(clientId: ''),
       );
@@ -129,14 +93,15 @@ void main() {
       addTearDown(container.dispose);
       final repository = container.read(serverConfigurationRepositoryProvider);
 
-      final loaded = await repository.loadConfiguration();
-
-      expect(loaded?.oidcClientRegistration.clientId, 'weave-app');
+      await expectLater(
+        repository.loadConfiguration,
+        throwsA(isA<AppFailure>()),
+      );
     });
 
-    test('normalizes a missing stored client ID to weave-app', () async {
+    test('rejects a missing stored client ID', () async {
       final raw = jsonEncode({
-        'providerType': 'keycloak',
+        'providerType': 'oidc',
         'oidcIssuerUrl': 'https://auth.home.internal',
         'oidcClientRegistrationMode': 'manual',
         'matrixHomeserverUrl': 'https://matrix.home.internal',
@@ -151,35 +116,29 @@ void main() {
       addTearDown(container.dispose);
       final repository = container.read(serverConfigurationRepositoryProvider);
 
-      final loaded = await repository.loadConfiguration();
-
-      expect(loaded?.oidcClientRegistration.clientId, 'weave-app');
+      await expectLater(
+        repository.loadConfiguration,
+        throwsA(isA<AppFailure>()),
+      );
     });
 
-    test(
-      'normalizes stale Matrix provider state to the backend API origin',
-      () async {
-        final store = InMemoryPreferencesStore(
-          buildStoredConfiguration(
-            matrixHomeserverUrl: 'https://matrix.home.internal',
-            backendApiBaseUrl: 'https://api.home.internal/api',
-          ),
-        );
-        final container = ProviderContainer.test(
-          overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
-        );
-        addTearDown(container.dispose);
-        final repository = container.read(
-          serverConfigurationRepositoryProvider,
-        );
+    test('rejects stale provider-shaped Matrix state', () async {
+      final store = InMemoryPreferencesStore(
+        buildStoredConfiguration(
+          matrixHomeserverUrl: 'https://matrix.home.internal',
+          backendApiBaseUrl: 'https://api.home.internal/api',
+        ),
+      );
+      final container = ProviderContainer.test(
+        overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+      );
+      addTearDown(container.dispose);
+      final repository = container.read(serverConfigurationRepositoryProvider);
 
-        final loaded = await repository.loadConfiguration();
-
-        expect(
-          loaded?.serviceEndpoints.matrixHomeserverUrl.toString(),
-          'https://api.home.internal',
-        );
-      },
-    );
+      await expectLater(
+        repository.loadConfiguration,
+        throwsA(isA<AppFailure>()),
+      );
+    });
   });
 }

@@ -30,14 +30,17 @@ public class WorkspaceHomeRecentActivityService {
     private final AuditEventPublisher auditEvents;
     private final ContextAuthorizationPort contextAuthorization;
     private final ContextAuthorizationProperties contextProperties;
+    private final OrganizationIdentityContextResolver identityContexts;
 
     public WorkspaceHomeRecentActivityService(
             AuditEventPublisher auditEvents,
             ContextAuthorizationPort contextAuthorization,
-            ContextAuthorizationProperties contextProperties) {
+            ContextAuthorizationProperties contextProperties,
+            OrganizationIdentityContextResolver identityContexts) {
         this.auditEvents = auditEvents;
         this.contextAuthorization = contextAuthorization;
         this.contextProperties = contextProperties;
+        this.identityContexts = java.util.Objects.requireNonNull(identityContexts, "identityContexts");
     }
 
     public List<WorkspaceHomeRecentActivityResponse> recentActivity(Jwt jwt) {
@@ -100,14 +103,17 @@ public class WorkspaceHomeRecentActivityService {
         if (jwt == null) {
             return null;
         }
-        String tenantId = firstText(
-                claim(jwt, contextProperties.tenantClaim()),
-                claim(jwt, contextProperties.tenantFallbackClaim()));
-        String principalClaim = firstText(
-                claim(jwt, contextProperties.principalClaim()),
-                jwt.getSubject());
-        String principalRef = contextProperties.principalRef(principalClaim);
-        return tenantId == null || principalRef == null ? null : new CallerContext(tenantId, principalRef);
+        try {
+            String principalClaim = firstText(
+                    claim(jwt, contextProperties.principalClaim()),
+                    jwt.getSubject());
+            String principalRef = contextProperties.principalRef(principalClaim);
+            return principalRef == null
+                    ? null
+                    : new CallerContext(identityContexts.resolve(jwt).organizationId(), principalRef);
+        } catch (RuntimeException exception) {
+            return null;
+        }
     }
 
     private String claim(Jwt jwt, String claimName) {

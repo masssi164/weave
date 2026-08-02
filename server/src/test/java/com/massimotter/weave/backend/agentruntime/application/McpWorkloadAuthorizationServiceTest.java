@@ -8,8 +8,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
+import com.massimotter.weave.backend.agentruntime.domain.ExchangedWorkloadToken;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
@@ -27,7 +27,6 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeGovernanceReposito
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileVerifier;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
-import com.massimotter.weave.backend.model.agentruntime.McpWorkloadContextResponse;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -59,6 +58,7 @@ class McpWorkloadAuthorizationServiceTest {
     private RuntimeWorkloadIdentityAdmin identities;
     private RuntimeEntitlementAuthority entitlementAuthority;
     private McpWorkloadAuthorizationService service;
+    private McpExchangedTokenPolicy tokenPolicy;
     private RuntimeCell cell;
 
     @BeforeEach
@@ -80,8 +80,8 @@ class McpWorkloadAuthorizationServiceTest {
                 .thenReturn(Optional.of(entitlement()));
         when(entitlementAuthority.observe(any())).thenReturn(observation());
         doNothing().when(identities).requireCurrentBinding(any());
+        tokenPolicy = new McpExchangedTokenPolicy(API_RESOURCE, "weave-mcp-server");
         service = new McpWorkloadAuthorizationService(
-                new McpExchangedTokenPolicy(API_RESOURCE, "weave-mcp-server"),
                 cells,
                 profiles,
                 verifier,
@@ -99,17 +99,14 @@ class McpWorkloadAuthorizationServiceTest {
         assertThat(principal.workloadClientId()).isEqualTo(CLIENT);
         assertThat(principal.mcpEdgeClientId()).isEqualTo("weave-mcp-server");
         assertThat(principal.memberBinding()).isEqualTo(MEMBER);
+        assertThat(principal.contextPrincipalClaim()).isEqualTo("test-member");
         assertThat(principal.scopes()).containsExactly("calendar.read");
         assertThat(principal.visibleToolClasses()).containsExactly("calendar.read");
         assertThat(principal.authorizationExpiresAt()).isEqualTo(NOW.plusSeconds(30));
         verify(identities).requireCurrentBinding(any());
         verify(entitlementAuthority).observe(any());
 
-        String projection = new ObjectMapper().findAndRegisterModules()
-                .writeValueAsString(McpWorkloadContextResponse.from(principal));
-        assertThat(projection)
-                .contains("weave.mcp-workload-context/v2", CLIENT, PROFILE_HASH, ENTITLEMENT_REVISION)
-                .doesNotContain("member-subject", "exchanged-secret-token", SUBJECT);
+        assertThat(principal.toString()).doesNotContain("exchanged-secret-token");
     }
 
     @Test
@@ -119,7 +116,10 @@ class McpWorkloadAuthorizationServiceTest {
 
         assertThatThrownBy(() -> service.authorize(token()))
                 .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
-                        failure -> assertThat(failure.authorityUnavailable()).isTrue())
+                        failure -> {
+                            assertThat(failure.authorityUnavailable()).isTrue();
+                            assertThat(failure.reasonCode()).isEqualTo("authority-unavailable");
+                        })
                 .hasMessageNotContaining("private provider diagnostic")
                 .hasMessageNotContaining("exchanged-secret-token");
     }
@@ -135,13 +135,18 @@ class McpWorkloadAuthorizationServiceTest {
         when(cells.findByWorkload(ISSUER, SUBJECT)).thenReturn(Optional.of(revoked));
 
         assertThatThrownBy(() -> service.authorize(token()))
-                .isInstanceOf(McpWorkloadAuthorizationException.class)
+                .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
+                        failure -> assertThat(failure.reasonCode()).isEqualTo("cell-binding"))
                 .hasMessageNotContaining(SUBJECT)
                 .hasMessageNotContaining("member-subject")
                 .hasMessageNotContaining("exchanged-secret-token");
     }
 
-    private static Jwt token() {
+    private ExchangedWorkloadToken token() {
+        return tokenPolicy.resolve(jwt());
+    }
+
+    private static Jwt jwt() {
         return Jwt.withTokenValue("exchanged-secret-token")
                 .header("alg", "RS256")
                 .header("typ", "at+jwt")
@@ -238,7 +243,7 @@ class McpWorkloadAuthorizationServiceTest {
                                 "https://api.weave.test/mcp",
                                 "io.modelcontextprotocol/oauth-client-credentials",
                                 "client_credentials",
-                                List.of("mcp:tools", "calendar.read"),
+                                List.of("mcp.tools", "calendar.read"),
                                 "credentialref://weave/mcp/test",
                                 List.of("calendar.read"))),
                         List.of("calendar.read")),
@@ -284,6 +289,7 @@ class McpWorkloadAuthorizationServiceTest {
                 "org:test",
                 "person:test",
                 MEMBER,
+                "test-member",
                 "keycloak",
                 SOURCE_GROUP,
                 CAPABILITY_REVISION,

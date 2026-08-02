@@ -19,6 +19,7 @@ void main() {
       'FirstRunScreen',
       '/api/onboarding/status',
       '/first-run',
+      '/welcome',
     ]) {
       expect(
         compiledSource,
@@ -35,6 +36,12 @@ void main() {
         messages.keys.where((key) => key.startsWith('firstRun')),
         isEmpty,
         reason: '$path must not define obsolete global readiness messages.',
+      );
+      expect(
+        messages.keys.where((key) => key.startsWith('welcome')),
+        isEmpty,
+        reason:
+            '$path must expose Organization Access directly without a parallel welcome flow.',
       );
       final userCopy = messages.values.whereType<String>().join('\n');
       for (final obsoleteCopy in <String>[

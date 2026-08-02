@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimePolicyAuthority;
 import com.massimotter.weave.backend.agentruntime.port.RuntimePolicyAuthority;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
@@ -10,9 +10,7 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({AgentRuntimePolicyProperties.class, AgentRuntimeProfileSigningProperties.class})
-@ConditionalOnExpression(
-        "'${weave.agent-runtime.storage.mode:disabled}' == 'jdbc'"
-                + " && '${weave.agent-runtime.policy.enabled:false}' == 'true'")
+@ConditionalOnExpression("'${weave.agent-runtime.policy.enabled:false}' == 'true'")
 public class AgentRuntimePolicyConfiguration {
 
     @Bean

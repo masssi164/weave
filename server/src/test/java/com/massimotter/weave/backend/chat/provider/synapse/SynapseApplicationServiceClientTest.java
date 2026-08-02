@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.chat.provider.synapse;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
@@ -34,7 +34,7 @@ class SynapseApplicationServiceClientTest {
     private static final String HS_TOKEN = "hs-token-value-0123456789";
     private static final Clock FIXED = Clock.fixed(Instant.parse("2026-07-15T10:00:00Z"), ZoneOffset.UTC);
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
     private final List<ObservedRequest> requests = new CopyOnWriteArrayList<>();
     private final AtomicBoolean throttleSend = new AtomicBoolean();
     private final AtomicReference<String> retryAfter = new AtomicReference<>("120");
@@ -109,7 +109,7 @@ class SynapseApplicationServiceClientTest {
                 .filter(request -> request.path().endsWith("/register"))
                 .findFirst().orElseThrow();
         JsonNode registrationBody = objectMapper.readTree(registration.body());
-        assertThat(registrationBody.path("type").asText()).isEqualTo("m.login.application_service");
+        assertThat(registrationBody.path("type").asString()).isEqualTo("m.login.application_service");
         assertThat(registrationBody.path("inhibit_login").asBoolean()).isTrue();
         assertThat(registrationBody.has("password")).isFalse();
         assertThat(registrationBody.has("access_token")).isFalse();
@@ -118,11 +118,11 @@ class SynapseApplicationServiceClientTest {
                 .filter(request -> request.path().endsWith("/createRoom"))
                 .findFirst().orElseThrow();
         JsonNode roomCreateBody = objectMapper.readTree(roomCreate.body());
-        assertThat(roomCreateBody.path("invite").get(0).asText()).isEqualTo(collaborator);
-        assertThat(roomCreateBody.path("initial_state").get(0).path("type").asText())
+        assertThat(roomCreateBody.path("invite").get(0).asString()).isEqualTo(collaborator);
+        assertThat(roomCreateBody.path("initial_state").get(0).path("type").asString())
                 .isEqualTo("m.room.encryption");
-        assertThat(roomCreateBody.path("initial_state").get(0).path("state_key").asText()).isEmpty();
-        assertThat(roomCreateBody.path("initial_state").get(0).path("content").path("algorithm").asText())
+        assertThat(roomCreateBody.path("initial_state").get(0).path("state_key").asString()).isEmpty();
+        assertThat(roomCreateBody.path("initial_state").get(0).path("content").path("algorithm").asString())
                 .isEqualTo(ChatEncryptedEnvelope.MEGOLM_V1);
 
         ObservedRequest encryptedSend = requests.stream()
@@ -130,7 +130,7 @@ class SynapseApplicationServiceClientTest {
                 .findFirst().orElseThrow();
         assertThat(encryptedSend.query()).contains("user_id=");
         JsonNode providerEnvelope = objectMapper.readTree(encryptedSend.body());
-        assertThat(providerEnvelope.path("ciphertext").asText()).isEqualTo("opaque-ciphertext");
+        assertThat(providerEnvelope.path("ciphertext").asString()).isEqualTo("opaque-ciphertext");
         assertThat(providerEnvelope.toString()).doesNotContain("plaintext-sentinel", "formatted_body", "msgtype");
     }
 

@@ -10,7 +10,8 @@ Executable scenario anchors:
 
 Source/quality-check anchors:
 
-- Identity/profile specification anchor: pinned spec corpus `domains/identity-idm/spec.md` plus implementation endpoint `/api/me`.
+- Platform identity/profile specification anchor: pinned spec corpus
+  `platform/identity-security/spec.md` plus implementation endpoint `/api/me`.
 - CI/smoke/E2E specification anchor: pinned spec corpus `steering/devops-conformance.md` plus implementation gates in `build.gradle` and `e2e/scenario_mappings.json`.
 - Spec-map guard source: `client/tool/acceptance_contract.dart` and `e2e/scenario_mappings.json` in this implementation repository.
 - `/admin/protocol` is not a current Weave product route here; treat it only as shorthand for raw admin/protocol fallback surfaces unless a future spec defines the endpoint.

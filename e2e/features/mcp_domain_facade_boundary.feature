@@ -1,11 +1,11 @@
 Feature: MCP domain facade boundary
-  MCP is a workload-only protocol edge. Domain catalogs stay empty until each owning domain has a complete, independently authorized action contract.
+  MCP is a workload-only protocol edge. A domain projection opens only when its owning domain has a complete, independently authorized read or action contract.
 
   @mcp-files-facade
-  Scenario: MCP Files catalog stays empty until the Files action contract is complete
+  Scenario: MCP Files read slice projects the existing authorized WebDAV facade
     Given Files remains authoritative for its own content and authorization
     When runtime-approved MCP discovery is evaluated
-    Then no Files tool is advertised before its domain catalog and current authorization gates exist
+    Then files.search and canonical file resources use bounded WebDAV SEARCH and GET
     And no raw provider URL or unrestricted WebDAV scripting surface is exposed
 
   @mcp-calendar-facade
@@ -50,10 +50,10 @@ Feature: MCP domain facade boundary
     And only a server-owned service-account to cell to RuntimeProfile v2 binding may enter the transport
 
   @mcp-runtime-approved-discovery
-  Scenario: Runtime-approved MCP context is active while domain catalogs stay guarded
+  Scenario: Runtime-approved MCP workload reaches the standard Server projection while other catalogs stay guarded
     Given ARC has a current workload binding and RuntimeProfile v2
-    When the bound cell initializes the MCP transport
-    Then the edge resolves its current backend authorization context
+    When the bound cell initializes MCP and invokes the Files search tool
+    Then the edge exchanges its workload token and calls the standard WebDAV projection
     And no domain tool is advertised before its catalog, authorization, and evidence gates are implemented
     And no obsolete member runtime profile or approved-tools compatibility path is exposed
 

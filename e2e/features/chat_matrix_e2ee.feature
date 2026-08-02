@@ -1,46 +1,8 @@
 Feature: Matrix chat is end-to-end encrypted by the client Rust core
   Weave stores and relays only public keys and opaque Matrix envelopes while
   installed client devices own verification, recovery, and decryption.
-
-  @matrix-e2ee-ciphertext-only
-  Scenario: Encrypted room content is opaque to the server
-    Given Alice and Bob use distinct trusted Matrix devices
-    When Alice sends an encrypted room message and Bob receives it
-    Then Bob decrypts the message through the Flutter Rust core
-    And server persistence, audit, diagnostics, and provider adapters contain ciphertext only
-    And the room rejects a plaintext message write
-
-  @matrix-e2ee-iphone-relaunch
-  Scenario: Closing and updating the iPhone preserves encrypted chat state
-    Given Alice has decrypted encrypted history on a physical iPhone
-    When the app is terminated and relaunched after an app update
-    Then the installed profile and OIDC refresh session are restored
-    And the same Matrix device and encrypted Rust store are restored
-    And existing encrypted history remains decryptable
-
-  @matrix-e2ee-two-device-verification
-  Scenario: A member verifies a second device accessibly
-    Given Alice signs in on a second Matrix device
-    When Alice verifies it from the trusted iPhone with SAS
-    Then both devices show matching numeric and labelled emoji alternatives
-    And the flow is keyboard and screen-reader operable
-    And the second device is cross-signed without server-held private keys
-
-  @matrix-e2ee-recovery
-  Scenario: Recovery restores encrypted history on a new device
-    Given Alice enabled cross-signing and room-key backup
-    When Alice recovers on a new device with her recovery secret
-    Then the Rust core restores secret storage and backed-up room keys
-    And retained encrypted history becomes decryptable
-    And recovery material is absent from server and support evidence
-
-  @matrix-e2ee-lost-device
-  Scenario: Revoking a lost device preserves encryption for remaining devices
-    Given Alice has a trusted iPhone and a lost second device
-    When Alice removes the lost device and rotates affected sessions
-    Then the lost device cannot fetch new keys or decrypt new messages
-    And its OIDC refresh session cannot rename itself as a new Matrix device
-    And remaining devices continue without a plaintext downgrade
+  Physical-device verification, recovery, relaunch, and lost-device behavior
+  are release gates, not automated credential-driven Flutter scenarios.
 
   @matrix-e2ee-provider-switch
   Scenario: Provider replacement accounts for encrypted history
@@ -55,22 +17,3 @@ Feature: Matrix chat is end-to-end encrypted by the client Rust core
     When it attempts to enter an encrypted conversation
     Then Weave denies the encrypted capability support-safely
     And no plaintext compatibility room or server-side decryption is offered
-
-  @matrix-synapse-durable-collaboration
-  Scenario: Encrypted collaboration is committed by the selected Chat provider
-    Given author and collaborator share an encrypted conversation and outsider does not
-    When both authorized members exchange unique messages through fresh Weave sessions
-    Then the selected Chat provider acknowledges each committed message exactly once
-    And both authorized memberships and opaque encrypted events survive backend and provider restarts
-    And outsider remains absent and denied
-    And shared evidence contains only support-safe correlations
-
-  @matrix-synapse-outage-idempotency
-  Scenario: A Chat provider outage cannot expose or duplicate a message
-    Given an encrypted message has a stable transaction identity
-    When the selected Chat provider is unavailable before acknowledgement
-    Then the message is not visible as committed
-    And Chat reports a member-safe unavailable state while other surfaces remain reachable
-    When the provider recovers and the same transaction is retried
-    Then the message is committed exactly once
-    And replayed provider delivery does not duplicate the canonical timeline

@@ -170,7 +170,9 @@ def require_current_evidence_boundaries() -> None:
         "tools/spring_ai_mcp_facade_acceptance_check.py",
         "SPRING_AI_MCP_STATEFUL_TRANSPORT",
         "MCP_WORKLOAD_EDGE_BOUND_CELL_ONLY",
-        "MCP_DOMAIN_CATALOGS_EMPTY",
+        "MCP_FILES_READ_SLICE_ACTIVE",
+        "MCP_CALENDAR_CATALOG_GUARDED",
+        "MCP_CHAT_CATALOG_GUARDED",
         "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED",
         "MCP_LEGACY_RUNTIME_REMOVED",
     )

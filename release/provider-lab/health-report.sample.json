@@ -5,20 +5,6 @@
   "checkedAt": "2026-06-03T02:01:37Z",
   "providers": [
     {
-      "providerKey": "authentik",
-      "domain": "identity",
-      "realityLevel": "configured",
-      "evidenceTimestamp": "2026-06-03T02:01:37Z",
-      "supportEvidenceRedacted": true
-    },
-    {
-      "providerKey": "keycloak",
-      "domain": "identity",
-      "realityLevel": "configured",
-      "evidenceTimestamp": "2026-06-03T02:01:37Z",
-      "supportEvidenceRedacted": true
-    },
-    {
       "providerKey": "matrix-synapse",
       "domain": "chat",
       "realityLevel": "configured",

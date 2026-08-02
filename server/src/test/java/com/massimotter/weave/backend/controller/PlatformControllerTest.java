@@ -8,17 +8,20 @@ import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.persistence.jpa.readiness.JpaPersistenceReadinessProbe;
 import com.massimotter.weave.backend.service.LocalDependencyReadinessService;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.PlatformContractService;
 import com.massimotter.weave.backend.service.ProviderCapabilityHealthService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
@@ -34,6 +37,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
         controllers = {PlatformController.class, HealthController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
         LocalDependencyReadinessService.class,
         PlatformContractService.class,
@@ -60,11 +64,19 @@ class PlatformControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockBean
+    @MockitoBean
     private ProviderCapabilityHealthService providerCapabilityHealthService;
+
+    @MockitoBean
+    private JpaPersistenceReadinessProbe persistenceHealth;
+
+    @BeforeEach
+    void persistenceIsReady() {
+        org.mockito.Mockito.when(persistenceHealth.isReady()).thenReturn(true);
+    }
 
     @Test
     void exposesPublicPlatformConfig() throws Exception {
@@ -76,8 +88,8 @@ class PlatformControllerTest {
                 .andExpect(jsonPath("$.oidc.issuer").value("https://auth.weave.test/realms/weave"))
                 .andExpect(jsonPath("$.oidc.clientId").value("weave-app"))
                 .andExpect(jsonPath("$.protocols.matrixClientServerBaseUrl").value("https://api.weave.test"))
-                .andExpect(jsonPath("$.protocols.filesWebDavBaseUrl").value("https://api.weave.test/api/dav/files"))
-                .andExpect(jsonPath("$.protocols.calendarCalDavBaseUrl").value("https://api.weave.test/api/caldav"))
+                .andExpect(jsonPath("$.protocols.filesWebDavBaseUrl").value("https://api.weave.test/dav/files"))
+                .andExpect(jsonPath("$.protocols.calendarCalDavBaseUrl").value("https://api.weave.test/caldav"))
                 .andExpect(jsonPath("$.releasePosture").value("dogfood"))
                 .andExpect(jsonPath("$.domains.length()").value(6))
                 .andExpect(jsonPath("$.domains[?(@.domain == 'chat')].state").value("available"))
@@ -146,7 +158,7 @@ class PlatformControllerTest {
                 .andExpect(jsonPath("$.checks[?(@.key == 'auth')].readiness").value("ready"))
                 .andExpect(jsonPath("$.checks[?(@.key == 'matrix')]").isEmpty())
                 .andExpect(jsonPath("$.checks[?(@.key == 'files')]").isEmpty())
-                .andExpect(jsonPath("$.checks[?(@.key == 'persistence')]").isEmpty())
+                .andExpect(jsonPath("$.checks[?(@.key == 'persistence')].readiness").value("ready"))
                 .andExpect(jsonPath("$.actions").isEmpty());
 
         mockMvc.perform(get("/api/health/ready"))

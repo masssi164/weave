@@ -3,7 +3,7 @@
   "source": "fixture",
   "commit": "1111111111111111111111111111111111111111",
   "lane": "release-candidate-live-evidence",
-  "rcPromotionRule": "no-v0.1-rc-promotion-without-green-credentialed-live-stack-e2e-or-explicit-release-owner-waiver",
+  "rcPromotionRule": "no-v0.1-rc-promotion-without-green-test-app-product-flow-e2e-or-explicit-release-owner-waiver",
   "acceptanceContract": {
     "valid": true,
     "scenarioCount": 9,

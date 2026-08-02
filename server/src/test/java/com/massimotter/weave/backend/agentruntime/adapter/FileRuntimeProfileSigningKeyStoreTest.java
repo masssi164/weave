@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
@@ -38,7 +38,7 @@ class FileRuntimeProfileSigningKeyStoreTest {
 
     @BeforeEach
     void setUp() {
-        mapper = new ObjectMapper().findAndRegisterModules();
+        mapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
         clock = new MutableClock(Instant.parse("2026-07-20T10:00:00Z"));
         store = new FileRuntimeProfileSigningKeyStore(
                 temporary,
@@ -47,7 +47,8 @@ class FileRuntimeProfileSigningKeyStoreTest {
                 new SecureRandom(),
                 KEY_LIFETIME,
                 OVERLAP,
-                PROFILE_TTL);
+                PROFILE_TTL,
+                FileSecretStoreAccess.READ_WRITE);
     }
 
     @Test
@@ -176,6 +177,35 @@ class FileRuntimeProfileSigningKeyStoreTest {
             assertThatThrownBy(store::activeKey)
                     .isInstanceOf(RuntimeProfileSigningKeyException.class)
                     .hasMessageContaining("too broadly accessible");
+        }
+    }
+
+    @Test
+    void readOnlyRuntimeValidatesAndReadsWithoutChangingDirectoryPermissions() throws Exception {
+        store.initialize("bootstrap:weave-local:2026-07-20");
+        if (!Files.getFileStore(temporary).supportsFileAttributeView("posix")) {
+            return;
+        }
+        Files.setPosixFilePermissions(temporary, PosixFilePermissions.fromString("r-x------"));
+        try {
+            FileRuntimeProfileSigningKeyStore runtimeStore = new FileRuntimeProfileSigningKeyStore(
+                    temporary,
+                    mapper,
+                    clock,
+                    new SecureRandom(),
+                    KEY_LIFETIME,
+                    OVERLAP,
+                    PROFILE_TTL,
+                    FileSecretStoreAccess.READ_ONLY);
+
+            assertThat(runtimeStore.activeKey().keyId()).isEqualTo(store.current().activeKeyId());
+            assertThat(Files.getPosixFilePermissions(temporary))
+                    .isEqualTo(PosixFilePermissions.fromString("r-x------"));
+            assertThatThrownBy(() -> runtimeStore.initialize("bootstrap:weave-local:2026-07-20"))
+                    .isInstanceOf(RuntimeProfileSigningKeyException.class)
+                    .hasMessageContaining("read-only");
+        } finally {
+            Files.setPosixFilePermissions(temporary, PosixFilePermissions.fromString("rwx------"));
         }
     }
 

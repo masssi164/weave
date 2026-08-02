@@ -43,18 +43,18 @@ MARKERS = {
     "ENTERPRISE_TARGET_PERSISTENCE_FOUNDATION": [
         ROOT / "docs/architecture/adr-007-persistence-entity-strategy.md",
         ROOT
-        / "server/src/test/java/com/massimotter/weave/backend/provider/JdbcProviderSelectionRepositoryTest.java",
+        / "server/src/test/java/com/massimotter/weave/backend/provider/JpaProviderSelectionRepositoryTest.java",
         ROOT / "e2e/features/enterprise_target_architecture.feature",
     ],
     "ENTERPRISE_TARGET_AUDIT_PERSISTENCE_FOUNDATION": [
         ROOT / "docs/architecture/adr-007-persistence-entity-strategy.md",
-        ROOT / "server/src/test/java/com/massimotter/weave/backend/audit/JdbcAuditEventPublisherTest.java",
+        ROOT / "server/src/test/java/com/massimotter/weave/backend/audit/JpaAuditEventPublisherTest.java",
         ROOT / "e2e/features/enterprise_target_architecture.feature",
     ],
     "ENTERPRISE_TARGET_MIGRATION_EVIDENCE_PERSISTENCE_FOUNDATION": [
         ROOT / "docs/architecture/adr-007-persistence-entity-strategy.md",
         ROOT
-        / "server/src/test/java/com/massimotter/weave/backend/service/migration/JdbcMigrationRunEvidenceRepositoryTest.java",
+        / "server/src/test/java/com/massimotter/weave/backend/service/migration/JpaMigrationRunEvidenceRepositoryTest.java",
         ROOT / "e2e/features/enterprise_target_architecture.feature",
     ],
     "ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION": [

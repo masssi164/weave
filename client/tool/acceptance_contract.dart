@@ -499,7 +499,7 @@ Map<String, Object?> renderReleaseEvidenceManifest(
           ? 'release-candidate-live-evidence'
           : 'pr-safe-ci'),
   'rcPromotionRule':
-      'no-v0.1-rc-promotion-without-green-credentialed-live-stack-e2e-or-explicit-release-owner-waiver',
+      'no-v0.1-rc-promotion-without-green-test-app-product-flow-e2e-or-explicit-release-owner-waiver',
   'acceptanceContract': <String, Object?>{
     'valid': result.isValid,
     'scenarioCount': result.scenarios.length,

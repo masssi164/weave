@@ -36,7 +36,7 @@ Define the complete target product as an Organization Operating System with data
 - Weave product: Client, Server, Control/Admin, product infrastructure, and provider adapters behind Weave-owned domains.
 - Weaver product component: governed per-user personal assistant for eligible members inside Weave.
 - Personas: Admin/Owner, Operator/IT, Member, Support/Auditor, and Weaver User.
-- Core domains: Identity/RBAC, Spaces, Chat, Files/Documents, Calendar/Meetings, Boards/Tasks, Decisions/Evidence, Admin/Provider, and Weaver.
+- Core domains: fixed Keycloak platform identity/RBAC, Spaces, Chat, Files/Documents, Calendar/Meetings, Boards/Tasks, Decisions/Evidence, Admin/Provider, and Weaver.
 - Workflow groups: Setup/Governance, Space Work, Provider Change, Weaver Assistance, and Evidence/Audit.
 
 ### Out of scope
@@ -47,7 +47,7 @@ Define the complete target product as an Organization Operating System with data
 
 ### Non-negotiable constraints
 
-- Weave remains product-first and provider-neutral across all member-facing domains.
+- Weave remains product-first and provider-neutral across collaboration member-facing domains; Keycloak is the fixed platform identity authority.
 - Provider adapters are anti-corruption layers behind Weave-owned contracts.
 - Export, delete, provenance, migration dry-run, rollback, and no-unaccounted-data-loss behavior must be explicit where relevant.
 - Decisions/Evidence is a product domain, not only implementation evidence.
@@ -65,7 +65,7 @@ Define the complete target product as an Organization Operating System with data
 
 **Acceptance scenarios**:
 
-1. Given an organization with Identity/RBAC and Spaces configured, when an admin maps providers for chat, files, calendar, and boards, then members see stable Weave capabilities and not provider setup mechanics.
+1. Given an organization with Keycloak platform identity/RBAC and Spaces configured, when an admin maps providers for chat, files, calendar, and boards, then members see stable Weave capabilities and not provider setup mechanics.
 2. Given an admin starts a provider change, when preflight detects permission or data-loss impact, then Weave presents dry-run evidence, required approvals, rollback options, and no silent mutation.
 
 ### US2 - Work inside a space with coherent context (Priority: P1)

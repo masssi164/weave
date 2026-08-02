@@ -4,7 +4,20 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Added
 
+- Adds the Fresh Weave JVM architecture with framework-free application/files cores, explicit
+  JPA/provider/security adapter modules, separate Server and MCP processes, a provider-neutral
+  `files.search`/`weave://files/{id}` MCP slice over the existing WebDAV projection, and
+  architecture gates that prevent transport, persistence, provider, and OAuth dependency leaks.
+- Adds a fixture-free `testApp` candidate proof covering protected owner invitation, Mailpit
+  activation, real Chromium registration, Authorization Code + PKCE, member invitation, ARC
+  provisioning, per-cell `private_key_jwt`, MCP discovery/tool use, WebDAV provider access,
+  revocation, support-safe evidence, and exact isolated cleanup.
+- Adds digest-bound Server, MCP Server, Identity Ops, and version-pinned Keycloak Runtime
+  candidate images with immutable navigation tags, standard OCI metadata,
+  module/runtime/platform labels, numeric non-root users, embedded SBOM/provenance attestations,
+  and post-publish metadata verification.
 - Adds a versioned enterprise dogfood readiness manifest and ordered candidate chain covering exact-commit three-user collaboration, non-destructive persistent deployment, TestFlight distribution, and mandatory physical-iPhone VoiceOver signoff before any human-testing-ready or main-promotion claim.
+- Adds manifest-bound schema-v3 human readiness: all four runtime image digests and live/fixture proof origins remain explicit, while a separate protected workflow validates the tester-confirmed twenty-step physical-iPhone protocol instead of deriving human success from workflow checkboxes.
 - Adds a client-owned Matrix E2EE release candidate through the Apache-2.0 Matrix Rust SDK and `flutter_rust_bridge`: encrypted room sync/send, encrypted SQLite state, stable device identity, cross-signing, accessible SAS verification, recovery, lost-device denial, opaque server persistence, and live E2E evidence gates.
 - Adds stable physical-iPhone session continuity for in-place TestFlight iterations. The saved organization profile, OIDC refresh session, Matrix device ID, Keychain-held crypto-store passphrase, and encrypted history survive ordinary close, relaunch, and app update; explicit account removal remains the destructive boundary.
 - Sprint 22 adds a CI-safe free provider lab gate, manifests, fixture evidence, and operator runbook for Keycloak, Authentik, Matrix/Synapse, Zulip, Nextcloud, MinIO, Radicale, and OpenProject without claiming provider interchangeability or release readiness. Agent runtimes are not provider-lab adapters.
@@ -15,8 +28,16 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
-- Cuts over Weaver/MCP to the pinned workload-only v2 contract: removes member-facing Weaver Scout and permission-mode UI/API, deletes the v1 member MCP catalog/runtime/bridge/token-exchange stack, and keeps the Spring AI transport dark until ARC proves per-cell Keycloak workload identity and lifecycle reconciliation.
-- Replaces the retired Sprint 24/30/32 runtime-factory, per-user tool-grant, member opt-in, and approval-oracle fixtures with backend-owned Agent Runtime Control, Keycloak entitlement, one workload client per cell, external encrypted runtime state, and empty-by-default MCP domain catalogs. Historical closure reports are not current release evidence.
+- Replaces productive JDBC repositories with portable JPA entities, Spring Data repositories and
+  explicit MapStruct/domain mappings. H2 remains development feedback only; PostgreSQL uses a
+  one-shot code-first Server initializer with advisory lock, catalog fingerprint, authority
+  marker and receipt, while serving instances use Hibernate validation.
+- Standardizes Keycloak communication on Spring Security OAuth2 Client components: Boot's
+  authorized-client manager for invitation administration, the client-credentials response
+  client for SecretRef-backed ARC administration, and RFC 8693 token exchange with
+  `private_key_jwt` for MCP-to-Server calls.
+- Cuts over Weaver/MCP to the pinned workload-only v2 contract: removes member-facing Weaver Scout and permission-mode UI/API, deletes the v1 member MCP catalog/runtime/bridge/token-exchange stack, requires ARC-proven per-cell Keycloak workload identity, and exposes only the approved read-only Files slice while remaining domain catalogs stay guarded.
+- Replaces the retired Sprint 24/30/32 runtime-factory, per-user tool-grant, member opt-in, and approval-oracle fixtures with backend-owned Agent Runtime Control, Keycloak entitlement, one workload client per cell, external encrypted runtime state, an active read-only Files MCP catalog, and guarded-by-default remaining domain catalogs. Historical closure reports are not current release evidence.
 - Separates process liveness, local backend readiness, and cached provider capability health; provider probes are single-flight, rate-limit aware, support-safe, and no longer run on every readiness poll.
 - Normal member Files, Calendar, and Chat data planes are now documented coherently as OIDC-gated Weave WebDAV, CalDAV/iCalendar, and Matrix Client-Server facades over canonical domains; obsolete REST event/message data-plane access is not a compatibility target.
 - Public docs and README evidence pointers now identify `v0.1.0-rc.3` as the latest published prerelease and link the RC3 evidence audit.
@@ -24,6 +45,8 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Fixed
 
+- Splits isolated SecretRef mounts by runtime ownership, rejects read-only parent/child collisions and weak or symlinked source files before startup, and keeps runtime-admin, identity-admin, Cell, and signing material out of the MCP container.
+- Adds a fresh iPhone Simulator current-surface gate after exact two-pass live collaboration; the resulting evidence remains explicitly `fixture-ui` and cannot replace live provider, physical-device, system-browser, or VoiceOver proof.
 - Bounds iPhone Simulator VM-service discovery and replays only the exact same-process launch event when Xcode 26.5 live unified logging misses it, preventing Live Stack E2E from hanging before application assertions without persisting the service URI or weakening product checks.
 - Removes the obsolete first-run client path permanently, upgrades legacy stored state into the normal AppShell without discarding the current OIDC session, and exposes support-safe client build identity for in-place dogfood verification.
 - Makes Live Stack collaboration use three disposable identities, fresh encrypted Matrix rooms, real cross-user Files/Calendar/Home observations, isolated authorization probes, exact artifact cleanup, a real Calendar outage/recovery fixture, and a fresh per-run iPhone Simulator.
@@ -38,7 +61,11 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Security
 
-- Rejects every human token and unbound service account at `/mcp`, removes the obsolete delegated member-token backend admission path, and stops injecting the MCP client secret into the dark transport container.
+- Separates direct-member, ARC-admin, RuntimeProfile, Files workload, Matrix appservice, isolated
+  proof, and MCP security chains by exact path and token profile; incoming MCP bearers are never
+  relayed, exchanged tokens are audience/scope/expiry constrained, and human tokens cannot cross
+  the workload boundary.
+- Rejects every human token and unbound service account at `/mcp`, removes the obsolete delegated member-token backend admission path, and stops injecting an MCP client secret into the transport container.
 - Preserves Nextcloud brute-force protection while correcting stable backend credentials and exact trusted-proxy forwarding, and records only sanitized cached provider-health, authorization, identity-hash, and security-audit evidence.
 
 ## Accessibility
@@ -48,6 +75,9 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Migration/Operator Notes
 
+- Fresh Start has no legacy database, Flyway, Keycloak-user, provider-object, credential, or
+  volume migration path. Operators must approve an exact manifest-bound hard cut and recreate
+  the new generation from digest-pinned candidates and Desired State.
 - Persistent dogfood deployment now runs twice under a non-cancelling lock, verifies OpenTofu idempotency plus human-subject, Mailpit, TLS, and active-session invariants, and never creates or resets disposable automation identities in that environment.
 - No production provider cutover, migration apply, Terraform/live infrastructure change, or public production release has been performed after `v0.1.0-rc.3`.
 - Sprint 30 phone dogfood uses the same profile-driven setup pipeline across profiles. `local-lan-dogfood` may be used for the first real iPhone test over LAN, but phone handoff rejects localhost, `127.0.0.1`, and Mac-only `.local` assumptions.

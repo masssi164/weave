@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
@@ -9,9 +11,9 @@ import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.service.DevopsFacadeService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -45,7 +47,7 @@ class DevopsControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @Test
@@ -81,7 +83,11 @@ class DevopsControllerTest {
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
-                        .claim("aud", java.util.List.of("weave-app")))
+                        .claim("aud", java.util.List.of("weave-app"))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("member")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

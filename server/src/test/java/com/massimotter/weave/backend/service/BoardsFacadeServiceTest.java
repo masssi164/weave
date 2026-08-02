@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditRequiredException;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
@@ -31,7 +33,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,7 +48,8 @@ class BoardsFacadeServiceTest {
                 new LocalWorkspaceBoardsRepository(),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         assertThatThrownBy(() -> service.workspace(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
@@ -65,7 +68,8 @@ class BoardsFacadeServiceTest {
                 new LocalWorkspaceBoardsRepository(),
                 request -> ContextAuthorizationDecision.deny("no matching context membership"),
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         assertThatThrownBy(() -> service.workspace(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
@@ -91,7 +95,8 @@ class BoardsFacadeServiceTest {
                     return ContextAuthorizationDecision.allow("context membership matched");
                 },
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         service.workspace(jwtWithContext("tenant-acme", "ctx-product-channel"));
 
@@ -99,6 +104,46 @@ class BoardsFacadeServiceTest {
         assertThat(captured.get().contextId()).isEqualTo("ctx-product-channel");
         assertThat(captured.get().principalRef()).isEqualTo("user:user-123");
         assertThat(captured.get().permission().name()).isEqualTo("VIEW");
+    }
+
+    @Test
+    void workspaceAcceptsNativeOrganizationTokenWithoutLegacyTenantAliases() {
+        java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest> captured =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsRuntimeGuard(true),
+                new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT),
+                request -> {
+                    captured.set(request);
+                    return ContextAuthorizationDecision.allow("native organization identity matched");
+                },
+                contextAuthorizationProperties(),
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
+
+        service.workspace(nativeOrganizationJwt());
+
+        assertThat(captured.get().tenantId()).isEqualTo("tenant-default");
+        assertThat(captured.get().principalRef()).isEqualTo("user:user-123");
+    }
+
+    @Test
+    void workspaceTranslatesMalformedOrganizationIdentityToStableUnauthorizedError() {
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsRuntimeGuard(true),
+                new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT),
+                request -> ContextAuthorizationDecision.allow("not reached"),
+                contextAuthorizationProperties(),
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
+
+        assertThatThrownBy(() -> service.workspace(jwtWithoutIssuer()))
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status()).isEqualTo(org.springframework.http.HttpStatus.UNAUTHORIZED);
+                    assertThat(error.code()).isEqualTo("boards-unauthorized");
+                    assertThat(error.details())
+                            .containsEntry("reason", "organization identity is missing or invalid");
+                });
     }
 
     @Test
@@ -113,7 +158,8 @@ class BoardsFacadeServiceTest {
                     return ContextAuthorizationDecision.deny("edit denied");
                 },
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         var createRequest = new com.massimotter.weave.backend.model.boards.BoardsCreateTaskRequest(
                 "local-column-todo",
@@ -146,7 +192,8 @@ class BoardsFacadeServiceTest {
                     return ContextAuthorizationDecision.allow("context would allow");
                 },
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         var createRequest = new com.massimotter.weave.backend.model.boards.BoardsCreateTaskRequest(
                 "local-column-todo",
@@ -280,7 +327,8 @@ class BoardsFacadeServiceTest {
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         var response = service.workspace(jwt());
 
@@ -303,7 +351,8 @@ class BoardsFacadeServiceTest {
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT, "op:v1:c3VwcG9ydC1zYWZl"),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         var response = service.workspace(jwt());
 
@@ -322,7 +371,8 @@ class BoardsFacadeServiceTest {
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT, "https://openproject.example.test/page?token=secret"),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         assertThatThrownBy(() -> service.workspace(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
@@ -363,8 +413,30 @@ class BoardsFacadeServiceTest {
                 .subject("user-123")
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                .claim("groups", java.util.List.of("weave-board-editors"))
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(300))
+                .build();
+    }
+
+    private Jwt nativeOrganizationJwt() {
+        Instant now = Instant.parse("2026-05-19T05:00:00Z");
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("user-123")
+                .issuer("https://auth.example.invalid/realms/acme")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(300))
+                .build();
+    }
+
+    private Jwt jwtWithoutIssuer() {
+        Instant now = Instant.parse("2026-05-19T05:00:00Z");
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("user-123")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();
@@ -377,8 +449,7 @@ class BoardsFacadeServiceTest {
                 .subject("user-123")
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                .claim("groups", java.util.List.of())
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();
@@ -392,8 +463,7 @@ class BoardsFacadeServiceTest {
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", tenantId)
                 .claim("weave_context_id", contextId)
-                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                .claim("groups", java.util.List.of("weave-board-editors"))
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();

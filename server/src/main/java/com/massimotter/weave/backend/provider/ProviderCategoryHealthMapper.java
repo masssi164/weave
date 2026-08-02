@@ -27,14 +27,6 @@ final class ProviderCategoryHealthMapper {
         Instant evidenceTimestamp = generatedAt == null ? Instant.EPOCH : generatedAt;
         return List.of(
                 capabilityCategory(
-                        "identity-idm",
-                        "identity/IDM",
-                        capabilities.shellAccess(),
-                        safeProviders,
-                        modules(ProviderModule.IDENTITY_REALM),
-                        selections,
-                        evidenceTimestamp),
-                capabilityCategory(
                         "chat",
                         "chat",
                         capabilities.chat(),

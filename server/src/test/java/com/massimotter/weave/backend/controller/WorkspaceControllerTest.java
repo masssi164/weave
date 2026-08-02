@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
@@ -14,6 +16,7 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.service.OrganizationManifestService;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.WorkspaceHomeService;
 import com.massimotter.weave.backend.service.WorkspaceHomeRecentActivityService;
@@ -23,11 +26,11 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -48,6 +51,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = WorkspaceController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
         WorkspaceCapabilityService.class,
         OrganizationManifestService.class,
@@ -80,27 +84,26 @@ class WorkspaceControllerTest {
     @Autowired
     private OAuth2ResourceServerProperties resourceServerProperties;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockBean
+    @MockitoBean
     private AuditEventPublisher auditEventPublisher;
 
-    @MockBean
+    @MockitoBean
     private ContextAuthorizationPort contextAuthorizationPort;
 
     @Test
     void returnsOrganizationManifestForMemberClientWithoutAdminConsoleLeakage() throws Exception {
         // V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT
         // SUPPORT_SAFE_CAPABILITY_STATES_CONTRACT
-        mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
+        mockMvc.perform(get("/api/organization/manifest").with(jwt()
                         .jwt(jwt -> jwt
                                 .subject("calendar-editor@example.invalid")
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("weave_tenant_id", "weave-dogfood")
                                 .claim("weave_organization_name", "Weave Dogfood")
-                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of())))
-                                .claim("groups", List.of("weave-calendar-editors", "weave-meeting-hosts")))
+                                .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.manifestVersion").value("org-manifest-v1"))
@@ -113,20 +116,20 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.whitelistingOwner").value("organization-admin-console"))
                 .andExpect(jsonPath("$.clientResponsibilities", hasItems(
                         "accept organization auth URL, invite link, or deep link",
-                        "complete SSO with the selected identity provider",
+                        "complete OIDC Authorization Code with PKCE through the organization authority",
                         "consume effective organization manifest and capability states",
                         "render only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later member states")))
                 .andExpect(jsonPath("$.adminConsoleResponsibilities", hasItems(
                         "create and bootstrap organizations",
-                        "select and configure identity providers and category providers",
+                        "manage Keycloak identity, upstream federation, and selectable category providers",
                         "manage provider endpoint URLs, rotation, readiness, and support-safe diagnostics",
                         "manage users, groups, roles, capability profiles, and deny-by-default policy",
                         "own provider, tool, and agent whitelisting plus privacy/compliance risk notes",
                         "audit organization-wide defaults and administrative changes")))
-                .andExpect(jsonPath("$.memberCapabilityStates['idm-rbac']").value("available"))
-                .andExpect(jsonPath("$.memberCapabilityStates['chat-channels']").value("disabled_by_policy"))
+                .andExpect(jsonPath("$.memberCapabilityStates['platform-identity']").value("available"))
+                .andExpect(jsonPath("$.memberCapabilityStates['chat-channels']").value("available"))
                 .andExpect(jsonPath("$.memberCapabilityStates['calendar-events']").value("degraded"))
-                .andExpect(jsonPath("$.memberCapabilityStates['files-docs']").value("disabled_by_policy"))
+                .andExpect(jsonPath("$.memberCapabilityStates['files-docs']").value("available"))
                 .andExpect(jsonPath("$.memberCapabilityStates['boards-tasks']").value("disabled_by_policy"))
                 .andExpect(jsonPath("$.memberCapabilityStates.meetings").value("not_configured"))
                 .andExpect(jsonPath("$.memberCapabilityStates['forms-contacts']").value("coming_later"))
@@ -179,7 +182,7 @@ class WorkspaceControllerTest {
                         .value(hasItems("experimental_guarded", "rtc_authorizer_required")))
                 .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].credentialLifecycle.status")
                         .value("matrix_native_oauth_distinct_from_sfu_tokens"))
-                .andExpect(jsonPath("$.capabilities.calendar.grantedCapabilities", hasItems("calendar.manage_events")))
+                .andExpect(jsonPath("$.capabilities.calendar.grantedCapabilities", hasItems("calendar.read")))
                 .andExpect(jsonPath("$.capabilities.agentRuntimeControl.policyState").value("disabled"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("matrix.weave.test"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("files.weave.test"))))
@@ -196,13 +199,12 @@ class WorkspaceControllerTest {
         String originalIssuerUri = resourceServerProperties.getJwt().getIssuerUri();
         resourceServerProperties.getJwt().setIssuerUri("https://user:pass@auth.weave.test/realms/weave");
         try {
-            mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
+            mockMvc.perform(get("/api/organization/manifest").with(jwt()
                             .jwt(jwt -> jwt
                                     .subject("calendar-editor@example.invalid")
                                     .claim("iss", "https://auth.example.invalid/realms/acme")
                                     .claim("weave_tenant_id", "weave-dogfood")
-                                    .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of())))
-                                    .claim("groups", List.of("weave-calendar-editors")))
+                                    .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                             .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                     .andExpect(status().isServiceUnavailable())
                     .andExpect(jsonPath("$.code").value("organization-manifest-invalid-auth-url"));
@@ -216,13 +218,12 @@ class WorkspaceControllerTest {
         String originalIssuerUri = resourceServerProperties.getJwt().getIssuerUri();
         resourceServerProperties.getJwt().setIssuerUri(" ");
         try {
-            mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
+            mockMvc.perform(get("/api/organization/manifest").with(jwt()
                             .jwt(jwt -> jwt
                                     .subject("calendar-editor@example.invalid")
                                     .claim("iss", "https://auth.example.invalid/realms/acme")
                                     .claim("weave_tenant_id", "weave-dogfood")
-                                    .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of())))
-                                    .claim("groups", List.of("weave-calendar-editors")))
+                                    .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                             .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                     .andExpect(status().isServiceUnavailable())
                     .andExpect(jsonPath("$.code").value("organization-manifest-invalid-auth-url"));
@@ -232,36 +233,33 @@ class WorkspaceControllerTest {
     }
 
     @Test
-    void rejectsOrganizationManifestWhenTenantClaimIsMissing() throws Exception {
-        mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
+    void resolvesOrganizationManifestWithoutLegacyTenantAliasClaims() throws Exception {
+        mockMvc.perform(get("/api/organization/manifest").with(jwt()
                         .jwt(jwt -> jwt
                                 .subject("calendar-editor@example.invalid")
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of())))
-                                .claim("groups", List.of("weave-calendar-editors")))
+                                .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("organization-manifest-unauthorized"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.organizationId").value("tenant-default"));
     }
 
     @Test
     void returnsConfiguredWorkspaceCapabilities() throws Exception {
         assertConfiguredWorkspaceCapabilities("/api/workspace/capabilities");
-        assertConfiguredWorkspaceCapabilities("/api/v1/workspace/capabilities");
     }
 
     @Test
     void operatorCanReadReleaseReadinessSnapshot() throws Exception {
         assertReleaseReadinessSnapshot("/api/workspace/release-readiness");
-        assertReleaseReadinessSnapshot("/api/v1/workspace/release-readiness");
     }
 
     @Test
     void releaseReadinessRejectsMembersWithoutAdminReadinessCapability() throws Exception {
-        mockMvc.perform(get("/api/v1/workspace/release-readiness").with(jwt()
+        mockMvc.perform(get("/api/workspace/release-readiness").with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
+                                .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
@@ -272,7 +270,6 @@ class WorkspaceControllerTest {
     @Test
     void returnsWeaveHomeDailyWorkSnapshot() throws Exception {
         assertWeaveHomeSnapshot("/api/workspace/home");
-        assertWeaveHomeSnapshot("/api/v1/workspace/home");
     }
 
     @Test
@@ -307,12 +304,12 @@ class WorkspaceControllerTest {
                     : ContextAuthorizationDecision.deny("not a member");
         });
 
-        mockMvc.perform(get("/api/v1/workspace/home").with(jwt()
+        mockMvc.perform(get("/api/workspace/home").with(jwt()
                         .jwt(token -> token
                                 .subject("author-sub")
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("weave_tenant_id", "tenant-a")
-                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
+                                .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").value(2))
@@ -341,7 +338,7 @@ class WorkspaceControllerTest {
                 .jwt(token -> token
                         .subject("member@example.invalid")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
-                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
 
         for (String path : List.of(
@@ -357,16 +354,16 @@ class WorkspaceControllerTest {
 
     @Test
     void returnsAdminCapabilityPolicySnapshot() throws Exception {
-        mockMvc.perform(get("/api/v1/workspace/capability-policy").with(jwt()
+        mockMvc.perform(get("/api/workspace/capability-policy").with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("admin"))))
-                                .claim("groups", List.of("weave-board-editors")))
+                                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin")))
                         .authorities(
                                 new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                                 new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.defaultIdmProvider").value("OIDC/SAML selected IDM"))
+                .andExpect(jsonPath("$.platformIdentityAuthority").value("Keycloak"))
+                .andExpect(jsonPath("$.federationContract").value(containsString("LDAP")))
                 .andExpect(jsonPath("$.denyByDefault").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.grantedCapabilities").isArray())
@@ -375,10 +372,10 @@ class WorkspaceControllerTest {
 
     @Test
     void rejectsCapabilityPolicyForMembers() throws Exception {
-        mockMvc.perform(get("/api/v1/workspace/capability-policy").with(jwt()
+        mockMvc.perform(get("/api/workspace/capability-policy").with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
+                                .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
@@ -404,28 +401,18 @@ class WorkspaceControllerTest {
         mockMvc.perform(get("/api/workspace/capabilities"))
                 .andExpect(status().isUnauthorized());
 
-        mockMvc.perform(get("/api/v1/workspace/capabilities"))
-                .andExpect(status().isUnauthorized());
-
         mockMvc.perform(get("/api/workspace/release-readiness"))
-                .andExpect(status().isUnauthorized());
-
-        mockMvc.perform(get("/api/v1/workspace/release-readiness"))
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get("/api/workspace/home"))
                 .andExpect(status().isUnauthorized());
-
-        mockMvc.perform(get("/api/v1/workspace/home"))
-                .andExpect(status().isUnauthorized());
-
     }
 
     private void assertConfiguredWorkspaceCapabilities(String path) throws Exception {
         mockMvc.perform(get(path).with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
+                                .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.shellAccess.enabled").value(true))
@@ -444,7 +431,7 @@ class WorkspaceControllerTest {
         mockMvc.perform(get(path).with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("admin")))))
+                                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin")))
                         .authorities(
                                 new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                                 new SimpleGrantedAuthority("ROLE_ADMIN"))))
@@ -460,7 +447,7 @@ class WorkspaceControllerTest {
         mockMvc.perform(get(path).with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
+                                .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").value(2))

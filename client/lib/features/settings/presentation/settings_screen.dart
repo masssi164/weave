@@ -20,8 +20,6 @@ import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart'
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/workspace_capability_recovery_presenter.dart';
-import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
-import 'package:weave/features/agents/presentation/widgets/agent_capability_policy_card.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/connectors/presentation/providers/connector_preview_provider.dart';
@@ -232,8 +230,6 @@ class _AdminOnlySettingsSections extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _WorkspaceReadinessCard(),
-        SizedBox(height: 32),
-        _AgentCapabilityPolicySection(),
         if (FeatureFlags.hasFeatureGatedSurfaces) ...[
           SizedBox(height: 32),
           _FeaturePreviewSurfacesSection(),
@@ -295,29 +291,6 @@ class _AdminSetupBoundaryCard extends ConsumerWidget {
         ),
       ),
     );
-  }
-}
-
-class _AgentCapabilityPolicySection extends ConsumerWidget {
-  const _AgentCapabilityPolicySection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final policy = ref.watch(agentCapabilityPolicyProvider);
-
-    return switch (policy) {
-      AsyncData(value: final value) => AgentCapabilityPolicyCard(policy: value),
-      AsyncError() => ErrorState(
-        message: l10n.agentCapabilityPolicyErrorTitle,
-        retryLabel: l10n.retryButton,
-        onRetry: () => ref.invalidate(agentCapabilityPolicyProvider),
-      ),
-      _ => LoadingState(
-        message: l10n.agentCapabilityPolicyLoading,
-        icon: Icons.admin_panel_settings_outlined,
-      ),
-    };
   }
 }
 

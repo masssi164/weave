@@ -27,7 +27,11 @@ Weave needs a stable, provider-neutral registry of product domains so server, ad
 
 ### In scope
 
-- Canonical domains: identity, people, spaces, chat, files, documents, calendar, boards, calls, decisions, notifications, health, and weaver.
+- Canonical collaboration/product domains: people, spaces, chat, files, documents,
+  calendar, boards, calls, decisions, notifications, health, and agent runtime control.
+- Authentication, credentials, realm/client desired state, upstream LDAP/AD federation,
+  and OIDC/SAML brokering are fixed platform-security concerns owned by Keycloak and
+  Identity Ops. They are intentionally absent from the provider-neutral domain registry.
 - Compatibility aliases for historical provider/category names.
 - Member-safe and admin/operator states.
 - Provider reality levels for every provider candidate so contract-only seams cannot be marketed as generally available.
@@ -50,8 +54,12 @@ Weave needs a stable, provider-neutral registry of product domains so server, ad
 - **FR-005**: Portability artifacts MUST include no-unaccounted-data-loss loss classes and migration run lifecycle states.
 - **FR-006**: The validation gate MUST fail when required domains, states, aliases, or portability schemas are missing.
 - **FR-007**: Every provider candidate MUST declare exactly one of `contract_only`, `configured`, `live_read`, `live_write`, `migration_dry_run`, `migration_apply_ready`, `rollback_ready`, or `release_ready`; `contract_only` candidates MUST NOT produce member state `available` and only `release_ready` may be described as customer-ready.
-- **FR-008**: Northstar capability names, Identity/RBAC portability claims, and domain-first Weaver tool names MUST resolve to canonical Weave-owned domain and capability keys before they can appear in product copy, admin policy, provider manifests, or MCP/tool registries.
+- **FR-008**: Northstar capability names, platform-identity federation claims, and domain-first Weaver tool names MUST resolve to canonical Weave-owned domain and capability keys before they can appear in product copy, admin policy, federation evidence, provider manifests, or MCP/tool registries.
 - **FR-009**: Registry evidence MUST keep `offline-spec` and `live-runtime` reality levels separate so fixture, dry-run, or contract evidence cannot be promoted into customer-ready or release-ready domain claims.
+- **FR-010**: The registry MUST NOT contain an identity provider category, an IDM
+  replacement adapter, or Keycloak as a selectable southbound collaboration provider.
+  Keycloak remains the fixed self-hosted platform-security authority and may federate
+  LDAP/AD or broker upstream OIDC/SAML identities behind that boundary.
 
 ## Acceptance and evidence mapping
 

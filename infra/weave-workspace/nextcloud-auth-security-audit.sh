@@ -44,7 +44,7 @@ parse_args() {
 
 container_ip() {
   local container="$1"
-  local network="${TF_VAR_docker_network_name:-weave_network}"
+  local network="${WEAVE_DOCKER_NETWORK_NAME:-weave_network}"
   docker inspect --format '{{json .NetworkSettings.Networks}}' "${container}" 2>/dev/null |
     python3 -c 'import json,sys
 network=json.load(sys.stdin).get(sys.argv[1], {})
@@ -57,7 +57,7 @@ read_live_log() {
 }
 
 configured_backend_actor() {
-  local configured="${TF_VAR_nextcloud_backend_actor_username:-${WEAVE_NEXTCLOUD_BACKEND_ACTOR_USERNAME:-${WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME:-}}}"
+  local configured="${WEAVE_NEXTCLOUD_BACKEND_ACTOR_USERNAME:-${WEAVE_NEXTCLOUD_BACKEND_ACTOR_USERNAME:-${WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME:-}}}"
   if [[ -n "${configured}" ]]; then
     printf '%s' "${configured}"
     return
@@ -97,7 +97,7 @@ main() {
   fi
   salt="${WEAVE_AUDIT_HASH_SALT:-$(openssl rand -hex 16)}"
   if [[ -n "${LOG_FILE}" ]]; then
-    backend_actor="${TF_VAR_nextcloud_backend_actor_username:-${WEAVE_NEXTCLOUD_BACKEND_ACTOR_USERNAME:-${WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME:-}}}"
+    backend_actor="${WEAVE_NEXTCLOUD_BACKEND_ACTOR_USERNAME:-${WEAVE_NEXTCLOUD_BACKEND_ACTOR_USERNAME:-${WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME:-}}}"
   else
     backend_actor="$(configured_backend_actor)"
   fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate Sprint 27 Calendar/Files/Identity provider-boundary proof and aggregate claim gate."""
+"""Validate Sprint 27 provider boundaries and the fixed Keycloak federation boundary."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT_DIR = ROOT / "release" / "provider-lab" / "cross-domain-provider-proof"
 CALENDAR = ARTIFACT_DIR / "calendar-nextcloud-radicale.fixture.json"
 FILES = ARTIFACT_DIR / "files-nextcloud-minio.fixture.json"
-IDENTITY = ARTIFACT_DIR / "identity-keycloak-authentik.fixture.json"
+PLATFORM_IDENTITY = ARTIFACT_DIR / "platform-identity-federation.fixture.json"
 SCOREBOARD = ARTIFACT_DIR / "sprint-27-cross-domain-scoreboard.json"
 CLAIM_GATE = ARTIFACT_DIR / "sprint-27-provider-neutrality-claim-gate.fixture.json"
 DOC = ROOT / "docs" / "evidence" / "sprint-27-cross-domain-provider-proof.md"
@@ -139,6 +139,51 @@ def validate_domain_fixture(
     assert_support_safe(artifact, label)
 
 
+def validate_platform_identity_fixture(artifact: dict[str, Any]) -> None:
+    label = "platform identity"
+    if artifact.get("artifactKind") != "weave-sprint-27-platform-identity-federation-proof-v2":
+        fail(f"{label} kind mismatch")
+    if artifact.get("issue") != 645 or artifact.get("supportSafe") is not True:
+        fail(f"{label} issue/support-safety mismatch")
+    if artifact.get("domain") != "platform-identity":
+        fail(f"{label} domain mismatch")
+    if artifact.get("platformAuthority") != "keycloak":
+        fail(f"{label} must keep Keycloak as the fixed platform authority")
+    if artifact.get("upstreamSourceKind") != "authentik-oidc":
+        fail(f"{label} upstream source mismatch")
+    if artifact.get("operation") != "federation-readiness-dry-run":
+        fail(f"{label} operation mismatch")
+    if artifact.get("realityLevel") != "readiness_dry_run":
+        fail(f"{label} reality level mismatch")
+    if artifact.get("providerSwitchAllowed") is not False:
+        fail(f"{label} must forbid a platform identity provider switch")
+    expected_objects = {
+        "Organization",
+        "UserAccount",
+        "Person",
+        "Group",
+        "Role",
+        "IdentitySource",
+        "CapabilityPolicy",
+        "UpstreamIdentitySourceRef",
+    }
+    if set(artifact.get("canonicalObjects", [])) != expected_objects:
+        fail(f"{label} canonical object coverage mismatch")
+    if len(artifact.get("preservedFields", [])) < 5:
+        fail(f"{label} must report preserved fields")
+    risks = artifact.get("federationRisks", [])
+    if not isinstance(risks, list) or len(risks) < 3:
+        fail(f"{label} must report at least three federation risks")
+    for entry in risks:
+        if not {"field", "classification", "adminImpact"}.issubset(entry):
+            fail(f"{label} risk entries must include field/classification/adminImpact")
+    if artifact.get("authEvidenceBoundary", {}).get("containsSecrets") is not False:
+        fail(f"{label} auth evidence must contain no secrets")
+    if "SPRINT27_PLATFORM_IDENTITY_FEDERATION_PROOF" not in artifact.get("evidenceMarkers", []):
+        fail(f"{label} evidence marker missing")
+    assert_support_safe(artifact, label)
+
+
 def validate_scoreboard(scoreboard: dict[str, Any], fixtures: dict[str, dict[str, Any]]) -> None:
     if scoreboard.get("artifactKind") != "weave-sprint-27-cross-domain-provider-proof-scoreboard-v1":
         fail("scoreboard kind mismatch")
@@ -169,11 +214,18 @@ def validate_claim_gate(claim_gate: dict[str, Any], scoreboard: dict[str, Any]) 
     if claim_gate.get("supportSafe") is not True or claim_gate.get("setupFlowEvidenceSeparated") is not True:
         fail("claim gate must be supportSafe and separate setup-flow evidence")
     claim = claim_gate.get("acceptedClaim", {}).get("claim", "")
-    for phrase in ["Calendar", "Files", "Identity", "setup-flow evidence named separately", "broad provider-neutrality wording still blocked"]:
+    for phrase in [
+        "Calendar",
+        "Files",
+        "Keycloak",
+        "federation",
+        "setup-flow evidence named separately",
+        "broad provider-neutrality wording still blocked",
+    ]:
         if phrase not in claim:
             fail(f"accepted claim missing {phrase!r}")
     rejected = "\n".join(item.get("claim", "") + " " + item.get("reason", "") for item in claim_gate.get("rejectedClaims", []))
-    for phrase in ["Chat switch evidence alone", "customer-ready", "losslessly in production"]:
+    for phrase in ["Chat switch evidence alone", "customer-ready", "identity authority is provider-switchable"]:
         if phrase.lower() not in rejected.lower():
             fail(f"claim gate missing rejected overclaim {phrase!r}")
     if claim_gate.get("scoreboardRef") != str(SCOREBOARD.relative_to(ROOT)):
@@ -205,20 +257,20 @@ def validate_docs_and_mapping() -> None:
         "#643", "#644", "#645", "#646", "Historical #665 evidence is obsolete",
         "release/provider-lab/cross-domain-provider-proof/calendar-nextcloud-radicale.fixture.json",
         "release/provider-lab/cross-domain-provider-proof/files-nextcloud-minio.fixture.json",
-        "release/provider-lab/cross-domain-provider-proof/identity-keycloak-authentik.fixture.json",
+        "release/provider-lab/cross-domain-provider-proof/platform-identity-federation.fixture.json",
         "release/provider-lab/cross-domain-provider-proof/sprint-27-provider-neutrality-claim-gate.fixture.json",
     ])
     assert_fragments(FEATURE, [
         "@sprint27-calendar-provider-boundary",
         "@sprint27-files-provider-boundary",
-        "@sprint27-identity-provider-boundary",
+        "@sprint27-platform-identity-federation-boundary",
         "@sprint27-provider-neutrality-claim-gate",
         "setup-flow evidence is named separately",
     ])
     assert_fragments(MAPPING, [
         "@sprint27-calendar-provider-boundary",
         "@sprint27-files-provider-boundary",
-        "@sprint27-identity-provider-boundary",
+        "@sprint27-platform-identity-federation-boundary",
         "@sprint27-provider-neutrality-claim-gate",
         "SPRINT27_CALENDAR_PROVIDER_BOUNDARY_PROOF",
         "SPRINT27_PROVIDER_NEUTRALITY_CLAIM_GATE",
@@ -234,14 +286,12 @@ def main() -> None:
         ("radicale", "calendar"),
         ("nextcloud", "files"),
         ("minio-s3", "files"),
-        ("keycloak", "identity"),
-        ("authentik", "identity"),
     ]:
         validate_manifest(provider, domain)
 
     calendar = load(CALENDAR)
     files = load(FILES)
-    identity = load(IDENTITY)
+    platform_identity = load(PLATFORM_IDENTITY)
     validate_domain_fixture(
         calendar,
         label="calendar",
@@ -264,19 +314,7 @@ def main() -> None:
         required_objects={"WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef"},
         marker="SPRINT27_FILES_PROVIDER_BOUNDARY_PROOF",
     )
-    validate_domain_fixture(
-        identity,
-        label="identity",
-        kind="weave-sprint-27-identity-boundary-proof-v1",
-        issue=645,
-        domain="identity",
-        source="keycloak",
-        target="authentik",
-        required_objects={"Organization", "UserAccount", "Person", "Group", "Role", "IdentitySource", "CapabilityPolicy", "ProviderRef"},
-        marker="SPRINT27_IDENTITY_PROVIDER_BOUNDARY_PROOF",
-    )
-    if identity.get("authEvidenceBoundary", {}).get("containsSecrets") is not False:
-        fail("identity auth evidence must contain no secrets")
+    validate_platform_identity_fixture(platform_identity)
     if files.get("permissionValidation", {}).get("silentPermissionDropsAllowed") is not False:
         fail("files proof must forbid silent permission drops")
     if calendar.get("uiDomainStability", {}).get("memberSurface") != "Weave Calendar":
@@ -284,13 +322,20 @@ def main() -> None:
 
     scoreboard = load(SCOREBOARD)
     claim_gate = load(CLAIM_GATE)
-    validate_scoreboard(scoreboard, {"calendar": calendar, "files": files, "identity": identity})
+    validate_scoreboard(
+        scoreboard,
+        {
+            "calendar": calendar,
+            "files": files,
+            "platform-identity": platform_identity,
+        },
+    )
     validate_claim_gate(claim_gate, scoreboard)
     validate_docs_and_mapping()
     print("cross-domain-provider-proof-check: ok issues=643,644,645,646 reality=migration_dry_run delivery=github-only")
     print("SPRINT27_CALENDAR_PROVIDER_BOUNDARY_PROOF")
     print("SPRINT27_FILES_PROVIDER_BOUNDARY_PROOF")
-    print("SPRINT27_IDENTITY_PROVIDER_BOUNDARY_PROOF")
+    print("SPRINT27_PLATFORM_IDENTITY_FEDERATION_PROOF")
     print("SPRINT27_PROVIDER_NEUTRALITY_SCOREBOARD")
     print("SPRINT27_PROVIDER_NEUTRALITY_CLAIM_GATE")
 

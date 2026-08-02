@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/masssi164/weave/actions/workflows/ci.yml"><img src="https://github.com/masssi164/weave/actions/workflows/ci.yml/badge.svg" alt="CI workflow status"></a>
-  <a href="https://github.com/masssi164/weave/actions/workflows/live-stack-e2e.yml"><img src="https://github.com/masssi164/weave/actions/workflows/live-stack-e2e.yml/badge.svg" alt="Live Stack E2E workflow status"></a>
+  <a href="https://github.com/masssi164/weave/actions/workflows/live-stack-e2e.yml"><img src="https://github.com/masssi164/weave/actions/workflows/live-stack-e2e.yml/badge.svg" alt="Fresh product-flow workflow status"></a>
 </p>
 
 **Accessible collaboration, under your control.**
@@ -154,31 +154,26 @@ make offline-contract-test
 
 ## Live stack and E2E
 
-Use `../infra` when a change needs real Keycloak, Matrix, Nextcloud, backend, or provider-stack evidence.
+Use the root `testApp` lifecycle when a change needs real Keycloak, Matrix,
+Nextcloud, backend, MCP, or provider-stack evidence.
 
 Default local stack flow:
 
 ```sh
-cd ../infra/weave-workspace
-TF_VAR_create_test_user=true ./install.sh
-cd ../../client
-make integration-test
-```
-
-The local stack writes reusable test settings to `../infra/weave-workspace/.generated/bootstrap.env`. Override the path when using another checkout:
-
-```sh
-WEAVE_BOOTSTRAP_ENV=../infra/weave-workspace/.generated/bootstrap.env make integration-test
+cd ..
+./gradlew testApp
 ```
 
 Useful targets:
 
 - `make offline-contract-test`: automatic no-network contract gate.
-- `make integration-contract-test`: live-stack contract check requiring real test credentials.
-- `make integration-app-e2e` / `make integration-test`: expensive app-level live E2E targets for manual runs.
+- `make integration-test`: PR-safe client mapping, release-spine, and open-standard contract checks.
+- `make physical-device-auth-e2e`: interactive activation, AppAuth system-browser sign-in, workspace restore, and refresh on a connected physical device; only endpoint and client-ID build arguments are accepted.
+- `../gradlew testApp`: disposable full product flow with invitation, browser activation, Authorization Code + PKCE, WebDAV, MCP `files.search`, revocation, and cleanup.
 - `make marketing-screenshots`: regenerate README/roadmap SVG assets.
 
-The GitHub Actions live-stack path runs on a dedicated self-hosted macOS ARM64 runner and is manual-only. Dispatch requires confirmation that the runner has enough power, storage, and maintenance budget.
+The GitHub Actions product-flow path runs `testApp` on a dedicated self-hosted
+runner. Physical-device evidence remains an explicitly separate manual gate.
 
 ## Accessibility baseline
 

@@ -73,10 +73,10 @@ class AdminControlPlaneResponse {
     this.displayName,
     this.generatedAt,
     this.goLiveReadiness,
-    this.identityProviderReadiness,
     this.mcpServerBindings,
     this.memberClientMayConfigureProviders,
     this.organizationId,
+    this.platformIdentityReadiness,
     this.providerConfigSource,
     this.recommendedIdentityBroker,
     this.secretRefs,
@@ -110,11 +110,6 @@ class AdminControlPlaneResponse {
         : GoLiveReadinessResponse.fromJson(
             json["goLiveReadiness"] as Map<String, dynamic>,
           ),
-    identityProviderReadiness: json["identityProviderReadiness"] == null
-        ? null
-        : IdentityProviderReadinessResponse.fromJson(
-            json["identityProviderReadiness"] as Map<String, dynamic>,
-          ),
     mcpServerBindings: (json["mcpServerBindings"] as List<dynamic>?)
         ?.map(
           (e) => McpServerBindingResponse.fromJson(e as Map<String, dynamic>),
@@ -123,6 +118,11 @@ class AdminControlPlaneResponse {
     memberClientMayConfigureProviders:
         json["memberClientMayConfigureProviders"] as bool?,
     organizationId: json["organizationId"] as String?,
+    platformIdentityReadiness: json["platformIdentityReadiness"] == null
+        ? null
+        : PlatformIdentityReadinessResponse.fromJson(
+            json["platformIdentityReadiness"] as Map<String, dynamic>,
+          ),
     providerConfigSource: json["providerConfigSource"] as String?,
     recommendedIdentityBroker: json["recommendedIdentityBroker"] as String?,
     secretRefs: (json["secretRefs"] as List<dynamic>?)
@@ -158,10 +158,10 @@ class AdminControlPlaneResponse {
   final String? displayName;
   final String? generatedAt;
   final GoLiveReadinessResponse? goLiveReadiness;
-  final IdentityProviderReadinessResponse? identityProviderReadiness;
   final List<McpServerBindingResponse>? mcpServerBindings;
   final bool? memberClientMayConfigureProviders;
   final String? organizationId;
+  final PlatformIdentityReadinessResponse? platformIdentityReadiness;
   final String? providerConfigSource;
   final String? recommendedIdentityBroker;
   final List<SecretRefResponse>? secretRefs;
@@ -182,12 +182,12 @@ class AdminControlPlaneResponse {
     "displayName": _openApiJsonValue(displayName),
     "generatedAt": _openApiJsonValue(generatedAt),
     "goLiveReadiness": _openApiJsonValue(goLiveReadiness),
-    "identityProviderReadiness": _openApiJsonValue(identityProviderReadiness),
     "mcpServerBindings": _openApiJsonValue(mcpServerBindings),
     "memberClientMayConfigureProviders": _openApiJsonValue(
       memberClientMayConfigureProviders,
     ),
     "organizationId": _openApiJsonValue(organizationId),
+    "platformIdentityReadiness": _openApiJsonValue(platformIdentityReadiness),
     "providerConfigSource": _openApiJsonValue(providerConfigSource),
     "recommendedIdentityBroker": _openApiJsonValue(recommendedIdentityBroker),
     "secretRefs": _openApiJsonValue(secretRefs),
@@ -720,6 +720,27 @@ class BoardsWorkspaceResponse {
     "syncMetadata": _openApiJsonValue(syncMetadata),
     "tasks": _openApiJsonValue(tasks),
     "workspace": _openApiJsonValue(workspace),
+  };
+}
+
+class BootstrapOwnerInvitationRequest {
+  const BootstrapOwnerInvitationRequest({
+    this.displayName,
+    required this.email,
+  });
+
+  factory BootstrapOwnerInvitationRequest.fromJson(Map<String, dynamic> json) =>
+      BootstrapOwnerInvitationRequest(
+        displayName: json["displayName"] as String?,
+        email: json["email"] as String,
+      );
+
+  final String? displayName;
+  final String email;
+
+  Map<String, dynamic> toJson() => {
+    "displayName": _openApiJsonValue(displayName),
+    "email": _openApiJsonValue(email),
   };
 }
 
@@ -1616,50 +1637,6 @@ class CapabilityWhitelistUpdateRequest {
   };
 }
 
-class ChangeRecord {
-  const ChangeRecord({
-    this.action,
-    this.afterValue,
-    this.applyBlocked,
-    this.beforeValue,
-    this.classification,
-    this.memberImpact,
-    this.path,
-    this.reasonCode,
-  });
-
-  factory ChangeRecord.fromJson(Map<String, dynamic> json) => ChangeRecord(
-    action: json["action"] as String?,
-    afterValue: json["afterValue"] as String?,
-    applyBlocked: json["applyBlocked"] as bool?,
-    beforeValue: json["beforeValue"] as String?,
-    classification: json["classification"] as String?,
-    memberImpact: json["memberImpact"] as String?,
-    path: json["path"] as String?,
-    reasonCode: json["reasonCode"] as String?,
-  );
-
-  final String? action;
-  final String? afterValue;
-  final bool? applyBlocked;
-  final String? beforeValue;
-  final String? classification;
-  final String? memberImpact;
-  final String? path;
-  final String? reasonCode;
-
-  Map<String, dynamic> toJson() => {
-    "action": _openApiJsonValue(action),
-    "afterValue": _openApiJsonValue(afterValue),
-    "applyBlocked": _openApiJsonValue(applyBlocked),
-    "beforeValue": _openApiJsonValue(beforeValue),
-    "classification": _openApiJsonValue(classification),
-    "memberImpact": _openApiJsonValue(memberImpact),
-    "path": _openApiJsonValue(path),
-    "reasonCode": _openApiJsonValue(reasonCode),
-  };
-}
-
 class ChatHistoryPolicy {
   const ChatHistoryPolicy({
     this.exportAllowed,
@@ -1998,34 +1975,6 @@ class ChatReadiness {
     "providerMapping": _openApiJsonValue(providerMapping),
     "supportSafe": _openApiJsonValue(supportSafe),
     "supportSafeDiagnostics": _openApiJsonValue(supportSafeDiagnostics),
-  };
-}
-
-class ClaimMapper {
-  const ClaimMapper({
-    this.name,
-    this.required_,
-    this.sourceClaim,
-    this.targetClaim,
-  });
-
-  factory ClaimMapper.fromJson(Map<String, dynamic> json) => ClaimMapper(
-    name: json["name"] as String?,
-    required_: json["required"] as bool?,
-    sourceClaim: json["sourceClaim"] as String?,
-    targetClaim: json["targetClaim"] as String?,
-  );
-
-  final String? name;
-  final bool? required_;
-  final String? sourceClaim;
-  final String? targetClaim;
-
-  Map<String, dynamic> toJson() => {
-    "name": _openApiJsonValue(name),
-    "required": _openApiJsonValue(required_),
-    "sourceClaim": _openApiJsonValue(sourceClaim),
-    "targetClaim": _openApiJsonValue(targetClaim),
   };
 }
 
@@ -3650,40 +3599,6 @@ class EffectivePolicySimulationResponse {
   };
 }
 
-class FeatureMapping {
-  const FeatureMapping({
-    this.featureKey,
-    this.requiredGroups,
-    this.requiredRoles,
-    this.requiredScopes,
-  });
-
-  factory FeatureMapping.fromJson(Map<String, dynamic> json) => FeatureMapping(
-    featureKey: json["featureKey"] as String?,
-    requiredGroups: (json["requiredGroups"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    requiredRoles: (json["requiredRoles"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    requiredScopes: (json["requiredScopes"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-  );
-
-  final String? featureKey;
-  final List<String>? requiredGroups;
-  final List<String>? requiredRoles;
-  final List<String>? requiredScopes;
-
-  Map<String, dynamic> toJson() => {
-    "featureKey": _openApiJsonValue(featureKey),
-    "requiredGroups": _openApiJsonValue(requiredGroups),
-    "requiredRoles": _openApiJsonValue(requiredRoles),
-    "requiredScopes": _openApiJsonValue(requiredScopes),
-  };
-}
-
 class FileNativeProviderOptionResponse {
   const FileNativeProviderOptionResponse({
     this.available,
@@ -3916,6 +3831,32 @@ class FileSetupCredentialResponse {
   };
 }
 
+class FlattenedRuntimeProfileJwsResponse {
+  const FlattenedRuntimeProfileJwsResponse({
+    this.payload,
+    this.protected,
+    this.signature,
+  });
+
+  factory FlattenedRuntimeProfileJwsResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => FlattenedRuntimeProfileJwsResponse(
+    payload: json["payload"] as String?,
+    protected: json["protected"] as String?,
+    signature: json["signature"] as String?,
+  );
+
+  final String? payload;
+  final String? protected;
+  final String? signature;
+
+  Map<String, dynamic> toJson() => {
+    "payload": _openApiJsonValue(payload),
+    "protected": _openApiJsonValue(protected),
+    "signature": _openApiJsonValue(signature),
+  };
+}
+
 class GoLiveReadinessResponse {
   const GoLiveReadinessResponse({
     this.adminActions,
@@ -4101,521 +4042,25 @@ class HealthResponse {
   };
 }
 
-class IdentityProviderReadinessCardResponse {
-  const IdentityProviderReadinessCardResponse({
-    this.diagnostics,
-    this.evidenceRefs,
-    this.key,
-    this.label,
-    this.memberImpact,
-    this.nextActions,
-    this.remediation,
-    this.state,
-    this.summary,
+class IdentitySessionReconcileResponse {
+  const IdentitySessionReconcileResponse({
+    required this.reauthorizationRequired,
+    required this.state,
   });
 
-  factory IdentityProviderReadinessCardResponse.fromJson(
+  factory IdentitySessionReconcileResponse.fromJson(
     Map<String, dynamic> json,
-  ) => IdentityProviderReadinessCardResponse(
-    diagnostics: (json["diagnostics"] as Map<String, dynamic>?)
-        ?.cast<String, Object?>(),
-    evidenceRefs: (json["evidenceRefs"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    key: json["key"] as String?,
-    label: json["label"] as String?,
-    memberImpact: json["memberImpact"] as String?,
-    nextActions: (json["nextActions"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    remediation: json["remediation"] as String?,
-    state: json["state"] as String?,
-    summary: json["summary"] as String?,
+  ) => IdentitySessionReconcileResponse(
+    reauthorizationRequired: json["reauthorizationRequired"] as bool,
+    state: json["state"] as String,
   );
 
-  final Map<String, Object?>? diagnostics;
-  final List<String>? evidenceRefs;
-  final String? key;
-  final String? label;
-  final String? memberImpact;
-  final List<String>? nextActions;
-  final String? remediation;
-  final String? state;
-  final String? summary;
+  final bool reauthorizationRequired;
+  final String state;
 
   Map<String, dynamic> toJson() => {
-    "diagnostics": _openApiJsonValue(diagnostics),
-    "evidenceRefs": _openApiJsonValue(evidenceRefs),
-    "key": _openApiJsonValue(key),
-    "label": _openApiJsonValue(label),
-    "memberImpact": _openApiJsonValue(memberImpact),
-    "nextActions": _openApiJsonValue(nextActions),
-    "remediation": _openApiJsonValue(remediation),
+    "reauthorizationRequired": _openApiJsonValue(reauthorizationRequired),
     "state": _openApiJsonValue(state),
-    "summary": _openApiJsonValue(summary),
-  };
-}
-
-class IdentityProviderReadinessResponse {
-  const IdentityProviderReadinessResponse({
-    this.adminApiRoutes,
-    this.backendOwnedFacade,
-    this.cards,
-    this.category,
-    this.contractVersion,
-    this.diagnostics,
-    this.generatedAt,
-    this.memberClientMayConfigureIdentityProvider,
-    this.nextActions,
-    this.optionalForMemberFlows,
-    this.overallState,
-    this.providerDiagnosticsRedacted,
-    this.providerKey,
-    this.stableStates,
-    this.supportSafe,
-  });
-
-  factory IdentityProviderReadinessResponse.fromJson(
-    Map<String, dynamic> json,
-  ) => IdentityProviderReadinessResponse(
-    adminApiRoutes: (json["adminApiRoutes"] as Map<String, dynamic>?)
-        ?.cast<String, Object?>(),
-    backendOwnedFacade: json["backendOwnedFacade"] as bool?,
-    cards: (json["cards"] as List<dynamic>?)
-        ?.map(
-          (e) => IdentityProviderReadinessCardResponse.fromJson(
-            e as Map<String, dynamic>,
-          ),
-        )
-        .toList(),
-    category: json["category"] as String?,
-    contractVersion: json["contractVersion"] as String?,
-    diagnostics: (json["diagnostics"] as Map<String, dynamic>?)
-        ?.cast<String, Object?>(),
-    generatedAt: json["generatedAt"] as String?,
-    memberClientMayConfigureIdentityProvider:
-        json["memberClientMayConfigureIdentityProvider"] as bool?,
-    nextActions: (json["nextActions"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    optionalForMemberFlows: json["optionalForMemberFlows"] as bool?,
-    overallState: json["overallState"] as String?,
-    providerDiagnosticsRedacted: json["providerDiagnosticsRedacted"] as bool?,
-    providerKey: json["providerKey"] as String?,
-    stableStates: (json["stableStates"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    supportSafe: json["supportSafe"] as bool?,
-  );
-
-  final Map<String, Object?>? adminApiRoutes;
-  final bool? backendOwnedFacade;
-  final List<IdentityProviderReadinessCardResponse>? cards;
-  final String? category;
-  final String? contractVersion;
-  final Map<String, Object?>? diagnostics;
-  final String? generatedAt;
-  final bool? memberClientMayConfigureIdentityProvider;
-  final List<String>? nextActions;
-  final bool? optionalForMemberFlows;
-  final String? overallState;
-  final bool? providerDiagnosticsRedacted;
-  final String? providerKey;
-  final List<String>? stableStates;
-  final bool? supportSafe;
-
-  Map<String, dynamic> toJson() => {
-    "adminApiRoutes": _openApiJsonValue(adminApiRoutes),
-    "backendOwnedFacade": _openApiJsonValue(backendOwnedFacade),
-    "cards": _openApiJsonValue(cards),
-    "category": _openApiJsonValue(category),
-    "contractVersion": _openApiJsonValue(contractVersion),
-    "diagnostics": _openApiJsonValue(diagnostics),
-    "generatedAt": _openApiJsonValue(generatedAt),
-    "memberClientMayConfigureIdentityProvider": _openApiJsonValue(
-      memberClientMayConfigureIdentityProvider,
-    ),
-    "nextActions": _openApiJsonValue(nextActions),
-    "optionalForMemberFlows": _openApiJsonValue(optionalForMemberFlows),
-    "overallState": _openApiJsonValue(overallState),
-    "providerDiagnosticsRedacted": _openApiJsonValue(
-      providerDiagnosticsRedacted,
-    ),
-    "providerKey": _openApiJsonValue(providerKey),
-    "stableStates": _openApiJsonValue(stableStates),
-    "supportSafe": _openApiJsonValue(supportSafe),
-  };
-}
-
-class IdentityRealmApplyReport {
-  const IdentityRealmApplyReport({
-    this.applied,
-    this.auditRefs,
-    this.blockedReasons,
-    this.changes,
-    this.decision,
-    this.dryRunId,
-    this.executionMode,
-    this.lastAdminGuardPassed,
-    this.nextActions,
-    this.providerKey,
-    this.providerMutationPerformed,
-    this.rawSecretExposed,
-    this.realmId,
-    this.rollbackEvidenceAccepted,
-    this.rollbackEvidenceRequired,
-    this.supportSafe,
-  });
-
-  factory IdentityRealmApplyReport.fromJson(Map<String, dynamic> json) =>
-      IdentityRealmApplyReport(
-        applied: json["applied"] as bool?,
-        auditRefs: (json["auditRefs"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        blockedReasons: (json["blockedReasons"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        changes: (json["changes"] as List<dynamic>?)
-            ?.map((e) => ChangeRecord.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        decision: json["decision"] as String?,
-        dryRunId: json["dryRunId"] as String?,
-        executionMode: json["executionMode"] as String?,
-        lastAdminGuardPassed: json["lastAdminGuardPassed"] as bool?,
-        nextActions: (json["nextActions"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        providerKey: json["providerKey"] as String?,
-        providerMutationPerformed: json["providerMutationPerformed"] as bool?,
-        rawSecretExposed: json["rawSecretExposed"] as bool?,
-        realmId: json["realmId"] as String?,
-        rollbackEvidenceAccepted: json["rollbackEvidenceAccepted"] as bool?,
-        rollbackEvidenceRequired: json["rollbackEvidenceRequired"] as bool?,
-        supportSafe: json["supportSafe"] as bool?,
-      );
-
-  final bool? applied;
-  final List<String>? auditRefs;
-  final List<String>? blockedReasons;
-  final List<ChangeRecord>? changes;
-  final String? decision;
-  final String? dryRunId;
-  final String? executionMode;
-  final bool? lastAdminGuardPassed;
-  final List<String>? nextActions;
-  final String? providerKey;
-  final bool? providerMutationPerformed;
-  final bool? rawSecretExposed;
-  final String? realmId;
-  final bool? rollbackEvidenceAccepted;
-  final bool? rollbackEvidenceRequired;
-  final bool? supportSafe;
-
-  Map<String, dynamic> toJson() => {
-    "applied": _openApiJsonValue(applied),
-    "auditRefs": _openApiJsonValue(auditRefs),
-    "blockedReasons": _openApiJsonValue(blockedReasons),
-    "changes": _openApiJsonValue(changes),
-    "decision": _openApiJsonValue(decision),
-    "dryRunId": _openApiJsonValue(dryRunId),
-    "executionMode": _openApiJsonValue(executionMode),
-    "lastAdminGuardPassed": _openApiJsonValue(lastAdminGuardPassed),
-    "nextActions": _openApiJsonValue(nextActions),
-    "providerKey": _openApiJsonValue(providerKey),
-    "providerMutationPerformed": _openApiJsonValue(providerMutationPerformed),
-    "rawSecretExposed": _openApiJsonValue(rawSecretExposed),
-    "realmId": _openApiJsonValue(realmId),
-    "rollbackEvidenceAccepted": _openApiJsonValue(rollbackEvidenceAccepted),
-    "rollbackEvidenceRequired": _openApiJsonValue(rollbackEvidenceRequired),
-    "supportSafe": _openApiJsonValue(supportSafe),
-  };
-}
-
-class IdentityRealmApplyRequest {
-  const IdentityRealmApplyRequest({
-    this.approveDestructive,
-    this.approveRisky,
-    this.confirmationPhrase,
-    this.currentState,
-    this.desiredState,
-    this.dryRunId,
-    this.policySimulationRef,
-    this.reason,
-    this.retainedAdminPrimaryIdentityKeys,
-    this.rollbackEvidenceRef,
-  });
-
-  factory IdentityRealmApplyRequest.fromJson(Map<String, dynamic> json) =>
-      IdentityRealmApplyRequest(
-        approveDestructive: json["approveDestructive"] as bool?,
-        approveRisky: json["approveRisky"] as bool?,
-        confirmationPhrase: json["confirmationPhrase"] as String?,
-        currentState: json["currentState"] == null
-            ? null
-            : IdentityRealmDesiredState.fromJson(
-                json["currentState"] as Map<String, dynamic>,
-              ),
-        desiredState: json["desiredState"] == null
-            ? null
-            : IdentityRealmDesiredState.fromJson(
-                json["desiredState"] as Map<String, dynamic>,
-              ),
-        dryRunId: json["dryRunId"] as String?,
-        policySimulationRef: json["policySimulationRef"] as String?,
-        reason: json["reason"] as String?,
-        retainedAdminPrimaryIdentityKeys:
-            (json["retainedAdminPrimaryIdentityKeys"] as List<dynamic>?)
-                ?.map((e) => e as String)
-                .toList(),
-        rollbackEvidenceRef: json["rollbackEvidenceRef"] as String?,
-      );
-
-  final bool? approveDestructive;
-  final bool? approveRisky;
-  final String? confirmationPhrase;
-  final IdentityRealmDesiredState? currentState;
-  final IdentityRealmDesiredState? desiredState;
-  final String? dryRunId;
-  final String? policySimulationRef;
-  final String? reason;
-  final List<String>? retainedAdminPrimaryIdentityKeys;
-  final String? rollbackEvidenceRef;
-
-  Map<String, dynamic> toJson() => {
-    "approveDestructive": _openApiJsonValue(approveDestructive),
-    "approveRisky": _openApiJsonValue(approveRisky),
-    "confirmationPhrase": _openApiJsonValue(confirmationPhrase),
-    "currentState": _openApiJsonValue(currentState),
-    "desiredState": _openApiJsonValue(desiredState),
-    "dryRunId": _openApiJsonValue(dryRunId),
-    "policySimulationRef": _openApiJsonValue(policySimulationRef),
-    "reason": _openApiJsonValue(reason),
-    "retainedAdminPrimaryIdentityKeys": _openApiJsonValue(
-      retainedAdminPrimaryIdentityKeys,
-    ),
-    "rollbackEvidenceRef": _openApiJsonValue(rollbackEvidenceRef),
-  };
-}
-
-class IdentityRealmDesiredState {
-  const IdentityRealmDesiredState({
-    this.blockers,
-    this.breakGlassIdentities,
-    this.claimMappers,
-    this.clients,
-    this.displayName,
-    this.enabled,
-    this.featureMappings,
-    this.groups,
-    this.lastAdminSubjectRefs,
-    this.primarySubjectClaim,
-    this.providerWarnings,
-    this.realmId,
-    this.redirectOrigins,
-    this.roles,
-    this.scopes,
-    this.serviceAccounts,
-  });
-
-  factory IdentityRealmDesiredState.fromJson(Map<String, dynamic> json) =>
-      IdentityRealmDesiredState(
-        blockers: (json["blockers"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        breakGlassIdentities: (json["breakGlassIdentities"] as List<dynamic>?)
-            ?.map((e) => RecoveryIdentity.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        claimMappers: (json["claimMappers"] as List<dynamic>?)
-            ?.map((e) => ClaimMapper.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        clients: (json["clients"] as List<dynamic>?)
-            ?.map((e) => RealmClient.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        displayName: json["displayName"] as String?,
-        enabled: json["enabled"] as bool?,
-        featureMappings: (json["featureMappings"] as List<dynamic>?)
-            ?.map((e) => FeatureMapping.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        groups: (json["groups"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        lastAdminSubjectRefs: (json["lastAdminSubjectRefs"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        primarySubjectClaim: json["primarySubjectClaim"] as String?,
-        providerWarnings: (json["providerWarnings"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        realmId: json["realmId"] as String?,
-        redirectOrigins: (json["redirectOrigins"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        roles: (json["roles"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        scopes: (json["scopes"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        serviceAccounts: (json["serviceAccounts"] as List<dynamic>?)
-            ?.map((e) => ServiceAccount.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
-
-  final List<String>? blockers;
-  final List<RecoveryIdentity>? breakGlassIdentities;
-  final List<ClaimMapper>? claimMappers;
-  final List<RealmClient>? clients;
-  final String? displayName;
-  final bool? enabled;
-  final List<FeatureMapping>? featureMappings;
-  final List<String>? groups;
-  final List<String>? lastAdminSubjectRefs;
-  final String? primarySubjectClaim;
-  final List<String>? providerWarnings;
-  final String? realmId;
-  final List<String>? redirectOrigins;
-  final List<String>? roles;
-  final List<String>? scopes;
-  final List<ServiceAccount>? serviceAccounts;
-
-  Map<String, dynamic> toJson() => {
-    "blockers": _openApiJsonValue(blockers),
-    "breakGlassIdentities": _openApiJsonValue(breakGlassIdentities),
-    "claimMappers": _openApiJsonValue(claimMappers),
-    "clients": _openApiJsonValue(clients),
-    "displayName": _openApiJsonValue(displayName),
-    "enabled": _openApiJsonValue(enabled),
-    "featureMappings": _openApiJsonValue(featureMappings),
-    "groups": _openApiJsonValue(groups),
-    "lastAdminSubjectRefs": _openApiJsonValue(lastAdminSubjectRefs),
-    "primarySubjectClaim": _openApiJsonValue(primarySubjectClaim),
-    "providerWarnings": _openApiJsonValue(providerWarnings),
-    "realmId": _openApiJsonValue(realmId),
-    "redirectOrigins": _openApiJsonValue(redirectOrigins),
-    "roles": _openApiJsonValue(roles),
-    "scopes": _openApiJsonValue(scopes),
-    "serviceAccounts": _openApiJsonValue(serviceAccounts),
-  };
-}
-
-class IdentityRealmDryRunReport {
-  const IdentityRealmDryRunReport({
-    this.auditRefs,
-    this.blockers,
-    this.changes,
-    this.destructiveApplyAvailable,
-    this.diff,
-    this.dryRunId,
-    this.nextActions,
-    this.operation,
-    this.providerKey,
-    this.rawSecretExposed,
-    this.readiness,
-    this.readinessChecks,
-    this.realmId,
-    this.supportSafe,
-    this.warnings,
-  });
-
-  factory IdentityRealmDryRunReport.fromJson(Map<String, dynamic> json) =>
-      IdentityRealmDryRunReport(
-        auditRefs: (json["auditRefs"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        blockers: (json["blockers"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        changes: (json["changes"] as List<dynamic>?)
-            ?.map((e) => ChangeRecord.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        destructiveApplyAvailable: json["destructiveApplyAvailable"] as bool?,
-        diff: (json["diff"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        dryRunId: json["dryRunId"] as String?,
-        nextActions: (json["nextActions"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        operation: json["operation"] as String?,
-        providerKey: json["providerKey"] as String?,
-        rawSecretExposed: json["rawSecretExposed"] as bool?,
-        readiness: json["readiness"] as String?,
-        readinessChecks: (json["readinessChecks"] as List<dynamic>?)
-            ?.map((e) => ReadinessCheck.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        realmId: json["realmId"] as String?,
-        supportSafe: json["supportSafe"] as bool?,
-        warnings: (json["warnings"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-      );
-
-  final List<String>? auditRefs;
-  final List<String>? blockers;
-  final List<ChangeRecord>? changes;
-  final bool? destructiveApplyAvailable;
-  final List<String>? diff;
-  final String? dryRunId;
-  final List<String>? nextActions;
-  final String? operation;
-  final String? providerKey;
-  final bool? rawSecretExposed;
-  final String? readiness;
-  final List<ReadinessCheck>? readinessChecks;
-  final String? realmId;
-  final bool? supportSafe;
-  final List<String>? warnings;
-
-  Map<String, dynamic> toJson() => {
-    "auditRefs": _openApiJsonValue(auditRefs),
-    "blockers": _openApiJsonValue(blockers),
-    "changes": _openApiJsonValue(changes),
-    "destructiveApplyAvailable": _openApiJsonValue(destructiveApplyAvailable),
-    "diff": _openApiJsonValue(diff),
-    "dryRunId": _openApiJsonValue(dryRunId),
-    "nextActions": _openApiJsonValue(nextActions),
-    "operation": _openApiJsonValue(operation),
-    "providerKey": _openApiJsonValue(providerKey),
-    "rawSecretExposed": _openApiJsonValue(rawSecretExposed),
-    "readiness": _openApiJsonValue(readiness),
-    "readinessChecks": _openApiJsonValue(readinessChecks),
-    "realmId": _openApiJsonValue(realmId),
-    "supportSafe": _openApiJsonValue(supportSafe),
-    "warnings": _openApiJsonValue(warnings),
-  };
-}
-
-class IdentityRealmDryRunRequest {
-  const IdentityRealmDryRunRequest({
-    this.currentState,
-    this.desiredState,
-    this.reason,
-  });
-
-  factory IdentityRealmDryRunRequest.fromJson(Map<String, dynamic> json) =>
-      IdentityRealmDryRunRequest(
-        currentState: json["currentState"] == null
-            ? null
-            : IdentityRealmDesiredState.fromJson(
-                json["currentState"] as Map<String, dynamic>,
-              ),
-        desiredState: json["desiredState"] == null
-            ? null
-            : IdentityRealmDesiredState.fromJson(
-                json["desiredState"] as Map<String, dynamic>,
-              ),
-        reason: json["reason"] as String?,
-      );
-
-  final IdentityRealmDesiredState? currentState;
-  final IdentityRealmDesiredState? desiredState;
-  final String? reason;
-
-  Map<String, dynamic> toJson() => {
-    "currentState": _openApiJsonValue(currentState),
-    "desiredState": _openApiJsonValue(desiredState),
-    "reason": _openApiJsonValue(reason),
   };
 }
 
@@ -4649,6 +4094,35 @@ class InventorySummary {
     "messages": _openApiJsonValue(messages),
     "users": _openApiJsonValue(users),
     "workspaces": _openApiJsonValue(workspaces),
+  };
+}
+
+class Jwk {
+  const Jwk({this.alg, this.crv, this.kid, this.kty, this.use, this.x});
+
+  factory Jwk.fromJson(Map<String, dynamic> json) => Jwk(
+    alg: json["alg"] as String?,
+    crv: json["crv"] as String?,
+    kid: json["kid"] as String?,
+    kty: json["kty"] as String?,
+    use: json["use"] as String?,
+    x: json["x"] as String?,
+  );
+
+  final String? alg;
+  final String? crv;
+  final String? kid;
+  final String? kty;
+  final String? use;
+  final String? x;
+
+  Map<String, dynamic> toJson() => {
+    "alg": _openApiJsonValue(alg),
+    "crv": _openApiJsonValue(crv),
+    "kid": _openApiJsonValue(kid),
+    "kty": _openApiJsonValue(kty),
+    "use": _openApiJsonValue(use),
+    "x": _openApiJsonValue(x),
   };
 }
 
@@ -5119,7 +4593,6 @@ class MemberInvitationRequest {
   const MemberInvitationRequest({
     this.displayName,
     required this.email,
-    this.organizationGroups,
     required this.role,
   });
 
@@ -5127,21 +4600,16 @@ class MemberInvitationRequest {
       MemberInvitationRequest(
         displayName: json["displayName"] as String?,
         email: json["email"] as String,
-        organizationGroups: (json["organizationGroups"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
         role: json["role"] as String,
       );
 
   final String? displayName;
   final String email;
-  final List<String>? organizationGroups;
   final String role;
 
   Map<String, dynamic> toJson() => {
     "displayName": _openApiJsonValue(displayName),
     "email": _openApiJsonValue(email),
-    "organizationGroups": _openApiJsonValue(organizationGroups),
     "role": _openApiJsonValue(role),
   };
 }
@@ -5152,10 +4620,9 @@ class MemberInvitationResponse {
     this.displayName,
     this.email,
     this.expiresAt,
+    this.invitationHandle,
     this.lifecycleStatus,
-    this.organizationGroups,
     this.organizationId,
-    this.providerInvitationId,
     this.provisioningStatus,
     this.requestedRole,
     this.updatedAt,
@@ -5167,12 +4634,9 @@ class MemberInvitationResponse {
         displayName: json["displayName"] as String?,
         email: json["email"] as String?,
         expiresAt: json["expiresAt"] as String?,
+        invitationHandle: json["invitationHandle"] as String?,
         lifecycleStatus: json["lifecycleStatus"] as String?,
-        organizationGroups: (json["organizationGroups"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
         organizationId: json["organizationId"] as String?,
-        providerInvitationId: json["providerInvitationId"] as String?,
         provisioningStatus: json["provisioningStatus"] as String?,
         requestedRole: json["requestedRole"] as String?,
         updatedAt: json["updatedAt"] as String?,
@@ -5182,10 +4646,9 @@ class MemberInvitationResponse {
   final String? displayName;
   final String? email;
   final String? expiresAt;
+  final String? invitationHandle;
   final String? lifecycleStatus;
-  final List<String>? organizationGroups;
   final String? organizationId;
-  final String? providerInvitationId;
   final String? provisioningStatus;
   final String? requestedRole;
   final String? updatedAt;
@@ -5195,13 +4658,25 @@ class MemberInvitationResponse {
     "displayName": _openApiJsonValue(displayName),
     "email": _openApiJsonValue(email),
     "expiresAt": _openApiJsonValue(expiresAt),
+    "invitationHandle": _openApiJsonValue(invitationHandle),
     "lifecycleStatus": _openApiJsonValue(lifecycleStatus),
-    "organizationGroups": _openApiJsonValue(organizationGroups),
     "organizationId": _openApiJsonValue(organizationId),
-    "providerInvitationId": _openApiJsonValue(providerInvitationId),
     "provisioningStatus": _openApiJsonValue(provisioningStatus),
     "requestedRole": _openApiJsonValue(requestedRole),
     "updatedAt": _openApiJsonValue(updatedAt),
+  };
+}
+
+class MemberOffboardingRequest {
+  const MemberOffboardingRequest({required this.confirmation});
+
+  factory MemberOffboardingRequest.fromJson(Map<String, dynamic> json) =>
+      MemberOffboardingRequest(confirmation: json["confirmation"] as String);
+
+  final String confirmation;
+
+  Map<String, dynamic> toJson() => {
+    "confirmation": _openApiJsonValue(confirmation),
   };
 }
 
@@ -6114,6 +5589,24 @@ class OrganizationManifestResponse {
   };
 }
 
+class OrganizationMemberUpdateRequest {
+  const OrganizationMemberUpdateRequest({this.enabled, required this.role});
+
+  factory OrganizationMemberUpdateRequest.fromJson(Map<String, dynamic> json) =>
+      OrganizationMemberUpdateRequest(
+        enabled: json["enabled"] as bool?,
+        role: json["role"] as String,
+      );
+
+  final bool? enabled;
+  final String role;
+
+  Map<String, dynamic> toJson() => {
+    "enabled": _openApiJsonValue(enabled),
+    "role": _openApiJsonValue(role),
+  };
+}
+
 class PlatformConfigResponse {
   const PlatformConfigResponse({
     this.controlPlaneBaseUrl,
@@ -6164,6 +5657,146 @@ class PlatformConfigResponse {
     "recoveryActions": _openApiJsonValue(recoveryActions),
     "releasePosture": _openApiJsonValue(releasePosture),
     "schemaVersion": _openApiJsonValue(schemaVersion),
+  };
+}
+
+class PlatformIdentityReadinessCardResponse {
+  const PlatformIdentityReadinessCardResponse({
+    this.diagnostics,
+    this.evidenceRefs,
+    this.key,
+    this.label,
+    this.memberImpact,
+    this.nextActions,
+    this.remediation,
+    this.state,
+    this.summary,
+  });
+
+  factory PlatformIdentityReadinessCardResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => PlatformIdentityReadinessCardResponse(
+    diagnostics: (json["diagnostics"] as Map<String, dynamic>?)
+        ?.cast<String, Object?>(),
+    evidenceRefs: (json["evidenceRefs"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    key: json["key"] as String?,
+    label: json["label"] as String?,
+    memberImpact: json["memberImpact"] as String?,
+    nextActions: (json["nextActions"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    remediation: json["remediation"] as String?,
+    state: json["state"] as String?,
+    summary: json["summary"] as String?,
+  );
+
+  final Map<String, Object?>? diagnostics;
+  final List<String>? evidenceRefs;
+  final String? key;
+  final String? label;
+  final String? memberImpact;
+  final List<String>? nextActions;
+  final String? remediation;
+  final String? state;
+  final String? summary;
+
+  Map<String, dynamic> toJson() => {
+    "diagnostics": _openApiJsonValue(diagnostics),
+    "evidenceRefs": _openApiJsonValue(evidenceRefs),
+    "key": _openApiJsonValue(key),
+    "label": _openApiJsonValue(label),
+    "memberImpact": _openApiJsonValue(memberImpact),
+    "nextActions": _openApiJsonValue(nextActions),
+    "remediation": _openApiJsonValue(remediation),
+    "state": _openApiJsonValue(state),
+    "summary": _openApiJsonValue(summary),
+  };
+}
+
+class PlatformIdentityReadinessResponse {
+  const PlatformIdentityReadinessResponse({
+    this.adminApiRoutes,
+    this.backendOwnedFacade,
+    this.cards,
+    this.contractVersion,
+    this.diagnostics,
+    this.diagnosticsRedacted,
+    this.generatedAt,
+    this.memberClientMayConfigurePlatformSecurity,
+    this.nextActions,
+    this.overallState,
+    this.platformAuthority,
+    this.requiredForMemberFlows,
+    this.stableStates,
+    this.supportSafe,
+  });
+
+  factory PlatformIdentityReadinessResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => PlatformIdentityReadinessResponse(
+    adminApiRoutes: (json["adminApiRoutes"] as Map<String, dynamic>?)
+        ?.cast<String, Object?>(),
+    backendOwnedFacade: json["backendOwnedFacade"] as bool?,
+    cards: (json["cards"] as List<dynamic>?)
+        ?.map(
+          (e) => PlatformIdentityReadinessCardResponse.fromJson(
+            e as Map<String, dynamic>,
+          ),
+        )
+        .toList(),
+    contractVersion: json["contractVersion"] as String?,
+    diagnostics: (json["diagnostics"] as Map<String, dynamic>?)
+        ?.cast<String, Object?>(),
+    diagnosticsRedacted: json["diagnosticsRedacted"] as bool?,
+    generatedAt: json["generatedAt"] as String?,
+    memberClientMayConfigurePlatformSecurity:
+        json["memberClientMayConfigurePlatformSecurity"] as bool?,
+    nextActions: (json["nextActions"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    overallState: json["overallState"] as String?,
+    platformAuthority: json["platformAuthority"] as String?,
+    requiredForMemberFlows: json["requiredForMemberFlows"] as bool?,
+    stableStates: (json["stableStates"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    supportSafe: json["supportSafe"] as bool?,
+  );
+
+  final Map<String, Object?>? adminApiRoutes;
+  final bool? backendOwnedFacade;
+  final List<PlatformIdentityReadinessCardResponse>? cards;
+  final String? contractVersion;
+  final Map<String, Object?>? diagnostics;
+  final bool? diagnosticsRedacted;
+  final String? generatedAt;
+  final bool? memberClientMayConfigurePlatformSecurity;
+  final List<String>? nextActions;
+  final String? overallState;
+  final String? platformAuthority;
+  final bool? requiredForMemberFlows;
+  final List<String>? stableStates;
+  final bool? supportSafe;
+
+  Map<String, dynamic> toJson() => {
+    "adminApiRoutes": _openApiJsonValue(adminApiRoutes),
+    "backendOwnedFacade": _openApiJsonValue(backendOwnedFacade),
+    "cards": _openApiJsonValue(cards),
+    "contractVersion": _openApiJsonValue(contractVersion),
+    "diagnostics": _openApiJsonValue(diagnostics),
+    "diagnosticsRedacted": _openApiJsonValue(diagnosticsRedacted),
+    "generatedAt": _openApiJsonValue(generatedAt),
+    "memberClientMayConfigurePlatformSecurity": _openApiJsonValue(
+      memberClientMayConfigurePlatformSecurity,
+    ),
+    "nextActions": _openApiJsonValue(nextActions),
+    "overallState": _openApiJsonValue(overallState),
+    "platformAuthority": _openApiJsonValue(platformAuthority),
+    "requiredForMemberFlows": _openApiJsonValue(requiredForMemberFlows),
+    "stableStates": _openApiJsonValue(stableStates),
+    "supportSafe": _openApiJsonValue(supportSafe),
   };
 }
 
@@ -7521,70 +7154,6 @@ class ReadModelComparison {
   };
 }
 
-class ReadinessCheck {
-  const ReadinessCheck({
-    this.key,
-    this.reasonCode,
-    this.remediation,
-    this.state,
-  });
-
-  factory ReadinessCheck.fromJson(Map<String, dynamic> json) => ReadinessCheck(
-    key: json["key"] as String?,
-    reasonCode: json["reasonCode"] as String?,
-    remediation: json["remediation"] as String?,
-    state: json["state"] as String?,
-  );
-
-  final String? key;
-  final String? reasonCode;
-  final String? remediation;
-  final String? state;
-
-  Map<String, dynamic> toJson() => {
-    "key": _openApiJsonValue(key),
-    "reasonCode": _openApiJsonValue(reasonCode),
-    "remediation": _openApiJsonValue(remediation),
-    "state": _openApiJsonValue(state),
-  };
-}
-
-class RealmClient {
-  const RealmClient({
-    this.clientId,
-    this.publicClient,
-    this.redirectOrigins,
-    this.roles,
-    this.scopes,
-  });
-
-  factory RealmClient.fromJson(Map<String, dynamic> json) => RealmClient(
-    clientId: json["clientId"] as String?,
-    publicClient: json["publicClient"] as bool?,
-    redirectOrigins: (json["redirectOrigins"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    roles: (json["roles"] as List<dynamic>?)?.map((e) => e as String).toList(),
-    scopes: (json["scopes"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-  );
-
-  final String? clientId;
-  final bool? publicClient;
-  final List<String>? redirectOrigins;
-  final List<String>? roles;
-  final List<String>? scopes;
-
-  Map<String, dynamic> toJson() => {
-    "clientId": _openApiJsonValue(clientId),
-    "publicClient": _openApiJsonValue(publicClient),
-    "redirectOrigins": _openApiJsonValue(redirectOrigins),
-    "roles": _openApiJsonValue(roles),
-    "scopes": _openApiJsonValue(scopes),
-  };
-}
-
 class RecoveryAction {
   const RecoveryAction({this.code, this.label, this.supportReference});
 
@@ -7602,37 +7171,6 @@ class RecoveryAction {
     "code": _openApiJsonValue(code),
     "label": _openApiJsonValue(label),
     "supportReference": _openApiJsonValue(supportReference),
-  };
-}
-
-class RecoveryIdentity {
-  const RecoveryIdentity({
-    this.breakGlass,
-    this.purpose,
-    this.roles,
-    this.subjectRef,
-  });
-
-  factory RecoveryIdentity.fromJson(Map<String, dynamic> json) =>
-      RecoveryIdentity(
-        breakGlass: json["breakGlass"] as bool?,
-        purpose: json["purpose"] as String?,
-        roles: (json["roles"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        subjectRef: json["subjectRef"] as String?,
-      );
-
-  final bool? breakGlass;
-  final String? purpose;
-  final List<String>? roles;
-  final String? subjectRef;
-
-  Map<String, dynamic> toJson() => {
-    "breakGlass": _openApiJsonValue(breakGlass),
-    "purpose": _openApiJsonValue(purpose),
-    "roles": _openApiJsonValue(roles),
-    "subjectRef": _openApiJsonValue(subjectRef),
   };
 }
 
@@ -7689,6 +7227,21 @@ class ReleaseClaimControlResponse {
   };
 }
 
+class RuntimeProfileJwkSet {
+  const RuntimeProfileJwkSet({this.keys});
+
+  factory RuntimeProfileJwkSet.fromJson(Map<String, dynamic> json) =>
+      RuntimeProfileJwkSet(
+        keys: (json["keys"] as List<dynamic>?)
+            ?.map((e) => Jwk.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  final List<Jwk>? keys;
+
+  Map<String, dynamic> toJson() => {"keys": _openApiJsonValue(keys)};
+}
+
 class SecretRefResponse {
   const SecretRefResponse({
     this.configured,
@@ -7727,28 +7280,6 @@ class SecretRefResponse {
     "ref": _openApiJsonValue(ref),
     "rotationRequired": _openApiJsonValue(rotationRequired),
     "supportSafe": _openApiJsonValue(supportSafe),
-  };
-}
-
-class ServiceAccount {
-  const ServiceAccount({this.roles, this.scopes, this.subjectRef});
-
-  factory ServiceAccount.fromJson(Map<String, dynamic> json) => ServiceAccount(
-    roles: (json["roles"] as List<dynamic>?)?.map((e) => e as String).toList(),
-    scopes: (json["scopes"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    subjectRef: json["subjectRef"] as String?,
-  );
-
-  final List<String>? roles;
-  final List<String>? scopes;
-  final String? subjectRef;
-
-  Map<String, dynamic> toJson() => {
-    "roles": _openApiJsonValue(roles),
-    "scopes": _openApiJsonValue(scopes),
-    "subjectRef": _openApiJsonValue(subjectRef),
   };
 }
 
@@ -8249,6 +7780,17 @@ class WeaveProject {
   };
 }
 
+class WeaverEntitlementUpdateRequest {
+  const WeaverEntitlementUpdateRequest({this.entitled});
+
+  factory WeaverEntitlementUpdateRequest.fromJson(Map<String, dynamic> json) =>
+      WeaverEntitlementUpdateRequest(entitled: json["entitled"] as bool?);
+
+  final bool? entitled;
+
+  Map<String, dynamic> toJson() => {"entitled": _openApiJsonValue(entitled)};
+}
+
 class WorkspaceCapabilitiesResponse {
   const WorkspaceCapabilitiesResponse({
     required this.adminControlPlane,
@@ -8336,13 +7878,13 @@ class WorkspaceCapabilitiesResponse {
 
 class WorkspaceCapabilityPolicyResponse {
   const WorkspaceCapabilityPolicyResponse({
-    required this.adapterContract,
     required this.agentRuntimeControlPosture,
-    required this.defaultIdmProvider,
     required this.denyByDefault,
+    required this.federationContract,
     required this.grantedCapabilities,
     required this.groups,
-    required this.idmProviderCategory,
+    required this.platformIdentityAuthority,
+    required this.platformIdentityCategory,
     required this.principalSource,
     required this.profileKeys,
     required this.roles,
@@ -8352,15 +7894,15 @@ class WorkspaceCapabilityPolicyResponse {
   factory WorkspaceCapabilityPolicyResponse.fromJson(
     Map<String, dynamic> json,
   ) => WorkspaceCapabilityPolicyResponse(
-    adapterContract: json["adapterContract"] as String,
     agentRuntimeControlPosture: json["agentRuntimeControlPosture"] as String,
-    defaultIdmProvider: json["defaultIdmProvider"] as String,
     denyByDefault: json["denyByDefault"] as bool,
+    federationContract: json["federationContract"] as String,
     grantedCapabilities: (json["grantedCapabilities"] as List<dynamic>)
         .map((e) => e as String)
         .toList(),
     groups: (json["groups"] as List<dynamic>).map((e) => e as String).toList(),
-    idmProviderCategory: json["idmProviderCategory"] as String,
+    platformIdentityAuthority: json["platformIdentityAuthority"] as String,
+    platformIdentityCategory: json["platformIdentityCategory"] as String,
     principalSource: json["principalSource"] as String,
     profileKeys: (json["profileKeys"] as List<dynamic>)
         .map((e) => e as String)
@@ -8369,26 +7911,26 @@ class WorkspaceCapabilityPolicyResponse {
     supportSafe: json["supportSafe"] as bool,
   );
 
-  final String adapterContract;
   final String agentRuntimeControlPosture;
-  final String defaultIdmProvider;
   final bool denyByDefault;
+  final String federationContract;
   final List<String> grantedCapabilities;
   final List<String> groups;
-  final String idmProviderCategory;
+  final String platformIdentityAuthority;
+  final String platformIdentityCategory;
   final String principalSource;
   final List<String> profileKeys;
   final List<String> roles;
   final bool supportSafe;
 
   Map<String, dynamic> toJson() => {
-    "adapterContract": _openApiJsonValue(adapterContract),
     "agentRuntimeControlPosture": _openApiJsonValue(agentRuntimeControlPosture),
-    "defaultIdmProvider": _openApiJsonValue(defaultIdmProvider),
     "denyByDefault": _openApiJsonValue(denyByDefault),
+    "federationContract": _openApiJsonValue(federationContract),
     "grantedCapabilities": _openApiJsonValue(grantedCapabilities),
     "groups": _openApiJsonValue(groups),
-    "idmProviderCategory": _openApiJsonValue(idmProviderCategory),
+    "platformIdentityAuthority": _openApiJsonValue(platformIdentityAuthority),
+    "platformIdentityCategory": _openApiJsonValue(platformIdentityCategory),
     "principalSource": _openApiJsonValue(principalSource),
     "profileKeys": _openApiJsonValue(profileKeys),
     "roles": _openApiJsonValue(roles),

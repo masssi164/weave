@@ -1,27 +1,36 @@
 {
-  "artifactKind": "weave-backup-manifest-v1",
-  "issue": 639,
-  "supportSafe": false,
+  "schemaVersion": "weave.compose-private-backup.v3",
+  "backupId": "weave-test-20260604T020000Z-aaaaaaaaaaaa",
   "createdAt": "2026-06-04T02:00:00Z",
-  "backupId": "fixture-backup-20260604T020000Z",
-  "scope": {
-    "environment": "provider-lab-fixture",
-    "domains": ["identity-idm", "chat", "files", "calendar", "health"],
-    "artifactsContainSecretsOrMemberData": true,
-    "shareExternally": false
-  },
-  "artifacts": [
-    {"path": "MANIFEST.txt", "kind": "text-manifest", "sha256": "4f29a064d3ed6b2b63425b997783beef8f52f1e208dc21f23d27b837434f73aa", "bytes": 1024, "requiredForRestore": true},
-    {"path": "postgres.sql", "kind": "postgres-dump", "sha256": "6a0a8fca0031b415ccaf2638fd8f9e67e72ef97f9a69e543613a3ff1b9f7c102", "bytes": 2048, "requiredForRestore": true},
-    {"path": "nextcloud-data.tgz", "kind": "docker-volume-archive", "sha256": "0e6891ca053e7735bcfbf31dd9c9e1a17f7f95d11d73690c1859f6b625c78950", "bytes": 4096, "requiredForRestore": true},
-    {"path": "matrix-synapse-data.tgz", "kind": "docker-volume-archive", "sha256": "0b7e42c8e4d42309b815f48c1fa4327fb4b47c68ec2b8ecb91a293e86816ff02", "bytes": 4096, "requiredForRestore": true},
-    {"path": "caddy-data.tgz", "kind": "docker-volume-archive", "sha256": "3d0c6c62df44a4c37f8079a168138cf219c14955d0957af9aa42da2198fdf4e9", "bytes": 1024, "requiredForRestore": true},
-    {"path": "caddy-config.tgz", "kind": "docker-volume-archive", "sha256": "41a2b287bf190e611fb0f4132e119c124ca89ba74eb33dc42c2ca4dc36800a83", "bytes": 1024, "requiredForRestore": true},
-    {"path": "keycloak-data.tgz", "kind": "docker-volume-archive", "sha256": "38ff65bb9d8c72f81e30cb900e4f1282aa4ffedbaf0d14c05b079578f4464f20", "bytes": 1024, "requiredForRestore": true},
-    {"path": "generated-config-secrets.tgz", "kind": "generated-config-secrets", "sha256": "1a32f6adc738f0214d5a665b88db5b8e2aebc4b6b27e9695953d1e2f7a07b8ce", "bytes": 1024, "requiredForRestore": true}
+  "candidateCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "candidateManifestDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "profile": "test",
+  "composeProject": "weave-test",
+  "databaseFingerprint": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "postgresDumpClientImage": "postgres@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "postgresDatabases": [
+    "postgres",
+    "weave_backend",
+    "weave_keycloak"
   ],
-  "limitations": [
-    "Fixture proves manifest shape only; live backup artifacts are private operator data and must not be attached to issues.",
-    "A BackupManifest alone is not restore proof; RestoreReceipt must validate a post-destroy restore rehearsal before release wording is allowed."
-  ]
+  "postgresDatabaseInventoryDigest": "sha256:481c7b4daec6a0cc743d1c38738a4f9b087d248bdf8b6994e5359c5d2d6c91b6",
+  "quiescedServices": [
+    "caddy",
+    "mcp",
+    "backend",
+    "synapse",
+    "mas",
+    "nextcloud",
+    "keycloak"
+  ],
+  "runtimeInventory": [
+    {
+      "service": "provider-fixtures",
+      "authority": "isolated-disposable-proof",
+      "container": "none"
+    }
+  ],
+  "artifacts": [],
+  "supportSafe": false,
+  "containsSecretsOrMemberData": true
 }

@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.not;
@@ -35,17 +37,18 @@ import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.service.ChatFacadeService;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -58,6 +61,7 @@ import org.springframework.test.web.servlet.MockMvc;
         controllers = ChatController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
@@ -92,16 +96,16 @@ class ChatControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockBean
+    @MockitoBean
     private ContextAuthorizationPort contextAuthorizationPort;
 
-    @MockBean
+    @MockitoBean
     private AuditEventPublisher auditEventPublisher;
 
-    @MockBean
+    @MockitoBean
     private ChatDomainFacadeService chatDomainFacadeService;
 
     @Test
@@ -180,7 +184,7 @@ class ChatControllerTest {
                 .andExpect(status().isNotFound());
 
         mockMvc.perform(request(HttpMethod.POST, "/api/chat/conversations/pa-weaver/messages")
-                        .with(workspaceJwt("member", List.of("weave-weaver-runtime")))
+                        .with(workspaceJwt("member", List.of("/capabilities/weaver")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"text\":\"PA Weaver chat must enter through Matrix.\"}"))
                 .andExpect(status().isNotFound());
@@ -206,7 +210,7 @@ class ChatControllerTest {
                 }
                 """;
 
-        mockMvc.perform(post("/api/v1/chat/conversations/channel-general/decisions")
+        mockMvc.perform(post("/api/chat/conversations/channel-general/decisions")
                         .with(workspaceJwt("member"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
@@ -221,7 +225,7 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$..roomId").doesNotExist())
                 .andExpect(jsonPath("$..providerUrl").doesNotExist());
 
-        mockMvc.perform(get("/api/v1/chat/conversations/channel-general/decisions")
+        mockMvc.perform(get("/api/chat/conversations/channel-general/decisions")
                         .with(workspaceJwt("member")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.backgroundRoomReadingEnabled").value(false))
@@ -247,7 +251,7 @@ class ChatControllerTest {
                 }
                 """;
 
-        mockMvc.perform(post("/api/v1/chat/conversations/channel-general/meeting-capsules")
+        mockMvc.perform(post("/api/chat/conversations/channel-general/meeting-capsules")
                         .with(workspaceJwt("member"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
@@ -264,7 +268,7 @@ class ChatControllerTest {
                 .andExpect(content().string(not(containsString("livekit://"))))
                 .andExpect(content().string(not(containsString("access_token"))));
 
-        mockMvc.perform(get("/api/v1/chat/conversations/channel-general/meeting-capsules")
+        mockMvc.perform(get("/api/chat/conversations/channel-general/meeting-capsules")
                         .with(workspaceJwt("member")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.failClosed").value(true))
@@ -370,8 +374,10 @@ class ChatControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "test")
                         .claim("weave_tenant_id", "tenant-default")
-                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of(role))))
-                        .claim("groups", groups)
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRolesAndGroups(List.of(role), groups))
                         .claim("aud", List.of("weave-app")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
@@ -381,7 +387,11 @@ class ChatControllerTest {
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"), new SimpleGrantedAuthority("ROLE_MEMBER"))
                 .jwt(jwt -> jwt
                         .subject("member-123")
-                        .claim("iss", "https://auth.example.invalid/realms/acme"));
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("member")));
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {
@@ -389,6 +399,10 @@ class ChatControllerTest {
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"), new SimpleGrantedAuthority("ROLE_ADMIN"))
                 .jwt(jwt -> jwt
                         .subject("admin-123")
-                        .claim("iss", "https://auth.example.invalid/realms/acme"));
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("admin")));
     }
 }

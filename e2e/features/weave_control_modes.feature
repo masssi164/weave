@@ -3,7 +3,7 @@ Feature: Weave Control setup modes and bootstrap-to-client proof
   @weave-control-plan-preflight-modes
   Scenario: Admin preflights deploy-new, attach-existing, and hybrid modes before mutation
     Given an admin is preparing organization setup in Weave Control
-    When the admin selects setup modes for identity, chat, files, calendar, boards, meetings, documents, and Agent Runtime Control
+    When the admin selects a fixed Keycloak authority posture plus setup modes for chat, files, calendar, boards, meetings, documents, and Agent Runtime Control
     Then Weave Control shows a support-safe plan for deploy_new, attach_existing, and hybrid choices
     And unsupported combinations fail closed before mutation
     And the plan shows SecretRef or CredentialRef posture, consequence copy, rollback boundary, and blocked claims without secret values

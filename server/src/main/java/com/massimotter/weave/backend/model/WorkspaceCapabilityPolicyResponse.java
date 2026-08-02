@@ -5,9 +5,9 @@ import java.util.List;
 
 @Schema(description = "Admin/operator support-safe capability policy snapshot.")
 public record WorkspaceCapabilityPolicyResponse(
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String idmProviderCategory,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String defaultIdmProvider,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String adapterContract,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String platformIdentityCategory,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String platformIdentityAuthority,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String federationContract,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String principalSource,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> roles,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> groups,

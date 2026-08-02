@@ -29,17 +29,23 @@ jobs:
         working-directory: weave
     steps:
       - name: Check out Weave
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: weave
           fetch-depth: 0
 
       - name: Resolve pinned specification corpus
         id: spec-corpus
-        run: echo "commit=$(jq -r '.specCorpus.gitCommit' specs/weave-specs.lock.json)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          spec_commit="$(
+            jq -er '.specCorpus.gitCommit | select(type == "string" and test("^[0-9a-f]{40}$"))' \
+              specs/weave-specs.lock.json
+          )"
+          printf 'commit=%s\n' "$spec_commit" >> "$GITHUB_OUTPUT"
 
       - name: Check out pinned Weave Specification Corpus
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: ${{ github.repository_owner }}/weave-specs
           ref: ${{ steps.spec-corpus.outputs.commit }}
@@ -81,20 +87,29 @@ jobs:
             echo "Main lane: dev-dogfood promotion"
           fi
 
-      - name: Verify candidate is contained in dev and dogfood
+      - name: Verify dogfood lane and protected dev source identity
         if: steps.lane.outputs.kind == 'promotion'
         run: |
           set -euo pipefail
           candidate="${{ steps.candidate.outputs.sha }}"
           git fetch origin dev dogfood main --prune
-          for branch in dev dogfood; do
-            if ! git merge-base --is-ancestor "$candidate" "origin/${branch}"; then
-              echo "::error::Candidate ${candidate} is not contained in origin/${branch}. Main promotion requires dev first, then dogfood." >&2
-              exit 1
-            fi
-          done
+          git merge-base --is-ancestor "$candidate" origin/dogfood || {
+            echo "::error::Lane candidate ${candidate} is not contained in origin/dogfood." >&2
+            exit 1
+          }
+          git checkout --detach "$candidate"
+          python3 tools/candidate_source_mapping.py \
+            --repository . \
+            --lane-candidate "$candidate" \
+            --output "$RUNNER_TEMP/main-promotion-candidate-source-mapping.json"
+          source_candidate="$(jq -er .sourceCandidateCommit "$RUNNER_TEMP/main-promotion-candidate-source-mapping.json")"
+          git merge-base --is-ancestor "$source_candidate" origin/dev || {
+            echo "::error::Resolved image source ${source_candidate} is not protected by origin/dev." >&2
+            exit 1
+          }
+          echo "SOURCE_CANDIDATE_SHA=$source_candidate" >> "$GITHUB_ENV"
           if git merge-base --is-ancestor "$candidate" origin/main; then
-            echo "Candidate is already contained in origin/main."
+            echo "Lane candidate is already contained in origin/main."
           fi
 
       - name: Verify hotfix is based on current main
@@ -172,10 +187,17 @@ jobs:
             temp_dir="$(mktemp -d)"
             gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > "$temp_dir/readiness.zip"
             unzip -q "$temp_dir/readiness.zip" -d "$temp_dir/readiness"
-            manifest="$(find "$temp_dir/readiness" -name human-testing-readiness.json -type f -print -quit)"
-            if [[ -n "$manifest" ]] && \
+            mapfile -t manifests < <(
+              find "$temp_dir/readiness" -name human-testing-readiness.json -type f -print
+            )
+            if [[ "${#manifests[@]}" -eq 1 ]] && \
+               manifest="${manifests[0]}" && \
                [[ "$(jq -r '.candidateCommit' "$manifest")" == "$candidate" ]] && \
-               python3 tools/human_testing_readiness_manifest.py validate --manifest "$manifest" --require-ready; then
+               [[ "$(jq -r '.sourceCandidateCommit' "$manifest")" == "$SOURCE_CANDIDATE_SHA" ]] && \
+               python3 tools/human_testing_readiness_manifest.py validate \
+                 --manifest "$manifest" \
+                 --provider-age-reference generated-at \
+                 --require-ready; then
               echo "Ready human-testing evidence: ${run_url}"
               found=true
               rm -rf "$temp_dir"
@@ -205,7 +227,8 @@ jobs:
           done <<'EOF'
           test-stack-deploy.yml|dogfood|Weave release owner or dogfood operator
           ios-dogfood.yml|ios-dogfood|Weave release owner plus client/iOS release owner
-          human-testing-readiness.yml|ios-dogfood|Weave release owner plus client/iOS release owner
+          physical-iphone-human-test.yml|ios-dogfood|Weave release owner plus client/iOS release owner
+          human-testing-readiness.yml|dogfood|Weave release owner or dogfood operator
           EOF
           if [[ -n "$blocking_run_id" ]]; then
             pending="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${blocking_run_id}/pending_deployments" 2>/dev/null || printf '[]')"
@@ -213,18 +236,18 @@ jobs:
             approver="$(jq -r --arg fallback "$fallback_approver" '.[0].reviewers[0].reviewer.name // .[0].reviewers[0].reviewer.login // $fallback' <<<"$pending")"
             echo "::error::human-testing readiness is blocked workflow=${blocking_workflow} environment=${environment} run=${blocking_run_url} commit=${candidate} requiredApprover=${approver}" >&2
           else
-            echo "::error::human-testing readiness is blocked workflow=Human Testing Readiness environment=ios-dogfood run=not-started commit=${candidate} requiredApprover=Weave release owner plus client/iOS release owner reason=no-ready-manifest" >&2
+            echo "::error::human-testing readiness is blocked workflow=Human Testing Readiness environment=dogfood run=not-started commit=${candidate} requiredApprover=Weave release owner or dogfood operator reason=no-ready-manifest" >&2
           fi
           exit 1
 
       - name: Set up Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: '3.44.4'
           channel: stable

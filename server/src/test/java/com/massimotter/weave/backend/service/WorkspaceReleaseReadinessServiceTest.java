@@ -1,12 +1,14 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -105,8 +107,7 @@ class WorkspaceReleaseReadinessServiceTest {
                 .header("alg", "none")
                 .subject(role + "-123")
                 .issuer("https://auth.example.invalid/realms/acme")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of(role))))
-                .claim("groups", List.of())
+                .claim("organization", HumanJwtTestSupport.organizationWithRole(role))
                 .build();
     }
 

@@ -2,7 +2,7 @@
 
 **Repeatable self-hosted Weave stack for operators.**
 
-`infra/` provisions the Docker/OpenTofu foundation for a self-hosted Weave deployment: identity, chat, files/calendar storage, backend API routing, local HTTPS, provider-readiness checks, backups, restore smoke, and support diagnostics.
+`infra/` owns the Docker Compose foundation for a self-hosted Weave deployment: identity, chat, files/calendar storage, backend API routing, local HTTPS, provider-readiness checks, backups, restore rehearsal, and support diagnostics. Executable OpenTofu/Terraform and its state have been retired.
 
 This directory is the provider-stack implementation layer inside the Weave monorepo. The canonical product bootstrap boundary is `../docs/bootstrap-foundation-contract.md`: bootstrap deploys the Control Plane first and activates this infra/provider-stack implementation only when the selected profile requires deploy-new self-hosted providers. The daily user experience lives in `../client`, product contracts and provider facades live in `../server`, and this layer makes the stack verifiable and recoverable without exposing secrets.
 
@@ -42,14 +42,14 @@ Add local host entries before opening browser-facing URLs:
 127.0.0.1 weave.test api.weave.test auth.weave.test mail.weave.test files.weave.test matrix.weave.test
 ```
 
-Bootstrap the stack:
+Prepare provider dependencies, then run Spring Boot separately with H2:
 
 ```bash
-cd weave-workspace
-./install.sh
+./gradlew :infra:composeDevDependenciesReady
+./gradlew :server:serverDevBoot
 ```
 
-`install.sh` defaults to a shared-host-safe port block, runs preflight checks, generates missing local secrets and TLS material, applies both OpenTofu stages, waits for backend readiness, and bootstraps the Nextcloud `user_oidc` app. Generated local inputs are persisted in `weave-workspace/.generated/bootstrap.env`; local dogfood also keeps a private mode-`0600` recovery copy under the operator state directory so a fresh checkout does not invent new provider credentials. A no-secrets app summary is written to `weave-workspace/.generated/app-config.env`.
+`composeDevDependenciesReady` builds the rootless Identity Ops image from the pinned official Keycloak distribution, initializes named SecretRefs, renders the `dev` Compose model, reconciles PostgreSQL/Keycloak/Nextcloud, and starts only provider dependencies. `serverDevBoot` starts the host process with `application-dev.yml`: Flyway owns the schema, Hibernate validates it, Open EntityManager in View is disabled, and H2 runs in PostgreSQL compatibility mode. Use `./gradlew :server:serverDevHostSmoke` for a bounded boot/readiness/E2E smoke and `./gradlew :server:serverPostgresIntegrationTest` for the real-PostgreSQL persistence lane.
 
 Nextcloud trusts only the exact Caddy address discovered on the active Docker network. `install.sh` pins `HTTP_X_FORWARDED_FOR`, keeps brute-force protection enabled, provisions calendars through local OCC, and then performs one bounded authenticated WebDAV check plus one CalDAV check. Backend readiness polling does not perform provider authentication, and a `429` stops without retrying.
 
@@ -62,15 +62,14 @@ For TLS trust, port modes, smoke-test inputs, and native app contracts, see [Loc
 For a real single-host deployment, start here:
 
 - [Single-host operator guide](docs/single-host-operator-guide.md): target shape, public contract, required inputs, TLS/image/persistence expectations, and verify flow.
-- [release.env.example](weave-workspace/release.env.example): operator-facing environment template.
+- [prod.env.example](weave-workspace/environments/prod.env.example): release-capable operator environment template; copy it outside the checkout and pin every image digest.
 - [Operator runbook](docs/operator-runbook.md): install/upgrade, rotation, backup, restore, destructive reset, and triage guidance.
 - [CalDAV/CardDAV external clients](docs/calendar-caldav-external-clients.md): DAV discovery, safe external-client credential path, and blocked private calendar/addressbook/profile flows.
 - [Connector runtime guardrails](docs/connector-runtime-guardrails.md): disabled-by-default connector runtime, callback, secret, and support-bundle boundaries.
 - [Matrix/Synapse southbound Chat Application Service](docs/matrix-synapse-chat-appservice.md): private provider credential, namespace, callback, backup/restore, and isolated proof boundaries.
 - [Weaver runtime lifecycle](docs/weaver-runtime-lifecycle.md): Agent Runtime Control cell lifecycle, signed RuntimeProfile v2 input, zero durable cell-byte boundary, external encrypted state, per-cell Keycloak workload identity, and deletion evidence.
 - [Weave MCP workload contract](docs/weave-mcp-tool-contract.md): Spring AI transport, workload-only OIDC admission, protected-resource discovery, token exchange, current ARC context, and fail-closed empty catalogs.
-- [OpenProject Boards runtime](docs/openproject-boards-runtime.md): optional provider-backed validation setup and live E2E gate; off by default.
-- [Identity environment parity](docs/identity-environment-parity.md): one dogfood/production identity flow, the narrow Keycloak extension boundary, and iPhone Mailpit verification.
+- [Identity environment parity](docs/identity-environment-parity.md): one stock-Keycloak/Identity-Ops model across test and production, plus the iPhone Mailpit verification boundary.
 
 After installation, verify public and host-local state:
 
@@ -86,7 +85,7 @@ Default local names resolve to loopback; non-local installs derive the same patt
 - `https://<tenant_domain>`: Weave product gateway, including `/files` and `/calendar` product routes.
 - `https://api.<tenant_domain>/api`: canonical backend API origin.
 - `https://auth.<tenant_domain>`: Keycloak.
-- `https://mail.<tenant_domain>`: private-CIDR dogfood Mailpit inbox only; absent in production.
+- `https://mail.<tenant_domain>`: private-CIDR test deployment Mailpit inbox only; absent in production.
 - `https://matrix.<tenant_domain>`: Matrix/Synapse/MAS behind the matrix hostname.
 - `https://files.<tenant_domain>`: raw Nextcloud technical/admin/protocol fallback.
 
@@ -109,7 +108,7 @@ Optional providers are fail-closed by default:
 - `README.md`: operator overview and entry points.
 - `AGENTS.md`: repository navigation notes for maintainers.
 - `Makefile`: local helper targets such as `make dev-hosts` and `make smoke`.
-- `../.github/workflows/ci.yml`: OpenTofu/shell validation plus manual full-stack smoke.
+- `../.github/workflows/ci.yml`: Compose/JPA/contract validation and exact-candidate integration gates.
 - `KEYCLOAK_CONTRACT.md`: realm, client, scope, claim, and audience contract.
 - `docs/local-bootstrap.md`: local port modes, TLS trust, integration test inputs, and native app contract.
 - `docs/single-host-operator-guide.md`: single-host deployment target.
@@ -117,56 +116,64 @@ Optional providers are fail-closed by default:
 - `docs/matrix-default-workspace.md`: default Matrix space/room provisioning.
 - `docs/matrix-e2ee-posture.md`: current honest E2EE posture.
 - `docs/calendar-caldav-external-clients.md`: CalDAV/CardDAV discovery, revocable client credentials, and fail-closed profile boundaries.
-- `docs/openproject-boards-runtime.md`: optional OpenProject provider-backed setup and promotion gates.
-- `weave-workspace/install.sh`: end-to-end bootstrap for local and single-host runs.
-- `weave-workspace/teardown.sh`: non-destructive cleanup by default; destructive volume reset requires explicit confirmation.
+- `weave-workspace/compose.sh`: the closed `dev|test|prod` lifecycle and one-shot Keycloak Identity Ops interface.
+- `weave-workspace/install.sh`: idempotent profile preparation and apply wrapper.
+- `weave-workspace/teardown.sh`: destructive cleanup for an exact isolated-E2E namespace only; persistent profiles have no destructive teardown path.
 - `weave-workspace/release-verify.sh`: public endpoint verification for non-local single-host installs.
 - `weave-workspace/operator-check.sh`: host-local container and health checks.
-- `weave-workspace/isolated-e2e-identities.sh`: run-scoped author/collaborator/outsider identity and real ReBAC startup inputs for disposable stacks only.
-- `weave-workspace/isolated-e2e-authorization-probes.sh`: isolated-only missing-capability, expired-token, and revoked-Matrix-session probes with strict restoration and support-safe evidence.
-- `weave-workspace/isolated-e2e-calendar-outage.sh`: isolated-only Calendar outage/recovery fixture that deletes only the backend actor's disposable `personal` calendar and proves cached domain-local degradation while Files stays available.
+- `../gradle/tasks/test-app.sh`: the single run-scoped invitation, Keycloak activation, PKCE, WebDAV, ARC, MCP, revocation, and cleanup proof.
+- `weave-workspace/isolated-e2e-calendar-outage.sh`: isolated-only Calendar outage/recovery fixture that deletes only the backend actor's disposable `weave-workspace` calendar and proves cached domain-local degradation while Files stays available.
 - `weave-workspace/persistent-dogfood-observation.sh`: read-only before/after hashes and counts for non-destructive persistent dogfood deployment evidence.
 - `weave-workspace/nextcloud-auth-security-audit.sh`: support-safe classification of recent invalid-authentication/throttle sources without counter reset or raw addresses.
-- `weave-workspace/backup.sh`, `restore-smoke.sh`, `support-bundle.sh`: operator support and recovery helpers.
+- `weave-workspace/backup.sh`, `adoption-rehearsal.sh`, `restore-private-backup.sh`, and `support-bundle.sh`: private consistency backup, isolated adoption proof, integrity-only guarded restore preflight, and support-safe diagnostics.
 - `weave-workspace/weave-mcp-tool-contract.json`: support-safe canonical domain contract and active Spring AI MCP runtime evidence.
-- `weave-workspace/01-infrastructure`: Docker runtime, generated config, and service modules.
-- `weave-workspace/02-keycloak-setup`: Keycloak tenant configuration stage.
+- `weave-workspace/compose.yaml` plus `compose.dev.yaml`, `compose.test.yaml`, and `compose.prod.yaml`: the one supported process graph and its three overlays.
+- `weave-workspace/keycloak/`: rootless one-shot Desired-State Identity Ops without human-user fixtures.
 
 ## Validation
 
 Repository-safe validation used by CI:
 
 ```bash
-tofu -chdir=weave-workspace/01-infrastructure validate
-tofu -chdir=weave-workspace/02-keycloak-setup validate
-tofu -chdir=weave-workspace/01-infrastructure plan -refresh=false
-bash -n weave-workspace/install.sh
+./gradlew infraStatic
+./gradlew :infra:tasks --group "weave infrastructure"
+./gradlew :infra:composeDevConfig
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env ./gradlew :infra:composeTestConfig
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-prod.env ./gradlew :infra:composeProdConfig
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env ./gradlew :infra:composeTestAdoptionCheck
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env ./gradlew :infra:composeTestReady
+./gradlew :server:serverDevH2Test :server:serverPostgresIntegrationTest
 ```
 
-Local/full-stack validation when Docker and the optional test user flow are available:
+Local host-server validation when Docker is available:
 
 ```bash
-TF_VAR_create_test_user=true bash weave-workspace/install.sh
-bash weave-workspace/smoke-test.sh
+./gradlew :server:serverDevHostSmoke
 ```
 
 GitHub Actions runs deterministic repository checks on pushes and pull requests. Docker-backed full-stack smoke is manual-only and asks the dispatcher to confirm power/storage budget before it starts.
 
 ## Operator safety
 
-- `teardown.sh` is non-destructive by default: it removes Weave containers/network but preserves persistent Docker volumes and generated local secrets/config.
-- Destructive local reset requires both `WEAVE_REMOVE_VOLUMES=true` and `WEAVE_CONFIRM_DESTRUCTIVE_RESET=<tenant/workspace slug>`.
+- `./weave-workspace/compose.sh <profile> down` stops a profile without deleting its named volumes or SecretRefs.
+- Destructive cleanup exists only for an exact isolated-E2E project and requires its run-bound ownership evidence. Persistent test/prod volumes are restored or rolled back through reviewed operator procedures, never a generic teardown flag.
 - Create an operator-owned backup before destructive maintenance:
 
 ```sh
-bash weave-workspace/backup.sh /var/backups/weave
+WEAVE_CANDIDATE_COMMIT=<exact-sha> \
+WEAVE_BACKUP_ROOT=/var/backups/weave \
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env \
+bash weave-workspace/backup.sh test
 ```
 
-- Run restore smoke after restoring or reprovisioning from backup artifacts:
+- Validate the private v2 consistency set without applying it:
 
 ```sh
-bash weave-workspace/restore-smoke.sh /var/backups/weave/<weave-backup-timestamp>
+WEAVE_RESTORE_PREFLIGHT_ONLY=true \
+bash weave-workspace/restore-private-backup.sh /var/backups/weave/<weave-test-timestamp-sha>
 ```
+
+Direct restore apply remains `Guarded` until the reviewed Compose/control-store restore workflow has destructive rehearsal evidence. `adoption-rehearsal.sh test` is the one-time former-runtime adoption proof; it backs up the running stack and verifies database plus volume restoration in an isolated namespace before any existing persistent resource receives Compose ownership labels.
 
 - Create a redacted diagnostics bundle before sharing logs manually:
 
@@ -174,4 +181,4 @@ bash weave-workspace/restore-smoke.sh /var/backups/weave/<weave-backup-timestamp
 bash weave-workspace/support-bundle.sh
 ```
 
-Support bundles are not backups. Keep backup artifacts private; they contain databases, volume archives, and generated config/secrets.
+Support bundles are not backups. Keep `BackupManifest.json`, database dumps, volume archives, and `private-config-secrets.tgz` private; share only explicitly support-safe receipts and reports.

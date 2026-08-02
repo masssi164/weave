@@ -24,7 +24,6 @@
     "domain": {
       "type": "string",
       "enum": [
-        "identity",
         "people",
         "spaces",
         "chat",

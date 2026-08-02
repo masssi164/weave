@@ -7,7 +7,7 @@ Status: accepted for control-plane/generated contracts; superseded for normal Fi
 Weave currently has several overlapping contract surfaces:
 
 - backend domain facades exposed by `server`, including `/v3/api-docs` through Springdoc;
-- hand-written shared Java metadata and DTOs in `weave-contract`;
+- the now-removed hand-written shared Java metadata and DTOs in `weave-contract`;
 - hand-written Flutter integration models and API clients;
 - hand-written Admin Console API types;
 - historical Java and Python MCP adapter experiments.
@@ -35,7 +35,7 @@ Normal collaboration data planes use open standard projections:
 - Calls: Matrix v1.19 plus pinned MatrixRTC Profile 0 signaling, WebRTC media, and an internal RTC Authorizer; no member Calls OpenAPI.
 - Weaver/Agents: MCP over Weave domain capabilities.
 
-`weave-contract` is no longer the place for new hand-written canonical domain truth. It is transitional and must either be removed or narrowed to generated/compatibility artifacts after consumers move to server OpenAPI.
+`weave-contract` is no longer a module. Canonical collaboration values belong to their bounded-context core modules; generated control-plane transports belong to the server-owned OpenAPI projection.
 
 OpenAPI-to-MCP conversion remains valid only for deny-by-default control-plane or generated-model surfaces:
 
@@ -54,7 +54,7 @@ MCP tool annotations are UX/risk hints only. They are not enforcement. Approval,
 - Normal member Flutter surfaces consume Weave repositories over canonical standard projections or server control-plane APIs: `/dav/files` for Files, `/caldav` plus iCalendar for Calendar, Matrix Client-Server for Chat, pinned MatrixRTC Profile 0 plus WebRTC for Calls, and `/api/*` for manifest/readiness/setup/revoke/admin/generated-model control-plane state. Provider SDKs and provider-native IDs remain behind server services or deliberately fenced diagnostic seams.
 - OpenAPI quality becomes a build gate: stable `operationId`, stable schema names, validation constraints, support-safe errors, and no provider secret/raw payload leakage.
 - The root build orchestrates all consumer checks from the repository root; it does not replace Flutter, npm, or Python tooling.
-- Existing `weave-contract` usages remain compatibility debt until migrated. Follow-up PRs must move authority back into server/OpenAPI before deleting the module.
+- Any reintroduction of a shared hand-written transport/domain contract is architecture drift. Control-plane authority stays in server/OpenAPI and data-plane authority stays in the accepted open protocol plus canonical domain.
 - Superseded by ADR-006/ADR-008 and the pinned corpus ADR-0003: `weave-mcp-server` is the active Spring AI MCP projection over canonical domain use cases. The Python/OpenAPI route-map path and handwritten JSON-RPC controller are removed.
 
 ## Migration plan
@@ -64,14 +64,14 @@ MCP tool annotations are UX/risk hints only. They are not enforcement. Approval,
 3. Generate Admin Console client/types from OpenAPI first; it is the smaller consumer surface.
 4. Generate Flutter member API client/models from OpenAPI and remove covered hand-maintained duplicates.
 5. Rework MCP to expose domain-first Weave tools over approved domain capabilities; completed for the Files, Calendar, and Chat slice through Spring AI stateful Streamable HTTP and standard form elicitation. OpenAPI remains control-plane authority, not MCP tool truth.
-6. Remove or narrow hand-written `weave-contract` contract truth once no consumer depends on it as authority.
+6. Keep the removed `weave-contract` module absent and enforce that boundary in architecture checks.
 7. Update live-stack readiness so server health, OpenAPI, admin, MCP initialize/tools-list, and approval smoke checks run before Flutter E2E.
 
 ## Non-goals
 
 - Do not mirror every REST endpoint as an MCP tool.
 - Do not use OpenAPI vendor extensions or MCP annotations as the security boundary.
-- Do not migrate Flutter, Admin Console, MCP, and `weave-contract` removal in one PR.
+- Do not make MCP tool schemas or open-standard data planes derive from the control-plane OpenAPI contract.
 - Do not move provider-native payloads, secrets, or admin-only diagnostics into generated member contracts.
 
 ## Evidence

@@ -1,13 +1,11 @@
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/preferences_store.dart';
-import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 import 'package:weave/features/server_config/data/dtos/server_configuration_dto.dart';
 import 'package:weave/features/server_config/data/services/service_endpoint_deriver.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 
 const serverConfigurationStorageKey = 'server_configuration_v1';
-const legacySetupCompleteKey = 'setup_complete';
 
 class SharedPreferencesServerConfigurationRepository
     implements ServerConfigurationRepository {
@@ -32,32 +30,27 @@ class SharedPreferencesServerConfigurationRepository
       // malformed configuration from storage.
       final dto = ServerConfigurationDto.decode(raw);
       final issuerUrl = _deriver.parseIssuerUrl(dto.oidcIssuerUrl);
-      final defaults = _deriver.derive(issuerUrl);
-      final configuration = dto.toConfiguration(
-        fallbackBackendApiBaseUrl: defaults.backendApiBaseUrl,
-      );
-      final normalizedClientId = _normalizedClientId(
+      final configuration = dto.toConfiguration();
+      final clientId = _requiredClientId(
         configuration.oidcClientRegistration.clientId,
       );
       final backendApiUrl = _deriver.parseServiceUrl(
         configuration.serviceEndpoints.backendApiBaseUrl.toString(),
         fieldName: 'the backend API URL',
       );
-      // Matrix is a Weave API-origin projection. Ignore stale provider-shaped
-      // values from older on-device configuration without clearing the profile.
       final matrixUrl = _deriver.matrixFacadeFromBackendApi(backendApiUrl);
       final filesUrl = _deriver.filesFacadeFromBackendApi(backendApiUrl);
-
-      // Older clients wrote this completion flag before entering their global
-      // setup/readiness flow. It is not an application-entry contract. Remove
-      // it opportunistically after the durable organization configuration has
-      // been validated, without allowing cleanup failure to block sign-in.
-      await _removeObsoleteSetupFlag();
+      if (configuration.serviceEndpoints.matrixHomeserverUrl != matrixUrl ||
+          configuration.serviceEndpoints.nextcloudBaseUrl != filesUrl) {
+        throw const AppFailure.validation(
+          'The saved organization profile does not match the current Weave facade contract.',
+        );
+      }
 
       return configuration.copyWith(
         oidcIssuerUrl: issuerUrl,
         oidcClientRegistration: configuration.oidcClientRegistration.copyWith(
-          clientId: normalizedClientId,
+          clientId: clientId,
         ),
         serviceEndpoints: configuration.serviceEndpoints.copyWith(
           matrixHomeserverUrl: matrixUrl,
@@ -91,7 +84,6 @@ class SharedPreferencesServerConfigurationRepository
       );
       final dto = ServerConfigurationDto.fromConfiguration(normalized);
       await _store.setString(serverConfigurationStorageKey, dto.encode());
-      await _store.remove(legacySetupCompleteKey);
     } on AppFailure {
       rethrow;
     } catch (error) {
@@ -106,7 +98,6 @@ class SharedPreferencesServerConfigurationRepository
   Future<void> clearConfiguration() async {
     try {
       await _store.remove(serverConfigurationStorageKey);
-      await _store.remove(legacySetupCompleteKey);
     } catch (error) {
       throw AppFailure.storage(
         'Failed to clear the saved server configuration.',
@@ -115,17 +106,13 @@ class SharedPreferencesServerConfigurationRepository
     }
   }
 
-  String _normalizedClientId(String clientId) {
+  String _requiredClientId(String clientId) {
     final trimmed = clientId.trim();
-    return trimmed.isEmpty ? oidcDefaultClientId : trimmed;
-  }
-
-  Future<void> _removeObsoleteSetupFlag() async {
-    try {
-      await _store.remove(legacySetupCompleteKey);
-    } catch (_) {
-      // Obsolete preference cleanup is best effort. The validated current
-      // configuration remains authoritative for bootstrap.
+    if (trimmed.isEmpty) {
+      throw const AppFailure.validation(
+        'The saved organization profile is missing its OIDC client ID.',
+      );
     }
+    return trimmed;
   }
 }

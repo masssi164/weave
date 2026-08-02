@@ -7,62 +7,47 @@ It is meant to remove the remaining tribal knowledge around install, verify, rec
 
 Prepare these explicitly:
 
-- DNS for `<tenant_domain>` for the Weave product gateway
-- DNS for `auth.<tenant_domain>`
-- DNS for `matrix.<tenant_domain>`
-- DNS for `files.<tenant_domain>` as the raw Nextcloud technical/admin/protocol fallback
-- a filled, private copy of `weave-workspace/release.env.example`
-- pinned image references, especially `TF_VAR_weave_backend_image`
-- TLS certificate and key readable by the operator account
-- backup location for Postgres dumps and Nextcloud data exports
+- DNS for `<tenant_domain>`, `api`, `auth`, `matrix`, and the raw `files` protocol/admin fallback;
+- a private reviewed copy of `weave-workspace/environments/test.env.example` or
+  `prod.env.example`, stored outside the checkout;
+- exact digest references for every test/prod image;
+- absolute `WEAVE_GENERATED_ROOT`, `WEAVE_SECRET_ROOT`, and `WEAVE_TLS_ROOT` paths;
+- an unprivileged deployment operator able to run the rootless one-shot Identity Ops container;
+- TLS certificate/key material and an operator-owned mode-0700 backup root outside the checkout.
 
 Recommended file permissions on the host:
 
-- release env file: `chmod 600`
-- TLS private key: `chmod 600`
-- backup exports: operator-readable only
+- reviewed public environment file: root-owned mode `0444` or `0644`;
+- every credential/SecretRef file below `WEAVE_SECRET_ROOT`: mode `0600`;
+- generated, secret, TLS, and backup roots: mode `0700`;
+- TLS private keys and private backup artifacts: mode `0600`.
+
+The reviewed environment contains public coordinates only. It must not contain passwords,
+tokens, private keys, assertions, client secrets, or any other credential-shaped value.
 
 ## 2. Secrets inventory and rotation
 
-Single-host operator secrets are file-managed, not generated on the fly.
-At minimum track ownership and rotation dates for:
+Single-host credentials are individual named files below `WEAVE_SECRET_ROOT`. The checked-in
+`scripts/init_secrets.py` inventory is the canonical filename set. Track owner, creation,
+rotation, consumers, and expiry for database credentials; MAS/Matrix secrets and signing keys;
+the Nextcloud actor credential; OIDC client credentials; Matrix Application Service tokens;
+RuntimeProfile signing and RuntimeState wrapping keys; ARC administration credentials; and
+per-cell workload private keys.
 
-- `TF_VAR_db_admin_password`
-- `TF_VAR_backend_db_password`
-- `TF_VAR_keycloak_admin_password`
-- `TF_VAR_keycloak_db_password`
-- `TF_VAR_mas_db_password`
-- `TF_VAR_synapse_db_password`
-- `TF_VAR_nextcloud_db_password`
-- `TF_VAR_nextcloud_admin_password`
-- `TF_VAR_nextcloud_backend_actor_token`
-- `TF_VAR_matrix_mas_client_secret`
-- `TF_VAR_weave_mcp_client_secret`
-- `TF_VAR_agent_runtime_admin_client_secret`
-- `TF_VAR_identity_admin_client_secret`
-- `TF_VAR_mas_encryption_secret`
-- `TF_VAR_mas_signing_key_pem`
-- `TF_VAR_mas_matrix_secret`
-- `TF_VAR_synapse_registration_shared_secret`
-- `TF_VAR_synapse_macaroon_secret_key`
-- `TF_VAR_synapse_form_secret`
-- Agent Runtime signing key ring under
-  `01-infrastructure/.generated/agent-runtime/profile-signing/`
-- Agent Runtime state-wrapping key ring under
-  `01-infrastructure/.generated/agent-runtime/state-wrapping/`
-- separate ARC administrative and per-cell credential SecretRefs under
-  `01-infrastructure/.generated/agent-runtime/credentials/`
+Repeated `secrets-init`, `prepare`, and install operations preserve an existing valid generation.
+A missing, symlinked, empty, over-readable, or ambiguous SecretRef fails closed. Test/prod do
+not invent a replacement credential during ordinary deployment.
 
 Rotation guidance:
 
-1. update the private env file
-2. re-export the `TF_VAR_*` values
-3. for `TF_VAR_nextcloud_backend_actor_token`, rerun the installer; the Weave-owned backend actor is reconciled through local OCC before the bounded DAV proof
-4. run `bash weave-workspace/install.sh`
-5. run `bash weave-workspace/release-verify.sh`
-6. if the rotated secret affects sign-in, also test a fresh login manually
+1. create the new SecretRef generation under the operator's protected rotation procedure;
+2. take a candidate-bound private backup and complete an isolated restore rehearsal;
+3. rotate through overlap where the protocol supports it;
+4. run the protected Keycloak/Nextcloud reconciliation and read-back verification;
+5. verify fresh login, token revocation, provider access, and affected workload identities;
+6. delete the retired generation only after every retained consumer and backup reference permits it.
 
-Treat `TF_VAR_mas_signing_key_pem`, the RuntimeProfile signing key ring, and the RuntimeState
+Treat MAS signing keys, the RuntimeProfile signing key ring, and the RuntimeState
 wrapping key ring as durable trust roots. Rotate through overlap and pair the change with a private
 backup, restore rehearsal, reconciliation, and explicit consumer validation. Never remove a
 wrapping key while a retained state generation still references it. Normal backend startup must
@@ -71,34 +56,68 @@ not invent a missing trust root.
 ## 3. Install and upgrade flow
 
 ```bash
-cd weave/infra
-set -a
-source ./weave-workspace/release.env.private
-set +a
-bash weave-workspace/install.sh
-bash weave-workspace/release-verify.sh
-bash weave-workspace/operator-check.sh
+cd weave
+git fetch --no-tags --prune origin \
+  '+refs/heads/dev:refs/remotes/origin/dev'
+export WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env
+export WEAVE_CANDIDATE_COMMIT="$(git rev-parse HEAD)"
+python3 tools/candidate_source_mapping.py \
+  --repository . \
+  --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
+  --output build/evidence/candidate-source-mapping.json
+export WEAVE_IMAGE_SOURCE_COMMIT="$(
+  jq -er '.sourceCandidateCommit' build/evidence/candidate-source-mapping.json
+)"
+bash infra/weave-workspace/install.sh test
+bash infra/weave-workspace/release-verify.sh
+bash infra/weave-workspace/operator-check.sh test
 ```
 
 Notes:
 
-- `install.sh` is the supported apply path for both first install and repeat apply
-- keep `TF_VAR_create_test_user=false` for release environments
-- use pinned images, not `:latest`
+- `compose.yaml` plus exactly one of `compose.dev.yaml`, `compose.test.yaml`, or
+  `compose.prod.yaml` is the only deployment model;
+- `install.sh <profile>` is the supported idempotent apply path and runs
+  `secrets-init → render → config → prepare → identity-apply → up → identity-verify`;
+- test/prod require a private reviewed `WEAVE_ENV_FILE`, exact image digests, and an exact candidate
+  commit; never use `:latest`;
+- for dogfood promotion, `WEAVE_CANDIDATE_COMMIT` remains the checked-out lane SHA used by
+  runtime, backup, deployment, and human evidence. Locally built images use
+  `WEAVE_IMAGE_SOURCE_COMMIT`, derived by the protected workflow from fetched `origin/dev`.
+  The source must be an ancestor with the same Git tree, and the closed four-image mapping is
+  recorded in `candidate-source-mapping.json`; never accept the source as workflow input. The
+  successful isolated run retains those exact IDs on the locked runner, and persistent dogfood
+  verifies and consumes them without rebuilding;
+- Identity Ops runs rootless, one-shot, without the Docker socket, and removes its temporary
+  bootstrap authority after every operation;
 - build/publish both `weave-backend` and `weave-mcp-server`; MCP is a separate workload boundary
-  and must not be folded into the member API process
-- after a backend image change, verify `/api/health/ready` and the backend-owned Nextcloud actor checks through both `release-verify.sh` and `operator-check.sh`
-- Nextcloud trusts only the exact Caddy container address resolved on the active Docker network. Do not configure a Docker-wide or private-LAN trusted-proxy CIDR, and do not disable brute-force protection.
-- install performs one bounded WebDAV and one CalDAV authentication check after provisioning. `429` is evidence of a credential/proxy/client fault; wait for the provider backoff window and fix the cause rather than resetting counters.
-- the direct backend host port is bound to `127.0.0.1`. Caddy returns `404` for public `/actuator` and `/actuator/*`; `/api/health/live` and `/api/health/ready` remain the public operational health contract.
+  and must not be folded into the member API process;
+- repeat `identity-plan` after apply and require zero diff. Repeated `install.sh` must preserve
+  volume identity, credentials, organization/person identity, and sessions;
+- Nextcloud trusts only the exact Caddy container address on the deployment network. Do not widen
+  trusted proxies or disable brute-force protection;
+- the direct backend/MCP/provider host ports are loopback-bound. Public `/actuator` is denied;
+  `/api/health/live` and `/api/health/ready` remain the public operational contract.
+
+For development, run provider dependencies separately from the host server:
+
+```bash
+./gradlew :infra:composeDevDependenciesReady
+./gradlew :server:serverDevBoot
+./gradlew :server:serverDevHostSmoke
+```
+
+Only this `dev` host process uses H2. Flyway still owns its schema and Hibernate still uses
+`ddl-auto=validate`. PostgreSQL remains mandatory for providers, integration tests, test,
+prod, backup/recovery, and every release claim.
 
 ## 4. Routine verification
 
 Use these in order:
 
-1. `bash weave-workspace/release-verify.sh`
-2. `bash weave-workspace/operator-check.sh`
-3. `docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep '^weave-'`
+1. `WEAVE_ENV_FILE=<reviewed-env> bash weave-workspace/release-verify.sh`
+2. `WEAVE_ENV_FILE=<reviewed-env> bash weave-workspace/operator-check.sh <test|prod>`
+3. `WEAVE_ENV_FILE=<reviewed-env> weave-workspace/compose.sh <profile> ps`
 
 What `operator-check.sh` adds beyond `release-verify.sh`:
 
@@ -110,80 +129,129 @@ What `operator-check.sh` adds beyond `release-verify.sh`:
 - checks backend and MCP readiness plus support-safe Agent Runtime state/workload-identity
   summaries; readiness closes when signing/wrapping trust, the workload-administration boundary,
   or external RuntimeStateStore is unavailable
-- treats the actor's own `personal` CalDAV collection as the temporary Weave-managed workspace calendar fallback while team/channel scopes are implemented; private personal calendars require later explicit sharing/provisioning before they are safe to expose through the backend facade
+- verifies the canonical `weave-workspace` CalDAV collection used by the provider-neutral Calendar facade; private personal calendars remain outside that service-actor projection
 
 The default Matrix workspace is provisioned by `weave-workspace/provision-matrix-default-workspace.sh` during install. See `docs/matrix-default-workspace.md` for aliases, the owner/admin-limited `announcements` policy, and current member/guest automation limits.
 
 ## 5. Backup expectations
 
-The single-host baseline does not ship scheduled backup jobs, but it does provide a manually runnable backup helper for operator-owned backup storage:
+The repository does not schedule or export backups. The operator supplies a mode-0700 location
+outside the checkout and binds every private consistency set to the exact candidate:
 
 ```bash
-bash weave-workspace/backup.sh /var/backups/weave
+WEAVE_CANDIDATE_COMMIT=<exact-sha> \
+WEAVE_BACKUP_ROOT=/var/backups/weave \
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env \
+bash weave-workspace/backup.sh test
 ```
 
-The helper writes one timestamped directory and sets restrictive file permissions. Treat that directory as secret production data, not as a support artifact. It includes:
+The helper quiesces the application/provider writers, writes the consistency set, and restarts
+only the services it observed running. A successful directory is named
+`weave-<profile>-<UTC timestamp>-<candidate prefix>` and contains exactly:
 
-- `postgres.sql`: PostgreSQL-backed service data for Keycloak, MAS, Synapse, Nextcloud, and Weave backend databases from container `weave-db`
-- `nextcloud-data.tgz`: Nextcloud files/calendar application data from Docker volume `weave_nextcloud_data`
-- `matrix-synapse-data.tgz`: Matrix/Synapse media and local data from Docker volume `weave_synapse_data`
-- `caddy-data.tgz` and `caddy-config.tgz`: Caddy ACME/TLS state and runtime config when local Caddy owns certificates
-- `keycloak-data.tgz`: Keycloak container-side runtime data from Docker volume `weave_keycloak_data`
-- `generated-config-secrets.tgz`: generated bootstrap env, no-secret app config, TLS material,
-  generated OpenTofu service config, RuntimeProfile signing trust, RuntimeState wrapping trust,
-  separate ARC administration credentials, and per-cell workload SecretRefs needed to restore or
-  reprovision without inventing credentials
-- `MANIFEST.txt`: artifact list and restore-smoke reminder
+- `postgres.sql`;
+- `nextcloud-data.tgz`, `synapse-data.tgz`, `keycloak-data.tgz`;
+- `caddy-data.tgz` and `caddy-config.tgz`;
+- `matrix-appservice.tgz`;
+- `private-config-secrets.tgz`, containing the generated, SecretRef, and TLS consistency roots;
+- `BackupManifest.json`, using only `weave.compose-private-backup.v3` and binding the candidate,
+  candidate manifest, profile, Compose project, database fingerprint, the immutable PostgreSQL
+  dump-client image, exact non-template database inventory and its support-safe digest, quiesced
+  services, runtime inventory, byte counts, and SHA-256 hashes.
 
-Support bundles are **not** backups. `support-bundle.sh` deliberately excludes raw databases, Matrix media, Nextcloud files/calendar data, Caddy ACME state, and generated secrets.
+Every listed artifact and the manifest are private and must never be uploaded as support evidence.
+Backup creation uses an owner-only staging directory and publishes the completed consistency set
+with one atomic rename. A failed backup removes only its exact staging directory after the
+quiesced services have been restarted.
+Support bundles are not backups and exclude database content, provider/member content, raw logs,
+credentials, signed assertions, and private configuration.
 
-The generated-config archive also contains the private Synapse Chat Application
-Service registration and its independently generated `as_token`/`hs_token`
-files. Restore and rotate that pair only through the coordinated procedure in
-[Matrix/Synapse southbound Chat Application Service](matrix-synapse-chat-appservice.md).
+The backup remains bound to `WEAVE_CANDIDATE_COMMIT`, the lane authority, and to
+`WEAVE_CANDIDATE_MANIFEST_DIGEST`. Image provenance is a separate support-safe mapping from that
+lane commit to `WEAVE_IMAGE_SOURCE_COMMIT` and the four immutable image IDs; do not relabel a
+lane-built image or substitute the source commit in backup receipts.
 
 Minimum expectation before calling the stack release-ready:
 
 - backups run on a schedule owned by the operator
 - at least one recent backup is stored off-host or on snapshot-backed storage
-- one restore rehearsal has been performed and written down
-- the restore rehearsal ends with `bash weave-workspace/restore-smoke.sh <backup-dir>`
+- one isolated restore/adoption rehearsal has verified every archive and service database;
+- one current support-safe restore receipt is bound to the manifest hash and candidate.
 
 ## 6. Restore outline and smoke
 
-For a host-level restore or failed upgrade rollback:
-
-1. stop further writes to the stack
-2. restore the release env file, generated config/secrets, and TLS material from `generated-config-secrets.tgz`
-3. restore the Postgres dump from `postgres.sql`
-4. restore `weave_nextcloud_data`, `weave_synapse_data`, Caddy volumes, and Keycloak runtime volume from their `.tgz` archives when those volumes are part of the deployment
-5. run `bash weave-workspace/install.sh` to reconcile containers, fixed Keycloak baseline, dynamic
-   cell clients, profiles, revocations, and generated config
-6. run `bash weave-workspace/restore-smoke.sh <backup-dir>`
-
-`restore-private-backup.sh` is the guarded persistent-dogfood restore path when the entire Weave runtime boundary is absent. Run its non-mutating preflight first:
+The repository currently exposes only a non-mutating v3 integrity preflight:
 
 ```bash
 WEAVE_RESTORE_PREFLIGHT_ONLY=true \
   bash weave-workspace/restore-private-backup.sh <private-backup-dir>
 ```
 
-Apply is allowed only with `WEAVE_DOGFOOD_DEPLOYMENT_SCOPE=persistent-dogfood` and the exact `WEAVE_RESTORE_CONFIRMATION=restore-private-dogfood-backup`. The helper rejects any existing persistent Weave container or volume, initializes PostgreSQL with the restored persistent administrator without introducing a second bootstrap authority, restores only the named PostgreSQL and provider volumes, transactionally restores the stable private bootstrap/TLS assets, rolls back only resources and generated state changed by a failed invocation, and writes support-safe identity-restorability evidence only after the restore commits. The restored credential state is authoritative for the restored databases and providers; a recovery workflow must never replace it with CI placeholder credentials. It explicitly records that Mailpit history is not restored because `backup.sh` does not archive that database. The historical July 2026 text-manifest ordering defect may be reconciled only with `WEAVE_RESTORE_ALLOW_LEGACY_MANIFEST_FINALIZATION_BUG=true`; every domain artifact must still match its recorded hash and the recorded text-manifest hash must match the exact pre-finalization prefix.
+The validator rejects the retired v1 schema, compatibility variants, path traversal, unsafe links,
+special archive members, missing artifacts, and any size/hash mismatch. Direct persistent restore
+apply remains `Guarded`; `restore-private-backup.sh` has no mutating code path. A reviewed
+Compose/control-store restore workflow must prove an isolated destructive rehearsal, exact named
+resources, credential continuity, database/volume reconciliation, rollback, and post-restore
+identity/session/provider readiness before apply can be enabled.
 
-`restore-smoke.sh` is safe to run after a restore or clean reprovisioning rehearsal. It never deletes volumes and does not perform the restore itself. When a backup directory is provided it first checks for the expected backup artifacts, then reuses `operator-check.sh` to verify backend readiness, Keycloak discovery, Matrix client versions and MAS discovery, default Matrix room aliases, and raw Nextcloud readiness. If the restored Matrix database is intentionally empty but generated Matrix bootstrap secrets are available, run:
+For the one-time migration from the former unlabeled runtime, run:
+
+```bash
+WEAVE_CANDIDATE_COMMIT=<exact-sha> \
+WEAVE_BACKUP_ROOT=/var/backups/weave \
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env \
+bash weave-workspace/adoption-rehearsal.sh test
+```
+
+This backs up the existing exact-named runtime, restores all volume inventories and PostgreSQL
+service databases in an isolated namespace, verifies the Weave realm and private SecretRef
+continuity, and emits an owner-controlled mode-`0600`, candidate-bound adoption receipt at the
+canonical generated-state path. Export that exact path as `WEAVE_ADOPTION_RECEIPT` for the
+subsequent `:infra:composeTestUp`; the runtime rejects a missing, stale, symlinked, weakly permissioned,
+wrong-candidate, wrong-project, or resource-incomplete receipt. The former state is retained as
+restricted migration evidence, not an executable rollback engine.
+
+Do not use that adoption path for the manifest-bound Fresh Start. The hard cut has no legacy
+credential migration or state adoption. Before requesting its exact destructive approval, run:
+
+```bash
+WEAVE_CANDIDATE_COMMIT=<exact-sha> \
+WEAVE_CANDIDATE_MANIFEST_DIGEST=sha256:<exact-manifest-digest> \
+WEAVE_BACKUP_ROOT=/private/mode-0700/path \
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env \
+bash weave-workspace/fresh-start-backup-rehearsal.sh test
+```
+
+This command quiesces the exact former runtime, creates the same private Compose v3 consistency
+set, restores every archived provider volume and PostgreSQL service database into a newly generated
+isolated namespace, verifies the Weave realm, and removes every rehearsal-owned container, network,
+volume, and temporary password file. Its mode-`0600` support-safe receipt is written inside the
+private backup directory as `FreshStartBackupRehearsal.json`. The receipt explicitly records
+`legacyStateMigrated=false`, `adoptionAuthorized=false`, and `cleanupVerified=true`; it is recovery
+evidence for the hard cut, never authority to import or attach the restored state.
+
+The restore server and SQL client both use the immutable PostgreSQL image recorded from the source
+runtime. Provider-volume extraction uses the candidate's immutable GNU-tar helper without network
+access. The receipt binds both helper images, the candidate manifest, the database-inventory
+digest, exact provider-volume inventory digests, and successful cleanup.
+
+When `freshStartPlan` uses `-PrecoveryDecision=verified-backup`, also supply
+`-PrecoveryReceipt=/absolute/private/path/FreshStartBackupRehearsal.json`. Planning rejects a
+missing, stale, weakly permissioned, candidate-mismatched, non-cleaned, migration-authorizing, or
+manifest-mismatched receipt. Only the receipt SHA-256 and the support-safe
+`-PrecoveryEvidenceRef=...` are written to the canonical deletion plan.
+
+`restore-smoke.sh` does not restore or delete data. After a separately approved restore/rehearsal it
+revalidates the v3 consistency set, runs `operator-check.sh`, and verifies Matrix Application Service
+mounts plus Agent Runtime trust/readiness. It emits `weave.compose-restore-receipt.v2` with only a
+manifest hash, backup-ID hash, exact candidate/profile/project binding, and support-safe outcomes.
+If a deliberately empty disposable Matrix database must be reprovisioned, use:
 
 ```bash
 WEAVE_RESTORE_SMOKE_REPROVISION_MATRIX=true bash weave-workspace/restore-smoke.sh <backup-dir>
 ```
 
-That option re-runs the idempotent default Matrix workspace provisioner before the checks. If the deployment is badly wedged but data is safe, prefer a clean host plus restored data over ad-hoc container surgery.
-
-For single-host operator evidence on the dedicated runner, manually dispatch the `CI` workflow with:
-
-- `confirm_power_budget_ok=true`
-- `run_restore_smoke=true`
-
-The workflow then bootstraps the stack, runs full-stack smoke, creates a private backup artifact set under the runner temp directory, and runs `restore-smoke.sh` against that artifact set. The backup artifacts contain secrets and are intentionally not uploaded; the workflow log is the shareable evidence. This CI path is a recovery-readiness gate, not an off-host restore substitute, so an operator-owned clean-host restore rehearsal should still be written down before production data is considered protected.
+That option reruns only the idempotent default Matrix workspace projection before the checks.
 
 For artifact-only preflight without touching a live stack, use:
 
@@ -191,37 +259,45 @@ For artifact-only preflight without touching a live stack, use:
 WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true bash weave-workspace/restore-smoke.sh <backup-dir>
 ```
 
-Artifact-only mode validates the backup directory shape and then exits with an explicit note that service readiness was not checked.
+Artifact-only mode performs full manifest/hash/archive integrity verification, emits a non-release
+receipt, and explicitly records that no restore or service readiness was proven.
 
-### Exceptional retirement of a lost pending dogfood identity
+### Lost or expired pending identity
 
-Restoring the private Keycloak database is always the first recovery path. A backup that restores platform/provider data but predates the recorded protected subject is not identity-restorable for that member and must not be described as session preservation. When the persistent runtime is already running and no older identity-restorable artifact exists, the protected `Dogfood Pending Identity Recovery` workflow first creates a new private backup, verifies every required artifact hash, and runs `audit-private-backup-identity.sh` against every available private generation. Each audit replays PostgreSQL into a uniquely named disposable Docker volume after the helper database has completed its entrypoint startup. The complete audit set must prove that neither the recorded subject nor configured username is present in any generation and that every generation contains either no human identity or exactly the historical disposable `test` identity with no other human identity; it never mutates the running persistent volume. The newest backup records whether exact-subject bootstrap retirement is expected, and the Keycloak helper rechecks the live realm immediately before acting. An already-empty human boundary records a no-mutation retirement receipt instead of issuing a delete. Use the protected workflow only when that support-safe private-backup audit and the last accepted evidence prove that the persistent human identity never completed activation. The evidence must still describe the recorded subject as pending with `VERIFY_EMAIL` and `UPDATE_PASSWORD`, no later active evidence may exist, and neither the configured username/email nor the recorded subject may resolve in the current realm. An active, disabled, ambiguous, previously authenticated, or insufficiently evidenced identity must never be replaced.
+Use Keycloak's normal invitation resend/revoke lifecycle first. An expired email link is not a
+reason to delete or replace the user. After a successful OIDC sign-in, the provider-neutral
+session-reconciliation use case updates native organization entitlement and the client performs at
+most one standard refresh-token grant before workspace bootstrap.
 
-If the replayed platform backup contains the historical disposable `test` bootstrap identity, the workflow additionally requires the typed confirmation `retire-restored-test-bootstrap`. It removes that exact subject through the Keycloak administration API only after proving the protected username and recorded subject are absent and `test` is the realm's sole non-service identity. It fails closed for any other, additional, or ambiguous human identity; direct database deletion and broad realm cleanup are forbidden.
+The former `Dogfood Pending Identity Recovery` mutation path is deliberately guarded. Its root
+supervisor, sanitizer image, custom provider JAR, direct member helper, and runtime-profile
+assumptions are retired authorities. The workflow refuses execution and cannot emit readiness.
+A future destructive retirement path must be designed against the `test` profile, run through
+Identity Ops, prove current private backup and isolated restore rehearsal, bind an exact subject
+and tombstone, and remain unable to delete active or ambiguous identities.
 
-The workflow requires an exact candidate already contained in `dogfood`, successful exact-commit isolated Live Stack E2E evidence, the protected `dogfood` environment, the shared non-cancelling persistent deployment lock, and the typed confirmation `retire-lost-pending-identity`. Do not call `dogfood-member.sh recover-lost-pending`, `retire-restored-bootstrap`, or `audit-private-backup-identity.sh` from routine deployment or an unprotected operator shell. The protected operation keeps disposable identity inputs and destructive volume removal disabled, archives the previous raw subject only in mode-`0600` private operator state, creates one new pending Keycloak identity, verifies its activation mail, and creates a private post-recovery backup plus restore-smoke receipt. Both the pre-recovery and post-recovery backup artifacts remain private. Raw subjects, mail, database dumps, and backup archives are never uploaded; shared evidence contains hashes and support-safe status only.
-
-Successful recovery is deliberately not human-testing readiness. Its manifest remains `overallState=blocked` and `humanTestingReady=false`. Continue in this order:
-
-1. the human tester completes the Keycloak activation from the private Mailpit message;
-2. the tester performs an explicit normal OIDC sign-in on the physical iPhone so an active Keycloak session exists; and
-3. run the standard `Test Stack Deploy` workflow for the same candidate; that workflow applies the persistent deployment twice, verifies the active immutable subject/session and idempotency, and remains the only path to green persistent dogfood deployment evidence.
-
-Only the normal readiness chain after those steps can advance toward iOS distribution and physical-device VoiceOver acceptance. The exceptional recovery workflow itself can never emit `humanTestingReady=true`.
+Physical-iPhone readiness still requires the normal user to complete the current invitation,
+perform a normal OIDC sign-in, and pass the standard Test Stack Deploy plus physical-device
+acceptance chain. Neither an email resend nor a guarded recovery dispatch proves readiness.
 
 ## 7. Stop, clean rebuild, and destructive reset
 
 Use the least destructive action that solves the problem:
 
-1. **Stop/restart containers:** use normal Docker or OpenTofu apply workflows when you only need a service restart. Persistent Docker volumes and generated secrets stay intact.
-2. **Clean rebuild:** run `bash weave-workspace/teardown.sh`, then `bash weave-workspace/install.sh`. This removes Weave containers and the Docker network so OpenTofu can recreate them, but it preserves persistent volumes and `.generated/` secrets/config by default.
-3. **Destructive local reset:** only after a backup, run `WEAVE_REMOVE_VOLUMES=true WEAVE_CONFIRM_DESTRUCTIVE_RESET=<tenant_slug> bash weave-workspace/teardown.sh`. For the default local tenant, `<tenant_slug>` is `weave`.
+1. **Stop/restart:** `WEAVE_ENV_FILE=<reviewed-env> weave-workspace/compose.sh <profile> down`,
+   followed by `install.sh <profile>`. `down` never removes named volumes or SecretRefs.
+2. **Repair declared drift:** rerun render/config/prepare and the protected Keycloak plan/apply/verify
+   sequence. Require the second plan to be empty.
+3. **Rollback:** restore the previous coherent application image set and control/data snapshot under
+   the reviewed release procedure. Do not rely on old/new API coexistence.
+4. **Isolated E2E cleanup only:** `teardown.sh test --isolated` requires the deterministic run
+   namespace, exact ownership labels, exact candidate, identity evidence, and explicit volume-removal
+   confirmation. It refuses persistent resources and any label mismatch.
 
-The destructive path prints the backup guidance, affected data domains, and exact Docker volumes before deleting anything. It deletes persistent Docker volumes for Keycloak identity/session data, backend/Postgres data, Matrix/Synapse database and media, Nextcloud database/files/calendar data, shared Postgres databases, and Caddy/TLS state. It does not delete `.generated/` files; copy or remove those intentionally as a separate operator step.
-
-The old `WEAVE_CONFIRM_REMOVE_VOLUMES=weave-delete-local-data` token is deliberately rejected so operators type the tenant/workspace slug instead of copying a generic phrase.
-
-When destructive volume cleanup removes `weave_synapse_data`, the helper also forgets the matching OpenTofu Synapse volume and permission-provisioner state. The next `install.sh` run must recreate the Weave-local volume through OpenTofu and rerun the ownership/writability guard instead of trusting stale state or a Docker-created root-owned volume.
+There is no generic persistent destructive reset or clean-rebuild command. Persistent test/prod
+deletion, crypto-shred, or full restore requires its own step-up, backup, evidence, and approval
+workflow. Never delete named volumes, generated trust, or credentials merely to repair a failed
+deployment.
 
 ## 8. Minimum observability and triage
 
@@ -244,10 +320,10 @@ bash weave-workspace/release-verify.sh
 For support requests, prefer a redacted support bundle over hand-copying raw logs:
 
 ```bash
-bash weave-workspace/support-bundle.sh
+WEAVE_ENV_FILE=<reviewed-env> bash weave-workspace/support-bundle.sh dogfood
 ```
 
-To include the backend's cached provider capability health, pass a short-lived owner/admin/operator bearer token with `admin_control_plane.readiness_read`; the bundle calls only the authenticated `/api/v1/admin/provider-capability-health` route and strict-allowlists its support-safe schema. A workflow may instead stage either that exact response or the support-safe `weave.provider-health-metrics-summary.v1` emitted from loopback-only cached Actuator gauges in `WEAVE_PROVIDER_HEALTH_EVIDENCE_FILE`. The two schemas have independent exact-field allowlists; a raw Actuator response, unknown field, inconsistent overall state, probe-triggering source, or raw metric payload is rejected.
+To include the backend's cached provider capability health, pass a short-lived owner/admin/operator bearer token with `admin_control_plane.readiness_read`; the bundle calls only the authenticated `/api/admin/provider-capability-health` route and strict-allowlists its support-safe schema. A workflow may instead stage either that exact response or the support-safe `weave.provider-health-metrics-summary.v1` emitted from loopback-only cached Actuator gauges in `WEAVE_PROVIDER_HEALTH_EVIDENCE_FILE`. The two schemas have independent exact-field allowlists; a raw Actuator response, unknown field, inconsistent overall state, probe-triggering source, or raw metric payload is rejected.
 
 When Nextcloud authentication throttling is suspected, run:
 
@@ -257,9 +333,16 @@ bash weave-workspace/nextcloud-auth-security-audit.sh --output /tmp/nextcloud-au
 
 The audit is read-only. It groups recent invalid-authentication and throttle events by salted source hash, classifies known Caddy/backend container addresses, and reports only canonical method/route classes plus aggregate configured-backend-actor attribution. It never prints raw addresses, actors, URLs, messages, or provider payloads, and never changes protection or resets counters.
 
-Protected deployment automation may read cached Micrometer measurements directly from `http://127.0.0.1:${TF_VAR_backend_host_port}/actuator/metrics`. These host-local reads do not execute provider probes. Do not publish or proxy this endpoint; use the authenticated admin provider-capability-health facade for product/control-plane access.
+Protected deployment automation may read cached Micrometer measurements directly from
+`http://127.0.0.1:${WEAVE_BACKEND_HOST_PORT}/actuator/metrics`. These host-local reads do not
+execute provider probes. Do not publish or proxy this endpoint; use the authenticated admin
+provider-capability-health facade for product/control-plane access.
 
-For the persistent dogfood candidate workflow, capture `persistent-dogfood-observation.sh capture` before the first install and after the second, then run `compare`. The helper requires `TF_VAR_create_test_user=false` and isolated E2E disabled. It compares only hashes/counts for the immutable human subject, Mailpit volume/message state, Mailpit database SHA-256 and size, TLS CA/leaf identity, and active session set. Database content is never copied into evidence.
+For the persistent dogfood candidate workflow, capture `persistent-dogfood-observation.sh capture`
+before the first install and after the second, then run `compare`. The helper requires the
+persistent dogfood scope and rejects isolated-E2E coordinates. It compares only hashes/counts for
+the immutable human subject, Mailpit volume/message state, TLS CA/leaf identity, and active session
+set. Database content is never copied into evidence.
 
 Set `WEAVE_SUPPORT_BUNDLE_RUN_CHECKS=true` when you want the bundle to include fresh `operator-check.sh` and `release-verify.sh` output. The bundle includes public URL/config summaries, container status, disk/volume summaries, strict cached provider-health evidence, the sanitized Nextcloud authentication-source audit, and only a count/content-set hash for recent smoke/operator/verify artifacts found under `.generated`. Raw service/provider logs and raw prior diagnostic artifacts are deliberately excluded because generic redaction cannot prove removal of actor/content identifiers. It is a diagnostics artifact only: it is **not** a backup and cannot restore Postgres databases, Matrix media, Nextcloud files/calendar data, Caddy ACME state, or generated secrets. Review the archive before sharing externally.
 

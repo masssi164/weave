@@ -50,6 +50,7 @@ public class ChatFacadeService {
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final OrganizationIdentityContextResolver identityContexts;
     private final ChatDomainFacadeService chatDomainFacadeService;
     private final AuditEventPublisher auditEventPublisher;
     private final ConcurrentMap<String, ChannelContextState> channelContexts = new ConcurrentHashMap<>();
@@ -62,15 +63,34 @@ public class ChatFacadeService {
             WorkspaceCapabilityService workspaceCapabilityService,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContexts,
             ChatDomainFacadeService chatDomainFacadeService,
             AuditEventPublisher auditEventPublisher) {
         this.workspaceCapabilityProperties = workspaceCapabilityProperties;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.identityContexts = java.util.Objects.requireNonNull(identityContexts, "identityContexts");
         this.chatDomainFacadeService = chatDomainFacadeService;
         this.auditEventPublisher = auditEventPublisher;
         seedChannelContexts();
+    }
+
+    public ChatFacadeService(
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            ChatDomainFacadeService chatDomainFacadeService,
+            AuditEventPublisher auditEventPublisher) {
+        this(
+                workspaceCapabilityProperties,
+                workspaceCapabilityService,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                OrganizationIdentityContextResolver.configured(contextAuthorizationProperties),
+                chatDomainFacadeService,
+                auditEventPublisher);
     }
 
     public DecisionLedgerRecordsResponse decisions(Jwt jwt, String conversationId) {
@@ -215,7 +235,7 @@ public class ChatFacadeService {
 
         List<String> conflicts = new ArrayList<>();
         if (request.identityConflictCount() > 0) {
-            conflicts.add("Membership identity conflicts require admin resolution against the IDM/RBAC mapping before cutover.");
+            conflicts.add("Membership identity conflicts require admin resolution against the Keycloak role/group mapping before cutover.");
         }
         if (sourceAdapter.equals(targetAdapter)) {
             conflicts.add("Source and target adapters are identical; no provider replacement should be scheduled.");
@@ -244,6 +264,7 @@ public class ChatFacadeService {
     }
 
     private void requireChatReady(Jwt jwt, String capability, String operation) {
+        requireOrganizationIdentity(jwt);
         workspaceCapabilityService.requireCapability(jwt, capability, DOMAIN, operation);
         WorkspaceCapabilityProperties.Capability chat = workspaceCapabilityProperties.chat();
         if (!chat.enabled()) {
@@ -255,6 +276,17 @@ public class ChatFacadeService {
         }
         String impact = configured == WorkspaceCapabilityReadiness.UNAVAILABLE ? "unavailable" : "degraded";
         throw chatUnavailable(impact, "Chat is not ready through the Weave Chat facade.", operation);
+    }
+
+    private void requireOrganizationIdentity(Jwt jwt) {
+        if (jwt == null) {
+            throw invalidAuthentication("JWT is missing");
+        }
+        try {
+            identityContexts.resolve(jwt);
+        } catch (ApiErrorException exception) {
+            throw invalidAuthentication("organization identity is missing or invalid");
+        }
     }
 
     private PrincipalContext requireContextPermission(Jwt jwt, ContextPermission permission) {
@@ -288,12 +320,11 @@ public class ChatFacadeService {
                     "Chat access requires an authenticated principal.",
                     Map.of("module", DOMAIN));
         }
-        String tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantClaim());
-        if (tenantId == null) {
-            tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantFallbackClaim());
-        }
-        if (tenantId == null) {
-            tenantId = contextAuthorizationProperties.defaultTenantId();
+        String tenantId;
+        try {
+            tenantId = identityContexts.resolve(jwt).organizationId();
+        } catch (ApiErrorException exception) {
+            throw invalidAuthentication("organization identity is missing or invalid");
         }
         String configuredClaim = jwtClaim(jwt, contextAuthorizationProperties.principalClaim());
         String principalRef = contextAuthorizationProperties.principalRef(configuredClaim != null ? configuredClaim : jwt.getSubject());
@@ -306,6 +337,14 @@ public class ChatFacadeService {
         }
         String contextId = claimOrDefault(jwt, "weave_context_id", "context_id", DEFAULT_CONTEXT_ID);
         return new PrincipalContext(tenantId, contextId, principalRef);
+    }
+
+    private ApiErrorException invalidAuthentication(String reason) {
+        return new ApiErrorException(
+                HttpStatus.UNAUTHORIZED,
+                "unauthorized",
+                "Chat access requires an authenticated principal.",
+                Map.of("module", DOMAIN, "reason", reason));
     }
 
     private String claimOrDefault(Jwt jwt, String primaryClaim, String fallbackClaim, String defaultValue) {
@@ -578,5 +617,5 @@ public class ChatFacadeService {
             return List.copyOf(messages);
         }
 
+        }
     }
-}

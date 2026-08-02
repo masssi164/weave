@@ -11,12 +11,10 @@ import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/entities/channel_workspace.dart';
-import 'package:weave/features/chat/domain/entities/context_graph.dart';
 import 'package:weave/features/chat/domain/entities/decision_evidence.dart';
 import 'package:weave/features/chat/presentation/providers/archived_message_store_provider.dart';
 import 'package:weave/features/chat/presentation/providers/channel_workspace_preview_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
-import 'package:weave/features/chat/presentation/providers/context_pack_preview_provider.dart';
 import 'package:weave/features/chat/presentation/providers/decision_evidence_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -372,9 +370,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     final canSend =
         !_showingArchivedMessages &&
         (timeline?.canSendMessages ?? !widget.conversation.isInvite);
-    final contextPack = ref
-        .watch(contextPackPreviewFacadeProvider)
-        .previewForRoom(widget.conversation);
     final decisionEvidenceRecords = ref.watch(decisionEvidenceProvider);
     final decisionEvidenceSnapshot = RoomDecisionEvidenceSnapshot(
       roomId: widget.conversation.id,
@@ -458,11 +453,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                     child: Column(
                       children: [
-                        _RoomContextPackPreviewCard(
-                          contextPack: contextPack,
-                          compact: compactContextPreview,
-                        ),
-                        const SizedBox(height: 8),
                         _RoomDecisionEvidenceCard(
                           snapshot: decisionEvidenceSnapshot,
                           compact: compactContextPreview,
@@ -1463,148 +1453,6 @@ class _ArchivedMessagesNotice extends StatelessWidget {
       ],
     );
   }
-}
-
-class _RoomContextPackPreviewCard extends StatelessWidget {
-  const _RoomContextPackPreviewCard({
-    required this.contextPack,
-    this.compact = false,
-  });
-
-  final ContextPackPreview contextPack;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final includedCount = contextPack.includedItems.length;
-    final availableCount = contextPack.availableItems.length;
-    final semanticsLabel = [
-      l10n.chatRoomContextPackTitle,
-      l10n.chatRoomContextPackDescription,
-      l10n.chatRoomContextPackCounts(includedCount, availableCount),
-      l10n.chatRoomContextPackNoBackgroundReading,
-      ...contextPack.items.map(
-        (item) =>
-            '${_contextItemLabel(l10n, item.scope)}. '
-            '${item.includedInPreview ? l10n.chatRoomContextIncludedStatus : l10n.chatRoomContextAvailableStatus}',
-      ),
-    ].join('. ');
-
-    return Semantics(
-      container: true,
-      label: semanticsLabel,
-      child: ExcludeSemantics(
-        child: Card(
-          elevation: 0,
-          color: theme.colorScheme.surfaceContainerHighest,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.fact_check_outlined,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            l10n.chatRoomContextPackTitle,
-                            style: theme.textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            l10n.chatRoomContextPackDescription,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                if (!compact) ...[
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: contextPack.items
-                        .map((item) => _RoomContextChip(item: item))
-                        .toList(growable: false),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Text(
-                  l10n.chatRoomContextPackNoBackgroundReading,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RoomContextChip extends StatelessWidget {
-  const _RoomContextChip({required this.item});
-
-  final ContextGraphItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final included = item.includedInPreview;
-
-    return Chip(
-      avatar: Icon(
-        included ? Icons.check_circle_outline : Icons.add_circle_outline,
-        size: 18,
-      ),
-      label: Text(_contextItemLabel(l10n, item.scope)),
-      side: BorderSide(
-        color: included
-            ? theme.colorScheme.primary
-            : theme.colorScheme.outlineVariant,
-      ),
-      backgroundColor: included
-          ? theme.colorScheme.primaryContainer
-          : theme.colorScheme.surface,
-      labelStyle: theme.textTheme.labelLarge?.copyWith(
-        color: included
-            ? theme.colorScheme.onPrimaryContainer
-            : theme.colorScheme.onSurface,
-      ),
-    );
-  }
-}
-
-String _contextItemLabel(AppLocalizations l10n, ContextGraphScope scope) {
-  return switch (scope) {
-    ContextGraphScope.currentRoom => l10n.chatRoomContextCurrentRoomLabel,
-    ContextGraphScope.selectedFiles => l10n.chatRoomContextSelectedFilesLabel,
-    ContextGraphScope.linkedTasks => l10n.chatRoomContextLinkedTasksLabel,
-    ContextGraphScope.recentDecisions =>
-      l10n.chatRoomContextRecentDecisionsLabel,
-  };
 }
 
 class _RoomDecisionEvidenceCard extends StatelessWidget {

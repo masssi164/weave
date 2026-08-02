@@ -2,7 +2,7 @@ package com.massimotter.weave.backend.matrix;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import java.util.List;
 import java.util.Map;
@@ -86,7 +86,7 @@ class MatrixE2eeStateServiceSignatureMergeTest {
 
     private MatrixE2eeStateService service() {
         return new MatrixE2eeStateService(
-                new ObjectMapper().findAndRegisterModules(),
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
                 new StaticListableBeanFactory().getBeanProvider(MatrixE2eeSnapshotStore.class));
     }
 

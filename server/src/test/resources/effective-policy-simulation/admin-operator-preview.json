@@ -5,7 +5,7 @@
     "member"
   ],
   "groups": [
-    "weave-board-editors"
+    "/members"
   ],
   "requestedCapabilities": [
     "boards.update_task",
@@ -13,7 +13,6 @@
     "agent-runtime.entitled"
   ],
   "grantedCapabilities": [
-    "boards.update_task",
     "chat.send"
   ],
   "deniedInputs": [],
@@ -23,9 +22,9 @@
   "capabilityStates": [
     {
       "capability": "boards.update_task",
-      "state": "ready",
-      "reasonCode": "granted-by-effective-policy",
-      "memberImpact": "Member-visible capability state may be ready if provider readiness also passes."
+      "state": "policy-blocked",
+      "reasonCode": "deny-by-default-capability-policy",
+      "memberImpact": "This capability remains blocked unless a known organization role grants it."
     },
     {
       "capability": "chat.send",

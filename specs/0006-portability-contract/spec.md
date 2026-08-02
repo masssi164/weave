@@ -24,7 +24,7 @@ evidence_gates:
 
 Define reusable provider replacement schemas so every migration classifies loss, records counts and hashes, links provider mappings and audit references, and blocks apply until a successful dry run exists.
 
-2026-06-12 Northstar amendment: provider portability uses a strict **no unaccounted data loss** policy, not a broad lossless-migration promise. The first provider-switch proof domain is Identity/RBAC, including principal continuity, role/group mapping, token/claim parity, SCIM vs SSO lifecycle behavior, orphan/trust-artifact handling, rollback/archive refs, and post-cutover validation.
+2026-07-26 architecture correction: provider portability uses a strict **no unaccounted data loss** policy, not a broad lossless-migration promise. This contract applies to replaceable collaboration southbound adapters. Platform identity is excluded: Keycloak is the fixed authority, while OIDC/SAML and LDAP/AD systems attach only as upstream federation or brokering sources.
 
 
 ## Product boundaries
@@ -50,7 +50,8 @@ Define reusable provider replacement schemas so every migration classifies loss,
 - **FR-005**: Provider switch preflight MUST identify source provider, target adapter, object/field map, unsupported/lossy/manual-review classes, export/archive refs, rollback path, and timebox.
 - **FR-006**: Dry-run evidence MUST include object counts, stable ids/refs, mapping report, consequence preview, no-unaccounted-loss classification, and support-safe evidence refs.
 - **FR-007**: Apply/cutover MUST require fresh dry-run evidence, audit sink, rollback/archive refs, receipt counts/hashes/refs/policy/audit refs, and post-cutover validation.
-- **FR-008**: Identity/RBAC portability MUST prove principal continuity, group/role mapping, token/claim parity, SCIM lifecycle where available, SSO-staleness limits where applicable, audit trail, rollback function, and orphan/trust-artifact decommission plan.
+- **FR-008**: Provider replacement MUST reject `identity` and `platform-identity` as southbound adapter categories.
+- **FR-009**: Platform-identity federation readiness MUST preserve the Keycloak issuer/subject authority and report upstream group/role mappings, claim parity, lifecycle limits, audit, rollback, and orphan/trust-artifact cleanup without claiming an identity-provider switch.
 
 
 ## Acceptance and evidence mapping
@@ -58,8 +59,8 @@ Define reusable provider replacement schemas so every migration classifies loss,
 - Tooling test path(s): `tools/portability_contract_check.py`.
 - Schemas: `server/src/main/resources/contracts/portability/*.schema.json`.
 - Fixtures: `specs/0006-portability-contract/migration-run-*.json`.
-- Gherkin feature path(s): `e2e/features/northstar_spec_decisions.feature` for no-unaccounted-data-loss and Identity/RBAC provider-switch claim control.
-- `e2e/scenario_mappings.json` marker(s): `NORTHSTAR_IDENTITY_RBAC_SWITCH`, `NORTHSTAR_PORTABILITY_NO_UNACCOUNTED_LOSS`.
+- Gherkin feature path(s): `e2e/features/northstar_spec_decisions.feature` for no-unaccounted-data-loss and the fixed Keycloak federation boundary.
+- `e2e/scenario_mappings.json` marker(s): `NORTHSTAR_PLATFORM_IDENTITY_FEDERATION`, `NORTHSTAR_PORTABILITY_NO_UNACCOUNTED_LOSS`.
 - Evidence gates: `./gradlew specContract`, `./gradlew acceptanceContract`, `./gradlew portabilityContractCheck`, `./gradlew docsCheck`.
 
 ## Release and migration impact

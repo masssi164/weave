@@ -1,5 +1,7 @@
 # Deploy weave-backend and finalize the Keycloak contract
 
+> Historical issue draft, superseded for tooling by Docker Compose profiles and the protected, idempotent `kcadm` reconciler. The server owns dry-run evidence only and does not mutate the Keycloak baseline.
+
 ## Problem
 
 Earlier infrastructure work already defined a `weave-backend` Keycloak client, but the backend is not deployed by the stack and the auth contract is incomplete:
@@ -16,7 +18,7 @@ Earlier infrastructure work already defined a `weave-backend` Keycloak client, b
   - backend base URL
   - required audience or token-exchange path
   - optional service-account credentials for server-owned workflows
-- Wire the backend runtime config from OpenTofu outputs/environment variables instead of hardcoded URLs
+- Wire backend runtime config from profile-owned generated environment files instead of hardcoded URLs
 
 ## Acceptance criteria
 

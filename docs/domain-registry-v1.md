@@ -62,7 +62,7 @@ A provider adapter declares supported domains by publishing a Provider Adapter M
 - `auditEvents`
 - `secretBoundary`
 
-The adapter's `domainKeys` must reference canonical domain keys, not provider names. Existing provider-category names such as `identity-idm`, `files-docs`, `documents-collaboration`, `boards-tasks`, `meetings-calls`, `decisions-evidence`, `admin-control-plane`, and `release-evidence` are compatibility aliases only. Slash-style labels used in member copy or acceptance language, for example `boards/tasks` or `meetings/calls`, are display text; they must map to canonical keys or registry aliases before they enter machine-readable contracts.
+The adapter's `domainKeys` must reference canonical domain keys, not provider names. Existing provider-category names such as `files-docs`, `documents-collaboration`, `boards-tasks`, `meetings-calls`, `decisions-evidence`, `admin-control-plane`, and `release-evidence` are compatibility aliases only. `identity-idm` is deliberately not an alias or adapter category: Keycloak platform identity is a separate fixed authority boundary. Slash-style labels used in member copy or acceptance language, for example `boards/tasks` or `meetings/calls`, are display text; they must map to canonical keys or registry aliases before they enter machine-readable contracts.
 
 ## Portability evidence
 

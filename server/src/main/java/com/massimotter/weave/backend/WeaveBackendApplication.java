@@ -18,6 +18,8 @@ import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.ProviderHealthProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.schema.SchemaAuthorityInitializer;
+import com.massimotter.weave.backend.schema.SchemaReceiptVerifier;
 import java.util.Arrays;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -55,6 +57,14 @@ public class WeaveBackendApplication {
             }
             if ("runtime-state-wrapping-keys".equals(args[0])) {
                 RuntimeStateWrappingKeyCli.main(operatorArguments);
+                return;
+            }
+            if ("schema-init".equals(args[0])) {
+                SchemaAuthorityInitializer.main(operatorArguments);
+                return;
+            }
+            if ("schema-receipt-check".equals(args[0])) {
+                SchemaReceiptVerifier.main(operatorArguments);
                 return;
             }
         }

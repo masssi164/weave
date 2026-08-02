@@ -42,7 +42,7 @@ Use the smallest role set that covers the slice. Role names are logical responsi
 - Client/accessibility: Flutter UX, screen-reader behavior, keyboard navigation, l10n, widget tests.
 - Server/domain: domain facades, authorization, audit, provider boundaries, backend contract tests.
 - Admin/policy: Admin Console, Workspace Health, IDM/RBAC, policy previews, readiness, whitelisting.
-- Provider/infra: adapters, OpenTofu, runner/environment posture, backup/restore, support bundles.
+- Provider/infra: adapters, Compose profiles, Keycloak desired-state reconciliation, runner/environment posture, backup/restore, support bundles.
 - QA/evidence: Gherkin, scenario mappings, sanitized artifacts, Live Stack E2E posture.
 - Docs/release: docs navigation, handbooks, release notes, PR templates, closure reports.
 - Security/privacy: secrets, raw provider payloads, audit, support-safe diagnostics, external-provider risk.

@@ -9,7 +9,7 @@ Feature: WEAVE-SPEC-0007 acceptance
     And the acceptance scenario is mapped to offline spec evidence marker WEAVE_SPEC_0007_RUNTIME_PROFILE_FROM_POLICY
     When the product claim is evaluated for merge
     Then the claim is blocked unless the mapped evidence covers runtime profile from policy
-    And the catalog records the bounded domains agent-runtime-control, identity-idm, admin-health-ops
+    And the catalog records the bounded domains agent-runtime-control, admin-health-ops, admin-health-ops
 
   @weave-spec-0007-tool-approval-receipt-fail-closed
   Scenario: ARC workload invocation requires signed decision evidence and current domain authorization

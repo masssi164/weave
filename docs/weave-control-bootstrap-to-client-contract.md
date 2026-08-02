@@ -106,7 +106,7 @@ The member path must not contain provider setup forms, OIDC/SAML wiring, realms,
 
 Weaver/OpenClaw remains an optional organization runtime behind Agent Runtime Control and is disabled by default. It is unavailable unless all of these are true:
 
-1. authoritative Keycloak group membership derives `agent-runtime.entitled`;
+1. exact native Keycloak Organization membership `/capabilities/weaver` derives `agent-runtime.entitled`;
 2. profile signing, workload identity, encrypted external state, and lifecycle reconciliation are enabled;
 3. a unique per-cell OIDC client and current server-owned cell binding exist;
 4. MCP token exchange and backend current-context revalidation pass;

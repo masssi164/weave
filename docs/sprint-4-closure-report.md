@@ -1,6 +1,8 @@
 # Sprint 4 closure report: accessible work rooms and governed Weaver scout
 
-Status: final closure evidence, 2026-05-26.
+Status: historical closure evidence, superseded by the workload-only MCP architecture. Any
+embedded Flutter AI-chat or Weaver-scout statements below are recorded only as retired Sprint 4
+history and are not current product contracts.
 
 ## Closure scope
 
@@ -18,7 +20,7 @@ Sprint 4 closes the transition from Sprint 3's provider-neutral control plane in
 
 | Area | Closing evidence | State |
 | --- | --- | --- |
-| Weave Home: DMs, favorites, channels, AI chats | PR #215 added the Home overview sections; current `client/test/features/chat/chat_overview_test.dart` and `client/test/features/chat/chat_screen_test.dart` verify grouping, empty states, hidden preview/provider setup surfaces, and accessibility tap-target guidelines. | Closes #325 and older umbrella #210. |
+| Weave Home | PR #215 introduced the original overview. The current implementation retains Favorites, Personal messages, and Channels; the obsolete Flutter AI-chat category is removed because Weaver enters through the separate MCP workload boundary. | Historical closure of #325 and older umbrella #210; superseded architecture applied. |
 | Channel Work Rooms | PR #228 introduced accessible channel workspace tabs; PR #333 promoted Decisions and Weaver Scout into first-class work-room tabs with product-safe copy and scenario mapping. | Closes #211. |
 | Decision Ledger | PR #336 added channel Decision Ledger records with lifecycle/status, author/time/source references, localized UI, and widget/provider tests. PR #337 added backend create/read contracts and audit evidence. | Closes #251 and #219. |
 | Meeting Capsule | PR #337 added Meeting Capsule backend facades tied to channel context, agenda/follow-up fields, and fail-closed media controls without provider credential leakage or Matrix E2EE/media conflation. | Closes #249. |
@@ -31,7 +33,8 @@ Sprint 4 closes the transition from Sprint 3's provider-neutral control plane in
 
 Sprint 4 freezes these user-facing rules for v0.1 dogfood:
 
-- Weave Home groups work by intent: Favorites, Personal messages, Channels, and AI chats.
+- Weave Home groups work by intent: Favorites, Personal messages, and Channels. Weaver is not a
+  Flutter chat category.
 - Channel Work Rooms expose channel chat plus first-class work objects such as decisions, meetings, boards/tasks, files/calendar affordances, and governed Weaver context where enabled.
 - Normal members do not configure raw providers, service endpoints, provider secrets, provider readiness diagnostics, or roadmap/preview surfaces.
 - Capability states are ready, disabled, degraded, policy-blocked, or admin setup required; raw downstream provider detail stays in admin/operator surfaces.
@@ -45,7 +48,7 @@ Sprint 4 freezes these user-facing rules for v0.1 dogfood:
 | Operating-model PR | #338 merged with `release-notes-feature`; post-merge `main` CI run `26450589364` succeeded. |
 | Current branch local aggregate | `WEAVE_DOCS_VENV=build/docs-venv ./gradlew acceptanceContract releaseEvidenceCheck docsCheck` succeeded before this report. |
 | Current branch client aggregate | `WEAVE_DOCS_VENV=build/docs-venv ./gradlew clientCi` succeeded in `1m 5s`; offline contract mode passed 5 checks and skipped live credential tests as expected. |
-| Weave Home executable coverage | `chat_overview_test.dart` and `chat_screen_test.dart` verify Favorites, Personal messages, Channels, AI chats, empty states, no old preview/provider setup copy, and tap-target accessibility. |
+| Weave Home executable coverage | `chat_overview_test.dart` and `chat_screen_test.dart` verify Favorites, Personal messages, Channels, empty states, absence of obsolete AI-chat/provider-setup paths, and tap-target accessibility. |
 | Scenario mapping | `e2e/scenario_mappings.json` maps the Home daily loop, channel workspace, Decision Ledger, Meeting Capsule, Weaver Scout, and release/operator paths to executable or documented evidence markers. |
 | Release discipline | Open PR list is empty; branch protection required checks were satisfied for #338; release-label gate is now part of every PR update. |
 

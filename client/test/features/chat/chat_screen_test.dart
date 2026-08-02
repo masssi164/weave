@@ -7,8 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/theme/app_theme.dart';
-import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
-import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
@@ -475,7 +473,7 @@ void main() {
     });
 
     testWidgets(
-      'groups conversations into favorites, personal messages, channels, and AI chats',
+      'groups conversations into favorites, personal messages, and channels',
       (tester) async {
         final repository = FakeChatRepository(
           loadConversationsHandler: () async => const <ChatConversation>[
@@ -497,16 +495,6 @@ void main() {
               isInvite: false,
               isDirectMessage: false,
               isFavorite: true,
-            ),
-            ChatConversation(
-              id: 'agent:release-coach',
-              title: 'Release coach',
-              previewType: ChatConversationPreviewType.text,
-              previewText: 'Ready to prepare notes',
-              unreadCount: 0,
-              isInvite: false,
-              isDirectMessage: true,
-              isAiChat: true,
             ),
           ],
         );
@@ -530,7 +518,6 @@ void main() {
         expect(find.text('3 unread items'), findsOneWidget);
         expect(find.text('1 channel workspace'), findsOneWidget);
         expect(find.text('1 personal message'), findsOneWidget);
-        expect(find.text('1 governed AI chat'), findsOneWidget);
         expect(find.text('Open next work item'), findsOneWidget);
         expect(find.text('Context for this workspace'), findsNothing);
         expect(find.text('Channel context'), findsNothing);
@@ -550,16 +537,13 @@ void main() {
         expect(find.text('Project channel'), findsNWidgets(2));
         expect(find.text('Sam'), findsOneWidget);
 
-        await tester.ensureVisible(find.text('AI chats'));
-        await tester.pumpAndSettle();
-
-        expect(find.text('AI chats'), findsOneWidget);
-        expect(find.text('Release coach'), findsOneWidget);
+        expect(find.text('AI chats'), findsNothing);
+        expect(find.text('Release coach'), findsNothing);
       },
     );
 
     testWidgets(
-      'keeps favorites and AI areas visible when backend data is not ready',
+      'keeps collaboration sections visible when backend data is not ready',
       (tester) async {
         final repository = FakeChatRepository(
           loadConversationsHandler: () async => const <ChatConversation>[
@@ -601,25 +585,15 @@ void main() {
         expect(find.text('No unread work'), findsOneWidget);
         expect(find.text('1 channel workspace'), findsOneWidget);
         expect(find.text('1 personal message'), findsOneWidget);
-        expect(find.text('AI governed by workspace policy'), findsOneWidget);
         expect(find.text('Favorites'), findsOneWidget);
         expect(
           find.text(
-            'No favorites yet. Important direct messages, channels, and AI chats marked as favorites stay here.',
+            'No favorites yet. Important direct messages and channels marked as favorites stay here.',
           ),
           findsOneWidget,
         );
 
-        await tester.ensureVisible(find.text('AI chats'));
-        await tester.pumpAndSettle();
-
-        expect(find.text('AI chats'), findsOneWidget);
-        expect(
-          find.text(
-            'AI chats are not enabled for this workspace. A workspace owner or admin can enable governed assistants after policy, consent, and audit controls are ready.',
-          ),
-          findsOneWidget,
-        );
+        expect(find.text('AI chats'), findsNothing);
       },
     );
 
@@ -850,75 +824,6 @@ void main() {
       await tester.pumpAndSettle();
 
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
-    });
-
-    testWidgets('renders bounded Weaver Beta helper states accessibly', (
-      tester,
-    ) async {
-      final repository = FakeChatRepository(
-        loadConversationsHandler: () async => const <ChatConversation>[
-          ChatConversation(
-            id: '!ai:home.internal',
-            title: 'Weaver notes',
-            previewType: ChatConversationPreviewType.text,
-            previewText: 'Structured result ready',
-            unreadCount: 0,
-            isInvite: false,
-            isDirectMessage: false,
-          ),
-        ],
-      );
-      final securityRepository = buildSecurityRepository();
-      await tester.pumpWidget(
-        createTestApp(
-          const ChatScreen(),
-          overrides: [
-            chatRepositoryProvider.overrideWithValue(repository),
-            chatSecurityRepositoryProvider.overrideWithValue(
-              securityRepository,
-            ),
-            agentCapabilityPolicyProvider.overrideWithValue(
-              const AsyncData(
-                AgentCapabilityPolicy(
-                  canManageCapabilities: false,
-                  capabilities: <AgentCapabilityState>[
-                    AgentCapabilityState(
-                      capability: AgentCapability.personalAssistant,
-                      enablement: AgentCapabilityEnablement.enabled,
-                      availability:
-                          AgentCapabilityAvailability.adminSetupRequired,
-                    ),
-                    AgentCapabilityState(
-                      capability: AgentCapability.channelAgent,
-                      enablement: AgentCapabilityEnablement.disabled,
-                      availability:
-                          AgentCapabilityAvailability.disabledByPolicy,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Weaver Beta helper'), findsOneWidget);
-      expect(find.text('Connected'), findsOneWidget);
-      expect(find.text('Weaver enabled'), findsOneWidget);
-      expect(find.text('Weaver disabled'), findsOneWidget);
-      expect(
-        find.text('Approval required for sensitive actions'),
-        findsOneWidget,
-      );
-      expect(find.text('Denied or failed safely'), findsOneWidget);
-      expect(find.textContaining('raw provider payloads'), findsOneWidget);
-      expect(find.textContaining('MCP'), findsNothing);
-      expect(find.textContaining('tool catalog'), findsNothing);
-      expect(
-        find.bySemanticsLabel(RegExp('Results are support-safe')),
-        findsOneWidget,
-      );
     });
   });
 }

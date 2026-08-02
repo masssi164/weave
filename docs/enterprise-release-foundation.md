@@ -2,7 +2,7 @@
 
 Status: active enterprise dogfood and human-testing release contract.
 
-This page defines the professional release spine for Weave. It deliberately separates product validation from admin/control-plane work: **Live Stack E2E is evidence**, not an Admin Portal feature. Admin/operator surfaces own setup, policy, readiness, and support-safe remediation; member journeys stay provider-neutral and are proved through the acceptance contract.
+This page defines the professional release spine for Weave. It deliberately separates product validation from admin/control-plane work: **the Fresh product flow is evidence**, not an Admin Portal feature. Admin/operator surfaces own setup, policy, readiness, and support-safe remediation; member journeys stay provider-neutral and are proved through the acceptance contract.
 
 The machine-readable contract lives at `release/enterprise-release-gates.json` and is checked by `tools/release_gate_check.py` through `./gradlew releaseEvidenceCheck`.
 
@@ -10,7 +10,7 @@ The machine-readable contract lives at `release/enterprise-release-gates.json` a
 
 - Delivery is ordered `dev` → isolated candidate E2E → `dogfood` → protected iOS distribution → physical acceptance → `main`.
 - No main or `humanTestingReady=true` claim without an exact-candidate readiness manifest in state `ready`.
-- Current-surface collaboration, deployment, distribution, in-place session upgrade, and physical-iPhone VoiceOver gates are mandatory and cannot be waived into a ready state.
+- Current-surface collaboration, deployment, distribution, in-place session upgrade, and physical-iPhone VoiceOver gates are mandatory and cannot be waived into a ready state. The readiness manifest binds the candidate-manifest digest, four immutable runtime images, live and fixture proof origins, and the tester-confirmed twenty-step physical protocol.
 - Provider-specific IDs, raw endpoints, SecretRefs, credential-bearing URLs, downstream bodies, and private live logs stay out of public/support artifacts.
 - Weaver remains governed, opt-in, capability-whitelisted, audited, and default-disabled; it must not be used to bypass release evidence.
 - The `weave-co-leader` orchestrates cross-domain delivery; specialist agents implement scoped slices, while release evidence remains deterministic and human-reviewable.
@@ -31,70 +31,58 @@ This lane must stay PR-safe: no real provider credentials, no destructive live r
 
 ### `release-candidate-live-evidence`
 
-Purpose: prove the candidate on the dedicated self-hosted live runner with credentials and a real local stack.
+Purpose: prove the candidate on the dedicated self-hosted runner with a real
+disposable stack while keeping human credentials and activation links in the
+bounded `testApp` process.
 
 Required gates:
 
-- `credentialed-live-stack-e2e` via `.github/workflows/live-stack-e2e.yml`.
-- `three-user-live-collaboration` runs twice with disposable author, collaborator, and outsider identities in a fully isolated namespace.
-- The same isolated lane runs real missing-capability, expired-token, and Matrix-session-revocation probes before the client suite. The client wrong-workspace assertions and the independent `isolated-authorization.json` artifact must agree before authorization can pass.
+- `test-app-product-flow-e2e` via `.github/workflows/live-stack-e2e.yml`;
+  Flutter physical-device authentication is a separate AppAuth evidence gate.
+- `testApp` proves real owner/collaborator/outsider invitations, Keycloak required actions in Chromium,
+  fresh Authorization Code + PKCE sessions, two-pass Chat/Files/Calendar/Home/Profile collaboration,
+  direct Synapse and canonical JPA/PostgreSQL state, backend/Synapse restart continuity, provider
+  outage exactly-once recovery, callback replay idempotency, per-cell `private_key_jwt`, Spring AI
+  MCP discovery/tool invocation, revoke/regrant, and exact namespace cleanup.
 
 Required artifacts:
 
-- `weave-live-stack-acceptance-evidence/acceptance-summary.md`
-- `weave-live-stack-acceptance-evidence/scenario-mapping-results.json`
-- `weave-live-stack-acceptance-evidence/evidence-markers.json`
-- `weave-live-stack-acceptance-evidence/release-evidence-manifest.json`
-- `weave-live-stack-acceptance-evidence/human-testing-automated-evidence.json`
-- `weave-live-stack-acceptance-evidence/isolated-identities.json`
-- `weave-live-stack-acceptance-evidence/isolated-authorization.json`
-- `weave-live-stack-acceptance-evidence/isolated-calendar-outage.json`
-- `weave-live-stack-acceptance-evidence/isolated-cleanup.json`
+- `weave-live-stack-acceptance-evidence/weave-test-app-evidence.json`
+- `weave-live-stack-acceptance-evidence/human-testing-live-automated-evidence.json`
+- `weave-live-stack-acceptance-evidence/teardown-evidence.json`
 
-Failure-only support-safe diagnostics:
+The bounded runner also emits the support-safe `WEAVE_TEST_APP_RESULT` marker;
+the JSON artifact remains the durable evidence authority.
 
-- `weave-live-stack-acceptance-evidence/failure-diagnostics/failure-summary.md`
-- `weave-live-stack-acceptance-evidence/failure-diagnostics/failure-summary.json`
-- `weave-live-stack-acceptance-evidence/failure-diagnostics/container-status.tsv`
-- `weave-live-stack-acceptance-evidence/failure-diagnostics/failed-markers.json`
+Raw failure diagnostics stay private on the self-hosted runner and are never
+promoted into the uploaded artifact.
 - `weave-live-stack-acceptance-evidence/failure-diagnostics/health-checks/operator-check.txt`
 - `weave-live-stack-acceptance-evidence/failure-diagnostics/support-bundle/weave-support-*.tar.gz`
 
-Required runtime markers for the v0.1 dogfood candidate:
+Required support-safe marker and evidence fields for the v0.1 dogfood candidate:
 
-- `AUTH_RESULT`
-- `PROFILE_RESULT`
-- `CHAT_RESULT`
-- `MATRIX_RESULT`
-- `E2EE_RESULT`
-- `FILES_RESULT`
-- `PROVIDER_STACK_RESULT`
-- `CALENDAR_RESULT`
-- `BOARDS_RESULT`
-- `PROVIDER_REALITY_RESULT`
-- `MULTI_USER_AUTH_SHELL_RESULT`
-- `MULTI_USER_HOME_RESULT`
-- `MULTI_USER_CHAT_RESULT`
-- `MULTI_USER_FILES_RESULT`
-- `MULTI_USER_CALENDAR_RESULT`
-- `MULTI_USER_SETTINGS_PROFILE_RESULT`
-- `MULTI_USER_FAILURE_CONTAINMENT_RESULT`
-- `MULTI_USER_AUTHORIZATION_RESULT`
-- `MULTI_USER_CLEANUP_RESULT`
+- marker `WEAVE_TEST_APP_RESULT`;
+- `activation=keycloak-required-actions-real-chromium`;
+- `humanOAuth=authorization_code_pkce_s256`;
+- `workloadOAuth=client_credentials_private_key_jwt`;
+- `mcpTool=files.search`;
+- `canonicalResourceSeen=true`;
+- `revocationDenied=true`;
+- `credentialsIncluded=false`, `actionLinksIncluded=false`, and `supportSafe=true`.
 
 The live lane validates product flows. It must not become a junk drawer for admin/control-plane assertions. Admin/provider readiness can be part of the product evidence only when it is consumed through stable backend-owned facades and support-safe member/operator states.
 
 ### `persistent-dogfood-verification`
 
-Purpose: run `persistent-dogfood-deployment` for the accepted candidate under the shared non-cancelling lock. The deployment runs twice, uses non-destructive operator checks rather than the static-user smoke suite, verifies OpenTofu/runtime idempotency, records cached provider health, and proves that the single persistent human member, captured Mailpit data, TLS identity, and existing session state were not reset. Persistent dogfood does not retain disposable automation identities.
+Purpose: run `persistent-dogfood-deployment` for the accepted candidate under the shared non-cancelling lock. The deployment runs twice, uses non-destructive operator checks rather than the static-user smoke suite, verifies normalized Compose-model, Keycloak-reconciliation, and runtime idempotency, records cached provider health, and proves that the single persistent human member, captured Mailpit data, TLS identity, and existing session state were not reset. Persistent dogfood does not retain disposable automation identities.
 
 ### `ios-dogfood-distribution`
 
-Purpose: run `ios-dogfood-distribution` only after the exact candidate's persistent deployment succeeds. `.github/workflows/ios-dogfood.yml` is triggered by that successful workflow result, verifies the earlier isolated E2E run for the same commit, builds immutable diagnostics, and uploads through the protected `ios-dogfood` environment. A waiting environment review is `blocked`, not success.
+Purpose: run `ios-dogfood-distribution` only after the exact candidate's persistent deployment succeeds. `.github/workflows/ios-dogfood.yml` is triggered by that successful workflow result, verifies the earlier isolated E2E run, runs the five release-required shell tabs plus nested Profile on a fresh iPhone Simulator, binds the resulting `fixture-ui` artifact to the live provider evidence, builds immutable diagnostics, and uploads through the protected `ios-dogfood` environment. The separate Help surface is not claimed by this six-surface evidence contract. TestFlight and development-signed fallback jobs both depend on this Simulator gate. A waiting environment review is `blocked`, not success.
 
 ### `physical-human-acceptance`
 
-Purpose: close `physical-iphone-voiceover` and `human-testing-readiness-manifest` after the candidate is installed in place. `.github/workflows/human-testing-readiness.yml` records support-safe physical-device evidence and validates `human-testing-readiness.json`. Simulator evidence is functional evidence only and cannot satisfy this lane.
+Purpose: close `physical-iphone-voiceover` and `human-testing-readiness-manifest` after the candidate is installed in place. `.github/workflows/human-testing-readiness.yml` consumes the tester-confirmed physical-device evidence, then runs under the persistent dogfood runner lock to reverify the exact four running image identities and collect a new cached, support-safe provider-health snapshot immediately before validating `human-testing-readiness.json`. It never reuses the deployment-time snapshot as current health. Simulator evidence is functional evidence only and cannot satisfy this lane.
 
 ### `release-promotion`
 
@@ -109,7 +97,7 @@ Promotion must cite the exact-candidate ready manifest. A successful PR-safe CI,
 
 ## Evidence artifact contract
 
-Every Live Stack E2E artifact directory must include a support-safe manifest:
+Every Fresh product-flow artifact directory must include a support-safe manifest:
 
 - schema version and generation time;
 - source lane and workflow identity;
@@ -151,7 +139,8 @@ The command does not publish a release, create a tag, call providers, or read li
 - release notes have the required sections and at least one candidate entry;
 - sanitized CI summary exists, matches the candidate commit, and includes the release evidence gate;
 - release lane and offline evidence pointers stay present;
-- Live Stack E2E `release-evidence-manifest.json` is credentialed runtime evidence for the same commit and contains all required markers;
+- `weave-test-app-evidence.json` is exact-candidate, support-safe runtime
+  evidence and contains the required protocol/result fields;
 - `release-blocker` issue evidence is supplied and has no open blockers;
 - the exact-candidate human-testing readiness manifest evaluates to `ready` with no mandatory blocker.
 
@@ -160,11 +149,12 @@ If the CI summary is absent, the tool writes a local pointer under `build/eviden
 ### RC promotion workflow
 
 1. Merge the candidate through `dev` CI with the pinned corpus and PR-safe checks green.
-2. Promote `dev` to `dogfood` only after the isolated three-user suite passes twice and cleans its namespace.
+2. Promote `dev` to `dogfood` only after `testApp` passes and cleans its
+   namespace.
 3. Let `Test Stack Deploy` update and verify persistent dogfood twice without changing the human member.
 4. Let the successful deployment trigger the protected `iOS Dogfood` candidate build and TestFlight upload.
-5. Install the build in place and complete the protected physical-iPhone VoiceOver/session/navigation acceptance workflow.
-6. Export a support-safe release-blocker summary and the final `human-testing-readiness.json` artifact.
+5. Install the build in place, perform every required physical-iPhone row, and submit the support-safe tester-confirmed protocol through `Physical iPhone Human Test`.
+6. Feed that exact physical workflow run into `Human Testing Readiness`; the latter validates rather than creates human outcomes, reverifies the manifest-bound persistent runtime plus current provider health, and exports the schema-v3 manifest.
 7. Run `tools/release_readiness_check.py` for the exact candidate and record the result with rollback notes.
 8. Only a `ready` result may proceed to `main`, tagging, or a human-testing-ready claim.
 
@@ -177,23 +167,25 @@ Sprint 6 changes must keep these layers coherent:
 - Executable proof in the smallest appropriate lane:
   - PR-safe unit/contract/static checks for deterministic boundaries;
   - admin/control-plane CI for setup, policy, and readiness APIs;
-  - Live Stack E2E only for credentialed product journeys.
+  - `testApp` for the automatic product journey and a separate physical-device
+    AppAuth lane for interactive client sign-in.
 - Documentation in `docs/product-acceptance-flows.md`, `docs/acceptance-contracts.md`, and this enterprise release page.
 - Release evidence checks in `./gradlew releaseEvidenceCheck` so docs and machine-readable gates drift together.
 
-## Sprint 6 implementation priority
+## Implementation priority
 
-1. Keep #360 honest: merge the current capability fix only with green PR checks, rerun Live Stack E2E on `main`, and update #360 with sanitized artifacts or exact blocker.
-2. Land the enterprise release contract: lanes, gates, manifest, support-safe checks, and docs wired into `releaseEvidenceCheck`.
-3. Split future work by evidence lane instead of feature excitement:
-   - identity/provider dry-run ops in admin/control-plane CI;
+1. Keep the release contract machine-checkable: lanes, gates, manifest, support-safe checks, and docs remain wired into `releaseEvidenceCheck`.
+2. Split work by evidence lane:
+   - Keycloak federation, user lifecycle, policy, and readiness in admin/control-plane CI;
    - context/member flows in acceptance mappings and client/server tests;
-   - credentialed product journeys in Live Stack E2E.
-4. Add provider-ops depth only after the release spine can prove or block a candidate without ambiguity.
+   - credential-free, process-bounded product journeys in `testApp`;
+   - interactive AppAuth and assistive-technology evidence only on protected physical-device lanes.
+3. Add collaboration-provider operations only after the release spine can prove or block a candidate without ambiguity.
 
 ## What this foundation prevents
 
-- Calling an RC green because offline tests passed while credentialed E2E failed.
+- Calling an RC green because offline tests passed while the exact-candidate
+  product flow or physical-device gate failed.
 - Treating Admin Portal work as the cause or solution for every E2E failure.
 - Uploading raw live logs as “evidence”.
 - Expanding the milestone with unrelated UX/provider work before the release gate is reliable.

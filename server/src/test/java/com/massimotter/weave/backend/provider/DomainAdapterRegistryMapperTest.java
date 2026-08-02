@@ -18,7 +18,6 @@ class DomainAdapterRegistryMapperTest {
             "meetings-calls", List.of("Meeting", "MatrixRtcSlot", "MatrixRtcMember", "DeviceBinding", "MediaSession", "RtcAuthorization", "Recording", "Caption", "ConsentRecord"));
 
     private static final Map<String, List<String>> MIXED_PROVIDER_POSTURE = Map.of(
-            "identity-idm", List.of("keycloak-realm", "entra-id", "generic-oidc", "generic-saml"),
             "chat", List.of("synapse-homeserver", "microsoft-teams", "slack"),
             "files", List.of("nextcloud-files", "sharepoint"),
             "boards-tasks", List.of("openproject-primary", "microsoft-planner"));
@@ -157,7 +156,6 @@ class DomainAdapterRegistryMapperTest {
     @Test
     void providerRegistryAdapterFitSupportsMixedProviderPostureWithoutMemberProviderIds() {
         var domains = DomainAdapterRegistryMapper.fromCategories(List.of(
-                category("identity-idm", ProviderCategoryReadiness.READY, ProviderModule.IDENTITY_REALM),
                 category("chat", ProviderCategoryReadiness.READY, ProviderModule.MATRIX),
                 category("files", ProviderCategoryReadiness.READY, ProviderModule.FILES),
                 category("calendar", ProviderCategoryReadiness.READY, ProviderModule.CALENDAR),

@@ -181,15 +181,19 @@ def require_flutter_matrix_boundary() -> None:
     )
 
 
-def require_live_matrix_evidence_pointer() -> None:
+def require_system_browser_auth_boundary() -> None:
     require(
-        "client/integration_test/live_stack_app_e2e_test.dart",
-        "MATRIX_FACADE_RESULT",
-        "chatRepository.connect()",
-        "chatRepository.loadConversations()",
-        "chatRepository.sendMessage(",
-        "chatRepository.loadRoomTimeline(roomId)",
-        "matchedMessages=${deliveredMessage.length}",
+        "client/integration_test/system_browser_auth_e2e_test.dart",
+        "PHYSICAL_AUTH_SESSION_RESULT",
+        "WeaveApp()",
+        "authSessionRepositoryProvider",
+        "refreshSession(",
+    )
+    require_absent(
+        "client/integration_test/system_browser_auth_e2e_test.dart",
+        "WEAVE_TEST_USERNAME",
+        "WEAVE_TEST_PASSWORD",
+        "oidcClientProvider.override",
     )
 
 
@@ -197,7 +201,7 @@ def main() -> int:
     require_matrix_repository_contracts()
     require_matrix_security_contract()
     require_flutter_matrix_boundary()
-    require_live_matrix_evidence_pointer()
+    require_system_browser_auth_boundary()
     for marker in MARKERS:
         print(marker)
     return 0

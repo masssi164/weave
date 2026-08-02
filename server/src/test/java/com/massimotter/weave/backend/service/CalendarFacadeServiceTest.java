@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChangeSet;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
@@ -38,7 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -91,6 +93,22 @@ class CalendarFacadeServiceTest {
         assertThat(response.scopes().get(1).contextId()).isEqualTo("team-engineering");
         assertThat(response.scopes().get(2).contextId()).isEqualTo("channel-engineering-general");
         assertThat(response.scopes().get(2).capabilities()).contains("read", "create", "edit", "delete");
+    }
+
+    @Test
+    void resolvesTheConfiguredOrganizationWhenLegacyTenantClaimsAreAbsent() {
+        AtomicReference<ContextAuthorizationRequest> capturedRequest = new AtomicReference<>();
+        ContextAuthorizationPort authorization = request -> {
+            capturedRequest.set(request);
+            return ContextAuthorizationDecision.allow("test allow");
+        };
+        SecurityContextHolder.getContext().setAuthentication(
+                new TestingAuthenticationToken(jwtWithoutLegacyTenantClaims(), null));
+
+        service(new StubCalendarProvider(), authorization).scopes();
+
+        assertThat(capturedRequest.get().tenantId()).isEqualTo("tenant-default");
+        assertThat(capturedRequest.get().principalRef()).isEqualTo("user:massimo");
     }
 
     @Test
@@ -402,7 +420,7 @@ class CalendarFacadeServiceTest {
             }
         };
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(
-                jwtWithoutCalendarEditor(), null));
+                memberJwtWithoutCalendarManagement(), null));
 
         assertThatThrownBy(() -> service(adapter, request -> {
                     contextChecked.set(true);
@@ -479,6 +497,7 @@ class CalendarFacadeServiceTest {
                 "https://files.weave.test",
                 contextAuthorizationPort,
                 contextAuthorizationProperties(),
+                OrganizationIdentityContextResolver.configured(contextAuthorizationProperties()),
                 new DeviceCredentialService(new InMemoryDeviceCredentialRepository()),
                 workspaceCapabilityService());
     }
@@ -554,20 +573,28 @@ class CalendarFacadeServiceTest {
                 .subject("user-123")
                 .claim("preferred_username", "massimo")
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                .claim("groups", List.of("weave-calendar-editors"))
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
                 .build();
     }
 
-    private Jwt jwtWithoutCalendarEditor() {
+    private Jwt jwtWithoutLegacyTenantClaims() {
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .issuer("https://auth.weave.test/realms/weave")
+                .subject("user-123")
+                .claim("preferred_username", "massimo")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
+                .build();
+    }
+
+    private Jwt memberJwtWithoutCalendarManagement() {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .issuer("https://auth.weave.test/realms/weave")
                 .subject("user-123")
                 .claim("preferred_username", "massimo")
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                .claim("groups", List.of())
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                 .build();
     }
 

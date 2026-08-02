@@ -17,7 +17,7 @@ Feature: WEAVE-SPEC-0005 acceptance
     And the acceptance scenario is mapped to offline spec evidence marker WEAVE_SPEC_0005_GUEST_BOUNDED_NO_PROVIDER_IDS
     When the product claim is evaluated for merge
     Then the claim is blocked unless the mapped evidence covers guest bounded access
-    And the catalog records the bounded domains spaces, identity-idm, admin-health-ops
+    And the catalog records the bounded domains spaces, admin-health-ops, admin-health-ops
 
   @weave-spec-0005-intent
   Scenario: Spaces intent keeps organization context anchored across domains

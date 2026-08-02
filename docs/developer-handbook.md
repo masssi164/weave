@@ -10,6 +10,10 @@ Weave is now a monorepo product stack:
 | --- | --- |
 | `client/` | Flutter mobile/desktop app shell, custom chat/files/settings UX, client validation, accessibility, deterministic screenshots. |
 | `server/` | Product API/BFF, auth/profile facade, files/calendar/boards facades, authorization, audit, readiness, and backend contract tests. |
+| `weave-application-core/`, `weave-files-core/` | Framework-free canonical values, use cases, and ports. |
+| `weave-persistence-jpa/`, `weave-runtime-*-adapters/` | Portable entity persistence and explicitly composed provider/security adapters. |
+| `weave-mcp-server/` | Separate workload-only Spring AI MCP process over Weave open standards. |
+| `weave-product-e2e/` | Plain-Java real-browser/OIDC/WebDAV/MCP product proof; no runtime beans or implementation-module dependency. |
 | `infra/` | Local/dev stack, Caddy, Keycloak, Matrix/Synapse/MAS, Nextcloud, Docker/OpenTofu orchestration, live-stack smoke and E2E environment. |
 | `e2e/` | Binding product-language Gherkin scenarios, scenario mapping, and sanitized evidence contract. |
 | `release/` | Stack manifests and release compatibility metadata. |
@@ -60,6 +64,9 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `acceptanceContract` | Gherkin mapping and acceptance contract guard. |
 | `clientCi` | Flutter generated-code, format, analysis, tests, screenshot drift, and offline contract path. |
 | `serverCi` | Existing server Gradle test path. |
+| `mcpCi` | Separate MCP process, security, schema, and architecture checks. |
+| `testAppContract` | Compile/unit/ArchUnit checks for the framework-free Fresh product-flow driver. |
+| `testApp` | Full disposable invitation, activation, PKCE, ARC, WebDAV, MCP, revocation, and exact-cleanup proof. |
 | `adminCi` | Admin console npm CI path. |
 | `infraStatic` | OpenTofu format/validate plus infrastructure script/static checks. |
 | `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
@@ -68,7 +75,6 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `androidReleaseIdentityCheck` | Android package identity, OIDC redirect alignment, and release-signing fail-closed guard. |
 | `releaseEvidenceCheck` | Release notes structure, README markers, label behavior, generator fixture checks, enterprise release gates, and RC readiness fixtures. |
 | `releaseReadinessCheck` | Validates support-safe RC readiness evidence for an explicit candidate without publishing a release; override with `-PcandidateVersion`, `-PcandidateTag`, `-PcandidateCommit`, and evidence path properties. |
-| `releaseNotesCheck` | Compatibility alias for `releaseEvidenceCheck`. |
 | `ci` | Canonical aggregate for the PR-safe monorepo gate set. |
 
 Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need pinned dependencies installed in `build/docs-venv` or the active Python environment from `docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies. `./gradlew ci` writes sanitized evidence to `build/evidence/ci-summary.json`; CI uploads `build/evidence/**` and deterministic docs outputs as artifacts. If local `./gradlew doctor` reports JDK 17, point `JAVA_HOME` at JDK 21+ rather than weakening the gate.
@@ -92,7 +98,9 @@ flutter test
 make offline-contract-test
 ```
 
-`make offline-contract-test` runs the no-network contract path by forcing `WEAVE_OFFLINE_CONTRACT_ONLY=true` and blank test credentials.
+`make offline-contract-test` runs the no-network contract path with endpoint
+metadata only. Credential build arguments are not part of the client test
+contract.
 
 ## Generated code and l10n
 
@@ -209,11 +217,14 @@ Use the cheapest sufficient gate by default:
 | Format/analyze/unit | `dart format --output=none --set-exit-if-changed .`, `flutter analyze --fatal-infos`, `flutter test` | Normal Flutter changes. |
 | Offline contract | `make offline-contract-test` | PR-safe contract and mapping checks without real credentials. |
 | Marketing assets | `make marketing-screenshots` plus `git diff --exit-code -- docs/assets/marketing docs/assets/roadmap` | README/docs screenshot changes. |
-| Live contract | `make integration-contract-test` | Backend/auth/service contract changes with real test credentials. |
-| App E2E | `make integration-app-e2e` or `make integration-test` | Expensive app-level live-stack validation. |
-| CI live stack | `.github/workflows/live-stack-e2e.yml` | Manual/self-hosted runner evidence with uploaded artifacts. |
+| Client contract | `make integration-test` | PR-safe endpoint, generated-client, mapping, and release-spine validation without credentials. |
+| Product E2E | `./gradlew testApp` | Disposable invitation, browser activation, PKCE, backend, MCP, provider, revocation, and cleanup proof. |
+| Physical auth | `make physical-device-auth-e2e` | Interactive production AppAuth/system-browser flow on a connected physical device. |
+| CI product flow | `.github/workflows/live-stack-e2e.yml` | Self-hosted `testApp` evidence with support-safe uploaded artifacts. |
 
-Live-stack commands require a prepared `infra/weave-workspace` stack and real test credentials. Do not commit credentials, generated secret files, screenshots containing secrets, or raw live logs with sensitive values.
+The physical lane accepts only public endpoints and a client ID as build
+arguments. Human credentials are entered into Keycloak in the system browser;
+do not pass them through Flutter defines or evidence.
 
 ## Quality and evidence artifacts
 

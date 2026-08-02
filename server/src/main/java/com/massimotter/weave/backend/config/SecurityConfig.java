@@ -1,15 +1,19 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.controller.BootstrapOwnerInvitationController;
+import com.massimotter.weave.backend.controller.IdentitySessionController;
+import com.massimotter.weave.backend.security.NativeOrganizationClaims;
+import com.massimotter.weave.backend.security.WorkspaceAccessAuthorizationManager;
 import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -31,7 +35,6 @@ import org.springframework.security.web.firewall.StrictHttpFirewall;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private static final String WORKSPACE_SCOPE_AUTHORITY = "SCOPE_weave:workspace";
     private static final WebExpressionAuthorizationManager MIGRATION_CONTROL_PLANE_ACCESS =
             new WebExpressionAuthorizationManager("hasAuthority('SCOPE_weave:workspace') and (hasRole('OWNER') or hasRole('ADMIN') or hasRole('OPERATOR'))");
 
@@ -49,7 +52,10 @@ public class SecurityConfig {
 
     @Bean
     @Order(3)
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            WorkspaceAccessAuthorizationManager workspaceAccessAuthorizationManager)
+            throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -68,10 +74,12 @@ public class SecurityConfig {
                         .requestMatchers("/.well-known/matrix/client", "/.well-known/weave").permitAll()
                         .requestMatchers(ChatE2eProofSecurityConfiguration.PATH).permitAll()
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
-                        .requestMatchers("/api/internal/keycloak/events").permitAll()
+                        .requestMatchers(BootstrapOwnerInvitationController.PATH).permitAll()
+                        .requestMatchers(HttpMethod.POST, IdentitySessionController.PATH).authenticated()
                         .requestMatchers("/api/migration/**").access(MIGRATION_CONTROL_PLANE_ACCESS)
-                        .requestMatchers("/dav/**", "/caldav/**", "/_matrix/client/**").hasAuthority(WORKSPACE_SCOPE_AUTHORITY)
-                        .requestMatchers("/api/**").hasAuthority(WORKSPACE_SCOPE_AUTHORITY)
+                        .requestMatchers("/dav/**", "/caldav/**", "/_matrix/client/**")
+                                .access(workspaceAccessAuthorizationManager)
+                        .requestMatchers("/api/**").access(workspaceAccessAuthorizationManager)
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .authenticationEntryPoint(authenticationEntryPoint)
@@ -80,8 +88,12 @@ public class SecurityConfig {
         if (deviceCredentialAuthenticationFilter != null) {
             http.addFilterBefore(deviceCredentialAuthenticationFilter, BearerTokenAuthenticationFilter.class);
         }
-
         return http.build();
+    }
+
+    @Bean
+    WorkspaceAccessAuthorizationManager workspaceAccessAuthorizationManager() {
+        return new WorkspaceAccessAuthorizationManager();
     }
 
     @Bean
@@ -89,7 +101,7 @@ public class SecurityConfig {
         StrictHttpFirewall firewall = new StrictHttpFirewall();
         firewall.setAllowedHttpMethods(List.of(
                 "DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT",
-                "PROPFIND", "REPORT", "COPY", "MOVE", "MKCOL", "LOCK", "UNLOCK"));
+                "PROPFIND", "REPORT", "SEARCH", "COPY", "MOVE", "MKCOL", "LOCK", "UNLOCK"));
         return firewall;
     }
 
@@ -120,29 +132,7 @@ public class SecurityConfig {
     }
 
     private List<String> extractRoles(Jwt jwt) {
-        return extractClientRoles(jwt);
-    }
-
-    private List<String> extractClientRoles(Jwt jwt) {
-        Map<String, Object> resourceAccess = jwt.getClaimAsMap("resource_access");
-        if (resourceAccess == null) {
-            return List.of();
-        }
-
-        if (!(resourceAccess.get("weave-app") instanceof Map<?, ?> clientAccess)) {
-            return List.of();
-        }
-        Object roles = clientAccess.get("roles");
-        return roles instanceof Collection<?> roleValues ? stringValues(roleValues) : List.of();
-    }
-
-    private List<String> stringValues(Collection<?> values) {
-        return values.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .map(String::trim)
-                .filter(role -> !role.isEmpty())
-                .toList();
+        return NativeOrganizationClaims.clientRoles(jwt, "weave-app");
     }
 
     private String normalizeAuthoritySegment(String value) {

@@ -27,6 +27,7 @@ class HomeScreen extends ConsumerWidget {
         .toList(growable: false);
 
     return Scaffold(
+      key: const ValueKey('weave.workspace.home'),
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,

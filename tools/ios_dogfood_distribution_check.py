@@ -35,14 +35,43 @@ def main() -> int:
     require("candidate_sha:" in workflow and "deployment_run_id:" in workflow, "manual recovery dispatch must identify the exact deployed candidate")
     require("name: ios-dogfood" in workflow, "TestFlight upload is not protected by ios-dogfood environment")
     require("group: ios-dogfood" in workflow and "cancel-in-progress: true" in workflow, "superseded pending iOS candidates are not cancelled")
-    require("No successful isolated Live Stack E2E run targets" in workflow, "iOS distribution does not require exact-candidate isolated E2E")
+    require(
+        "live_e2e_run_url=\"$(jq -er '.evidence.liveE2eRunUrl'" in workflow
+        and ".github/workflows/live-stack-e2e.yml" in workflow,
+        "iOS distribution does not consume the deployment-bound Fresh product flow",
+    )
+    require(
+        '.composeProject == $deployment[0].runtime.composeProject' not in workflow,
+        "isolated live E2E and persistent dogfood must not be required to share a Compose namespace",
+    )
     require("Test Stack Deploy ${DEPLOYMENT_RUN_ID} is not successful" in workflow, "iOS distribution does not verify the deployment result")
     require("xcrun altool --upload-app" in workflow, "TestFlight workflow does not upload through Apple tooling")
     require("credentialsIncluded:false" in workflow, "distribution evidence does not deny credential inclusion")
-    require("WEAVE_CANDIDATE_COMMIT=${CANDIDATE_SHA}" in workflow, "archive does not embed its candidate commit")
+    require("WEAVE_CANDIDATE_COMMIT=${SOURCE_CANDIDATE_SHA}" in workflow, "archive does not embed its source candidate commit")
+    require(
+        "laneCandidateCommit:$commit" in workflow
+        and "sourceCandidateCommit:$sourceCommit" in workflow,
+        "distribution evidence does not distinguish dogfood lane and build source",
+    )
     require("WEAVE_CANDIDATE_EVIDENCE_REF=${DEPLOYMENT_RUN_URL}" in workflow, "archive does not embed its support-safe evidence reference")
     require("CFBundleShortVersionString" in workflow, "archive version is not verified")
     require("IOS_DOGFOOD_DISTRIBUTION_RESULT" in workflow, "distribution workflow has no stable evidence marker")
+    for marker in (
+        "simulator:",
+        "Verify release-required shell tabs and Profile on fresh iPhone Simulator",
+        "tools/ios-simulator-xcrun",
+        "shell_navigation_e2e_test.dart",
+        "evidenceMode=fixture-ui",
+        "human_testing_automated_evidence.py combine",
+        "human_testing_automated_evidence.py scan",
+        "CANDIDATE_MANIFEST_DIGEST",
+        "test-stack-manifest.json",
+        "ios-simulator-current-surfaces",
+        "ios-simulator-cleanup",
+        "remainingOwnedSimulators",
+        "needs: [contract, simulator]",
+    ):
+        require(marker in workflow, f"iOS distribution is missing the Simulator gate {marker!r}")
 
     for secret_ref in (
         "APPLE_DISTRIBUTION_CERTIFICATE_P12_BASE64",
@@ -68,11 +97,16 @@ def main() -> int:
     )
     for marker in (
         "WEAVE_CANDIDATE_COMMIT",
+        "WEAVE_LANE_CANDIDATE_COMMIT",
         "WEAVE_CANDIDATE_EVIDENCE_REF",
+        "WEAVE_CANDIDATE_MANIFEST_DIGEST",
+        "WEAVE_LIVE_E2E_RUN_URL",
         "WEAVE_BUILD_NUMBER",
         "RunnerDevelopment.entitlements",
         "device install app",
-        "inPlaceUpdate: true",
+        "inPlaceUpdate: $inPlaceUpdate",
+        "laneCandidateCommit: $laneCommit",
+        "sourceCandidateCommit: $commit",
         "sessionContinuityClaimed: false",
         "IOS_DEVELOPMENT_FALLBACK_RESULT",
     ):
@@ -85,12 +119,23 @@ def main() -> int:
         "tools/dogfood_ios_development_fallback.sh",
         "ios-dogfood-distribution.json",
         "protected-stable-signing-fallback",
+        'raw_fallback_log="$RUNNER_TEMP/',
+        "raw diagnostics remain private",
+        "human_testing_automated_evidence.py scan",
     ):
         require(marker in workflow, f"protected fallback workflow is missing {marker!r}")
+    require(
+        "dogfood_ios_development_fallback.sh 2>&1 | tee" not in workflow,
+        "protected fallback must not upload or echo raw Flutter/xcodebuild output",
+    )
     for marker in (
         'schemaVersion: "weave.ios-dogfood-distribution.v2"',
         'channel: "stable-signing-fallback"',
         'result: "success"',
+        'laneCandidateCommit: $laneCommit',
+        'sourceCandidateCommit: $commit',
+        'candidateManifestDigest: $candidateManifestDigest',
+        'liveE2eRunUrl: $liveE2eRunUrl',
         "credentialsIncluded: false",
         "sessionContinuityClaimed: false",
     ):

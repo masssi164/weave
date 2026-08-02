@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
@@ -8,15 +10,16 @@ import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.service.ProductProfileOverride;
 import com.massimotter.weave.backend.service.ProductProfileOverrideRepository;
 import com.massimotter.weave.backend.service.ProductProfileService;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -38,6 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = {ProfileController.class, IdentityController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
@@ -53,10 +57,10 @@ class ProfileControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockBean
+    @MockitoBean
     private ProductProfileOverrideRepository profileRepository;
 
     private final Map<String, ProductProfileOverride> profileOverrides = new HashMap<>();
@@ -185,8 +189,11 @@ class ProfileControllerTest {
                         .claim("picture", "https://example.test/alice.png")
                         .claim("azp", "weave-app")
                         .claim("aud", List.of("weave-app", "account"))
-                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                        .claim("groups", List.of("team-alpha")))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRolesAndGroups(
+                                                List.of("member"), List.of("team-alpha"))))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

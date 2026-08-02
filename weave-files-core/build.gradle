@@ -1,0 +1,6 @@
+plugins {
+    id 'java-library'
+}
+
+apply from: "${projectDir}/gradle/scripts/java-and-dependencies.gradle"
+apply from: "${projectDir}/gradle/tasks/verification.gradle"

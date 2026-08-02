@@ -15,6 +15,7 @@ import json
 import re
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlparse
@@ -41,6 +42,30 @@ REQUIRED_SURFACES = {
     "settings",
     "profile",
 }
+REQUIRED_PHYSICAL_STEPS = {
+    "invitationMail",
+    "invitationOpen",
+    "keycloakActivation",
+    "appLaunch",
+    "authorizationCodePkce",
+    "normalSession",
+    "refresh",
+    "logoutRelogin",
+    "filesUi",
+    "calendarUi",
+    "callsUi",
+    "grant",
+    "mcpDiscovery",
+    "filesSearch",
+    "fileResourceOpen",
+    "revoke",
+    "immediateRejection",
+    "regrant",
+    "postRegrantAccess",
+    "identityContinuity",
+}
+REQUIRED_IMAGE_COMPONENTS = {"server", "mcp-server", "identity-ops", "keycloak-runtime"}
+IMMUTABLE_IMAGE_PATTERN = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
 REQUIRED_COLLABORATION_SCENARIOS = {
     "authenticationShell",
     "home",
@@ -163,6 +188,190 @@ def _walk_support_safe(value: Any, path: str = "manifest") -> Iterable[str]:
             yield f"{path} contains an email address instead of a hash/reference"
 
 
+def _parse_date_time(value: Any, field: str) -> datetime:
+    raw = _require_string(value, field)
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ManifestError(f"{field} must be an RFC 3339 date-time") from error
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ManifestError(f"{field} must include a UTC offset")
+    return parsed.astimezone(timezone.utc)
+
+
+def _resolve_schema_reference(root_schema: dict[str, Any], reference: str) -> dict[str, Any]:
+    if not reference.startswith("#/"):
+        raise ManifestError(f"canonical schema uses unsupported reference: {reference}")
+    current: Any = root_schema
+    for segment in reference[2:].split("/"):
+        key = segment.replace("~1", "/").replace("~0", "~")
+        if not isinstance(current, dict) or key not in current:
+            raise ManifestError(f"canonical schema reference does not resolve: {reference}")
+        current = current[key]
+    if not isinstance(current, dict):
+        raise ManifestError(f"canonical schema reference is not an object: {reference}")
+    return current
+
+
+def _matches_json_type(value: Any, expected: str) -> bool:
+    return {
+        "object": isinstance(value, dict),
+        "array": isinstance(value, list),
+        "string": isinstance(value, str),
+        "boolean": isinstance(value, bool),
+        "integer": isinstance(value, int) and not isinstance(value, bool),
+        "number": isinstance(value, (int, float)) and not isinstance(value, bool),
+        "null": value is None,
+    }.get(expected, False)
+
+
+def _validate_canonical_schema(
+    value: Any,
+    schema: dict[str, Any],
+    root_schema: dict[str, Any],
+    path: str = "manifest",
+) -> None:
+    """Execute the canonical schema subset used by the pinned v3 contract.
+
+    The release runner intentionally has no ambient Python package dependency.
+    Unsupported JSON Schema keywords that affect validation fail closed so a
+    corpus change cannot silently weaken this implementation-side gate.
+    """
+
+    supported = {
+        "$schema", "$id", "$defs", "title", "description", "$ref", "type",
+        "const", "enum", "allOf", "contains", "properties", "required",
+        "additionalProperties", "items", "minItems", "maxItems", "uniqueItems",
+        "minProperties", "minimum", "minLength", "pattern", "format",
+    }
+    unsupported = set(schema) - supported
+    if unsupported:
+        raise ManifestError(
+            "canonical schema uses unsupported validation keyword(s): "
+            + ", ".join(sorted(unsupported))
+        )
+
+    reference = schema.get("$ref")
+    if reference is not None:
+        if not isinstance(reference, str):
+            raise ManifestError(f"canonical schema reference at {path} must be a string")
+        _validate_canonical_schema(
+            value, _resolve_schema_reference(root_schema, reference), root_schema, path
+        )
+
+    for index, nested_schema in enumerate(schema.get("allOf", [])):
+        if not isinstance(nested_schema, dict):
+            raise ManifestError(f"canonical schema allOf[{index}] at {path} is invalid")
+        _validate_canonical_schema(value, nested_schema, root_schema, path)
+
+    expected_type = schema.get("type")
+    if expected_type is not None:
+        expected_types = [expected_type] if isinstance(expected_type, str) else expected_type
+        if (
+            not isinstance(expected_types, list)
+            or not expected_types
+            or not all(isinstance(item, str) for item in expected_types)
+            or not any(_matches_json_type(value, item) for item in expected_types)
+        ):
+            raise ManifestError(f"canonical schema validation failed: {path} has the wrong type")
+
+    if "const" in schema and value != schema["const"]:
+        raise ManifestError(f"canonical schema validation failed: {path} has the wrong constant")
+    enum = schema.get("enum")
+    if enum is not None and (not isinstance(enum, list) or value not in enum):
+        raise ManifestError(f"canonical schema validation failed: {path} is not an allowed value")
+
+    if isinstance(value, dict):
+        properties = schema.get("properties", {})
+        if not isinstance(properties, dict):
+            raise ManifestError(f"canonical schema properties at {path} must be an object")
+        required = schema.get("required", [])
+        if not isinstance(required, list) or not all(isinstance(item, str) for item in required):
+            raise ManifestError(f"canonical schema required list at {path} is invalid")
+        missing = [key for key in required if key not in value]
+        if missing:
+            raise ManifestError(
+                f"canonical schema validation failed: {path} is missing "
+                + ", ".join(sorted(missing))
+            )
+        minimum_properties = schema.get("minProperties")
+        if minimum_properties is not None and len(value) < minimum_properties:
+            raise ManifestError(f"canonical schema validation failed: {path} has too few properties")
+        additional = schema.get("additionalProperties", True)
+        for key, nested_value in value.items():
+            nested_schema = properties.get(key)
+            if nested_schema is None:
+                if additional is False:
+                    raise ManifestError(
+                        f"canonical schema validation failed: {path}.{key} is not allowed"
+                    )
+                if isinstance(additional, dict):
+                    nested_schema = additional
+            if nested_schema is not None:
+                if not isinstance(nested_schema, dict):
+                    raise ManifestError(f"canonical schema property {path}.{key} is invalid")
+                _validate_canonical_schema(
+                    nested_value, nested_schema, root_schema, f"{path}.{key}"
+                )
+
+    if isinstance(value, list):
+        minimum_items = schema.get("minItems")
+        maximum_items = schema.get("maxItems")
+        if minimum_items is not None and len(value) < minimum_items:
+            raise ManifestError(f"canonical schema validation failed: {path} has too few items")
+        if maximum_items is not None and len(value) > maximum_items:
+            raise ManifestError(f"canonical schema validation failed: {path} has too many items")
+        if schema.get("uniqueItems") is True:
+            normalized = [json.dumps(item, sort_keys=True, separators=(",", ":")) for item in value]
+            if len(normalized) != len(set(normalized)):
+                raise ManifestError(f"canonical schema validation failed: {path} has duplicate items")
+        item_schema = schema.get("items")
+        if item_schema is not None:
+            if not isinstance(item_schema, dict):
+                raise ManifestError(f"canonical schema items at {path} is invalid")
+            for index, nested_value in enumerate(value):
+                _validate_canonical_schema(
+                    nested_value, item_schema, root_schema, f"{path}[{index}]"
+                )
+        contains_schema = schema.get("contains")
+        if contains_schema is not None:
+            if not isinstance(contains_schema, dict):
+                raise ManifestError(f"canonical schema contains at {path} is invalid")
+            matched = False
+            for nested_value in value:
+                try:
+                    _validate_canonical_schema(nested_value, contains_schema, root_schema, path)
+                    matched = True
+                    break
+                except ManifestError:
+                    continue
+            if not matched:
+                raise ManifestError(f"canonical schema validation failed: {path} contains no match")
+
+    if isinstance(value, str):
+        minimum_length = schema.get("minLength")
+        if minimum_length is not None and len(value) < minimum_length:
+            raise ManifestError(f"canonical schema validation failed: {path} is too short")
+        pattern = schema.get("pattern")
+        if pattern is not None:
+            if not isinstance(pattern, str) or re.search(pattern, value) is None:
+                raise ManifestError(f"canonical schema validation failed: {path} has invalid syntax")
+        value_format = schema.get("format")
+        if value_format == "date-time":
+            _parse_date_time(value, path)
+        elif value_format == "uri":
+            parsed = urlparse(value)
+            if not parsed.scheme:
+                raise ManifestError(f"canonical schema validation failed: {path} is not a URI")
+        elif value_format is not None:
+            raise ManifestError(f"canonical schema uses unsupported format at {path}: {value_format}")
+
+    minimum = schema.get("minimum")
+    if minimum is not None and isinstance(value, (int, float)) and not isinstance(value, bool):
+        if value < minimum:
+            raise ManifestError(f"canonical schema validation failed: {path} is below minimum")
+
+
 def _load_canonical_contract() -> tuple[str, dict[str, Any]]:
     lock = _load_json(LOCK_PATH)
     corpus = _require_object(lock.get("specCorpus"), "lock.specCorpus")
@@ -189,28 +398,48 @@ def _check_gate(status: str, field: str, failed: list[str], blocked: list[str]) 
         blocked.append(f"{field}={status}")
 
 
-def evaluate_manifest(manifest: dict[str, Any], *, max_provider_age_seconds: int) -> Evaluation:
+def evaluate_manifest(
+    manifest: dict[str, Any],
+    *,
+    max_provider_age_seconds: int,
+    provider_age_reference: str = "now",
+) -> Evaluation:
+    if provider_age_reference not in {"now", "generated-at"}:
+        raise ManifestError("provider age reference must be now or generated-at")
     expected_spec_commit, schema = _load_canonical_contract()
-    schema_required = schema.get("required", [])
-    missing = [key for key in schema_required if key not in manifest]
-    if missing:
-        raise ManifestError("manifest is missing required fields: " + ", ".join(sorted(missing)))
-    if manifest.get("schemaVersion") != 1:
-        raise ManifestError("schemaVersion must be 1")
+    support_findings = list(_walk_support_safe(manifest))
+    if support_findings:
+        raise ManifestError("support-safe validation failed: " + "; ".join(support_findings))
+    _validate_canonical_schema(manifest, schema, schema)
 
     candidate = _require_string(manifest.get("candidateCommit"), "candidateCommit")
     if not COMMIT_PATTERN.fullmatch(candidate):
         raise ManifestError("candidateCommit must be a full lowercase SHA-1")
+    source_candidate = _require_string(
+        manifest.get("sourceCandidateCommit"), "sourceCandidateCommit"
+    )
+    if not COMMIT_PATTERN.fullmatch(source_candidate):
+        raise ManifestError("sourceCandidateCommit must be a full lowercase SHA-1")
     spec_commit = _require_string(manifest.get("specCorpusCommit"), "specCorpusCommit")
     if spec_commit != expected_spec_commit:
         raise ManifestError(
             f"specCorpusCommit must match the pinned corpus ({expected_spec_commit})"
         )
-    _require_string(manifest.get("generatedAtUtc"), "generatedAtUtc")
-
-    support_findings = list(_walk_support_safe(manifest))
-    if support_findings:
-        raise ManifestError("support-safe validation failed: " + "; ".join(support_findings))
+    generated_at = _parse_date_time(manifest.get("generatedAtUtc"), "generatedAtUtc")
+    candidate_manifest_digest = _require_string(
+        manifest.get("candidateManifestDigest"), "candidateManifestDigest"
+    )
+    if not HASH_PATTERN.fullmatch(candidate_manifest_digest):
+        raise ManifestError("candidateManifestDigest must be a sha256 reference")
+    images = _require_object(manifest.get("images"), "images")
+    if set(images) != REQUIRED_IMAGE_COMPONENTS:
+        raise ManifestError("images must contain the exact four runtime components")
+    for component, reference in images.items():
+        if not isinstance(reference, str) or not IMMUTABLE_IMAGE_PATTERN.fullmatch(reference):
+            raise ManifestError(f"images.{component} must be an immutable digest reference")
+    evidence_modes = manifest.get("evidenceModes")
+    if evidence_modes != ["live-provider-backed", "fixture-ui"]:
+        raise ManifestError("evidenceModes must contain the ordered mandatory live and fixture modes")
 
     failed: list[str] = []
     blocked: list[str] = []
@@ -219,8 +448,8 @@ def evaluate_manifest(manifest: dict[str, Any], *, max_provider_age_seconds: int
     for name in ("backend", "client"):
         build = _require_object(builds.get(name), f"builds.{name}")
         commit = _require_string(build.get("commit"), f"builds.{name}.commit")
-        if commit != candidate:
-            failed.append(f"builds.{name}.commit does not match candidate")
+        if commit != source_candidate:
+            failed.append(f"builds.{name}.commit does not match source candidate")
         _require_string(build.get("version"), f"builds.{name}.version")
         _require_string(build.get("buildNumber"), f"builds.{name}.buildNumber")
     client_build = _require_object(builds.get("client"), "builds.client")
@@ -233,6 +462,17 @@ def evaluate_manifest(manifest: dict[str, Any], *, max_provider_age_seconds: int
     for surface in sorted(REQUIRED_SURFACES):
         gate = _require_object(surfaces.get(surface), f"surfaces.{surface}")
         status = _require_status(gate.get("status"), f"surfaces.{surface}.status")
+        proof_kinds = gate.get("proofKinds")
+        if (
+            not isinstance(proof_kinds, list)
+            or not proof_kinds
+            or len(proof_kinds) != len(set(proof_kinds))
+            or any(
+                proof_kind not in {"live-provider-backed", "fixture-ui", "physical-human"}
+                for proof_kind in proof_kinds
+            )
+        ):
+            raise ManifestError(f"surfaces.{surface}.proofKinds is invalid")
         evidence_refs = gate.get("evidenceRefs")
         if not isinstance(evidence_refs, list) or not all(
             isinstance(ref, str) and ref.strip() for ref in evidence_refs
@@ -290,14 +530,26 @@ def evaluate_manifest(manifest: dict[str, Any], *, max_provider_age_seconds: int
         failed.append("providerHealth.overall=unavailable")
     elif overall != "available":
         blocked.append("providerHealth.overall=degraded")
-    age = provider_health.get("cachedResultAgeSeconds")
-    if not isinstance(age, int) or isinstance(age, bool) or age < 0:
+    declared_age = provider_health.get("cachedResultAgeSeconds")
+    if not isinstance(declared_age, int) or isinstance(declared_age, bool) or declared_age < 0:
         raise ManifestError("providerHealth.cachedResultAgeSeconds must be a non-negative integer")
+    observed_at = _parse_date_time(provider_health.get("observedAtUtc"), "providerHealth.observedAtUtc")
+    reference_time = (
+        generated_at if provider_age_reference == "generated-at" else datetime.now(timezone.utc)
+    )
+    age = int((reference_time - observed_at).total_seconds())
+    if age < -60:
+        raise ManifestError("providerHealth.observedAtUtc must not be after its age reference")
+    age = max(0, age)
     if age > max_provider_age_seconds:
         blocked.append(
             f"provider health cache is stale ({age}s > {max_provider_age_seconds}s)"
         )
-    _require_string(provider_health.get("observedAtUtc"), "providerHealth.observedAtUtc")
+    if declared_age > max_provider_age_seconds:
+        blocked.append(
+            "provider health declared cache age is stale "
+            f"({declared_age}s > {max_provider_age_seconds}s)"
+        )
     capabilities = _require_object(provider_health.get("capabilities"), "providerHealth.capabilities")
     for capability in ("chat", "files", "calendar"):
         state = _require_string(capabilities.get(capability), f"providerHealth.capabilities.{capability}")
@@ -329,6 +581,62 @@ def evaluate_manifest(manifest: dict[str, Any], *, max_provider_age_seconds: int
     tester_hash = _require_string(physical.get("testerRefHash"), "physicalAcceptance.testerRefHash")
     if not HASH_PATTERN.fullmatch(tester_hash):
         raise ManifestError("physicalAcceptance.testerRefHash must be a sha256 reference")
+    protocol = _require_object(physical.get("protocol"), "physicalAcceptance.protocol")
+    if protocol.get("schemaVersion") != 1:
+        raise ManifestError("physicalAcceptance.protocol.schemaVersion must be 1")
+    for field, expected in (
+        ("candidateCommit", candidate),
+        ("sourceCandidateCommit", source_candidate),
+        ("specCorpusCommit", spec_commit),
+        ("candidateManifestDigest", candidate_manifest_digest),
+    ):
+        if protocol.get(field) != expected:
+            raise ManifestError(f"physicalAcceptance.protocol.{field} does not match readiness identity")
+    protocol_build = _require_object(protocol.get("build"), "physicalAcceptance.protocol.build")
+    if protocol_build != client_build:
+        raise ManifestError("physicalAcceptance.protocol.build does not match the installed client build")
+    _require_string(protocol.get("startedAtUtc"), "physicalAcceptance.protocol.startedAtUtc")
+    _require_string(protocol.get("completedAtUtc"), "physicalAcceptance.protocol.completedAtUtc")
+    if protocol.get("testerConfirmed") is not True:
+        blocked.append("physical tester confirmation is missing")
+    physical_steps = _require_object(protocol.get("steps"), "physicalAcceptance.protocol.steps")
+    if set(physical_steps) != REQUIRED_PHYSICAL_STEPS:
+        raise ManifestError("physicalAcceptance.protocol.steps must contain the exact physical protocol")
+    for step_name in sorted(REQUIRED_PHYSICAL_STEPS):
+        step = _require_object(
+            physical_steps.get(step_name), f"physicalAcceptance.protocol.steps.{step_name}"
+        )
+        step_status = _require_status(
+            step.get("status"), f"physicalAcceptance.protocol.steps.{step_name}.status"
+        )
+        _check_gate(step_status, f"physicalAcceptance.protocol.{step_name}", failed, blocked)
+        _require_string(
+            step.get("expectedOutcome"),
+            f"physicalAcceptance.protocol.steps.{step_name}.expectedOutcome",
+        )
+        _require_string(
+            step.get("actualOutcome"),
+            f"physicalAcceptance.protocol.steps.{step_name}.actualOutcome",
+        )
+        _require_string(
+            step.get("observedAtUtc"),
+            f"physicalAcceptance.protocol.steps.{step_name}.observedAtUtc",
+        )
+        step_refs = step.get("evidenceRefs")
+        if not isinstance(step_refs, list) or not step_refs:
+            raise ManifestError(
+                f"physicalAcceptance.protocol.steps.{step_name}.evidenceRefs must not be empty"
+            )
+        for index, reference in enumerate(step_refs):
+            _require_safe_evidence_reference(
+                reference,
+                f"physicalAcceptance.protocol.steps.{step_name}.evidenceRefs[{index}]",
+            )
+    deviations = protocol.get("deviations")
+    if not isinstance(deviations, list) or any(
+        not isinstance(deviation, str) or not deviation.strip() for deviation in deviations
+    ):
+        raise ManifestError("physicalAcceptance.protocol.deviations must be a string list")
 
     blockers = manifest.get("blockers")
     if not isinstance(blockers, list):
@@ -373,6 +681,7 @@ def _render_summary(manifest: dict[str, Any], evaluation: Evaluation) -> str:
     lines = [
         f"human-testing-readiness: {evaluation.state}",
         f"candidate={manifest.get('candidateCommit', 'unknown')}",
+        f"sourceCandidate={manifest.get('sourceCandidateCommit', 'unknown')}",
         f"specCorpus={manifest.get('specCorpusCommit', 'unknown')}",
         f"humanTestingReady={str(evaluation.human_testing_ready).lower()}",
     ]
@@ -401,6 +710,15 @@ def _parser() -> argparse.ArgumentParser:
         sub = subparsers.add_parser(command)
         sub.add_argument("--manifest", type=Path, required=True)
         sub.add_argument("--max-provider-age-seconds", type=int, default=180)
+        sub.add_argument(
+            "--provider-age-reference",
+            choices=("now", "generated-at"),
+            default="now",
+            help=(
+                "use now for the protected live assembly check; use generated-at only when "
+                "revalidating an immutable artifact whose live freshness was already proven"
+            ),
+        )
         if command == "validate":
             sub.add_argument("--require-ready", action="store_true")
         else:
@@ -418,6 +736,7 @@ def main(argv: list[str] | None = None) -> int:
         evaluation = evaluate_manifest(
             manifest,
             max_provider_age_seconds=args.max_provider_age_seconds,
+            provider_age_reference=args.provider_age_reference,
         )
         if args.command == "finalize":
             finalized = copy.deepcopy(manifest)

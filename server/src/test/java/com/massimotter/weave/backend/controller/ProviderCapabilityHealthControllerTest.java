@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
@@ -15,9 +17,9 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -49,13 +51,13 @@ class ProviderCapabilityHealthControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockBean
+    @MockitoBean
     private ProviderCapabilityHealthService providerHealthService;
 
-    @MockBean
+    @MockitoBean
     private WorkspaceCapabilityService workspaceCapabilityService;
 
     @BeforeEach
@@ -81,9 +83,8 @@ class ProviderCapabilityHealthControllerTest {
             org.springframework.security.oauth2.jwt.Jwt token = invocation.getArgument(0);
             List<String> roles = token == null
                     ? List.of()
-                    : ((Map<String, Object>) token.getClaimAsMap("resource_access").get("weave-app")).get("roles") instanceof List<?> values
-                            ? values.stream().filter(String.class::isInstance).map(String.class::cast).toList()
-                            : List.of();
+                    : com.massimotter.weave.backend.security.NativeOrganizationClaims
+                            .clientRoles(token, "weave-app");
             if (roles.stream().noneMatch(role -> role.equals("owner") || role.equals("admin") || role.equals("operator"))) {
                 throw new ApiErrorException(
                         HttpStatus.FORBIDDEN,
@@ -116,7 +117,7 @@ class ProviderCapabilityHealthControllerTest {
 
     @Test
     void operatorsCanExportOnlyTheCachedSupportSafeSnapshot() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/provider-capability-health").with(workspaceJwt("operator")))
+        mockMvc.perform(get("/api/admin/provider-capability-health").with(workspaceJwt("operator")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.schemaVersion").value("provider-capability-health-v1"))
                 .andExpect(jsonPath("$.supportSafe").value(true))
@@ -132,10 +133,15 @@ class ProviderCapabilityHealthControllerTest {
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt(String role) {
+        List<String> roles =
+                role.equals("operator") ? List.of("member", "operator") : List.of(role);
         return jwt()
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))
                 .jwt(token -> token
                         .subject("support-user")
-                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of(role)))));
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRoles(roles)));
     }
 }

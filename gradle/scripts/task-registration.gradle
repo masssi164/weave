@@ -1,0 +1,26 @@
+import org.gradle.internal.os.OperatingSystem
+import groovy.json.JsonOutput
+
+subprojects {
+    configurations.configureEach {
+        resolutionStrategy.failOnChangingVersions()
+    }
+}
+
+ext.execCommand = { List<String> args ->
+    OperatingSystem.current().isWindows() ? ['cmd', '/c'] + args : args
+}
+
+ext.registerCommandTask = { String taskName, Object taskWorkingDir, List<String> args, String taskDescription ->
+    tasks.register(taskName, Exec) {
+        group = 'verification'
+        description = taskDescription
+        workingDir taskWorkingDir
+        commandLine execCommand(args)
+        outputs.upToDateWhen { false }
+    }
+}
+
+ext.registerRootCommandTask = { String taskName, List<String> args, String taskDescription ->
+    registerCommandTask(taskName, projectDir, args, taskDescription)
+}

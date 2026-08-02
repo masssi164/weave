@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.chat.provider.synapse;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatChangeSet;
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
@@ -55,8 +55,8 @@ public final class SynapseBackedCanonicalChatAdapter implements ChatProviderPort
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.clock = clock;
-        if (!"durable-relational-flyway".equals(store.persistencePosture())) {
-            throw new IllegalStateException("Matrix/Synapse Chat requires durable canonical JDBC storage.");
+        if (!"durable-relational-jpa-code-first".equals(store.persistencePosture())) {
+            throw new IllegalStateException("Matrix/Synapse Chat requires durable canonical JPA storage.");
         }
     }
 
@@ -72,7 +72,7 @@ public final class SynapseBackedCanonicalChatAdapter implements ChatProviderPort
 
     @Override
     public boolean configured() {
-        return provider.configured() && "durable-relational-flyway".equals(store.persistencePosture());
+        return provider.configured() && "durable-relational-jpa-code-first".equals(store.persistencePosture());
     }
 
     @Override
@@ -414,7 +414,7 @@ public final class SynapseBackedCanonicalChatAdapter implements ChatProviderPort
             identity.put("issuer", context.identityIssuer());
             identity.put("actorRef", context.actorRef().value());
             return objectMapper.writeValueAsString(identity);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalArgumentException("canonical Chat actor could not be mapped", exception);
         }
     }

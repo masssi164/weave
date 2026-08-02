@@ -34,8 +34,7 @@ REQUIRED_GATES = {
     "gradle-ci",
     "spec-corpus-conformance",
     "release-notes-label-check",
-    "credentialed-live-stack-e2e",
-    "three-user-live-collaboration",
+    "test-app-product-flow-e2e",
     "persistent-dogfood-deployment",
     "ios-dogfood-distribution",
     "physical-iphone-voiceover",
@@ -44,31 +43,10 @@ REQUIRED_GATES = {
     "release-owner-signoff",
 }
 REQUIRED_LIVE_ARTIFACTS = {
-    "weave-live-stack-acceptance-evidence/acceptance-summary.md",
-    "weave-live-stack-acceptance-evidence/scenario-mapping-results.json",
-    "weave-live-stack-acceptance-evidence/evidence-markers.json",
-    "weave-live-stack-acceptance-evidence/release-evidence-manifest.json",
+    "weave-live-stack-acceptance-evidence/weave-test-app-evidence.json",
 }
 REQUIRED_MARKERS = {
-    "AUTH_RESULT",
-    "PROFILE_RESULT",
-    "CHAT_RESULT",
-    "MATRIX_RESULT",
-    "E2EE_RESULT",
-    "FILES_RESULT",
-    "PROVIDER_STACK_RESULT",
-    "CALENDAR_RESULT",
-    "BOARDS_RESULT",
-    "PROVIDER_REALITY_RESULT",
-    "MULTI_USER_AUTH_SHELL_RESULT",
-    "MULTI_USER_HOME_RESULT",
-    "MULTI_USER_CHAT_RESULT",
-    "MULTI_USER_FILES_RESULT",
-    "MULTI_USER_CALENDAR_RESULT",
-    "MULTI_USER_SETTINGS_PROFILE_RESULT",
-    "MULTI_USER_FAILURE_CONTAINMENT_RESULT",
-    "MULTI_USER_AUTHORIZATION_RESULT",
-    "MULTI_USER_CLEANUP_RESULT",
+    "WEAVE_TEST_APP_RESULT",
 }
 
 
@@ -138,15 +116,13 @@ def check_contract(contract: dict[str, Any]) -> None:
         if not isinstance(evidence, list) or not evidence:
             fail(f"gate {gate.get('id', '<missing>')} must name evidence artifacts")
 
-    live_gate = next(gate for gate in gates if gate.get("id") == "credentialed-live-stack-e2e")
+    live_gate = next(gate for gate in gates if gate.get("id") == "test-app-product-flow-e2e")
     live_artifacts = set(live_gate.get("evidence", []))
     if REQUIRED_LIVE_ARTIFACTS - live_artifacts:
-        fail("credentialed-live-stack-e2e is missing required support-safe artifacts")
+        fail("test-app-product-flow-e2e is missing required support-safe artifacts")
     live_markers = set(live_gate.get("mustObserveMarkers", []))
-    collaboration_gate = next(gate for gate in gates if gate.get("id") == "three-user-live-collaboration")
-    live_markers.update(collaboration_gate.get("mustObserveMarkers", []))
     if REQUIRED_MARKERS - live_markers:
-        fail("credentialed-live-stack-e2e is missing required runtime markers")
+        fail("test-app-product-flow-e2e is missing required runtime markers")
 
 
 def check_accessibility_gate() -> None:

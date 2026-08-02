@@ -62,7 +62,7 @@ REQUIRED_SOURCE_FRAGMENTS = {
         "coreProductDomainsCarryExecutableAdapterFitContracts",
         "providerRegistryAdapterFitSupportsMixedProviderPostureWithoutMemberProviderIds",
     ],
-    "build.gradle": [
+    "gradle/tasks/ci-evidence.gradle": [
         "sanitized: true",
         "separate-required-release-evidence",
         "artifactPathsForGate",

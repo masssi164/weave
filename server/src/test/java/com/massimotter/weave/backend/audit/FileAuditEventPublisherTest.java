@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.audit;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -19,7 +19,7 @@ class FileAuditEventPublisherTest {
     @Test
     void auditEventsAppendToDurableJsonLinesSink() throws Exception {
         Path storagePath = tempDir.resolve("audit-events.jsonl");
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
         var publisher = new FileAuditEventPublisher(objectMapper, storagePath);
 
         publisher.publish(new AuditEvent(
@@ -36,8 +36,8 @@ class FileAuditEventPublisherTest {
         assertThat(storagePath).exists();
         assertThat(Files.readAllLines(storagePath)).hasSize(1);
         JsonNode event = objectMapper.readTree(Files.readString(storagePath));
-        assertThat(event.path("tenantId").asText()).isEqualTo("weave-dogfood");
-        assertThat(event.path("payload").path("category").asText()).isEqualTo("chat");
+        assertThat(event.path("tenantId").asString()).isEqualTo("weave-dogfood");
+        assertThat(event.path("payload").path("category").asString()).isEqualTo("chat");
         assertThat(publisher.events()).hasSize(1);
     }
 }

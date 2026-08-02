@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,26 +11,28 @@ import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/success_state.dart';
-import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/presentation/auth_failure_message.dart';
+import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
-import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 const dogfoodVisibleStateStorageKey = 'dogfood_visible_state_v1';
 
-final consumeMemberHandoffProvider = Provider<ConsumeMemberHandoff>((ref) {
-  final httpClient = http.Client();
-  ref.onDispose(httpClient.close);
-  return ConsumeMemberHandoff(
-    repository: ref.watch(serverConfigurationRepositoryProvider),
-    discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
-    evidenceStore: ref.watch(preferencesStoreProvider),
-  );
-});
+final discoverOrganizationAccessProvider = Provider<DiscoverOrganizationAccess>(
+  (ref) {
+    final httpClient = http.Client();
+    ref.onDispose(httpClient.close);
+    return DiscoverOrganizationAccess(
+      repository: ref.watch(serverConfigurationRepositoryProvider),
+      discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
+      evidenceStore: ref.watch(preferencesStoreProvider),
+    );
+  },
+);
 
 final memberAuthOnboardingStateRecorderProvider =
     Provider<MemberAuthOnboardingStateRecorder>((ref) {
@@ -53,7 +54,7 @@ class MemberHandoffScreen extends ConsumerStatefulWidget {
 class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
   Object? _failure;
   AuthFailure? _signInFailure;
-  MemberHandoff? _handoff;
+  OrganizationAccess? _access;
   String? _lastVisibleStateRecorded;
   bool _signInBusy = false;
 
@@ -68,11 +69,11 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
       return;
     }
     try {
-      final handoff = await ref
-          .read(consumeMemberHandoffProvider)
+      final access = await ref
+          .read(discoverOrganizationAccessProvider)
           .call(widget.uri);
       if (mounted) {
-        setState(() => _handoff = handoff);
+        setState(() => _access = access);
       }
     } catch (error) {
       final errorCode = supportSafeHandoffErrorCode(error);
@@ -88,12 +89,12 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
     if (bootstrap?.phase != BootstrapPhase.ready) {
       return false;
     }
-    final handoff = _tryParseHandoff();
-    if (handoff != null) {
+    final access = _tryParseAccess();
+    if (access != null) {
       await ref
           .read(memberAuthOnboardingStateRecorderProvider)
-          .record(MemberAuthOnboardingStage.workspaceReady, handoff: handoff);
-      _recordVisibleStateOnce('authenticated_redirect', handoff: handoff);
+          .record(MemberAuthOnboardingStage.workspaceReady, access: access);
+      _recordVisibleStateOnce('authenticated_redirect', access: access);
     }
     if (!mounted) {
       return true;
@@ -102,9 +103,9 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
     return true;
   }
 
-  MemberHandoff? _tryParseHandoff() {
+  OrganizationAccess? _tryParseAccess() {
     try {
-      return const MemberHandoffParser().parse(widget.uri);
+      return const OrganizationAccessParser().parse(widget.uri);
     } catch (_) {
       return null;
     }
@@ -139,43 +140,40 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         ),
       );
     }
-    final handoff = _handoff;
-    if (handoff != null) {
-      _recordVisibleStateOnce('handoff_ready', handoff: handoff);
+    final access = _access;
+    if (access != null) {
+      _recordVisibleStateOnce('handoff_ready', access: access);
+      final signInFailure = _signInFailure;
       return Scaffold(
         body: SafeArea(
           child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SuccessState(
-                  message: l10n.memberHandoffReadyTitle,
-                  guidance: l10n.memberHandoffReadyGuidance(
-                    handoff.organizationSlug,
-                    handoff.workspaceSlug,
-                  ),
-                  actionLabel: _signInBusy
-                      ? l10n.signInInProgress
-                      : l10n.signInButton,
-                  liveRegion: false,
-                  onAction: _signInBusy
-                      ? null
-                      : () {
-                          _startSignIn(context);
-                        },
-                ),
-                if (_signInFailure != null) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    authFailureMessage(l10n, _signInFailure!),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
+            child: signInFailure == null
+                ? SuccessState(
+                    message: l10n.memberHandoffReadyTitle,
+                    guidance: l10n.memberHandoffReadyGuidance(
+                      access.organizationLabel,
+                      access.workspaceLabel,
                     ),
-                    textAlign: TextAlign.center,
+                    actionLabel: _signInBusy
+                        ? l10n.signInInProgress
+                        : l10n.signInButton,
+                    liveRegion: false,
+                    onAction: _signInBusy
+                        ? null
+                        : () {
+                            _startSignIn(context);
+                          },
+                  )
+                : ErrorState(
+                    message: authFailureMessage(l10n, signInFailure),
+                    guidance: l10n.memberHandoffSignInRetryGuidance,
+                    retryLabel: l10n.signInButton,
+                    onRetry: _signInBusy
+                        ? null
+                        : () {
+                            _startSignIn(context);
+                          },
                   ),
-                ],
-              ],
-            ),
           ),
         ),
       );
@@ -194,7 +192,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
   }
 
   Future<void> _startSignIn(BuildContext context) async {
-    final handoff = _handoff;
+    final access = _access;
     setState(() {
       _signInBusy = true;
       _signInFailure = null;
@@ -202,20 +200,34 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
     try {
       await ref
           .read(memberAuthOnboardingStateRecorderProvider)
-          .record(MemberAuthOnboardingStage.ssoInProgress, handoff: handoff);
-      await ref
-          .read(signInWithOidcProvider)
-          .call(isInteractiveSignInSupported: _isInteractiveSignInSupported);
+          .record(MemberAuthOnboardingStage.ssoInProgress, access: access);
+      final signedIn = await ref
+          .read(authFlowControllerProvider.notifier)
+          .signIn();
+      if (!signedIn) {
+        final failure =
+            ref.read(authFlowControllerProvider).failure ??
+            const AuthFailure.unknown('Unable to sign in right now.');
+        await ref
+            .read(memberAuthOnboardingStateRecorderProvider)
+            .recordAuthFailure(failure, access: access);
+        if (mounted) {
+          setState(() {
+            _signInBusy = false;
+            _signInFailure = failure;
+          });
+        }
+        return;
+      }
       await ref
           .read(memberAuthOnboardingStateRecorderProvider)
-          .record(MemberAuthOnboardingStage.authenticated, handoff: handoff);
+          .record(MemberAuthOnboardingStage.authenticated, access: access);
       await ref
           .read(memberAuthOnboardingStateRecorderProvider)
           .record(
             MemberAuthOnboardingStage.workspaceBootstrapLoading,
-            handoff: handoff,
+            access: access,
           );
-      await ref.read(appBootstrapProvider.notifier).retry();
       final bootstrap = ref.read(appBootstrapProvider).asData?.value;
       final workspaceReady = bootstrap?.phase == BootstrapPhase.ready;
       await ref
@@ -224,22 +236,32 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
             workspaceReady
                 ? MemberAuthOnboardingStage.workspaceReady
                 : MemberAuthOnboardingStage.recoverableError,
-            handoff: handoff,
+            access: access,
             errorCode: workspaceReady
                 ? null
                 : 'WEAVE-WORKSPACE-BOOTSTRAP-NOT-READY',
           );
-      if (mounted) {
-        setState(() => _signInBusy = false);
-        if (context.mounted) {
-          context.go(AppRoutes.home);
+      if (!workspaceReady) {
+        const failure = AuthFailure.protocol(
+          'The authenticated workspace did not become ready.',
+        );
+        if (mounted) {
+          setState(() {
+            _signInBusy = false;
+            _signInFailure = failure;
+          });
         }
+        return;
+      }
+      if (mounted && context.mounted) {
+        setState(() => _signInBusy = false);
+        context.go(AppRoutes.home);
       }
     } on AuthFailure catch (failure) {
       if (mounted) {
         await ref
             .read(memberAuthOnboardingStateRecorderProvider)
-            .recordAuthFailure(failure, handoff: handoff);
+            .recordAuthFailure(failure, access: access);
         setState(() {
           _signInBusy = false;
           _signInFailure = failure;
@@ -252,7 +274,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
       );
       await ref
           .read(memberAuthOnboardingStateRecorderProvider)
-          .recordAuthFailure(failure, handoff: handoff);
+          .recordAuthFailure(failure, access: access);
       if (mounted) {
         setState(() {
           _signInBusy = false;
@@ -260,15 +282,6 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         });
       }
     }
-  }
-
-  bool get _isInteractiveSignInSupported {
-    if (kIsWeb) {
-      return false;
-    }
-    return defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS ||
-        defaultTargetPlatform == TargetPlatform.macOS;
   }
 
   Future<void> _recordVisibleFailure(String errorCode) async {
@@ -291,8 +304,6 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
               'organizationSlug': _queryValue('org')!,
             if (_queryValue('workspace') != null)
               'workspaceSlug': _queryValue('workspace')!,
-            if (_queryValue('profile') != null)
-              'profile': _queryValue('profile')!,
             'errorCode': errorCode,
             'supportSafe': true,
           }),
@@ -320,11 +331,13 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
 
   void _recordVisibleStateOnce(
     String state, {
-    MemberHandoff? handoff,
+    OrganizationAccess? access,
     String? errorCode,
   }) {
+    final handoff = access?.handoff;
     final key = [
       state,
+      access?.organizationOrigin.host ?? '',
       handoff?.handoffRef ?? '',
       handoff?.runId ?? '',
       errorCode ?? '',
@@ -343,12 +356,13 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
               'recordedAt': DateTime.now().toUtc().toIso8601String(),
               'route': AppRoutes.join,
               'state': state,
+              if (access != null)
+                'organizationOriginHost': access.organizationOrigin.host,
               if (handoff != null) ...{
                 'handoffRef': handoff.handoffRef,
                 'runId': handoff.runId,
                 'organizationSlug': handoff.organizationSlug,
                 'workspaceSlug': handoff.workspaceSlug,
-                'profile': handoff.profile,
               },
               if (errorCode != null) 'errorCode': errorCode,
               'supportSafe': true,
