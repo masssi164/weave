@@ -193,12 +193,9 @@ jobs:
             exit 1
           }
           install -d -m 700 "$DOCKER_AUTH_ROOT"
-          umask 077
-          printf '{"auths":{}}\n' > "$DOCKER_AUTH_ROOT/config.json"
-          printf '%s' "$GHCR_TOKEN" | \
-            DOCKER_CONFIG="$DOCKER_AUTH_ROOT" \
-            docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin >/dev/null
-          chmod 600 "$DOCKER_AUTH_ROOT/config.json"
+          python3 weave/tools/write_docker_auth_config.py \
+            --output "$DOCKER_AUTH_ROOT/config.json" \
+            --registry ghcr.io
           jq -e '
             ((.credsStore? // "") == "") and
             ((.credHelpers? // {}) == {}) and
