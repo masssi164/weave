@@ -137,6 +137,34 @@ def main_test() -> None:
             "a relative Docker CLI plugin directory must be rejected",
         )
 
+        plugin_file = Path(temporary_root) / "docker-compose"
+        plugin_file.write_text("fixture\n", encoding="utf-8")
+        expect_failure(
+            lambda: write_config(
+                root / "config.json",
+                "ghcr.io",
+                actor,
+                token,
+                plugin_file,
+            ),
+            "a non-directory Docker CLI plugin path must be rejected",
+        )
+
+        real_plugin_dir = Path(temporary_root) / "real-cli-plugins"
+        real_plugin_dir.mkdir(mode=0o700)
+        symlink_plugin_dir = Path(temporary_root) / "symlink-cli-plugins"
+        symlink_plugin_dir.symlink_to(real_plugin_dir, target_is_directory=True)
+        expect_failure(
+            lambda: write_config(
+                root / "config.json",
+                "ghcr.io",
+                actor,
+                token,
+                symlink_plugin_dir,
+            ),
+            "a symbolic-link Docker CLI plugin directory must be rejected",
+        )
+
 
 if __name__ == "__main__":
     main_test()
