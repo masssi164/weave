@@ -1,0 +1,16 @@
+services:
+  caddy:
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+  keycloak:
+    command:
+      - start-dev
+
+  synapse:
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+  mailpit:
+    environment:
+      MP_SMTP_REQUIRE_TLS: "false"

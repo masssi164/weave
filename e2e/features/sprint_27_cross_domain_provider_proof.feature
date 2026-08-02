@@ -16,17 +16,17 @@ Feature: Sprint 27 cross-domain provider proof
     And file metadata and permissions are validated
     And lossy cases are reported instead of hidden
 
-  @sprint27-identity-provider-boundary
-  Scenario: Identity switch proof names mapping risk boundaries without secrets
-    Given Keycloak and Authentik provider manifests exist
-    When Sprint 27 maps the redacted Identity fixture through Weave identity objects
-    Then OIDC, SAML, roles, groups, user mapping, session boundaries, and rollback limits are covered
+  @sprint27-platform-identity-federation-boundary
+  Scenario: Platform identity federation proof keeps Keycloak authoritative without secrets
+    Given Keycloak is the fixed platform authority and Authentik is an upstream OIDC source
+    When Sprint 27 evaluates the redacted platform identity federation fixture
+    Then OIDC federation, Keycloak-owned roles and groups, user mapping, session boundaries, and rollback limits are covered
     And auth evidence contains no secrets, raw assertions, bearer tokens, or raw provider payloads
 
   @sprint27-provider-neutrality-claim-gate
   Scenario: Provider neutrality beyond chat stays scoped to evidence
-    Given Calendar, Files, Identity, Chat, and setup-flow evidence are tracked separately
+    Given Calendar, Files, platform identity federation, Chat, and setup-flow evidence are tracked separately
     When the Sprint 27 provider-neutrality claim gate evaluates release wording
     Then chat-only evidence is blocked from broad provider-neutrality claims
     And the scoreboard shows each domain reality level
-    And setup-flow evidence is named separately from Calendar, Files, and Identity provider-boundary evidence
+    And setup-flow evidence is named separately from Calendar, Files, and platform identity federation evidence

@@ -1,6 +1,8 @@
 package com.massimotter.weave.backend.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
@@ -23,8 +25,11 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
+import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateStore;
 import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.testing.InMemoryMatrixFacadeClientStateStore;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -32,9 +37,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -75,6 +80,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiExceptionHandler.class,
         MatrixProtocolCoreService.class,
         MatrixFacadeClientStateService.class,
+        OrganizationIdentityContextResolver.class,
+        InMemoryMatrixFacadeClientStateStore.class,
         MatrixE2eeStateService.class
 })
 @TestPropertySource(properties = {
@@ -92,11 +99,14 @@ class MatrixClientServerProjectionControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockBean
+    @MockitoBean
     private ChatDomainFacadeService chatDomainFacadeService;
+
+    @MockitoBean
+    private MatrixFacadeClientStateStore stateStore;
 
     @Test
     void matrixClientServerProjectionRequiresWorkspaceToken() throws Exception {
@@ -148,6 +158,24 @@ class MatrixClientServerProjectionControllerTest {
                 .andExpect(jsonPath("$.user_id").value("@user_example.com:api.weave.test"))
                 .andExpect(jsonPath("$.device_id").value("WEAVE0123456789abcdef0123456789abcdef0123"))
                 .andExpect(jsonPath("$.is_guest").value(false));
+    }
+
+    @Test
+    void malformedOidcIdentityRemainsAStableMatrixAuthorizationFailure() throws Exception {
+        var endpoint = get("/_matrix/client/v3/account/whoami")
+                .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEINVALIDIDENTITY");
+
+        mockMvc.perform(endpoint.with(workspaceJwtWithoutIssuer()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errcode").value("M_FORBIDDEN"))
+                .andExpect(content().string(not(containsString("missing-issuer"))));
+
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEINVALIDSUBJECT")
+                        .with(workspaceJwtWithSubject("invalid subject")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errcode").value("M_FORBIDDEN"))
+                .andExpect(content().string(not(containsString("invalid-identity-claim"))));
     }
 
     @Test
@@ -220,7 +248,7 @@ class MatrixClientServerProjectionControllerTest {
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
-        String filterId = objectMapper.readTree(filterResponse).path("filter_id").asText();
+        String filterId = objectMapper.readTree(filterResponse).path("filter_id").asString();
 
         mockMvc.perform(get("/_matrix/client/v3/user/@user_example.com:api.weave.test/filter/" + filterId)
                         .with(workspaceJwt()))
@@ -458,7 +486,7 @@ class MatrixClientServerProjectionControllerTest {
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
-        String nextBatch = objectMapper.readTree(firstSync).path("next_batch").asText();
+        String nextBatch = objectMapper.readTree(firstSync).path("next_batch").asString();
 
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .queryParam("since", nextBatch)
@@ -647,7 +675,7 @@ class MatrixClientServerProjectionControllerTest {
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
-        String version = objectMapper.readTree(created).path("version").asText();
+        String version = objectMapper.readTree(created).path("version").asString();
 
         mockMvc.perform(put("/_matrix/client/v3/room_keys/keys/{roomId}/{sessionId}",
                         "!channel-general:api.weave.test", "session-1")
@@ -1041,15 +1069,35 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt(String tokenValue) {
+        return workspaceJwtWithSubject(tokenValue, "user@example.com", true);
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithoutIssuer() {
+        return workspaceJwtWithSubject("missing-issuer-token", "user@example.com", false);
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithSubject(String subject) {
+        return workspaceJwtWithSubject("invalid-subject-token", subject, true);
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithSubject(
+            String tokenValue,
+            String subject,
+            boolean includeIssuer) {
         return jwt().jwt(jwt -> jwt
                         .tokenValue(tokenValue)
-                        .subject("user@example.com")
+                        .subject(subject)
                         .claim("jti", tokenValue)
                         .claim("sid", "weave-test-session-" + tokenValue)
-                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("aud", List.of("weave-app"))
-                        .claim("weave_tenant_id", "tenant-default")
-                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
+                        .claims(claims -> {
+                            if (includeIssuer) {
+                                claims.put("iss", "https://auth.example.invalid/realms/acme");
+                            } else {
+                                claims.remove("iss");
+                            }
+                        }))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

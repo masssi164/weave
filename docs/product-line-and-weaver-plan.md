@@ -10,7 +10,7 @@ Sprint 21 update: [Product reality foundation](product-reality-foundation.md) is
 
 Weave is planned product-first, not agent-first.
 
-Weave is a provider-neutral organization operating layer and integration suite. It lets an organization keep existing systems for identity, chat, files, calendar, boards/tasks, documents, meetings, decisions, help/manuals, release evidence, and collaboration while presenting them through coherent Weave product concepts.
+Weave is a provider-neutral organization operating layer and integration suite. It lets an organization federate existing identity sources through Keycloak and keep existing collaboration systems for chat, files, calendar, boards/tasks, documents, meetings, decisions, help/manuals, and release evidence while presenting them through coherent Weave product concepts.
 
 Weaver is a later personal-assistant layer that plugs into this already-governed organization model. It must not define the product architecture by itself.
 
@@ -24,7 +24,7 @@ The active priority order is:
 
 1. **Prove organization embedding.** Weave must support both existing organizations and newly bootstrapped organizations: verified domains, OIDC/SAML auth, SCIM/LDAP/AD provisioning paths, role/group mapping, guests, service principals, deprovisioning, break-glass, and effective policy previews before member go-live.
 2. **Complete server-side domain facading.** The client consumes Weave domains such as Chat, Files, Calendar, Boards/Tasks, Meetings, Decisions, and Health. Provider-specific mapping, credentials, readiness, migration, lossy conversion notes, and provider failures stay server/admin/operator side. For example, an admin may later replace Slack with Synapse/Matrix for the Chat domain through the Admin Console, while conversations, membership, history policy, attachments, and support-safe migration evidence are carried over by a server-owned migration path.
-3. **Prove adapter replacement and anti-silo guarantees.** Mixed self-hosted/cloud/external deployments, such as Entra ID + Teams + SharePoint + OpenProject or Keycloak + Matrix + SharePoint, are first-class. Every provider-backed category needs source-of-truth, export/delete, provenance, lossy-field, risk, and dry-run replacement behavior.
+3. **Prove adapter replacement and anti-silo guarantees.** Mixed self-hosted/cloud/external deployments, such as Keycloak federated with Entra ID plus Teams + SharePoint + OpenProject or Keycloak + Matrix + SharePoint, are first-class. Every collaboration-provider category needs source-of-truth, export/delete, provenance, lossy-field, risk, and dry-run replacement behavior.
 4. **Embed manuals as product help.** The member Help surface embeds the MkDocs user manual in `weave/client`; the Admin Console embeds the admin/operator manual. Both manuals use the same CSS variables/design tokens/corporate design as the app surfaces and must remain accessible in iframe/webview form.
 5. **Automate README release evidence and repositioning.** README must automatically include generated release notes, describe what Weave is and where it is going, and stop presenting Weave as merely a collaboration platform. Public marketing copy still needs specialist review before final release positioning.
 
@@ -36,9 +36,9 @@ Issue hygiene rule: close or supersede provider-specific implementation epics th
 
 The admin portal is the control center for organization setup and policy.
 
-It must let owners/admins choose and manage provider categories:
+It must let owners/admins manage the fixed platform-identity boundary and choose collaboration-provider categories:
 
-- Identity/IDM: Keycloak, Entra ID, Authentik, or another OIDC/SAML source.
+- Platform identity/security: Keycloak authority with optional Entra ID, Authentik/Auth0, OIDC/SAML, SCIM, or LDAP/AD federation/brokering; not a provider-registry choice.
 - Chat: Matrix, Microsoft Teams, Slack, Nextcloud Talk, or another supported channel.
 - Files: Nextcloud Files, SharePoint/OneDrive, S3-compatible storage, SMB, or another provider.
 - Calendar: Weave-managed shared calendar facade backed by the selected provider stack.
@@ -65,7 +65,11 @@ Normal members do not configure raw providers.
 
 The Weave Client owns member work surfaces: authenticated home, channels, chat, files, calendar, boards/tasks, meetings, decisions, profile, and personal settings. Its setup boundary is intentionally narrow: a member enters or opens an organization auth URL, invite link, or deep link, completes SSO, consumes the authenticated organization manifest, and renders only effective capability states. The client may show member-visible states `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`; it must not manage raw provider URLs, secrets, endpoint rotation, provider setup, support diagnostics, policy authoring, or whitelist configuration.
 
-The Organization/Admin Console owns organization bootstrap, provider choice, policy, readiness, diagnostics, and whitelisting. It manages organization creation, users/groups/roles or IDM sync, Keycloak/Entra/Authentik/Auth0/OIDC/SAML/SCIM/LDAP-adapter setup, category provider selection, endpoint URL management and rotation, support-safe health diagnostics, capability/RBAC profiles, deny-by-default policy, provider/tool/agent allowlists, external-provider privacy/compliance/risk notes, audit logs, and org-wide defaults.
+The Organization/Admin Console owns organization bootstrap,
+collaborative-domain provider choice, policy, readiness, diagnostics, and
+whitelisting. It manages users/groups/roles through Keycloak and configures
+Keycloak federation or brokering for Entra, Authentik, Auth0, OIDC/SAML, SCIM,
+or LDAP/AD sources.
 
 The handoff contract is: org auth URL or invite/deep link -> SSO -> support-safe organization manifest -> member capability states. Provider/category/admin management must not be pressed into the member client.
 
@@ -82,16 +86,23 @@ The product surfaces remain Weave-owned:
 - Workspace/Admin Health for readiness and support;
 - accessible settings and policy-visible capability states.
 
-Provider adapters sit behind Weave contracts. A Microsoft-heavy organization should be able to use Entra ID, Teams, SharePoint, and Planner/Jira-style integrations. A self-hosted organization should be able to use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit. Mixed setups must be valid. Provider swaps are admin-controlled domain migrations, not client rewrites: the server owns mapping old provider objects to canonical Weave domain objects, recording migration evidence, surfacing conflicts/lossy fields, and keeping member UX stable.
+Provider adapters sit behind collaborative-domain contracts. A Microsoft-heavy
+organization may federate Entra ID through Keycloak while using Teams,
+SharePoint, and Planner/Jira-style integrations. A self-hosted organization may
+use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit. Provider swaps are
+admin-controlled domain migrations; Keycloak authority is not part of that
+patch panel.
 
-The contract seam is category-first: feature capabilities for identity/IDM, chat, files,
-office/docs collaboration, meetings/calls, boards/tasks, calendar, and Agent Runtime Control are
-separate from adapter implementations. Workspace Health and policy enforcement evaluate stable
+The contract seam is category-first: feature capabilities for chat, files,
+office/docs collaboration, meetings/calls, boards/tasks, calendar, and Agent
+Runtime Control are separate from adapter implementations. Platform identity
+and security is a fixed Keycloak boundary with its own readiness contract.
+Workspace Health and policy enforcement evaluate stable
 context contracts and member impact states, while concrete providers remain admin-selected
 adapters. Weaver/OpenClaw appears as an ARC runtime provider, never as a canonical collaboration
 domain.
 
-Provider choice is risk-aware, not prohibition-based. Weave recommends the sovereign/self-hosted default posture where it is sensible, but existing organizations may keep external providers for selected categories, such as self-hosted identity with Teams chat, SharePoint/OneDrive files, Microsoft 365 Office integration, and OpenProject tasks. Admin/provider readiness records the choice model as `recommended_self_hosted_default`, `external_existing_provider`, `managed_cloud_provider`, or `hybrid_composite`, plus support-safe privacy/compliance risk notes. Member manifest vocabulary remains stable: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`; member copy may describe available capabilities as usable.
+Provider choice is risk-aware, not prohibition-based. Weave recommends the sovereign/self-hosted default posture where it is sensible, but existing organizations may federate their directory through Keycloak and keep external collaboration providers for selected categories, such as Teams chat, SharePoint/OneDrive files, Microsoft 365 Office integration, and OpenProject tasks. Admin/provider readiness records the choice model as `recommended_self_hosted_default`, `external_existing_provider`, `managed_cloud_provider`, or `hybrid_composite`, plus support-safe privacy/compliance risk notes. Member manifest vocabulary remains stable: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`; member copy may describe available capabilities as usable.
 
 Adapter seams should prefer well-known interoperability contracts where practical: OIDC/SAML for SSO/federation, SCIM for user and group provisioning/deprovisioning, WebDAV/CMIS for file/content abstraction, CalDAV/iCalendar/VTODO for calendar and task-shaped records where applicable, and WOPI-style seams between storage and web office editors. Apache Camel, Nango, and Open Integration Hub remain research references for connector/adapter plus normalized-model patterns; do not adopt one blindly without an ADR.
 
@@ -183,10 +194,10 @@ Evidence gate:
 
 Acceptance criteria for the initial #264 slice:
 
-- Workspace/Admin Health and setup language names identity/IDM, chat, files, calendar,
-  boards/tasks, meetings/calls, documents/collaboration, and Agent Runtime Control as bounded
-  contexts. Weaver is shown only as an ARC runtime provider/capability.
-- Dogfood defaults are mapped as current provider choices only: Keycloak/Auth, Matrix/Chat,
+- Workspace/Admin Health shows Keycloak platform identity/security separately
+  from chat, files, calendar, boards/tasks, meetings/calls,
+  documents/collaboration, and Agent Runtime Control bounded contexts.
+- Dogfood domain defaults are mapped as current provider choices only: Matrix/Chat,
   Nextcloud/Files and Calendar backing, OpenProject Boards validation, the MatrixRTC Calls target,
   and guarded OpenClaw runtime evidence.
 - Normal members do not configure raw providers, OIDC clients, service endpoints, secrets, backup/restore, or diagnostics.
@@ -199,8 +210,10 @@ Acceptance criteria for the initial #264 slice:
 
 Goal: make open-source policy realistic before Weaver.
 
-- Use OIDC/IDM as source of identity, groups, and roles.
-- Keep Keycloak as the self-hosted default but support Entra ID/Auth0/Authentik-style OIDC through adapter contracts.
+- Use Keycloak as the authority for identity, groups, roles, sessions, and
+  workload clients.
+- Integrate Entra ID/Auth0/Authentik/LDAP/AD as upstream Keycloak federation or
+  broker sources, not Weave identity adapters.
 - Start with simple backend-owned RBAC/policy profiles; evaluate Casbin as the first embedded open-source policy engine if policy complexity grows.
 - Model capabilities as category-level permissions first, not low-level tool IDs.
 
@@ -262,14 +275,18 @@ Evidence gate:
 Future Weave planning should preserve this order:
 
 1. Product suite and provider categories.
-2. Admin portal, IDM/RBAC, readiness, and whitelisting.
+2. Admin portal, Keycloak/RBAC, readiness, and whitelisting.
 3. Agent Runtime Control as an optional entitlement-bound layer, with Weaver/OpenClaw as a runtime provider.
 
 Do not regress to agent-first planning. Do not assume one required provider stack. Do not expose raw provider setup to normal members.
 
-## IDM/RBAC capability profiles and whitelisting
+## Keycloak/RBAC capability profiles and whitelisting
 
-The admin portal foundation owns IDM/RBAC capability profiles and whitelisting before any Weaver runtime ships. Keycloak/Auth remains the self-hosted default identity choice, but the product contract is provider-neutral: selected IDM adapters may be Keycloak, Entra ID, Authentik, Auth0, or other OIDC/SAML-compatible providers that can supply roles and groups without leaking raw setup to members.
+The admin portal foundation owns Keycloak/RBAC capability profiles and
+whitelisting before any Weaver runtime ships. Keycloak is the fixed platform
+identity authority. Entra ID, LDAP/Active Directory, Authentik, Auth0, and
+other OIDC/SAML sources may be federated or brokered through Keycloak without
+changing Weave subjects, membership policy, or northbound client contracts.
 
 Capability profiles are deny-by-default. Roles and groups map to category-level capabilities such as chat.read, chat.send, files.read, files.upload, calendar.read, and boards.update_task. The configured authoritative Keycloak group alone derives `agent-runtime.entitled`; no human role or placeholder Weaver grant does. Admins/operators may inspect support-safe effective policy state and profile keys; normal members only see provider-neutral product impact states such as available, disabled by policy, not configured, degraded, unavailable, or coming later.
 
@@ -277,16 +294,16 @@ Agent Runtime Control remains fail-closed without current entitlement, signed pr
 
 ## Agent Runtime Control integration
 
-The old issue-#266 v1 projection is superseded by Agent Runtime Control. Weave now issues a
-support-safe signed RuntimeProfile v2 only from current Keycloak entitlement, organization policy,
-and an authoritative server-owned cell binding. Generated OpenClaw configuration is ephemeral
+Agent Runtime Control issues only a support-safe signed RuntimeProfile v2 from current Keycloak
+entitlement, organization policy, and an authoritative server-owned cell binding. Generated
+OpenClaw configuration is ephemeral
 implementation output. Portable workspace files remain on WebDAV, runtime state remains encrypted
 outside the cell, and the cell owns zero durable bytes.
 
 The default posture remains fail-closed:
 
-- Agent Runtime Control is optional and disabled without a current entitlement group;
-- profile signing, JDBC persistence, external encrypted state, and workload identity must all be
+- Agent Runtime Control is optional and disabled without current exact `/capabilities/weaver` organization membership;
+- profile signing, portable JPA persistence, external encrypted state, and workload identity must all be
   configured before the administrative controller exists;
 - a dedicated cell workload client must match the immutable Keycloak subject/client binding;
 - runtime-visible capabilities are an upper bound intersected with current domain authorization;

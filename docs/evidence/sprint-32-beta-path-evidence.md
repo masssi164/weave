@@ -7,7 +7,7 @@ The former Sprint 32 fixture modeled an in-process per-user Docker runtime, a hu
 Current evidence lives in:
 
 - `docs/evidence/weaver-security-privacy-accessibility-report.md` for the ARC isolation, external encrypted state, Keycloak workload identity, lifecycle, and support-safety boundary;
-- `docs/weave-contract-java-mcp.md` for workload-only MCP admission, exchanged bearer use, current-context revalidation, and the intentionally empty domain catalog;
+- `docs/weave-mcp-projection.md` for workload-only MCP admission, exchanged bearer use, current-context revalidation, and the read-only Files/WebDAV slice;
 - `infra/docs/weaver-runtime-lifecycle.md` for idempotent provisioning, reconciliation, revoke, and runtime-state deletion;
 - the canonical `weave-specs/domains/agent-runtime-control/spec.md` and ADR 0012 for the binding target.
 

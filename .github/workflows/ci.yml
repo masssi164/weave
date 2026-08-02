@@ -2,6 +2,10 @@ name: CI
 
 on:
   push:
+    branches:
+      - dev
+      - dogfood
+      - main
   pull_request:
     types:
       - opened
@@ -10,6 +14,7 @@ on:
       - ready_for_review
       - labeled
       - unlabeled
+  merge_group:
   workflow_dispatch:
     inputs:
       capture_marketing_screenshots:
@@ -25,56 +30,65 @@ permissions:
   contents: read
   pull-requests: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   WEAVE_DOCS_VENV: build/docs-venv
 
 jobs:
   gradle-ci:
     name: Gradle CI
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: weave
     steps:
       - name: Check out Weave
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: weave
       - name: Resolve pinned specification corpus
         id: spec-corpus
-        run: echo "commit=$(jq -r '.specCorpus.gitCommit' specs/weave-specs.lock.json)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          spec_commit="$(
+            jq -er '.specCorpus.gitCommit | select(type == "string" and test("^[0-9a-f]{40}$"))' \
+              specs/weave-specs.lock.json
+          )"
+          printf 'commit=%s\n' "$spec_commit" >> "$GITHUB_OUTPUT"
       - name: Check out pinned Weave Specification Corpus
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: ${{ github.repository_owner }}/weave-specs
           ref: ${{ steps.spec-corpus.outputs.commit }}
           path: weave-specs
           ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
           persist-credentials: false
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
           java-version: '21'
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: '3.44.4'
           channel: stable
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '24'
           cache: npm
           cache-dependency-path: weave/admin-console/package-lock.json
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.13'
           cache: pip
           cache-dependency-path: weave/docs/requirements.txt
-      - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
+      - name: Set up pinned uv for canonical corpus commands
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          tofu_version: 1.10.6
-          tofu_wrapper: false
+          version: '0.11.31'
+          enable-cache: false
       - name: Install pinned dependencies
         run: |
           python -m pip install 'jsonschema[format]==4.23.0' 'PyYAML==6.0.3' 'rfc8785==0.1.4' 'cryptography==46.0.3'
@@ -106,7 +120,7 @@ jobs:
           PR_LABELS_JSON="$labels_json" ./gradlew ci
       - name: Upload sanitized CI evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: weave-ci-evidence
           path: |
@@ -115,7 +129,7 @@ jobs:
           if-no-files-found: warn
       - name: Upload marketing screenshots
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.capture_marketing_screenshots == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: weave-marketing-screenshots
           path: |
@@ -128,8 +142,8 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
           java-version: '21'

@@ -17,7 +17,7 @@ Feature: WEAVE-SPEC-0009 acceptance
     And the acceptance scenario is mapped to offline spec evidence marker WEAVE_SPEC_0009_TOOL_DISCOVERY_SUPPORT_SAFE
     When the product claim is evaluated for merge
     Then the claim is blocked unless the mapped evidence covers approved discovery
-    And the catalog records the bounded domains agent-runtime-control, identity-idm, decisions-evidence
+    And the catalog records the bounded domains agent-runtime-control, admin-health-ops, decisions-evidence
 
   @weave-spec-0009-acceptance
   Scenario: Domain-first MCP acceptance rejects provider-first tool claims

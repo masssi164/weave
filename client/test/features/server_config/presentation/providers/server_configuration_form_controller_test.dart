@@ -26,10 +26,10 @@ void main() {
       expect(state.derivedMatrixHomeserverUrl, 'https://api.example.com');
       expect(
         state.derivedNextcloudBaseUrl,
-        'https://api.example.com/api/dav/files',
+        'https://api.example.com/dav/files',
       );
       expect(state.matrixHomeserverUrl, 'https://api.example.com');
-      expect(state.nextcloudBaseUrl, 'https://api.example.com/api/dav/files');
+      expect(state.nextcloudBaseUrl, 'https://api.example.com/dav/files');
       expect(state.matrixError, isNull);
       expect(state.nextcloudError, isNull);
     });

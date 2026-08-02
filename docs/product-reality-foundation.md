@@ -10,7 +10,7 @@ Massimo's correction is now the governing release posture for the next plan: Wea
 
 Allowed wording:
 
-- Weave builds provider-neutral domains and proves them first with free self-hosted providers.
+- Weave builds provider-neutral collaboration domains with free self-hosted providers while Keycloak remains the fixed platform identity authority.
 
 Forbidden until named evidence exists for the exact domain, provider pair, version, fixture, and runtime target:
 
@@ -46,12 +46,13 @@ Commercial adapters are preparation-only until the free provider lab proves the 
 
 | Domain | First providers | Required proof path |
 | --- | --- | --- |
-| Identity | Keycloak and Authentik | OIDC/SAML/roles/groups configuration, read validation, switch/mapping evidence. |
 | Chat | Matrix/Synapse and Zulip | Matrix live -> export -> canonical mapping -> Zulip import/apply -> stable Weave UI -> rollback receipt. |
 | Files | Nextcloud and MinIO/S3 | WebDAV/S3 boundary, versions/shares/permissions/lossy evidence. |
 | Calendar | Nextcloud CalDAV and Radicale | Event/recurrence/attendee/resource mapping and rollback limits. |
 | Boards | OpenProject and a second OSS provider later | Board/task workflow mapping and lossy fields. |
 | Agent Runtime Control | OpenClaw/Weaver runtime provider | Entitled disposable-cell lifecycle, RuntimeProfile v2 signing, external encrypted state, workload identity, audit, revoke, delete, and kill/recreate proof. |
+
+Platform identity is not a provider-lab adapter category. Keycloak is fixed as the platform authority. Authentik, Entra, Auth0, other OIDC/SAML sources, and LDAP/AD may be exercised as upstream Keycloak federation or brokering fixtures only.
 
 Commercial adapter readiness for Teams and Slack is allowed only as research/spec readiness: auth model, API rights, rate limits, history export, attachments, user/guest/thread mapping, retention, E2EE/compliance limits, costs, admin consent, rollback capability.
 
@@ -100,12 +101,12 @@ supportEvidence:
 | Sprint | Name | Exit gate |
 | --- | --- | --- |
 | 21 | Product Reality Foundation | Reality levels, manifests, canonical domains, claim gates checked in. |
-| 22 | Free Provider Lab | Keycloak/Auth, Matrix, Zulip, Nextcloud, Radicale, MinIO, OpenProject reproducibly start with support-safe evidence. |
+| 22 | Free Provider Lab | Fixed Keycloak authority and upstream Authentik federation fixture, plus Matrix, Zulip, Nextcloud, Radicale, MinIO, and OpenProject, reproducibly start with support-safe evidence. |
 | 23 | Chat Provider Switch | Matrix <-> Zulip migration, history classification, audit, and rollback receipt. |
 | 24 | Weaver Runtime Factory | Admin enablement -> user opt-in -> per-user container -> health -> audit -> revoke proof. |
 | 25 | Weaver Customization | Admin policy and user personalization versioned through RuntimeProfile profile hashes and rollback options. |
 | 26 | Operator Recovery | Backup -> destroy -> restore -> validate, with RestoreReceipt, BackupManifest, redacted support bundle. |
-| 27 | Cross-Domain Provider Proof | Calendar, Files, and Identity provider-pair proof. |
+| 27 | Cross-Domain Provider Proof | Calendar and Files provider-pair proof plus a separate fixed-Keycloak federation-readiness proof. |
 | 28 | Commercial Adapter Preparation | Teams/Slack readiness specs only; no implementation push. |
 | 29 | Human-in-the-Loop Release Validation | Human AT/UX/admin/Weaver validation only after automated gates are green. |
 

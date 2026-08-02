@@ -1,0 +1,39 @@
+tasks.register('serverDevH2Test') {
+    group = 'verification'
+    description = 'Run the host-development Spring Boot test lane with H2 and Hibernate mapping validation.'
+    dependsOn tasks.named('test')
+}
+
+def registerServerCommandTask = { String taskName, List<String> args, String taskDescription ->
+    tasks.register(taskName, Exec) {
+        group = 'weave development'
+        description = taskDescription
+        workingDir rootProject.projectDir
+        commandLine rootProject.ext.execCommand(args)
+        outputs.upToDateWhen { false }
+    }
+}
+
+registerServerCommandTask(
+    'serverDevBoot',
+    ['python3', 'infra/weave-workspace/scripts/run_host_dev_server.py', 'boot', '--root', 'infra/weave-workspace'],
+    'Boot the host Spring server with application-dev H2 and generated live-provider coordinates.'
+)
+tasks.named('serverDevBoot') {
+    dependsOn ':infra:composeDevDependenciesReady'
+}
+
+registerServerCommandTask(
+    'serverDevHostSmoke',
+    ['python3', 'infra/weave-workspace/scripts/run_host_dev_server.py', 'smoke', '--root', 'infra/weave-workspace'],
+    'Prove host Spring Boot readiness on H2 against the reconciled dev provider dependencies.'
+)
+tasks.named('serverDevHostSmoke') {
+    dependsOn ':infra:composeDevDependenciesReady'
+}
+
+tasks.register('serverPostgresIntegrationTest') {
+    group = 'verification'
+    description = 'Run the PostgreSQL-backed Spring Boot integration and migration test lane.'
+    dependsOn tasks.named('postgresJpaTest')
+}

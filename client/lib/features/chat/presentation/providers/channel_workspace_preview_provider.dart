@@ -11,7 +11,7 @@ class ChannelWorkspacePreviewFacade {
   const ChannelWorkspacePreviewFacade();
 
   bool supportsWorkspaceTabs(ChatConversation conversation) {
-    return !conversation.isDirectMessage && !conversation.isAiChat;
+    return !conversation.isDirectMessage;
   }
 
   ChannelWorkspacePreview previewForChannel(ChatConversation conversation) {

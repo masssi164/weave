@@ -1,7 +1,8 @@
 package com.massimotter.weave.backend.agentruntime.operator;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeProfileSigningKeyStore;
+import com.massimotter.weave.backend.agentruntime.adapter.FileSecretStoreAccess;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigningKeyLifecycle;
 import java.io.PrintStream;
 import java.nio.file.Path;
@@ -35,7 +36,7 @@ public final class RuntimeProfileSigningKeyCli {
             SecureRandom secureRandom) {
         try {
             Arguments parsed = Arguments.parse(arguments);
-            ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+            ObjectMapper mapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
             FileRuntimeProfileSigningKeyStore keys = new FileRuntimeProfileSigningKeyStore(
                     parsed.root(),
                     mapper,
@@ -43,7 +44,8 @@ public final class RuntimeProfileSigningKeyCli {
                     secureRandom,
                     parsed.keyLifetime(),
                     parsed.trustOverlap(),
-                    parsed.maximumProfileTtl());
+                    parsed.maximumProfileTtl(),
+                    FileSecretStoreAccess.READ_WRITE);
             RuntimeProfileSigningKeyLifecycle.KeyRingState result = switch (parsed.action()) {
                 case INITIALIZE -> keys.initialize(parsed.requiredOperationRef());
                 case PREPARE_ROTATION -> keys.prepareRotation(parsed.requiredOperationRef());

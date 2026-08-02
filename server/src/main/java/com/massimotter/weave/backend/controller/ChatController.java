@@ -55,7 +55,7 @@ public class ChatController {
         this.chatDomainFacadeService = chatDomainFacadeService;
     }
 
-    @GetMapping({"/api/chat/readiness", "/api/v1/chat/readiness"})
+    @GetMapping("/api/chat/readiness")
     @Operation(operationId = "getChatReadiness", summary = "Read member-safe Weave Chat readiness")
     @ApiResponse(responseCode = "200", description = "Member-safe Chat readiness.",
             content = @Content(schema = @Schema(implementation = ChatReadiness.class)))
@@ -63,7 +63,7 @@ public class ChatController {
         return chatDomainFacadeService.memberReadiness(jwt);
     }
 
-    @GetMapping({"/api/chat/conversations/{conversationId}/decisions", "/api/v1/chat/conversations/{conversationId}/decisions"})
+    @GetMapping("/api/chat/conversations/{conversationId}/decisions")
     @Operation(summary = "Read channel Decision Ledger records")
     @ApiResponse(responseCode = "200", description = "Source-linked Decision Ledger records.",
             content = @Content(schema = @Schema(implementation = DecisionLedgerRecordsResponse.class)))
@@ -73,7 +73,7 @@ public class ChatController {
         return chatFacadeService.decisions(jwt, conversationId);
     }
 
-    @PostMapping({"/api/chat/conversations/{conversationId}/decisions", "/api/v1/chat/conversations/{conversationId}/decisions"})
+    @PostMapping("/api/chat/conversations/{conversationId}/decisions")
     @Operation(summary = "Create a channel Decision Ledger record")
     @ApiResponse(responseCode = "200", description = "Created source-linked Decision Ledger record.",
             content = @Content(schema = @Schema(implementation = DecisionLedgerRecordResponse.class)))
@@ -84,7 +84,7 @@ public class ChatController {
         return chatFacadeService.createDecision(jwt, conversationId, request);
     }
 
-    @GetMapping({"/api/chat/conversations/{conversationId}/meeting-capsules", "/api/v1/chat/conversations/{conversationId}/meeting-capsules"})
+    @GetMapping("/api/chat/conversations/{conversationId}/meeting-capsules")
     @Operation(summary = "Read channel Meeting Capsules")
     @ApiResponse(responseCode = "200", description = "Durable channel Meeting Capsules with fail-closed media controls.",
             content = @Content(schema = @Schema(implementation = MeetingCapsulesResponse.class)))
@@ -94,7 +94,7 @@ public class ChatController {
         return chatFacadeService.meetingCapsules(jwt, conversationId);
     }
 
-    @PostMapping({"/api/chat/conversations/{conversationId}/meeting-capsules", "/api/v1/chat/conversations/{conversationId}/meeting-capsules"})
+    @PostMapping("/api/chat/conversations/{conversationId}/meeting-capsules")
     @Operation(summary = "Create a channel Meeting Capsule")
     @ApiResponse(responseCode = "200", description = "Created Meeting Capsule.",
             content = @Content(schema = @Schema(implementation = MeetingCapsuleResponse.class)))
@@ -105,14 +105,14 @@ public class ChatController {
         return chatFacadeService.createMeetingCapsule(jwt, conversationId, request);
     }
 
-    @GetMapping({"/api/admin/chat/readiness", "/api/v1/admin/chat/readiness"})
+    @GetMapping("/api/admin/chat/readiness")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN','OPERATOR')")
     @Operation(operationId = "getAdminChatReadiness", summary = "Get admin Chat readiness", description = "Returns support-safe Chat provider mapping and readiness diagnostics for admins/operators.")
     public ChatReadiness adminReadiness(@AuthenticationPrincipal Jwt jwt) {
         return chatDomainFacadeService.adminReadiness(jwt);
     }
 
-    @PostMapping({"/api/admin/chat/migration-preflights", "/api/v1/admin/chat/migration-preflights"})
+    @PostMapping("/api/admin/chat/migration-preflights")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN','OPERATOR')")
     @Operation(operationId = "createChatMigrationPreflight", summary = "Dry-run a future Chat provider replacement", description = "Creates a support-safe, audited dry-run report for Chat provider replacement. Destructive apply is intentionally unavailable in this contract.")
     public ChatMigrationPreflightReport migrationPreflight(

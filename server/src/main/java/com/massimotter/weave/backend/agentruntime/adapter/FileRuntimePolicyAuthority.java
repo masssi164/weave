@@ -1,8 +1,9 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.StreamReadFeature;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProvisioningPlan;
@@ -41,10 +42,11 @@ public final class FileRuntimePolicyAuthority implements RuntimePolicyAuthority 
             throw new IllegalArgumentException("runtime policy file, mapper, and maximum profile TTL are required");
         }
         this.policyFile = policyFile.toAbsolutePath().normalize();
-        this.mapper = objectMapper.copy()
-                .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+        this.mapper = objectMapper.rebuild()
+                .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                .build();
         this.maximumProfileTtl = maximumProfileTtl;
     }
 
@@ -169,6 +171,8 @@ public final class FileRuntimePolicyAuthority implements RuntimePolicyAuthority 
             }
         } catch (RuntimePolicyException failure) {
             throw failure;
+        } catch (JacksonException failure) {
+            throw new RuntimePolicyException("The runtime policy file is invalid or unreadable", failure);
         } catch (IOException failure) {
             throw new RuntimePolicyException("The runtime policy file is invalid or unreadable", failure);
         }

@@ -126,20 +126,20 @@ Map<String, Object?> _organizationManifestJson({
     'whitelistingOwner': 'organization-admin-console',
     'clientResponsibilities': [
       'accept organization auth URL, invite link, or deep link',
-      'complete SSO with the selected identity provider',
+      'complete OIDC Authorization Code with PKCE through the organization authority',
       'consume effective organization manifest and capability states',
       'render only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later member states',
     ],
     'adminConsoleResponsibilities': [
       'create and bootstrap organizations',
-      'select and configure identity providers and category providers',
+      'manage Keycloak identity, upstream federation, and selectable category providers',
       'manage provider endpoint URLs, rotation, readiness, and support-safe diagnostics',
       'manage users, groups, roles, capability profiles, and deny-by-default policy',
       'own provider, tool, and agent whitelisting plus privacy/compliance risk notes',
       'audit organization-wide defaults and administrative changes',
     ],
     'memberCapabilityStates': {
-      'idm-rbac': 'available',
+      'platform-identity': 'available',
       'chat-channels': 'available',
       'files-docs': 'available',
       'calendar-events': 'degraded',
@@ -162,6 +162,60 @@ Map<String, Object?> _organizationManifestJson({
 
 void main() {
   group('HttpWeaveApiClient', () {
+    test('reconciles identity access without sending provider input', () async {
+      late http.BaseRequest capturedRequest;
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          capturedRequest = request;
+          return _jsonResponse({
+            'state': 'access_updated',
+            'reauthorizationRequired': true,
+          });
+        }),
+      );
+
+      final result = await client.reconcileIdentitySession(
+        baseUrl: Uri.parse('https://api.home.internal/api'),
+        accessToken: 'token-123',
+      );
+
+      expect(result, IdentitySessionReconcileResult.reauthorizationRequired);
+      expect(capturedRequest.method, 'POST');
+      expect(
+        capturedRequest.url.toString(),
+        'https://api.home.internal/api/v1/identity/session/reconcile',
+      );
+      expect(capturedRequest.headers['Accept'], 'application/json');
+      expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
+      expect(capturedRequest.headers['Content-Type'], isNull);
+      expect((capturedRequest as http.Request).body, isEmpty);
+    });
+
+    test('rejects inconsistent identity reconciliation results', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          return _jsonResponse({
+            'state': 'unchanged',
+            'reauthorizationRequired': true,
+          });
+        }),
+      );
+
+      await expectLater(
+        () => client.reconcileIdentitySession(
+          baseUrl: Uri.parse('https://api.home.internal/api'),
+          accessToken: 'token-123',
+        ),
+        throwsA(
+          isA<AppFailure>().having(
+            (failure) => failure.message,
+            'message',
+            contains('inconsistent identity-session'),
+          ),
+        ),
+      );
+    });
+
     test('fetches workspace capabilities with a bearer token', () async {
       late http.BaseRequest capturedRequest;
       final client = HttpWeaveApiClient(
@@ -194,7 +248,7 @@ void main() {
 
       expect(
         capturedRequest.url.toString(),
-        'https://api.home.internal/api/v1/workspace/capabilities',
+        'https://api.home.internal/api/workspace/capabilities',
       );
       expect(capturedRequest.headers['Accept'], 'application/json');
       expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
@@ -228,7 +282,7 @@ void main() {
 
         expect(
           capturedRequest.url.toString(),
-          'https://api.weave.test/api/v1/organization/manifest',
+          'https://api.weave.test/api/organization/manifest',
         );
         expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
         expect(snapshot.safeForMemberClient, isTrue);
@@ -406,7 +460,7 @@ void main() {
 
       expect(
         capturedRequest.url.toString(),
-        'https://api.weave.test/api/v1/workspace/home',
+        'https://api.weave.test/api/workspace/home',
       );
       expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
       expect(snapshot.supportSafe, isTrue);
@@ -511,28 +565,21 @@ void main() {
       );
     });
 
-    test(
-      'preserves a base path when building the workspace endpoint',
-      () async {
-        late http.BaseRequest capturedRequest;
-        final client = HttpWeaveApiClient(
-          httpClient: _RecordingHttpClient((request) async {
-            capturedRequest = request;
-            return _jsonResponse(_workspaceCapabilitiesJson());
-          }),
-        );
+    test('rejects a non-canonical backend base path', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient(
+          (request) async => _jsonResponse(_workspaceCapabilitiesJson()),
+        ),
+      );
 
-        await client.fetchWorkspaceCapabilities(
+      await expectLater(
+        client.fetchWorkspaceCapabilities(
           baseUrl: Uri.parse('https://home.internal/service/root'),
           accessToken: 'token-123',
-        );
-
-        expect(
-          capturedRequest.url.toString(),
-          'https://home.internal/service/root/api/v1/workspace/capabilities',
-        );
-      },
-    );
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
 
     test(
       'does not duplicate the api segment for canonical API bases',
@@ -552,7 +599,7 @@ void main() {
 
         expect(
           capturedRequest.url.toString(),
-          'https://api.weave.test/api/v1/workspace/capabilities',
+          'https://api.weave.test/api/workspace/capabilities',
         );
       },
     );
@@ -636,20 +683,17 @@ void main() {
               'supportSafe': true,
               'categories': [
                 {
-                  'category': 'identity-idm',
-                  'label': 'identity/IDM',
+                  'category': 'chat',
+                  'label': 'Chat',
                   'contract': {
-                    'category': 'identity-idm',
-                    'featureCapabilities': [
-                      'identity.sign_in',
-                      'identity.groups',
-                    ],
-                    'defaultAdapters': ['keycloak-realm'],
-                    'externalAdapters': ['entra-id', 'generic-oidc'],
+                    'category': 'chat',
+                    'featureCapabilities': ['chat.read', 'chat.send'],
+                    'defaultAdapters': ['matrix-chat'],
+                    'externalAdapters': ['zulip-chat'],
                     'choiceModels': [
                       {
                         'choiceModel': 'recommended_self_hosted_default',
-                        'adapters': ['keycloak-realm'],
+                        'adapters': ['matrix-chat'],
                         'adminRiskNotes': [
                           'recommended sovereign/default posture',
                         ],
@@ -657,14 +701,14 @@ void main() {
                       },
                       {
                         'choiceModel': 'external_existing_provider',
-                        'adapters': ['entra-id'],
+                        'adapters': ['zulip-chat'],
                         'adminRiskNotes': [
                           'admin records privacy and compliance risk outside member UX',
                         ],
                         'recommended': false,
                       },
                     ],
-                    'adapterModules': ['identity-realm', 'matrix-auth'],
+                    'adapterModules': ['chat'],
                     'stableMemberImpactStates': [
                       'available',
                       'disabled_by_policy',
@@ -682,18 +726,18 @@ void main() {
                   'realityLevelRemediation':
                       'Release-ready provider: keep evidence current.',
                   'policyState': 'allowed',
-                  'memberImpact': 'Sign-in is available.',
-                  'modules': ['identity-realm', 'matrix-auth'],
-                  'providerCandidates': ['keycloak', 'oidc'],
-                  'selectedProviderKey': 'keycloak-realm',
+                  'memberImpact': 'Chat is available.',
+                  'modules': ['chat'],
+                  'providerCandidates': ['matrix-chat', 'zulip-chat'],
+                  'selectedProviderKey': 'matrix-chat',
                   'choiceModel': 'recommended_self_hosted_default',
                   'selectedByAdmin': true,
                   'bootstrapSuggestionOnly': false,
                   'lossyMappingNotes': [],
                   'adapterEvidence': [
                     {
-                      'domain': 'identity-idm',
-                      'adapterKey': 'keycloak-realm',
+                      'domain': 'chat',
+                      'adapterKey': 'matrix-chat',
                       'configured': true,
                       'reachable': true,
                       'health': 'ready',
@@ -840,18 +884,18 @@ void main() {
         expect(snapshot.bootstrapDefaultsAreSuggestionsOnly, isTrue);
         expect(snapshot.adminSelectedMappingsRequired, isTrue);
         expect(snapshot.categories, hasLength(2));
-        expect(snapshot.categories.first.category, 'identity-idm');
+        expect(snapshot.categories.first.category, 'chat');
         expect(
           snapshot.categories.first.contract.featureCapabilities,
-          containsAll(['identity.sign_in', 'identity.groups']),
+          containsAll(['chat.read', 'chat.send']),
         );
         expect(
           snapshot.categories.first.contract.defaultAdapters,
-          contains('keycloak-realm'),
+          contains('matrix-chat'),
         );
         expect(
           snapshot.categories.first.contract.externalAdapters,
-          containsAll(['entra-id', 'generic-oidc']),
+          contains('zulip-chat'),
         );
         expect(
           snapshot.categories.first.contract.keepsMemberSemanticsStable,
@@ -885,13 +929,13 @@ void main() {
         );
         expect(snapshot.categories.first.memberCapabilityState, 'available');
         expect(snapshot.categories.first.memberAvailable, isTrue);
-        expect(snapshot.categories.first.selectedProviderKey, 'keycloak-realm');
+        expect(snapshot.categories.first.selectedProviderKey, 'matrix-chat');
         expect(snapshot.categories.first.selectedByAdmin, isTrue);
         expect(snapshot.categories.first.bootstrapSuggestionOnly, isFalse);
         expect(snapshot.categories.first.supportSafe, isTrue);
         expect(
           snapshot.categories.first.adapterEvidence.single.adapterKey,
-          'keycloak-realm',
+          'matrix-chat',
         );
         expect(
           snapshot.categories.first.adapterEvidence.single.configured,

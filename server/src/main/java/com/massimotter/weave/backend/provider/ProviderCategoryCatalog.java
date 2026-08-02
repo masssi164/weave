@@ -8,7 +8,6 @@ import java.util.Set;
 public final class ProviderCategoryCatalog {
 
     private static final Map<String, Category> CATEGORIES = Map.of(
-            "identity-idm", new Category("identity-idm", "identity/IDM", Set.of(ProviderModule.IDENTITY_REALM, ProviderModule.MATRIX_AUTH), true),
             "chat", new Category("chat", "chat", Set.of(ProviderModule.MATRIX), true),
             "files", new Category("files", "files", Set.of(ProviderModule.FILES), true),
             "calendar", new Category("calendar", "calendar", Set.of(ProviderModule.CALENDAR), true),
@@ -22,7 +21,7 @@ public final class ProviderCategoryCatalog {
     }
 
     public static List<String> categoryKeys() {
-        return List.of("identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "model", "agent-runtime-control");
+        return List.of("chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "model", "agent-runtime-control");
     }
 
     public static Optional<Category> category(String key) {

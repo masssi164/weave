@@ -14,7 +14,7 @@ public record CalendarCalDavProperties(
     public CalendarCalDavProperties {
         baseUrl = trimToNull(baseUrl);
         calendarPathTemplate = defaultIfBlank(calendarPathTemplate,
-                "/remote.php/dav/calendars/weave-backend/personal/");
+                "/remote.php/dav/calendars/weave-backend/weave-workspace/");
         authMode = authMode == null ? AuthMode.BASIC : authMode;
         backendUsername = trimToNull(backendUsername);
         backendToken = trimToNull(backendToken);

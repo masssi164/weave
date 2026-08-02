@@ -1,13 +1,15 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -40,10 +42,10 @@ class PlatformProductContractControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockBean
+    @MockitoBean
     private ContextAuthorizationPort contextAuthorizationPort;
 
     @BeforeEach
@@ -374,9 +376,10 @@ class PlatformProductContractControllerTest {
                         .claim("preferred_username", "test")
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("resource_access", java.util.Map.of(
-                                "weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                        .claim("groups", java.util.List.of("weave-calendar-editors")))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("admin")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
@@ -387,7 +390,7 @@ class PlatformProductContractControllerTest {
                         .claim("preferred_username", "admin")
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin")))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("admin")))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                         new SimpleGrantedAuthority("ROLE_ADMIN"));

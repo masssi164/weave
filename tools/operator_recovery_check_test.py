@@ -13,16 +13,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CHECK = ROOT / "tools" / "operator_recovery_check.py"
 FIXTURE_DIR = ROOT / "release" / "provider-lab" / "operator-recovery"
-REQUIRED_ARTIFACTS = [
-    "MANIFEST.txt",
-    "postgres.sql",
-    "nextcloud-data.tgz",
-    "matrix-synapse-data.tgz",
-    "caddy-data.tgz",
-    "caddy-config.tgz",
-    "keycloak-data.tgz",
-    "generated-config-secrets.tgz",
-]
+REQUIRED_ARTIFACTS = {
+    "postgres.sql": "postgres-consistency-dump",
+    "nextcloud-data.tgz": "files-calendar-provider-data",
+    "synapse-data.tgz": "matrix-media-and-local-state",
+    "caddy-data.tgz": "gateway-runtime-state",
+    "caddy-config.tgz": "gateway-config-state",
+    "keycloak-data.tgz": "keycloak-runtime-state",
+    "matrix-appservice.tgz": "matrix-appservice-runtime",
+    "private-config-secrets.tgz": "private-config-secretrefs",
+}
 
 
 def run(*args: str) -> subprocess.CompletedProcess[str]:
@@ -50,17 +50,15 @@ def main() -> None:
         evidence = Path(tmp)
         manifest = json.loads((FIXTURE_DIR / "backup-manifest.fixture.json").read_text(encoding="utf-8"))
         manifest["artifacts"] = []
-        for name in REQUIRED_ARTIFACTS:
+        for name, kind in REQUIRED_ARTIFACTS.items():
             artifact = evidence / name
             artifact.write_text(f"fixture {name}\n", encoding="utf-8")
             manifest["artifacts"].append({
                 "path": name,
-                "kind": "fixture",
+                "kind": kind,
                 "sha256": sha256_file(artifact),
                 "bytes": artifact.stat().st_size,
-                "requiredForRestore": True,
             })
-        manifest["scope"]["environment"] = "approved-disposable-stack"
         write_json(evidence / "BackupManifest.json", manifest)
 
         receipt = json.loads((FIXTURE_DIR / "restore-receipt.fixture.json").read_text(encoding="utf-8"))
@@ -69,7 +67,7 @@ def main() -> None:
             "status": "passed",
             "destroyStep": {"performed": True, "scope": "approved disposable fixture state"},
             "checks": [
-                {"name": "backup_artifacts_present", "status": "passed"},
+                {"name": "backup_integrity_verified", "status": "passed"},
                 {"name": "post_restore_operator_check", "status": "passed"},
                 {"name": "domain_data_recovered", "status": "passed"},
             ],
@@ -89,14 +87,15 @@ def main() -> None:
         assert checksum_mismatch.returncode != 0
         assert "sha256 mismatch" in checksum_mismatch.stderr
 
-        manifest["artifacts"][0]["sha256"] = sha256_file(evidence / REQUIRED_ARTIFACTS[0])
+        first_artifact = next(iter(REQUIRED_ARTIFACTS))
+        manifest["artifacts"][0]["sha256"] = sha256_file(evidence / first_artifact)
         manifest["artifacts"][0]["bytes"] += 1
         write_json(evidence / "BackupManifest.json", manifest)
         bytes_mismatch = run("--evidence-dir", str(evidence))
         assert bytes_mismatch.returncode != 0
         assert "bytes mismatch" in bytes_mismatch.stderr
 
-        manifest["artifacts"][0]["bytes"] = (evidence / REQUIRED_ARTIFACTS[0]).stat().st_size
+        manifest["artifacts"][0]["bytes"] = (evidence / first_artifact).stat().st_size
         write_json(evidence / "BackupManifest.json", manifest)
         (evidence / "postgres.sql").unlink()
         missing_artifact = run("--evidence-dir", str(evidence))
@@ -107,15 +106,14 @@ def main() -> None:
         evidence = Path(tmp)
         manifest = json.loads((FIXTURE_DIR / "backup-manifest.fixture.json").read_text(encoding="utf-8"))
         manifest["artifacts"] = []
-        for name in REQUIRED_ARTIFACTS:
+        for name, kind in REQUIRED_ARTIFACTS.items():
             artifact = evidence / name
             artifact.write_text(f"fixture {name}\n", encoding="utf-8")
             manifest["artifacts"].append({
                 "path": name,
-                "kind": "fixture",
+                "kind": kind,
                 "sha256": sha256_file(artifact),
                 "bytes": artifact.stat().st_size,
-                "requiredForRestore": True,
             })
         write_json(evidence / "BackupManifest.json", manifest)
         shutil.copyfile(FIXTURE_DIR / "restore-receipt.fixture.json", evidence / "RestoreReceipt.json")

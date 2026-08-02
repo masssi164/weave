@@ -11,14 +11,14 @@
   "domainRealityLevels": {
     "calendar": "migration_dry_run",
     "files": "migration_dry_run",
-    "identity": "migration_dry_run",
+    "platform-identity": "readiness_dry_run",
     "chat": "migration_apply_ready",
     "setupFlow": "obsolete_delivery_evidence_excluded"
   },
   "domainEvidence": {
     "calendar": "release/provider-lab/cross-domain-provider-proof/calendar-nextcloud-radicale.fixture.json",
     "files": "release/provider-lab/cross-domain-provider-proof/files-nextcloud-minio.fixture.json",
-    "identity": "release/provider-lab/cross-domain-provider-proof/identity-keycloak-authentik.fixture.json",
+    "platform-identity": "release/provider-lab/cross-domain-provider-proof/platform-identity-federation.fixture.json",
     "chat": "release/provider-lab/chat-switch/sprint-23-claim-gate.fixture.json"
   },
   "setupFlowEvidence": {

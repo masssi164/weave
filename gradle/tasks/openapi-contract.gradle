@@ -1,0 +1,58 @@
+registerRootCommandTask(
+    'generateOpenApiContract',
+    ['bash', 'tools/generate_openapi_contract.sh'],
+    'Generate the server-owned OpenAPI 3.1 control-plane artifact used by typed consumers.'
+)
+
+registerRootCommandTask(
+    'checkOpenApiContractFresh',
+    ['bash', 'tools/check_openapi_contract_fresh.sh'],
+    'Fail when the checked-in server OpenAPI 3.1 artifact is stale.'
+)
+
+registerRootCommandTask(
+    'openApiCodegenContractTest',
+    ['python3', 'tools/openapi_codegen_test.py'],
+    'Verify the OpenAPI 3.1 nullable, free-form object, and schema-reference type projections.'
+)
+
+registerRootCommandTask(
+    'generateAdminOpenApiTypes',
+    ['python3', 'tools/generate_admin_openapi_types.py'],
+    'Generate Admin Console TypeScript types from the server-owned OpenAPI 3.1 artifact.'
+)
+
+registerRootCommandTask(
+    'checkAdminOpenApiTypesFresh',
+    ['python3', 'tools/generate_admin_openapi_types.py', '--check'],
+    'Fail without modifying files when Admin Console generated OpenAPI types are stale.'
+)
+tasks.named('checkAdminOpenApiTypesFresh') {
+    dependsOn 'openApiCodegenContractTest'
+}
+
+registerRootCommandTask(
+    'generateClientOpenApiModels',
+    ['python3', 'tools/generate_client_openapi_models.py'],
+    'Generate formatted Flutter/Dart JSON models from the server-owned OpenAPI 3.1 artifact.'
+)
+
+registerRootCommandTask(
+    'checkClientOpenApiModelsFresh',
+    ['python3', 'tools/generate_client_openapi_models.py', '--check'],
+    'Fail without modifying files when Flutter/Dart generated OpenAPI models are stale.'
+)
+tasks.named('checkClientOpenApiModelsFresh') {
+    dependsOn 'openApiCodegenContractTest'
+}
+
+registerCommandTask(
+    'clientOpenApiDriftPrevention',
+    file('client'),
+    ['flutter', 'test', 'test/architecture/openapi_drift_prevention_contract_test.dart'],
+    'Block client OpenAPI facade drift for DTOs, raw JSON parsing, provider reachability, and hardcoded copy.'
+)
+
+tasks.named('clientCi') {
+    dependsOn 'checkClientOpenApiModelsFresh', 'clientOpenApiDriftPrevention'
+}

@@ -23,13 +23,14 @@ import com.massimotter.weave.backend.config.AgentRuntimeErrorResponseWriter;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.exception.AgentRuntimeAdminExceptionHandler;
 import com.massimotter.weave.backend.model.agentruntime.AgentRuntimeProjectionResponse;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -41,13 +42,13 @@ import org.springframework.test.web.servlet.MockMvc;
         controllers = AgentRuntimeAdminController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        OrganizationIdentityContextResolver.class,
         AgentRuntimeAdminSecurityConfiguration.class,
         AgentRuntimeErrorResponseWriter.class,
         ApiErrorResponseWriter.class,
         AgentRuntimeAdminExceptionHandler.class
 })
 @TestPropertySource(properties = {
-        "weave.agent-runtime.storage.mode=jdbc",
         "weave.agent-runtime.workload-identity.enabled=true",
         "weave.agent-runtime.policy.enabled=true",
         "weave.agent-runtime.profile-signing.enabled=true",
@@ -61,10 +62,10 @@ class AgentRuntimeAdminControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private AgentRuntimeAdminService runtimes;
 
-    @MockBean(name = "agentRuntimeAdminJwtDecoder")
+    @MockitoBean(name = "agentRuntimeAdminJwtDecoder")
     private JwtDecoder agentRuntimeAdminJwtDecoder;
 
     @Test
@@ -194,7 +195,7 @@ class AgentRuntimeAdminControllerTest {
                         .subject("admin-user-1")
                         .issuedAt(Instant.parse("2026-07-20T10:00:00Z"))
                         .expiresAt(Instant.parse("2026-07-20T10:05:00Z"))
-                        .claim("weave_tenant", "tenant-default")
+                        .claim("weave_tenant_id", "tenant-default")
                         .claim("scope", AgentRuntimeAdminSecurityConfiguration.ADMIN_SCOPE))
                 .authorities(new SimpleGrantedAuthority(
                                 AgentRuntimeAdminSecurityConfiguration.ADMIN_AUTHORITY),

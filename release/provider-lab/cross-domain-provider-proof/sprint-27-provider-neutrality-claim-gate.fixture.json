@@ -4,28 +4,28 @@
   "issue": 646,
   "supportSafe": true,
   "acceptedClaim": {
-    "claim": "Sprint 27 proves support-safe migration_dry_run provider-boundary evidence for Calendar Nextcloud CalDAV to Radicale, Files Nextcloud to MinIO S3, and Identity Keycloak to Authentik, with setup-flow evidence named separately and broad provider-neutrality wording still blocked."
+    "claim": "Sprint 27 proves support-safe migration_dry_run provider-boundary evidence for Calendar Nextcloud CalDAV to Radicale and Files Nextcloud to MinIO S3. Keycloak remains the fixed platform identity authority; a separate readiness dry-run proves upstream Authentik OIDC federation without a provider switch, with setup-flow evidence named separately and broad provider-neutrality wording still blocked."
   },
   "requiredDomainEvidence": [
     "release/provider-lab/cross-domain-provider-proof/calendar-nextcloud-radicale.fixture.json",
     "release/provider-lab/cross-domain-provider-proof/files-nextcloud-minio.fixture.json",
-    "release/provider-lab/cross-domain-provider-proof/identity-keycloak-authentik.fixture.json"
+    "release/provider-lab/cross-domain-provider-proof/platform-identity-federation.fixture.json"
   ],
   "setupFlowEvidenceSeparated": true,
   "setupFlowEvidenceRefs": [],
-  "separateIssue665Boundary": "Historical Forgejo evidence from #665 is obsolete and excluded; current GitHub dogfood delivery evidence remains separate from the Calendar, Files, Identity aggregate proof.",
+  "separateIssue665Boundary": "Historical Forgejo evidence from #665 is obsolete and excluded; current GitHub dogfood delivery evidence remains separate from the Calendar, Files, and platform-identity federation aggregate proof.",
   "rejectedClaims": [
     {
       "claim": "Chat switch evidence alone proves Weave providers are interchangeable.",
-      "reason": "Blocked: Calendar, Files, Identity, setup-flow, rollback, restore, and release-ready evidence must be named separately."
+      "reason": "Blocked: Calendar, Files, platform identity federation, setup-flow, rollback, restore, and release-ready evidence must be named separately."
     },
     {
       "claim": "Sprint 27 makes Weave customer-ready or v0.1 release-ready.",
       "reason": "Blocked: these fixtures are migration_dry_run/provider-lab evidence only."
     },
     {
-      "claim": "Nextcloud, Radicale, MinIO, Keycloak, and Authentik can be swapped losslessly in production.",
-      "reason": "Blocked: lossy fields and rollback limits are explicitly reported."
+      "claim": "The Weave platform identity authority is provider-switchable in production.",
+      "reason": "Blocked: Keycloak is the fixed authority; Authentik, Entra, Auth0, and LDAP/AD integrate only as upstream federation or brokering sources."
     }
   ],
   "scoreboardRef": "release/provider-lab/cross-domain-provider-proof/sprint-27-cross-domain-scoreboard.json",

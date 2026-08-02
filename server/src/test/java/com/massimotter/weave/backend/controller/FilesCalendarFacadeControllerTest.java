@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChangeSet;
@@ -12,6 +14,7 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWind
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
+import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
@@ -27,7 +30,10 @@ import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.files.application.FilesLockService;
+import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
 import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
 import com.massimotter.weave.backend.security.device.DeviceCredentialRepository;
@@ -43,11 +49,11 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -86,6 +92,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 CalDavCalendarController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
@@ -126,17 +133,26 @@ class FilesCalendarFacadeControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockBean
+    @MockitoBean
     private ContextAuthorizationPort contextAuthorizationPort;
 
-    @MockBean
+    @MockitoBean
     private ContextAuthorizationProperties contextAuthorizationProperties;
 
-    @MockBean
+    @MockitoBean
     private CalendarProviderPort calendarProviderPort;
+
+    @MockitoBean
+    private AuditEventPublisher auditEventPublisher;
+
+    @MockitoBean
+    private FilesLockService filesLockService;
+
+    @MockitoBean
+    private FilesMutationIntentService filesMutationIntentService;
 
     @BeforeEach
     void allowContextAccess() {
@@ -971,8 +987,10 @@ class FilesCalendarFacadeControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                 .claim("aud", java.util.List.of("weave-app"))
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                .claim("groups", java.util.List.of("weave-calendar-editors", "weave-meeting-hosts")))
+                .claim(
+                        "organization",
+                        HumanJwtTestSupport
+                                .organizationWithRole("admin")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
@@ -982,9 +1000,10 @@ class FilesCalendarFacadeControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("weave_tenant_id", "tenant-default")
-                        .claim("resource_access", java.util.Map.of(
-                                "weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                        .claim("groups", java.util.List.of("weave-meeting-hosts")))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("member")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 

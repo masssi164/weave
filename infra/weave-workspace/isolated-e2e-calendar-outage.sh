@@ -10,8 +10,7 @@ readonly ROOT_DIR
 readonly CALENDAR_COLLECTION_HELPER="${ROOT_DIR}/lib/calendar-collection.sh"
 # shellcheck disable=SC1090,SC1091
 source "${CALENDAR_COLLECTION_HELPER}"
-CALENDAR_ID="$(weave_backend_actor_workspace_calendar_id isolated)"
-readonly CALENDAR_ID
+CALENDAR_ID=""
 
 OPERATION=""
 STATE_FILE="${WEAVE_E2E_CALENDAR_OUTAGE_STATE_FILE:-}"
@@ -44,7 +43,7 @@ affecting Files. The provider-default calendar is never used as the fault seam.
 
 Options:
   --state-file PATH          Private run state/evidence file.
-  --startup-env PATH         Prepared isolated stack/OpenTofu env.
+  --startup-env PATH         Prepared isolated Compose startup env.
   --stack-bootstrap-env PATH Private bootstrap env written by install.sh.
 
 Required:
@@ -100,12 +99,15 @@ load_environment() {
   fi
   [[ -z "${requested_scope}" ]] || WEAVE_E2E_STACK_SCOPE="${requested_scope}"
 
-  NAMESPACE="${TF_VAR_isolated_e2e_namespace:-}"
-  NETWORK="${TF_VAR_docker_network_name:-}"
+  NAMESPACE="${WEAVE_ISOLATED_E2E_NAMESPACE:-}"
+  WEAVE_E2E_RUN_NAMESPACE="${WEAVE_E2E_RUN_NAMESPACE:-${NAMESPACE}}"
+  export WEAVE_E2E_RUN_NAMESPACE
+  CALENDAR_ID="$(weave_backend_actor_workspace_calendar_id "${NAMESPACE}")"
+  NETWORK="${WEAVE_DOCKER_NETWORK_NAME:-}"
   NEXTCLOUD_CONTAINER="${NEXTCLOUD_CONTAINER:-$(weave_container_name nextcloud)}"
   BACKEND_CONTAINER="${BACKEND_CONTAINER:-$(weave_container_name backend)}"
-  BACKEND_ACTOR="${TF_VAR_nextcloud_backend_actor_username:-${WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME:-}}"
-  METRICS_URL="${WEAVE_E2E_ACTUATOR_METRICS_URL:-http://127.0.0.1:${TF_VAR_backend_host_port:-48084}/actuator/metrics}"
+  BACKEND_ACTOR="${WEAVE_NEXTCLOUD_BACKEND_ACTOR_USERNAME:-${WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME:-}}"
+  METRICS_URL="${WEAVE_E2E_ACTUATOR_METRICS_URL:-http://127.0.0.1:${WEAVE_BACKEND_HOST_PORT:-48084}/actuator/metrics}"
   STATE_FILE="${STATE_FILE:-${OUTPUT_ROOT}/${NAMESPACE}/calendar-outage-state.json}"
 }
 
@@ -154,11 +156,11 @@ container_networks() {
 
 assert_isolated_runtime() {
   [[ "${WEAVE_E2E_STACK_SCOPE:-}" == isolated ]] || fail "explicit isolated stack scope is required"
-  [[ "${TF_VAR_isolated_e2e_enabled:-false}" == true ]] || fail "isolated E2E infrastructure is not enabled"
+  [[ "${WEAVE_ISOLATED_E2E_ENABLED:-false}" == true ]] || fail "isolated E2E infrastructure is not enabled"
   [[ "${NAMESPACE}" =~ ^weave-e2e-[0-9a-f]{16}$ ]] || fail "isolated namespace marker is invalid"
   [[ "${NETWORK}" == "${NAMESPACE}_network" ]] || fail "isolated Docker network marker does not match"
-  [[ "${TF_VAR_create_test_user:-false}" == false ]] || fail "static test-user mode is not allowed"
-  [[ -z "${TF_VAR_context_authorization_dogfood_principal_ref:-}" ]] || fail "persistent dogfood principal input is not allowed"
+  [[ "${WEAVE_CREATE_TEST_USER:-false}" == false ]] || fail "static test-user mode is not allowed"
+  [[ -z "${WEAVE_CONTEXT_AUTHORIZATION_DOGFOOD_PRINCIPAL_REF:-}" ]] || fail "persistent dogfood principal input is not allowed"
   [[ -n "${BACKEND_ACTOR}" ]] || fail "isolated backend actor is unavailable"
 
   local backend_env backend_networks nextcloud_networks

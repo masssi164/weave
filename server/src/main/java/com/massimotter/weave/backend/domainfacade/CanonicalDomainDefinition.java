@@ -35,12 +35,12 @@ public enum CanonicalDomainDefinition {
             List.of("board", "list", "task", "status", "assignee", "watcher", "comment", "attachment_ref", "dependency", "label", "custom_field", "estimate", "priority", "milestone", "sprint", "workflow_rule", "decision_link", "space_ref", "chat_ref", "file_ref")),
     IDENTITY_ADMIN_POLICY(
             "identity-admin-policy",
-            "Identity, admin, and policy",
-            List.of("identity-idm"),
+            "Platform security, admin, and policy",
+            List.of(),
             List.of("identity.sign_in", "identity.groups", "identity.roles", "policy.read"),
             List.of("policy.manage", "admin.provider_mapping.write", "admin.user_lifecycle.write"),
             List.of("resolve_subject", "read_effective_policy", "list_support_safe_admin_policy", "dry_run_policy_change"),
-            List.of("direct_idm_mutation", "credential_export", "raw_claims_dump", "policy_apply_without_audit"),
+            List.of("realm_desired_state_mutation", "credential_export", "raw_claims_dump", "policy_apply_without_audit"),
             List.of("subject", "group", "role", "capability_profile", "policy_decision", "audit_ref"));
 
     private static final String CONTRACT_VERSION = "canonical-domain-facade-v1";

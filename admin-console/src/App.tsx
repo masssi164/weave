@@ -256,7 +256,7 @@ export default function App({
   const [invitationDisplayName, setInvitationDisplayName] = useState("");
   const [invitationRole, setInvitationRole] =
     useState<OrganizationRole>("member");
-  const [invitationGroups, setInvitationGroups] = useState("");
+  const [invitationCapabilities, setInvitationCapabilities] = useState("");
   const [invitationBusy, setInvitationBusy] = useState(false);
   const [invitationError, setInvitationError] = useState<string | null>(null);
 
@@ -506,15 +506,15 @@ export default function App({
         email: invitationEmail.trim(),
         displayName: invitationDisplayName.trim() || undefined,
         role: invitationRole,
-        organizationGroups: invitationGroups
+        capabilities: invitationCapabilities
           .split(",")
-          .map((group) => group.trim())
+          .map((capability) => capability.trim())
           .filter(Boolean),
       });
       await refreshInvitations();
       setInvitationEmail("");
       setInvitationDisplayName("");
-      setInvitationGroups("");
+      setInvitationCapabilities("");
       setStatusMessage(
         "Invitation created. Keycloak owns delivery, activation, expiry, and membership.",
       );
@@ -782,7 +782,7 @@ export default function App({
                     <Alert severity="info" sx={{ mb: 2 }}>
                       Keycloak owns email delivery, activation, expiry, and
                       organization membership. Weave records only temporary
-                      role and organization-group provisioning intent.
+                      role and product-capability provisioning intent.
                     </Alert>
                     {invitationError ? (
                       <Alert severity="error" sx={{ mb: 2 }}>
@@ -827,10 +827,12 @@ export default function App({
                         </Select>
                       </FormControl>
                       <TextField
-                        label="Organization groups (optional)"
-                        helperText="Comma-separated Keycloak organization-group aliases."
-                        value={invitationGroups}
-                        onChange={(event) => setInvitationGroups(event.target.value)}
+                        label="Additional product capabilities (optional)"
+                        helperText="Comma-separated stable Weave capability identifiers; provider group names are never accepted."
+                        value={invitationCapabilities}
+                        onChange={(event) =>
+                          setInvitationCapabilities(event.target.value)
+                        }
                       />
                       <Box>
                         <Button
@@ -887,7 +889,7 @@ export default function App({
                               primary={invitation.displayName
                                 ? `${invitation.displayName} — ${invitation.email}`
                                 : invitation.email}
-                              secondary={`Invitation: ${readableState(invitation.lifecycleStatus)} · Provisioning: ${readableState(invitation.provisioningStatus)} · Role: ${invitation.requestedRole}${invitation.organizationGroups.length ? ` · Groups: ${invitation.organizationGroups.join(", ")}` : ""}`}
+                              secondary={`Invitation: ${readableState(invitation.lifecycleStatus)} · Provisioning: ${readableState(invitation.provisioningStatus)} · Role: ${invitation.requestedRole}${invitation.capabilities.length ? ` · Capabilities: ${invitation.capabilities.join(", ")}` : ""}`}
                             />
                           </ListItem>
                         ))}
@@ -1074,8 +1076,8 @@ export default function App({
                   <List aria-label={copy.betaReadinessChecklistLabel}>
                     <ListItem alignItems="flex-start">
                       <ListItemText
-                        primary={`IDM and RBAC posture: ${readableState(controlPlane.identityProviderReadiness.overallState)}`}
-                        secondary={`Backend-owned identity facade: ${controlPlane.identityProviderReadiness.backendOwnedFacade ? "yes" : "no"}; member identity-provider setup controls: ${controlPlane.identityProviderReadiness.memberClientMayConfigureIdentityProvider ? "exposed" : "blocked"}.`}
+                        primary={`Keycloak and RBAC posture: ${readableState(controlPlane.platformIdentityReadiness.overallState)}`}
+                        secondary={`Backend-owned platform-identity facade: ${controlPlane.platformIdentityReadiness.backendOwnedFacade ? "yes" : "no"}; member platform-security setup controls: ${controlPlane.platformIdentityReadiness.memberClientMayConfigurePlatformSecurity ? "exposed" : "blocked"}.`}
                       />
                     </ListItem>
                     <ListItem alignItems="flex-start">
@@ -1310,10 +1312,10 @@ export default function App({
                       variant="h2"
                       sx={{ fontSize: "1.35rem", mb: 2 }}
                     >
-                      {copy.identityReadinessHeading}
+                      {copy.platformIdentityReadinessHeading}
                     </Typography>
                     <Alert severity="info" sx={{ mb: 2 }}>
-                      {copy.identityReadinessDescription}
+                      {copy.platformIdentityReadinessDescription}
                     </Alert>
                     <Alert severity="info" sx={{ mb: 2 }}>
                       {copy.identityAuthorityNotice}
@@ -1323,27 +1325,27 @@ export default function App({
                         Contract:{" "}
                         <code>
                           {
-                            controlPlane.identityProviderReadiness
+                            controlPlane.platformIdentityReadiness
                               .contractVersion
                           }
                         </code>
                         ; overall state:{" "}
                         <strong>
                           {readableState(
-                            controlPlane.identityProviderReadiness.overallState,
+                            controlPlane.platformIdentityReadiness.overallState,
                           )}
                         </strong>
                         ; backend-owned facade:{" "}
                         <strong>
-                          {controlPlane.identityProviderReadiness
+                          {controlPlane.platformIdentityReadiness
                             .backendOwnedFacade
                             ? "yes"
                             : "no"}
                         </strong>
-                        ; member provider setup:{" "}
+                        ; member platform-security setup:{" "}
                         <strong>
-                          {controlPlane.identityProviderReadiness
-                            .memberClientMayConfigureIdentityProvider
+                          {controlPlane.platformIdentityReadiness
+                            .memberClientMayConfigurePlatformSecurity
                             ? "allowed"
                             : "blocked"}
                         </strong>
@@ -1351,13 +1353,13 @@ export default function App({
                       </Typography>
                       <Typography>
                         Stable states:{" "}
-                        {controlPlane.identityProviderReadiness.stableStates
+                        {controlPlane.platformIdentityReadiness.stableStates
                           .map(readableState)
                           .join(", ")}
                       </Typography>
                     </Stack>
                     <Stack spacing={2} sx={{ mt: 2 }}>
-                      {controlPlane.identityProviderReadiness.cards.map(
+                      {controlPlane.platformIdentityReadiness.cards.map(
                         (card) => (
                           <Card key={card.key} variant="outlined">
                             <CardContent>

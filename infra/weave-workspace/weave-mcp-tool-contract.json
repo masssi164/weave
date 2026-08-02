@@ -4,14 +4,14 @@
   "placement": {
     "contractArea": "infra/weave-workspace",
     "runtimeModule": "weave-mcp-server",
-    "runtimeInfrastructureModule": "infra/weave-workspace/01-infrastructure/modules/mcp",
+    "runtimeInfrastructureModule": "infra/weave-workspace/compose.yaml#mcp",
     "implementation": "Spring AI 2.0 stateful Streamable HTTP admitted only after RFC 9068 workload validation, server-owned cell binding, token exchange, and backend context revalidation",
     "retiredRuntime": "infra/weave-mcp Python and FastMCP gateway",
     "architecturePrinciple": "MCP is a workload-only Weaver boundary; humans never access MCP"
   },
   "authorityBoundary": {
     "productAuthority": "weave-backend",
-    "mcpRole": "active workload identity and context bridge with an empty domain-tool catalog until the approval and action-evidence gates are implemented",
+    "mcpRole": "workload-only protocol projection; the active Files read slice consumes the existing Weave WebDAV facade",
     "canonicalApiRemainsAuthoritative": true,
     "runtimeDirectProviderAccessAllowed": false,
     "memberMayConfigureProvidersThroughMcp": false,
@@ -101,31 +101,6 @@
         "credentialBearingDownloadUrl",
         "rawProviderUrl",
         "rawWebDavProviderPayload"
-      ]
-    },
-    {
-      "key": "boards_tasks",
-      "label": "Boards and tasks",
-      "toolFamilies": [
-        "boards.crud",
-        "tasks.crud",
-        "tasks.assignment",
-        "tasks.labels_status_due_dates",
-        "comments.activity"
-      ],
-      "allowedProofTools": [
-        "boards.search_tasks",
-        "boards.read_task"
-      ],
-      "writeToolsRequireApproval": [
-        "boards.create_task",
-        "boards.move_task",
-        "boards.comment",
-        "boards.update_status"
-      ],
-      "forbiddenOutputs": [
-        "rawProjectAdminPayload",
-        "providerWorkflowMutationBody"
       ]
     },
     {
@@ -231,17 +206,6 @@
       ]
     }
   ],
-  "sprint16ProofSlice": {
-    "implementAllAdapters": false,
-    "preferredEvidence": [
-      "contract schema",
-      "support-safe mock/in-memory facade responses",
-      "server-owned readiness projection",
-      "disabled-by-default runtime profile preview"
-    ],
-    "allowedProofAdaptersMax": 2,
-    "status": "historical-foundation-superseded-by-spring-ai-runtime"
-  },
   "activeRuntimeEvidence": {
     "transport": "stateful-streamable-http-workload-active",
     "endpoint": "/mcp",
@@ -250,9 +214,19 @@
     "protectedResourceMetadata": "/.well-known/oauth-protected-resource/mcp",
     "clientCredentialsExtension": "io.modelcontextprotocol/oauth-client-credentials",
     "backendContext": "standard-token-exchange-v2-and-current-arc-binding",
-    "tools": [],
-    "resources": [],
+    "tools": [
+      "files.search"
+    ],
+    "resources": [
+      "weave://files/{canonicalFileId}"
+    ],
     "prompts": [],
+    "filesDataPlane": {
+      "standard": "WebDAV RFC 5323 bounded basicsearch",
+      "facade": "/dav/files",
+      "canonicalIdProperty": "{urn:weave:files}canonical-id",
+      "toolSpecificBackendEndpoint": false
+    },
     "pythonFastMcpRemoved": true,
     "handwrittenJsonRpcRemoved": true,
     "enabled": true,

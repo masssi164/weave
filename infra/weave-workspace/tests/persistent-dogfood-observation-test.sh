@@ -15,10 +15,10 @@ after="${TMP_DIR}/after.json"
 comparison="${TMP_DIR}/comparison.json"
 cat >"${before}" <<'JSON'
 {
-  "schemaVersion":"weave.persistent-dogfood-observation.v1",
+  "schemaVersion":"weave.persistent-dogfood-observation.v2",
   "deploymentScope":"persistent-dogfood",
-  "staticTestUserEnabled":false,
-  "isolatedE2eEnabled":false,
+  "e2eStackScope":"persistent",
+  "isolatedRunBound":false,
   "humanMember":{"state":"active","subjectSha256":"subject-hash"},
   "mailpit":{"volumeIdentitySha256":"volume-hash","messageCount":1,"databaseBytes":4096,"databaseSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
   "tls":{"caSha256":"ca-hash","leafSha256":"leaf-hash"},
@@ -30,33 +30,21 @@ cp "${before}" "${after}"
 
 env \
   WEAVE_DOGFOOD_BOOTSTRAP_ENV="${TMP_DIR}/missing-bootstrap.env" \
-  WEAVE_DOGFOOD_DEPLOYMENT_SCOPE=persistent-dogfood \
-  TF_VAR_create_test_user=false \
-  TF_VAR_isolated_e2e_enabled=false \
-  TF_VAR_isolated_e2e_namespace= \
-  TF_VAR_isolated_e2e_context_memberships='[]' \
+  WEAVE_E2E_STACK_SCOPE=persistent \
   bash "${SCRIPT}" compare --before "${before}" --after "${after}" --output "${comparison}" >/dev/null
 jq -e '.status == "passed" and .baselineSource == "pre-deploy" and .preExistingRuntimeObserved == true and .twoNonDestructiveInstallsPreservedState == true and all(.gates[]; .passed)' "${comparison}" >/dev/null
 
 env \
   WEAVE_DOGFOOD_BOOTSTRAP_ENV="${TMP_DIR}/missing-bootstrap.env" \
-  WEAVE_DOGFOOD_DEPLOYMENT_SCOPE=persistent-dogfood \
+  WEAVE_E2E_STACK_SCOPE=persistent \
   WEAVE_PERSISTENT_BASELINE_SOURCE=first-install \
-  TF_VAR_create_test_user=false \
-  TF_VAR_isolated_e2e_enabled=false \
-  TF_VAR_isolated_e2e_namespace= \
-  TF_VAR_isolated_e2e_context_memberships='[]' \
   bash "${SCRIPT}" compare --before "${before}" --after "${after}" --output "${comparison}" >/dev/null
 jq -e '.status == "passed" and .baselineSource == "first-install" and .preExistingRuntimeObserved == false and .twoNonDestructiveInstallsPreservedState == true' "${comparison}" >/dev/null
 
 jq '.tls.leafSha256 = "changed-leaf"' "${before}" >"${after}"
 if env \
   WEAVE_DOGFOOD_BOOTSTRAP_ENV="${TMP_DIR}/missing-bootstrap.env" \
-  WEAVE_DOGFOOD_DEPLOYMENT_SCOPE=persistent-dogfood \
-  TF_VAR_create_test_user=false \
-  TF_VAR_isolated_e2e_enabled=false \
-  TF_VAR_isolated_e2e_namespace= \
-  TF_VAR_isolated_e2e_context_memberships='[]' \
+  WEAVE_E2E_STACK_SCOPE=persistent \
   bash "${SCRIPT}" compare --before "${before}" --after "${after}" --output "${comparison}" >/dev/null 2>&1; then
   fail "comparison accepted a changed TLS identity"
 fi
@@ -65,11 +53,7 @@ jq -e '.status == "failed" and any(.gates[]; .gate == "tls_leaf" and .passed == 
 jq '.mailpit.databaseSha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"' "${before}" >"${after}"
 if env \
   WEAVE_DOGFOOD_BOOTSTRAP_ENV="${TMP_DIR}/missing-bootstrap.env" \
-  WEAVE_DOGFOOD_DEPLOYMENT_SCOPE=persistent-dogfood \
-  TF_VAR_create_test_user=false \
-  TF_VAR_isolated_e2e_enabled=false \
-  TF_VAR_isolated_e2e_namespace= \
-  TF_VAR_isolated_e2e_context_memberships='[]' \
+  WEAVE_E2E_STACK_SCOPE=persistent \
   bash "${SCRIPT}" compare --before "${before}" --after "${after}" --output "${comparison}" >/dev/null 2>&1; then
   fail "comparison accepted changed Mailpit database content"
 fi
@@ -78,11 +62,7 @@ jq -e '.status == "failed" and any(.gates[]; .gate == "mailpit_database_hash" an
 jq '.mailpit.databaseBytes = 8192' "${before}" >"${after}"
 if env \
   WEAVE_DOGFOOD_BOOTSTRAP_ENV="${TMP_DIR}/missing-bootstrap.env" \
-  WEAVE_DOGFOOD_DEPLOYMENT_SCOPE=persistent-dogfood \
-  TF_VAR_create_test_user=false \
-  TF_VAR_isolated_e2e_enabled=false \
-  TF_VAR_isolated_e2e_namespace= \
-  TF_VAR_isolated_e2e_context_memberships='[]' \
+  WEAVE_E2E_STACK_SCOPE=persistent \
   bash "${SCRIPT}" compare --before "${before}" --after "${after}" --output "${comparison}" >/dev/null 2>&1; then
   fail "comparison accepted changed Mailpit database size"
 fi
@@ -90,11 +70,9 @@ jq -e '.status == "failed" and any(.gates[]; .gate == "mailpit_database_size" an
 
 if env \
   WEAVE_DOGFOOD_BOOTSTRAP_ENV="${TMP_DIR}/missing-bootstrap.env" \
-  WEAVE_DOGFOOD_DEPLOYMENT_SCOPE=persistent-dogfood \
-  TF_VAR_create_test_user=true \
-  TF_VAR_isolated_e2e_enabled=false \
+  WEAVE_E2E_STACK_SCOPE=isolated \
   bash "${SCRIPT}" compare --before "${before}" --after "${before}" --output "${comparison}" >/dev/null 2>&1; then
-  fail "persistent dogfood accepted the static test user"
+  fail "persistent dogfood accepted the isolated Compose scope"
 fi
 
 # shellcheck disable=SC2016
@@ -108,35 +86,36 @@ grep -Fq 'certificate_sha256' "${SCRIPT}"
 
 bootstrap_env="${TMP_DIR}/bootstrap.env"
 cat >"${bootstrap_env}" <<'ENV'
-export TF_VAR_keycloak_admin_password=fixture-persisted-password
-export TF_VAR_caddy_tls_ca_file=/persisted/ca.pem
-export TF_VAR_caddy_tls_cert_file=/persisted/cert.pem
-export TF_VAR_caddy_tls_key_file=/persisted/key.pem
-export TF_VAR_isolated_e2e_namespace=stale-isolated-run
-export TF_VAR_isolated_e2e_context_memberships='[{"stale":true}]'
+export WEAVE_KEYCLOAK_ADMIN_PASSWORD=fixture-persisted-password
+export WEAVE_CADDY_TLS_CA_FILE=/persisted/ca.pem
+export WEAVE_CADDY_TLS_CERT_FILE=/persisted/cert.pem
+export WEAVE_CADDY_TLS_KEY_FILE=/persisted/key.pem
+export WEAVE_E2E_STACK_SCOPE=isolated
+export WEAVE_E2E_RUN_ID=stale-isolated-run
+export WEAVE_E2E_RUN_NAMESPACE=weave-e2e-stale
 ENV
 (
   export WEAVE_DOGFOOD_BOOTSTRAP_ENV="${bootstrap_env}"
-  export TF_VAR_caddy_tls_ca_file=/current/ca.pem
-  export TF_VAR_caddy_tls_cert_file=/current/cert.pem
-  export TF_VAR_caddy_tls_key_file=/current/key.pem
+  export WEAVE_CADDY_TLS_CA_FILE=/current/ca.pem
+  export WEAVE_CADDY_TLS_CERT_FILE=/current/cert.pem
+  export WEAVE_CADDY_TLS_KEY_FILE=/current/key.pem
+  export WEAVE_E2E_STACK_SCOPE=persistent
   # shellcheck source=infra/weave-workspace/persistent-dogfood-observation.sh
   source "${SCRIPT}"
   load_environment
-  [[ "${TF_VAR_keycloak_admin_password}" == fixture-persisted-password ]]
-  [[ "${TF_VAR_caddy_tls_ca_file}" == /current/ca.pem ]]
-  [[ "${TF_VAR_caddy_tls_cert_file}" == /current/cert.pem ]]
-  [[ "${TF_VAR_caddy_tls_key_file}" == /current/key.pem ]]
-  [[ -z "${TF_VAR_isolated_e2e_namespace:-}" ]]
-  [[ -z "${TF_VAR_isolated_e2e_context_memberships:-}" ]]
+  [[ "${WEAVE_KEYCLOAK_ADMIN_PASSWORD}" == fixture-persisted-password ]]
+  [[ "${WEAVE_CADDY_TLS_CA_FILE}" == /current/ca.pem ]]
+  [[ "${WEAVE_CADDY_TLS_CERT_FILE}" == /current/cert.pem ]]
+  [[ "${WEAVE_CADDY_TLS_KEY_FILE}" == /current/key.pem ]]
+  [[ "${WEAVE_E2E_STACK_SCOPE}" == persistent ]]
+  [[ -z "${WEAVE_E2E_RUN_ID:-}" ]]
+  [[ -z "${WEAVE_E2E_RUN_NAMESPACE:-}" ]]
 ) || fail "persistent bootstrap credentials or current TLS path overrides were not restored"
 
 if (
   export WEAVE_DOGFOOD_BOOTSTRAP_ENV="${bootstrap_env}"
-  export WEAVE_DOGFOOD_DEPLOYMENT_SCOPE=persistent-dogfood
-  export TF_VAR_create_test_user=false
-  export TF_VAR_isolated_e2e_enabled=false
-  export TF_VAR_isolated_e2e_namespace=caller-supplied-isolated-run
+  export WEAVE_E2E_STACK_SCOPE=persistent
+  export WEAVE_E2E_RUN_ID=caller-supplied-isolated-run
   # shellcheck source=infra/weave-workspace/persistent-dogfood-observation.sh
   source "${SCRIPT}"
   load_environment
@@ -172,7 +151,7 @@ mailpit_capture="$({
   export PATH="${capture_bin}:${PATH}"
   # shellcheck source=infra/weave-workspace/persistent-dogfood-observation.sh
   source "${SCRIPT}"
-  TF_VAR_mailpit_web_host_port=8025 mailpit_summary
+  WEAVE_MAILPIT_WEB_HOST_PORT=8025 mailpit_summary
 })"
 expected_database_hash="$(printf 'fixture-mailpit-db' | shasum -a 256 | awk '{print $1}')"
 jq -e --arg expectedHash "${expected_database_hash}" '

@@ -102,9 +102,6 @@ public final class CanonicalDomainRegistry {
 
     public static List<CanonicalDomainRegistryEntryResponse> domains() {
         return List.of(
-                domain("identity", "Identity", "Authentication, identity sources, accounts, groups, roles, service principals, and deprovisioning boundaries.",
-                        List.of("Subject", "IdentitySource", "Group", "Role", "CapabilityProfile", "LoginSession"),
-                        List.of("identity-idm")),
                 domain("people", "People", "Provider-neutral people/profile directory separate from authentication credentials and email primary keys.",
                         List.of("Person", "Membership", "Profile", "ContactMethod", "Team", "Guest", "ServiceAccountRef"),
                         List.of()),
@@ -169,14 +166,6 @@ public final class CanonicalDomainRegistry {
 
     private static Map<String, String> providerRealityLevels(String key) {
         return switch (key) {
-            case "identity" -> Map.of(
-                    "keycloak-realm", "release_ready",
-                    "generic-oidc", "release_ready",
-                    "generic-saml", "contract_only",
-                    "scim-ldap", "contract_only",
-                    "entra-id", "contract_only",
-                    "authentik", "contract_only",
-                    "auth0", "contract_only");
             case "chat" -> Map.of(
                     "synapse-homeserver", "release_ready",
                     "microsoft-teams", "contract_only",

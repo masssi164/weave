@@ -5,9 +5,9 @@ import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -19,7 +19,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave"
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
+        "weave.identity.invitations.bootstrap-owner.enabled=true",
+        "weave.identity.invitations.bootstrap-owner.token-file=/openapi-export/owner-bootstrap-token"
 })
 @AutoConfigureMockMvc
 class OpenApiDocumentationTest {
@@ -27,7 +29,7 @@ class OpenApiDocumentationTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @Test
@@ -41,6 +43,8 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/health/ready']").exists())
                 .andExpect(jsonPath("$.paths['/api/platform/config']").exists())
                 .andExpect(jsonPath("$.paths['/api/platform/status']").exists())
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.operationId")
+                        .value("bootstrapOwnerInvitation"))
                 .andExpect(jsonPath("$.paths['/api/profile']").exists())
                 .andExpect(jsonPath("$.paths['/api/profile'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/profile'].get.operationId").value("getProductProfile"))
@@ -85,8 +89,8 @@ class OpenApiDocumentationTest {
                         .value("#/components/schemas/WorkspaceHomeResponse"))
                 .andExpect(jsonPath("$.paths['/api/workspace/release-readiness']").exists())
                 .andExpect(jsonPath("$.paths['/api/providers/status']").exists())
-                .andExpect(jsonPath("$.paths['/api/v1/workspace/capabilities']").exists())
-                .andExpect(jsonPath("$.paths['/api/v1/workspace/release-readiness']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/workspace/capabilities']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/workspace/release-readiness']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/interop/status']").exists())
                 .andExpect(jsonPath("$.paths['/api/interop/slack/status']").exists())
                 .andExpect(jsonPath("$.paths['/api/interop/slack/oauth/callback']").exists())
@@ -153,6 +157,7 @@ class OpenApiDocumentationTest {
                         "supportRef")))
                 .andExpect(jsonPath("$.components.responses.UnauthorizedError.description").value("Missing or invalid bearer token."))
                 .andExpect(jsonPath("$.components.securitySchemes['bearer-jwt'].type").value("http"))
+                .andExpect(jsonPath("$.components.securitySchemes['owner-bootstrap-token'].type").value("apiKey"))
                 .andReturn();
 
         String exportPath = System.getProperty("weave.openapi.export.path");

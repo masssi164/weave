@@ -1,16 +1,18 @@
 package com.massimotter.weave.backend.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.audit.JpaAuditEventPublisher;
 import com.massimotter.weave.backend.audit.FileAuditEventPublisher;
-import com.massimotter.weave.backend.audit.JdbcAuditEventPublisher;
 import com.massimotter.weave.backend.boards.local.LocalWorkspaceBoardsRepository;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRepository;
-import java.util.UUID;
+import com.massimotter.weave.backend.persistence.jpa.audit.AuditEventJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class BoardsRuntimeConfigurationTest {
 
@@ -46,35 +48,22 @@ class BoardsRuntimeConfigurationTest {
     }
 
     @Test
-    void auditEventsDefaultToFileBackedPublisher() {
-        contextRunner().run(context -> {
-            assertThat(context.getBeansOfType(AuditEventPublisher.class))
-                    .hasSize(1)
-                    .containsValue(context.getBean(FileAuditEventPublisher.class));
-            assertThat(context).doesNotHaveBean(JdbcAuditEventPublisher.class);
-        });
+    void boardsConfigurationDoesNotCreateAPersistenceFallback() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(BoardsRuntimeConfiguration.class)
+                .withPropertyValues("weave.audit.events.storage.mode=jpa")
+                .withBean(RestClient.Builder.class, RestClient::builder)
+                .run(context -> assertThat(context).doesNotHaveBean(AuditEventPublisher.class));
     }
 
     @Test
-    void jdbcAuditStorageModeDisablesFilePublisherAndEnablesJdbcPublisher() {
-        contextRunner()
-                .withPropertyValues(
-                        "weave.audit.events.storage.mode=jdbc",
-                        "weave.persistence.jdbc.url=jdbc:h2:mem:" + UUID.randomUUID()
-                                + ";MODE=PostgreSQL;DATABASE_TO_UPPER=true;DB_CLOSE_DELAY=-1",
-                        "weave.persistence.jdbc.username=sa",
-                        "weave.persistence.jdbc.password=",
-                        "weave.persistence.jdbc.driver-class-name=org.h2.Driver")
-                .run(context -> {
-                    assertThat(context).hasSingleBean(AuditEventPublisher.class);
-                    assertThat(context).hasSingleBean(JdbcAuditEventPublisher.class);
-                    assertThat(context).doesNotHaveBean(FileAuditEventPublisher.class);
-                });
-    }
+    void persistenceCompositionPublishesOnlyTheJpaAuditAuthority() {
+        JpaAuditEventPublisher publisher = new WeavePersistenceConfiguration()
+                .jpaAuditEventPublisher(
+                        mock(AuditEventJpaRepository.class),
+                        tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());
 
-    private ApplicationContextRunner contextRunner() {
-        return new ApplicationContextRunner()
-                .withUserConfiguration(BoardsRuntimeConfiguration.class, WeavePersistenceConfiguration.class)
-                .withBean(ObjectMapper.class, () -> new ObjectMapper().findAndRegisterModules());
+        assertThat(publisher).isInstanceOf(AuditEventPublisher.class);
+        assertThat(publisher).isNotInstanceOf(FileAuditEventPublisher.class);
     }
 }

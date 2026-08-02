@@ -145,7 +145,7 @@ class MultiUserE2EEvidenceTest(unittest.TestCase):
         self.identity.write_text(
             json.dumps(
                 {
-                    "schemaVersion": "weave.isolated-e2e-identities.v1",
+                    "schemaVersion": "weave.invitation-activated-collaboration.v1",
                     "namespaceSha256": "d" * 64,
                     "supportSafe": True,
                     "credentialsIncluded": False,

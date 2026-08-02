@@ -4,29 +4,9 @@
   "@appTitle": {
     "description": "Application title shown in the app bar and system task switcher"
   },
-  "welcomeTitle": "Welcome to Weave",
-  "@welcomeTitle": {
-    "description": "Main heading on the welcome screen"
-  },
-  "welcomeSubtitle": "Join your organization through an invite or sign-in handoff. Provider setup stays with your admins.",
-  "@welcomeSubtitle": {
-    "description": "Subtitle text below the welcome heading"
-  },
-  "continueButton": "Join your organization",
-  "@continueButton": {
-    "description": "Label for the primary CTA on the welcome screen"
-  },
   "setupTitle": "Organization access",
   "@setupTitle": {
     "description": "Title for the setup flow screen"
-  },
-  "setupProviderStepTitle": "Configure provider categories",
-  "@setupProviderStepTitle": {
-    "description": "Title for the setup provider and issuer step"
-  },
-  "setupProviderStepDescription": "Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Agent Runtime Control visible as product categories before members join.",
-  "@setupProviderStepDescription": {
-    "description": "Description shown in the setup provider step"
   },
   "setupServicesStepTitle": "Review Backend API",
   "@setupServicesStepTitle": {
@@ -40,7 +20,7 @@
   "@providerCategorySummaryTitle": {
     "description": "Title for the provider category summary shown to admins during setup and workspace health"
   },
-  "providerCategorySummaryDescription": "Weave tracks collaboration categories first. Provider names below are current dogfood choices for admins/operators, not member-facing product names.",
+  "providerCategorySummaryDescription": "Keycloak is the fixed platform identity authority. The remaining rows are collaboration categories whose provider names are admin/operator choices, not member-facing product names.",
   "@providerCategorySummaryDescription": {
     "description": "Description explaining provider categories and dogfood defaults"
   },
@@ -52,6 +32,10 @@
   "@providerCategoryStatusCurrentDefault": {
     "description": "Status pill for a provider category using the current dogfood provider choice"
   },
+  "platformIdentityStatusFixedAuthority": "Fixed platform authority",
+  "@platformIdentityStatusFixedAuthority": {
+    "description": "Status pill for the non-selectable Keycloak platform identity boundary"
+  },
   "providerCategoryStatusAdminSetupRequired": "Admin setup required",
   "@providerCategoryStatusAdminSetupRequired": {
     "description": "Status pill for a provider category that requires admin setup before member use"
@@ -60,13 +44,13 @@
   "@providerCategoryStatusDisabledByDefault": {
     "description": "Status pill for a provider category disabled by default"
   },
-  "providerCategoryIdentityTitle": "Identity/IDM",
-  "@providerCategoryIdentityTitle": {
-    "description": "Provider category title for identity and IDM"
+  "platformIdentityTitle": "Platform identity",
+  "@platformIdentityTitle": {
+    "description": "Title for the fixed platform identity and security boundary"
   },
-  "providerCategoryIdentityDetail": "Keycloak/Auth is the current dogfood choice; Entra ID, Authentik, or another OIDC/SAML source can map to this category.",
-  "@providerCategoryIdentityDetail": {
-    "description": "Provider category detail for identity and IDM"
+  "platformIdentityDetail": "Keycloak/Auth is the platform authority. Entra ID, Authentik/Auth0, other OIDC/SAML sources, or LDAP/AD integrate upstream through Keycloak federation or brokering.",
+  "@platformIdentityDetail": {
+    "description": "Detail for the fixed Keycloak platform identity boundary"
   },
   "providerCategoryChatTitle": "Chat",
   "@providerCategoryChatTitle": {
@@ -421,7 +405,7 @@
   "@chatOverviewTitle": {
     "description": "Title for the chat overview/home surface"
   },
-  "chatOverviewDescription": "Your personal messages, favorites, channels, and AI chats are grouped here so the workspace starts from intent instead of a flat room list.",
+  "chatOverviewDescription": "Your personal messages, favorites, and channels are grouped here so the workspace starts from intent instead of a flat room list.",
   "@chatOverviewDescription": {
     "description": "Description for the chat overview/home surface"
   },
@@ -429,7 +413,7 @@
   "@chatHomeHeroTitle": {
     "description": "Title for the professional Weave Home cockpit card"
   },
-  "chatHomeHeroDescription": "Start with messages, channel workspaces, and governed AI areas that are actually available to you.",
+  "chatHomeHeroDescription": "Start with messages and channel workspaces that are actually available to you.",
   "@chatHomeHeroDescription": {
     "description": "Description for the professional Weave Home cockpit card"
   },
@@ -460,19 +444,6 @@
       }
     }
   },
-  "chatHomeAiMetricReady": "{count, plural, =1 {1 governed AI chat} other {{count} governed AI chats}}",
-  "@chatHomeAiMetricReady": {
-    "description": "Metric summarizing governed AI chats when available in Weave Home",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "chatHomeAiMetricDisabled": "AI governed by workspace policy",
-  "@chatHomeAiMetricDisabled": {
-    "description": "Metric copy for AI chats when no governed AI chat is available"
-  },
   "chatHomeContinueButton": "Open next work item",
   "@chatHomeContinueButton": {
     "description": "Button that opens the highest-priority available conversation from Weave Home"
@@ -490,11 +461,11 @@
   "@chatFavoritesSectionTitle": {
     "description": "Title for the favorites section in the chat overview"
   },
-  "chatFavoritesSectionDescription": "Pinned people, channels, and AI chats you want to reach first.",
+  "chatFavoritesSectionDescription": "Pinned people and channels you want to reach first.",
   "@chatFavoritesSectionDescription": {
     "description": "Description for the favorites section in the chat overview"
   },
-  "chatFavoritesSectionEmpty": "No favorites yet. Important direct messages, channels, and AI chats marked as favorites stay here.",
+  "chatFavoritesSectionEmpty": "No favorites yet. Important direct messages and channels marked as favorites stay here.",
   "@chatFavoritesSectionEmpty": {
     "description": "Empty state for the favorites section in the chat overview"
   },
@@ -521,106 +492,6 @@
   "chatChannelsSectionEmpty": "No channels are available yet.",
   "@chatChannelsSectionEmpty": {
     "description": "Empty state for the channel section in the chat overview"
-  },
-  "chatAiChatsSectionTitle": "AI chats",
-  "@chatAiChatsSectionTitle": {
-    "description": "Title for the AI chats section in the chat overview"
-  },
-  "chatAiChatsSectionDescription": "Specialized assistant and agent chats live in their own area.",
-  "@chatAiChatsSectionDescription": {
-    "description": "Description for the AI chats section in the chat overview"
-  },
-  "chatAiChatsSectionEmpty": "AI chats are not enabled for this workspace. A workspace owner or admin can enable governed assistants after policy, consent, and audit controls are ready.",
-  "@chatAiChatsSectionEmpty": {
-    "description": "Empty state for the AI chats section in the chat overview"
-  },
-  "chatAgentGovernanceTitle": "Agent chats are governed by your workspace",
-  "@chatAgentGovernanceTitle": {
-    "description": "Title for the governed agent chat preview panel"
-  },
-  "chatAgentGovernanceDescription": "Agents can help inside Weave only after an owner or admin enables a package, chooses scopes, and keeps consent and audit visible.",
-  "@chatAgentGovernanceDescription": {
-    "description": "Description for the governed agent chat preview panel"
-  },
-  "chatAgentContextPackTitle": "Context pack before action",
-  "@chatAgentContextPackTitle": {
-    "description": "Title for the agent context pack explanation card"
-  },
-  "chatAgentContextPackDescription": "When an agent is available, Weave will show what context is sent for this request before the agent uses it.",
-  "@chatAgentContextPackDescription": {
-    "description": "Description for the agent context pack explanation card"
-  },
-  "chatAgentContextPackScopedBullet": "Context is scoped to a selected chat, file, calendar event, board, or explicit workspace source.",
-  "@chatAgentContextPackScopedBullet": {
-    "description": "Bullet explaining scoped agent context"
-  },
-  "chatAgentContextPackConsentBullet": "You will see permission hints before starting or approving an agent action.",
-  "@chatAgentContextPackConsentBullet": {
-    "description": "Bullet explaining consent and permission hints for agent context"
-  },
-  "chatAgentContextPackNoSurveillanceBullet": "Agents do not continuously read rooms in the background.",
-  "@chatAgentContextPackNoSurveillanceBullet": {
-    "description": "Bullet explaining that agents are not surveillance-aware"
-  },
-  "chatAgentGovernanceAuditNote": "Agent creation, context access, tool/action execution, approval, and revocation must be audit-ready before runtime enablement.",
-  "@chatAgentGovernanceAuditNote": {
-    "description": "Audit and approval note for the governed agent chat preview panel"
-  },
-  "chatAgentAvailabilityPreview": "Disabled by policy",
-  "@chatAgentAvailabilityPreview": {
-    "description": "Agent availability label for a gated agent"
-  },
-  "chatAgentAvailabilityAdminSetup": "Admin setup required",
-  "@chatAgentAvailabilityAdminSetup": {
-    "description": "Agent availability label when setup must be done by an admin"
-  },
-  "chatAgentAvailabilityBlocked": "Blocked by policy",
-  "@chatAgentAvailabilityBlocked": {
-    "description": "Agent availability label when policy blocks an agent"
-  },
-  "chatAgentPersonalAssistantTitle": "Personal assistant",
-  "@chatAgentPersonalAssistantTitle": {
-    "description": "Title for the personal assistant preview tile"
-  },
-  "chatAgentPersonalAssistantDescription": "A private assistant chat for drafting, summaries, and reminders can be enabled only after workspace policy, consent, and audit controls are ready.",
-  "@chatAgentPersonalAssistantDescription": {
-    "description": "Description for the personal assistant preview tile"
-  },
-  "chatAgentChannelAgentTitle": "Channel agent",
-  "@chatAgentChannelAgentTitle": {
-    "description": "Title for the channel agent preview tile"
-  },
-  "chatAgentChannelAgentDescription": "A helper for a channel or project space can be enabled only through an admin-approved package.",
-  "@chatAgentChannelAgentDescription": {
-    "description": "Description for the channel agent preview tile"
-  },
-  "chatAgentPersonalScope": "Uses only context you choose for the current request; workspace policy decides which skills are available.",
-  "@chatAgentPersonalScope": {
-    "description": "Scope explanation for personal assistant preview"
-  },
-  "chatAgentPersonalBoundary": "No continuous room reading; a context pack is assembled only after you start or approve a request.",
-  "@chatAgentPersonalBoundary": {
-    "description": "Boundary explanation for personal assistant preview"
-  },
-  "chatAgentPersonalAudit": "Creation, context access, tool use, and permission changes will be auditable before runtime use.",
-  "@chatAgentPersonalAudit": {
-    "description": "Audit explanation for personal assistant preview"
-  },
-  "chatAgentChannelScope": "An owner or admin must enable the package and choose allowed chat, files, calendar, and board scopes.",
-  "@chatAgentChannelScope": {
-    "description": "Scope explanation for channel agent preview"
-  },
-  "chatAgentChannelBoundary": "The agent sees named spaces and explicit context packs, not every message in the workspace.",
-  "@chatAgentChannelBoundary": {
-    "description": "Boundary explanation for channel agent preview"
-  },
-  "chatAgentChannelAudit": "Approvals, revocations, and action attempts stay visible to admins without exposing secrets to the app.",
-  "@chatAgentChannelAudit": {
-    "description": "Audit explanation for channel agent preview"
-  },
-  "chatAgentStartDisabledButton": "Unavailable until enabled",
-  "@chatAgentStartDisabledButton": {
-    "description": "Disabled action label for preview agent chats"
   },
   "chatLoadingLabel": "Loading conversations…",
   "@chatLoadingLabel": {
@@ -2099,18 +1970,6 @@
   "@settingsWorkspaceMatrixServerBodiesReadable": {
     "description": "Value shown if backend diagnostics claim Matrix message bodies are server-readable"
   },
-  "settingsWorkspaceMatrixAgentWritesLabel": "Agent writes",
-  "@settingsWorkspaceMatrixAgentWritesLabel": {
-    "description": "Label for bot, assistant, or connector write policy in Matrix readiness"
-  },
-  "settingsWorkspaceMatrixAgentWritesBlocked": "Blocked/fail-closed",
-  "@settingsWorkspaceMatrixAgentWritesBlocked": {
-    "description": "Value when Matrix bot/connector writes are blocked or fail closed"
-  },
-  "settingsWorkspaceMatrixAgentWritesReview": "Review policy",
-  "@settingsWorkspaceMatrixAgentWritesReview": {
-    "description": "Value shown when Matrix bot/connector write policy is not clearly fail-closed"
-  },
   "settingsWorkspaceCapabilityReady": "Ready",
   "@settingsWorkspaceCapabilityReady": {
     "description": "Readiness label for a ready capability"
@@ -2846,54 +2705,6 @@
   "chatRoomArchivedEmptyGuidance": "Review archived messages to restore one, or wait here for new messages.",
   "@chatRoomArchivedEmptyGuidance": {
     "description": "Guidance shown when all loaded messages are archived from the active timeline"
-  },
-  "chatRoomContextPackTitle": "Context for this room",
-  "@chatRoomContextPackTitle": {
-    "description": "Heading for the explicit context preview shown in a chat room"
-  },
-  "chatRoomContextPackDescription": "Weave will only include scoped context that you can see here, such as this room, selected files, linked tasks, and recent decisions.",
-  "@chatRoomContextPackDescription": {
-    "description": "Description for the explicit context preview shown in a chat room"
-  },
-  "chatRoomContextPackCounts": "{includedCount, plural, =0 {No sources included} =1 {1 source included} other {{includedCount} sources included}}. {availableCount, plural, =0 {No optional sources available} =1 {1 optional source available} other {{availableCount} optional sources available}}.",
-  "@chatRoomContextPackCounts": {
-    "description": "Accessibility summary of included and available context sources in a room",
-    "placeholders": {
-      "includedCount": {
-        "type": "int"
-      },
-      "availableCount": {
-        "type": "int"
-      }
-    }
-  },
-  "chatRoomContextPackNoBackgroundReading": "No agent is reading this room in the background.",
-  "@chatRoomContextPackNoBackgroundReading": {
-    "description": "Safety note for the explicit context preview in a chat room"
-  },
-  "chatRoomContextCurrentRoomLabel": "Current room",
-  "@chatRoomContextCurrentRoomLabel": {
-    "description": "Context chip label for the currently opened chat room"
-  },
-  "chatRoomContextSelectedFilesLabel": "Selected files",
-  "@chatRoomContextSelectedFilesLabel": {
-    "description": "Context chip label for files explicitly selected by the user"
-  },
-  "chatRoomContextLinkedTasksLabel": "Linked tasks",
-  "@chatRoomContextLinkedTasksLabel": {
-    "description": "Context chip label for tasks linked to a room"
-  },
-  "chatRoomContextRecentDecisionsLabel": "Recent decisions",
-  "@chatRoomContextRecentDecisionsLabel": {
-    "description": "Context chip label for recent decisions linked to a room"
-  },
-  "chatRoomContextIncludedStatus": "Included",
-  "@chatRoomContextIncludedStatus": {
-    "description": "Accessibility status for context that is included in the preview"
-  },
-  "chatRoomContextAvailableStatus": "Available when selected",
-  "@chatRoomContextAvailableStatus": {
-    "description": "Accessibility status for optional context that is not included yet"
   },
   "chatDecisionEvidencePanelTitle": "Decisions, risks, questions, and evidence",
   "@chatDecisionEvidencePanelTitle": {
@@ -4117,70 +3928,6 @@
   "@chatContextAgentHintDescription": {
     "description": "Context hint body for scoped agent context packs"
   },
-  "agentCapabilityPolicyTitle": "AI agent capability governance",
-  "@agentCapabilityPolicyTitle": {
-    "description": "Settings card title for AI agent capability governance"
-  },
-  "agentCapabilityPolicyAdminDescription": "Owners and admins decide which agent packages and connectors can be used. This capability stays off until permission, consent, and audit controls are connected.",
-  "@agentCapabilityPolicyAdminDescription": {
-    "description": "Admin-facing description for AI agent capability governance"
-  },
-  "agentCapabilityPolicyUserDescription": "AI agent chats are not enabled for this workspace yet. You can keep using Weave normally; an owner or admin must turn this on first.",
-  "@agentCapabilityPolicyUserDescription": {
-    "description": "Member-facing description for AI agent capability governance"
-  },
-  "agentCapabilityPolicyFailClosedNotice": "Agent capabilities are blocked until Weave can confirm your role and the workspace policy.",
-  "@agentCapabilityPolicyFailClosedNotice": {
-    "description": "Fail-closed notice when policy cannot be trusted"
-  },
-  "agentCapabilityPolicyManageDisabledButton": "Management unavailable until admin setup is complete",
-  "@agentCapabilityPolicyManageDisabledButton": {
-    "description": "Disabled button label for future agent capability management"
-  },
-  "agentCapabilityPolicyAskAdminHint": "Need an agent for your team? Ask a workspace owner or admin to review agent capabilities when they are available.",
-  "@agentCapabilityPolicyAskAdminHint": {
-    "description": "Hint for non-admin users"
-  },
-  "agentCapabilityPolicyAdminStateHint": "Current state: disabled by policy. Owner/admin review is required before users can start an agent.",
-  "@agentCapabilityPolicyAdminStateHint": {
-    "description": "Admin state hint for disabled agent capabilities"
-  },
-  "agentCapabilityPersonalAssistantTitle": "Personal assistant",
-  "@agentCapabilityPersonalAssistantTitle": {
-    "description": "Agent capability title for personal assistant"
-  },
-  "agentCapabilityPersonalAssistantDescription": "Will only use context you choose for a request, after your workspace enables the capability.",
-  "@agentCapabilityPersonalAssistantDescription": {
-    "description": "Agent capability description for personal assistant"
-  },
-  "agentCapabilityChannelAgentTitle": "Channel agent",
-  "@agentCapabilityChannelAgentTitle": {
-    "description": "Agent capability title for channel agent"
-  },
-  "agentCapabilityChannelAgentDescription": "Requires an owner or admin to choose which channels, files, calendar items, or boards the agent may use.",
-  "@agentCapabilityChannelAgentDescription": {
-    "description": "Agent capability description for channel agent"
-  },
-  "agentCapabilityAvailabilityPreviewOnly": "Admin setup required",
-  "@agentCapabilityAvailabilityPreviewOnly": {
-    "description": "Agent capability availability label when admin setup is required"
-  },
-  "agentCapabilityAvailabilityAdminSetupRequired": "Admin setup required",
-  "@agentCapabilityAvailabilityAdminSetupRequired": {
-    "description": "Agent capability availability label when admin setup is required"
-  },
-  "agentCapabilityAvailabilityBlocked": "Blocked",
-  "@agentCapabilityAvailabilityBlocked": {
-    "description": "Agent capability availability label for blocked state"
-  },
-  "agentCapabilityPolicyErrorTitle": "Agent capability policy is unavailable.",
-  "@agentCapabilityPolicyErrorTitle": {
-    "description": "Error message for AI agent capability policy settings section"
-  },
-  "agentCapabilityPolicyLoading": "Checking agent capability policy…",
-  "@agentCapabilityPolicyLoading": {
-    "description": "Loading message for AI agent capability policy settings section"
-  },
   "workflowPreviewTitle": "Active workflows",
   "@workflowPreviewTitle": {
     "description": "Title for the context-driven workflow preview panel"
@@ -4604,70 +4351,11 @@
   "@channelWorkspaceStatusDegraded": {
     "description": "Status chip for a degraded channel workspace surface"
   },
-  "agentCapabilityAvailabilityDisabledByPolicy": "Disabled by policy",
-  "@agentCapabilityAvailabilityDisabledByPolicy": {
-    "description": "Availability chip for an agent capability disabled by workspace policy"
-  },
-  "chatWeaverBetaTitle": "Weaver Beta helper",
-  "@chatWeaverBetaTitle": {
-    "description": "Title for the bounded Weaver helper card in chat home"
-  },
-  "chatWeaverBetaDescription": "Weaver stays inside this Weave workspace and can only use approved capabilities. Members see approved Weave actions, not internal runtime catalogs.",
-  "@chatWeaverBetaDescription": {
-    "description": "Description for bounded Weaver helper card"
-  },
-  "chatWeaverBetaConnectedState": "Connected",
-  "@chatWeaverBetaConnectedState": {
-    "description": "Weaver connection state label"
-  },
-  "chatWeaverBetaUnconnectedState": "Unconnected",
-  "@chatWeaverBetaUnconnectedState": {
-    "description": "Weaver connection state label"
-  },
-  "chatWeaverBetaEnabledState": "Weaver enabled",
-  "@chatWeaverBetaEnabledState": {
-    "description": "Weaver enabled state label"
-  },
-  "chatWeaverBetaDisabledState": "Weaver disabled",
-  "@chatWeaverBetaDisabledState": {
-    "description": "Weaver disabled state label"
-  },
-  "chatWeaverBetaCapabilityUnavailableState": "Capability unavailable",
-  "@chatWeaverBetaCapabilityUnavailableState": {
-    "description": "Weaver capability unavailable state label"
-  },
-  "chatWeaverBetaApprovalRequiredState": "Approval required for sensitive actions",
-  "@chatWeaverBetaApprovalRequiredState": {
-    "description": "Weaver approval state label"
-  },
-  "chatWeaverBetaDeniedFailedState": "Denied or failed safely",
-  "@chatWeaverBetaDeniedFailedState": {
-    "description": "Weaver denied/failed state label"
-  },
-  "chatWeaverBetaSupportSafeResult": "Results show a summary, status, and audit reference only; secrets and raw provider payloads stay out of the member view.",
-  "@chatWeaverBetaSupportSafeResult": {
-    "description": "Support-safe result note for Weaver helper"
-  },
-  "chatWeaverBetaSemanticLabel": "Weaver Beta helper. Personal helper: {personalState}. Channel helper: {channelState}. Workspace connection: {connectionState}. Results are support-safe and do not expose secrets or raw provider payloads.",
-  "@chatWeaverBetaSemanticLabel": {
-    "description": "Accessibility label for Weaver helper card",
-    "placeholders": {
-      "personalState": {
-        "type": "String"
-      },
-      "channelState": {
-        "type": "String"
-      },
-      "connectionState": {
-        "type": "String"
-      }
-    }
-  },
   "setupMemberHandoffTitle": "Join from an invite or organization sign-in",
   "@setupMemberHandoffTitle": {
     "description": "Title for the normal member handoff-first setup screen"
   },
-  "setupMemberHandoffDescription": "Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.",
+  "setupMemberHandoffDescription": "Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you for technical service settings.",
   "@setupMemberHandoffDescription": {
     "description": "Description for the normal member handoff-first setup screen"
   },
@@ -4746,6 +4434,10 @@
   "memberHandoffErrorGuidance": "The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.",
   "@memberHandoffErrorGuidance": {
     "description": "Support-safe guidance when member handoff consumption fails"
+  },
+  "memberHandoffSignInRetryGuidance": "Sign-in did not complete. Try again in the system browser or ask your workspace admin to verify your access.",
+  "@memberHandoffSignInRetryGuidance": {
+    "description": "Support-safe guidance after sign-in from a consumed member handoff fails"
   },
   "memberHandoffTlsErrorGuidance": "Weave could not reach the workspace start configuration over trusted TLS. For local dogfood, install and fully trust the Weave Local Development CA on this iPhone, or ask your admin for a publicly trusted organization sign-in link.",
   "@memberHandoffTlsErrorGuidance": {

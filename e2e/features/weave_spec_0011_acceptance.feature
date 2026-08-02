@@ -10,7 +10,7 @@ Feature: WEAVE-SPEC-0011 Weaver governed PA target acceptance
     And Weave Control reports the configured Keycloak group and derived agent-runtime.entitled capability before rollout
     When a member lacks policy approval or the authoritative entitlement group
     Then no runtime cell workload identity RuntimeProfile or MCP access is provisioned
-    And the catalog records the bounded domains agent-runtime-control, identity-idm, admin-health-ops
+    And the catalog records the bounded domains agent-runtime-control, admin-health-ops, admin-health-ops
 
   @weave-spec-0011-memory-isolation
   Scenario: Runtime state is external encrypted and isolated per cell
@@ -18,7 +18,7 @@ Feature: WEAVE-SPEC-0011 Weaver governed PA target acceptance
     And the acceptance scenario is mapped to offline spec evidence marker WEAVE_SPEC_0011_MEMORY_ISOLATION
     When two entitled cells checkpoint runtime-internal state
     Then each cell has zero durable local bytes and separate encrypted fenced generations with deletion retention privacy and audit rules
-    And the catalog records the bounded domains agent-runtime-control, identity-idm, decisions-evidence
+    And the catalog records the bounded domains agent-runtime-control, admin-health-ops, decisions-evidence
 
   @weave-spec-0011-domain-tool-approval
   Scenario: Workload MCP stays empty until domain tools have current action evidence contracts

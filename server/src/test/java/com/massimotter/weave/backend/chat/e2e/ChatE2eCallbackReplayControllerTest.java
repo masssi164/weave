@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.chat.e2e;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.provider.synapse.MatrixApplicationServiceController;
 import com.massimotter.weave.backend.config.ChatE2eProofProperties;
 import java.nio.charset.StandardCharsets;

@@ -40,17 +40,16 @@ The target surfaces are:
 - OpenAPI: control, admin, setup, revoke, manifest, and generated convenience.
 - Providers: southbound ports/adapters only.
 
-Strategic JSON/file runtime truth is not preserved as the target. ADR-007 keeps
-some file-backed defaults until #1019 completes parity, rollback, and operator
-migration evidence; that is retirement debt, not a compatibility contract for
-new slices. A file-backed path may remain only when it is one of:
+Strategic JSON/file runtime truth is not preserved as the target. Strategic
+runtime state has one JPA authority and no selectable file-store fallback. A
+file-backed path may remain only when it is one of:
 
 - a deterministic fixture used by tests or evidence;
 - a dev-only local scaffold that production and dogfood profiles cannot select;
-- the currently documented #1019 retirement debt while its owning issue remains
-  open;
 - a focused one-shot import source for real dogfood data, with backup,
-  verification, rollback, and deletion/fencing evidence.
+  verification, rollback, and deletion/fencing evidence;
+- a mounted cryptographic or policy `SecretRef`, which is configuration material
+  and not an alternative persistence authority.
 
 ## Boundary rules
 

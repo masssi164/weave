@@ -11,7 +11,6 @@ class ChatConversation {
     this.previewText,
     this.lastActivityAt,
     this.isFavorite = false,
-    this.isAiChat = false,
   });
 
   final String id;
@@ -23,7 +22,6 @@ class ChatConversation {
   final bool isInvite;
   final bool isDirectMessage;
   final bool isFavorite;
-  final bool isAiChat;
 }
 
 class ChatOverview {
@@ -31,7 +29,6 @@ class ChatOverview {
     required this.favorites,
     required this.personalMessages,
     required this.channels,
-    required this.aiChats,
   });
 
   factory ChatOverview.fromConversations(List<ChatConversation> conversations) {
@@ -40,19 +37,10 @@ class ChatOverview {
           .where((conversation) => conversation.isFavorite)
           .sortedByActivity(),
       personalMessages: conversations
-          .where(
-            (conversation) =>
-                conversation.isDirectMessage && !conversation.isAiChat,
-          )
+          .where((conversation) => conversation.isDirectMessage)
           .sortedByActivity(),
       channels: conversations
-          .where(
-            (conversation) =>
-                !conversation.isDirectMessage && !conversation.isAiChat,
-          )
-          .sortedByActivity(),
-      aiChats: conversations
-          .where((conversation) => conversation.isAiChat)
+          .where((conversation) => !conversation.isDirectMessage)
           .sortedByActivity(),
     );
   }
@@ -60,7 +48,6 @@ class ChatOverview {
   final List<ChatConversation> favorites;
   final List<ChatConversation> personalMessages;
   final List<ChatConversation> channels;
-  final List<ChatConversation> aiChats;
 
   int get unreadCount {
     final unique = <String>{};
@@ -70,7 +57,6 @@ class ChatOverview {
       ...favorites,
       ...personalMessages,
       ...channels,
-      ...aiChats,
     ]) {
       if (unique.add(conversation.id)) {
         total += conversation.unreadCount;
@@ -86,7 +72,6 @@ class ChatOverview {
       ...favorites,
       ...personalMessages,
       ...channels,
-      ...aiChats,
     ]) {
       unique.putIfAbsent(conversation.id, () => conversation);
     }

@@ -443,7 +443,7 @@ def require_authorization_evidence(
 
 def identity_hashes(identity: dict[str, Any]) -> tuple[dict[str, str], str]:
     require_support_safe_document(identity, "identity evidence")
-    if identity.get("schemaVersion") != "weave.isolated-e2e-identities.v1":
+    if identity.get("schemaVersion") != "weave.invitation-activated-collaboration.v1":
         raise EvidenceError("identity evidence schemaVersion is unsupported")
     if identity.get("supportSafe") is not True or identity.get("credentialsIncluded") is not False:
         raise EvidenceError("identity evidence is not support-safe")

@@ -1,0 +1,103 @@
+tasks.withType(Test).configureEach {
+    // The suite intentionally boots many isolated Spring/JPA contexts. Keep one
+    // bounded fork while providing enough heap for the complete architecture gate.
+    maxParallelForks = 1
+    maxHeapSize = '1g'
+
+    def identityReferenceKey = layout.buildDirectory
+            .file("test-secretrefs/${name}/identity-reference-hmac-key")
+    systemProperty(
+            'weave.identity.invitations.keycloak.reference-hmac-secret-file',
+            identityReferenceKey.get().asFile.absolutePath)
+    doFirst {
+        def keyPath = identityReferenceKey.get().asFile.toPath()
+        java.nio.file.Files.createDirectories(keyPath.parent)
+        if (java.nio.file.Files.isSymbolicLink(keyPath)) {
+            throw new GradleException('identity-reference test SecretRef must not be a symlink')
+        }
+        if (!java.nio.file.Files.exists(keyPath)) {
+            byte[] random = new byte[48]
+            new java.security.SecureRandom().nextBytes(random)
+            byte[] encoded = java.util.Base64.urlEncoder.withoutPadding().encode(random)
+            java.nio.file.Files.write(
+                    keyPath,
+                    encoded,
+                    java.nio.file.StandardOpenOption.CREATE_NEW,
+                    java.nio.file.StandardOpenOption.WRITE)
+            try {
+                java.nio.file.Files.setPosixFilePermissions(
+                        keyPath,
+                        java.nio.file.attribute.PosixFilePermissions.fromString('rw-------'))
+            } catch (UnsupportedOperationException ignored) {
+                // Windows test workers do not expose POSIX file permissions.
+            }
+            java.util.Arrays.fill(random, (byte) 0)
+            java.util.Arrays.fill(encoded, (byte) 0)
+        }
+    }
+}
+
+tasks.named('test') {
+    dependsOn tasks.named('buildMatrixRustCoreJni')
+    useJUnitPlatform {
+        excludeTags 'postgres'
+    }
+    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
+}
+
+tasks.register('openApiContractExport', Test) {
+    group = 'verification'
+    description = 'Export the server-owned OpenAPI contract without mutating the main test results.'
+    dependsOn tasks.named('buildMatrixRustCoreJni'), tasks.named('testClasses')
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    maxParallelForks = 1
+    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
+    systemProperty 'weave.openapi.export.path', rootProject.layout.buildDirectory
+            .file('openapi/weave-openapi.raw.json')
+            .get()
+            .asFile
+            .absolutePath
+    filter {
+        includeTestsMatching '*OpenApiDocumentationTest'
+    }
+    useJUnitPlatform()
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('postgresJpaTest', Test) {
+    group = 'verification'
+    description = 'Run the authoritative JPA repository, constraint, transaction, and migration contracts against PostgreSQL.'
+    dependsOn tasks.named('buildMatrixRustCoreJni'), tasks.named('testClasses')
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    maxParallelForks = 1
+    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
+    systemProperty 'weave.test.postgres', 'true'
+    filter {
+        includeTestsMatching '*PostgresJpaSchemaValidationTest'
+        includeTestsMatching '*SchemaAuthorityInitializerPostgresTest'
+        includeTestsMatching '*JpaEncryptedRuntimeStateStoreTest'
+        includeTestsMatching '*JpaRuntimeCellRepositoryTest'
+        includeTestsMatching '*JpaRuntimeCommandRepositoryTest'
+        includeTestsMatching '*JpaRuntimeGovernanceRepositoryTest'
+        includeTestsMatching '*JpaRuntimeProfileRepositoryTest'
+        includeTestsMatching '*AgentRuntimeAdminServiceTest'
+        includeTestsMatching '*AgentRuntimeControlServiceTest'
+        includeTestsMatching '*AgentRuntimeWorkloadReconciliationServiceTest'
+        includeTestsMatching '*JpaAuditEventPublisherTest'
+        includeTestsMatching '*JpaCanonicalChatLedgerRecoveryTest'
+        includeTestsMatching '*JpaCanonicalChatStoreTest'
+        includeTestsMatching '*MatrixE2eeStateServicePersistenceTest'
+        includeTestsMatching '*MatrixFacadeClientStateServicePersistenceTest'
+        includeTestsMatching '*JpaProviderSelectionRepositoryTest'
+        includeTestsMatching '*JpaDeviceCredentialRepositoryTest'
+        includeTestsMatching '*AdminControlPlaneServiceTest'
+        includeTestsMatching '*JpaProductProfileOverrideRepositoryTest'
+        includeTestsMatching '*JpaOrganizationBootstrapRepositoryTest'
+        includeTestsMatching '*JpaMigrationRunEvidenceRepositoryTest'
+        includeTestsMatching '*JpaOperationIntentRepositoryPostgresTest'
+        includeTestsMatching '*FilesMutationIntentServicePostgresTest'
+    }
+    useJUnitPlatform()
+}

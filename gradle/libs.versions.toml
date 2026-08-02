@@ -1,0 +1,39 @@
+[versions]
+spring-boot = "4.1.0"
+spring-dependency-management = "1.1.7"
+spring-ai = "2.0.0"
+springdoc = "3.0.3"
+mapstruct = "1.6.3"
+archunit = "1.4.1"
+testcontainers = "2.0.2"
+cucumber = "7.18.1"
+bouncycastle = "1.84"
+h2-test = "2.3.232"
+jcs = "1.1"
+playwright = "1.60.0"
+nimbus-jose-jwt = "10.9"
+aws-sdk = "2.46.8"
+
+[libraries]
+spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
+spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref = "spring-ai" }
+springdoc-webmvc-api = { module = "org.springdoc:springdoc-openapi-starter-webmvc-api", version.ref = "springdoc" }
+mapstruct = { module = "org.mapstruct:mapstruct", version.ref = "mapstruct" }
+mapstruct-processor = { module = "org.mapstruct:mapstruct-processor", version.ref = "mapstruct" }
+archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
+testcontainers-junit = { module = "org.testcontainers:testcontainers-junit-jupiter", version.ref = "testcontainers" }
+testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql", version.ref = "testcontainers" }
+cucumber-java = { module = "io.cucumber:cucumber-java", version.ref = "cucumber" }
+cucumber-spring = { module = "io.cucumber:cucumber-spring", version.ref = "cucumber" }
+cucumber-junit-platform = { module = "io.cucumber:cucumber-junit-platform-engine", version.ref = "cucumber" }
+bouncycastle-bom = { module = "org.bouncycastle:bc-jdk18on-bom", version.ref = "bouncycastle" }
+h2-test = { module = "com.h2database:h2", version.ref = "h2-test" }
+jcs = { module = "io.github.erdtman:java-json-canonicalization", version.ref = "jcs" }
+playwright = { module = "com.microsoft.playwright:playwright", version.ref = "playwright" }
+nimbus-jose-jwt = { module = "com.nimbusds:nimbus-jose-jwt", version.ref = "nimbus-jose-jwt" }
+aws-s3 = { module = "software.amazon.awssdk:s3", version.ref = "aws-sdk" }
+aws-url-connection-client = { module = "software.amazon.awssdk:url-connection-client", version.ref = "aws-sdk" }
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management" }

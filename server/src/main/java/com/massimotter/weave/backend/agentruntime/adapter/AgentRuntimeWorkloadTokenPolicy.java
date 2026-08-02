@@ -44,7 +44,7 @@ public final class AgentRuntimeWorkloadTokenPolicy {
         if (blank(subject)) {
             throw invalid("missing-workload-subject");
         }
-        requireExactAudience(jwt.getAudience(), clientId);
+        requireExactAudience(jwt.getAudience());
         requireExactScope(jwt.getClaimAsString("scope"));
         requireExactRealmRole(mapClaim(jwt, "realm_access"));
         requireNoClientRoles(mapClaim(jwt, "resource_access"));
@@ -55,14 +55,12 @@ public final class AgentRuntimeWorkloadTokenPolicy {
         }
     }
 
-    private void requireExactAudience(List<String> audiences, String clientId) {
+    private void requireExactAudience(List<String> audiences) {
         if (audiences == null || audiences.isEmpty()) {
             throw invalid("invalid-audience");
         }
         Set<String> actual = new HashSet<>(audiences);
-        if (actual.size() != audiences.size()
-                || (!actual.equals(Set.of(requiredAudience))
-                && !actual.equals(Set.of(requiredAudience, clientId)))) {
+        if (actual.size() != audiences.size() || !actual.equals(Set.of(requiredAudience))) {
             throw invalid("invalid-audience");
         }
     }

@@ -8,8 +8,14 @@
     "adminControlPlaneRoute": "/api/admin/control-plane",
     "providerRegistryRoute": "/api/providers/status"
   },
+  "platformIdentityAuthority": {
+    "backbone": "keycloak",
+    "managementPlane": "weave-server",
+    "federationMode": "keycloak-identity-brokering",
+    "upstreamSource": "entra-id",
+    "secretRefs": ["secretref://weave/platform/keycloak/broker/entra-id/client-secret"]
+  },
   "categories": {
-    "identity-idm": { "selectedAdapter": "entra-id", "secretRefs": ["secretref://weave/provider/entra-id/client-secret"] },
     "chat": { "selectedAdapter": "microsoft-teams", "secretRefs": ["secretref://weave/provider/microsoft-teams/app-secret"] },
     "files": { "selectedAdapter": "sharepoint", "secretRefs": ["secretref://weave/provider/sharepoint/app-secret"] },
     "calendar": { "selectedAdapter": "microsoft-graph-calendar", "secretRefs": ["secretref://weave/provider/microsoft-graph-calendar/app-secret"] },

@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.audit.AuditRequiredException;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
@@ -12,6 +14,7 @@ import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerCreateRequest;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerReferenceRequest;
@@ -20,7 +23,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,6 +34,42 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ChatFacadeServiceTest {
+
+    @Test
+    void decisionsAcceptNativeOrganizationTokenWithoutLegacyTenantAliases() {
+        java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest> captured =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        WorkspaceCapabilityProperties properties = workspaceCapabilityProperties();
+        ChatFacadeService service = new ChatFacadeService(
+                properties,
+                workspaceCapabilityService(properties, runtimeEntitlementProperties(true)),
+                request -> {
+                    captured.set(request);
+                    return ContextAuthorizationDecision.allow("native organization identity matched");
+                },
+                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
+                mock(ChatDomainFacadeService.class),
+                new InMemoryAuditEventPublisher());
+
+        service.decisions(nativeOrganizationJwt(), "channel-general");
+
+        assertThat(captured.get().tenantId()).isEqualTo("tenant-default");
+        assertThat(captured.get().principalRef()).isEqualTo("user:user-123");
+    }
+
+    @Test
+    void decisionsTranslateMalformedOrganizationIdentityToStableUnauthorizedError() {
+        ChatFacadeService service = service(new InMemoryAuditEventPublisher());
+
+        assertThatThrownBy(() -> service.decisions(jwtWithoutIssuer(), "channel-general"))
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status()).isEqualTo(org.springframework.http.HttpStatus.UNAUTHORIZED);
+                    assertThat(error.code()).isEqualTo("unauthorized");
+                    assertThat(error.details())
+                            .containsEntry("module", "chat")
+                            .containsEntry("reason", "organization identity is missing or invalid");
+                });
+    }
 
     @Test
     void createDecisionFailsClosedBeforeMutationWhenAuditPublisherIsMissing() {
@@ -143,7 +182,7 @@ class ChatFacadeServiceTest {
     private AgentRuntimeEntitlementProperties runtimeEntitlementProperties(boolean enabled) {
         return new AgentRuntimeEntitlementProperties(
                 enabled,
-                List.of("weave-weaver-runtime"),
+                null,
                 List.of("calendar.read"));
     }
 
@@ -177,6 +216,29 @@ class ChatFacadeServiceTest {
         return jwt(List.of("member"), List.of());
     }
 
+    private Jwt nativeOrganizationJwt() {
+        Instant now = Instant.parse("2026-05-25T12:00:00Z");
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("user-123")
+                .issuer("https://auth.example.invalid/realms/acme")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(300))
+                .build();
+    }
+
+    private Jwt jwtWithoutIssuer() {
+        Instant now = Instant.parse("2026-05-25T12:00:00Z");
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("user-123")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(300))
+                .build();
+    }
+
     private Jwt jwt(List<String> roles, List<String> groups) {
         Instant now = Instant.parse("2026-05-25T12:00:00Z");
         return Jwt.withTokenValue("token")
@@ -184,8 +246,10 @@ class ChatFacadeServiceTest {
                 .subject("user-123")
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", roles)))
-                .claim("groups", groups)
+                .claim(
+                        "organization",
+                        HumanJwtTestSupport
+                                .organizationWithRolesAndGroups(roles, groups))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();

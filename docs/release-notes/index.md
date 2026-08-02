@@ -19,7 +19,7 @@ Every release notes page uses these categories:
 - Migration/Operator Notes
 - Known Issues
 
-Use `Migration/Operator Notes` for admin/operator-impacting changes such as provider configuration, SecretRefs, OpenTofu/bootstrap behavior, backup/restore, support bundles, readiness, audit, and policy/whitelist changes.
+Use `Migration/Operator Notes` for admin/operator-impacting changes such as provider configuration, SecretRefs, Compose/reconciliation behavior, backup/restore, support bundles, readiness, audit, and policy/whitelist changes.
 
 ## Label-driven process
 

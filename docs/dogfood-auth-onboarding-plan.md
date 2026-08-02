@@ -19,13 +19,13 @@ Use Mailpit for dogfood-only mail capture. It belongs in `infra/weave-workspace`
 - Support-bundle redaction for message bodies unless a future evidence task explicitly stores sanitized fixtures.
 - A bounded SQLite database on `weave_mailpit_data`, retaining the latest 500 messages across ordinary container replacement and excluding that database from support bundles.
 
-Destructive live-stack E2E is not allowed to share the persistent dogfood runner or its Docker/OpenTofu resources. It requires a separately labelled disposable runner; until that runner exists, the destructive workflow fails closed instead of removing the human dogfood identity or inbox.
+Destructive live-stack E2E is not allowed to share the persistent dogfood runner or its Compose project, named volumes, desired-state reconciliation authority, or human data. It requires a run-unique disposable project and cleanup boundary; otherwise the workflow fails closed instead of removing the human dogfood identity or inbox.
 
 This replaces ambiguous "mail catcher/mailkit-style" wording with one concrete local stack component.
 
 ## Persistent human dogfood member
 
-The iPhone tester uses one persistent Keycloak organization member with the `member` role. This identity is distinct from the disposable `test` automation principal and is not managed as an OpenTofu user resource. Protected dogfood automation may create it once, report its support-safe state, or resend activation while it is pending. Once active, deployment only verifies its immutable subject, organization membership, role, and expected capability groups; it never re-invites, recreates, or rewrites the account.
+The iPhone tester uses one persistent Keycloak organization member in exactly `/members` and `/capabilities/weaver`. The role group maps the `weave-app` `member` role; the Weaver capability group maps no role. This identity is distinct from disposable automation principals and is not part of the fixed Keycloak desired-state baseline. Protected dogfood automation may create it once, report its support-safe state, or resend activation while it is pending. Once active, deployment only verifies its immutable subject and native organization-group memberships; it never re-invites, recreates, rewrites the account, reads realm user groups, or assigns direct user roles.
 
 The tester does not need Admin Console access. The supported remote path is the protected GitHub dogfood-member workflow for initial ensure/status/pending activation resend, Safari at `https://mail.weave.test:44443`, and normal OIDC sign-in in Weave. Active-account password or passkey recovery stays in Keycloak.
 

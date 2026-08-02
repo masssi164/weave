@@ -13,8 +13,10 @@ Runtime Factory and synthetic MCP customization claims are retired.
 - MCP accepts only RFC 9068 access tokens with the exact MCP audience and
   service-account binding, performs Standard Token Exchange v2, and asks the
   backend to revalidate the current cell/profile/entitlement context.
-- The active MCP tool and resource catalogs are empty. RuntimeProfile content,
-  provider configuration, and historical fixtures cannot manufacture tools.
+- The active MCP catalog contains only `files.search` and the canonical file
+  resource over the existing Weave WebDAV projection. RuntimeProfile content,
+  provider configuration, and historical fixtures cannot manufacture
+  additional tools.
 - Agent Runtime Control owns cell lifecycle, fenced reconciliation, workload
   credential revocation, and support-safe audit correlation. Collaboration
   domains retain content authority and fine-grained authorization.
@@ -56,5 +58,5 @@ Runtime Factory and synthetic MCP customization claims are retired.
 
 Live local-stack evidence must additionally prove per-cell client creation,
 positive token exchange/current-context admission, negative human/shared-client
-rejection, runtime-state deletion, client revocation, and convergent OpenTofu
+rejection, runtime-state deletion, client revocation, and convergent Compose plus desired-state
 apply. A green contract fixture alone is not a release-ready runtime claim.

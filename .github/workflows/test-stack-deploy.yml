@@ -4,36 +4,21 @@ run-name: Test Stack Deploy ${{ github.event.workflow_run.head_sha || inputs.can
 on:
   workflow_run:
     workflows:
-      - Live Stack E2E
+      - Live Stack Product Flow
     types:
       - completed
   workflow_dispatch:
     inputs:
       candidate_sha:
-        description: "Exact dogfood commit with successful isolated Live Stack E2E evidence"
+        description: "Exact dogfood lane commit with successful manifest-bound live evidence"
         required: true
         type: string
-      dogfood_member_operation:
-        description: "Optional persistent human member operation"
-        required: false
-        default: status
-        type: choice
-        options:
-          - status
-          - ensure
-          - resend-activation
-      weave_backend_image:
-        description: "Backend image; ghcr.io/* is pulled, other refs are built locally from the checked-out commit"
-        required: false
-        default: "weave-backend:test-stack"
-      weave_mcp_server_image:
-        description: "MCP server image; ghcr.io/* is pulled, other refs are built locally from the checked-out commit"
-        required: false
-        default: "weave-mcp-server:test-stack"
 
 permissions:
-  contents: read
   actions: read
+  contents: read
+  issues: read
+  packages: read
 
 concurrency:
   group: weave-live-mac-mini-exclusive
@@ -41,525 +26,502 @@ concurrency:
 
 jobs:
   deploy-test-stack:
-    name: Deploy Persistent LAN Test Stack
+    name: Fresh Start and verify persistent dogfood
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.head_branch == 'dogfood' &&
        github.event.workflow_run.conclusion == 'success')
     environment: dogfood
-    runs-on:
-      - self-hosted
-      - macOS
-      - ARM64
-      - weave-live
-    timeout-minutes: 90
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 120
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
-      CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha || inputs.candidate_sha }}
+      DOCKER_DEFAULT_PLATFORM: linux/amd64
+      LANE_CANDIDATE_COMMIT: ${{ github.event.workflow_run.head_sha || inputs.candidate_sha }}
       ISOLATED_E2E_RUN_ID: ${{ github.event.workflow_run.id || '' }}
-      WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || 'weave-backend:test-stack' }}
-      WEAVE_MCP_SERVER_IMAGE: ${{ inputs.weave_mcp_server_image || 'weave-mcp-server:test-stack' }}
-      TF_VAR_create_test_user: 'false'
-      TF_VAR_isolated_e2e_enabled: 'false'
-      TF_VAR_boards_runtime_enabled: 'true'
-      TF_VAR_boards_provider: local-workspace
-      TF_VAR_provider_stack_profile: local-live
-      TF_VAR_provider_stack_readiness: ready
-      TF_VAR_tenant_domain: weave.test
-      TF_VAR_proxy_http_host_port: '44080'
-      TF_VAR_proxy_host_port: '44443'
-      TF_VAR_keycloak_host_port: '48080'
-      TF_VAR_mas_host_port: '48082'
-      TF_VAR_synapse_host_port: '48008'
-      TF_VAR_nextcloud_host_port: '48083'
-      TF_VAR_backend_host_port: '48084'
-      WEAVE_RUNNER_HYGIENE: 'false'
-      WEAVE_REMOVE_VOLUMES: 'false'
-      WEAVE_DOGFOOD_DEPLOYMENT_SCOPE: persistent-dogfood
-      WEAVE_DOGFOOD_BOOTSTRAP_ENV: /tmp/weave-infra/weave-workspace/.generated/bootstrap.env
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_TEST_REVIEWED_ENV_FILE || vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
+      WEAVE_TEST_BACKUP_ROOT: ${{ vars.WEAVE_TEST_BACKUP_ROOT }}
+      WEAVE_E2E_STACK_SCOPE: persistent
       WEAVE_DOGFOOD_MEMBER_USERNAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_USERNAME }}
       WEAVE_DOGFOOD_MEMBER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
       WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME }}
-      WEAVE_DOGFOOD_MEMBER_GROUPS: ${{ vars.WEAVE_DOGFOOD_MEMBER_GROUPS }}
+      WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/canonical-weave-specs
     defaults:
       run:
         shell: bash
 
     steps:
-      - name: Verify dedicated local runner
+      - name: Verify protected persistent deployment request
         run: |
           set -euo pipefail
-          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
-            echo "::error::Persistent deployment requires an exact lowercase candidate SHA." >&2
+          [[ "$LANE_CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Persistent deployment requires an exact lowercase dogfood lane SHA." >&2
             exit 1
           }
-          echo "runner=${RUNNER_NAME:-unknown}"
-          if [[ "${RUNNER_NAME:-}" != "${EXPECTED_RUNNER_NAME}" ]]; then
-            echo "::error::Persistent LAN test stack must deploy only on ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}." >&2
+          [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER_NAME" ]] || {
+            echo "::error::Persistent deployment must run on $EXPECTED_RUNNER_NAME." >&2
             exit 1
-          fi
+          }
+          [[ "${WEAVE_ENV_FILE:-}" == /* ]] || {
+            echo "::error::Persistent deployment requires one absolute reviewed test-profile environment path." >&2
+            exit 1
+          }
 
-      - name: Check out weave
-        uses: actions/checkout@v5
+      - name: Check out exact dogfood lane candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          ref: ${{ env.CANDIDATE_SHA }}
+          ref: ${{ env.LANE_CANDIDATE_COMMIT }}
           fetch-depth: 0
 
-      - name: Verify exact-candidate isolated E2E source run
+      - name: Resolve pinned specification corpus
+        id: spec-corpus
+        run: |
+          set -euo pipefail
+          spec_commit="$(jq -er '.specCorpus.gitCommit | select(type == "string" and test("^[0-9a-f]{40}$"))' specs/weave-specs.lock.json)"
+          spec_digest="sha256:$(shasum -a 256 specs/weave-specs.lock.json | awk '{print $1}')"
+          {
+            printf 'commit=%s\n' "$spec_commit"
+            printf 'digest=%s\n' "$spec_digest"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check out pinned Weave Specification Corpus
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: ${{ github.repository_owner }}/weave-specs
+          ref: ${{ steps.spec-corpus.outputs.commit }}
+          path: canonical-weave-specs
+          ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
+          persist-credentials: false
+
+      - name: Verify successful exact-lane isolated E2E source run
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if [[ "$GITHUB_EVENT_NAME" == workflow_run ]]; then
             source_run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${ISOLATED_E2E_RUN_ID}")"
-            [[ "$(jq -r '.name' <<<"$source_run")" == "Live Stack E2E" && \
-               "$(jq -r '.conclusion' <<<"$source_run")" == success && \
-               "$(jq -r '.head_sha' <<<"$source_run")" == "$CANDIDATE_SHA" ]] || {
-              echo "::error::Deployment source is not successful exact-candidate Live Stack E2E evidence." >&2
+            [[ "$(jq -r .name <<<"$source_run")" == "Live Stack Product Flow" && \
+               "$(jq -r .conclusion <<<"$source_run")" == success && \
+               "$(jq -r .head_sha <<<"$source_run")" == "$LANE_CANDIDATE_COMMIT" ]] || {
+              echo "::error::Deployment source is not successful exact-lane live evidence." >&2
               exit 1
             }
           else
-            runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/live-stack-e2e.yml/runs?head_sha=${CANDIDATE_SHA}&status=completed&per_page=30")"
+            runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/live-stack-e2e.yml/runs?head_sha=${LANE_CANDIDATE_COMMIT}&status=completed&per_page=30")"
             ISOLATED_E2E_RUN_ID="$(jq -r '[.workflow_runs[] | select(.conclusion == "success")][0].id // empty' <<<"$runs")"
             [[ -n "$ISOLATED_E2E_RUN_ID" ]] || {
-              echo "::error::No successful isolated Live Stack E2E run targets ${CANDIDATE_SHA}." >&2
+              echo "::error::No successful isolated live run targets ${LANE_CANDIDATE_COMMIT}." >&2
               exit 1
             }
             echo "ISOLATED_E2E_RUN_ID=$ISOLATED_E2E_RUN_ID" >> "$GITHUB_ENV"
           fi
-          git fetch origin dogfood --prune
-          git merge-base --is-ancestor "$CANDIDATE_SHA" origin/dogfood || {
-            echo "::error::Persistent deployment candidate is not contained in origin/dogfood." >&2
+          git fetch --no-tags --prune origin \
+            '+refs/heads/dev:refs/remotes/origin/dev' \
+            '+refs/heads/dogfood:refs/remotes/origin/dogfood'
+          git merge-base --is-ancestor "$LANE_CANDIDATE_COMMIT" origin/dogfood || {
+            echo "::error::Persistent lane candidate is not contained in origin/dogfood." >&2
             exit 1
           }
 
-      - name: Prepare test-stack evidence directory
+      - name: Consume immutable manifest and exact isolated image evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           evidence_dir="$RUNNER_TEMP/weave-test-stack-evidence"
-          mkdir -p "$evidence_dir"
-          echo "WEAVE_TEST_STACK_EVIDENCE_DIR=$evidence_dir" >> "$GITHUB_ENV"
+          source_dir="$RUNNER_TEMP/weave-live-source-evidence"
+          rm -rf -- "$evidence_dir" "$source_dir"
+          mkdir -p "$evidence_dir" "$source_dir"
+          gh run download "$ISOLATED_E2E_RUN_ID" \
+            --name weave-live-stack-acceptance-evidence \
+            --dir "$source_dir"
+          for required in candidate-source-mapping.json candidate-manifest.json candidate-manifest.json.sha256 weave-test-app-evidence.json teardown-evidence.json; do
+            test -s "$source_dir/$required" || {
+              echo "::error::The isolated live artifact is missing ${required}." >&2
+              exit 1
+            }
+          done
+          cp "$source_dir/candidate-manifest.json" "$source_dir/candidate-manifest.json.sha256" "$evidence_dir/"
+          python3 tools/candidate_source_mapping.py \
+            --repository . \
+            --lane-candidate "$LANE_CANDIDATE_COMMIT" \
+            --expected-mapping "$source_dir/candidate-source-mapping.json" \
+            --verify-local-images \
+            --output "$evidence_dir/candidate-source-mapping.json"
+          ./gradlew --no-daemon dogfoodCandidateCheck \
+            "-PcandidateManifest=$evidence_dir/candidate-manifest.json"
+          source_candidate="$(jq -er .sourceCandidateCommit "$evidence_dir/candidate-source-mapping.json")"
+          [[ "$(jq -er .commit "$evidence_dir/candidate-manifest.json")" == "$source_candidate" ]]
+          manifest_sha="$(shasum -a 256 "$evidence_dir/candidate-manifest.json" | awk '{print $1}')"
+          [[ "$(awk 'NR == 1 {print $1}' "$evidence_dir/candidate-manifest.json.sha256")" == "$manifest_sha" ]]
+          component_ref() {
+            jq -er --arg component "$1" '.images[] | select(.component == $component) | .reference' \
+              "$evidence_dir/candidate-manifest.json"
+          }
+          generation="fresh-${source_candidate:0:12}"
+          {
+            echo "WEAVE_TEST_STACK_EVIDENCE_DIR=$evidence_dir"
+            echo "WEAVE_CANDIDATE_COMMIT=$source_candidate"
+            echo "WEAVE_IMAGE_SOURCE_COMMIT=$source_candidate"
+            echo "WEAVE_CANDIDATE_MANIFEST_DIGEST=sha256:$manifest_sha"
+            echo "WEAVE_CANDIDATE_MANIFEST=$evidence_dir/candidate-manifest.json"
+            echo "WEAVE_RESOURCE_GENERATION=$generation"
+            echo "WEAVE_BACKEND_IMAGE=$(component_ref server)"
+            echo "WEAVE_MCP_IMAGE=$(component_ref mcp-server)"
+            echo "WEAVE_IDENTITY_OPS_IMAGE=$(component_ref identity-ops)"
+            echo "WEAVE_KEYCLOAK_IMAGE=$(component_ref keycloak-runtime)"
+          } >> "$GITHUB_ENV"
+          rm -rf -- "$source_dir"
 
-      - name: Set up Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '21'
+      - name: Bind the reviewed persistent-dogfood context
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          coordinates="$(PYTHONPATH=./scripts python3 - <<'PY'
+          import os
+          import stat
+          from pathlib import Path
+          from compose_env import load_context
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.44.4'
-          channel: stable
+          reviewed = Path(os.environ["WEAVE_ENV_FILE"])
+          metadata = reviewed.stat()
+          if (not reviewed.is_absolute() or reviewed.is_symlink() or not reviewed.is_file()
+                  or metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o600):
+              raise SystemExit("reviewed dogfood environment must be a runner-owned regular mode-0600 file")
+          context = load_context("test", Path("."), str(reviewed))
+          if context.env["WEAVE_DEPLOYMENT_CONTEXT"] != "persistent-dogfood":
+              raise SystemExit("persistent dogfood requires test + persistent-dogfood")
+          print(context.generated_root)
+          print(context.secret_root)
+          print(context.tls_root)
+          print(context.env["WEAVE_COMPOSE_PROJECT"])
+          print(context.env["WEAVE_BACKEND_HOST_PORT"])
+          PY
+          )"
+          generated_root="$(sed -n '1p' <<<"$coordinates")"
+          secret_root="$(sed -n '2p' <<<"$coordinates")"
+          tls_root="$(sed -n '3p' <<<"$coordinates")"
+          compose_project="$(sed -n '4p' <<<"$coordinates")"
+          backend_port="$(sed -n '5p' <<<"$coordinates")"
+          [[ "$generated_root" == /* && "$secret_root" == /* && "$tls_root" == /* ]]
+          mkdir -p "$generated_root" "$secret_root" "$tls_root"
+          chmod 700 "$generated_root" "$secret_root" "$tls_root"
+          {
+            echo "WEAVE_GENERATED_ROOT=$generated_root"
+            echo "WEAVE_SECRET_ROOT=$secret_root"
+            echo "WEAVE_TLS_ROOT=$tls_root"
+            echo "WEAVE_COMPOSE_PROJECT=$compose_project"
+            echo "WEAVE_BACKEND_HOST_PORT=$backend_port"
+          } >> "$GITHUB_ENV"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Create or reuse the exact private backup, restore proof, and Fresh Start plan
+        id: fresh-plan
+        run: |
+          set -euo pipefail
+          backup_root="${WEAVE_TEST_BACKUP_ROOT:-$HOME/.weave/dogfood/backups}"
+          [[ "$backup_root" == /* ]]
+          pending_root="$backup_root/fresh-start/pending/$LANE_CANDIDATE_COMMIT"
+          private_root="$pending_root/private"
+          receipt="$pending_root/FreshStartBackupRehearsal.json"
+          plan="$pending_root/plan.json"
+          mkdir -p "$private_root" "$pending_root"
+          chmod 700 "$backup_root" "$backup_root/fresh-start" "$backup_root/fresh-start/pending" "$pending_root" "$private_root"
+          if [[ ! -s "$receipt" ]]; then
+            WEAVE_BACKUP_ROOT="$private_root" \
+              ./gradlew --no-daemon freshStartBackupRehearsal \
+                -PfreshStartBackupProfile=test \
+                "-PfreshStartBackupReceipt=$receipt"
+          fi
+          jq -e \
+            --arg source "$WEAVE_CANDIDATE_COMMIT" \
+            --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" '
+              .schemaVersion == "weave.fresh-start-private-backup-rehearsal.v1" and
+              .candidateCommit == $source and
+              .candidateManifestDigest == $manifest and
+              .backupVerified == true and
+              .isolatedRestoreVerified == true and
+              .recoveryBoundary == "private-backup-only-no-adoption" and
+              .legacyStateMigrated == false and
+              .adoptionAuthorized == false and
+              .cleanupVerified == true and
+              .supportSafe == true and
+              .containsSecretValues == false
+            ' "$receipt" >/dev/null
+          operation_nonce="dogfood-fresh-${WEAVE_CANDIDATE_COMMIT:0:12}-${WEAVE_CANDIDATE_MANIFEST_DIGEST:7:12}"
+          if [[ ! -s "$plan" ]]; then
+            ./gradlew --no-daemon freshStartPlan \
+              -PfreshStartEnvironment=persistent-dogfood \
+              -PfreshStartScope=persistent \
+              -PfreshStartStack=weave \
+              -PfreshStartNamespace=weave \
+              -PretiredGeneration=legacy-pre-fresh \
+              "-PtargetGeneration=$WEAVE_RESOURCE_GENERATION" \
+              "-PspecCommit=${{ steps.spec-corpus.outputs.commit }}" \
+              "-PspecDigest=${{ steps.spec-corpus.outputs.digest }}" \
+              "-PcandidateCommit=$WEAVE_CANDIDATE_COMMIT" \
+              "-PcandidateManifestDigest=$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
+              "-PoperationNonce=$operation_nonce" \
+              -PrecoveryDecision=verified-backup \
+              "-PrecoveryEvidenceRef=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+              "-PrecoveryReceipt=$receipt" \
+              "-PfreshStartManifest=$plan"
+          fi
+          plan_sha="$(shasum -a 256 "$plan" | awk '{print $1}')"
+          [[ "$(awk 'NR == 1 {print $1}' "$plan.sha256")" == "$plan_sha" ]]
+          jq -e \
+            --arg source "$WEAVE_CANDIDATE_COMMIT" \
+            --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
+            --arg generation "$WEAVE_RESOURCE_GENERATION" \
+            --arg nonce "$operation_nonce" '
+              .schemaVersion == "weave.infra.fresh-start-plan.v1" and
+              .environment == "persistent-dogfood" and
+              .scope == "persistent" and
+              .candidateCommit == $source and
+              .candidateManifestDigest == $manifest and
+              .targetGeneration == $generation and
+              .operationNonce == $nonce and
+              .recoveryDecision.decision == "verified-backup" and
+              (.targets | length) > 0 and
+              .supportSafe == true
+            ' "$plan" >/dev/null
+          cp "$plan" "$plan.sha256" "$receipt" "$WEAVE_TEST_STACK_EVIDENCE_DIR/"
+          jq -n \
+            --arg lane "$LANE_CANDIDATE_COMMIT" \
+            --arg source "$WEAVE_CANDIDATE_COMMIT" \
+            --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
+            --arg planSha "sha256:$plan_sha" \
+            --arg confirmation "DELETE_OLD_WEAVE:$plan_sha" \
+            '{schemaVersion:"weave.fresh-start-plan-status.v1",laneCandidateCommit:$lane,sourceCandidateCommit:$source,candidateManifestDigest:$manifest,planSha256:$planSha,requiredConfirmation:$confirmation,backupVerified:true,isolatedRestoreVerified:true,mutationPerformed:false,legacyStateMigrated:false,adoptionAuthorized:false,supportSafe:true,containsSecretValues:false}' \
+            > "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-plan-status.json"
+          {
+            echo "plan=$plan"
+            echo "plan_sha=$plan_sha"
+            echo "confirmation=DELETE_OLD_WEAVE:$plan_sha"
+            echo "receipt=$receipt"
+            echo "pending_root=$pending_root"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "WEAVE_FRESH_START_PLAN=$plan"
+            echo "WEAVE_FRESH_START_PLAN_SHA=$plan_sha"
+            echo "WEAVE_FRESH_START_CONFIRMATION=DELETE_OLD_WEAVE:$plan_sha"
+            echo "WEAVE_FRESH_START_PENDING_ROOT=$pending_root"
+          } >> "$GITHUB_ENV"
 
-      - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_version: 1.10.6
-          tofu_wrapper: false
+      - name: Resolve exact destructive approval from delivery issue
+        id: approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo "approved=false" >> "$GITHUB_OUTPUT"
+          comments="$RUNNER_TEMP/weave-fresh-start-comments.json"
+          umask 077
+          gh api --paginate "/repos/${GITHUB_REPOSITORY}/issues/1266/comments?per_page=100" > "$comments"
+          approval_id="$(jq -r \
+            --arg owner "$GITHUB_REPOSITORY_OWNER" \
+            --arg confirmation "$WEAVE_FRESH_START_CONFIRMATION" '
+              [ .[]
+                | select(.user.login == $owner)
+                | select((.body | split("\n") | map(gsub("^\\s+|\\s+$"; "")) | any(. == $confirmation)))
+              ][-1].id // empty
+            ' "$comments")"
+          if [[ -z "$approval_id" ]]; then
+            echo "Fresh Start remains plan-only; exact repository-owner confirmation is absent."
+            exit 0
+          fi
+          approval="$WEAVE_FRESH_START_PENDING_ROOT/approval.json"
+          APPROVAL_PATH="$approval" \
+          APPROVAL_EVIDENCE_REF="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/issues/1266" \
+          python3 - <<'PY'
+          import importlib.util
+          import json
+          import os
+          from pathlib import Path
 
-      - name: Ensure local Weave hostnames resolve on the runner
+          source = Path("infra/weave-workspace/fresh-start.py")
+          spec = importlib.util.spec_from_file_location("fresh_start", source)
+          assert spec and spec.loader
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          plan = json.loads(Path(os.environ["WEAVE_FRESH_START_PLAN"]).read_text(encoding="utf-8"))
+          payload = {
+              "schemaVersion": "weave.infra.fresh-start-approval.v1",
+              "supportSafe": True,
+              "decision": "approved",
+              "environment": plan["environment"],
+              "planSha256": os.environ["WEAVE_FRESH_START_PLAN_SHA"],
+              "operationNonce": plan["operationNonce"],
+              "approverRole": "release-owner",
+              "evidenceRef": os.environ["APPROVAL_EVIDENCE_REF"],
+          }
+          path = Path(os.environ["APPROVAL_PATH"])
+          path.write_bytes(module.canonical_json_bytes(payload))
+          path.chmod(0o600)
+          PY
+          cp "$approval" "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-approval.json"
+          {
+            echo "approved=true"
+            echo "approval=$approval"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Stop before mutation without exact Fresh Start approval
+        if: steps.approval.outputs.approved != 'true'
+        run: |
+          echo "::error::AWAITING_DESTRUCTIVE_APPROVAL ${WEAVE_FRESH_START_CONFIRMATION}" >&2
+          exit 1
+
+      - name: Apply only the exact approved Fresh Start plan
+        if: steps.approval.outputs.approved == 'true'
+        run: |
+          set -euo pipefail
+          apply_evidence="$WEAVE_FRESH_START_PENDING_ROOT/apply-evidence.json"
+          recreation_evidence="$WEAVE_FRESH_START_PENDING_ROOT/recreation-evidence.json"
+          archive_root="$WEAVE_FRESH_START_PENDING_ROOT/archive"
+          ./gradlew --no-daemon freshStartApply \
+            "-PfreshStartManifest=$WEAVE_FRESH_START_PLAN" \
+            "-Pconfirm=$WEAVE_FRESH_START_CONFIRMATION" \
+            "-PapprovalEvidence=${{ steps.approval.outputs.approval }}" \
+            "-PfreshStartEvidence=$apply_evidence" \
+            "-PfreshStartApplyEvidence=$apply_evidence" \
+            "-PcandidateManifest=$WEAVE_CANDIDATE_MANIFEST" \
+            "-PfreshStartArchiveRoot=$archive_root" \
+            "-PfreshStartRecreationEvidence=$recreation_evidence"
+          cp "$apply_evidence" "$apply_evidence.sha256" "$recreation_evidence" "$recreation_evidence.sha256" \
+            "$WEAVE_TEST_STACK_EVIDENCE_DIR/"
+
+      - name: Ensure local Weave hostnames resolve
+        if: steps.approval.outputs.approved == 'true'
         run: |
           set -euo pipefail
           hosts=(weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test admin.weave.test mail.weave.test)
           missing=()
           for host in "${hosts[@]}"; do
-            if ! dscacheutil -q host -a name "$host" | grep -q 'ip_address:'; then
-              missing+=("$host")
-            fi
+            dscacheutil -q host -a name "$host" | grep -q 'ip_address:' || missing+=("$host")
           done
           if (( ${#missing[@]} > 0 )); then
             line="127.0.0.1 ${missing[*]}"
-            if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-              printf '%s\n' "$line" | sudo tee -a /etc/hosts >/dev/null
-              sudo dscacheutil -flushcache || true
-            else
-              echo "::error::Runner cannot resolve required Weave hostnames and passwordless sudo is unavailable. Configure weave.test DNS or add: $line" >&2
-              exit 1
-            fi
-          fi
-
-      - name: Build Java runtime artifacts
-        run: ./gradlew --no-daemon --max-workers=1 :server:bootJar :weave-mcp-server:bootJar
-
-      - name: Prepare backend image
-        run: |
-          set -euo pipefail
-          if [[ "${WEAVE_BACKEND_IMAGE}" == ghcr.io/* ]]; then
-            docker pull "${WEAVE_BACKEND_IMAGE}"
-          else
-            docker buildx build --load -t "${WEAVE_BACKEND_IMAGE}" -f server/Dockerfile .
-          fi
-
-      - name: Prepare MCP server image
-        run: |
-          set -euo pipefail
-          if [[ "${WEAVE_MCP_SERVER_IMAGE}" == ghcr.io/* ]]; then
-            docker pull "${WEAVE_MCP_SERVER_IMAGE}"
-          else
-            docker buildx build --load -t "${WEAVE_MCP_SERVER_IMAGE}" -f weave-mcp-server/Dockerfile .
-          fi
-
-      - name: Assert persistent human member before deploy
-        if: ${{ env.WEAVE_DOGFOOD_MEMBER_USERNAME != '' }}
-        working-directory: infra/weave-workspace
-        run: |
-          set -euo pipefail
-          evidence="$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-before.json"
-          if curl --silent --fail --max-time 5 \
-              --cacert "01-infrastructure/.generated/caddy/certs/weave-local-ca.pem" \
-              "https://auth.weave.test:44443/realms/weave/.well-known/openid-configuration" >/dev/null 2>&1; then
-            WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
-              ./dogfood-member.sh status --evidence-file "${evidence}"
-          else
-            jq -n '{schemaVersion:"weave.dogfood.persistent-member.v1",state:"stack_unavailable_before_deploy",action:"not_observed",subjectSha256:null,supportSafe:true}' >"${evidence}"
-            echo "Persistent member pre-deploy observation skipped because Keycloak is not running; post-deploy verification remains mandatory."
-          fi
-
-      - name: Restore persistent deployment workspace
-        working-directory: infra/weave-workspace
-        run: |
-          set -euo pipefail
-          dogfood_root="$HOME/.weave/dogfood"
-          state_root="$dogfood_root/opentofu-state"
-          generated_root="$dogfood_root/generated"
-          cert_root="$generated_root/01-infrastructure/caddy/certs"
-          mkdir -p "$state_root" "$generated_root"
-          chmod 700 "$HOME/.weave" "$dogfood_root" "$state_root" "$generated_root"
-          for stage in 01-infrastructure 02-keycloak-setup; do
-            if [[ -s "$state_root/${stage}.tfstate" ]]; then
-              cp "$state_root/${stage}.tfstate" "$stage/terraform.tfstate"
-              chmod 600 "$stage/terraform.tfstate"
-            fi
-            mkdir -p "$generated_root/$stage"
-            rm -rf "$stage/.generated"
-            ln -s "$generated_root/$stage" "$stage/.generated"
-          done
-          {
-            echo "TF_VAR_caddy_tls_cert_file=$cert_root/weave.test.pem"
-            echo "TF_VAR_caddy_tls_key_file=$cert_root/weave.test-key.pem"
-            echo "TF_VAR_caddy_tls_ca_file=$cert_root/weave-local-ca.pem"
-          } >> "$GITHUB_ENV"
-
-      - name: Run requested persistent member operation before baseline
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dogfood_member_operation != 'status' && env.WEAVE_DOGFOOD_MEMBER_USERNAME != '' }}
-        working-directory: infra/weave-workspace
-        env:
-          DOGFOOD_MEMBER_OPERATION: ${{ inputs.dogfood_member_operation }}
-        run: |
-          set -euo pipefail
-          if curl --silent --fail --max-time 5 \
-              --cacert "$TF_VAR_caddy_tls_ca_file" \
-              "https://auth.weave.test:${TF_VAR_proxy_host_port}/realms/weave/.well-known/openid-configuration" >/dev/null 2>&1; then
-            WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
-              ./dogfood-member.sh "$DOGFOOD_MEMBER_OPERATION" \
-              --evidence-file "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-operation.json"
-          else
-            echo "Persistent runtime is stopped; the requested member operation is deferred until after the first exact-candidate install."
-          fi
-
-      - name: Capture persistent dogfood state before candidate deployment
-        working-directory: infra/weave-workspace
-        run: |
-          set -euo pipefail
-          baseline_source=first-install
-          if curl --silent --fail --max-time 5 \
-              --cacert "$TF_VAR_caddy_tls_ca_file" \
-              "https://auth.weave.test:${TF_VAR_proxy_host_port}/realms/weave/.well-known/openid-configuration" >/dev/null 2>&1; then
-            WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
-              ./persistent-dogfood-observation.sh capture \
-              --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-before.json"
-            baseline_source=pre-deploy
-          else
-            echo "Persistent runtime is stopped; the first exact-candidate install will establish the support-safe baseline."
-          fi
-          echo "WEAVE_PERSISTENT_BASELINE_SOURCE=$baseline_source" >> "$GITHUB_ENV"
-
-      - name: Deploy or update persistent LAN test stack
-        working-directory: infra/weave-workspace
-        env:
-          TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
-          TF_VAR_weave_mcp_server_image: ${{ env.WEAVE_MCP_SERVER_IMAGE }}
-        run: ./install.sh
-
-      - name: Persist OpenTofu state
-        if: ${{ always() }}
-        working-directory: infra/weave-workspace
-        run: |
-          set -euo pipefail
-          state_root="$HOME/.weave/dogfood/opentofu-state"
-          mkdir -p "$state_root"
-          chmod 700 "$HOME/.weave" "$HOME/.weave/dogfood" "$state_root"
-          for stage in 01-infrastructure 02-keycloak-setup; do
-            if [[ -s "$stage/terraform.tfstate" ]]; then
-              temporary="$state_root/${stage}.tfstate.tmp"
-              cp "$stage/terraform.tfstate" "$temporary"
-              chmod 600 "$temporary"
-              mv "$temporary" "$state_root/${stage}.tfstate"
-            fi
-          done
-
-      - name: Verify persistent stack readiness non-destructively
-        working-directory: infra/weave-workspace
-        run: |
-          set -euo pipefail
-          bash ./operator-check.sh
-
-      - name: Run requested persistent member operation
-        if: ${{ github.event_name == 'workflow_dispatch' && env.WEAVE_DOGFOOD_MEMBER_USERNAME != '' }}
-        working-directory: infra/weave-workspace
-        env:
-          DOGFOOD_MEMBER_OPERATION: ${{ inputs.dogfood_member_operation }}
-        run: |
-          set -euo pipefail
-          WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
-            ./dogfood-member.sh "${DOGFOOD_MEMBER_OPERATION}" \
-            --evidence-file "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-operation.json"
-
-      - name: Assert persistent human member after deploy
-        if: ${{ env.WEAVE_DOGFOOD_MEMBER_USERNAME != '' }}
-        working-directory: infra/weave-workspace
-        run: WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" ./dogfood-member.sh status --evidence-file "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-after.json"
-
-      - name: Verify persistent member subject is unchanged
-        if: ${{ env.WEAVE_DOGFOOD_MEMBER_USERNAME != '' }}
-        run: |
-          set -euo pipefail
-          before="$(jq -r '.subjectSha256' "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-before.json")"
-          after="$(jq -r '.subjectSha256' "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-after.json")"
-          [[ -n "$after" && "$after" != null ]] || {
-            echo "::error::Persistent dogfood member has not been created. Dispatch this workflow with dogfood_member_operation=ensure." >&2
-            exit 1
-          }
-          [[ -z "$before" || "$before" == null || "$before" == "$after" ]] || {
-            echo "::error::Persistent dogfood member subject changed across deployment." >&2
-            exit 1
-          }
-
-      - name: Establish persistent baseline after first cold-start install
-        working-directory: infra/weave-workspace
-        run: |
-          set -euo pipefail
-          if [[ "$WEAVE_PERSISTENT_BASELINE_SOURCE" == first-install ]]; then
-            WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
-              ./persistent-dogfood-observation.sh capture \
-              --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-before.json"
-          fi
-          test -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-before.json"
-
-      - name: Apply the same candidate a second time non-destructively
-        working-directory: infra/weave-workspace
-        env:
-          TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
-          TF_VAR_weave_mcp_server_image: ${{ env.WEAVE_MCP_SERVER_IMAGE }}
-        run: ./install.sh
-
-      - name: Persist OpenTofu state after the second install
-        working-directory: infra/weave-workspace
-        run: |
-          set -euo pipefail
-          state_root="$HOME/.weave/dogfood/opentofu-state"
-          mkdir -p "$state_root"
-          chmod 700 "$HOME/.weave" "$HOME/.weave/dogfood" "$state_root"
-          for stage in 01-infrastructure 02-keycloak-setup; do
-            [[ -s "$stage/terraform.tfstate" ]] || {
-              echo "::error::Missing ${stage} state after second install." >&2
+            sudo -n true 2>/dev/null || {
+              echo "::error::Configure runner DNS or passwordless sudo for: $line" >&2
               exit 1
             }
-            temporary="$state_root/${stage}.tfstate.tmp"
-            cp "$stage/terraform.tfstate" "$temporary"
-            chmod 600 "$temporary"
-            mv "$temporary" "$state_root/${stage}.tfstate"
-          done
+            printf '%s\n' "$line" | sudo tee -a /etc/hosts >/dev/null
+            sudo dscacheutil -flushcache || true
+          fi
 
-      - name: Verify persistent stack non-destructively after the second install
+      - name: Prove canonical lifecycle convergence and empty second reconciliation
+        if: steps.approval.outputs.approved == 'true'
         working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          bash ./operator-check.sh
+          ./compose.sh test config > "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-first.json"
+          ./compose.sh test identity-plan
+          cp "$WEAVE_GENERATED_ROOT/identity-ops/identity-ops.json" "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-first-plan.json"
+          jq -e '.command == "plan" and .operationCount == 0' "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-first-plan.json" >/dev/null
+          ./operator-check.sh test
+          ./install.sh test
+          ./compose.sh test config > "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-second.json"
+          cmp -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-first.json" "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-second.json"
+          ./compose.sh test identity-plan
+          cp "$WEAVE_GENERATED_ROOT/identity-ops/identity-ops.json" "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-second-plan.json"
+          jq -e '.command == "plan" and .operationCount == 0' "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-second-plan.json" >/dev/null
+          ./operator-check.sh test
+          jq -n '{schemaVersion:"weave.persistent-test-idempotence.v2",runtimeProfile:"test",deploymentContext:"persistent-dogfood",noChanges:true,composeModelStable:true,identityFirstPlanEmpty:true,identitySecondPlanEmpty:true,supportSafe:true,containsSecretValues:false}' \
+            > "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-test-idempotence.json"
 
-      - name: Verify deployment is idempotent
-        env:
-          TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
-          TF_VAR_weave_mcp_server_image: ${{ env.WEAVE_MCP_SERVER_IMAGE }}
+      - name: Create a new invitation through the normal identity flow
+        if: steps.approval.outputs.approved == 'true'
+        working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          idempotence_status=0
-          verify_no_drift() {
-            local stage="$1"
-            local log_file="$RUNNER_TEMP/tofu-${stage}-second-plan.log"
-            local rc
-            set +e
-            (cd "infra/weave-workspace/${stage}" && tofu plan -input=false -no-color -detailed-exitcode) >"${log_file}" 2>&1
-            rc=$?
-            set -e
-            if [[ ${rc} -eq 0 ]]; then
-              printf '{"stage":"%s","noChanges":true,"supportSafe":true}\n' "${stage}" >"$WEAVE_TEST_STACK_EVIDENCE_DIR/tofu-${stage}-idempotence.json"
-              rm -f "${log_file}"
-              return
-            fi
-            failure_kind=plan_failed
-            if grep -Fq 'The plugin crashed!' "${log_file}"; then
-              failure_kind=provider_crashed
-              echo "::error::Pinned provider crashed during ${stage} idempotence plan. Raw log retained only on the protected runner: ${log_file}" >&2
-            elif [[ ${rc} -eq 2 ]]; then
-              failure_kind=drift_detected
-              echo "::error::Second OpenTofu plan for ${stage} contains changes; deployment is not idempotent." >&2
+          ./dogfood-member.sh ensure \
+            --subject-file "$WEAVE_GENERATED_ROOT/dogfood-member.subject" \
+            --evidence-file "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-invitation.json"
+          jq -e '
+            .schemaVersion == "weave.dogfood.persistent-member.v1" and
+            .state == "pending" and
+            .action == "created_and_activation_sent" and
+            .activation.mailSent == true and
+            .activation.mailVisible == true and
+            .supportSafe == true
+          ' "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-invitation.json" >/dev/null
+
+      - name: Verify running image identities and assemble deployment evidence
+        if: steps.approval.outputs.approved == 'true'
+        run: |
+          set -euo pipefail
+          mapping="$WEAVE_TEST_STACK_EVIDENCE_DIR/candidate-source-mapping.json"
+          runtime="$WEAVE_TEST_STACK_EVIDENCE_DIR/runtime-image-observation.json"
+          observe() {
+            local runtime_name="$1" container="$2" component="$3" expected observed reference source
+            expected="$(jq -er --arg name "$runtime_name" '.images[$name]' "$mapping")"
+            reference="$(jq -er --arg component "$component" '.images[] | select(.component == $component) | .reference' "$WEAVE_CANDIDATE_MANIFEST")"
+            if [[ -n "$container" ]]; then
+              observed="$(docker container inspect --format '{{.Image}}' "$container")"
             else
-              echo "::error::Second OpenTofu plan for ${stage} failed with exit ${rc}. Raw log retained only on the protected runner." >&2
+              observed="$(docker image inspect --format '{{.Id}}' "$reference")"
             fi
-            printf '{"stage":"%s","noChanges":false,"failureKind":"%s","supportSafe":true}\n' \
-              "${stage}" "${failure_kind}" >"$WEAVE_TEST_STACK_EVIDENCE_DIR/tofu-${stage}-idempotence.json"
-            idempotence_status=1
+            source="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$reference")"
+            [[ "$expected" == "$observed" && "$source" == "$WEAVE_CANDIDATE_COMMIT" ]]
+            jq -n --arg reference "$reference" --arg expected "$expected" --arg observed "$observed" --arg source "$source" \
+              '{reference:$reference,expectedImageId:$expected,observedImageId:$observed,sourceCommit:$source,matches:true}'
           }
-          verify_no_drift 01-infrastructure
-          verify_no_drift 02-keycloak-setup
-          echo "WEAVE_TOFU_IDEMPOTENCE_STATUS=$idempotence_status" >> "$GITHUB_ENV"
-
-      - name: Compare persistent human Mailpit TLS and session invariants
-        working-directory: infra/weave-workspace
-        run: |
-          set -euo pipefail
-          WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
-            ./persistent-dogfood-observation.sh capture \
-            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-after.json"
-          set +e
-          ./persistent-dogfood-observation.sh compare \
-            --before "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-before.json" \
-            --after "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-after.json" \
-            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-comparison.json"
-          comparison_status=$?
-          set -e
-          echo "WEAVE_PERSISTENT_COMPARISON_STATUS=$comparison_status" >> "$GITHUB_ENV"
-
-      - name: Collect cached provider metrics without probing providers
-        run: |
-          set -euo pipefail
-          metrics_url="http://127.0.0.1:${TF_VAR_backend_host_port}/actuator/metrics"
-          deadline=$((SECONDS + 90))
-          for capability in files calendar; do
-            while true; do
-              if curl --silent --show-error --fail --max-time 5 \
-                  "${metrics_url}/weave.provider.health.cached.age.seconds?tag=capability:${capability}" \
-                  | jq -e 'any(.measurements[]?; .statistic == "VALUE" and .value >= 0)' >/dev/null; then
-                break
-              fi
-              if (( SECONDS >= deadline )); then
-                echo "::error::Cached provider observation for ${capability} was not available within 90 seconds." >&2
-                exit 1
-              fi
-              sleep 5
-            done
-          done
-          set +e
+          jq -n \
+            --arg source "$WEAVE_CANDIDATE_COMMIT" \
+            --argjson backend "$(observe backend weave-backend server)" \
+            --argjson identity "$(observe identity-ops '' identity-ops)" \
+            --argjson keycloak "$(observe keycloak weave-keycloak keycloak-runtime)" \
+            --argjson mcp "$(observe mcp weave-mcp-server mcp-server)" \
+            '{schemaVersion:"weave.runtime-image-observation.v1",sourceCandidateCommit:$source,images:{backend:$backend,"identity-ops":$identity,keycloak:$keycloak,mcp:$mcp},supportSafe:true,containsSecretValues:false}' \
+            > "$runtime"
           python3 tools/dogfood_deployment_evidence.py collect-provider-health \
-            --actuator-metrics-url "$metrics_url" \
-            --chat-state available \
-            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/provider-health-summary.json" \
-            2>&1 | tee "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-deployment.log"
-          provider_status=${PIPESTATUS[0]}
-          set -e
-          echo "WEAVE_PROVIDER_HEALTH_STATUS=$provider_status" >> "$GITHUB_ENV"
+            --actuator-metrics-url "http://127.0.0.1:${WEAVE_BACKEND_HOST_PORT}/actuator/metrics" \
+            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/provider-health-summary.json"
+          jq -n \
+            --arg lane "$LANE_CANDIDATE_COMMIT" \
+            --arg source "$WEAVE_CANDIDATE_COMMIT" \
+            --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
+            --arg planSha "sha256:$WEAVE_FRESH_START_PLAN_SHA" '
+              {schemaVersion:"weave.fresh-start-cut-report.v1",laneCandidateCommit:$lane,sourceCandidateCommit:$source,candidateManifestDigest:$manifest,planSha256:$planSha,status:"passed",schemaConverged:true,identitySecondPlanEmpty:true,imagesVerified:true,newInvitationPending:true,backupVerified:true,isolatedRestoreVerified:true,legacyStateMigrated:false,adoptionAuthorized:false,supportSafe:true,containsSecretValues:false}
+            ' > "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-cut-report.json"
+          backend_version="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$WEAVE_BACKEND_IMAGE")"
+          python3 tools/dogfood_deployment_evidence.py assemble \
+            --candidate-commit "$LANE_CANDIDATE_COMMIT" \
+            --candidate-manifest-digest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
+            --backend-version "$backend_version" \
+            --backend-build-number "${WEAVE_CANDIDATE_COMMIT:0:12}" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --fresh-start-cut-report "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-cut-report.json" \
+            --provider-health "$WEAVE_TEST_STACK_EVIDENCE_DIR/provider-health-summary.json" \
+            --deployment-idempotence "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-test-idempotence.json" \
+            --candidate-source-mapping "$mapping" \
+            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-deployment-evidence.json" \
+            --require-passed
+          python3 tools/test_stack_manifest.py \
+            --candidate-source-mapping "$mapping" \
+            --candidate-manifest "$WEAVE_CANDIDATE_MANIFEST" \
+            --runtime-image-evidence "$runtime" \
+            --fresh-start-cut-report "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-cut-report.json" \
+            --deployment-idempotence "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-test-idempotence.json" \
+            --provider-health "$WEAVE_TEST_STACK_EVIDENCE_DIR/provider-health-summary.json" \
+            --compose-project "$WEAVE_COMPOSE_PROJECT" \
+            --generation "$WEAVE_RESOURCE_GENERATION" \
+            --live-run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$ISOLATED_E2E_RUN_ID" \
+            --deployment-run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/test-stack-manifest.json"
 
-      - name: Generate a support bundle with sanitized cached health
+      - name: Generate support-safe diagnostics
+        if: always()
         working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          WEAVE_PROVIDER_HEALTH_EVIDENCE_FILE="$WEAVE_TEST_STACK_EVIDENCE_DIR/provider-health-summary.json" \
-          WEAVE_SUPPORT_BUNDLE_DIR="$WEAVE_TEST_STACK_EVIDENCE_DIR/support-bundle" \
-          WEAVE_SUPPORT_BUNDLE_RUN_CHECKS=false \
-            ./support-bundle.sh "$WEAVE_TEST_STACK_EVIDENCE_DIR/support-bundle"
-
-      - name: Assemble exact-candidate dogfood deployment evidence
-        run: |
-          set -o pipefail
-          set +e
-          python3 tools/dogfood_deployment_evidence.py assemble \
-            --candidate-commit "$CANDIDATE_SHA" \
-            --backend-version "0.1.0" \
-            --backend-build-number "$GITHUB_RUN_NUMBER" \
-            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-            --persistent-comparison "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-comparison.json" \
-            --provider-health "$WEAVE_TEST_STACK_EVIDENCE_DIR/provider-health-summary.json" \
-            --tofu-idempotence "$WEAVE_TEST_STACK_EVIDENCE_DIR/tofu-01-infrastructure-idempotence.json" \
-            --tofu-idempotence "$WEAVE_TEST_STACK_EVIDENCE_DIR/tofu-02-keycloak-setup-idempotence.json" \
-            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-deployment-evidence.json" \
-            --require-passed 2>&1 | tee -a "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-deployment.log"
-          evidence_status=${PIPESTATUS[0]}
-          set -e
-          echo "WEAVE_DOGFOOD_EVIDENCE_STATUS=$evidence_status" >> "$GITHUB_ENV"
-
-      - name: Map persistent dogfood runtime evidence
-        if: always()
-        working-directory: client
-        run: |
-          set -euo pipefail
-          if [[ -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-deployment.log" ]]; then
-            flutter pub get
-            dart run tool/acceptance_contract.dart guard \
-              --root .. \
-              --features e2e/features \
-              --mapping e2e/scenario_mappings.json \
-              --out "$WEAVE_TEST_STACK_EVIDENCE_DIR/acceptance-contract" \
-              --test-log "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-deployment.log" \
-              --append-summary "$GITHUB_STEP_SUMMARY" \
-              --source dogfood-deployment \
-              --lane persistent-dogfood-verification \
-              --commit "$CANDIDATE_SHA" \
-              --run-id "$GITHUB_RUN_ID" \
-              --run-attempt "$GITHUB_RUN_ATTEMPT" \
-              --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [[ -n "${WEAVE_TEST_STACK_EVIDENCE_DIR:-}" ]]; then
+            WEAVE_SUPPORT_BUNDLE_RUN_CHECKS=false \
+              ./support-bundle.sh test "$WEAVE_TEST_STACK_EVIDENCE_DIR/support-bundle" || true
           fi
 
-      - name: Write persistent test-stack manifest
+      - name: Upload persistent dogfood evidence
         if: always()
-        run: |
-          set -euo pipefail
-          manifest="$WEAVE_TEST_STACK_EVIDENCE_DIR/test-stack-manifest.json"
-          cat > "$manifest" <<EOF
-          {
-            "schemaVersion": 1,
-            "lane": "persistent-lan-test-stack",
-            "branch": "dogfood",
-            "commit": "${CANDIDATE_SHA}",
-            "isolatedE2ERunId": "${ISOLATED_E2E_RUN_ID}",
-            "runId": "${GITHUB_RUN_ID}",
-            "runAttempt": "${GITHUB_RUN_ATTEMPT}",
-            "runUrl": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
-            "runner": "${RUNNER_NAME:-unknown}",
-            "productUrl": "https://weave.test:44443/",
-            "platformConfigUrl": "https://api.weave.test:44443/api/platform/config",
-            "caBootstrapUrl": "http://weave.test:44080/weave-local-ca.pem",
-            "identityDataResetAllowed": false,
-            "staticTestUserEnabled": false,
-            "isolatedE2EEnabled": false,
-            "supportSafe": true
-          }
-          EOF
-          cat "$manifest" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Enforce persistent dogfood readiness gates
-        if: always()
-        run: |
-          set -euo pipefail
-          test -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-deployment-evidence.json" || {
-            echo "::error::Dogfood deployment evidence was not assembled." >&2
-            exit 1
-          }
-          if [[ "${WEAVE_TOFU_IDEMPOTENCE_STATUS:-1}" != 0 || \
-                "${WEAVE_PERSISTENT_COMPARISON_STATUS:-1}" != 0 || \
-                "${WEAVE_PROVIDER_HEALTH_STATUS:-1}" != 0 || \
-                "${WEAVE_DOGFOOD_EVIDENCE_STATUS:-1}" != 0 ]]; then
-            echo "::error::Persistent dogfood is not ready; see explicit blockers in dogfood-deployment-evidence.json." >&2
-            exit 1
-          fi
-
-      - name: Upload persistent test-stack evidence
-        if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: weave-test-stack-evidence
           path: ${{ env.WEAVE_TEST_STACK_EVIDENCE_DIR }}

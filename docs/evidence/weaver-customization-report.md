@@ -8,10 +8,11 @@ in-memory MCP mutation fixtures were removed. They represented a v1 design in
 which an admin projection and fixture data could appear to grant domain tools.
 That is incompatible with the current contract:
 
-- Keycloak group entitlement is authoritative;
+- exact native Keycloak Organization membership `/capabilities/weaver` is authoritative;
 - RuntimeProfile v2 is desired state, not authorization;
 - approvals remain OpenClaw/Matrix-native and produce action-bound evidence;
-- MCP has no human access and currently exposes an empty catalog; and
+- MCP has no human access; at retirement this report evidenced an empty
+  catalog, while current read-only Files evidence lives in the active report; and
 - collaboration-domain writes require their own explicit facade contracts and
   evidence before any tool is published.
 

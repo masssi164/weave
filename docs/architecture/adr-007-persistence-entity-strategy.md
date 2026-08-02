@@ -1,6 +1,6 @@
 # ADR-007: Persistence Entity Strategy
 
-Status: accepted
+Status: superseded by `WEAVE-ADR-0018`
 
 Date: 2026-07-07
 
@@ -8,46 +8,66 @@ Markers: ENTERPRISE_TARGET_PERSISTENCE_FOUNDATION, ENTERPRISE_TARGET_AUDIT_PERSI
 
 ## Context
 
-#1012 requires Weave-owned strategic mutable state to move toward durable relational persistence without silently deleting the current JSON/file-backed stores. The pinned specification corpus keeps product/domain truth in canonical Weave domains; provider schemas remain adapter I/O and must not become source material for canonical entities.
+#1012 originally introduced durable relational persistence beside historical JSON/file stores so
+parity and restart recovery could be measured before cutover. That transitional state is complete:
+the current Fresh architecture has one JPA authority for strategic runtime state. The pinned
+specification corpus keeps product/domain truth in canonical Weave domains; provider schemas
+remain adapter I/O and must not become source material for canonical entities.
 
 The first safe implementation targets are Admin Console provider selections, product profile overrides, support-safe audit events, and migration run evidence. They are mutable Weave-owned state or append-only evidence streams, already fenced behind repository interfaces, and low-risk enough to prove read/write parity and restart recovery before wider cutover.
 
 ## Decision
 
-Weave will introduce relational persistence behind explicit repository/storage gates:
+This historical decision introduced relational persistence behind explicit repository/storage
+gates. Its Spring JDBC implementation choice is superseded by the entity-first, portable JPA
+contract in
+`../../../weave-specs/architecture/adr/0018-java-spring-and-portable-jpa-persistence.md`.
+The current implementation therefore uses:
 
-- `weave.provider.selections.storage.mode=file` remains the default until parity, rollback, and dogfood migration notes exist.
-- `weave.provider.selections.storage.mode=jdbc` enables the first Flyway-backed repository for provider selections.
-- `weave.profile.storage.mode=file` remains the default until parity, rollback, and dogfood migration notes exist.
-- `weave.profile.storage.mode=jdbc` enables the Flyway-backed repository for product profile overrides.
-- `weave.audit.events.storage.mode=file` remains the default until audit parity, rollback, dogfood migration notes, and production/dogfood cutover evidence exist.
-- `weave.audit.events.storage.mode=jdbc` enables the Flyway-backed publisher for support-safe audit-event persistence.
-- `weave.migration.evidence.storage.mode=file` remains the default until migration evidence import, rollback, dogfood migration notes, and provider-switch no-drift proof exist.
-- `weave.migration.evidence.storage.mode=jdbc` enables the Flyway-backed repository for support-safe migration run evidence.
-- Flyway migrations are the schema baseline for Weave-owned tables.
-- The first repository implementation uses Spring JDBC. JPA entity adoption is deferred until a bounded aggregate needs identity/lifecycle behavior that is clearer with entities than with direct repository mapping.
-- Testcontainers PostgreSQL is added as the release-grade proof dependency, but H2-only local tests may prove local parity and restart behavior only. H2 proof must not be described as PostgreSQL production readiness.
-- Canonical tables are handwritten from Weave domain contracts. Provider databases, exported provider schemas, generated provider DTOs, and downstream API payloads are adapter I/O only.
+- `jpa` as the only production storage mode for strategic Weave-owned state;
+- explicit Jakarta Persistence entities and Spring Data repositories behind domain ports;
+- compile-time MapStruct mapping where persistence and domain models differ;
+- one persistent, non-cancelling schema initializer from the exact Server image using Hibernate
+  `update`, a PostgreSQL advisory lock, a canonical catalog fingerprint, and the
+  `weave_schema_authority` marker;
+- Hibernate `validate` plus exact-candidate marker readiness for PostgreSQL serving profiles;
+- H2 only for fast development/unit feedback and PostgreSQL as the authoritative integration,
+  schema convergence, concurrency, dogfood, and production database;
+- canonical relational shape authored only in reviewed entities and domain constraints. There
+  is no checked-in Flyway or SQL migration authority before the first supported release.
+  Provider databases, exported provider schemas, generated provider DTOs, and downstream API
+  payloads remain adapter I/O only.
 
 ## Dependency and license posture
 
 | Dependency | Use | License posture | Runtime posture |
 | --- | --- | --- | --- |
-| Flyway Core | Versioned schema migrations | Apache-2.0 | Adopted for gated relational persistence |
-| Spring JDBC | Repository implementation | Apache-2.0 | Adopted for first low-risk repositories |
-| PostgreSQL JDBC driver | Dogfood/production-compatible JDBC driver | BSD-2-Clause | Present for explicit JDBC mode |
+| Spring Data JPA / Hibernate | Entity persistence and repository implementation | Apache-2.0 / LGPL-2.1-or-later | Adopted behind domain ports |
+| PostgreSQL JDBC driver | Dogfood/production database driver beneath JPA | BSD-2-Clause | Required for authoritative runtime profiles |
 | H2 | Local/test database only | MPL 2.0 / EPL 1.0 | Test runtime only |
 | Testcontainers JUnit/PostgreSQL | PostgreSQL-compatible proof path | MIT | Test dependency, required before release-grade persistence claims |
-| Spring Data JPA | Entity/aggregate mapping | Apache-2.0 | Deferred; no runtime adoption in this slice |
+| MapStruct | Compile-time persistence/domain mapping | Apache-2.0 | Adopted for explicit boundary mapping |
 
 ## Consequences
 
-The first PRs can prove a relational baseline without changing production defaults. The audit-event slice adds a retry-safe idempotency contract: repeating the same tenant/idempotency event is a no-op, while conflicting reuse fails closed through `AuditRequiredException` instead of leaking raw database exceptions to callers. The migration-evidence slice adds durable restart/recovery proof for dry-run/apply-gate evidence while preserving the file-backed default and avoiding provider-switch cutover claims. Wider cutover still requires #1019: parity for each strategic store, import/backup/rollback operator notes, restart/recovery tests for provider selections, profile overrides, audit, and migration evidence, plus architecture checks that block new production JSON/file strategic stores without an explicit exception.
+The Fresh architecture completes the production cutover for strategic relational state. JPA
+repositories now own provider selections, product-profile overrides, audit, migration evidence,
+identity provisioning, Matrix/Chat state, device credentials and Agent Runtime Control. File
+stores remain only where the accepted contract explicitly requires a mounted cryptographic or
+policy `SecretRef`; they are not alternative strategic database authorities.
 
-This decision advances #1012 and #1025 but does not close the persistence target by itself.
+Idempotency, optimistic/pessimistic concurrency, restart recovery, constraints and schema
+convergence are exercised against authoritative PostgreSQL Testcontainers. H2 provides only
+fast entity/repository feedback. Provider-switch execution remains independently evidence-gated;
+the persistence cutover does not itself claim a live provider migration or rollback.
 
 ## Provider-switch no-drift foundation
 
-The provider-switch no-drift foundation builds on #1019/#1025 without flipping defaults or mutating live providers. `POST /api/admin/providers/replacements/dry-run` now records a support-safe baseline snapshot from persisted provider selection and product profile override read models, publishes a redacted audit event, persists migration-run evidence for the dry-run comparison, and returns the switch plan plus read-model comparison in the Admin Control Plane response.
+The provider-switch no-drift foundation builds on the retirement and evidence work in
+#1019/#1025 without mutating live providers. `POST /api/admin/providers/replacements/dry-run`
+records a support-safe baseline snapshot from persisted provider selection and product profile
+override read models, publishes a redacted audit event, persists migration-run evidence for the
+dry-run comparison, and returns the switch plan plus read-model comparison in the Admin Control
+Plane response.
 
 The evidence remains dry-run-only: persisted migration evidence omits `adminApprovalRef`, keeps `adminApproved=false`, and leaves production provider mutation/default changes blocked until a later issue supplies approval, rollback/archive, restore-smoke, operator cutover, and release-claim evidence. This is the `ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION` marker for #1025, not final provider-switch completion.

@@ -6,7 +6,7 @@ export type GeneratedAdminAuditEventResponse = {
   "actorRef"?: string;
   "idempotencyKey"?: string;
   "occurredAt"?: string;
-  "payload"?: Record<string, Record<string, unknown>>;
+  "payload"?: Record<string, unknown>;
   "redactionLevel"?: string;
   "sourceRef"?: string;
   "tenantId"?: string;
@@ -22,10 +22,10 @@ export type GeneratedAdminControlPlaneResponse = {
   "displayName"?: string;
   "generatedAt"?: string;
   "goLiveReadiness"?: GeneratedGoLiveReadinessResponse;
-  "identityProviderReadiness"?: GeneratedIdentityProviderReadinessResponse;
   "mcpServerBindings"?: GeneratedMcpServerBindingResponse[];
   "memberClientMayConfigureProviders"?: boolean;
   "organizationId"?: string;
+  "platformIdentityReadiness"?: GeneratedPlatformIdentityReadinessResponse;
   "providerConfigSource"?: string;
   "recommendedIdentityBroker"?: string;
   "secretRefs"?: GeneratedSecretRefResponse[];
@@ -92,7 +92,7 @@ export type GeneratedChatProviderMappingRecord = {
   "selectedProviderKey"?: string;
   "selectionSource"?: string;
   "supportSafe"?: boolean;
-  "supportSafeDiagnostics"?: Record<string, Record<string, unknown>>;
+  "supportSafeDiagnostics"?: Record<string, unknown>;
 };
 
 export type GeneratedChatProviderReplacementDryRunRequest = {
@@ -133,7 +133,7 @@ export type GeneratedChatReadiness = {
   "migrationDryRunRequired"?: boolean;
   "providerMapping"?: GeneratedChatProviderMappingRecord;
   "supportSafe"?: boolean;
-  "supportSafeDiagnostics"?: Record<string, Record<string, unknown>>;
+  "supportSafeDiagnostics"?: Record<string, unknown>;
 };
 
 export type GeneratedConsequencePreview = {
@@ -165,36 +165,6 @@ export type GeneratedGoLiveReadinessResponse = {
   "rawProviderDiagnosticsExposed"?: boolean;
   "releaseClaimControl"?: GeneratedReleaseClaimControlResponse;
   "state"?: string;
-  "supportSafe"?: boolean;
-};
-
-export type GeneratedIdentityProviderReadinessCardResponse = {
-  "diagnostics"?: Record<string, Record<string, unknown>>;
-  "evidenceRefs"?: string[];
-  "key"?: string;
-  "label"?: string;
-  "memberImpact"?: string;
-  "nextActions"?: string[];
-  "remediation"?: string;
-  "state"?: string;
-  "summary"?: string;
-};
-
-export type GeneratedIdentityProviderReadinessResponse = {
-  "adminApiRoutes"?: Record<string, string>;
-  "backendOwnedFacade"?: boolean;
-  "cards"?: GeneratedIdentityProviderReadinessCardResponse[];
-  "category"?: string;
-  "contractVersion"?: string;
-  "diagnostics"?: Record<string, Record<string, unknown>>;
-  "generatedAt"?: string;
-  "memberClientMayConfigureIdentityProvider"?: boolean;
-  "nextActions"?: string[];
-  "optionalForMemberFlows"?: boolean;
-  "overallState"?: string;
-  "providerDiagnosticsRedacted"?: boolean;
-  "providerKey"?: string;
-  "stableStates"?: string[];
   "supportSafe"?: boolean;
 };
 
@@ -233,6 +203,25 @@ export type GeneratedMcpServerBindingResponse = {
   "transport"?: string;
 };
 
+export type GeneratedMemberInvitationRequest = {
+  "displayName"?: string;
+  "email": string;
+  "role": string;
+};
+
+export type GeneratedMemberInvitationResponse = {
+  "createdAt"?: string;
+  "displayName"?: string;
+  "email"?: string;
+  "expiresAt"?: string;
+  "invitationHandle"?: string;
+  "lifecycleStatus"?: string;
+  "organizationId"?: string;
+  "provisioningStatus"?: string;
+  "requestedRole"?: string;
+  "updatedAt"?: string;
+};
+
 export type GeneratedNoUnaccountedDataLossReport = {
   "archiveOnlyCount"?: number;
   "knownLosses"?: string[];
@@ -244,6 +233,35 @@ export type GeneratedNoUnaccountedDataLossReport = {
   "unsupportedCount"?: number;
   "unsupportedData"?: string[];
   "vendorLockedCount"?: number;
+};
+
+export type GeneratedPlatformIdentityReadinessCardResponse = {
+  "diagnostics"?: Record<string, unknown>;
+  "evidenceRefs"?: string[];
+  "key"?: string;
+  "label"?: string;
+  "memberImpact"?: string;
+  "nextActions"?: string[];
+  "remediation"?: string;
+  "state"?: string;
+  "summary"?: string;
+};
+
+export type GeneratedPlatformIdentityReadinessResponse = {
+  "adminApiRoutes"?: Record<string, string>;
+  "backendOwnedFacade"?: boolean;
+  "cards"?: GeneratedPlatformIdentityReadinessCardResponse[];
+  "contractVersion"?: string;
+  "diagnostics"?: Record<string, unknown>;
+  "diagnosticsRedacted"?: boolean;
+  "generatedAt"?: string;
+  "memberClientMayConfigurePlatformSecurity"?: boolean;
+  "nextActions"?: string[];
+  "overallState"?: string;
+  "platformAuthority"?: string;
+  "requiredForMemberFlows"?: boolean;
+  "stableStates"?: string[];
+  "supportSafe"?: boolean;
 };
 
 export type GeneratedPortableExportImportContract = {
@@ -263,7 +281,7 @@ export type GeneratedProviderAdapterReadinessEvidenceResponse = {
   "health"?: string;
   "providerRealityLevel"?: "configured" | "contract_only" | "live_read" | "live_write" | "migration_apply_ready" | "migration_dry_run" | "release_ready" | "rollback_ready";
   "reachable"?: boolean;
-  "supportSafeDiagnostics"?: Record<string, Record<string, unknown>>;
+  "supportSafeDiagnostics"?: Record<string, unknown>;
 };
 
 export type GeneratedProviderCategoryContractResponse = {
@@ -289,7 +307,7 @@ export type GeneratedProviderCategoryStatusResponse = {
   "category"?: string;
   "choiceModel"?: string;
   "contract"?: GeneratedProviderCategoryContractResponse;
-  "diagnostics"?: Record<string, Record<string, unknown>>;
+  "diagnostics"?: Record<string, unknown>;
   "label"?: string;
   "lossyMappingNotes"?: string[];
   "memberCapabilityState"?: string;
@@ -319,7 +337,7 @@ export type GeneratedProviderReadinessTestRequest = {
 
 export type GeneratedProviderReadinessTestResponse = {
   "auditEventPublished"?: boolean;
-  "diagnostics"?: Record<string, Record<string, unknown>>;
+  "diagnostics"?: Record<string, unknown>;
   "providerKey"?: string;
   "rawSecretExposed"?: boolean;
   "readiness"?: string;
@@ -434,7 +452,7 @@ export type GeneratedSuiteDomainReadinessResponse = {
   "canonicalObjectKinds"?: string[];
   "capabilityStates"?: string[];
   "domain"?: string;
-  "evidence"?: Record<string, Record<string, unknown>>;
+  "evidence"?: Record<string, unknown>;
   "label"?: string;
   "memberState"?: string;
   "nextAction"?: string;

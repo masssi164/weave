@@ -89,11 +89,11 @@ Diagram: [`docs/diagrams/er_boards_tasks.mmd`](diagrams/er_boards_tasks.mmd).
 
 ## Identity, admin, and policy canonical model
 
-Entities: `Organization`, `User`, `Group`, `Role`, `ProviderConfig`, `CapabilityPolicy`, `Whitelist`, `SecretRef`, `Readiness`, and `AuditEvent`.
+Entities: `Organization`, `User`, `Group`, `Role`, `IdentitySourceConfig`, `CapabilityPolicy`, `Whitelist`, `SecretRef`, `Readiness`, and `AuditEvent`.
 
-The identity/admin canonical set is Organization, User, Group, Role, ProviderConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent.
+The platform-identity/admin canonical set is Organization, User, Group, Role, IdentitySourceConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent.
 
-The identity/admin facade maps Keycloak, Entra ID, Authentik/Auth0/OIDC/SAML, SCIM, and LDAP-style systems into stable organization, user, group, role, and policy records. Keycloak is the self-hosted default; Entra or other OIDC/SAML sources are valid external choices. LDAP/AD is normally an upstream directory source through an identity broker or provisioning bridge. Immutable provider identifiers, such as issuer+subject, SCIM externalId, Entra object ID, or LDAP/AD objectGUID/objectSid, anchor mappings; email is never a primary identity key. Admins configure provider posture, readiness, whitelists, source ownership, role/group mapping, guest policy, service principals, and deprovisioning behavior. Members see only effective capability states.
+Keycloak is the sole Weave identity authority. Entra ID, Authentik/Auth0, other OIDC/SAML systems, and LDAP/AD are upstream identity sources configured through Keycloak brokering or federation; they are not selectable southbound Weave providers. Stable Keycloak issuer/subject identity anchors Weave records, while Keycloak retains immutable upstream links such as Entra object ID or LDAP/AD objectGUID/objectSid; email is never a primary identity key. Admins configure source posture, readiness, whitelists, source ownership, role/group mapping, guest policy, service principals, and deprovisioning behavior through the Keycloak boundary. Members see only effective capability states.
 
 Diagram: [`docs/diagrams/er_identity_admin.mmd`](diagrams/er_identity_admin.mmd).
 
@@ -101,11 +101,11 @@ Diagram: [`docs/diagrams/er_identity_admin.mmd`](diagrams/er_identity_admin.mmd)
 
 Sprint 3 freezes these implementation boundaries for later vertical slices:
 
-- per-capability provider interfaces (`ChatProvider`, `FilesProvider`, `CalendarProvider`, `BoardsProvider`, `IdentityProvider`) stay backend-owned;
+- per-capability provider interfaces (`ChatProvider`, `FilesProvider`, `CalendarProvider`, `BoardsProvider`) stay backend-owned; platform identity uses dedicated Keycloak gateway ports instead of the provider registry;
 - adapter registry lookup is by organization, capability, provider posture, readiness, and policy;
 - mapper contracts return canonical models plus mapping-loss notes;
 - readiness probes return support-safe state only;
 - authorization hooks that evaluate `CapabilityPolicy` before any provider access;
 - audit emits admin changes, denied access, provider writes, readiness transitions, and lossy mapping.
 
-PR C should prove the first vertical slice with Identity/Keycloak plus Boards/Tasks/OpenProject and a Planner-like placeholder behind the same Weave boards/task model. Admin Console, infra, and support bundles consume the registry/readiness contracts rather than raw provider-specific assumptions.
+PR C should prove the fixed Keycloak platform-identity boundary plus Boards/Tasks/OpenProject and a Planner-like placeholder behind the same Weave boards/task model. Admin Console, infra, and support bundles consume stable identity-readiness and provider-registry contracts rather than raw provider-specific assumptions.

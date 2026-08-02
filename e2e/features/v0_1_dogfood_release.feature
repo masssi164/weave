@@ -57,14 +57,14 @@ Feature: Weave v0.1 dogfood production release
   Scenario: Admin sees provider categories before member use
     Given an owner or admin opens Workspace Health before inviting members
     When provider readiness and policy are reviewed
-    Then identity/IDM, chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver are shown as provider categories
+    Then Keycloak platform identity readiness is shown separately from chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver provider categories
     And current dogfood defaults map to category readiness without becoming member-facing product names
     And Weaver is disabled by default until admin policy explicitly enables it
     And normal members never configure raw providers, service endpoints, provider secrets, or diagnostics
 
   @weave-v01-org-manifest-client-admin-split
   Scenario: Organization manifest keeps member client separate from admin console
-    Given an organization has chosen identity, provider categories, capability profiles, and whitelists in the Admin Console
+    Given an organization has configured Keycloak federation, provider categories, capability profiles, and whitelists in the Admin Console
     When a member opens Weave with an organization auth URL, invite link, or deep link and completes SSO
     Then the Weave Client receives a support-safe organization manifest and effective capability states
     And member-visible states are only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later
@@ -77,7 +77,7 @@ Feature: Weave v0.1 dogfood production release
     Then Workspace Health returns overall posture, support-safe category readiness, next actions, and evidence for available, disabled_by_policy, not_configured, degraded, unavailable, coming_later, and misconfigured states
     And feature capabilities are separated from default and external provider adapters
     And members receive only provider-neutral capability states without raw provider setup
-    And member API writes are denied when IDM capability policy does not grant the required category capability
+    And member API writes are denied when Keycloak-derived capability policy does not grant the required category capability
     And Weaver remains disabled by default unless governed organization policy explicitly enables it
 
   @weave-v01-org-control-plane-provider-facade
@@ -91,7 +91,7 @@ Feature: Weave v0.1 dogfood production release
 
   @weave-v01-canonical-provider-neutral-models
   Scenario: Self-hosted and external providers map to the same Weave feature models
-    Given an organization compares self-hosted identity with Teams or Slack chat, SharePoint files, and OpenProject or Planner boards
+    Given an organization compares Teams or Slack chat, SharePoint files, and OpenProject or Planner boards while Keycloak remains the platform identity authority
     When the backend provider registry maps each selected provider into Weave feature facades
     Then Matrix or Slack-like chat maps to the same Space, Conversation, Message, Thread, Reaction, Attachment, Membership, and Presence model
     And Nextcloud or SharePoint-like files map to the same Drive, Node, Folder, File, Version, Share, Permission, Lock, and EditSession model
@@ -117,8 +117,8 @@ Feature: Weave v0.1 dogfood production release
     And provider access happens only after the backend has authorized the canonical Weave capability operation
 
 
-  @weave-v01-idm-rbac-capability-policy
-  Scenario: IDM roles and groups decide capability profiles before Weaver runtime
+  @weave-v01-keycloak-rbac-capability-policy
+  Scenario: Keycloak roles and groups decide capability profiles before Weaver runtime
     Given an owner has configured Keycloak federation and organization access
     When role and group claims are mapped into workspace capability profiles
     Then Keycloak is the identity authority and upstream OIDC SAML LDAP or Active Directory sources remain behind it
@@ -137,7 +137,7 @@ Feature: Weave v0.1 dogfood production release
     And missing entitlement, stale profile, cross-cell access, or incomplete restore state fails closed
 
   @weave-v01-mcp-workload-boundary
-  Scenario: MCP admits only a current entitled workload and advertises no tools yet
+  Scenario: MCP admits only a current entitled workload and advertises the guarded Files read slice
     Given an ARC-bound cell has an exact-audience Keycloak workload token
     When the cell negotiates the MCP Client Credentials extension over Spring AI Streamable HTTP
     Then the MCP edge exchanges rather than relays the workload token and resolves current backend cell context

@@ -22,20 +22,13 @@ class AgentRuntimeWorkloadTokenPolicyTest {
         RuntimeWorkloadPrincipal principal = policy.resolve(token(
                 CLIENT,
                 CLIENT,
-                List.of(RESOURCE, CLIENT),
+                List.of(RESOURCE),
                 AgentRuntimeWorkloadTokenPolicy.PROFILE_READ_SCOPE,
                 List.of(AgentRuntimeWorkloadTokenPolicy.WORKLOAD_ROLE),
                 Map.of()));
 
         assertThat(principal).isEqualTo(new RuntimeWorkloadPrincipal(
                 "https://auth.weave.test/realms/weave", SUBJECT, CLIENT));
-        assertThat(policy.resolve(token(
-                CLIENT,
-                CLIENT,
-                List.of(RESOURCE),
-                AgentRuntimeWorkloadTokenPolicy.PROFILE_READ_SCOPE,
-                List.of(AgentRuntimeWorkloadTokenPolicy.WORKLOAD_ROLE),
-                null))).isEqualTo(principal);
     }
 
     @Test

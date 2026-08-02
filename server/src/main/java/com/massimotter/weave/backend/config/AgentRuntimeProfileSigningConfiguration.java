@@ -1,8 +1,9 @@
 package com.massimotter.weave.backend.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.Ed25519JcsRuntimeProfileSigner;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeProfileSigningKeyStore;
+import com.massimotter.weave.backend.agentruntime.adapter.FileSecretStoreAccess;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigner;
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -13,9 +14,7 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(AgentRuntimeProfileSigningProperties.class)
-@ConditionalOnExpression(
-        "'${weave.agent-runtime.storage.mode:disabled}' == 'jdbc'"
-                + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'")
+@ConditionalOnExpression("'${weave.agent-runtime.profile-signing.enabled:false}' == 'true'")
 public class AgentRuntimeProfileSigningConfiguration {
 
     @Bean
@@ -29,7 +28,8 @@ public class AgentRuntimeProfileSigningConfiguration {
                 new SecureRandom(),
                 properties.keyLifetime(),
                 properties.trustOverlap(),
-                properties.maximumProfileTtl());
+                properties.maximumProfileTtl(),
+                FileSecretStoreAccess.READ_ONLY);
     }
 
     @Bean

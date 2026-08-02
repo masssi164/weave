@@ -33,6 +33,7 @@ import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.provider.ProviderCapabilityContracts;
@@ -43,6 +44,8 @@ import com.massimotter.weave.backend.provider.ProviderSelection;
 import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
+import com.massimotter.weave.backend.service.OrganizationIdentityContext;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.time.Clock;
 import java.time.Instant;
@@ -71,6 +74,7 @@ public class ChatDomainFacadeService {
     private final ChatProviderPort chatProviderPort;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final OrganizationIdentityContextResolver identityContextResolver;
     private final Clock clock;
 
     @Autowired
@@ -81,7 +85,8 @@ public class ChatDomainFacadeService {
             AuditEventPublisher auditEventPublisher,
             ChatProviderPort chatProviderPort,
             ContextAuthorizationPort contextAuthorizationPort,
-            ContextAuthorizationProperties contextAuthorizationProperties) {
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContextResolver) {
         this(
                 providerRegistry,
                 providerSelectionRepository,
@@ -90,6 +95,7 @@ public class ChatDomainFacadeService {
                 chatProviderPort,
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
+                identityContextResolver,
                 Clock.systemUTC());
     }
 
@@ -102,6 +108,28 @@ public class ChatDomainFacadeService {
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
             Clock clock) {
+        this(
+                providerRegistry,
+                providerSelectionRepository,
+                workspaceCapabilityService,
+                auditEventPublisher,
+                chatProviderPort,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                OrganizationIdentityContextResolver.configured(contextAuthorizationProperties),
+                clock);
+    }
+
+    ChatDomainFacadeService(
+            ProviderRegistry providerRegistry,
+            ProviderSelectionRepository providerSelectionRepository,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            AuditEventPublisher auditEventPublisher,
+            ChatProviderPort chatProviderPort,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContextResolver,
+            Clock clock) {
         this.providerRegistry = providerRegistry;
         this.providerSelectionRepository = providerSelectionRepository;
         this.workspaceCapabilityService = workspaceCapabilityService;
@@ -109,6 +137,7 @@ public class ChatDomainFacadeService {
         this.chatProviderPort = chatProviderPort;
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.identityContextResolver = identityContextResolver;
         this.clock = clock;
     }
 
@@ -759,18 +788,14 @@ public class ChatDomainFacadeService {
         if (jwt == null) {
             throw new ChatAccessDeniedException();
         }
-        Object tenant = jwt.getClaims().get("weave_tenant_id");
-        if (!(tenant instanceof String value) || value.isBlank()) {
-            throw new ChatAccessDeniedException();
-        }
-        return value.trim();
+        return requireIdentityContext(jwt).organizationId();
     }
 
     private ChatRequestContext requestContext(Jwt jwt) {
-        if (jwt == null || jwt.getIssuer() == null || jwt.getIssuer().toString().isBlank()) {
+        if (jwt == null) {
             throw new ChatAccessDeniedException();
         }
-        String issuer = jwt.getIssuer().toString();
+        OrganizationIdentityContext identityContext = requireIdentityContext(jwt);
         String configuredPrincipalClaim = jwt.getClaimAsString(contextAuthorizationProperties.principalClaim());
         String authorizationPrincipalRef = contextAuthorizationProperties.principalRef(configuredPrincipalClaim);
         if (authorizationPrincipalRef == null) {
@@ -784,11 +809,19 @@ public class ChatDomainFacadeService {
             contextId = "workspace-default";
         }
         return new ChatRequestContext(
-                organizationId(jwt),
+                identityContext.organizationId(),
                 contextId.trim(),
-                issuer,
+                identityContext.issuer(),
                 new ChatActorRef(actorRef(jwt)),
                 authorizationPrincipalRef);
+    }
+
+    private OrganizationIdentityContext requireIdentityContext(Jwt jwt) {
+        try {
+            return identityContextResolver.resolve(jwt);
+        } catch (ApiErrorException invalidIdentity) {
+            throw new ChatAccessDeniedException();
+        }
     }
 
     private String actorRef(Jwt jwt) {

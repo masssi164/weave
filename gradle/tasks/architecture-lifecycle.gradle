@@ -1,0 +1,308 @@
+def requiredProperty = { String name ->
+    def value = providers.gradleProperty(name).orNull
+    if (value == null || value.toString().trim().isEmpty()) {
+        throw new GradleException("Missing required -P${name}=... property.")
+    }
+    value.toString()
+}
+
+def optionalProperty = { String name, String fallback ->
+    providers.gradleProperty(name).orElse(fallback).get().toString()
+}
+
+tasks.register('devUp', Exec) {
+    group = 'application'
+    description = 'Converge the dev provider stack and leave Server/MCP ports ready for host processes.'
+    workingDir rootProject.projectDir
+    commandLine 'bash', 'gradle/tasks/dev-up.sh'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('devRun', Exec) {
+    group = 'application'
+    description = 'Run Weave Server and MCP as separate host processes against the converged dev providers.'
+    dependsOn 'devUp'
+    workingDir rootProject.projectDir
+    commandLine 'bash', 'gradle/tasks/dev-run.sh'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('devDown', Exec) {
+    group = 'application'
+    description = 'Stop the dev topology while preserving provider data volumes.'
+    workingDir rootProject.projectDir
+    commandLine 'bash', 'gradle/tasks/dev-down.sh'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('testApp', Exec) {
+    group = 'verification'
+    description = 'Prove invitation, browser activation, PKCE, WebDAV, ARC, MCP, revocation, and exact cleanup in one disposable stack.'
+    workingDir rootProject.projectDir
+    commandLine 'bash', 'gradle/tasks/test-app.sh'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('testAppContract') {
+    group = 'verification'
+    description = 'Compile and test the framework-free testApp product-flow proof without starting a stack.'
+    dependsOn ':weave-product-e2e:test'
+}
+
+tasks.register('freshStartPlan', Exec) {
+    group = 'weave operations'
+    description = 'Create a non-mutating, canonical, exact-resource Fresh Start plan.'
+    workingDir rootProject.projectDir
+    outputs.upToDateWhen { false }
+    doFirst {
+        def manifest = optionalProperty(
+            'freshStartManifest',
+            layout.buildDirectory.file('operations/fresh-start/plan.json').get().asFile.absolutePath
+        )
+        def arguments = [
+            'python3',
+            'infra/weave-workspace/fresh-start.py',
+            'plan',
+            '--environment', requiredProperty('freshStartEnvironment'),
+            '--scope', requiredProperty('freshStartScope'),
+            '--stack', optionalProperty('freshStartStack', 'weave'),
+            '--namespace', requiredProperty('freshStartNamespace'),
+            '--retired-generation', requiredProperty('retiredGeneration'),
+            '--target-generation', requiredProperty('targetGeneration'),
+            '--spec-commit', requiredProperty('specCommit'),
+            '--spec-digest', requiredProperty('specDigest'),
+            '--candidate-commit', requiredProperty('candidateCommit'),
+            '--candidate-manifest-digest', requiredProperty('candidateManifestDigest'),
+            '--operation-nonce', requiredProperty('operationNonce'),
+            '--recovery-decision', requiredProperty('recoveryDecision'),
+            '--recovery-evidence-ref', requiredProperty('recoveryEvidenceRef'),
+            '--allowlist', optionalProperty(
+                'freshStartAllowlist',
+                file('infra/weave-workspace/fresh-start-targets.json').absolutePath
+            ),
+            '--lock-file', optionalProperty(
+                'freshStartLock',
+                new File(System.getProperty('user.home'), '.local/state/weave/fresh-start.lock').absolutePath
+            ),
+            '--output', manifest
+        ]
+        def recoveryReceipt = providers.gradleProperty('recoveryReceipt').orNull
+        if (recoveryReceipt != null && !recoveryReceipt.toString().trim().isEmpty()) {
+            arguments.addAll(['--recovery-receipt', recoveryReceipt.toString()])
+        }
+        commandLine arguments
+    }
+}
+
+tasks.register('freshStartBackupRehearsal', Exec) {
+    group = 'weave operations'
+    description = 'Create a private candidate-bound backup and prove it in isolation without migration or adoption.'
+    workingDir rootProject.projectDir
+    outputs.upToDateWhen { false }
+    doFirst {
+        def arguments = [
+            'bash',
+            'infra/weave-workspace/fresh-start-backup-rehearsal.sh',
+            optionalProperty('freshStartBackupProfile', 'test')
+        ]
+        def receipt = providers.gradleProperty('freshStartBackupReceipt').orNull
+        if (receipt != null && !receipt.toString().trim().isEmpty()) {
+            arguments.addAll(['--receipt-output', receipt.toString()])
+        }
+        commandLine arguments
+    }
+}
+
+tasks.register('freshStartDeleteApprovedTargets', Exec) {
+    group = 'weave operations'
+    description = 'Internal Fresh Start phase: delete only the targets in one reviewed manifest.'
+    workingDir rootProject.projectDir
+    outputs.upToDateWhen { false }
+    doFirst {
+        def manifest = requiredProperty('freshStartManifest')
+        def arguments = [
+            'python3',
+            'infra/weave-workspace/fresh-start.py',
+            'apply',
+            '--manifest', manifest,
+            '--confirm', requiredProperty('confirm'),
+            '--approval-evidence', requiredProperty('approvalEvidence'),
+            '--allowlist', optionalProperty(
+                'freshStartAllowlist',
+                file('infra/weave-workspace/fresh-start-targets.json').absolutePath
+            ),
+            '--lock-file', optionalProperty(
+                'freshStartLock',
+                new File(System.getProperty('user.home'), '.local/state/weave/fresh-start.lock').absolutePath
+            )
+        ]
+        def evidence = providers.gradleProperty('freshStartEvidence').orNull
+        if (evidence != null && !evidence.toString().trim().isEmpty()) {
+            arguments.addAll(['--evidence', evidence.toString()])
+        }
+        commandLine arguments
+    }
+}
+
+tasks.register('freshStartRecreateTargetGeneration', Exec) {
+    group = 'weave operations'
+    description = 'Internal Fresh Start phase: recreate the target generation from exact candidate images.'
+    dependsOn 'freshStartDeleteApprovedTargets'
+    workingDir rootProject.projectDir
+    outputs.upToDateWhen { false }
+    doFirst {
+        commandLine(
+            'python3',
+            'infra/weave-workspace/fresh-start-recreate.py',
+            '--plan', requiredProperty('freshStartManifest'),
+            '--apply-evidence', requiredProperty('freshStartApplyEvidence'),
+            '--candidate-manifest', requiredProperty('candidateManifest'),
+            '--allowlist', optionalProperty(
+                'freshStartAllowlist',
+                file('infra/weave-workspace/fresh-start-targets.json').absolutePath
+            ),
+            '--lock-file', optionalProperty(
+                'freshStartLock',
+                new File(System.getProperty('user.home'), '.local/state/weave/fresh-start.lock').absolutePath
+            ),
+            '--archive-root', optionalProperty(
+                'freshStartArchiveRoot',
+                new File(System.getProperty('user.home'), '.local/state/weave/fresh-start').absolutePath
+            ),
+            '--evidence', requiredProperty('freshStartRecreationEvidence')
+        )
+    }
+}
+
+tasks.register('freshStartApply') {
+    group = 'weave operations'
+    description = 'Apply one approved Fresh Start plan and recreate its complete target generation.'
+    dependsOn 'freshStartRecreateTargetGeneration'
+}
+
+tasks.register('dogfoodCandidateCheck', Exec) {
+    group = 'verification'
+    description = 'Validate one exact candidate manifest and its digest-pinned runtime images.'
+    workingDir rootProject.projectDir
+    outputs.upToDateWhen { false }
+    doFirst {
+        commandLine(
+            'python3',
+            'gradle/tasks/candidate-manifest-check.py',
+            '--manifest', requiredProperty('candidateManifest')
+        )
+    }
+}
+
+tasks.register('createCandidateManifest', Exec) {
+    group = 'weave release'
+    description = 'Create and validate one immutable candidate manifest from digest-pinned images and attestations.'
+    workingDir rootProject.projectDir
+    outputs.upToDateWhen { false }
+    doFirst {
+        commandLine(
+            'python3',
+            'gradle/tasks/candidate-manifest-create.py',
+            '--commit', requiredProperty('candidateCommit'),
+            '--specification-commit', requiredProperty('specificationCommit'),
+            '--spec-digest', requiredProperty('specDigest'),
+            '--build-evidence-ref', requiredProperty('buildEvidenceRef'),
+            '--keycloak-build-evidence-digest', requiredProperty('keycloakRuntimeBuildEvidenceDigest'),
+            '--image',
+            'server',
+            requiredProperty('serverImage'),
+            requiredProperty('serverSbomDigest'),
+            requiredProperty('serverProvenanceDigest'),
+            '--image',
+            'mcp-server',
+            requiredProperty('mcpServerImage'),
+            requiredProperty('mcpServerSbomDigest'),
+            requiredProperty('mcpServerProvenanceDigest'),
+            '--image',
+            'identity-ops',
+            requiredProperty('identityOpsImage'),
+            requiredProperty('identityOpsSbomDigest'),
+            requiredProperty('identityOpsProvenanceDigest'),
+            '--image',
+            'keycloak-runtime',
+            requiredProperty('keycloakRuntimeImage'),
+            requiredProperty('keycloakRuntimeSbomDigest'),
+            requiredProperty('keycloakRuntimeProvenanceDigest'),
+            '--output', requiredProperty('candidateManifest')
+        )
+    }
+}
+
+def configureIdentityOpsTask = { String taskName, String operation, String descriptionText ->
+    tasks.register(taskName, Exec) {
+        group = 'weave operations'
+        description = descriptionText
+        workingDir rootProject.projectDir
+        outputs.upToDateWhen { false }
+        doFirst {
+            commandLine(
+                'bash',
+                'gradle/tasks/identity-ops-run.sh',
+                '--operation', operation,
+                '--image', requiredProperty('identityOpsImage'),
+                '--state-root', requiredProperty('identityOpsStateRoot'),
+                '--env-file', requiredProperty('identityOpsEnvFile'),
+                '--network', requiredProperty('identityOpsNetwork')
+            )
+        }
+    }
+}
+
+configureIdentityOpsTask(
+    'identityOpsPlan',
+    'plan',
+    'Create a reviewable Keycloak Desired State plan in the mounted identity state root.'
+)
+configureIdentityOpsTask(
+    'identityOpsApply',
+    'apply',
+    'Apply only the reviewed Keycloak Desired State plan from the mounted identity state root.'
+)
+configureIdentityOpsTask(
+    'identityOpsValidate',
+    'validate',
+    'Validate the bundled Keycloak Desired State and mirrored provider without contacting Keycloak.'
+)
+
+tasks.register('prepareDogfoodTester', Exec) {
+    group = 'weave operations'
+    description = 'Idempotently create or verify the protected persistent dogfood member activation state.'
+    workingDir file('infra/weave-workspace')
+    commandLine 'bash', 'dogfood-member.sh', 'ensure'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('bootstrapOwner', Exec) {
+    group = 'weave operations'
+    description = 'Create or replay the protected first owner invitation from a mounted SecretRef.'
+    workingDir rootProject.projectDir
+    outputs.upToDateWhen { false }
+    doFirst {
+        def arguments = [
+            'python3',
+            'gradle/tasks/bootstrap-owner.py',
+            '--api-base-url', requiredProperty('bootstrapApiBaseUrl'),
+            '--token-file', optionalProperty(
+                'bootstrapOwnerTokenFile',
+                file('infra/weave-workspace/.generated/dev/identity/bootstrap-owner.token').absolutePath
+            ),
+            '--email', requiredProperty('bootstrapOwnerEmail'),
+            '--display-name', optionalProperty('bootstrapOwnerDisplayName', ''),
+            '--idempotency-key', requiredProperty('bootstrapOwnerIdempotencyKey')
+        ]
+        def caFile = providers.gradleProperty('bootstrapCaFile').orNull
+        if (caFile != null && !caFile.toString().trim().isEmpty()) {
+            arguments.addAll(['--ca-file', caFile.toString()])
+        }
+        def evidence = providers.gradleProperty('bootstrapOwnerEvidence').orNull
+        if (evidence != null && !evidence.toString().trim().isEmpty()) {
+            arguments.addAll(['--evidence', evidence.toString()])
+        }
+        commandLine arguments
+    }
+}

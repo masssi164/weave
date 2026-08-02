@@ -29,22 +29,30 @@ class McpExchangedTokenPolicyTest {
 
     @Test
     void rejectsHumanRolesMcpScopesAndMalformedRoleClaims() {
-        assertDenied(token(Map.of("realm_access", Map.of("roles", List.of("member")))));
-        assertDenied(token(Map.of("resource_access", Map.of("weave-server", Map.of("roles", List.of("member"))))));
-        assertDenied(token(Map.of("realm_access", Map.of("roles", "member"))));
-        assertDenied(token(Map.of("scope", "calendar.read mcp:tools")));
+        assertDenied(
+                token(Map.of("realm_access", Map.of("roles", List.of("member")))),
+                "token-realm-roles");
+        assertDenied(
+                token(Map.of("resource_access", Map.of("weave-server", Map.of("roles", List.of("member"))))),
+                "token-client-roles");
+        assertDenied(token(Map.of("realm_access", Map.of("roles", "member"))), "token-realm-roles");
+        assertDenied(token(Map.of("scope", "calendar.read mcp.tools")), "token-scope");
     }
 
     @Test
     void rejectsWrongAudienceAuthorizedPartyAndTokenType() {
-        assertDenied(token(Map.of("aud", List.of(API_RESOURCE, "weave-mcp-server"))));
-        assertDenied(token(Map.of("azp", "weave-app")));
-        assertDenied(token(Map.of("typ", "JWT")));
+        assertDenied(
+                token(Map.of("aud", List.of(API_RESOURCE, "weave-mcp-server"))),
+                "token-audience");
+        assertDenied(token(Map.of("azp", "weave-app")), "token-requester");
+        assertDenied(token(Map.of("typ", "JWT")), "token-type");
     }
 
-    private void assertDenied(Jwt jwt) {
+    private void assertDenied(Jwt jwt, String reasonCode) {
         assertThatThrownBy(() -> policy.resolve(jwt))
-                .isInstanceOf(McpWorkloadAuthorizationException.class)
+                .isInstanceOfSatisfying(
+                        McpWorkloadAuthorizationException.class,
+                        failure -> assertThat(failure.reasonCode()).isEqualTo(reasonCode))
                 .hasMessageNotContaining(jwt.getTokenValue());
     }
 

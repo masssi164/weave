@@ -12,7 +12,7 @@ service-account subject recorded by ARC. Tokens carry the sole realm role `weave
 client roles, and an exact resource-specific scope set:
 
 - only `agent-runtime.profile.read` for `https://api.weave.test/api/v1/agent-runtime`;
-- `mcp:tools` plus the current RuntimeProfile's allowed domain scopes for
+- `mcp.tools` plus the current RuntimeProfile's allowed domain scopes for
   `https://api.weave.test/mcp`.
 
 Human clients and generic service accounts have no MCP path. A cell never receives a member token or the `weave-mcp-server` credential. The MCP edge exchanges rather than relays the incoming workload token and every receiving domain revalidates current cell binding, entitlement, member authorization, policy, arguments, expiry, and revocation.
@@ -33,7 +33,7 @@ Databases, sessions, credentials, Matrix crypto/device state, plugin state, gene
 
 ## Encrypted external RuntimeStateStore
 
-Dogfood stores ordered ciphertext chunks in the Weave PostgreSQL service. Each generation uses a random AES-256-GCM data key. Authenticated context binds the organization, person, cell, store, generation reference, generation number, and `runtimeProfileHash`. A separately mounted key wraps data keys with AES-KWP; the raw wrapping key never enters PostgreSQL, source, environment variables, logs, WebDAV, the cell image, backup manifests, or support bundles.
+Dogfood stores ordered ciphertext objects as immutable generations in an isolated S3-compatible MinIO store; JPA persists only coordination metadata. Each generation uses a random AES-256-GCM data key. Authenticated context binds the organization, person, cell, store, generation reference, generation number, and `runtimeProfileHash`. A separately mounted key wraps data keys with AES-KWP; the raw wrapping key never enters PostgreSQL, object storage, source, environment variables, logs, WebDAV, the cell image, backup manifests, or support bundles.
 
 Generation commits use compare-and-swap. A wake is acknowledged only after its post-event generation wins that comparison, and redelivery reuses the same source-event and idempotency references. The mounted file-key adapter supports overlap rotation but remains `Guarded`; a production claim requires separately evidenced external KMS or secret-manager custody.
 

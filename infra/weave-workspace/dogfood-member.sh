@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BOOTSTRAP_ENV_FILE="${WEAVE_DOGFOOD_BOOTSTRAP_ENV:-${ROOT_DIR}/.generated/bootstrap.env}"
 SUBJECT_FILE="${WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE:-${ROOT_DIR}/.generated/dogfood-member.subject}"
-REALM="${TF_VAR_tenant_slug:-weave}"
+REALM="${WEAVE_TENANT_SLUG:-weave}"
 OPERATION=""
 EVIDENCE_FILE=""
 PRIOR_EVIDENCE_FILE=""
@@ -16,7 +16,7 @@ BOOTSTRAP_RETIREMENT_CONFIRMATION=""
 LIFESPAN_SECONDS="${WEAVE_DOGFOOD_MEMBER_ACTIVATION_LIFESPAN_SECONDS:-86400}"
 CLIENT_ID="weave-app"
 REDIRECT_URI="com.massimotter.weave:/oauthredirect"
-EXPECTED_GROUPS="${WEAVE_DOGFOOD_MEMBER_GROUPS:-workspace-members,weave-board-editors,weave-calendar-editors}"
+EXPECTED_GROUPS="/members,/capabilities/weaver"
 MAILPIT_VERIFY_TIMEOUT_SECONDS="${WEAVE_DOGFOOD_MEMBER_MAILPIT_VERIFY_TIMEOUT_SECONDS:-60}"
 MAILPIT_EXPECTED_SUBJECT="${WEAVE_DOGFOOD_MEMBER_MAIL_SUBJECT:-Complete your Weave account setup}"
 MAIL_MESSAGE_ID_SHA256=""
@@ -42,8 +42,7 @@ Required environment:
 Options:
   --evidence-file PATH   Write support-safe JSON evidence.
   --subject-file PATH    Protected runtime file holding the immutable subject.
-  --tenant-realm VALUE   Keycloak realm (default: TF_VAR_tenant_slug or weave).
-  --groups CSV           Expected member/capability groups.
+  --tenant-realm VALUE   Keycloak realm (default: WEAVE_TENANT_SLUG or weave).
   --lifespan SECONDS     Initial/resend action-email lifetime (300..86400).
   --prior-evidence PATH  Last accepted support-safe member evidence (recovery only).
   --approval-ref URL     Protected GitHub Actions run URL (recovery only).
@@ -64,14 +63,14 @@ EOF
 }
 
 load_environment() {
-  local runtime_admin_username="${TF_VAR_keycloak_admin_username:-}"
-  local runtime_admin_password="${TF_VAR_keycloak_admin_password:-}"
+  local runtime_admin_username="${WEAVE_KEYCLOAK_ADMIN_USERNAME:-}"
+  local runtime_admin_password="${WEAVE_KEYCLOAK_ADMIN_PASSWORD:-}"
   if [[ -f "${BOOTSTRAP_ENV_FILE}" ]]; then
     # shellcheck disable=SC1090
     source "${BOOTSTRAP_ENV_FILE}"
   fi
-  [[ -z "${runtime_admin_username}" ]] || TF_VAR_keycloak_admin_username="${runtime_admin_username}"
-  [[ -z "${runtime_admin_password}" ]] || TF_VAR_keycloak_admin_password="${runtime_admin_password}"
+  [[ -z "${runtime_admin_username}" ]] || WEAVE_KEYCLOAK_ADMIN_USERNAME="${runtime_admin_username}"
+  [[ -z "${runtime_admin_password}" ]] || WEAVE_KEYCLOAK_ADMIN_PASSWORD="${runtime_admin_password}"
 }
 
 parse_args() {
@@ -83,7 +82,6 @@ parse_args() {
       --evidence-file) EVIDENCE_FILE="${2:-}"; shift 2 ;;
       --subject-file) SUBJECT_FILE="${2:-}"; shift 2 ;;
       --tenant-realm) REALM="${2:-}"; shift 2 ;;
-      --groups) EXPECTED_GROUPS="${2:-}"; shift 2 ;;
       --lifespan) LIFESPAN_SECONDS="${2:-}"; shift 2 ;;
       --prior-evidence) PRIOR_EVIDENCE_FILE="${2:-}"; shift 2 ;;
       --approval-ref) RECOVERY_APPROVAL_REF="${2:-}"; shift 2 ;;
@@ -121,24 +119,24 @@ validate_inputs() {
 }
 
 public_port_suffix() {
-  local scheme="${TF_VAR_public_scheme:-https}" port="${TF_VAR_proxy_host_port:-443}"
+  local scheme="${WEAVE_PUBLIC_SCHEME:-https}" port="${WEAVE_PROXY_HTTPS_HOST_PORT:-443}"
   if [[ "${scheme}:${port}" == "http:80" || "${scheme}:${port}" == "https:443" ]]; then printf ''; else printf ':%s' "${port}"; fi
 }
 
 keycloak_url() {
-  printf '%s://%s.%s%s' "${TF_VAR_public_scheme:-https}" "${TF_VAR_auth_subdomain:-auth}" \
-    "${TF_VAR_tenant_domain:-weave.test}" "$(public_port_suffix)"
+  printf '%s://%s.%s%s' "${WEAVE_PUBLIC_SCHEME:-https}" "${WEAVE_AUTH_SUBDOMAIN:-auth}" \
+    "${WEAVE_TENANT_DOMAIN:-weave.test}" "$(public_port_suffix)"
 }
 
 mailpit_messages_url() {
-  printf '%s://mail.%s%s/api/v1/messages' "${TF_VAR_public_scheme:-https}" \
-    "${TF_VAR_tenant_domain:-weave.test}" "$(public_port_suffix)"
+  printf '%s://mail.%s%s/api/v1/messages' "${WEAVE_PUBLIC_SCHEME:-https}" \
+    "${WEAVE_TENANT_DOMAIN:-weave.test}" "$(public_port_suffix)"
 }
 
 curl_common() {
   local -a args=(--silent --show-error --fail-with-body)
   if [[ -n "${WEAVE_TLS_CA_FILE:-}" ]]; then args+=(--cacert "${WEAVE_TLS_CA_FILE}")
-  elif [[ -n "${TF_VAR_caddy_tls_ca_file:-}" && -f "${TF_VAR_caddy_tls_ca_file}" ]]; then args+=(--cacert "${TF_VAR_caddy_tls_ca_file}"); fi
+  elif [[ -n "${WEAVE_CADDY_TLS_CA_FILE:-}" && -f "${WEAVE_CADDY_TLS_CA_FILE}" ]]; then args+=(--cacert "${WEAVE_CADDY_TLS_CA_FILE}"); fi
   printf '%s\0' "${args[@]}"
 }
 
@@ -156,7 +154,7 @@ request_http_status() {
   local method="$1" url="$2" token="${3:-}" http_status
   local -a args=(--silent --show-error --output /dev/null --write-out '%{http_code}' -X "${method}")
   if [[ -n "${WEAVE_TLS_CA_FILE:-}" ]]; then args+=(--cacert "${WEAVE_TLS_CA_FILE}")
-  elif [[ -n "${TF_VAR_caddy_tls_ca_file:-}" && -f "${TF_VAR_caddy_tls_ca_file}" ]]; then args+=(--cacert "${TF_VAR_caddy_tls_ca_file}"); fi
+  elif [[ -n "${WEAVE_CADDY_TLS_CA_FILE:-}" && -f "${WEAVE_CADDY_TLS_CA_FILE}" ]]; then args+=(--cacert "${WEAVE_CADDY_TLS_CA_FILE}"); fi
   [[ -n "${token}" ]] && args+=(-H "Authorization: Bearer ${token}")
   if ! http_status="$(curl "${args[@]}" "${url}")"; then
     fail "Keycloak subject absence could not be verified"
@@ -170,8 +168,8 @@ admin_token() {
   while IFS= read -r -d '' arg; do args+=("${arg}"); done < <(curl_common)
   curl "${args[@]}" -X POST "$(keycloak_url)/realms/master/protocol/openid-connect/token" \
     -H 'Content-Type: application/x-www-form-urlencoded' --data-urlencode 'client_id=admin-cli' \
-    --data-urlencode "username=${TF_VAR_keycloak_admin_username:-admin}" \
-    --data-urlencode "password=${TF_VAR_keycloak_admin_password:-}" --data-urlencode 'grant_type=password' |
+    --data-urlencode "username=${WEAVE_KEYCLOAK_ADMIN_USERNAME:-admin}" \
+    --data-urlencode "password=${WEAVE_KEYCLOAK_ADMIN_PASSWORD:-}" --data-urlencode 'grant_type=password' |
     jq -r '.access_token // empty'
 }
 
@@ -255,52 +253,46 @@ verify_subject_invariant() {
   [[ "${subject}" == "${recorded}" ]] || fail "identity_changed"
 }
 
-find_named_id() {
-  local json="$1" name="$2" type="$3" id
-  id="$(jq -r --arg name "${name}" '.[] | select(.name == $name or .alias == $name) | .id' <<<"${json}")"
-  [[ "$(wc -l <<<"${id}" | tr -d ' ')" -eq 1 && -n "${id}" ]] || fail "${type} '${name}' is unavailable or ambiguous"
+find_group_path_id() {
+  local base="$1" token="$2" org_id="$3" path="$4" leaf groups id
+  [[ "${path}" == /* && "${path}" != */ ]] || fail "group path '${path}' is not canonical"
+  leaf="${path##*/}"
+  groups="$(request GET "${base}/organizations/${org_id}/groups?search=$(encode "${leaf}")&exact=true&first=0&max=2" "${token}")"
+  id="$(jq -r --arg path "${path}" '[.[] | select(.path == $path) | .id] | if length == 1 then .[0] else empty end' <<<"${groups}")"
+  [[ -n "${id}" ]] || fail "native organization group path '${path}' is unavailable or ambiguous"
   printf '%s' "${id}"
 }
 
 resolve_org_id() {
-  local base="$1" token="$2" organizations
-  organizations="$(request GET "${base}/organizations?search=$(encode "${REALM}")&exact=true" "${token}")"
-  find_named_id "${organizations}" "${REALM}" organization
-}
-
-resolve_client_id() {
-  local base="$1" token="$2" clients
-  clients="$(request GET "${base}/clients?clientId=$(encode "${CLIENT_ID}")" "${token}")"
-  find_named_id "${clients}" "${CLIENT_ID}" client
+  local base="$1" token="$2" organizations organization_id
+  organizations="$(request GET "${base}/organizations?first=0&max=2" "${token}")"
+  organization_id="$(jq -r 'if length == 1 and (.[0].id // "") != "" then .[0].id else empty end' <<<"${organizations}")"
+  [[ -n "${organization_id}" ]] || fail "the single primary organization is unavailable or ambiguous"
+  printf '%s' "${organization_id}"
 }
 
 add_initial_access() {
-  local base="$1" token="$2" subject="$3" org_id client_uuid role group group_id groups
+  local base="$1" token="$2" subject="$3" org_id group group_id groups
   org_id="$(resolve_org_id "${base}" "${token}")" || return 1
   request POST "${base}/organizations/${org_id}/members" "${token}" "$(jq -cn --arg id "${subject}" '$id')" >/dev/null || return 1
-  client_uuid="$(resolve_client_id "${base}" "${token}")" || return 1
-  role="$(request GET "${base}/clients/${client_uuid}/roles/member" "${token}")" || return 1
-  request POST "${base}/users/${subject}/role-mappings/clients/${client_uuid}" "${token}" "[$(jq -c . <<<"${role}")]" >/dev/null || return 1
   IFS=',' read -r -a groups <<<"${EXPECTED_GROUPS}"
   for group in "${groups[@]}"; do
     group="${group#"${group%%[![:space:]]*}"}"; group="${group%"${group##*[![:space:]]}"}"
-    group_id="$(find_named_id "$(request GET "${base}/groups?search=$(encode "${group}")&exact=true" "${token}")" "${group}" group)" || return 1
-    request PUT "${base}/users/${subject}/groups/${group_id}" "${token}" >/dev/null || return 1
+    group_id="$(find_group_path_id "${base}" "${token}" "${org_id}" "${group}")" || return 1
+    request PUT "${base}/organizations/${org_id}/groups/${group_id}/members/${subject}" "${token}" >/dev/null || return 1
   done
 }
 
 verify_expected_access() {
-  local base="$1" token="$2" subject="$3" org_id client_uuid roles memberships group expected groups
+  local base="$1" token="$2" subject="$3" org_id memberships expected groups
   org_id="$(resolve_org_id "${base}" "${token}")"
   request GET "${base}/organizations/${org_id}/members/${subject}" "${token}" >/dev/null || fail "persistent member lacks organization membership"
-  client_uuid="$(resolve_client_id "${base}" "${token}")"
-  roles="$(request GET "${base}/users/${subject}/role-mappings/clients/${client_uuid}" "${token}")"
-  jq -e 'any(.name == "member")' <<<"${roles}" >/dev/null || fail "persistent member lacks member role"
-  memberships="$(request GET "${base}/users/${subject}/groups" "${token}")"
+  memberships="$(request GET "${base}/organizations/${org_id}/members/${subject}/groups" "${token}")"
   IFS=',' read -r -a groups <<<"${EXPECTED_GROUPS}"
   for expected in "${groups[@]}"; do
     expected="${expected#"${expected%%[![:space:]]*}"}"; expected="${expected%"${expected##*[![:space:]]}"}"
-    jq -e --arg name "${expected}" 'any(.name == $name)' <<<"${memberships}" >/dev/null || fail "persistent member lacks expected group '${expected}'"
+    jq -e --arg path "${expected}" 'any(.path == $path)' <<<"${memberships}" >/dev/null ||
+      fail "persistent member lacks native organization group path '${expected}'"
   done
 }
 
@@ -632,7 +624,7 @@ write_evidence() {
 main() {
   load_environment; parse_args "$@"; validate_inputs
   command -v curl >/dev/null || fail "curl is required"; command -v jq >/dev/null || fail "jq is required"
-  [[ -n "${TF_VAR_keycloak_admin_password:-}" ]] || fail "TF_VAR_keycloak_admin_password is required"
+  [[ -n "${WEAVE_KEYCLOAK_ADMIN_PASSWORD:-}" ]] || fail "WEAVE_KEYCLOAK_ADMIN_PASSWORD is required"
   local token base user state subject="" action="none" mail_before=""
   token="$(admin_token)"; [[ -n "${token}" ]] || fail "Keycloak admin authentication failed"
   base="$(api_base)"; user="$(resolve_user "${base}" "${token}")"

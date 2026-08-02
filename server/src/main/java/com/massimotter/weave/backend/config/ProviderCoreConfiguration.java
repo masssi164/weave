@@ -17,32 +17,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class ProviderCoreConfiguration {
-
-    @Bean
-    ProviderPort identityRealmProviderRegistrySeam(
-            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:}") String issuer) {
-        boolean configured = issuer != null && !issuer.isBlank();
-        return RuntimeProviderStatus.fixed(
-                ProviderModule.IDENTITY_REALM,
-                "keycloak-realm",
-                configured,
-                "Keycloak is the mandatory identity gateway; external LDAP/AD and OIDC/SAML sources remain behind its federation and brokering boundaries.",
-                Set.of("realm-readiness", "realm-dry-run", "client-scope-diff", "role-diff"),
-                Set.of("direct-frontend-keycloak-admin", "secret-export", "live-realm-mutation-without-audit"),
-                List.of("keycloak", "entra-id", "authentik", "auth0", "generic-oidc", "generic-saml", "scim-ldap"),
-                configured ? ProviderRealityLevel.CONFIGURED : ProviderRealityLevel.CONTRACT_ONLY,
-                Map.of(
-                        "issuerConfigured", configured,
-                        "identityGateway", "keycloak",
-                        "ldapAdBoundary", "keycloak-user-federation",
-                        "oidcSamlBoundary", "keycloak-identity-brokering"));
-    }
 
     @Bean
     ProviderPort matrixProviderRegistrySeam(ObjectProvider<ChatProviderPort> chatProviderPort) {
@@ -64,18 +43,6 @@ public class ProviderCoreConfiguration {
                 Set.of("room-key-export", "raw-homeserver-errors", "direct-flutter-admin-api", "credential-exposure"),
                 List.of("synapse-homeserver", "matrix", "synapse", "slack", "microsoft-teams"),
                 Map.of("substrate", "matrix", "chatE2eeBoundary", "matrix-chat-only", "mediaCallsCovered", false));
-    }
-
-    @Bean
-    ProviderPort matrixAuthProviderRegistrySeam() {
-        return StaticProviderPort.pending(
-                ProviderModule.MATRIX_AUTH,
-                "matrix-authentication-service",
-                "Matrix Authentication Service is the Matrix auth bridge seam; status is fail-closed and support-safe.",
-                Set.of("oidc-bridge-readiness", "client-registration-readiness", "session-policy-readiness"),
-                Set.of("client-secret-export", "raw-mas-errors", "direct-flutter-admin-api", "credential-exposure"),
-                List.of("matrix-authentication-service"),
-                Map.of("substrate", "matrix", "authBridge", true, "compatibleSeam", true));
     }
 
     @Bean

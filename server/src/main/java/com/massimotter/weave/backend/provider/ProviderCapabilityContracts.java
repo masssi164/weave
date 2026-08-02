@@ -15,15 +15,6 @@ public final class ProviderCapabilityContracts {
             "coming_later");
 
     private static final Map<String, Definition> DEFINITIONS = Map.ofEntries(
-            Map.entry("identity-idm", new Definition(
-                    List.of("identity.sign_in", "identity.groups", "identity.roles"),
-                    List.of("keycloak-realm", "matrix-authentication-service"),
-                    List.of("entra-id", "authentik", "auth0", "generic-oidc", "generic-saml", "scim-ldap"),
-                    List.of("Subject", "IdentitySource", "Group", "Role", "CapabilityProfile", "LoginSession"),
-                    "authoritative IdP/provisioning source owns lifecycle and groups; Weave owns capability policy mappings",
-                    List.of("email rename", "nested groups", "guest identity", "deleted/recreated account", "service principal"),
-                    "SCIM or provider API deactivation first; content retention/reassignment follows org policy",
-                    "identity replacement requires immutable-ID mapping, conflict quarantine, last-admin guard, and dry-run")),
             Map.entry("chat", new Definition(
                     List.of("chat.read", "chat.send", "chat.channels"),
                     List.of("matrix-chat", "synapse-homeserver"),
@@ -158,7 +149,7 @@ public final class ProviderCapabilityContracts {
 
     public static ProviderRealityLevel defaultRealityLevel(String category) {
         return switch (category) {
-            case "identity-idm", "chat", "files", "calendar", "boards-tasks", "admin-control-plane", "release-evidence", "manuals-help", "decisions-evidence" -> ProviderRealityLevel.RELEASE_READY;
+            case "chat", "files", "calendar", "boards-tasks", "admin-control-plane", "release-evidence", "manuals-help", "decisions-evidence" -> ProviderRealityLevel.RELEASE_READY;
             case "meetings-calls", "model" -> ProviderRealityLevel.CONFIGURED;
             case "documents-collaboration", "agent-runtime-control" -> ProviderRealityLevel.CONTRACT_ONLY;
             default -> ProviderRealityLevel.CONTRACT_ONLY;

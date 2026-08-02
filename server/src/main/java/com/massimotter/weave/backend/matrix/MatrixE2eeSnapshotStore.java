@@ -1,57 +1,52 @@
 package com.massimotter.weave.backend.matrix;
 
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixE2eeSnapshotJpaEntity;
+import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixE2eeSnapshotJpaRepository;
+import java.time.Clock;
 import java.util.Optional;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
 public class MatrixE2eeSnapshotStore {
 
-    private final JdbcTemplate jdbcTemplate;
-    private final TransactionTemplate transactionTemplate;
+    private final MatrixE2eeSnapshotJpaRepository repository;
+    private final Clock clock;
 
-    public MatrixE2eeSnapshotStore(ObjectProvider<JdbcTemplate> jdbcTemplateProvider) {
-        this.jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
-        this.transactionTemplate = jdbcTemplate == null || jdbcTemplate.getDataSource() == null
-                ? null
-                : new TransactionTemplate(new DataSourceTransactionManager(jdbcTemplate.getDataSource()));
+    public MatrixE2eeSnapshotStore(
+            ObjectProvider<MatrixE2eeSnapshotJpaRepository> repositoryProvider,
+            ObjectProvider<Clock> clockProvider) {
+        this.repository = repositoryProvider.getIfAvailable();
+        this.clock = clockProvider.getIfAvailable(Clock::systemUTC);
     }
 
+    @Transactional(readOnly = true)
     public Optional<SnapshotDocument> load(String tenantId) {
-        if (jdbcTemplate == null) {
+        if (repository == null) {
             return Optional.empty();
         }
-        return jdbcTemplate.query(
-                        "select sequence_value, payload_json from weave_matrix_e2ee_snapshots where tenant_id = ?",
-                        (rs, rowNum) -> new SnapshotDocument(rs.getLong("sequence_value"), rs.getString("payload_json")),
-                        tenantId)
-                .stream()
-                .findFirst();
+        return repository.findById(tenantId)
+                .map(entity -> new SnapshotDocument(entity.sequence(), entity.payloadJson()));
     }
 
+    @Transactional
     public void save(String tenantId, long sequence, String payloadJson) {
-        if (jdbcTemplate == null) {
+        if (repository == null) {
             return;
         }
-        transactionTemplate.executeWithoutResult(status -> {
-            jdbcTemplate.update("delete from weave_matrix_e2ee_snapshots where tenant_id = ?", tenantId);
-            jdbcTemplate.update(
-                    "insert into weave_matrix_e2ee_snapshots "
-                            + "(tenant_id, sequence_value, payload_json, updated_at_utc) values (?, ?, ?, ?)",
-                    tenantId,
-                    sequence,
-                    payloadJson,
-                    OffsetDateTime.now(ZoneOffset.UTC));
-        });
+        var now = clock.instant();
+        var observed = repository.findById(tenantId);
+        MatrixE2eeSnapshotJpaEntity snapshot = observed.orElseGet(() ->
+                new MatrixE2eeSnapshotJpaEntity(tenantId, sequence, payloadJson, now));
+        if (observed.isPresent()) {
+            snapshot.replace(sequence, payloadJson, now);
+        }
+        repository.saveAndFlush(snapshot);
     }
 
     public boolean durable() {
-        return jdbcTemplate != null;
+        return repository != null;
     }
 
     public record SnapshotDocument(long sequence, String payloadJson) {

@@ -1,94 +1,14 @@
 plugins {
-    id 'org.springframework.boot' version '3.2.2'
-    id 'io.spring.dependency-management' version '1.1.2'
+    alias(libs.plugins.spring.boot)
+    alias(libs.plugins.spring.dependency.management)
     id 'java'
 }
 
 group = 'com.massimotter.weave'
 version = '0.1.0'
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
-}
-
-def nativeLibraryFileName = System.getProperty('os.name').toLowerCase().contains('mac')
-        ? 'libweave_matrix_core.dylib'
-        : System.getProperty('os.name').toLowerCase().contains('win')
-                ? 'weave_matrix_core.dll'
-                : 'libweave_matrix_core.so'
-def matrixCoreLibrary = rootProject.file("target/debug/${nativeLibraryFileName}")
-
-tasks.register('buildMatrixRustCoreJni', Exec) {
-    group = 'build'
-    description = 'Build the mandatory Rust/Ruma JNI library used by the Matrix facade.'
-    workingDir rootProject.projectDir
-    commandLine 'cargo', 'build', '-p', 'weave-matrix-core', '--features', 'jni'
-    inputs.file(rootProject.file('Cargo.toml'))
-    inputs.file(rootProject.file('Cargo.lock'))
-    inputs.dir(rootProject.file('rust/matrix-core/src'))
-    inputs.file(rootProject.file('rust/matrix-core/Cargo.toml'))
-    outputs.file(matrixCoreLibrary)
-}
-
-dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework:spring-jdbc'
-    implementation 'org.flywaydb:flyway-core'
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-api:2.5.0'
-    implementation 'io.github.erdtman:java-json-canonicalization:1.1'
-    implementation('software.amazon.awssdk:s3:2.46.8') {
-        exclude group: 'software.amazon.awssdk', module: 'apache-client'
-    }
-    implementation 'software.amazon.awssdk:url-connection-client:2.46.8'
-    implementation project(':weave-contract')
-    runtimeOnly 'org.postgresql:postgresql'
-
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.security:spring-security-test'
-    testImplementation 'io.cucumber:cucumber-java:7.18.1'
-    testImplementation 'io.cucumber:cucumber-spring:7.18.1'
-    testImplementation 'org.junit.platform:junit-platform-suite'
-    testImplementation 'org.testcontainers:junit-jupiter:1.19.8'
-    testImplementation 'org.testcontainers:postgresql:1.19.8'
-    testRuntimeOnly 'com.h2database:h2'
-    testRuntimeOnly 'io.cucumber:cucumber-junit-platform-engine:7.18.1'
-}
-
-tasks.named('test') {
-    dependsOn tasks.named('buildMatrixRustCoreJni')
-    useJUnitPlatform()
-    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
-    if (System.getProperty('weave.openapi.export.path') != null) {
-        systemProperty 'weave.openapi.export.path', System.getProperty('weave.openapi.export.path')
-    }
-}
-
-tasks.named('bootRun') {
-    dependsOn tasks.named('buildMatrixRustCoreJni')
-    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
-}
-
-tasks.register('runtimeProfileSigningKeys', JavaExec) {
-    group = 'weave operations'
-    description = 'Initialize, inspect, or rotate the offline RuntimeProfile signing-key SecretRef store.'
-    classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'com.massimotter.weave.backend.agentruntime.operator.RuntimeProfileSigningKeyCli'
-}
-
-tasks.register('runtimeStateWrappingKeys', JavaExec) {
-    group = 'weave operations'
-    description = 'Initialize, inspect, or rotate the offline RuntimeStateStore wrapping-key SecretRef store.'
-    classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'com.massimotter.weave.backend.agentruntime.operator.RuntimeStateWrappingKeyCli'
-}
-
-tasks.matching { it.name == 'wrapper' }.configureEach {
-    gradleVersion = '8.7'
-    distributionType = Wrapper.DistributionType.ALL
-}
+apply from: "${projectDir}/gradle/scripts/java-and-dependencies.gradle"
+apply from: "${projectDir}/gradle/tasks/native-runtime.gradle"
+apply from: "${projectDir}/gradle/tasks/development.gradle"
+apply from: "${projectDir}/gradle/tasks/verification.gradle"
+apply from: "${projectDir}/gradle/tasks/operations.gradle"

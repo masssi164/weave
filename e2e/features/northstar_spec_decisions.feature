@@ -1,5 +1,5 @@
 @northstar @spec-kit @claim-control
-# Evidence markers: NORTHSTAR_CLAIM_CONTROL NORTHSTAR_IDENTITY_RBAC_SWITCH NORTHSTAR_WEAVER_APPROVAL_RECEIPT NORTHSTAR_DOMAIN_FIRST_MCP NORTHSTAR_SPEC_COVERAGE_MATRIX NORTHSTAR_DOMAIN_REGISTRY_REALITY NORTHSTAR_SPACE_ANCHOR_CONTEXT NORTHSTAR_LOCAL_DOGFOOD_REALITY NORTHSTAR_WORKFLOW_GOVERNANCE_RECEIPT NORTHSTAR_MEETING_CONSENT_BOUNDARY NORTHSTAR_PORTABILITY_NO_UNACCOUNTED_LOSS
+# Evidence markers: NORTHSTAR_CLAIM_CONTROL NORTHSTAR_PLATFORM_IDENTITY_FEDERATION NORTHSTAR_WEAVER_APPROVAL_RECEIPT NORTHSTAR_DOMAIN_FIRST_MCP NORTHSTAR_SPEC_COVERAGE_MATRIX NORTHSTAR_DOMAIN_REGISTRY_REALITY NORTHSTAR_SPACE_ANCHOR_CONTEXT NORTHSTAR_LOCAL_DOGFOOD_REALITY NORTHSTAR_WORKFLOW_GOVERNANCE_RECEIPT NORTHSTAR_MEETING_CONSENT_BOUNDARY NORTHSTAR_PORTABILITY_NO_UNACCOUNTED_LOSS
 Feature: Northstar Spec Kit decision gates
   Northstar decisions are encoded before implementation claims are promoted.
 
@@ -11,12 +11,12 @@ Feature: Northstar Spec Kit decision gates
     Then customer-ready and release-ready claims are rejected
     And the evidence names the missing blocker or signoff item
 
-  @northstar-identity-rbac-provider-switch
-  Scenario: Identity/RBAC is the first provider-switch proof
-    Given an admin prepares an Identity/RBAC provider switch
-    When the dry-run is produced
-    Then it includes principal continuity, group and role mappings, token and claim parity, SCIM or SSO lifecycle limits, rollback refs, and orphan/trust-artifact cleanup
-    And every unsupported or lossy mapping is classified so there is no unaccounted data loss
+  @northstar-platform-identity-federation
+  Scenario: Platform identity keeps Keycloak authoritative while upstream sources remain federated
+    Given an admin prepares an upstream OIDC SAML or LDAP federation readiness dry-run
+    When the support-safe dry-run is produced
+    Then it keeps the Keycloak issuer and subject authoritative and includes group and role mappings, claim parity, lifecycle limits, rollback refs, and orphan or trust-artifact cleanup
+    And it rejects any runtime-selectable identity-provider switch
 
   @northstar-weaver-approval-receipts
   Scenario: Weaver approval decisions are evidence not domain grants or OpenClaw exec permissions
@@ -69,9 +69,9 @@ Feature: Northstar Spec Kit decision gates
 
   @northstar-portability-no-unaccounted-loss
   Scenario: Provider portability rejects unaccounted-loss and broad lossless claims
-    Given a provider replacement dry-run is prepared for Identity/RBAC or another canonical domain
+    Given a provider replacement dry-run is prepared for a collaboration domain
     When preflight, dry-run, apply or cutover, rollback, and post-cutover receipts are evaluated
-    Then every source object, target mapping, token or claim parity result, SCIM lifecycle limit, SSO staleness limit, orphan identity, and trust artifact is classified as supported, lossy, unsupported, manual-review, rollback-only, or archived
+    Then every source object, target mapping, provider capability, lifecycle limit, stale mapping, orphan reference, and trust artifact is classified as supported, lossy, unsupported, manual-review, rollback-only, or archived
     And lossless, full-history, provider-interchangeable, customer-ready, or release-ready wording is rejected unless named release evidence proves it for that scope
 
   @northstar-local-dogfood-reality

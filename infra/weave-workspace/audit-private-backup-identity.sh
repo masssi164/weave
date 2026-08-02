@@ -9,7 +9,6 @@ readonly ROOT_DIR REPO_ROOT
 readonly INTEGRITY_TOOL="${REPO_ROOT}/tools/private_backup_integrity.py"
 readonly PERSISTENT_ROOT="${WEAVE_PERSISTENT_DOGFOOD_ROOT:-${HOME}/.weave/dogfood}"
 readonly SUBJECT_FILE="${WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE:-${PERSISTENT_ROOT}/persistent-member.subject}"
-readonly HELPER_IMAGE="${WEAVE_IDENTITY_AUDIT_POSTGRES_IMAGE:-postgres:15}"
 readonly EVIDENCE_FILE="${WEAVE_IDENTITY_AUDIT_EVIDENCE_FILE:-}"
 BACKUP_DIR="${1:-}"
 TEMP_ROOT=""
@@ -53,18 +52,6 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
 }
 
-bootstrap_value() {
-  local name="$1" bootstrap_file="$2"
-  # shellcheck disable=SC2016
-  env -i HOME="${HOME}" PATH="${PATH}" bash -c '
-    set -euo pipefail
-    source "$1"
-    value="${!2:-}"
-    [[ -n "$value" ]]
-    printf "%s" "$value"
-  ' _ "${bootstrap_file}" "${name}"
-}
-
 prepare_dump() {
   local source="$1" target="$2" administrator="$3"
   DB_ADMIN_USERNAME="${administrator}" python3 - "${source}" "${target}" <<'PY'
@@ -104,8 +91,8 @@ PY
 }
 
 sql_count() {
-  local database="$1" query="$2" password="$3" administrator="$4"
-  docker exec -e "PGPASSWORD=${password}" "${TEMP_CONTAINER}" \
+  local database="$1" query="$2" administrator="$3"
+  docker exec "${TEMP_CONTAINER}" \
     psql -U "${administrator}" -d "${database}" -Atqc "${query}"
 }
 
@@ -146,12 +133,26 @@ main() {
   TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/weave-identity-audit.XXXXXX")"
   chmod 700 "${TEMP_ROOT}"
   python3 "${INTEGRITY_TOOL}" --backup-dir "${BACKUP_DIR}" --output "${TEMP_ROOT}/integrity.json"
-  tar -C "${TEMP_ROOT}" -xzf "${BACKUP_DIR}/generated-config-secrets.tgz" .generated/bootstrap.env
-  local bootstrap_file="${TEMP_ROOT}/.generated/bootstrap.env"
-  local administrator password recorded_subject audit_id ready process_one
-  administrator="$(bootstrap_value TF_VAR_db_admin_username "${bootstrap_file}")"
-  password="$(bootstrap_value TF_VAR_db_admin_password "${bootstrap_file}")"
+  jq -e '.schemaVersion == "weave.compose-private-backup-integrity.v3" and .profile == "test"' \
+    "${TEMP_ROOT}/integrity.json" >/dev/null || fail "backup is not a verified test-profile Compose v3 consistency set"
+  tar -C "${TEMP_ROOT}" -xzf "${BACKUP_DIR}/private-config-secrets.tgz" secrets/postgres-admin-password
+  local database_coordinates administrator helper_image recorded_subject audit_id ready process_one
+  database_coordinates="$(WEAVE_AUDIT_ROOT="${ROOT_DIR}" PYTHONPATH="${ROOT_DIR}/scripts" python3 - <<'PY'
+import os
+from pathlib import Path
+from compose_env import load_context
+
+context = load_context("test", Path(os.environ["WEAVE_AUDIT_ROOT"]))
+print(context.env["WEAVE_DB_ADMIN_USERNAME"])
+print(context.env["WEAVE_POSTGRES_IMAGE"])
+PY
+)"
+  administrator="$(sed -n '1p' <<<"${database_coordinates}")"
+  helper_image="$(sed -n '2p' <<<"${database_coordinates}")"
   [[ "${administrator}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "restored database administrator name is invalid"
+  [[ "${helper_image}" =~ @sha256:[0-9a-f]{64}$ ]] || fail "identity audit requires the test-profile digest-pinned PostgreSQL image"
+  [[ -s "${TEMP_ROOT}/secrets/postgres-admin-password" && ! -L "${TEMP_ROOT}/secrets/postgres-admin-password" ]] ||
+    fail "restored PostgreSQL administrator SecretRef is missing or unsafe"
   recorded_subject="$(tr -d '\r\n' <"${SUBJECT_FILE}")"
   [[ "${recorded_subject}" =~ ^[0-9a-fA-F-]{36}$ ]] || fail "recorded persistent member subject is invalid"
   prepare_dump "${BACKUP_DIR}/postgres.sql" "${TEMP_ROOT}/postgres.sql" "${administrator}"
@@ -164,9 +165,10 @@ main() {
     --label weave.scope=identity-audit \
     -e "POSTGRES_USER=${administrator}" \
     -e POSTGRES_DB=postgres \
-    -e "POSTGRES_PASSWORD=${password}" \
+    -e POSTGRES_PASSWORD_FILE=/run/secrets/postgres-admin-password \
+    -v "${TEMP_ROOT}/secrets/postgres-admin-password:/run/secrets/postgres-admin-password:ro" \
     -v "${TEMP_VOLUME}:/var/lib/postgresql/data" \
-    "${HELPER_IMAGE}" >/dev/null
+    "${helper_image}" >/dev/null
 
   ready=false
   for _ in $(seq 1 60); do
@@ -179,7 +181,7 @@ main() {
     sleep 1
   done
   [[ "${ready}" == true ]] || fail "temporary identity-audit database did not become ready"
-  if ! docker exec -e "PGPASSWORD=${password}" -i "${TEMP_CONTAINER}" \
+  if ! docker exec -i "${TEMP_CONTAINER}" \
     psql -v ON_ERROR_STOP=1 -U "${administrator}" -d postgres \
     <"${TEMP_ROOT}/postgres.sql" >"${TEMP_ROOT}/postgres-restore.log" 2>&1; then
     fail "private PostgreSQL replay failed ($(restore_failure_category "${TEMP_ROOT}/postgres-restore.log"))"
@@ -187,21 +189,21 @@ main() {
 
   local service_databases recorded_matches username_matches bootstrap_matches other_humans
   service_databases="$(sql_count postgres \
-    "SELECT count(*) FROM pg_database WHERE datname IN ('weave','weave_backend','weave_keycloak','weave_mas','weave_synapse');" \
-    "${password}" "${administrator}")"
+    "SELECT count(*) FROM pg_database WHERE datname IN ('weave_backend','weave_keycloak','weave_mas','weave_synapse','weave_nextcloud');" \
+    "${administrator}")"
   [[ "${service_databases}" == 5 ]] || fail "restored service database set is incomplete"
   recorded_matches="$(sql_count weave_keycloak \
     "SELECT count(*) FROM user_entity WHERE id = '${recorded_subject}';" \
-    "${password}" "${administrator}")"
+    "${administrator}")"
   username_matches="$(sql_count weave_keycloak \
     "SELECT count(*) FROM user_entity u JOIN realm r ON r.id=u.realm_id WHERE r.name='weave' AND lower(u.username)=lower('${WEAVE_DOGFOOD_MEMBER_USERNAME}');" \
-    "${password}" "${administrator}")"
+    "${administrator}")"
   bootstrap_matches="$(sql_count weave_keycloak \
     "SELECT count(*) FROM user_entity u JOIN realm r ON r.id=u.realm_id WHERE r.name='weave' AND u.username='test';" \
-    "${password}" "${administrator}")"
+    "${administrator}")"
   other_humans="$(sql_count weave_keycloak \
     "SELECT count(*) FROM user_entity u JOIN realm r ON r.id=u.realm_id WHERE r.name='weave' AND u.username NOT LIKE 'service-account-%' AND u.username<>'test';" \
-    "${password}" "${administrator}")"
+    "${administrator}")"
 
   [[ "${recorded_matches}" == 0 && "${username_matches}" == 0 ]] ||
     fail "backup is identity-restorable or ambiguous for the protected member"

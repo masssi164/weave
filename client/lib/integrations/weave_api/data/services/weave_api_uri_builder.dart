@@ -1,9 +1,6 @@
 /// Builds public Weave backend facade URIs from the configured backend base.
 ///
-/// Local/dev defaults historically stored `https://api.weave.test` while the
-/// binding product contract is `https://api.weave.test/api`. This helper keeps
-/// both forms safe by appending the `/api` facade prefix only when it is not
-/// already the last configured path segment.
+/// The organization contract supplies the canonical API base ending in `/api`.
 Uri weaveApiUri(Uri baseUrl, Iterable<String> pathSegments) {
   final cleanedBaseSegments = baseUrl.pathSegments
       .where((segment) => segment.trim().isNotEmpty)
@@ -16,15 +13,23 @@ Uri weaveApiUri(Uri baseUrl, Iterable<String> pathSegments) {
     return baseUrl;
   }
 
-  final endpointSegments =
-      cleanedBaseSegments.isNotEmpty &&
-          cleanedBaseSegments.last == 'api' &&
-          cleanedPathSegments.first == 'api'
-      ? cleanedPathSegments.skip(1)
-      : cleanedPathSegments;
+  if (cleanedBaseSegments.isEmpty || cleanedBaseSegments.last != 'api') {
+    throw ArgumentError.value(
+      baseUrl,
+      'baseUrl',
+      'WEAVE_API_BASE_PATH_INVALID',
+    );
+  }
+  if (cleanedPathSegments.first == 'api') {
+    throw ArgumentError.value(
+      pathSegments,
+      'pathSegments',
+      'WEAVE_API_RELATIVE_PATH_INVALID',
+    );
+  }
 
   return baseUrl.replace(
-    pathSegments: [...cleanedBaseSegments, ...endpointSegments],
+    pathSegments: [...cleanedBaseSegments, ...cleanedPathSegments],
     queryParameters: null,
     fragment: null,
   );

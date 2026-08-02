@@ -12,7 +12,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
       lifecycleStatus: "pending",
       provisioningStatus: "pending" as const,
       requestedRole: "member" as const,
-      organizationGroups: ["engineering"],
+      capabilities: ["agent-runtime.entitled"],
     };
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       calls.push({
@@ -39,7 +39,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
     await api.createOrganizationInvitation("acme", {
       email: "member@example.test",
       role: "member",
-      organizationGroups: ["engineering"],
+      capabilities: ["agent-runtime.entitled"],
     });
     await api.resendOrganizationInvitation("acme", "invite-123");
     await api.revokeOrganizationInvitation("acme", "invite-123");
@@ -54,7 +54,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
       JSON.stringify({
         email: "member@example.test",
         role: "member",
-        organizationGroups: ["engineering"],
+        capabilities: ["agent-runtime.entitled"],
       }),
     );
     expect(calls.map(({ url }) => url).join("\n")).not.toMatch(
@@ -67,17 +67,16 @@ describe("AdminControlPlaneApi provider boundary", () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       calls.push(String(input));
       const path = String(input);
-      const body = path.includes("/identity/readiness")
+      const body = path.includes("/platform/identity/readiness")
         ? {
-            contractVersion: "identity-provider-readiness-v1",
-            category: "idm-rbac",
-            providerKey: "keycloak-realm",
+            contractVersion: "platform-identity-readiness-v1",
+            platformAuthority: "keycloak",
             overallState: "admin-action-required",
             supportSafe: true,
-            providerDiagnosticsRedacted: true,
+            diagnosticsRedacted: true,
             backendOwnedFacade: true,
-            memberClientMayConfigureIdentityProvider: false,
-            optionalForMemberFlows: true,
+            memberClientMayConfigurePlatformSecurity: false,
+            requiredForMemberFlows: true,
             stableStates: [
               "ready",
               "degraded",
@@ -91,7 +90,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
                 key: "realm-import",
                 label: "Realm import readiness",
                 state: "admin-action-required",
-                summary: "Select an identity provider mapping.",
+                summary: "Keycloak Desired State is not yet current.",
                 memberImpact: "degraded",
                 remediation: "Run backend realm dry-run.",
                 nextActions: ["Run dry-run"],
@@ -172,12 +171,12 @@ describe("AdminControlPlaneApi provider boundary", () => {
     };
 
     await api.selectProvider("chat-channels", "slack");
-    const identityReadiness = await api.getIdentityProviderReadiness();
+    const identityReadiness = await api.getPlatformIdentityReadiness();
     await api.testProviderReadiness("slack");
     const report = await api.dryRunProviderReplacement(category, "slack");
 
     expect(identityReadiness.overallState).toBe("admin-action-required");
-    expect(identityReadiness.memberClientMayConfigureIdentityProvider).toBe(
+    expect(identityReadiness.memberClientMayConfigurePlatformSecurity).toBe(
       false,
     );
     expect(identityReadiness.cards[0]?.memberImpact).toBe("degraded");
@@ -200,7 +199,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
     });
     expect(calls).toEqual([
       "https://api.example.invalid/api/admin/providers/selections",
-      "https://api.example.invalid/api/admin/identity/readiness",
+      "https://api.example.invalid/api/admin/platform/identity/readiness",
       "https://api.example.invalid/api/admin/providers/readiness-tests",
       "https://api.example.invalid/api/admin/providers/replacements/dry-run",
     ]);
@@ -337,18 +336,18 @@ describe("AdminControlPlaneApi provider boundary", () => {
 
     const controlPlane = await api.getControlPlane();
 
-    expect(controlPlane.identityProviderReadiness.overallState).toBe(
+    expect(controlPlane.platformIdentityReadiness.overallState).toBe(
       "admin-action-required",
     );
-    expect(controlPlane.identityProviderReadiness.cards[0]).toEqual(
+    expect(controlPlane.platformIdentityReadiness.cards[0]).toEqual(
       expect.objectContaining({
-        key: "identity-readiness-contract-missing",
+        key: "platform-identity-readiness-contract-missing",
         state: "admin-action-required",
         memberImpact: "degraded",
       }),
     );
-    expect(controlPlane.identityProviderReadiness.nextActions).toContain(
-      "Treat missing identity readiness as admin-action-required and fail closed.",
+    expect(controlPlane.platformIdentityReadiness.nextActions).toContain(
+      "Treat missing platform-identity readiness as admin-action-required and fail closed.",
     );
   });
 
@@ -357,11 +356,11 @@ describe("AdminControlPlaneApi provider boundary", () => {
       const path = String(input);
       const body = path.includes("/providers/selections")
         ? {
-            category: "identity",
-            providerKey: "keycloak-realm",
+            category: "chat",
+            providerKey: "synapse-homeserver",
             choiceModel: "recommended_self_hosted_default",
             dryRun: true,
-            evidenceRef: "identity-keycloak-realm-dry-run",
+            evidenceRef: "chat-synapse-homeserver-dry-run",
           }
         : {};
       return new Response(JSON.stringify(body), {
@@ -379,8 +378,8 @@ describe("AdminControlPlaneApi provider boundary", () => {
     );
 
     const result = await api.selectProvider(
-      "identity",
-      "keycloak-realm",
+      "chat",
+      "synapse-homeserver",
       "recommended_self_hosted_default",
       true,
     );
@@ -398,11 +397,6 @@ describe("AdminControlPlaneApi provider boundary", () => {
             organizationId: "weave-dogfood",
             generatedAt: "2099-01-01T00:00:00Z",
             categories: [
-              {
-                category: "identity",
-                readiness: "ready",
-                selectedProviderKey: "keycloak-realm",
-              },
               {
                 category: "chat-channels",
                 readiness: "ready",
@@ -434,9 +428,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
     expect(controlPlane.providerCategories[0]?.evidenceFreshness).toBe(
       "missing",
     );
-    expect(controlPlane.providerCategories[1]?.evidenceFreshness).toBe(
-      "missing",
-    );
+    expect(controlPlane.providerCategories).toHaveLength(1);
     expect(controlPlane.providerCategories[0]?.supportSafe).toBe(false);
   });
 

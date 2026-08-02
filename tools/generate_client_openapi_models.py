@@ -78,8 +78,10 @@ def type_for(schema: dict[str, Any] | None, *, required: bool = False) -> str:
         base = "String"
     else:
         base = "Object?"
-    if nullable or base.endswith("?"):
+    if base.endswith("?"):
         return base
+    if nullable:
+        return f"{base}?"
     return base if required else f"{base}?"
 
 

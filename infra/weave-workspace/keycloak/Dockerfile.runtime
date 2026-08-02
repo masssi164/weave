@@ -1,0 +1,54 @@
+ARG WEAVE_KEYCLOAK_BASE=quay.io/keycloak/keycloak@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13
+FROM ${WEAVE_KEYCLOAK_BASE} AS builder
+
+ARG WEAVE_PATCHED_SERVICES_SHA256
+USER 0
+COPY --chown=1000:0 keycloak-services-26.7.0.jar \
+    /opt/keycloak/lib/lib/main/org.keycloak.keycloak-services-26.7.0.jar
+RUN test "$(sha256sum /opt/keycloak/lib/lib/main/org.keycloak.keycloak-services-26.7.0.jar | cut -d' ' -f1)" = \
+    "${WEAVE_PATCHED_SERVICES_SHA256}"
+USER 1000:0
+RUN /opt/keycloak/bin/kc.sh build --db=postgres
+
+FROM ${WEAVE_KEYCLOAK_BASE}
+
+ARG WEAVE_IMAGE_CREATED
+ARG WEAVE_IMAGE_REVISION
+ARG WEAVE_IMAGE_VERSION
+ARG WEAVE_SPEC_COMMIT
+ARG WEAVE_SPEC_DIGEST
+ARG WEAVE_KEYCLOAK_UPSTREAM_COMMIT
+ARG WEAVE_KEYCLOAK_ARCHIVE_SHA256
+ARG WEAVE_KEYCLOAK_STOCK_SERVICES_SHA256
+ARG WEAVE_KEYCLOAK_PATCH_SHA256
+ARG WEAVE_PATCHED_SERVICES_SHA256
+ARG WEAVE_KEYCLOAK_BUILD_EVIDENCE_DIGEST
+ARG WEAVE_SBOM_REFERENCE=build-pending
+ARG WEAVE_PROVENANCE_REFERENCE=build-pending
+
+LABEL org.opencontainers.image.title="Weave Keycloak Runtime" \
+      org.opencontainers.image.description="Version-pinned downstream Keycloak runtime with built-in Weave workload registration policy" \
+      org.opencontainers.image.source="https://github.com/masssi164/weave" \
+      org.opencontainers.image.revision="${WEAVE_IMAGE_REVISION}" \
+      org.opencontainers.image.version="${WEAVE_IMAGE_VERSION}" \
+      org.opencontainers.image.created="${WEAVE_IMAGE_CREATED}" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.vendor="Weave" \
+      com.massimotter.weave.spec-commit="${WEAVE_SPEC_COMMIT}" \
+      com.massimotter.weave.spec-digest="${WEAVE_SPEC_DIGEST}" \
+      com.massimotter.weave.module="keycloak-runtime" \
+      com.massimotter.weave.runtime-user="1000:0" \
+      com.massimotter.weave.dependency-platform="keycloak-26.7.0-downstream-built-in-policy" \
+      com.massimotter.weave.provider-id="weave-workload-client-registration-enforcer" \
+      com.massimotter.weave.keycloak-upstream-commit="${WEAVE_KEYCLOAK_UPSTREAM_COMMIT}" \
+      com.massimotter.weave.keycloak-archive-sha256="${WEAVE_KEYCLOAK_ARCHIVE_SHA256}" \
+      com.massimotter.weave.keycloak-stock-services-sha256="${WEAVE_KEYCLOAK_STOCK_SERVICES_SHA256}" \
+      com.massimotter.weave.keycloak-patch-sha256="${WEAVE_KEYCLOAK_PATCH_SHA256}" \
+      com.massimotter.weave.keycloak-patched-services-sha256="${WEAVE_PATCHED_SERVICES_SHA256}" \
+      com.massimotter.weave.keycloak-build-evidence-digest="${WEAVE_KEYCLOAK_BUILD_EVIDENCE_DIGEST}" \
+      com.massimotter.weave.sbom-reference="${WEAVE_SBOM_REFERENCE}" \
+      com.massimotter.weave.provenance-reference="${WEAVE_PROVENANCE_REFERENCE}"
+
+COPY --from=builder --chown=1000:0 /opt/keycloak/ /opt/keycloak/
+USER 1000:0
+ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]

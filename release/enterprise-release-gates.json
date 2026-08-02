@@ -12,78 +12,76 @@
       "id": "pr-safe-ci",
       "purpose": "fast deterministic monorepo confidence before merge",
       "trigger": "pull_request and push",
-      "requiredFor": ["merge-readiness"],
+      "requiredFor": [
+        "merge-readiness"
+      ],
       "gates": [
         {
           "id": "gradle-ci",
           "command": "./gradlew ci",
           "required": true,
-          "evidence": ["build/evidence/ci-summary.json", "build/docs"]
+          "evidence": [
+            "build/evidence/ci-summary.json",
+            "build/docs"
+          ]
         },
         {
           "id": "spec-corpus-conformance",
           "command": "./gradlew specCorpusConformance",
           "required": true,
-          "evidence": ["specs/weave-specs.lock.json", "pinned-corpus-lint"]
+          "evidence": [
+            "specs/weave-specs.lock.json",
+            "pinned-corpus-lint"
+          ]
         },
         {
           "id": "release-notes-label-check",
           "command": "./gradlew releaseNotesLabelCheck",
           "required": true,
-          "evidence": ["exactly-one-release-notes-label"]
+          "evidence": [
+            "exactly-one-release-notes-label"
+          ]
         }
       ]
     },
     {
       "id": "release-candidate-live-evidence",
-      "purpose": "isolated credentialed three-user collaboration proof on the dedicated disposable runner",
+      "purpose": "credential-free Fresh product flow on the dedicated disposable runner",
       "trigger": "dev-to-dogfood promotion pull request, exact dogfood push, or explicit isolated workflow dispatch",
-      "requiredFor": ["v0.1-rc-promotion", "dogfood-production-tag"],
+      "requiredFor": [
+        "v0.1-rc-promotion",
+        "dogfood-production-tag"
+      ],
       "gates": [
         {
-          "id": "credentialed-live-stack-e2e",
+          "id": "test-app-product-flow-e2e",
           "workflow": ".github/workflows/live-stack-e2e.yml",
           "required": true,
           "evidence": [
-            "weave-live-stack-acceptance-evidence/acceptance-summary.md",
-            "weave-live-stack-acceptance-evidence/scenario-mapping-results.json",
-            "weave-live-stack-acceptance-evidence/evidence-markers.json",
-            "weave-live-stack-acceptance-evidence/release-evidence-manifest.json",
-            "weave-live-stack-acceptance-evidence/failure-diagnostics/failure-summary.md",
-            "weave-live-stack-acceptance-evidence/failure-diagnostics/failure-summary.json",
-            "weave-live-stack-acceptance-evidence/failure-diagnostics/container-status.tsv",
-            "weave-live-stack-acceptance-evidence/failure-diagnostics/failed-markers.json",
-            "weave-live-stack-acceptance-evidence/failure-diagnostics/health-checks/operator-check.txt",
-            "weave-live-stack-acceptance-evidence/failure-diagnostics/support-bundle/weave-support-*.tar.gz"
-          ],
-          "mustObserveMarkers": ["AUTH_RESULT", "PROFILE_RESULT", "CHAT_RESULT", "MATRIX_RESULT", "E2EE_RESULT", "FILES_RESULT", "PROVIDER_STACK_RESULT", "CALENDAR_RESULT", "BOARDS_RESULT", "PROVIDER_REALITY_RESULT"],
-          "supportSafeExclusions": ["raw credentials", "credential-bearing URLs", "provider internals", "downstream provider error bodies", "private live logs"]
-        },
-        {
-          "id": "three-user-live-collaboration",
-          "workflow": ".github/workflows/live-stack-e2e.yml",
-          "required": true,
-          "evidence": [
-            "weave-live-stack-acceptance-evidence/human-testing-automated-evidence.json",
-            "weave-live-stack-acceptance-evidence/isolated-identities.json",
-            "weave-live-stack-acceptance-evidence/isolated-authorization.json",
-            "weave-live-stack-acceptance-evidence/isolated-calendar-outage.json",
-            "weave-live-stack-acceptance-evidence/isolated-cleanup.json"
+            "weave-live-stack-acceptance-evidence/weave-test-app-evidence.json"
           ],
           "mustObserveMarkers": [
-            "MULTI_USER_AUTH_SHELL_RESULT",
-            "MULTI_USER_HOME_RESULT",
-            "MULTI_USER_CHAT_RESULT",
-            "MULTI_USER_FILES_RESULT",
-            "MULTI_USER_CALENDAR_RESULT",
-            "MULTI_USER_SETTINGS_PROFILE_RESULT",
-            "MULTI_USER_FAILURE_CONTAINMENT_RESULT",
-            "MULTI_USER_AUTHORIZATION_RESULT",
-            "MULTI_USER_AUTHORIZATION_FIXTURES_RESULT",
-            "MULTI_USER_CLEANUP_RESULT"
+            "WEAVE_TEST_APP_RESULT"
           ],
-          "repeatCount": 2,
-          "supportSafeExclusions": ["raw identities", "credentials", "member content", "provider identifiers"]
+          "supportSafeExclusions": [
+            "human credentials",
+            "activation links",
+            "OAuth tokens",
+            "private keys",
+            "provider internals",
+            "private live logs"
+          ],
+          "mustObserveEvidenceFields": [
+            "activation",
+            "humanOAuth",
+            "workloadOAuth",
+            "mcpTool",
+            "canonicalResourceSeen",
+            "revocationDenied",
+            "credentialsIncluded",
+            "actionLinksIncluded",
+            "supportSafe"
+          ]
         }
       ]
     },
@@ -91,7 +89,10 @@
       "id": "persistent-dogfood-verification",
       "purpose": "deploy the accepted candidate without mutating the single persistent human tester",
       "trigger": "candidate merged to dogfood after isolated collaboration succeeds",
-      "requiredFor": ["ios-dogfood-distribution", "main-promotion"],
+      "requiredFor": [
+        "ios-dogfood-distribution",
+        "main-promotion"
+      ],
       "gates": [
         {
           "id": "persistent-dogfood-deployment",
@@ -109,13 +110,18 @@
       "id": "ios-dogfood-distribution",
       "purpose": "build and upload only the exact successfully deployed dogfood candidate",
       "trigger": "successful Test Stack Deploy workflow_run for dogfood",
-      "requiredFor": ["physical-human-acceptance", "main-promotion"],
+      "requiredFor": [
+        "physical-human-acceptance",
+        "main-promotion"
+      ],
       "gates": [
         {
           "id": "ios-dogfood-distribution",
           "workflow": ".github/workflows/ios-dogfood.yml",
           "required": true,
-          "evidence": ["ios-dogfood-distribution-<build>/ios-dogfood-distribution.json"]
+          "evidence": [
+            "ios-dogfood-distribution-<build>/ios-dogfood-distribution.json"
+          ]
         }
       ]
     },
@@ -123,19 +129,26 @@
       "id": "physical-human-acceptance",
       "purpose": "record in-place physical-iPhone VoiceOver and session acceptance for the exact candidate",
       "trigger": "protected manual dispatch after TestFlight distribution",
-      "requiredFor": ["main-promotion", "human-testing-ready-claim"],
+      "requiredFor": [
+        "main-promotion",
+        "human-testing-ready-claim"
+      ],
       "gates": [
         {
           "id": "physical-iphone-voiceover",
           "workflow": ".github/workflows/human-testing-readiness.yml",
           "required": true,
-          "evidence": ["human-testing-readiness-<commit>/human-testing-readiness.json"]
+          "evidence": [
+            "human-testing-readiness-<commit>/human-testing-readiness.json"
+          ]
         },
         {
           "id": "human-testing-readiness-manifest",
           "command": "python3 tools/human_testing_readiness_manifest.py validate --manifest human-testing-readiness.json --require-ready",
           "required": true,
-          "evidence": ["human-testing-readiness.json"]
+          "evidence": [
+            "human-testing-readiness.json"
+          ]
         }
       ]
     },
@@ -143,18 +156,26 @@
       "id": "release-promotion",
       "purpose": "reviewable release candidate decision and draft publication",
       "trigger": "release owner decision after the exact-candidate readiness manifest is ready",
-      "requiredFor": ["release-draft", "tagging"],
+      "requiredFor": [
+        "release-draft",
+        "tagging"
+      ],
       "gates": [
         {
           "id": "release-draft-review",
           "workflow": ".github/workflows/release-draft.yml",
           "required": true,
-          "evidence": ["release-draft-review-<tag>", "docs/release-notes/v0.1.md"]
+          "evidence": [
+            "release-draft-review-<tag>",
+            "docs/release-notes/v0.1.md"
+          ]
         },
         {
           "id": "release-owner-signoff",
           "required": true,
-          "evidence": ["GitHub issue or release checklist naming commit, artifacts, blocker/waiver if any, rollback note, owner"]
+          "evidence": [
+            "GitHub issue or release checklist naming commit, artifacts, blocker/waiver if any, rollback note, owner"
+          ]
         }
       ]
     }

@@ -20,7 +20,7 @@ class BackendProfileClient {
   }) async {
     final response = await _send(
       () => _httpClient.get(
-        weaveApiUri(baseUrl, const ['api', 'me']),
+        weaveApiUri(baseUrl, const ['me']),
         headers: _headers(accessToken),
       ),
     );
@@ -54,7 +54,7 @@ class BackendProfileClient {
   }) async {
     final response = await _send(
       () => _httpClient.patch(
-        weaveApiUri(baseUrl, const ['api', 'profile']),
+        weaveApiUri(baseUrl, const ['profile']),
         headers: _headers(accessToken),
         body: jsonEncode(
           _withoutNullValues(userProfileUpdateToOpenApi(update).toJson()),

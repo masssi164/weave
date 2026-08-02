@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record SecretRefResponse(
         @Schema(example = "secretref://weave/provider/keycloak-client-secret")
         String ref,
-        @Schema(example = "keycloak-realm")
+        @Schema(example = "nextcloud-files")
         String providerKey,
         @Schema(example = "oidc-client-secret")
         String purpose,

@@ -2,6 +2,12 @@
 
 Status: final closure evidence, 2026-05-27.
 
+Current-state note: this report preserves the historical Sprint 6 evidence graph.
+The realm dry-run/apply implementation it records was later retired without
+compatibility routes. Profile-specific Infra Identity Ops is now the sole Keycloak
+baseline planner, reconciler, and verifier; the server retains read-only identity
+readiness and policy simulation only.
+
 ## Closure scope
 
 Sprint 6 closes the release-candidate and provider-operations foundation for Weave. The closed scope is deliberately narrower than a public release: the sprint made release evidence repeatable, kept Live Stack E2E as credentialed product evidence, hardened support-safe failure artifacts, and built the first admin-owned identity/provider operations contracts for realm dry-run, readiness, policy simulation, and guarded apply decisions.
@@ -48,7 +54,7 @@ Sprint 6 freezes these release-candidate/provider-ops rules for the next sprint:
 - Live Stack E2E is release evidence, not an Admin Portal feature and not a substitute for PR-safe CI.
 - Support artifacts stay support-safe: stable marker summaries, manifests, readiness output, and redacted diagnostics rather than raw provider logs or secrets.
 - Normal members sign in to an already-provisioned organization and see Weave product capability states, not OIDC, realm, provider, SecretRef, or infra setup.
-- Owner/admin/operator surfaces own identity/provider readiness, realm dry-run, policy simulation, guarded apply decisions, audit, rollback evidence, and support-safe remediation.
+- Owner/admin/operator surfaces own identity/provider readiness, policy simulation, provider-change decisions, audit, rollback evidence, and support-safe remediation. Keycloak baseline mutation is outside the server and runs only through protected Identity Ops.
 - Destructive provider mutation remains unavailable by default until explicit executor, rollback/restore, audit, and release-owner evidence exists.
 - Weaver remains governed, opt-in, audited, capability-whitelisted, and disabled by default.
 

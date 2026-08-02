@@ -25,8 +25,7 @@ class ServerArchitectureBoundaryTest {
             BACKEND_PACKAGE + "boards.openproject.",
             BACKEND_PACKAGE + "boards.vikunja.",
             BACKEND_PACKAGE + "boards.deck.",
-            BACKEND_PACKAGE + "boards.local.",
-            BACKEND_PACKAGE + "identity.realm.");
+            BACKEND_PACKAGE + "boards.local.");
     private static final List<String> PROVIDER_ADAPTER_IMPORT_PREFIXES = List.of(
             BACKEND_PACKAGE + "chat.provider.",
             BACKEND_PACKAGE + "boards.openproject.",
@@ -34,9 +33,7 @@ class ServerArchitectureBoundaryTest {
             BACKEND_PACKAGE + "boards.deck.",
             BACKEND_PACKAGE + "boards.local.",
             BACKEND_PACKAGE + "service.files.NextcloudFilesAdapter",
-            BACKEND_PACKAGE + "service.calendar.CalDavCalendarAdapter",
-            BACKEND_PACKAGE + "identity.realm.HttpKeycloakRealmAdminClient",
-            BACKEND_PACKAGE + "identity.realm.KeycloakRealmAdminClient");
+            BACKEND_PACKAGE + "service.calendar.CalDavCalendarAdapter");
     private static final List<String> NATIVE_OR_MCP_CONTRACT_FORBIDDEN_LITERALS = List.of(
             "nextcloud",
             "/remote.php/dav",
@@ -79,7 +76,9 @@ class ServerArchitectureBoundaryTest {
             "/service/migration/FileMigrationRunEvidenceRepository.java");
     private static final List<String> ACCEPTED_FILE_KEY_CUSTODY_ALLOWLIST = List.of(
             "/agentruntime/adapter/FileRuntimeProfileSigningKeyStore.java",
-            "/agentruntime/adapter/FileRuntimeStateKeyWrapper.java");
+            "/agentruntime/adapter/FileRuntimeStateKeyWrapper.java",
+            "/schema/SchemaAuthorityInitializer.java",
+            "/schema/SchemaReceiptVerifier.java");
     private static final List<String> FILE_RUNTIME_AUTHORITY_MARKERS = List.of(
             "Path storagePath",
             "readValue(storagePath.toFile()",
@@ -221,6 +220,22 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
+    void retiredApplicationCompatibilityRoutesAndConfigurationFallbacksStayAbsent()
+            throws IOException {
+        assertThat(sourceEndingWith(Path.of("controller", "WorkspaceController.java")).text())
+                .doesNotContain("/api/v1/organization")
+                .doesNotContain("/api/v1/workspace");
+        assertThat(sourceEndingWith(Path.of("controller", "ChatController.java")).text())
+                .doesNotContain("/api/v1/chat")
+                .doesNotContain("/api/v1/admin/chat");
+        assertThat(sourceEndingWith(Path.of("controller", "AdminControlPlaneController.java")).text())
+                .doesNotContain("/api/v1/admin");
+        assertThat(sourceEndingWith(
+                Path.of("controller", "ProviderCapabilityHealthController.java")).text())
+                .doesNotContain("/api/v1/admin");
+    }
+
+    @Test
     void filesWebDavWriteMethodsRouteThroughFacadeUseCases() throws IOException {
         JavaSource filesWebDavController = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("controller", "FilesWebDavController.java")))
@@ -318,10 +333,13 @@ class ServerArchitectureBoundaryTest {
 
         assertThat(runtimeConfiguration.text())
                 .contains("CanonicalChatStore")
-                .contains("JdbcCanonicalChatStore")
+                .contains("JpaCanonicalChatStore")
+                .contains("CanonicalChatJpaAuthority")
                 .contains("MatrixSynapseChatSouthboundAdapter")
                 .contains("SynapseBackedCanonicalChatAdapter")
-                .contains("requireJdbc(properties)");
+                .doesNotContain("WEAVE_CHAT_STORAGE_MODE")
+                .doesNotContain("JdbcTemplate")
+                .doesNotContain("JdbcCanonicalChatStore");
         assertThat(canonicalAdapter.text())
                 .contains("CanonicalChatStore")
                 .contains("MatrixSynapseChatSouthboundAdapter")
@@ -367,6 +385,140 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
+    void organizationIdentityResolverExclusivelyOwnsHumanTenantClaimPrecedence()
+            throws IOException {
+        List<String> owners = productionSources().stream()
+                .filter(source -> source.text().contains(".tenantClaim()")
+                        || source.text().contains(".tenantFallbackClaim()"))
+                .map(source -> source.path().getFileName().toString())
+                .sorted()
+                .toList();
+
+        assertThat(owners)
+                .as("Human product services must consume the canonical Keycloak organization identity context.")
+                .containsExactly("OrganizationIdentityContextResolver.java");
+
+        List<String> literalOwners = productionSources().stream()
+                .filter(source -> source.text().contains("\"weave_tenant_id\"")
+                        || source.text().contains("\"tenant_id\""))
+                .map(source -> source.path().getFileName().toString())
+                .distinct()
+                .sorted()
+                .toList();
+
+        assertThat(literalOwners)
+                .as("Tenant aliases are configuration-owned; only path-bound device credentials may mint compatibility claims.")
+                .containsExactly(
+                        "ContextAuthorizationProperties.java",
+                        "DeviceCredentialAuthenticationFilter.java");
+    }
+
+    @Test
+    void serverCompositionContainsNoJpaEntityOrSpringDataRepositoryDeclaration()
+            throws IOException {
+        assertThat(productionSources())
+                .allSatisfy(source -> assertThat(source.text())
+                        .as(source.path().toString())
+                        .doesNotContain("@Entity\n", "@Entity\r", "@Entity(")
+                        .doesNotContain("extends JpaRepository<"));
+    }
+
+    @Test
+    void productionDataAccessUsesJpaWithoutNativeSqlOrJdbcEscapeHatches()
+            throws IOException {
+        List<JavaSource> persistence = persistenceSources();
+        List<JavaSource> dataAccessSources = java.util.stream.Stream.concat(
+                        productionSources().stream(),
+                        persistence.stream())
+                .toList();
+
+        assertThat(dataAccessSources)
+                .allSatisfy(source -> assertThat(source.text())
+                        .as(source.path().toString())
+                        .doesNotContain("createNativeQuery(")
+                        .doesNotContain("nativeQuery = true")
+                        .doesNotContain("nativeQuery=true")
+                        .doesNotContain("JdbcTemplate")
+                        .doesNotContain("NamedParameterJdbcTemplate")
+                        .doesNotContain("org.springframework.jdbc.core"));
+        assertThat(dataAccessSources.stream()
+                        .filter(source -> !source.packageName().equals(BACKEND_PACKAGE + "schema"))
+                        .toList())
+                .allSatisfy(source -> assertThat(source.text())
+                        .as(source.path().toString())
+                        .doesNotContain(
+                                "java.sql.",
+                                "DriverManager.getConnection(",
+                                ".prepareStatement(",
+                                ".createStatement("));
+        assertThat(productionSources().stream()
+                        .filter(source -> source.packageName().equals(BACKEND_PACKAGE + "schema"))
+                        .filter(source -> source.text().contains("java.sql."))
+                        .map(source -> source.path().getFileName().toString())
+                        .toList())
+                .containsExactlyInAnyOrder(
+                        "SchemaAuthorityInitializer.java",
+                        "SchemaCatalogFingerprint.java");
+    }
+
+    @Test
+    void workloadRegistrationAuthorityRemainsAnAdapterPrivateSecretRefProtocol()
+            throws IOException {
+        List<JavaSource> providerAdapters =
+                moduleProductionSources("weave-runtime-provider-adapters");
+        JavaSource transport = providerAdapters.stream()
+                .filter(source -> source.path().endsWith(
+                        Path.of("agentruntime", "adapter",
+                                "KeycloakClientRegistrationTransport.java")))
+                .findFirst()
+                .orElseThrow();
+        JavaSource fileStore = providerAdapters.stream()
+                .filter(source -> source.path().endsWith(
+                        Path.of("agentruntime", "adapter",
+                                "FileRuntimeWorkloadCredentialStore.java")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(transport.text())
+                .contains(
+                        "JsonNode create(\n"
+                                + "            JsonNode metadata,\n"
+                                + "            String administrationAccessToken,\n"
+                                + "            RegistrationHandoffProof handoff)")
+                .contains(
+                        "JsonNode update(\n"
+                                + "            String clientId,\n"
+                                + "            URI registrationUri,\n"
+                                + "            JsonNode metadata,\n"
+                                + "            byte[] registrationAccessToken,\n"
+                                + "            RegistrationHandoffProof handoff)")
+                .contains("JsonNode recover(")
+                .contains("FinalizeResult finalizeHandoff(")
+                .doesNotContain(
+                        "RegistrationRecovery",
+                        "default JsonNode",
+                        "default FinalizeResult",
+                        "default void");
+        assertThat(fileStore.text())
+                .containsOnlyOnce("root.resolve(\"weave/agent-runtime/cells\")")
+                .containsOnlyOnce(
+                        "root.resolve(\"weave/agent-runtime/registration-handoffs\")")
+                .containsOnlyOnce(
+                        "root.resolve(\"weave/agent-runtime/registration-lifecycle-locks\")")
+                .containsOnlyOnce(
+                        "root.resolve(\"weave/agent-runtime/registration-deletions\")")
+                .doesNotContain("RegistrationRecovery");
+        assertThat(moduleProductionSources("weave-application-core"))
+                .allSatisfy(source -> assertThat(source.text())
+                        .as(source.path().toString())
+                        .doesNotContain(
+                                "RegistrationAccessToken",
+                                "registrationAccessToken",
+                                "KeycloakClientRegistrationTransport",
+                                "RegistrationHandoffProof"));
+    }
+
+    @Test
     void matrixProtocolCoreBoundaryDefinesRustJniAndFlutterBridgeTarget() throws IOException {
         JavaSource matrixCore = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("matrix", "MatrixProtocolCoreService.java")))
@@ -406,6 +558,31 @@ class ServerArchitectureBoundaryTest {
                 .filter(source -> source.path().endsWith(suffix))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static List<JavaSource> persistenceSources() throws IOException {
+        Path persistenceRoot = Files.isDirectory(Path.of("src/main/java"))
+                ? Path.of("../weave-persistence-jpa/src/main/java")
+                : Path.of("weave-persistence-jpa/src/main/java");
+        try (var paths = Files.walk(persistenceRoot)) {
+            return paths
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .map(ServerArchitectureBoundaryTest::readSource)
+                    .toList();
+        }
+    }
+
+    private static List<JavaSource> moduleProductionSources(String module)
+            throws IOException {
+        Path moduleRoot = Files.isDirectory(Path.of("src/main/java"))
+                ? Path.of("..", module, "src/main/java")
+                : Path.of(module, "src/main/java");
+        try (var paths = Files.walk(moduleRoot)) {
+            return paths
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .map(ServerArchitectureBoundaryTest::readSource)
+                    .toList();
+        }
     }
 
     private static JavaSource readSource(Path path) {

@@ -17,6 +17,10 @@ permissions, provider side effects, OpenClaw sessions, or OpenClaw approval stat
   role and `agent-runtime.admin`.
 - ARC resolves the target `acct_` person reference through the configured Keycloak organization.
   Request data cannot choose an organization, email identity, raw subject, or arbitrary owner.
+- Human Weaver entitlement is exact membership in the native Keycloak Organization group
+  `/capabilities/weaver`. ARC reads the enabled organization member and that member's groups
+  through the Organizations Admin API. Realm user groups, token claims, cached observations,
+  human roles, and the workload-only `weaver-runtime` role never grant this entitlement.
 - Every cell receives one dedicated confidential Keycloak client named `weaver-cell-{cellId}`.
   ARC creates, reconciles, rotates, disables, and deletes that client through the distinct,
   least-privileged `weave-agent-runtime-admin` service account. It never reuses the
@@ -57,11 +61,12 @@ The target runtime cell owns **zero durable cell-local bytes**:
   oversize content, and unsigned artifacts.
 - Runtime databases, sessions, credentials, Matrix crypto/device state, plugin state, generated
   configuration, and provider-specific state never live on WebDAV or a durable cell volume.
-- The provider-neutral `RuntimeStateStore` holds encrypted external generations. The self-hosted
-  dogfood adapter uses PostgreSQL chunks encrypted with random AES-256-GCM data keys and
-  organization/person/cell/generation/profile authenticated context. A separately mounted
-  AES-KWP file key wraps those data keys; this adapter is guarded and is not a production-KMS
-  readiness claim.
+- The provider-neutral `RuntimeStateStore` holds encrypted external generations. The target
+  adapter stores immutable AES-256-GCM ciphertext in S3/MinIO and authority metadata in
+  PostgreSQL, with organization/person/cell/generation/profile authenticated context and
+  independently wrapped data keys. The adapter remains `Guarded` and fails closed in
+  dogfood/main until the cross-store outbox/reconciler and OpenBao/KMS boundary have their own
+  migration, reconstruction, corruption, rollback, retention, and deletion evidence.
 - Generation heads use compare-and-swap. State publication, event redelivery, reconcile, and
   deletion are idempotent. A stale generation or fencing epoch cannot win.
 - Keycloak data, ARC bindings, RuntimeProfile signing trust, workload credential SecretRefs, and
@@ -91,8 +96,9 @@ downscoped token and asks `weave-backend` to resolve current
 inbound bearer is never relayed. Public member tokens, the fixed MCP server service account, and
 unbound service accounts cannot discover or invoke tools.
 
-The domain tool, resource, and prompt catalogs are currently empty. A future catalog is a
-capability ceiling only. Discovery and invocation must intersect the fixed contract with the
+The first active catalog entry is the read-only Files projection: `files.search` plus bounded
+canonical file resources over the Weave WebDAV facade. The catalog remains a capability ceiling
+only. Discovery and invocation must intersect the fixed contract with the
 current RuntimeProfile, current entitlement, current domain permission, and runtime readiness.
 Every receiving domain independently reauthorizes the effective person and authenticated cell at
 execution time; a RuntimeProfile or approval artifact can never grant a domain permission.
@@ -127,17 +133,18 @@ Implemented and live-proven in the local topology:
 - exact administrative ARC authorization and organization/person binding;
 - idempotent per-cell Keycloak client lifecycle with separate least-privileged service accounts;
 - signed RuntimeProfile retrieval and current workload binding;
-- encrypted PostgreSQL runtime-state generations, mounted key wrapping, CAS, deletion ledger,
-  backup/restore wiring, and support-bundle redaction;
+- PostgreSQL runtime authority metadata, generation CAS and deletion-ledger persistence, mounted
+  SecretRef validation, backup/restore wiring, and support-bundle redaction;
 - workload-only Spring AI Streamable HTTP admission, protected-resource metadata, MCP Client
   Credentials extension negotiation, Standard Token Exchange V2, and backend current-context
   validation;
 - positive cell-token-to-MCP-to-backend proof plus negative human, generic-service, upscope,
   stale-binding, and admin-route proofs.
 
-Still guarded: a production external KMS/secret-manager adapter, disposable-cell orchestration
-and kill/recreate on a second node, WebDAV manifest materialization, the official Matrix/OpenClaw
-approval live proof, signed skills, non-empty domain tools, and production SLO/restore evidence.
+Still guarded: S3/MinIO runtime-state activation pending its durable cross-store outbox/reconciler,
+a production external KMS/secret-manager adapter, disposable-cell orchestration and kill/recreate
+on a second node, WebDAV manifest materialization, the official Matrix/OpenClaw approval live
+proof, signed skills, non-empty domain tools, and production SLO/restore evidence.
 
 Primary executable gates are `./gradlew serverCi`, `./gradlew infraStatic`,
 `python3 tools/spring_ai_mcp_facade_acceptance_check.py`, the ARC controller/security tests, and

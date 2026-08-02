@@ -38,7 +38,6 @@ REQUIRED_FORBIDDEN = [
 ]
 
 REQUIRED_DOMAINS = {
-    "identity": {"keycloak", "authentik"},
     "chat": {"matrix-synapse", "zulip"},
     "files": {"nextcloud", "minio-s3"},
     "calendar": {"nextcloud-caldav", "radicale"},
@@ -121,7 +120,7 @@ def main() -> None:
     gates = load_json(GATES)
     if gates.get("releasePrinciple") != "No statement is release-capable unless proven by E2E/runtime/migration/rollback evidence.":
         fail("release principle is missing or changed")
-    if gates.get("allowedClaim") != "Weave builds provider-neutral domains and proves them first with free self-hosted providers.":
+    if gates.get("allowedClaim") != "Weave builds provider-neutral collaboration domains with free self-hosted providers while Keycloak remains the fixed platform identity authority.":
         fail("allowed claim is missing or changed")
     if gates.get("realityLevels") != EXPECTED_LEVELS:
         fail("realityLevels must match the exact ordered Sprint 21 list")
@@ -153,6 +152,20 @@ def main() -> None:
     for domain, required_providers in REQUIRED_DOMAINS.items():
         if required_providers - by_domain.get(domain, set()):
             fail(f"providerLab domain {domain} missing provider(s): " + ", ".join(sorted(required_providers - by_domain.get(domain, set()))))
+    if "identity" in by_domain or "platform-identity" in by_domain:
+        fail("platform identity must not be a providerLab adapter domain")
+
+    platform_identity = gates.get("platformIdentity")
+    if not isinstance(platform_identity, dict):
+        fail("platformIdentity boundary must be an object")
+    if platform_identity.get("authority") != "keycloak":
+        fail("platformIdentity authority must be keycloak")
+    if platform_identity.get("providerSelectable") is not False:
+        fail("platformIdentity must not be provider selectable")
+    if set(platform_identity.get("upstreamSourceKinds", [])) != {"oidc", "saml", "ldap-ad"}:
+        fail("platformIdentity upstream source kinds mismatch")
+    if platform_identity.get("realityLevel") not in EXPECTED_LEVELS:
+        fail("platformIdentity reality level is invalid")
 
     canonical = gates.get("canonicalObjects")
     if not isinstance(canonical, dict):

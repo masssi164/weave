@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.matrix;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
@@ -140,7 +140,7 @@ public class MatrixProtocolCoreService {
                     "eventType", requireText(eventType, "Matrix event type"),
                     "content", content));
             return objectMapper.convertValue(parsed, ParsedEventContent.class);
-        } catch (JsonProcessingException | IllegalArgumentException exception) {
+        } catch (JacksonException | IllegalArgumentException exception) {
             throw new MatrixProtocolException("M_BAD_JSON", "Matrix event content is invalid.");
         }
     }
@@ -191,7 +191,7 @@ public class MatrixProtocolCoreService {
                     "errcode", requireText(errcode, "Matrix error code"),
                     "error", requireText(message, "Matrix error message")));
             return readOutput(NativeMatrixCore.projectJson("error", input, serverName), false);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Matrix error input could not be serialized.");
         }
     }
@@ -203,7 +203,7 @@ public class MatrixProtocolCoreService {
     private Map<String, Object> project(String operation, Object input) {
         try {
             return projectRaw(operation, objectMapper.writeValueAsString(input));
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Canonical Chat input could not be serialized.");
         }
     }
@@ -223,7 +223,7 @@ public class MatrixProtocolCoreService {
                 throw new MatrixProtocolException(errcode, message);
             }
             return response;
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new MatrixProtocolException(
                     "M_WEAVE_MATRIX_CORE_ERROR",
                     "The Rust/Ruma Matrix protocol core returned an invalid payload.");

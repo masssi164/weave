@@ -2,7 +2,7 @@ package com.massimotter.weave.backend.boards;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.boards.domain.BoardCapability;
 import com.massimotter.weave.backend.boards.domain.ProviderKind;
 import com.massimotter.weave.backend.boards.local.PlaceholderBoardsRepository;
@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.Test;
 
 class BoardsPlaceholderParityContractTest {
@@ -93,11 +94,21 @@ class BoardsPlaceholderParityContractTest {
         var lossy = OBJECT_MAPPER.readTree(Files.readString(Path.of("src/test/resources/boards-portability/lossy-mapping-report.json")));
         var conflict = OBJECT_MAPPER.readTree(Files.readString(Path.of("src/test/resources/boards-portability/conflict-report.json")));
 
-        assertThat(lossy.path("domain").asText()).isEqualTo("boards");
-        assertThat(lossy.path("field_classifications").findValuesAsText("classification"))
+        assertThat(lossy.path("domain").asString()).isEqualTo("boards");
+        assertThat(StreamSupport.stream(
+                                lossy.path("field_classifications").spliterator(), false)
+                        .map(field -> field.path("classification").asString())
+                        .toList())
                 .contains("lossless_canonical", "lossless_extension", "lossy_with_report", "blocked_nonportable");
         assertThat(conflict.path("write_guard").path("apply_enabled").asBoolean()).isFalse();
-        assertThat(conflict.path("write_guard").path("required_gates").findValuesAsText("gate"))
+        assertThat(StreamSupport.stream(
+                                conflict
+                                        .path("write_guard")
+                                        .path("required_gates")
+                                        .spliterator(),
+                                false)
+                        .map(gate -> gate.path("gate").asString())
+                        .toList())
                 .contains("rbac", "audit", "dry_run_preview", "redaction", "rollback_notes");
         assertThat(lossy.path("raw_provider_payloads_returned").asBoolean()).isFalse();
         assertThat(conflict.path("raw_provider_payloads_returned").asBoolean()).isFalse();

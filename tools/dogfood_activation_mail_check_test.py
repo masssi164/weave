@@ -67,7 +67,7 @@ class DogfoodActivationMailCheckTest(unittest.TestCase):
                     "usernameSha256": hashlib.sha256(b"massimo").hexdigest(),
                     "emailSha256": hashlib.sha256(email.encode("utf-8")).hexdigest(),
                     "role": "member",
-                    "workspaceGroup": "workspace-members",
+                    "workspaceGroup": "/members",
                     "inviteRef": "handoff-s32-massimo-dogfood-home",
                     "activation": {
                         "mode": "keycloak-required-actions-email",
@@ -122,7 +122,10 @@ class DogfoodActivationMailCheckTest(unittest.TestCase):
                         "mode": "keycloak-required-actions-email",
                         "requiredActions": ["VERIFY_EMAIL", "UPDATE_PASSWORD"],
                         "mailSent": True,
-                        "debugActionLink": "https://auth.weave.test/realms/weave/login-actions/action-token?key=secret",
+                        "debugActionLink": (
+                            "https://auth.weave.test/realms/weave/"
+                            "protocol/openid-connect/registrations?key=secret"
+                        ),
                     },
                     "qrOrDeeplinkCarriesSecret": False,
                     "appStoresActivationSecret": False,

@@ -1,6 +1,5 @@
 package com.massimotter.weave.backend.service;
 
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.CapabilityManifestState;
 import com.massimotter.weave.backend.model.ClientAccessCredentialLifecycleResponse;
@@ -19,7 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -29,25 +28,25 @@ public class OrganizationManifestService {
 
     private final OAuth2ResourceServerProperties resourceServerProperties;
     private final WorkspaceCapabilityService workspaceCapabilityService;
-    private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final OrganizationIdentityContextResolver identityContexts;
     private final Clock clock;
 
     @Autowired
     public OrganizationManifestService(
             OAuth2ResourceServerProperties resourceServerProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
-            ContextAuthorizationProperties contextAuthorizationProperties) {
-        this(resourceServerProperties, workspaceCapabilityService, contextAuthorizationProperties, Clock.systemUTC());
+            OrganizationIdentityContextResolver identityContexts) {
+        this(resourceServerProperties, workspaceCapabilityService, identityContexts, Clock.systemUTC());
     }
 
     OrganizationManifestService(
             OAuth2ResourceServerProperties resourceServerProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
-            ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContexts,
             Clock clock) {
         this.resourceServerProperties = resourceServerProperties;
         this.workspaceCapabilityService = workspaceCapabilityService;
-        this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.identityContexts = java.util.Objects.requireNonNull(identityContexts, "identityContexts");
         this.clock = clock;
     }
 
@@ -65,12 +64,12 @@ public class OrganizationManifestService {
                 "organization-admin-console",
                 List.of(
                         "accept organization auth URL, invite link, or deep link",
-                        "complete SSO with the selected identity provider",
+                        "complete OIDC Authorization Code with PKCE through the organization authority",
                         "consume effective organization manifest and capability states",
                         "render only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later member states"),
                 List.of(
                         "create and bootstrap organizations",
-                        "select and configure identity providers and category providers",
+                        "manage Keycloak identity, upstream federation, and selectable category providers",
                         "manage provider endpoint URLs, rotation, readiness, and support-safe diagnostics",
                         "manage users, groups, roles, capability profiles, and deny-by-default policy",
                         "own provider, tool, and agent whitelisting plus privacy/compliance risk notes",
@@ -81,18 +80,15 @@ public class OrganizationManifestService {
     }
 
     private String organizationId(Jwt jwt) {
-        String tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantClaim());
-        if (tenantId == null) {
-            tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantFallbackClaim());
-        }
-        if (tenantId == null) {
+        try {
+            return identityContexts.resolve(jwt).organizationId();
+        } catch (ApiErrorException exception) {
             throw new ApiErrorException(
                     HttpStatus.UNAUTHORIZED,
                     "organization-manifest-unauthorized",
                     "Organization manifest requires an authenticated organization tenant.",
-                    Map.of("reason", "tenant claim is missing"));
+                    Map.of("reason", "organization identity is missing"));
         }
-        return tenantId;
     }
 
     private String organizationDisplayName(Jwt jwt) {
@@ -179,7 +175,7 @@ public class OrganizationManifestService {
 
     private Map<String, CapabilityManifestState> memberStates(WorkspaceCapabilitiesResponse capabilities) {
         Map<String, CapabilityManifestState> states = new LinkedHashMap<>();
-        states.put("idm-rbac", memberState(capabilities.shellAccess()));
+        states.put("platform-identity", memberState(capabilities.shellAccess()));
         states.put("chat-channels", memberState(capabilities.chat()));
         states.put("files-docs", memberState(capabilities.files()));
         states.put("boards-tasks", memberState(capabilities.boards()));

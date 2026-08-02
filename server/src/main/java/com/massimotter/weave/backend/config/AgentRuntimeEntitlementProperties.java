@@ -1,18 +1,24 @@
 package com.massimotter.weave.backend.config;
 
+import java.time.Duration;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-/** Keycloak-backed ARC entitlement input; it contains no runtime/container configuration. */
+/** Keycloak Organization-backed ARC entitlement policy; it contains no runtime configuration. */
 @ConfigurationProperties(prefix = "weave.agent-runtime.entitlement")
 public record AgentRuntimeEntitlementProperties(
         boolean enabled,
-        List<String> enabledGroups,
+        Duration observationTtl,
         List<String> allowedCapabilities) {
 
     public AgentRuntimeEntitlementProperties {
-        enabledGroups = normalized(enabledGroups, List.of("weave-weaver-runtime"));
-        allowedCapabilities = normalized(allowedCapabilities, List.of("calendar.read"));
+        observationTtl = observationTtl == null ? Duration.ofMinutes(5) : observationTtl;
+        if (observationTtl.compareTo(Duration.ofSeconds(30)) < 0
+                || observationTtl.compareTo(Duration.ofMinutes(15)) > 0) {
+            throw new IllegalArgumentException(
+                    "observationTtl must be between 30 seconds and 15 minutes");
+        }
+        allowedCapabilities = normalized(allowedCapabilities, List.of("files.read"));
     }
 
     public static AgentRuntimeEntitlementProperties disabled() {

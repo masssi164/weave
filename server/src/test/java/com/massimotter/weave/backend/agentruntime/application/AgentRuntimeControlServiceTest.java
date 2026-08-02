@@ -3,10 +3,11 @@ package com.massimotter.weave.backend.agentruntime.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCellRepository;
-import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCommandRepository;
-import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeGovernanceRepository;
-import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeProfileRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCellRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCommandRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeGovernanceRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeProfileRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeJpaTestFactory;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
@@ -18,49 +19,37 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthori
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthorityException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementDeniedException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZoneId;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 class AgentRuntimeControlServiceTest {
     private static final Instant NOW = Instant.parse("2026-07-20T09:00:00Z");
     private static final String ISSUER = "https://auth.weave.test/realms/weave";
 
-    private JdbcRuntimeCellRepository cells;
+    private JpaRuntimeCellRepository cells;
     private CountingWorkloadAdmin workloadAdmin;
     private FixedEntitlementAuthority entitlementAuthority;
-    private JdbcRuntimeGovernanceRepository governance;
+    private JpaRuntimeGovernanceRepository governance;
     private MutableClock clock;
     private AgentRuntimeControlService service;
 
     @BeforeEach
     void setUp() {
-        EmbeddedDatabase database = new EmbeddedDatabaseBuilder()
-                .setType(EmbeddedDatabaseType.H2)
-                .setName("arc-service-" + UUID.randomUUID())
-                .build();
-        new ResourceDatabasePopulator(new ClassPathResource(
-                "db/migration/V011__agent_runtime_control_foundation.sql"), new ClassPathResource(
-                "db/migration/V012__agent_runtime_governance_facts.sql")).execute(database);
-        JdbcTemplate jdbc = new JdbcTemplate(database);
-        cells = new JdbcRuntimeCellRepository(jdbc);
+        var database = JpaTestDatabase.entityFirstDataSource("arc-service");
+        var persistence = AgentRuntimeJpaTestFactory.create(database);
+        cells = persistence.cells();
         workloadAdmin = new CountingWorkloadAdmin();
         entitlementAuthority = new FixedEntitlementAuthority();
-        governance = new JdbcRuntimeGovernanceRepository(jdbc);
+        governance = persistence.governance();
         clock = new MutableClock(NOW);
         service = new AgentRuntimeControlService(
-                cells, new JdbcRuntimeCommandRepository(jdbc), new JdbcRuntimeProfileRepository(jdbc), workloadAdmin,
+                cells, persistence.commands(), persistence.profiles(), workloadAdmin,
                 entitlementAuthority, governance, clock);
     }
 
@@ -232,7 +221,7 @@ class AgentRuntimeControlServiceTest {
                 throw new RuntimeEntitlementAuthorityException("simulated authority outage");
             }
             return new RuntimeEntitlementObservation(
-                    command.organizationRef(), command.personRef(), command.memberBinding(), "keycloak",
+                    command.organizationRef(), command.personRef(), command.memberBinding(), "test-member", "keycloak",
                     "sha256:" + "1".repeat(64), capabilityRevision,
                     NOW, NOW.plusSeconds(300));
         }
@@ -271,6 +260,13 @@ class AgentRuntimeControlServiceTest {
         private String lastClientId;
         private String disabledClientId;
         private boolean failDisableNext;
+
+        @Override
+        public void requireCurrentBinding(
+                com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadBindingAuthority.CurrentBindingCommand
+                        command) {
+            // This test double only exercises lifecycle mutations.
+        }
 
         @Override
         public RuntimeWorkloadBinding ensureBinding(EnsureBindingCommand command) {
