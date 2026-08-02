@@ -265,6 +265,7 @@ def require_teardown(
     removed_volumes = teardown.get("removedVolumeNames")
     if (
         not isinstance(removed_volumes, list)
+        or not all(isinstance(volume, str) for volume in removed_volumes)
         or set(removed_volumes) != expected_volumes
         or len(removed_volumes) != len(expected_volumes)
         or teardown.get("networkRemoved") is not True
