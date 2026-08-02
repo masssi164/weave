@@ -64,6 +64,22 @@ def resolved_model(context) -> dict[str, object]:
     return json.loads(result.stdout)
 
 
+def assert_long_running_services_reap_child_processes(model: dict[str, object]) -> None:
+    services = model["services"]
+    long_running = {
+        name
+        for name, service in services.items()
+        if service.get("restart") != "no"
+        and service.get("labels", {}).get("com.massimotter.weave.one-shot") != "true"
+    }
+    assert long_running
+    assert {
+        service
+        for service in long_running
+        if services[service].get("init") is not True
+    } == set()
+
+
 def expect_contract_rejection(action, message: str) -> None:
     try:
         action()
@@ -473,6 +489,7 @@ def main() -> None:
     assert dev.compose_files[1].name == "compose.dev.yaml"
     dev_model = resolved_model(dev)
     validate_mount_contract(dev_model)
+    assert_long_running_services_reap_child_processes(dev_model)
     assert "backend" not in dev_model["services"]
     assert dev_model["services"]["keycloak"]["user"] == f"{dev.env['WEAVE_RUNTIME_UID']}:0"
     historical = labels(dev, "network", dev.env["WEAVE_DOCKER_NETWORK"])
@@ -678,6 +695,8 @@ def main() -> None:
             )
         test_model = resolved_model(test)
         prod_model = resolved_model(prod)
+        assert_long_running_services_reap_child_processes(test_model)
+        assert_long_running_services_reap_child_processes(prod_model)
         assert test_model["services"]["keycloak"]["user"] == (
             f"{test.env['WEAVE_RUNTIME_UID']}:0"
         )
