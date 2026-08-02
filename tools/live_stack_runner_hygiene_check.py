@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 
@@ -23,7 +22,6 @@ def require(condition: bool, message: str) -> None:
 
 def main() -> int:
     workflow = WORKFLOW.read_text(encoding="utf-8")
-    logical_workflow = re.sub(r"\\\r?\n[ \t]*", " ", workflow)
     deployment = DOGFOOD_DEPLOY_WORKFLOW.read_text(encoding="utf-8")
     member = DOGFOOD_MEMBER_WORKFLOW.read_text(encoding="utf-8")
     ios = IOS_DOGFOOD_WORKFLOW.read_text(encoding="utf-8")
@@ -92,8 +90,7 @@ def main() -> int:
     require(
         '("DOCKER_AUTH_ROOT", "weave-live-docker-auth-")' in workflow
         and 'DOCKER_CONFIG="$DOCKER_AUTH_ROOT" docker logout ghcr.io' in workflow
-        and re.search(r"\bsecurity\b[^\n]*\bunlock-keychain\b", logical_workflow)
-        is None,
+        and "unlock-keychain" not in workflow,
         "run-scoped Docker authority must be removed without unlocking host keychains",
     )
     require(
