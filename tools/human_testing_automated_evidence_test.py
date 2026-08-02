@@ -312,6 +312,14 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         self.assertIn("exact volume and network set", completed.stderr)
 
+    def test_rejects_non_string_teardown_volume_names_with_controlled_error(self) -> None:
+        self.teardown["removedVolumeNames"][0] = {"forged": "volume"}
+        completed = self.live()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("exact volume and network set", completed.stderr)
+        self.assertNotIn("TypeError", completed.stderr)
+        self.assertNotIn("Traceback", completed.stderr)
+
     def test_rejects_secret_like_values_and_credentialed_urls(self) -> None:
         product = copy.deepcopy(self.product)
         product["diagnostic"] = "Bearer abc.def.ghi"

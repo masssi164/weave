@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from bounded_process import BoundedProcessTimeout, run_bounded
 from compose_env import ComposeContext, ContractError, compose_environment, load_context, run
 
 
@@ -100,6 +101,9 @@ MCP_PROTECTED_SECRET_MARKERS = (
     "weave-backend-jwk",
     "/agent-runtime/workloads/",
 )
+COLLABORATION_CONTROL_BUDGET_SECONDS = 150
+COLLABORATION_SUBPROCESS_TIMEOUT_SECONDS = 30
+COLLABORATION_HEALTH_POLL_SECONDS = 2
 
 
 def script(context: ComposeContext, name: str) -> None:
@@ -111,6 +115,59 @@ def script(context: ComposeContext, name: str) -> None:
 
 def compose(context: ComposeContext, *arguments: str, capture: bool = False) -> subprocess.CompletedProcess[str]:
     return run((*context.compose_base_command, *arguments), context, capture=capture)
+
+
+def _collaboration_remaining(deadline: float) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise ContractError("collaboration service control exceeded its bounded timeout")
+    return remaining
+
+
+def _bounded_collaboration_run(
+    command: list[str],
+    context: ComposeContext,
+    deadline: float,
+    *,
+    capture: bool,
+) -> subprocess.CompletedProcess[str]:
+    timeout = min(
+        float(COLLABORATION_SUBPROCESS_TIMEOUT_SECONDS),
+        _collaboration_remaining(deadline),
+    )
+    try:
+        completed = run_bounded(
+            command,
+            cwd=context.root,
+            env=compose_environment(context),
+            capture_output=capture,
+            timeout_seconds=timeout,
+        )
+    except BoundedProcessTimeout as error:
+        raise ContractError(
+            "collaboration service control Docker operation exceeded its bounded timeout"
+        ) from error
+    except OSError as error:
+        raise ContractError(
+            "collaboration service control Docker operation failed"
+        ) from error
+    if completed.returncode != 0:
+        raise ContractError("collaboration service control Docker operation failed")
+    return completed
+
+
+def _bounded_collaboration_compose(
+    context: ComposeContext,
+    deadline: float,
+    *arguments: str,
+    capture: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    return _bounded_collaboration_run(
+        [*context.compose_base_command, *arguments],
+        context,
+        deadline,
+        capture=capture,
+    )
 
 
 def resource_metadata(context: ComposeContext, kind: str, name: str) -> tuple[str, str]:
@@ -697,21 +754,39 @@ def bootstrap_authority_available(context: ComposeContext) -> bool:
 
 
 def _service_container(
-    context: ComposeContext, service: str, *, include_stopped: bool = False
+    context: ComposeContext,
+    service: str,
+    *,
+    include_stopped: bool = False,
+    deadline: float | None = None,
 ) -> dict[str, Any]:
     arguments = ["ps"]
     if include_stopped:
         arguments.append("--all")
     arguments.extend(("-q", service))
-    selected = compose(context, *arguments, capture=True).stdout.strip().splitlines()
+    selected_result = (
+        compose(context, *arguments, capture=True)
+        if deadline is None
+        else _bounded_collaboration_compose(
+            context, deadline, *arguments, capture=True
+        )
+    )
+    selected = selected_result.stdout.strip().splitlines()
     if len(selected) != 1 or not re.fullmatch(r"[0-9a-f]{64}", selected[0]):
         raise ContractError(f"{service} does not resolve to one exact running container")
-    inspected = subprocess.run(
-        ["docker", "container", "inspect", selected[0]],
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+    inspect_command = ["docker", "container", "inspect", selected[0]]
+    inspected = (
+        subprocess.run(
+            inspect_command,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if deadline is None
+        else _bounded_collaboration_run(
+            inspect_command, context, deadline, capture=True
+        )
     )
     payload = json.loads(inspected.stdout)
     if not isinstance(payload, list) or len(payload) != 1:
@@ -729,9 +804,18 @@ def _service_container(
 
 
 def _service_snapshot(
-    context: ComposeContext, service: str, *, include_stopped: bool = False
+    context: ComposeContext,
+    service: str,
+    *,
+    include_stopped: bool = False,
+    deadline: float | None = None,
 ) -> dict[str, Any]:
-    container = _service_container(context, service, include_stopped=include_stopped)
+    container = _service_container(
+        context,
+        service,
+        include_stopped=include_stopped,
+        deadline=deadline,
+    )
     state = container.get("State", {})
     health = state.get("Health", {}).get("Status", "none")
     return {
@@ -743,17 +827,21 @@ def _service_snapshot(
     }
 
 
-def _await_healthy(context: ComposeContext, service: str) -> dict[str, Any]:
-    deadline = time.monotonic() + 180
+def _await_healthy(
+    context: ComposeContext, service: str, deadline: float | None = None
+) -> dict[str, Any]:
+    effective_deadline = deadline if deadline is not None else time.monotonic() + 180
     last: dict[str, Any] = {}
-    while time.monotonic() < deadline:
+    while time.monotonic() < effective_deadline:
         try:
-            last = _service_snapshot(context, service)
+            last = _service_snapshot(context, service, deadline=deadline)
             if last["running"] is True and last["health"] == "healthy":
                 return last
         except (ContractError, json.JSONDecodeError, subprocess.CalledProcessError):
             last = {}
-        time.sleep(2)
+        remaining = effective_deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(float(COLLABORATION_HEALTH_POLL_SECONDS), remaining))
     state = "unavailable" if not last else f"running={last['running']} health={last['health']}"
     raise ContractError(f"{service} did not become healthy after the bounded restart: {state}")
 
@@ -988,27 +1076,48 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
         raise ContractError(
             "collaboration service control is restricted to isolated testApp stacks"
         )
+    deadline = time.monotonic() + COLLABORATION_CONTROL_BUDGET_SECONDS
     if operation == "stop-provider":
-        before = _service_snapshot(context, "synapse")
-        compose(context, "stop", "--timeout", "20", "synapse")
-        snapshot = _service_snapshot(context, "synapse", include_stopped=True)
+        before = _service_snapshot(context, "synapse", deadline=deadline)
+        _bounded_collaboration_compose(
+            context, deadline, "stop", "--timeout", "20", "synapse"
+        )
+        snapshot = _service_snapshot(
+            context, "synapse", include_stopped=True, deadline=deadline
+        )
         if snapshot["containerId"] != before["containerId"] or snapshot["running"]:
             raise ContractError("isolated Synapse provider did not stop")
         print("WEAVE_CHAT_PROVIDER_CONTROL_RESULT state=stopped supportSafe=true")
         return
     if operation == "start-provider":
-        compose(context, "start", "synapse")
-        _await_healthy(context, "synapse")
-        _await_healthy(context, "backend")
+        _bounded_collaboration_compose(context, deadline, "start", "synapse")
+        _await_healthy(context, "synapse", deadline)
+        _await_healthy(context, "backend", deadline)
         print("WEAVE_CHAT_PROVIDER_CONTROL_RESULT state=healthy supportSafe=true")
         return
     if operation == "restart-collaboration":
-        synapse_before = _service_snapshot(context, "synapse")
-        backend_before = _service_snapshot(context, "backend")
-        compose(context, "restart", "--no-deps", "--timeout", "20", "synapse")
-        synapse_after = _await_healthy(context, "synapse")
-        compose(context, "restart", "--no-deps", "--timeout", "20", "backend")
-        backend_after = _await_healthy(context, "backend")
+        synapse_before = _service_snapshot(context, "synapse", deadline=deadline)
+        backend_before = _service_snapshot(context, "backend", deadline=deadline)
+        _bounded_collaboration_compose(
+            context,
+            deadline,
+            "restart",
+            "--no-deps",
+            "--timeout",
+            "20",
+            "synapse",
+        )
+        synapse_after = _await_healthy(context, "synapse", deadline)
+        _bounded_collaboration_compose(
+            context,
+            deadline,
+            "restart",
+            "--no-deps",
+            "--timeout",
+            "20",
+            "backend",
+        )
+        backend_after = _await_healthy(context, "backend", deadline)
         if (
             synapse_after["containerId"] != synapse_before["containerId"]
             or synapse_after["startedAt"] == synapse_before["startedAt"]

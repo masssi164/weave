@@ -89,6 +89,7 @@ cleanup() {
     if ((primary_status != 0)) && [[ -x "${FAILURE_DIAGNOSTICS}" ]]; then
       WEAVE_PROFILE=test \
         WEAVE_RESOURCE_PREFIX="${WEAVE_E2E_RUN_NAMESPACE}" \
+        WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS=30 \
         bash "${FAILURE_DIAGNOSTICS}" \
           "${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/failure-diagnostics" ||
         log "WEAVE_TEST_APP_LIFECYCLE_WARNING support-safe failure diagnostics did not complete"
