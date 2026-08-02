@@ -50,8 +50,10 @@ final class PersistenceRestartJourney {
       boolean completed =
           process.waitFor(PROCESS_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
       if (!completed) {
-        BoundedProcessTree.terminate(process, PROCESS_CLEANUP_TIMEOUT);
-        throw new ProductFlowException("persistence restart proof exceeded its bounded timeout");
+        throw BoundedProcessTree.terminatePreservingFailure(
+            process,
+            PROCESS_CLEANUP_TIMEOUT,
+            new ProductFlowException("persistence restart proof exceeded its bounded timeout"));
       }
       String diagnostic = boundedDiagnostic(processOutput);
       if (process.exitValue() != 0

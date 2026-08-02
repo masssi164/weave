@@ -15,13 +15,20 @@ final class BoundedProcessTree {
       Process process, Duration timeout, String message, InterruptedException interrupted) {
     ProductFlowException failure = new ProductFlowException(message, interrupted);
     try {
+      return terminatePreservingFailure(process, timeout, failure);
+    } finally {
+      Thread.currentThread().interrupt();
+    }
+  }
+
+  static ProductFlowException terminatePreservingFailure(
+      Process process, Duration timeout, ProductFlowException failure) {
+    try {
       if (process != null) {
         terminate(process, timeout);
       }
     } catch (RuntimeException cleanupFailure) {
       failure.addSuppressed(cleanupFailure);
-    } finally {
-      Thread.currentThread().interrupt();
     }
     return failure;
   }

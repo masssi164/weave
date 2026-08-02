@@ -951,8 +951,11 @@ final class CollaborationJourney {
               .redirectOutput(output.toFile())
               .start();
       if (!process.waitFor(PROCESS_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
-        BoundedProcessTree.terminate(process, PROCESS_CLEANUP_TIMEOUT);
-        throw new ProductFlowException("collaboration service control exceeded its bounded timeout");
+        throw BoundedProcessTree.terminatePreservingFailure(
+            process,
+            PROCESS_CLEANUP_TIMEOUT,
+            new ProductFlowException(
+                "collaboration service control exceeded its bounded timeout"));
       }
       String diagnostic = Files.readString(output, StandardCharsets.UTF_8);
       if (process.exitValue() != 0 || !diagnostic.contains(marker)) {

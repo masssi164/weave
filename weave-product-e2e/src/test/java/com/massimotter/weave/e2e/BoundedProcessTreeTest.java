@@ -10,19 +10,25 @@ import org.junit.jupiter.api.Test;
 class BoundedProcessTreeTest {
 
   @Test
+  void preservesTimeoutFailureWhenProcessCleanupFails() {
+    Process process = startCompletedProcess();
+    try {
+      ProductFlowException timeout = new ProductFlowException("fixture operation timed out");
+
+      ProductFlowException failure =
+          BoundedProcessTree.terminatePreservingFailure(process, Duration.ZERO, timeout);
+
+      assertThat(failure).isSameAs(timeout).hasMessage("fixture operation timed out");
+      assertCleanupFailureIsSuppressed(failure);
+    } finally {
+      process.destroyForcibly();
+    }
+  }
+
+  @Test
   void preservesInterruptionWhenProcessCleanupFails() {
     InterruptedException interrupted = new InterruptedException("fixture interruption");
-    Process process;
-    try {
-      process =
-          new ProcessBuilder()
-              .command("true")
-              .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-              .redirectError(ProcessBuilder.Redirect.DISCARD)
-              .start();
-    } catch (java.io.IOException unexpected) {
-      throw new AssertionError(unexpected);
-    }
+    Process process = startCompletedProcess();
     try {
       ProductFlowException failure =
           BoundedProcessTree.interruptedFailure(
@@ -34,17 +40,32 @@ class BoundedProcessTreeTest {
       assertThat(failure)
           .hasMessage("fixture operation was interrupted")
           .hasCause(interrupted);
-      assertThat(failure.getSuppressed())
-          .singleElement()
-          .isInstanceOfSatisfying(
-              IllegalArgumentException.class,
-              cleanup ->
-                  assertThat(cleanup).hasMessage("process cleanup timeout must be positive"));
+      assertCleanupFailureIsSuppressed(failure);
       assertThat(Thread.currentThread().isInterrupted()).isTrue();
     } finally {
       Thread.interrupted();
       process.destroyForcibly();
     }
+  }
+
+  private static Process startCompletedProcess() {
+    try {
+      return new ProcessBuilder()
+          .command("true")
+          .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+          .redirectError(ProcessBuilder.Redirect.DISCARD)
+          .start();
+    } catch (java.io.IOException unexpected) {
+      throw new AssertionError(unexpected);
+    }
+  }
+
+  private static void assertCleanupFailureIsSuppressed(ProductFlowException failure) {
+    assertThat(failure.getSuppressed())
+        .singleElement()
+        .isInstanceOfSatisfying(
+            IllegalArgumentException.class,
+            cleanup -> assertThat(cleanup).hasMessage("process cleanup timeout must be positive"));
   }
 
   @Test
