@@ -14,6 +14,7 @@ x-weave-resource-labels: &weave-resource-labels
   com.massimotter.weave.candidate-manifest-digest: ${WEAVE_CANDIDATE_MANIFEST_DIGEST:-sha256:0000000000000000000000000000000000000000000000000000000000000000}
 
 x-weave-service: &weave-service
+  init: true
   restart: unless-stopped
   labels:
     <<: *weave-resource-labels

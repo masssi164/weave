@@ -113,7 +113,8 @@ public final class FreshProductFlow {
               URI.create("com.massimotter.weave:/oauthredirect"),
               List.of("openid", "profile", "email"),
               ownerEmail,
-              ownerPassword);
+              ownerPassword,
+              "owner-initial");
       validateHumanBootstrapToken(browser.jwtPayload(ownerSession.accessToken()), "weave-app");
       ownerSession =
           reconcileIdentitySession(
@@ -153,7 +154,8 @@ public final class FreshProductFlow {
               URI.create("com.massimotter.weave:/oauthredirect"),
               List.of("openid", "profile", "email"),
               memberEmail,
-              memberPassword);
+              memberPassword,
+              "member-initial");
       validateHumanBootstrapToken(browser.jwtPayload(memberSession.accessToken()), "weave-app");
       memberSession =
           reconcileIdentitySession(
@@ -202,7 +204,8 @@ public final class FreshProductFlow {
               URI.create("com.massimotter.weave:/oauthredirect"),
               List.of("openid", "profile", "email"),
               outsiderEmail,
-              outsiderPassword);
+              outsiderPassword,
+              "outsider-initial");
       validateHumanBootstrapToken(browser.jwtPayload(outsiderSession.accessToken()), "weave-app");
       outsiderSession =
           reconcileIdentitySession(
@@ -227,21 +230,24 @@ public final class FreshProductFlow {
               URI.create("com.massimotter.weave:/oauthredirect"),
               List.of("openid", "profile", "email"),
               ownerEmail,
-              ownerPassword);
+              ownerPassword,
+              "owner-post-collaboration-restart");
       memberSession =
           browser.authorize(
               "weave-app",
               URI.create("com.massimotter.weave:/oauthredirect"),
               List.of("openid", "profile", "email"),
               memberEmail,
-              memberPassword);
+              memberPassword,
+              "member-post-collaboration-restart");
       outsiderSession =
           browser.authorize(
               "weave-app",
               URI.create("com.massimotter.weave:/oauthredirect"),
               List.of("openid", "profile", "email"),
               outsiderEmail,
-              outsiderPassword);
+              outsiderPassword,
+              "outsider-post-collaboration-restart");
       collaborationPasses.add(
           collaboration.runPass(
               2,
@@ -258,7 +264,8 @@ public final class FreshProductFlow {
               environment.productOrigin().resolve("/admin/oauth/callback"),
               List.of("openid", "profile", "email", "agent-runtime.admin"),
               ownerEmail,
-              ownerPassword);
+              ownerPassword,
+              "owner-agent-runtime-admin");
       validateAdminToken(browser.jwtPayload(adminSession.accessToken()));
 
       personRef =
@@ -613,7 +620,8 @@ public final class FreshProductFlow {
         URI.create("com.massimotter.weave:/oauthredirect"),
         session.requestedScopes(),
         email,
-        password);
+        password,
+        expectedRole + "-post-session-reconcile");
   }
 
   private void validateAdminToken(JsonNode claims) {
