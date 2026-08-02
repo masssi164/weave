@@ -61,6 +61,7 @@ jobs:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
       REQUESTED_CANDIDATE_IMAGES_RUN_ID: ${{ inputs.candidate_images_run_id || github.event.inputs.candidate_images_run_id || '' }}
       WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
+      DOCKER_DEFAULT_PLATFORM: linux/amd64
       WEAVE_TEST_APP_RUN_ID: live-${{ github.run_id }}-${{ github.run_attempt }}
       WEAVE_CANDIDATE_EVIDENCE_REF: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
@@ -218,7 +219,9 @@ jobs:
           keycloak_ref="$(component_ref keycloak-runtime)"
           for image in "$server_ref" "$mcp_ref" "$identity_ref" "$keycloak_ref"; do
             [[ "$image" == *@sha256:* ]]
-            docker pull "$image"
+            docker pull --platform "$DOCKER_DEFAULT_PLATFORM" "$image"
+            [[ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" == \
+               "$DOCKER_DEFAULT_PLATFORM" ]]
           done
           server_id="$(docker image inspect --format '{{.Id}}' "$server_ref")"
           mcp_id="$(docker image inspect --format '{{.Id}}' "$mcp_ref")"

@@ -36,6 +36,7 @@ jobs:
     timeout-minutes: 120
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
+      DOCKER_DEFAULT_PLATFORM: linux/amd64
       LANE_CANDIDATE_COMMIT: ${{ github.event.workflow_run.head_sha || inputs.candidate_sha }}
       ISOLATED_E2E_RUN_ID: ${{ github.event.workflow_run.id || '' }}
       WEAVE_ENV_FILE: ${{ vars.WEAVE_TEST_REVIEWED_ENV_FILE || vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
