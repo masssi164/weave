@@ -11,6 +11,21 @@ final class BoundedProcessTree {
 
   private BoundedProcessTree() {}
 
+  static ProductFlowException interruptedFailure(
+      Process process, Duration timeout, String message, InterruptedException interrupted) {
+    ProductFlowException failure = new ProductFlowException(message, interrupted);
+    try {
+      if (process != null) {
+        terminate(process, timeout);
+      }
+    } catch (RuntimeException cleanupFailure) {
+      failure.addSuppressed(cleanupFailure);
+    } finally {
+      Thread.currentThread().interrupt();
+    }
+    return failure;
+  }
+
   static void terminate(Process process, Duration timeout) {
     if (timeout.isZero() || timeout.isNegative()) {
       throw new IllegalArgumentException("process cleanup timeout must be positive");

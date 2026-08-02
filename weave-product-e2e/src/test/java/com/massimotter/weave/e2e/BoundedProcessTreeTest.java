@@ -10,6 +10,44 @@ import org.junit.jupiter.api.Test;
 class BoundedProcessTreeTest {
 
   @Test
+  void preservesInterruptionWhenProcessCleanupFails() {
+    InterruptedException interrupted = new InterruptedException("fixture interruption");
+    Process process;
+    try {
+      process =
+          new ProcessBuilder()
+              .command("true")
+              .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+              .redirectError(ProcessBuilder.Redirect.DISCARD)
+              .start();
+    } catch (java.io.IOException unexpected) {
+      throw new AssertionError(unexpected);
+    }
+    try {
+      ProductFlowException failure =
+          BoundedProcessTree.interruptedFailure(
+              process,
+              Duration.ZERO,
+              "fixture operation was interrupted",
+              interrupted);
+
+      assertThat(failure)
+          .hasMessage("fixture operation was interrupted")
+          .hasCause(interrupted);
+      assertThat(failure.getSuppressed())
+          .singleElement()
+          .isInstanceOfSatisfying(
+              IllegalArgumentException.class,
+              cleanup ->
+                  assertThat(cleanup).hasMessage("process cleanup timeout must be positive"));
+      assertThat(Thread.currentThread().isInterrupted()).isTrue();
+    } finally {
+      Thread.interrupted();
+      process.destroyForcibly();
+    }
+  }
+
+  @Test
   void forciblyTerminatesTheObservedRootAndDescendantProcesses() throws Exception {
     Process process =
         new ProcessBuilder(

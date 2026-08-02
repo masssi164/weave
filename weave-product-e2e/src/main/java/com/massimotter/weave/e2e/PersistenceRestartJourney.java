@@ -72,14 +72,11 @@ final class PersistenceRestartJourney {
     } catch (IOException failure) {
       throw new ProductFlowException("persistence restart proof could not be executed", failure);
     } catch (InterruptedException interrupted) {
-      try {
-        if (process != null) {
-          BoundedProcessTree.terminate(process, PROCESS_CLEANUP_TIMEOUT);
-        }
-      } finally {
-        Thread.currentThread().interrupt();
-      }
-      throw new ProductFlowException("persistence restart proof was interrupted", interrupted);
+      throw BoundedProcessTree.interruptedFailure(
+          process,
+          PROCESS_CLEANUP_TIMEOUT,
+          "persistence restart proof was interrupted",
+          interrupted);
     } finally {
       try {
         Files.deleteIfExists(processOutput);
