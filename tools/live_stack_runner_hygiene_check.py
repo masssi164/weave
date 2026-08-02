@@ -79,13 +79,20 @@ def main() -> int:
         in workflow
         and 'GHCR_TOKEN: ${{ github.token }}' in workflow
         and 'DOCKER_CONFIG="$DOCKER_AUTH_ROOT"' in workflow
-        and 'docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin'
+        and 'python3 weave/tools/write_docker_auth_config.py'
         in workflow
         and '(.credsStore? // "") == ""' in workflow
         and '(.credHelpers? // {}) == {}' in workflow
         and 'printf \'DOCKER_CONFIG=%s\\n\' "$DOCKER_AUTH_ROOT" >> "$GITHUB_ENV"'
         in workflow,
         "candidate pulls must use one non-interactive run-scoped Docker authority",
+    )
+    require(
+        "docker login" not in workflow
+        and "docker-credential-" not in workflow
+        and '"credsStore":' not in workflow
+        and '"credHelpers":' not in workflow,
+        "candidate pulls must not invoke host credential stores",
     )
     require(
         '("DOCKER_AUTH_ROOT", "weave-live-docker-auth-")' in workflow
