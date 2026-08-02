@@ -179,7 +179,7 @@ index 0000000..5c985a8
 +            OIDCConfigAttributes.USE_RFC9068_ACCESS_TOKEN_HEADER_TYPE,
 +                    Boolean.TRUE.toString(),
 +            OIDCConfigAttributes.ACCESS_TOKEN_LIFESPAN,
-+                    "60",
++                    "59",
 +            USE_REFRESH_TOKENS, Boolean.FALSE.toString(),
 +            BACKCHANNEL_LOGOUT_SESSION_REQUIRED, Boolean.FALSE.toString(),
 +            BACKCHANNEL_LOGOUT_REVOKE_OFFLINE_TOKENS, Boolean.FALSE.toString(),
@@ -342,7 +342,7 @@ index 0000000..5c985a8
 +                Boolean.TRUE.toString());
 +        attributes.putIfAbsent(
 +                OIDCConfigAttributes.ACCESS_TOKEN_LIFESPAN,
-+                "60");
++                "59");
 +        if (!ALLOWED_ATTRIBUTES.containsAll(attributes.keySet())) {
 +            throw invalid(INVALID_ATTRIBUTE_SET_DETAIL);
 +        }

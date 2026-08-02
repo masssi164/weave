@@ -73,6 +73,37 @@ class WorkloadMcpJourneyTest {
   }
 
   @Test
+  void keepsTheExternalWorkloadTokenLifetimeBoundaryAtSixtySeconds() {
+    var mapper = JsonMapper.builder().build();
+    var exactBoundary =
+        mapper
+            .createObjectNode()
+            .put("iss", "https://auth.weave.test/realms/weave")
+            .put("client_id", "weaver-cell-test")
+            .put("azp", "weaver-cell-test")
+            .put("sub", "service-account-subject")
+            .put("jti", "token-identifier")
+            .put("iat", 100)
+            .put("exp", 160);
+    var overBoundary = exactBoundary.deepCopy().put("exp", 161);
+
+    assertThat(
+            WorkloadMcpJourney.invalidIdentityClaims(
+                exactBoundary,
+                "weaver-cell-test",
+                "https://auth.weave.test/realms/weave",
+                100))
+        .isEmpty();
+    assertThat(
+            WorkloadMcpJourney.invalidIdentityClaims(
+                overBoundary,
+                "weaver-cell-test",
+                "https://auth.weave.test/realms/weave",
+                100))
+        .containsExactly("token-ttl");
+  }
+
+  @Test
   void extractsJsonFromAStreamableHttpEventWithMetadataLines() {
     String payload =
         """
