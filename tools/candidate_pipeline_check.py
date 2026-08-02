@@ -85,6 +85,28 @@ def main() -> int:
         "manual persistent deployment can select a commit outside dogfood",
     )
     require("weave-live" in deployment, "persistent deployment is not pinned to the dedicated live runner label")
+    ordered(
+        deployment,
+        (
+            "weave-test-stack-evidence-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}",
+            'phase:"initialized"',
+            "WEAVE_TEST_STACK_EVIDENCE_DIR=$evidence_dir",
+            '[[ "$LANE_CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$ ]]',
+            '[[ "${WEAVE_ENV_FILE:-}" == /* ]]',
+            'phase:"request-validated"',
+            "Consume immutable manifest and exact isolated image evidence",
+            "tools/candidate_source_mapping.py",
+            "Upload persistent dogfood evidence",
+        ),
+        "persistent support-safe evidence lifecycle",
+    )
+    require(
+        "weave.test-stack-run-context.v1" in deployment
+        and '{schemaVersion:"weave.test-stack-run-context.v1",phase:"initialized",supportSafe:true,containsSecretValues:false}' in deployment
+        and 'path: ${{ env.WEAVE_TEST_STACK_EVIDENCE_DIR }}' in deployment
+        and "if-no-files-found: error" in deployment,
+        "persistent deployment does not initialize support-safe evidence before fallible verification",
+    )
     require(
         "TF_VAR_create_test_user" not in deployment
         and "TF_VAR_test_user_password" not in deployment

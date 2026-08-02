@@ -96,8 +96,6 @@ def main() -> int:
             str(dockerfile),
             "--label",
             f"org.opencontainers.image.revision={candidate}",
-            "--label",
-            "com.massimotter.weave.component=keycloak-identity-ops",
             "--build-arg",
             f"WEAVE_SPEC_DIGEST={spec_digest}",
             "--build-arg",
