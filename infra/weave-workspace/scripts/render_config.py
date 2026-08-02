@@ -673,7 +673,7 @@ def _backend_env(context: ComposeContext) -> str:
                 "WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES": "weaver-runtime-workload",
                 "WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES":
                     "agent-runtime.profile.read,mcp.tools,files.read",
-                "WEAVE_AGENT_RUNTIME_ACCESS_TOKEN_LIFESPAN_SECONDS": "60",
+                "WEAVE_AGENT_RUNTIME_ACCESS_TOKEN_LIFESPAN_SECONDS": "59",
             }
         )
     if context.isolated_namespace is not None:

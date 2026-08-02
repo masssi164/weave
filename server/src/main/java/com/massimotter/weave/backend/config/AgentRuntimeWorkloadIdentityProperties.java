@@ -28,7 +28,8 @@ public class AgentRuntimeWorkloadIdentityProperties {
     private List<String> defaultClientScopes = new ArrayList<>(List.of("weaver-runtime-workload"));
     private List<String> optionalClientScopes =
             new ArrayList<>(List.of("agent-runtime.profile.read", "mcp.tools", "files.read"));
-    private int accessTokenLifespanSeconds = 60;
+    private int accessTokenLifespanSeconds =
+            KeycloakAgentRuntimeWorkloadIdentityAdmin.WORKLOAD_ACCESS_TOKEN_LIFESPAN_SECONDS;
 
     public boolean enabled() {
         return enabled;

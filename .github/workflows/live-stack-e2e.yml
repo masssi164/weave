@@ -182,6 +182,30 @@ jobs:
             echo "WEAVE_CANDIDATE_MANIFEST_DIGEST=sha256:$actual_digest"
           } >> "$GITHUB_ENV"
 
+      - name: Prepare run-scoped Docker client authority
+        env:
+          DOCKER_AUTH_ROOT: ${{ runner.temp }}/weave-live-docker-auth-${{ github.run_id }}-${{ github.run_attempt }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ ! -e "$DOCKER_AUTH_ROOT" && -n "$GHCR_TOKEN" ]] || {
+            echo "::error::Run-scoped Docker authentication is unavailable or already exists." >&2
+            exit 1
+          }
+          install -d -m 700 "$DOCKER_AUTH_ROOT"
+          umask 077
+          printf '{"auths":{}}\n' > "$DOCKER_AUTH_ROOT/config.json"
+          printf '%s' "$GHCR_TOKEN" | \
+            DOCKER_CONFIG="$DOCKER_AUTH_ROOT" \
+            docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin >/dev/null
+          chmod 600 "$DOCKER_AUTH_ROOT/config.json"
+          jq -e '
+            ((.credsStore? // "") == "") and
+            ((.credHelpers? // {}) == {}) and
+            (.auths["ghcr.io"].auth | type == "string" and length > 0)
+          ' "$DOCKER_AUTH_ROOT/config.json" >/dev/null
+          printf 'DOCKER_CONFIG=%s\n' "$DOCKER_AUTH_ROOT" >> "$GITHUB_ENV"
+
       - name: Pull and bind all immutable candidate images
         working-directory: weave
         run: |
@@ -352,8 +376,12 @@ jobs:
         env:
           PRIVATE_ROOT: ${{ runner.temp }}/weave-live-stack-private-${{ github.run_id }}-${{ github.run_attempt }}
           UPLOAD_ROOT: ${{ runner.temp }}/weave-live-stack-acceptance-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          DOCKER_AUTH_ROOT: ${{ runner.temp }}/weave-live-docker-auth-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
+          if [[ -d "$DOCKER_AUTH_ROOT" ]]; then
+            DOCKER_CONFIG="$DOCKER_AUTH_ROOT" docker logout ghcr.io >/dev/null 2>&1 || true
+          fi
           python3 - <<'PY'
           import os
           import shutil
@@ -363,6 +391,7 @@ jobs:
           for key, prefix in (
               ("PRIVATE_ROOT", "weave-live-stack-private-"),
               ("UPLOAD_ROOT", "weave-live-stack-acceptance-evidence-"),
+              ("DOCKER_AUTH_ROOT", "weave-live-docker-auth-"),
           ):
               target = Path(os.environ[key]).resolve()
               if target.parent != runner_temp or not target.name.startswith(prefix):

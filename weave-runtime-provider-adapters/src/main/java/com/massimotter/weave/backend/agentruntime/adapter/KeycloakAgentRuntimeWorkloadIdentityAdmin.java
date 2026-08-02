@@ -51,6 +51,14 @@ import java.util.regex.Pattern;
 public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         implements RuntimeWorkloadIdentityAdmin, RuntimeWorkloadIdentityInventory {
 
+    /**
+     * Keycloak 26.7 reads the issued-at second before it calculates expiry from a separate
+     * millisecond clock read. A second-boundary crossing can therefore add one represented
+     * second. Issuing for 59 seconds keeps the externally enforced JWT lifetime at 60 seconds
+     * or less without widening the MCP resource-server boundary.
+     */
+    public static final int WORKLOAD_ACCESS_TOKEN_LIFESPAN_SECONDS = 59;
+
     // OIDC DCR metadata and Keycloak's persisted ClientModel use different identifiers.
     static final String CLIENT_AUTHENTICATOR_PRIVATE_KEY_JWT = "private_key_jwt";
     private static final String KEYCLOAK_CLIENT_AUTHENTICATOR_PRIVATE_KEY_JWT = "client-jwt";
@@ -1590,9 +1598,11 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                 throw new IllegalArgumentException(
                         "optionalClientScopes must contain only the approved workload scopes");
             }
-            if (accessTokenLifespanSeconds < 5 || accessTokenLifespanSeconds > 300) {
+            if (accessTokenLifespanSeconds != WORKLOAD_ACCESS_TOKEN_LIFESPAN_SECONDS) {
                 throw new IllegalArgumentException(
-                        "workload access-token lifespan must be between 5 and 300 seconds");
+                        "workload access-token lifespan must be exactly "
+                                + WORKLOAD_ACCESS_TOKEN_LIFESPAN_SECONDS
+                                + " seconds");
             }
         }
 

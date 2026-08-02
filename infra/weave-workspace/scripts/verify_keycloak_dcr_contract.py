@@ -141,7 +141,7 @@ def registration_state_digest(
         ],
         "fixedAttributes": {
             "access.token.header.type.rfc9068": "true",
-            "access.token.lifespan": "60",
+            "access.token.lifespan": "59",
             "backchannel.logout.revoke.offline.tokens": "false",
             "backchannel.logout.session.required": "false",
             "frontchannel.logout.session.required": "false",
