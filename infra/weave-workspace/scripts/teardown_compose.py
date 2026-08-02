@@ -129,6 +129,17 @@ def _assert_owned(
     observed = _labels(kind, name, deadline=deadline)
     if observed is None:
         return False
+    expected = _expected_labels(context, binding, kind)
+    if any(observed.get(key) != value for key, value in expected.items()):
+        raise ContractError(f"refusing to remove unowned Docker {kind} {name}")
+    return True
+
+
+def _expected_labels(
+    context: ComposeContext,
+    binding: OwnershipBinding,
+    kind: str,
+) -> dict[str, str]:
     expected = {
         "com.massimotter.weave.managed": "true",
         "com.massimotter.weave.environment": "test",
@@ -141,9 +152,7 @@ def _assert_owned(
     }
     if kind == "container":
         expected["com.docker.compose.project"] = binding.compose_project
-    if any(observed.get(key) != value for key, value in expected.items()):
-        raise ContractError(f"refusing to remove unowned Docker {kind} {name}")
-    return True
+    return expected
 
 
 def _owned_containers(
@@ -152,6 +161,11 @@ def _owned_containers(
     *,
     deadline: float,
 ) -> list[tuple[str, str]]:
+    expected = _expected_labels(context, binding, "container")
+    format_fields = ["{{json .ID}}", "{{json .Names}}"]
+    format_fields.extend(
+        f'{{{{json (.Label "{key}")}}}}' for key in expected
+    )
     result = _run_docker(
         [
             "docker",
@@ -162,7 +176,7 @@ def _owned_containers(
             "--filter",
             f"label=com.docker.compose.project={binding.compose_project}",
             "--format",
-            "{{.ID}}\t{{.Names}}",
+            f"[{','.join(format_fields)}]",
         ],
         deadline=deadline,
         operation="container-list",
@@ -174,18 +188,30 @@ def _owned_containers(
         raise ContractError("isolated teardown could not enumerate exact project containers")
     verified: list[tuple[str, str]] = []
     for line in sorted(set(result.stdout.splitlines())):
-        parts = line.split("\t", 1)
-        if len(parts) != 2 or re.fullmatch(r"[0-9a-f]{64}", parts[0]) is None:
-            raise ContractError("isolated teardown received an invalid container identity")
-        identifier, name = parts
-        if name and _assert_owned(
-            context,
-            binding,
-            "container",
-            identifier,
-            deadline=deadline,
+        try:
+            parts = json.loads(line)
+        except json.JSONDecodeError:
+            raise ContractError(
+                "isolated teardown received an invalid container inventory record"
+            ) from None
+        if (
+            not isinstance(parts, list)
+            or len(parts) != len(expected) + 2
+            or not all(isinstance(part, str) for part in parts)
+            or re.fullmatch(r"[0-9a-f]{64}", parts[0]) is None
         ):
-            verified.append((identifier, name))
+            raise ContractError(
+                "isolated teardown received an invalid container inventory record"
+            )
+        identifier, name = parts[:2]
+        observed = dict(zip(expected, parts[2:]))
+        if not name or any(
+            observed.get(key) != value for key, value in expected.items()
+        ):
+            raise ContractError(
+                f"refusing to remove unowned Docker container {identifier}"
+            )
+        verified.append((identifier, name))
     return verified
 
 

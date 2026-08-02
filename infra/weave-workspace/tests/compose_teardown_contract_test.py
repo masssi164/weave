@@ -322,6 +322,176 @@ class ComposeTeardownContractTest(unittest.TestCase):
             )
         self.assertEqual(result.returncode, 124)
 
+    def test_removing_container_uses_inventory_labels_without_inspect(self) -> None:
+        expected = teardown_compose._expected_labels(
+            self.context,
+            self.binding,
+            "container",
+        )
+        inventory_line = json.dumps(
+            [
+                self.CONTAINER_ID,
+                "weave-e2e-run-123456-identity-ops-run-1",
+                *expected.values(),
+            ]
+        )
+        with mock.patch.object(
+            teardown_compose.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(
+                [],
+                0,
+                stdout=inventory_line + "\n",
+            ),
+        ) as run:
+            observed = teardown_compose._owned_containers(
+                self.context,
+                self.binding,
+                deadline=teardown_compose.time.monotonic() + 10,
+            )
+        self.assertEqual(
+            observed,
+            [
+                (
+                    self.CONTAINER_ID,
+                    "weave-e2e-run-123456-identity-ops-run-1",
+                )
+            ],
+        )
+        self.assertEqual(run.call_count, 1)
+        command = run.call_args.args[0]
+        self.assertEqual(command[:5], ["docker", "container", "ls", "--all", "--no-trunc"])
+        self.assertIn(
+            '{{json (.Label "com.massimotter.weave.managed")}}',
+            command[-1],
+        )
+
+    def test_container_inventory_label_mismatch_is_refused(self) -> None:
+        expected = teardown_compose._expected_labels(
+            self.context,
+            self.binding,
+            "container",
+        )
+        labels = list(expected.values())
+        labels[0] = "false"
+        inventory_line = json.dumps(
+            [self.CONTAINER_ID, "weave-e2e-run-123456-server", *labels]
+        )
+        with mock.patch.object(
+            teardown_compose.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(
+                [],
+                0,
+                stdout=inventory_line + "\n",
+            ),
+        ):
+            with self.assertRaisesRegex(
+                ContractError,
+                "refusing to remove unowned Docker container",
+            ):
+                teardown_compose._owned_containers(
+                    self.context,
+                    self.binding,
+                    deadline=teardown_compose.time.monotonic() + 10,
+                )
+
+    def test_container_inventory_control_character_injection_is_refused(self) -> None:
+        expected = teardown_compose._expected_labels(
+            self.context,
+            self.binding,
+            "container",
+        )
+        labels = list(expected.values())
+        labels[0] = "true\tforged\n" + self.CONTAINER_ID
+        inventory_line = json.dumps(
+            [self.CONTAINER_ID, "weave-e2e-run-123456-server", *labels]
+        )
+        with mock.patch.object(
+            teardown_compose.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(
+                [],
+                0,
+                stdout=inventory_line + "\n",
+            ),
+        ):
+            with self.assertRaisesRegex(
+                ContractError,
+                "refusing to remove unowned Docker container",
+            ):
+                teardown_compose._owned_containers(
+                    self.context,
+                    self.binding,
+                    deadline=teardown_compose.time.monotonic() + 10,
+                )
+
+    def test_container_inventory_extra_field_is_refused(self) -> None:
+        expected = teardown_compose._expected_labels(
+            self.context,
+            self.binding,
+            "container",
+        )
+        inventory_line = json.dumps(
+            [
+                self.CONTAINER_ID,
+                "weave-e2e-run-123456-server",
+                *expected.values(),
+                "unexpected",
+            ]
+        )
+        with mock.patch.object(
+            teardown_compose.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(
+                [],
+                0,
+                stdout=inventory_line + "\n",
+            ),
+        ):
+            with self.assertRaisesRegex(
+                ContractError,
+                "invalid container inventory record",
+            ):
+                teardown_compose._owned_containers(
+                    self.context,
+                    self.binding,
+                    deadline=teardown_compose.time.monotonic() + 10,
+                )
+
+    def test_container_inventory_rejects_one_unowned_record_among_many(self) -> None:
+        expected = teardown_compose._expected_labels(
+            self.context,
+            self.binding,
+            "container",
+        )
+        owned = json.dumps(
+            [self.CONTAINER_ID, "weave-e2e-run-123456-server", *expected.values()]
+        )
+        unowned_labels = list(expected.values())
+        unowned_labels[-1] = "another-project"
+        unowned = json.dumps(
+            ["f" * 64, "weave-e2e-run-123456-mcp-server", *unowned_labels]
+        )
+        with mock.patch.object(
+            teardown_compose.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(
+                [],
+                0,
+                stdout=owned + "\n" + unowned + "\n",
+            ),
+        ):
+            with self.assertRaisesRegex(
+                ContractError,
+                "refusing to remove unowned Docker container",
+            ):
+                teardown_compose._owned_containers(
+                    self.context,
+                    self.binding,
+                    deadline=teardown_compose.time.monotonic() + 10,
+                )
+
 
     def test_empty_evidence_environment_uses_generated_default(self) -> None:
         with mock.patch.dict(
