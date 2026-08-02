@@ -1,8 +1,13 @@
 package com.massimotter.weave.e2e;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class OidcBrowserJourneyTest {
@@ -108,5 +113,107 @@ class OidcBrowserJourneyTest {
             OidcBrowserJourney.redirectTargetClass(
                 issuerResponse, "com.massimotter.weave:/oauthredirect?secret=one-time"))
         .isEqualTo("custom-scheme");
+  }
+
+  @Test
+  void retriesOnlyTheFirstTimeoutThatNeverLeftTheBlankPage() {
+    assertThat(OidcBrowserJourney.shouldRetryBlankNavigation("timeout", "blank", null, 1))
+        .isTrue();
+    assertThat(OidcBrowserJourney.shouldRetryBlankNavigation("timeout", "blank", null, 2))
+        .isFalse();
+    assertThat(OidcBrowserJourney.shouldRetryBlankNavigation("dns", "blank", null, 1))
+        .isFalse();
+    assertThat(OidcBrowserJourney.shouldRetryBlankNavigation("timeout", "issuer-no-form", null, 1))
+        .isFalse();
+    assertThat(OidcBrowserJourney.shouldRetryBlankNavigation("timeout", "blank", 503, 1))
+        .isFalse();
+  }
+
+  @Test
+  void keepsAuthorizationStageDiagnosticsSupportSafe() {
+    assertThat(OidcBrowserJourney.authorizationOperation("owner-post-collaboration-restart"))
+        .isEqualTo("oidc-owner-post-collaboration-restart");
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> OidcBrowserJourney.authorizationOperation("owner@example.invalid"));
+  }
+
+  @Test
+  void executesExactlyOneProbedRetryForTheBlankNoResponseTimeout() {
+    List<Integer> attempts = new ArrayList<>();
+    AtomicInteger probes = new AtomicInteger();
+
+    OidcBrowserJourney.executeBoundedNavigation(
+        attempt -> {
+          attempts.add(attempt);
+          if (attempt == 1) {
+            return OidcBrowserJourney.NavigationOutcome.failed(
+                "timeout",
+                "blank",
+                null,
+                new ProductFlowException("first navigation failed"));
+          }
+          return OidcBrowserJourney.NavigationOutcome.passed();
+        },
+        probes::incrementAndGet);
+
+    assertThat(attempts).containsExactly(1, 2);
+    assertThat(probes).hasValue(1);
+  }
+
+  @Test
+  void issuerProbeFailurePreventsTheSecondNavigationAttempt() {
+    for (String category : List.of("discovery-5xx", "transport", "issuer-mismatch")) {
+      AtomicInteger attempts = new AtomicInteger();
+      assertThatThrownBy(
+          () ->
+              OidcBrowserJourney.executeBoundedNavigation(
+                  attempt -> {
+                    attempts.incrementAndGet();
+                    return OidcBrowserJourney.NavigationOutcome.failed(
+                        "timeout",
+                        "blank",
+                        null,
+                        new ProductFlowException("navigation failed"));
+                  },
+                  () -> {
+                    throw new ProductFlowException("issuer probe failed category=" + category);
+                  }))
+          .isInstanceOf(ProductFlowException.class);
+      assertThat(attempts).hasValue(1);
+    }
+  }
+
+  @Test
+  void secondFailureNamesOnlyTheSupportSafeStageAndAttempt() {
+    AtomicInteger attempts = new AtomicInteger();
+    assertThatThrownBy(
+            () ->
+                OidcBrowserJourney.executeBoundedNavigation(
+                    attempt -> {
+                      attempts.incrementAndGet();
+                      String message =
+                          OidcBrowserJourney.navigationFailureMessage(
+                              "oidc-owner-post-collaboration-restart",
+                              attempt,
+                              "timeout",
+                              "blank",
+                              null,
+                              "none");
+                      return OidcBrowserJourney.NavigationOutcome.failed(
+                          "timeout",
+                          "blank",
+                          null,
+                          new ProductFlowException(message));
+                    },
+                    () -> {}))
+        .isInstanceOf(ProductFlowException.class)
+        .hasMessageContaining("operation=oidc-owner-post-collaboration-restart")
+        .hasMessageContaining("attempt=2")
+        .hasMessageContaining("issuerResponse=none")
+        .hasMessageNotContaining("https://")
+        .hasMessageNotContaining("code=")
+        .hasMessageNotContaining("action");
+
+    assertThat(attempts).hasValue(2);
   }
 }

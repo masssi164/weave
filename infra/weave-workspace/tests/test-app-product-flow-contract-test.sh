@@ -13,6 +13,7 @@ readonly SECRET_INITIALIZER="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/in
 readonly DCR_CONTRACT_PROBE="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/verify_keycloak_dcr_contract.py"
 readonly DCR_CONTRACT_PROBE_TEST="${REPOSITORY_ROOT}/infra/weave-workspace/tests/verify_keycloak_dcr_contract_test.py"
 readonly COMPOSE_RUNTIME="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/compose_runtime.py"
+readonly BOUNDED_PROCESS="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/bounded_process.py"
 readonly RUNTIME_IMAGE_EVIDENCE="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_runtime_image_evidence.py"
 readonly GRADLE_TASKS="${REPOSITORY_ROOT}/gradle/tasks/architecture-lifecycle.gradle"
 readonly MODULE_BUILD="${REPOSITORY_ROOT}/weave-product-e2e/build.gradle"
@@ -40,6 +41,7 @@ python3 -m py_compile \
   "${RUNTIME_CLEANUP}" \
   "${DCR_CONTRACT_PROBE}" \
   "${COMPOSE_RUNTIME}" \
+  "${BOUNDED_PROCESS}" \
   "${RUNTIME_IMAGE_EVIDENCE}"
 python3 -m unittest "${DCR_CONTRACT_PROBE_TEST}"
 
@@ -99,6 +101,12 @@ contains "${LIFECYCLE}" 'require_free_disk_space'
 contains "${LIFECYCLE}" 'local minimum_kib=8388608'
 contains "${LIFECYCLE}" 'before image build and resource creation'
 contains "${LIFECYCLE}" 'live-stack-failure-diagnostics.sh'
+contains "${LIFECYCLE}" 'WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS=30'
+diagnostics_line="$(grep -nF 'bash "${FAILURE_DIAGNOSTICS}"' "${LIFECYCLE}" | cut -d: -f1)"
+teardown_line="$(grep -nF 'bash "${TEARDOWN}" test' "${LIFECYCLE}" | cut -d: -f1)"
+[[ "${diagnostics_line}" =~ ^[0-9]+$ && "${teardown_line}" =~ ^[0-9]+$ &&
+   ${diagnostics_line} -lt ${teardown_line} ]] ||
+  fail "bounded diagnostics must remain immediately before exact teardown"
 contains "${LIFECYCLE}" 'verify_keycloak_dcr_contract.py'
 contains "${LIFECYCLE}" 'keycloak-dcr-live-proof.json'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RESTART_EVIDENCE_PATH'

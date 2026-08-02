@@ -46,10 +46,19 @@ def main() -> int:
             "Capture persistent dogfood resources",
             "Run the manifest-bound Fresh product proof",
             "./gradlew --no-daemon testApp",
+            "Ensure exact isolated Fresh namespace is absent",
             "Verify product proof and persistent dogfood preservation",
             "Upload support-safe live-stack evidence",
         ),
         "isolated Fresh product flow",
+    )
+    require(
+        "timeout-minutes: 75" in live
+        and "Run the manifest-bound Fresh product proof\n        timeout-minutes: 60"
+        in live
+        and "Ensure exact isolated Fresh namespace is absent\n        if: always()\n        timeout-minutes: 10"
+        in live,
+        "isolated Fresh proof does not reserve its exact cleanup window",
     )
     require(
         ".credentialsIncluded == false" in live

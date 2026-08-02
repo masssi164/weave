@@ -109,11 +109,39 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
             "schemaVersion": "weave.compose-isolated-teardown.v1",
             "supportSafe": True,
             "candidateCommit": LANE,
+            "candidateManifestDigest": manifest_digest,
             "namespace": "weave-e2e-0123456789abcdef",
             "composeProject": "weave-e2e-0123456789abcdef",
             "dryRun": False,
             "ownershipLabelsVerified": True,
             "containsSecretValues": False,
+            "removedVolumeNames": [
+                f"weave_e2e_0123456789abcdef_{suffix}"
+                for suffix in sorted(
+                    (
+                        "caddy_data",
+                        "caddy_config",
+                        "db_data",
+                        "keycloak_data",
+                        "mailpit_data",
+                        "nextcloud_data",
+                        "synapse_data",
+                        "matrix_chat_appservice_runtime",
+                        "runtime_state",
+                    )
+                )
+            ],
+            "networkRemoved": True,
+            "removedNetworkName": "weave-e2e-0123456789abcdef_network",
+            "composeDownStatus": "passed",
+            "fallbackAttempted": False,
+            "observedContainerCount": 18,
+            "fallbackObservedContainerCount": 0,
+            "removedContainerCount": 0,
+            "remainingContainerCount": 0,
+            "remainingVolumeCount": 0,
+            "remainingNetworkCount": 0,
+            "remainingOwnedResources": 0,
         }
 
     def tearDown(self) -> None:
@@ -250,6 +278,47 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
         completed = self.live(product)
         self.assertEqual(completed.returncode, 2)
         self.assertIn("providerOutageExactlyOnceVerified", completed.stderr)
+
+    def test_rejects_incomplete_or_unbounded_teardown_evidence(self) -> None:
+        self.teardown["remainingContainerCount"] = 1
+        self.teardown["remainingOwnedResources"] = 1
+        completed = self.live()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("left an isolated owned resource", completed.stderr)
+
+        self.teardown["remainingContainerCount"] = 0
+        self.teardown["remainingOwnedResources"] = 0
+        self.teardown["composeDownStatus"] = "timed-out"
+        self.teardown["fallbackAttempted"] = False
+        completed = self.live()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("did not use the owned-resource fallback", completed.stderr)
+
+    def test_rejects_cross_manifest_or_cross_namespace_teardown_evidence(self) -> None:
+        self.teardown["candidateManifestDigest"] = "sha256:" + "f" * 64
+        completed = self.live()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("another candidate manifest", completed.stderr)
+
+        self.teardown["candidateManifestDigest"] = self.product["candidateManifestDigest"]
+        self.teardown["removedVolumeNames"][0] = "weave_e2e_feedfeedfeedfeed_caddy_config"
+        completed = self.live()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("exact volume and network set", completed.stderr)
+
+        self.teardown["removedVolumeNames"][0] = "weave_e2e_0123456789abcdef_caddy_config"
+        self.teardown["removedNetworkName"] = "weave-e2e-feedfeedfeedfeed_network"
+        completed = self.live()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("exact volume and network set", completed.stderr)
+
+    def test_rejects_non_string_teardown_volume_names_with_controlled_error(self) -> None:
+        self.teardown["removedVolumeNames"][0] = {"forged": "volume"}
+        completed = self.live()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("exact volume and network set", completed.stderr)
+        self.assertNotIn("TypeError", completed.stderr)
+        self.assertNotIn("Traceback", completed.stderr)
 
     def test_rejects_secret_like_values_and_credentialed_urls(self) -> None:
         product = copy.deepcopy(self.product)

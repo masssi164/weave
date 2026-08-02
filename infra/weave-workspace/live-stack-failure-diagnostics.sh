@@ -6,6 +6,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="${SCRIPT_DIR}"
 readonly SCRIPT_DIR ROOT_DIR
+DIAGNOSTICS_TIMEOUT_SECONDS="${WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS:-30}"
+[[ "${DIAGNOSTICS_TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]] &&
+  ((DIAGNOSTICS_TIMEOUT_SECONDS >= 1 && DIAGNOSTICS_TIMEOUT_SECONDS <= 180)) || {
+  printf '%s\n' 'Failure diagnostics timeout must be an integer from 1 through 180 seconds.' >&2
+  exit 2
+}
+readonly DIAGNOSTICS_TIMEOUT_SECONDS
+if [[ "${WEAVE_LIVE_STACK_DIAGNOSTICS_BOUNDED:-false}" != "true" ]]; then
+  export WEAVE_LIVE_STACK_DIAGNOSTICS_BOUNDED=true
+  exec python3 "${ROOT_DIR}/scripts/bounded_process.py" \
+    --timeout-seconds "${DIAGNOSTICS_TIMEOUT_SECONDS}" \
+    -- bash "${BASH_SOURCE[0]}" "$@"
+fi
 RESOURCE_PREFIX="${WEAVE_RESOURCE_PREFIX:-weave}"
 readonly RESOURCE_PREFIX
 readonly DEFAULT_CONTAINERS=(

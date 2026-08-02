@@ -33,6 +33,7 @@ import java.util.function.Supplier;
 /** Real Chromium registration and Authorization Code + PKCE journey. */
 final class OidcBrowserJourney implements AutoCloseable {
   private static final int MAX_BROWSER_STEPS = 12;
+  private static final int MAX_BLANK_NAVIGATION_ATTEMPTS = 2;
   private static final double BROWSER_TIMEOUT_MILLIS = 30_000;
 
   private final ProductFlowEnvironment environment;
@@ -40,6 +41,35 @@ final class OidcBrowserJourney implements AutoCloseable {
   private final SecureRandom random = new SecureRandom();
   private final Playwright playwright;
   private final Browser browser;
+
+  @FunctionalInterface
+  interface NavigationAttempt {
+    NavigationOutcome execute(int attempt);
+  }
+
+  record NavigationOutcome(
+      boolean successful,
+      String category,
+      String pageState,
+      Integer issuerResponseStatus,
+      RuntimeException failure) {
+    static NavigationOutcome passed() {
+      return new NavigationOutcome(true, "none", "none", null, null);
+    }
+
+    static NavigationOutcome failed(
+        String category,
+        String pageState,
+        Integer issuerResponseStatus,
+        RuntimeException failure) {
+      return new NavigationOutcome(
+          false,
+          category,
+          pageState,
+          issuerResponseStatus,
+          java.util.Objects.requireNonNull(failure, "failure"));
+    }
+  }
 
   OidcBrowserJourney(ProductFlowEnvironment environment, JsonHttpClient http) {
     this.environment = environment;
@@ -180,7 +210,8 @@ final class OidcBrowserJourney implements AutoCloseable {
       URI redirectUri,
       List<String> scopes,
       String email,
-      String password) {
+      String password,
+      String evidenceStage) {
     String verifier = randomUrlSafe(64);
     String state = randomUrlSafe(32);
     String nonce = randomUrlSafe(32);
@@ -207,7 +238,7 @@ final class OidcBrowserJourney implements AutoCloseable {
           request -> captureCallback(request.url(), redirectUri, observedCallback));
       page.onFrameNavigated(
           frame -> captureCallback(frame.url(), redirectUri, observedCallback));
-      navigate(page, authorization, "oidc");
+      navigate(page, authorization, authorizationOperation(evidenceStage));
       callback =
           authenticateAndAwaitCallback(
               page, redirectUri, observedCallback, email, password);
@@ -422,33 +453,112 @@ final class OidcBrowserJourney implements AutoCloseable {
             }
           }
         });
-    try {
-      page.navigate(
-          target.toString(),
-          new Page.NavigateOptions()
-              .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
-              .setTimeout(BROWSER_TIMEOUT_MILLIS));
-    } catch (PlaywrightException failure) {
-      String category = browserFailureCategory(failure.getMessage());
-      String pageState = abortedPageState(page);
-      if ("navigation-aborted".equals(category) && "issuer-form".equals(pageState)) {
+    executeBoundedNavigation(
+        attempt -> {
+          issuerResponseStatus.set(null);
+          redirectTarget.set("none");
+          try {
+            page.navigate(
+                target.toString(),
+                new Page.NavigateOptions()
+                    .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
+                    .setTimeout(BROWSER_TIMEOUT_MILLIS));
+            return NavigationOutcome.passed();
+          } catch (PlaywrightException failure) {
+            String category = browserFailureCategory(failure.getMessage());
+            String pageState = abortedPageState(page);
+            if ("navigation-aborted".equals(category) && "issuer-form".equals(pageState)) {
+              return NavigationOutcome.passed();
+            }
+            return NavigationOutcome.failed(
+                category,
+                pageState,
+                issuerResponseStatus.get(),
+                sanitized(
+                    navigationFailureMessage(
+                        operation,
+                        attempt,
+                        category,
+                        pageState,
+                        issuerResponseStatus.get(),
+                        redirectTarget.get()),
+                    failure,
+                    false));
+          }
+        },
+        this::verifyIssuerBeforeBrowserRetry);
+  }
+
+  private void verifyIssuerBeforeBrowserRetry() {
+    JsonNode metadata =
+        http.json(
+            "verify OIDC issuer before browser navigation retry",
+            "GET",
+            environment.oidc("/.well-known/openid-configuration"),
+            Map.of(),
+            null,
+            Set.of(200));
+    if (!environment.issuer().toString().equals(metadata.path("issuer").asString())) {
+      throw new ProductFlowException(
+          "OIDC issuer metadata did not match before browser navigation retry");
+    }
+  }
+
+  static boolean shouldRetryBlankNavigation(
+      String category, String pageState, Integer issuerResponseStatus, int attempt) {
+    return attempt == 1
+        && "timeout".equals(category)
+        && "blank".equals(pageState)
+        && issuerResponseStatus == null;
+  }
+
+  static void executeBoundedNavigation(
+      NavigationAttempt navigationAttempt, Runnable issuerProbe) {
+    for (int attempt = 1; attempt <= MAX_BLANK_NAVIGATION_ATTEMPTS; attempt++) {
+      NavigationOutcome outcome = navigationAttempt.execute(attempt);
+      if (outcome.successful()) {
         return;
       }
-      throw sanitized(
-          "browser navigation failed"
-              + " operation="
-              + operation
-              + " category="
-              + category
-              + " pageState="
-              + pageState
-              + " issuerResponse="
-              + statusClass(issuerResponseStatus.get())
-              + " redirectTarget="
-              + redirectTarget.get(),
-          failure,
-          false);
+      if (shouldRetryBlankNavigation(
+          outcome.category(),
+          outcome.pageState(),
+          outcome.issuerResponseStatus(),
+          attempt)) {
+        issuerProbe.run();
+        continue;
+      }
+      throw outcome.failure();
     }
+    throw new IllegalStateException("bounded browser navigation attempts were exhausted");
+  }
+
+  static String navigationFailureMessage(
+      String operation,
+      int attempt,
+      String category,
+      String pageState,
+      Integer issuerResponseStatus,
+      String redirectTarget) {
+    return "browser navigation failed"
+        + " operation="
+        + operation
+        + " attempt="
+        + attempt
+        + " category="
+        + category
+        + " pageState="
+        + pageState
+        + " issuerResponse="
+        + statusClass(issuerResponseStatus)
+        + " redirectTarget="
+        + redirectTarget;
+  }
+
+  static String authorizationOperation(String evidenceStage) {
+    if (evidenceStage == null || !evidenceStage.matches("[a-z][a-z0-9-]{0,63}")) {
+      throw new IllegalArgumentException("OIDC evidence stage must be a support-safe identifier");
+    }
+    return "oidc-" + evidenceStage;
   }
 
   private String abortedPageState(Page page) {

@@ -19,6 +19,17 @@ IMMUTABLE_IMAGE = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
 JWT = re.compile(r"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])")
 EMAIL = re.compile(r"(?<![A-Za-z0-9.!#$%&'*+/=?^_`{|}~-])[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?![A-Za-z0-9-])")
 CANDIDATE_COMPONENTS = {"server", "mcp-server", "identity-ops", "keycloak-runtime"}
+ISOLATED_VOLUME_SUFFIXES = {
+    "caddy_data",
+    "caddy_config",
+    "db_data",
+    "keycloak_data",
+    "mailpit_data",
+    "nextcloud_data",
+    "synapse_data",
+    "matrix_chat_appservice_runtime",
+    "runtime_state",
+}
 REQUIRED_PASS_FACTS = (
     "freshAuthorizationCodePkce",
     "chatPassed",
@@ -193,19 +204,74 @@ def require_candidate_manifest(
     return digest, dict(sorted(by_component.items()))
 
 
-def require_teardown(teardown: dict[str, Any], candidate: str) -> str:
+def require_teardown(
+    teardown: dict[str, Any], candidate: str, candidate_manifest_digest: str
+) -> str:
     require_support_safe(teardown, "teardown evidence")
     if teardown.get("schemaVersion") != "weave.compose-isolated-teardown.v1":
         raise EvidenceError("teardown evidence has the wrong schema")
     if require_commit(teardown.get("candidateCommit"), "teardown.candidateCommit") != candidate:
         raise EvidenceError("teardown evidence targets another lane candidate")
+    teardown_manifest_digest = teardown.get("candidateManifestDigest")
+    if (
+        not isinstance(teardown_manifest_digest, str)
+        or HASH.fullmatch(teardown_manifest_digest) is None
+        or teardown_manifest_digest != candidate_manifest_digest
+    ):
+        raise EvidenceError("teardown evidence targets another candidate manifest")
     if teardown.get("dryRun") is not False or teardown.get("ownershipLabelsVerified") is not True:
         raise EvidenceError("teardown evidence does not prove owned resource removal")
     if teardown.get("containsSecretValues") is not False:
         raise EvidenceError("teardown evidence is not secret-free")
+    compose_status = teardown.get("composeDownStatus")
+    fallback_attempted = teardown.get("fallbackAttempted")
+    if compose_status not in {"passed", "failed", "timed-out"}:
+        raise EvidenceError("teardown evidence has no bounded Compose result")
+    if not isinstance(fallback_attempted, bool):
+        raise EvidenceError("teardown evidence has no exact fallback result")
+    if compose_status in {"failed", "timed-out"} and fallback_attempted is not True:
+        raise EvidenceError("failed Compose teardown did not use the owned-resource fallback")
+    count_fields = (
+        "observedContainerCount",
+        "fallbackObservedContainerCount",
+        "removedContainerCount",
+        "remainingContainerCount",
+        "remainingVolumeCount",
+        "remainingNetworkCount",
+        "remainingOwnedResources",
+    )
+    if any(
+        not isinstance(teardown.get(field), int) or teardown[field] < 0
+        for field in count_fields
+    ):
+        raise EvidenceError("teardown evidence has an invalid resource count")
+    if any(
+        teardown.get(field) != 0
+        for field in (
+            "remainingContainerCount",
+            "remainingVolumeCount",
+            "remainingNetworkCount",
+            "remainingOwnedResources",
+        )
+    ):
+        raise EvidenceError("teardown evidence left an isolated owned resource")
     namespace = teardown.get("namespace")
     if not isinstance(namespace, str) or re.fullmatch(r"weave-e2e-[0-9a-f]{16}", namespace) is None:
         raise EvidenceError("teardown evidence has no valid isolated namespace")
+    volume_prefix = namespace.replace("-", "_")
+    expected_volumes = {
+        f"{volume_prefix}_{suffix}" for suffix in ISOLATED_VOLUME_SUFFIXES
+    }
+    removed_volumes = teardown.get("removedVolumeNames")
+    if (
+        not isinstance(removed_volumes, list)
+        or not all(isinstance(volume, str) for volume in removed_volumes)
+        or set(removed_volumes) != expected_volumes
+        or len(removed_volumes) != len(expected_volumes)
+        or teardown.get("networkRemoved") is not True
+        or teardown.get("removedNetworkName") != f"{namespace}_network"
+    ):
+        raise EvidenceError("teardown evidence did not remove the exact volume and network set")
     return namespace
 
 
@@ -271,7 +337,7 @@ def build_live(
     if passes[1].get("restartContinuityVerified") is not True:
         raise EvidenceError("second collaboration pass must prove restart continuity")
 
-    namespace = require_teardown(teardown, candidate)
+    namespace = require_teardown(teardown, candidate, manifest_digest)
     compose_project = product.get("composeProject")
     if compose_project != namespace or teardown.get("composeProject") != namespace:
         raise EvidenceError("product, teardown, and isolated Compose namespace disagree")

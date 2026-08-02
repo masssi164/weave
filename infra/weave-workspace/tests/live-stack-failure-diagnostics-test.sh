@@ -15,6 +15,13 @@ mkdir -p "${stub_bin}"
 cat >"${stub_bin}/docker" <<'DOCKER'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "${WEAVE_DIAGNOSTICS_TEST_HANG:-false}" == "true" ]]; then
+  printf '%s\n' "$$" >"${WEAVE_DIAGNOSTICS_TEST_HANG_PID_FILE}"
+  trap '' TERM
+  while true; do
+    sleep 60
+  done
+fi
 case "${1:-}" in
   inspect)
     name="${@: -1}"
@@ -116,6 +123,41 @@ grep -Fq '"actionRequired": true' "${output_dir}/health-checks/backend-readiness
 if grep -R -Fq 'secret-password' "${output_dir}" || grep -R -Fq 'person@example.com' "${output_dir}" || grep -R -Fq 'eyJhbGci' "${output_dir}"; then
   echo "failure diagnostics leaked raw private log content" >&2
   grep -R -n -E 'secret-password|person@example\.com|eyJhbGci' "${output_dir}" >&2 || true
+  exit 1
+fi
+
+hanging_output="${work_dir}/hanging-output"
+hanging_pid_file="${work_dir}/hanging.pid"
+hanging_log="${work_dir}/hanging.log"
+started_seconds="${SECONDS}"
+set +e
+PATH="${stub_bin}:${PATH}" \
+  WEAVE_DIAGNOSTICS_TEST_HANG=true \
+  WEAVE_DIAGNOSTICS_TEST_HANG_PID_FILE="${hanging_pid_file}" \
+  WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS=1 \
+  WEAVE_LIVE_STACK_PRIVATE_RAW_LOGS=false \
+  bash "${SCRIPT}" "${hanging_output}" >"${hanging_log}" 2>&1
+hanging_status=$?
+set -e
+elapsed_seconds=$((SECONDS - started_seconds))
+[[ "${hanging_status}" -eq 124 ]] || {
+  echo "hanging diagnostics returned ${hanging_status}, expected 124" >&2
+  exit 1
+}
+((elapsed_seconds < 8)) || {
+  echo "hanging diagnostics exceeded the fixture timeout bound" >&2
+  exit 1
+}
+grep -Fxq 'WEAVE_BOUNDED_PROCESS_TIMEOUT' "${hanging_log}"
+! grep -Fq "${work_dir}" "${hanging_log}"
+! grep -Fq 'fixture output must not escape' "${hanging_log}"
+[[ -s "${hanging_pid_file}" ]] || {
+  echo "hanging diagnostics did not expose its fixture pid" >&2
+  exit 1
+}
+hanging_pid="$(cat "${hanging_pid_file}")"
+if kill -0 "${hanging_pid}" 2>/dev/null; then
+  echo "hanging diagnostics child process survived the bounded watchdog" >&2
   exit 1
 fi
 

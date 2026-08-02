@@ -8,7 +8,9 @@ import io
 import json
 import os
 import re
+import subprocess
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 from dataclasses import replace
@@ -62,6 +64,22 @@ def resolved_model(context) -> dict[str, object]:
         (root / "public.env").touch(mode=0o600)
     result = compose(context, "config", "--format", "json", capture=True)
     return json.loads(result.stdout)
+
+
+def assert_long_running_services_reap_child_processes(model: dict[str, object]) -> None:
+    services = model["services"]
+    long_running = {
+        name
+        for name, service in services.items()
+        if service.get("restart") != "no"
+        and service.get("labels", {}).get("com.massimotter.weave.one-shot") != "true"
+    }
+    assert long_running
+    assert {
+        service
+        for service in long_running
+        if services[service].get("init") is not True
+    } == set()
 
 
 def expect_contract_rejection(action, message: str) -> None:
@@ -198,6 +216,90 @@ def assert_identity_bootstrap_authority_probe(context, root: Path) -> None:
             probe_context
         ),
         "mode-0640 bootstrap SecretRef was accepted",
+    )
+
+
+def assert_collaboration_control_is_bounded(context) -> None:
+    original_run = compose_runtime_module.run_bounded
+    private_coordinate = "/private/runner/secret/docker.sock"
+
+    def timed_out(*_args, **_kwargs):
+        raise compose_runtime_module.BoundedProcessTimeout(
+            "fixture output must not escape"
+        )
+
+    compose_runtime_module.run_bounded = timed_out
+    try:
+        try:
+            compose_runtime_module._bounded_collaboration_run(
+                ["docker", "container", "inspect", private_coordinate],
+                context,
+                time.monotonic() + 5,
+                capture=True,
+            )
+        except ContractError as error:
+            message = str(error)
+            assert message == (
+                "collaboration service control Docker operation exceeded its bounded timeout"
+            )
+            assert "docker" not in message
+            assert private_coordinate not in message
+        else:
+            raise AssertionError("timed-out collaboration Docker call was accepted")
+    finally:
+        compose_runtime_module.run_bounded = original_run
+
+    original_snapshot = compose_runtime_module._service_snapshot
+    original_compose = compose_runtime_module._bounded_collaboration_compose
+    original_healthy = compose_runtime_module._await_healthy
+    deadlines: list[float] = []
+
+    def snapshot(_context, service, *, include_stopped=False, deadline=None):
+        del include_stopped
+        assert service in {"synapse", "backend"}
+        assert deadline is not None
+        deadlines.append(deadline)
+        return {
+            "containerId": "a" * 64 if service == "synapse" else "b" * 64,
+            "startedAt": "before",
+            "restartCount": 0,
+            "running": True,
+            "health": "healthy",
+        }
+
+    def bounded_compose(_context, deadline, *arguments, capture=False):
+        del capture
+        assert arguments[0] == "restart"
+        deadlines.append(deadline)
+        return subprocess.CompletedProcess(arguments, 0)
+
+    def healthy(_context, service, deadline=None):
+        assert deadline is not None
+        deadlines.append(deadline)
+        return {
+            "containerId": "a" * 64 if service == "synapse" else "b" * 64,
+            "startedAt": "after",
+            "restartCount": 1,
+            "running": True,
+            "health": "healthy",
+        }
+
+    compose_runtime_module._service_snapshot = snapshot
+    compose_runtime_module._bounded_collaboration_compose = bounded_compose
+    compose_runtime_module._await_healthy = healthy
+    try:
+        compose_runtime_module.isolated_collaboration_control(
+            context, "restart-collaboration"
+        )
+    finally:
+        compose_runtime_module._service_snapshot = original_snapshot
+        compose_runtime_module._bounded_collaboration_compose = original_compose
+        compose_runtime_module._await_healthy = original_healthy
+    assert len(deadlines) == 6
+    assert len(set(deadlines)) == 1
+    assert time.monotonic() < deadlines[0] <= (
+        time.monotonic()
+        + compose_runtime_module.COLLABORATION_CONTROL_BUDGET_SECONDS
     )
 
 
@@ -473,6 +575,7 @@ def main() -> None:
     assert dev.compose_files[1].name == "compose.dev.yaml"
     dev_model = resolved_model(dev)
     validate_mount_contract(dev_model)
+    assert_long_running_services_reap_child_processes(dev_model)
     assert "backend" not in dev_model["services"]
     assert dev_model["services"]["keycloak"]["user"] == f"{dev.env['WEAVE_RUNTIME_UID']}:0"
     historical = labels(dev, "network", dev.env["WEAVE_DOCKER_NETWORK"])
@@ -678,6 +781,8 @@ def main() -> None:
             )
         test_model = resolved_model(test)
         prod_model = resolved_model(prod)
+        assert_long_running_services_reap_child_processes(test_model)
+        assert_long_running_services_reap_child_processes(prod_model)
         assert test_model["services"]["keycloak"]["user"] == (
             f"{test.env['WEAVE_RUNTIME_UID']}:0"
         )
@@ -753,6 +858,7 @@ def main() -> None:
                 "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF="
                 not in backend_env
             )
+            assert_collaboration_control_is_bounded(isolated)
             os.environ["WEAVE_E2E_STACK_SCOPE"] = "persistent"
             try:
                 load_context("test", ROOT, str(root / "test.env"))
