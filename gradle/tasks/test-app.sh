@@ -487,7 +487,7 @@ jq -e \
     .directSynapseVerified and
     .callbackReplayVerified and
     .cleanupComplete and
-    (.providerCorrelationHash | test("^[0-9a-f]{64}$"))] | all) and
+    (.providerCorrelationHash | test("^sha256:[0-9a-f]{64}$"))] | all) and
   (.collaboration.passes[] | select(.pass == 1) |
     .restartContinuityVerified == false) and
   (.collaboration.passes[] | select(.pass == 2) |
