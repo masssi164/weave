@@ -240,15 +240,25 @@ class ComposeTeardownContractTest(unittest.TestCase):
             teardown_compose._remaining_timeout(teardown_compose.time.monotonic() - 1)
 
     def test_existing_resource_inspect_failure_is_not_treated_as_absent(self) -> None:
-        with mock.patch.object(
-            teardown_compose.subprocess,
-            "run",
-            side_effect=(
-                subprocess.CompletedProcess([], 1, stdout=""),
-                subprocess.CompletedProcess(
-                    [],
-                    0,
-                    stdout=self.context.env["WEAVE_DB_DATA_VOLUME"] + "\n",
+        with (
+            mock.patch.object(teardown_compose, "INSPECT_CONSISTENCY_ATTEMPTS", 2),
+            mock.patch.object(teardown_compose.time, "sleep") as sleep,
+            mock.patch.object(
+                teardown_compose.subprocess,
+                "run",
+                side_effect=(
+                    subprocess.CompletedProcess([], 1, stdout=""),
+                    subprocess.CompletedProcess(
+                        [],
+                        0,
+                        stdout=self.context.env["WEAVE_DB_DATA_VOLUME"] + "\n",
+                    ),
+                    subprocess.CompletedProcess([], 1, stdout=""),
+                    subprocess.CompletedProcess(
+                        [],
+                        0,
+                        stdout=self.context.env["WEAVE_DB_DATA_VOLUME"] + "\n",
+                    ),
                 ),
             ),
         ):
@@ -260,6 +270,30 @@ class ComposeTeardownContractTest(unittest.TestCase):
                     self.context.env["WEAVE_DB_DATA_VOLUME"],
                     deadline=teardown_compose.time.monotonic() + 10,
                 )
+        sleep.assert_called_once_with(teardown_compose.INSPECT_CONSISTENCY_WAIT_SECONDS)
+
+    def test_container_disappearing_during_inspect_retry_is_absent(self) -> None:
+        with (
+            mock.patch.object(teardown_compose, "INSPECT_CONSISTENCY_ATTEMPTS", 2),
+            mock.patch.object(teardown_compose.time, "sleep") as sleep,
+            mock.patch.object(
+                teardown_compose.subprocess,
+                "run",
+                side_effect=(
+                    subprocess.CompletedProcess([], 1, stdout=""),
+                    subprocess.CompletedProcess([], 0, stdout=self.CONTAINER_ID + "\n"),
+                    subprocess.CompletedProcess([], 1, stdout=""),
+                    subprocess.CompletedProcess([], 0, stdout=""),
+                ),
+            ),
+        ):
+            observed = teardown_compose._labels(
+                "container",
+                self.CONTAINER_ID,
+                deadline=teardown_compose.time.monotonic() + 10,
+            )
+        self.assertIsNone(observed)
+        sleep.assert_called_once_with(teardown_compose.INSPECT_CONSISTENCY_WAIT_SECONDS)
 
     def test_container_list_and_remove_calls_are_individually_bounded(self) -> None:
         deadline = teardown_compose.time.monotonic() + 10
