@@ -22,7 +22,13 @@ def _required_environment(name: str) -> str:
     return value
 
 
-def write_config(output: Path, registry: str, actor: str, token: str) -> None:
+def write_config(
+    output: Path,
+    registry: str,
+    actor: str,
+    token: str,
+    cli_plugin_dir: Path,
+) -> None:
     if not output.is_absolute():
         raise ValueError("Docker authority output must be an absolute path")
     if output.name != "config.json":
@@ -33,6 +39,10 @@ def write_config(output: Path, registry: str, actor: str, token: str) -> None:
         raise ValueError("GitHub actor is missing or malformed")
     if not token or any(character in token for character in ("\0", "\r", "\n")):
         raise ValueError("GitHub package token is missing or malformed")
+    if not cli_plugin_dir.is_absolute():
+        raise ValueError("Docker CLI plugin directory must be an absolute path")
+    if cli_plugin_dir.is_symlink() or not cli_plugin_dir.is_dir():
+        raise ValueError("Docker CLI plugin directory must be a real directory")
 
     parent = output.parent
     if parent.is_symlink() or not parent.is_dir():
@@ -47,7 +57,10 @@ def write_config(output: Path, registry: str, actor: str, token: str) -> None:
         f"{actor}:{token}".encode("utf-8")
     ).decode("ascii")
     payload = json.dumps(
-        {"auths": {registry: {"auth": encoded_authority}}},
+        {
+            "auths": {registry: {"auth": encoded_authority}},
+            "cliPluginsExtraDirs": [str(cli_plugin_dir)],
+        },
         separators=(",", ":"),
         sort_keys=True,
     ) + "\n"
@@ -85,11 +98,18 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--registry", default="ghcr.io")
+    parser.add_argument("--cli-plugin-dir", type=Path, required=True)
     args = parser.parse_args()
 
     actor = _required_environment("GITHUB_ACTOR")
     token = _required_environment("GHCR_TOKEN")
-    write_config(args.output, args.registry, actor, token)
+    write_config(
+        args.output,
+        args.registry,
+        actor,
+        token,
+        args.cli_plugin_dir,
+    )
     print(
         "DOCKER_AUTH_CONFIG_WRITTEN "
         f"registry={args.registry} mode=0600 credentialStore=run-scoped-file"
