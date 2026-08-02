@@ -194,14 +194,23 @@ jobs:
             exit 1
           }
           install -d -m 700 "$DOCKER_AUTH_ROOT"
+          compose_plugin_path="$(docker info --format '{{range .ClientInfo.Plugins}}{{if eq .Name "compose"}}{{.Path}}{{end}}{{end}}')"
+          [[ "$compose_plugin_path" == /*/docker-compose && -x "$compose_plugin_path" ]] || {
+            echo "::error::The active Docker Compose CLI plugin is unavailable." >&2
+            exit 1
+          }
+          compose_plugin_dir="${compose_plugin_path%/*}"
           python3 weave/tools/write_docker_auth_config.py \
             --output "$DOCKER_AUTH_ROOT/config.json" \
-            --registry ghcr.io
-          jq -e '
+            --registry ghcr.io \
+            --cli-plugin-dir "$compose_plugin_dir"
+          jq -e --arg compose_plugin_dir "$compose_plugin_dir" '
             ((.credsStore? // "") == "") and
             ((.credHelpers? // {}) == {}) and
+            (.cliPluginsExtraDirs == [$compose_plugin_dir]) and
             (.auths["ghcr.io"].auth | type == "string" and length > 0)
           ' "$DOCKER_AUTH_ROOT/config.json" >/dev/null
+          DOCKER_CONFIG="$DOCKER_AUTH_ROOT" docker compose version >/dev/null
           printf 'DOCKER_CONFIG=%s\n' "$DOCKER_AUTH_ROOT" >> "$GITHUB_ENV"
 
       - name: Pull and bind all immutable candidate images

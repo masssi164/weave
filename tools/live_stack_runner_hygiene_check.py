@@ -83,6 +83,11 @@ def main() -> int:
         and 'DOCKER_CONFIG="$DOCKER_AUTH_ROOT"' in workflow
         and 'python3 weave/tools/write_docker_auth_config.py'
         in workflow
+        and 'compose_plugin_path="$(docker info --format' in workflow
+        and '--cli-plugin-dir "$compose_plugin_dir"' in workflow
+        and '.cliPluginsExtraDirs == [$compose_plugin_dir]' in workflow
+        and 'DOCKER_CONFIG="$DOCKER_AUTH_ROOT" docker compose version'
+        in workflow
         and '(.credsStore? // "") == ""' in workflow
         and '(.credHelpers? // {}) == {}' in workflow
         and 'printf \'DOCKER_CONFIG=%s\\n\' "$DOCKER_AUTH_ROOT" >> "$GITHUB_ENV"'
