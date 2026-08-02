@@ -1600,7 +1600,9 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             }
             if (accessTokenLifespanSeconds != WORKLOAD_ACCESS_TOKEN_LIFESPAN_SECONDS) {
                 throw new IllegalArgumentException(
-                        "workload access-token lifespan must be exactly 59 seconds");
+                        "workload access-token lifespan must be exactly "
+                                + WORKLOAD_ACCESS_TOKEN_LIFESPAN_SECONDS
+                                + " seconds");
             }
         }
 
