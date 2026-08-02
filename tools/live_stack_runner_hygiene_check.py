@@ -35,6 +35,7 @@ def main() -> int:
         "- name: Set up Java 21",
         "- name: Set up Gradle",
         "- name: Resolve immutable candidate manifest",
+        "- name: Prepare run-scoped Docker client authority",
         "- name: Pull and bind all immutable candidate images",
         "- name: Verify runtime prerequisites",
         "- name: Capture persistent dogfood resources",
@@ -72,6 +73,23 @@ def main() -> int:
         )
         == 1,
         "the private pinned specification corpus must use its scoped deploy key",
+    )
+    require(
+        "weave-live-docker-auth-${{ github.run_id }}-${{ github.run_attempt }}"
+        in workflow
+        and 'GHCR_TOKEN: ${{ github.token }}' in workflow
+        and 'DOCKER_CONFIG="$DOCKER_AUTH_ROOT"' in workflow
+        and 'docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin'
+        in workflow
+        and '(.credsStore? // "") == ""' in workflow
+        and '(.credHelpers? // {}) == {}' in workflow,
+        "candidate pulls must use one non-interactive run-scoped Docker authority",
+    )
+    require(
+        '("DOCKER_AUTH_ROOT", "weave-live-docker-auth-")' in workflow
+        and "docker logout ghcr.io" in workflow
+        and "security -v unlock-keychain" not in workflow,
+        "run-scoped Docker authority must be removed without unlocking host keychains",
     )
     require(
         "./gradlew --no-daemon testApp" in workflow
