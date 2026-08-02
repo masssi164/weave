@@ -25,6 +25,8 @@ VOLUME_KEYS = (
 TEARDOWN_BUDGET_SECONDS = 240
 COMPOSE_DOWN_TIMEOUT_SECONDS = 120
 DOCKER_CALL_TIMEOUT_SECONDS = 20
+INSPECT_CONSISTENCY_ATTEMPTS = 5
+INSPECT_CONSISTENCY_WAIT_SECONDS = 1
 CONTAINER_REMOVAL_ATTEMPTS = 12
 CONTAINER_REMOVAL_WAIT_SECONDS = 5
 
@@ -69,15 +71,19 @@ def _run_docker(
 def _labels(
     kind: str, name: str, *, deadline: float
 ) -> dict[str, str] | None:
-    result = _run_docker(
-        ["docker", kind, "inspect", name, "--format", "{{json .Labels}}"],
-        deadline=deadline,
-        operation=f"{kind}-inspect",
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-    )
-    if result.returncode != 0:
+    for attempt in range(INSPECT_CONSISTENCY_ATTEMPTS):
+        result = _run_docker(
+            ["docker", kind, "inspect", name, "--format", "{{json .Labels}}"],
+            deadline=deadline,
+            operation=f"{kind}-inspect",
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        if result.returncode == 0:
+            value = json.loads(result.stdout)
+            return value if isinstance(value, dict) else {}
+
         identity_field = "{{.ID}}" if kind == "container" else "{{.Name}}"
         inventory = _run_docker(
             ["docker", kind, "ls", "--all", "--no-trunc", "--format", identity_field]
@@ -98,13 +104,18 @@ def _labels(
             for line in inventory.stdout.splitlines()
             if line.strip()
         }
-        if name in identities:
-            raise ContractError(
-                f"isolated teardown could not inspect existing Docker {kind} {name}"
+        if name not in identities:
+            return None
+        if attempt + 1 < INSPECT_CONSISTENCY_ATTEMPTS:
+            time.sleep(
+                min(
+                    float(INSPECT_CONSISTENCY_WAIT_SECONDS),
+                    _remaining_timeout(deadline, INSPECT_CONSISTENCY_WAIT_SECONDS),
+                )
             )
-        return None
-    value = json.loads(result.stdout)
-    return value if isinstance(value, dict) else {}
+    raise ContractError(
+        f"isolated teardown could not inspect existing Docker {kind} {name}"
+    )
 
 
 def _assert_owned(
