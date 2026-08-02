@@ -919,7 +919,8 @@ public final class FreshProductFlow {
       item.put("restartContinuityVerified", pass.restartContinuityVerified());
       item.put("callbackReplayVerified", pass.callbackReplayVerified());
       item.put("cleanupComplete", pass.cleanupComplete());
-      item.put("providerCorrelationHash", pass.providerCorrelationHash());
+      item.put(
+          "providerCorrelationHash", "sha256:" + pass.providerCorrelationHash());
     }
     evidence.put("credentialsIncluded", false);
     evidence.put("actionLinksIncluded", false);
