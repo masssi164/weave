@@ -66,6 +66,14 @@ def main() -> int:
         "the workflow must bind the exact runner name",
     )
     require(
+        "repository: ${{ github.repository_owner }}/weave-specs" in workflow
+        and workflow.count(
+            "ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}"
+        )
+        == 1,
+        "the private pinned specification corpus must use its scoped deploy key",
+    )
+    require(
         "./gradlew --no-daemon testApp" in workflow
         and "WEAVE_TEST_APP_OUTPUT_ROOT" in workflow,
         "the workflow must use the one authoritative Fresh product-flow task",
