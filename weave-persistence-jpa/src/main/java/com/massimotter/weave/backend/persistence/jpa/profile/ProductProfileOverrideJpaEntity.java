@@ -82,4 +82,19 @@ public class ProductProfileOverrideJpaEntity {
   public String profileVisibility() {
     return profileVisibility;
   }
+
+  public void replaceOverride(
+      String displayName,
+      String avatar,
+      String locale,
+      String timezone,
+      String accessibilityPreferencesJson,
+      String profileVisibility) {
+    this.displayName = displayName;
+    this.avatar = avatar;
+    this.locale = locale;
+    this.timezone = timezone;
+    this.accessibilityPreferencesJson = accessibilityPreferencesJson;
+    this.profileVisibility = profileVisibility;
+  }
 }

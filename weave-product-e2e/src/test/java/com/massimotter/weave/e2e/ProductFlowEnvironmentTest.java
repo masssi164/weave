@@ -25,6 +25,7 @@ class ProductFlowEnvironmentTest {
 
     assertThat(environment.productOrigin()).isEqualTo(URI.create("https://weave.test:44443/"));
     assertThat(environment.apiOrigin()).isEqualTo(URI.create("https://api.weave.test:44443/"));
+    assertThat(environment.tenantId()).isEqualTo("tenant-default");
     assertThat(environment.api("/api/profile/readiness"))
         .isEqualTo(URI.create("https://api.weave.test:44443/api/profile/readiness"));
     assertThat(environment.oidc("/protocol/openid-connect/token"))
@@ -86,17 +87,21 @@ class ProductFlowEnvironmentTest {
                 new ProductFlowEnvironment(
                     "fixture-run-42",
                     "1".repeat(40),
+                    "4".repeat(40),
                     "2".repeat(40),
                     "weave-e2e-0123456789abcdef",
+                    "tenant-default",
                     URI.create("https://weave.test:44443"),
                     URI.create("https://api.weave.test:44443"),
                     URI.create("https://auth.weave.test:44443/realms/weave"),
                     URI.create("http://127.0.0.1:38025/api/v1"),
                     URI.create("https://api.weave.test:44443/mcp"),
+                    URI.create("http://127.0.0.1:39025"),
                     input("ca.pem"),
                     input("leaf.pem"),
                     hosts("hosts"),
                     link,
+                    input("chat-proof-link-test.token"),
                     Files.createDirectories(temporaryDirectory.resolve("credentials-link-test")),
                     temporaryDirectory.resolve("evidence-link-test.json"),
                     input("restart-command"),
@@ -107,22 +112,45 @@ class ProductFlowEnvironmentTest {
         .hasMessageContaining("regular non-symlink file");
   }
 
+  @Test
+  void rejectsAnUnsafeConfiguredTenantIdentifier() throws Exception {
+    assertThatThrownBy(
+            () ->
+                environment(
+                    URI.create("https://api.weave.test:44443"),
+                    URI.create("https://auth.weave.test:44443/realms/weave"),
+                    URI.create("http://127.0.0.1:38025/api/v1"),
+                    Duration.ofMinutes(2),
+                    "tenant with spaces"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("weave.e2e.tenant-id is invalid");
+  }
+
   private ProductFlowEnvironment environment(
       URI apiOrigin, URI issuer, URI mailpit, Duration timeout) throws Exception {
+    return environment(apiOrigin, issuer, mailpit, timeout, "tenant-default");
+  }
+
+  private ProductFlowEnvironment environment(
+      URI apiOrigin, URI issuer, URI mailpit, Duration timeout, String tenantId) throws Exception {
     return new ProductFlowEnvironment(
         "fixture-run-42",
         "1".repeat(40),
+        "4".repeat(40),
         "2".repeat(40),
         "weave-e2e-0123456789abcdef",
+        tenantId,
         URI.create("https://weave.test:44443"),
         apiOrigin,
         issuer,
         mailpit,
         URI.create("https://api.weave.test:44443/mcp"),
+        URI.create("http://127.0.0.1:39025"),
         input("ca-" + temporaryDirectory.toFile().list().length + ".pem"),
         input("leaf-" + temporaryDirectory.toFile().list().length + ".pem"),
         hosts("hosts-" + temporaryDirectory.toFile().list().length),
         input("bootstrap-" + temporaryDirectory.toFile().list().length + ".token"),
+        input("chat-proof-" + temporaryDirectory.toFile().list().length + ".token"),
         Files.createDirectories(
             temporaryDirectory.resolve(
                 "credentials-" + temporaryDirectory.toFile().list().length)),

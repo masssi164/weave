@@ -78,4 +78,10 @@ public class MatrixIdentityProjectionJpaEntity {
   public Instant updatedAt() {
     return updatedAt;
   }
+
+  public void refreshAuthorizationProjection(
+      String authorizationPrincipalRef, Instant updatedAt) {
+    this.authorizationPrincipalRef = authorizationPrincipalRef;
+    this.updatedAt = updatedAt;
+  }
 }

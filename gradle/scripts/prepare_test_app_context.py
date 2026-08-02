@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import socket
@@ -24,6 +25,7 @@ PORT_NAMES = (
     "WEAVE_MCP_HOST_PORT",
 )
 RUN_ID = re.compile(r"^[a-z0-9][a-z0-9-]{5,39}$")
+TEST_TENANT_ID = "tenant-default"
 
 
 def reserve_ports(count: int) -> list[int]:
@@ -143,9 +145,48 @@ def main() -> int:
         / "infra/weave-workspace/.generated/isolated"
         / namespace
     )
+    actor_prefix = "weave-e2e-" + hashlib.sha256(
+        args.run_id.encode("ascii")
+    ).hexdigest()[:20]
+    context_seed = generated_root / "context-authorization-memberships.json"
+    atomic_private_write(
+        context_seed,
+        json.dumps(
+            {
+                "schemaVersion": "weave.context-authorization-seed/v1",
+                "memberships": [
+                    {
+                        "tenantId": TEST_TENANT_ID,
+                        "contextId": "workspace-default",
+                        "principalRef": f"user:{actor_prefix}-owner",
+                        "role": "OWNER",
+                        "source": "isolated-testapp-invitation",
+                    },
+                    {
+                        "tenantId": TEST_TENANT_ID,
+                        "contextId": "workspace-default",
+                        "principalRef": f"user:{actor_prefix}-member",
+                        "role": "MEMBER",
+                        "source": "isolated-testapp-invitation",
+                    },
+                    {
+                        "tenantId": TEST_TENANT_ID,
+                        "contextId": "outside-" + namespace.removeprefix("weave-e2e-"),
+                        "principalRef": f"user:{actor_prefix}-outsider",
+                        "role": "MEMBER",
+                        "source": "isolated-testapp-invitation",
+                    },
+                ],
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        + "\n",
+    )
     assignments = {
         "WEAVE_E2E_RUN_ID": args.run_id,
         "WEAVE_E2E_RUN_NAMESPACE": namespace,
+        "WEAVE_E2E_NAMESPACE": namespace,
         "WEAVE_ENV_FILE": str(env_file),
         "WEAVE_TEST_APP_RUN_ROOT": str(run_root),
         "WEAVE_TEST_APP_HOSTS_FILE": str(hosts_file),
@@ -157,6 +198,8 @@ def main() -> int:
         "WEAVE_TEST_APP_TEARDOWN_EVIDENCE_PATH": str(teardown_file),
         "WEAVE_TEST_APP_GENERATED_ROOT": str(generated_root),
         "WEAVE_TEST_APP_SECRET_ROOT": str(generated_root / "secrets"),
+        "WEAVE_TEST_APP_CONTEXT_MEMBERSHIPS": str(context_seed),
+        "WEAVE_TEST_APP_TENANT_ID": TEST_TENANT_ID,
         "WEAVE_TEST_APP_TLS_ROOT": str(generated_root / "tls"),
         "WEAVE_TEST_APP_PRODUCT_ORIGIN": values["WEAVE_PUBLIC_URL"],
         "WEAVE_TEST_APP_API_ORIGIN": values["WEAVE_API_ORIGIN"],
@@ -166,6 +209,10 @@ def main() -> int:
             "http://127.0.0.1:"
             + ports["WEAVE_MAILPIT_WEB_HOST_PORT"]
             + "/api/v1"
+        ),
+        "WEAVE_TEST_APP_CHAT_PROOF_ORIGIN": (
+            "http://127.0.0.1:"
+            + ports["WEAVE_BACKEND_HOST_PORT"]
         ),
         "WEAVE_TEST_APP_LOCAL_CA_URL": (
             f"http://127.0.0.1:{http_port}/weave-local-ca.pem"

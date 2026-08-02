@@ -107,6 +107,46 @@ class BoardsFacadeServiceTest {
     }
 
     @Test
+    void workspaceAcceptsNativeOrganizationTokenWithoutLegacyTenantAliases() {
+        java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest> captured =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsRuntimeGuard(true),
+                new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT),
+                request -> {
+                    captured.set(request);
+                    return ContextAuthorizationDecision.allow("native organization identity matched");
+                },
+                contextAuthorizationProperties(),
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
+
+        service.workspace(nativeOrganizationJwt());
+
+        assertThat(captured.get().tenantId()).isEqualTo("tenant-default");
+        assertThat(captured.get().principalRef()).isEqualTo("user:user-123");
+    }
+
+    @Test
+    void workspaceTranslatesMalformedOrganizationIdentityToStableUnauthorizedError() {
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsRuntimeGuard(true),
+                new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT),
+                request -> ContextAuthorizationDecision.allow("not reached"),
+                contextAuthorizationProperties(),
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
+
+        assertThatThrownBy(() -> service.workspace(jwtWithoutIssuer()))
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status()).isEqualTo(org.springframework.http.HttpStatus.UNAUTHORIZED);
+                    assertThat(error.code()).isEqualTo("boards-unauthorized");
+                    assertThat(error.details())
+                            .containsEntry("reason", "organization identity is missing or invalid");
+                });
+    }
+
+    @Test
     void createTaskRequiresEditPermissionForDefaultWorkspaceContext() {
         java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest> captured =
                 new java.util.concurrent.atomic.AtomicReference<>();
@@ -373,6 +413,29 @@ class BoardsFacadeServiceTest {
                 .subject("user-123")
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-default")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(300))
+                .build();
+    }
+
+    private Jwt nativeOrganizationJwt() {
+        Instant now = Instant.parse("2026-05-19T05:00:00Z");
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("user-123")
+                .issuer("https://auth.example.invalid/realms/acme")
+                .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(300))
+                .build();
+    }
+
+    private Jwt jwtWithoutIssuer() {
+        Instant now = Instant.parse("2026-05-19T05:00:00Z");
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("user-123")
                 .claim("organization", HumanJwtTestSupport.organizationWithRole("admin"))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))

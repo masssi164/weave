@@ -100,11 +100,16 @@ tasks.register('freshStartBackupRehearsal', Exec) {
     workingDir rootProject.projectDir
     outputs.upToDateWhen { false }
     doFirst {
-        commandLine(
+        def arguments = [
             'bash',
             'infra/weave-workspace/fresh-start-backup-rehearsal.sh',
             optionalProperty('freshStartBackupProfile', 'test')
-        )
+        ]
+        def receipt = providers.gradleProperty('freshStartBackupReceipt').orNull
+        if (receipt != null && !receipt.toString().trim().isEmpty()) {
+            arguments.addAll(['--receipt-output', receipt.toString()])
+        }
+        commandLine arguments
     }
 }
 

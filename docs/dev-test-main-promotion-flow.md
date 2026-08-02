@@ -22,7 +22,7 @@ Weave uses three promotion lanes:
 
 ## Persistent LAN test stack
 
-The test stack is deployed by the `Test Stack Deploy` GitHub Actions workflow:
+The test stack is deployed by the `Test Stack Deploy` GitHub Actions workflow. Candidate evidence keeps two immutable identities: the protected `dev` source commit used to build all artifacts and the `dogfood` lane merge commit being validated and deployed. Neither may be inferred from the other or omitted:
 
 - workflow file: `.github/workflows/test-stack-deploy.yml`
 - trigger: successful exact-candidate `Live Stack Product Flow` `workflow_run`
@@ -44,16 +44,17 @@ The task implementations call the same closed scripts used by CI. Humans do not 
 reconstruct the underlying commands for normal test-stack use. The visible entrypoint is the
 `dogfood` delivery result and the iPhone app pointed at the persistent `test` runtime.
 
-## Update vs reset
+## Fresh generation vs later update
 
-The persistent test stack defaults to update mode:
+The standards-first dogfood cutover is a Fresh Start. It has no legacy database, Keycloak realm, provider object, runtime credential, or volume adoption/migration path. Before the first persistent mutation, the governed workflow must produce the exact manifest-bound deletion plan, private backup, isolated restore probe, and typed `DELETE_OLD_WEAVE:<plan-sha256>` approval. Normal promotion cannot substitute for that approval.
 
-- consume the exact backend, MCP, Identity Ops, and stock-Keycloak image mapping proven by the
+After the new generation has been established, later candidates default to update mode within that generation:
+
+- consume the exact backend, MCP, Identity Ops, and custom Keycloak Runtime image digests proven by the
   isolated candidate run;
 - apply the `test` profile idempotently;
-- keep stack data unless a reset is explicitly requested;
-- require a current candidate-bound private backup and isolated restore receipt before adopting
-  any pre-existing unowned resource;
+- keep only state created under the current generation;
+- reject pre-generation, unowned, or undeclared resources instead of adopting them;
 - run operator checks;
 - upload a support-safe `weave-test-stack-evidence` artifact.
 
@@ -61,8 +62,7 @@ Persistent dogfood contains only configured human identities. Run-scoped
 `testApp` owners, members, files, cells, and workload clients belong only to the
 isolated namespace and are removed with it.
 
-There is no persistent reset input. Persistent state deletion is a separate protected recovery
-operation and is never part of normal promotion.
+There is no persistent reset input. The one-time generation cut and any later persistent state deletion are separate protected operations and are never part of normal promotion.
 
 The protected `dogfood` GitHub environment configures two absolute runner paths:
 
@@ -70,20 +70,14 @@ The protected `dogfood` GitHub environment configures two absolute runner paths:
   public `test` coordinates;
 - `WEAVE_TEST_BACKUP_ROOT`: operator-owned mode `0700`, outside the checkout.
 
-The deployment fails before mutation if either path is absent or if the adoption receipt is
-missing, stale, weakly permissioned, symlinked, bound to another candidate/project/profile, or
-does not inventory every persistent resource.
+The deployment fails before mutation if either path is absent, weakly permissioned, or symlinked.
+For the generation cut it also fails unless the current plan, private backup, restore probe, exact
+typed approval, and candidate manifest agree. Undeclared existing resources are drift, not an
+adoption opportunity.
 
 ## Dogfood candidate validation
 
-A promotion PR from `dev` to `dogfood` is the normal place for full or
-feature-relevant live validation. After the candidate lands, `Live Stack
-Product Flow` runs `./gradlew testApp` on the exact commit; only that successful
-run can trigger persistent `Test Stack Deploy`. It uses real Keycloak required
-actions in Chromium, PKCE, WebDAV, workload OAuth and MCP, uploads only the
-allowlisted `weave-test-app-evidence.json`, and tears down its temporary
-namespace. Flutter system-browser authentication and VoiceOver remain
-physical-device gates, never simulator or credential-injection lanes.
+A promotion PR from `dev` to `dogfood` is the normal place for the manifest-bound full live validation. `Live Stack Product Flow` runs `./gradlew testApp` against immutable images built once from the protected `dev` source and binds the result to the exact lane candidate. It creates an owner, collaborator, and outsider through real invitations and Keycloak required actions in Chromium, uses fresh Authorization Code + PKCE sessions, proves two complete Chat/Files/Calendar/Home/Profile collaboration passes, direct Synapse readback, JPA/PostgreSQL durability, provider outage/retry idempotency, callback replay, workload OAuth and MCP revoke/regrant, then destroys only its isolated namespace. Only that successful artifact chain can trigger persistent `Test Stack Deploy`. Flutter system-browser authentication and VoiceOver remain physical-device gates; the separate fresh Simulator gate is explicitly fixture UI evidence.
 
 The old pattern of a scheduled destructive full-E2E run from `main` is not the target model. `main` may keep lightweight smoke, release, or tag checks, but it must not be the primary noisy/destructive full-stack reset lane.
 
@@ -91,13 +85,14 @@ The old pattern of a scheduled destructive full-E2E run from `main` is not the t
 
 The `Main Promotion Gate` workflow enforces the branch order:
 
-1. the candidate commit is contained in `origin/dev`;
-2. the same candidate commit is contained in `origin/dogfood`;
-3. successful dogfood candidate E2E/live evidence exists for that commit;
-4. a successful `Test Stack Deploy` workflow run exists for that commit on branch `dogfood`;
-5. a successful `iOS Dogfood` distribution run exists for the same deployed commit;
-6. a support-safe `human-testing-readiness.json` artifact evaluates to `ready` for that commit;
-7. the root contract-authority architecture check still passes.
+1. the protected source candidate that built every artifact is contained in `origin/dev`;
+2. the evaluated lane candidate is contained in `origin/dogfood`, and its tree is byte-identical to the protected source candidate without rebuilding artifacts;
+3. successful manifest-bound dogfood E2E/live evidence exists for the lane candidate and exact protected source;
+4. a successful `Test Stack Deploy` workflow run exists for that lane/source pair on branch `dogfood`;
+5. a successful `iOS Dogfood` distribution run exists for the same deployment, candidate manifest, and four image digests;
+6. a separate successful `Physical iPhone Human Test` run contains the tester-confirmed twenty-step protocol for the installed build;
+7. a support-safe schema-v3 `human-testing-readiness.json` artifact evaluates to `ready` for the same lane, source, specification, manifest, images, runs, physical protocol, and a fresh persistent-runtime provider-health observation collected after that protocol;
+8. the root contract-authority architecture check still passes.
 
 If any of these checks fail, the candidate is not eligible for `main`.
 
@@ -129,6 +124,11 @@ The desired tester experience is:
 4. later open Weave and return to the same test-stack organization without re-running setup scripts.
 
 Invite/QR handoff remains useful for first enrollment and reset cases, but should not be required every time the app opens. Wording must be precise: the current join/handoff link is a non-secret enrollment handoff, not bearer access. Actual access control is the provisioned account, organization/workspace membership, and identity-provider session.
+
+The workflow never converts checkboxes into human evidence. After the real tester completes the
+physical protocol, `.github/workflows/physical-iphone-human-test.yml` validates the submitted
+support-safe twenty-step record against the exact deployment and iOS distribution artifacts. Only
+its successful artifact may feed `.github/workflows/human-testing-readiness.yml`.
 
 ## Release discipline
 

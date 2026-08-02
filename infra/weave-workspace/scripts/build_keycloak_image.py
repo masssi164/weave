@@ -31,7 +31,6 @@ STOCK_KEYCLOAK_REFERENCE = (
     "sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13"
 )
 ARCHIVE_URL = f"https://github.com/keycloak/keycloak/archive/{UPSTREAM_COMMIT}.tar.gz"
-SPEC_COMMIT = "1bf52621b3a414999c24308ebd7e204a04240c43"
 PATCH_RELATIVE = Path(
     "infra/weave-workspace/keycloak-runtime/patches/"
     "weave-workload-registration.patch"
@@ -75,6 +74,26 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def specification_pin(repository: Path) -> tuple[str, str]:
+    lock = repository / "specs/weave-specs.lock.json"
+    if lock.is_symlink() or not lock.is_file():
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR specification lock is unavailable"
+        )
+    try:
+        document = json.loads(lock.read_text(encoding="utf-8"))
+        commit = document["specCorpus"]["gitCommit"]
+    except (json.JSONDecodeError, KeyError, TypeError) as failure:
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR specification lock is malformed"
+        ) from failure
+    if not isinstance(commit, str) or not COMMIT.fullmatch(commit):
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR specification commit is invalid"
+        )
+    return commit, "sha256:" + sha256(lock)
 
 
 def atomic_write(path: Path, value: dict[str, object]) -> None:
@@ -386,6 +405,8 @@ def build_services(
 def build_image(
     repository: Path,
     candidate: str,
+    specification_commit: str,
+    specification_lock_digest: str,
     services: Path,
     patch_digest: str,
     patched_digest: str,
@@ -404,13 +425,8 @@ def build_image(
         "WEAVE_IMAGE_CREATED": created,
         "WEAVE_IMAGE_REVISION": candidate,
         "WEAVE_IMAGE_VERSION": f"26.7.0-weave.{candidate[:12]}",
-        "WEAVE_SPEC_COMMIT": SPEC_COMMIT,
-        "WEAVE_SPEC_DIGEST": (
-            "sha256:"
-            + hashlib.sha256(
-                (repository / "specs/weave-specs.lock.json").read_bytes()
-            ).hexdigest()
-        ),
+        "WEAVE_SPEC_COMMIT": specification_commit,
+        "WEAVE_SPEC_DIGEST": specification_lock_digest,
         "WEAVE_KEYCLOAK_UPSTREAM_COMMIT": UPSTREAM_COMMIT,
         "WEAVE_KEYCLOAK_ARCHIVE_SHA256": ARCHIVE_SHA256,
         "WEAVE_KEYCLOAK_STOCK_SERVICES_SHA256": STOCK_SERVICES_SHA256,
@@ -464,6 +480,7 @@ def main() -> int:
     args = parser.parse_args()
     repository = args.root.resolve()
     candidate = resolve_candidate(repository, args.candidate_commit)
+    specification_commit, spec_digest = specification_pin(repository)
     tag_commit = resolve_upstream_tag()
     verify_stock_services()
     with tempfile.TemporaryDirectory(prefix="weave-keycloak-build-") as directory:
@@ -476,16 +493,10 @@ def main() -> int:
             test_count,
             toolchain,
         ) = build_services(repository, temporary)
-        spec_digest = (
-            "sha256:"
-            + hashlib.sha256(
-                (repository / "specs/weave-specs.lock.json").read_bytes()
-            ).hexdigest()
-        )
         build_evidence_projection = {
             "schemaVersion": "weave.downstream-keycloak-build-evidence.v1",
             "candidateCommit": candidate,
-            "specificationCommit": SPEC_COMMIT,
+            "specificationCommit": specification_commit,
             "specificationLockDigest": spec_digest,
             "keycloakVersion": "26.7.0",
             "upstreamCommit": UPSTREAM_COMMIT,
@@ -521,6 +532,8 @@ def main() -> int:
             tag, image_id = build_image(
                 repository,
                 candidate,
+                specification_commit,
+                spec_digest,
                 services,
                 patch_digest,
                 patched_digest,
@@ -530,7 +543,7 @@ def main() -> int:
     evidence = {
         "schemaVersion": "weave.downstream-keycloak-image.v1",
         "evidenceForCandidateCommit": candidate,
-        "specificationCommit": SPEC_COMMIT,
+        "specificationCommit": specification_commit,
         "keycloakVersion": "26.7.0",
         "upstreamTag": UPSTREAM_TAG,
         "upstreamTagCommit": tag_commit,

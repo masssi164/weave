@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +27,15 @@ class ReleaseReadinessCheckTest(unittest.TestCase):
         self.root = Path(self.tmp.name) / "fixture"
         shutil.copytree(FIXTURE, self.root)
         shutil.copy2(HUMAN_TESTING_FIXTURE, self.root / "human-testing-readiness.json")
+        readiness_path = self.root / "human-testing-readiness.json"
+        readiness = json.loads(readiness_path.read_text(encoding="utf-8"))
+        generated_at = datetime.now(timezone.utc)
+        readiness["generatedAtUtc"] = generated_at.isoformat().replace("+00:00", "Z")
+        readiness["providerHealth"]["observedAtUtc"] = (
+            generated_at - timedelta(seconds=30)
+        ).isoformat().replace("+00:00", "Z")
+        readiness["providerHealth"]["cachedResultAgeSeconds"] = 30
+        readiness_path.write_text(json.dumps(readiness), encoding="utf-8")
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
@@ -70,6 +80,23 @@ class ReleaseReadinessCheckTest(unittest.TestCase):
         result = self.json_result(completed)
         self.assertEqual(result["status"], "ready")
         self.assertEqual(self.check_by_id(result, "live-e2e")["status"], "pass")
+
+    def test_historical_human_readiness_does_not_expire_after_assembly(self) -> None:
+        readiness_path = self.root / "human-testing-readiness.json"
+        readiness = json.loads(readiness_path.read_text(encoding="utf-8"))
+        readiness["generatedAtUtc"] = "2026-07-12T12:00:00Z"
+        readiness["providerHealth"]["observedAtUtc"] = "2026-07-12T11:59:00Z"
+        readiness["providerHealth"]["cachedResultAgeSeconds"] = 60
+        readiness_path.write_text(json.dumps(readiness), encoding="utf-8")
+
+        completed = self.run_check()
+
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        result = self.json_result(completed)
+        self.assertEqual(
+            self.check_by_id(result, "human-testing-readiness")["status"],
+            "pass",
+        )
 
     def test_missing_e2e_manifest_blocks_without_waiver(self) -> None:
         manifest = self.root / "weave-live-stack-acceptance-evidence" / "release-evidence-manifest.json"

@@ -12,7 +12,7 @@ require() { grep -Fq -- "$2" "$1" || fail "Expected $1 to contain: $2"; }
 reject() { ! grep -Fq -- "$2" "$1" || fail "Retired contract remains in $1: $2"; }
 
 for file in \
-  compose.yaml compose.dev.yaml compose.test.yaml compose.prod.yaml compose.sh \
+  compose.yaml compose.dev.yaml compose.test.yaml compose.prod.yaml compose.isolated-e2e.yaml compose.sh \
   scripts/compose_env.py scripts/compose_runtime.py scripts/render_config.py \
   scripts/nextcloud_reconcile.py keycloak/identity_ops.py keycloak/Dockerfile.identity-ops; do
   [[ -f "${ROOT_DIR}/${file}" ]] || fail "Missing Compose authority file: ${file}"
@@ -37,13 +37,15 @@ require "${ROOT_DIR}/compose.yaml" \
   'target: weave/spring.security.oauth2.client.registration.weave-identity-admin.client-secret'
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.managed: "true"'
 require "${ROOT_DIR}/compose.dev.yaml" 'host.docker.internal:host-gateway'
-require "${ROOT_DIR}/compose.test.yaml" 'WEAVE_RELEASE_POSTURE: test'
+require "${ROOT_DIR}/compose.test.yaml" 'WEAVE_RELEASE_POSTURE: dogfood'
 require "${ROOT_DIR}/compose.test.yaml" 'runtime-state-init:'
+require "${ROOT_DIR}/compose.isolated-e2e.yaml" 'WEAVE_CHAT_E2E_PROOF_ENABLED: "true"'
+require "${ROOT_DIR}/compose.isolated-e2e.yaml" 'context-authorization-memberships.json'
 require "${ROOT_DIR}/compose.yaml" 'runtime-state-volume-init:'
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.operation: volume-initialize'
 require "${ROOT_DIR}/compose.yaml" 'mc alias set -- runtime-state'
 require "${ROOT_DIR}/compose.yaml" 'agent-runtime-keys-init:'
-require "${ROOT_DIR}/compose.prod.yaml" 'WEAVE_RELEASE_POSTURE: prod'
+require "${ROOT_DIR}/compose.prod.yaml" 'WEAVE_RELEASE_POSTURE: stable'
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.protocol: s3-compatible'
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.data-class: runtime-state-sensitive'
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.operation: bucket-initialize'
@@ -52,9 +54,9 @@ require "${ROOT_DIR}/compose.yaml" 'MINIO_ROOT_USER_FILE: /run/secrets/runtime-s
 require "${ROOT_DIR}/compose.yaml" 'mc version enable runtime-state/weave-runtime-state'
 require "${ROOT_DIR}/scripts/compose_env.py" 'PROFILES = ("dev", "test", "prod")'
 require "${ROOT_DIR}/scripts/compose_env.py" 'refusing to deploy {profile} from an example environment file'
-require "${ROOT_DIR}/scripts/compose_runtime.py" 'persistent-adoption'
-require "${ROOT_DIR}/scripts/compose_runtime.py" 'WEAVE_ADOPTION_RECEIPT'
-require "${ROOT_DIR}/scripts/compose_runtime.py" 'resource inventory is incomplete or ambiguous'
+require "${ROOT_DIR}/scripts/compose_env.py" 'persistent-dogfood'
+require "${ROOT_DIR}/scripts/compose_runtime.py" 'refusing unowned existing Docker'
+reject "${ROOT_DIR}/scripts/compose_runtime.py" 'WEAVE_ADOPTION_RECEIPT'
 require "${ROOT_DIR}/keycloak/identity_ops.py" '/opt/keycloak/bin/kcadm.sh'
 require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'ARG WEAVE_KEYCLOAK_BASE=quay.io/keycloak/keycloak@sha256:'
 require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'ARG WEAVE_UBI9_BASE=registry.access.redhat.com/ubi9@sha256:'
@@ -98,10 +100,10 @@ require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" "'keycloak
 require "${REPO_ROOT}/server/build.gradle" 'apply from: "${projectDir}/gradle/tasks/development.gradle"'
 require "${REPO_ROOT}/server/gradle/tasks/development.gradle" "'serverDevH2Test'"
 require "${REPO_ROOT}/server/gradle/tasks/development.gradle" "'serverPostgresIntegrationTest'"
-require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'WEAVE_TEST_BACKUP_ROOT'
-require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" './compose.sh test adoption-check'
-require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" './adoption-rehearsal.sh test'
-require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'WEAVE_ADOPTION_RECEIPT'
+require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'freshStartBackupRehearsal'
+require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'freshStartPlan'
+require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'freshStartApply'
+reject "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'WEAVE_ADOPTION_RECEIPT'
 reject "${REPO_ROOT}/build.gradle" 'gradle/tasks/environment-profiles.gradle'
 
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_CREATE_TEST_USER'

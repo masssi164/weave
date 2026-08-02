@@ -6,6 +6,8 @@ import 'package:weave/core/l10n/shared_preferences_app_locale_preference_reposit
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/domain/ports/identity_session_port.dart';
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
@@ -14,6 +16,7 @@ import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
+import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
@@ -70,6 +73,16 @@ class _FakeOidcClient implements OidcClient {
   }) {
     throw UnimplementedError();
   }
+}
+
+class _FakeIdentitySessionPort implements IdentitySessionPort {
+  const _FakeIdentitySessionPort();
+
+  @override
+  Future<IdentitySessionReconciliation> reconcile({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async => IdentitySessionReconciliation.unchanged;
 }
 
 class _FakeCalendarRepository implements CalendarRepository {
@@ -182,7 +195,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'bottom navigation opens the matching Files and Calendar screens',
+    'fresh Simulator opens the five required shell tabs and nested Profile',
     (tester) async {
       final secureStore = InMemorySecureStore({
         authSessionStorageKey: AuthSessionDto.fromSession(
@@ -222,7 +235,23 @@ void main() {
             ),
             secureStoreProvider.overrideWithValue(secureStore),
             oidcClientProvider.overrideWithValue(_FakeOidcClient()),
-            chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
+            identitySessionPortProvider.overrideWithValue(
+              const _FakeIdentitySessionPort(),
+            ),
+            chatRepositoryProvider.overrideWithValue(
+              FakeChatRepository(
+                loadConversationsHandler: () async => const [
+                  ChatConversation(
+                    id: 'simulator-room',
+                    title: 'Simulator Collaboration',
+                    previewType: ChatConversationPreviewType.encrypted,
+                    unreadCount: 1,
+                    isInvite: false,
+                    isDirectMessage: false,
+                  ),
+                ],
+              ),
+            ),
             chatSecurityRepositoryProvider.overrideWithValue(
               FakeChatSecurityRepository(),
             ),
@@ -240,6 +269,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(
+        find.byKey(const ValueKey('weave.workspace.home')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+      await tester.pumpAndSettle();
+      expect(find.text('Chat'), findsWidgets);
+      expect(find.text('Simulator Collaboration'), findsWidgets);
+
       await tester.tap(find.byIcon(Icons.folder_outlined));
       await tester.pumpAndSettle();
       expect(find.text('SimulatorProof.md'), findsOneWidget);
@@ -249,6 +288,25 @@ void main() {
       await tester.pumpAndSettle();
       expect(_localizedCreateEventFinder(), findsOneWidget);
       expect(find.text('SimulatorProof.md'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text('Settings'), findsWidgets);
+
+      final profileLink = find.byIcon(Icons.account_circle_outlined);
+      await tester.ensureVisible(profileLink);
+      await tester.pumpAndSettle();
+      await tester.tap(profileLink);
+      await tester.pumpAndSettle();
+      expect(find.text('Profile'), findsWidgets);
+      expect(find.text('Workspace Member'), findsWidgets);
+
+      // This marker is fixture UI evidence only. Real identity, provider, and
+      // authorization claims are produced by the isolated live-stack lane.
+      debugPrint(
+        'IOS_SIMULATOR_UI_RESULT status=passed evidenceMode=fixture-ui '
+        'surfaces=home,chat,files,calendar,settings,profile supportSafe=true',
+      );
     },
   );
 
@@ -275,6 +333,9 @@ void main() {
           ),
           secureStoreProvider.overrideWithValue(secureStore),
           oidcClientProvider.overrideWithValue(_FakeOidcClient()),
+          identitySessionPortProvider.overrideWithValue(
+            const _FakeIdentitySessionPort(),
+          ),
           chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
           chatSecurityRepositoryProvider.overrideWithValue(
             FakeChatSecurityRepository(),

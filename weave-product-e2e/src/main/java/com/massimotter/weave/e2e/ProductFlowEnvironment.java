@@ -16,17 +16,21 @@ import java.util.regex.Pattern;
 record ProductFlowEnvironment(
     String runId,
     String candidateCommit,
+    String sourceCandidateCommit,
     String specificationCommit,
     String composeProject,
+    String tenantId,
     URI productOrigin,
     URI apiOrigin,
     URI issuer,
     URI mailpitApi,
     URI mcpEndpoint,
+    URI chatProofOrigin,
     Path caCertificate,
     Path tlsLeafCertificate,
     Path hostsFile,
     Path bootstrapOwnerToken,
+    Path chatProofToken,
     Path workloadCredentialRoot,
     Path evidenceFile,
     Path persistenceRestartCommand,
@@ -38,6 +42,7 @@ record ProductFlowEnvironment(
       Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{7,159}");
   private static final Pattern GIT_COMMIT = Pattern.compile("[0-9a-f]{40}");
   private static final Pattern COMPOSE_PROJECT = Pattern.compile("weave-e2e-[0-9a-f]{16}");
+  private static final Pattern TENANT_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{0,127}");
   private static final Pattern SHA256 = Pattern.compile("sha256:[0-9a-f]{64}");
 
   ProductFlowEnvironment {
@@ -47,17 +52,24 @@ record ProductFlowEnvironment(
     if (candidateCommit == null || !GIT_COMMIT.matcher(candidateCommit).matches()) {
       throw new IllegalArgumentException("weave.e2e.candidate-commit is invalid");
     }
+    if (sourceCandidateCommit == null || !GIT_COMMIT.matcher(sourceCandidateCommit).matches()) {
+      throw new IllegalArgumentException("weave.e2e.source-candidate-commit is invalid");
+    }
     if (specificationCommit == null || !GIT_COMMIT.matcher(specificationCommit).matches()) {
       throw new IllegalArgumentException("weave.e2e.specification-commit is invalid");
     }
     if (composeProject == null || !COMPOSE_PROJECT.matcher(composeProject).matches()) {
       throw new IllegalArgumentException("weave.e2e.compose-project is invalid");
     }
+    if (tenantId == null || !TENANT_ID.matcher(tenantId).matches()) {
+      throw new IllegalArgumentException("weave.e2e.tenant-id is invalid");
+    }
     productOrigin = requireHttpsOrigin(productOrigin, "weave.e2e.product-origin");
     apiOrigin = requireHttpsOrigin(apiOrigin, "weave.e2e.api-origin");
     issuer = requireHttps(issuer, "weave.e2e.issuer");
     mailpitApi = requireLoopbackHttp(mailpitApi, "weave.e2e.mailpit-api");
     mcpEndpoint = requireHttps(mcpEndpoint, "weave.e2e.mcp-endpoint");
+    chatProofOrigin = requireLoopbackHttp(chatProofOrigin, "weave.e2e.chat-proof-origin");
     caCertificate = requirePrivateInput(caCertificate, "weave.e2e.ca-certificate");
     tlsLeafCertificate =
         requirePrivateInput(tlsLeafCertificate, "weave.e2e.tls-leaf-certificate");
@@ -72,6 +84,10 @@ record ProductFlowEnvironment(
                 mcpEndpoint.getHost())));
     bootstrapOwnerToken =
         requirePrivateInput(bootstrapOwnerToken, "weave.e2e.bootstrap-owner-token");
+    chatProofToken = requirePrivateInput(chatProofToken, "weave.e2e.chat-proof-token");
+    if (bootstrapOwnerToken.equals(chatProofToken)) {
+      throw new IllegalArgumentException("isolated proof SecretRefs must remain distinct");
+    }
     workloadCredentialRoot =
         requireDirectory(workloadCredentialRoot, "weave.e2e.workload-credential-root");
     evidenceFile =
@@ -110,17 +126,21 @@ record ProductFlowEnvironment(
     return new ProductFlowEnvironment(
         required("run-id"),
         required("candidate-commit"),
+        required("source-candidate-commit"),
         required("specification-commit"),
         required("compose-project"),
+        required("tenant-id"),
         URI.create(required("product-origin")),
         URI.create(required("api-origin")),
         URI.create(required("issuer")),
         URI.create(required("mailpit-api")),
         URI.create(required("mcp-endpoint")),
+        URI.create(required("chat-proof-origin")),
         Path.of(required("ca-certificate")),
         Path.of(required("tls-leaf-certificate")),
         Path.of(required("hosts-file")),
         Path.of(required("bootstrap-owner-token")),
+        Path.of(required("chat-proof-token")),
         Path.of(required("workload-credential-root")),
         Path.of(required("evidence-file")),
         Path.of(required("persistence-restart-command")),
@@ -149,6 +169,10 @@ record ProductFlowEnvironment(
 
   String memberEmail() {
     return actorEmail("member");
+  }
+
+  String outsiderEmail() {
+    return actorEmail("outsider");
   }
 
   private String actorEmail(String actor) {

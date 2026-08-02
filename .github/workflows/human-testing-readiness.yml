@@ -17,56 +17,29 @@ on:
         required: true
         type: string
       ios_run_id:
-        description: "Successful iOS Dogfood/TestFlight run ID"
+        description: "Successful iOS Dogfood run ID"
         required: true
         type: string
-      installed_build_number:
-        description: "Build number shown by support-safe Settings diagnostics on the physical iPhone"
+      physical_evidence_run_id:
+        description: "Successful Physical iPhone Human Test run ID containing the tester-confirmed protocol"
         required: true
         type: string
-      installed_commit:
-        description: "Full candidate commit shown by support-safe Settings diagnostics on the physical iPhone"
-        required: true
-        type: string
-      physical_evidence_ref:
-        description: "Support-safe issue/checklist reference containing the completed physical test rows"
-        required: true
-        type: string
-      tester_opaque_reference:
-        description: "Non-personal opaque tester reference; only its SHA-256 is retained"
-        required: true
-        type: string
-      voiceover_passed:
-        description: "Physical-iPhone VoiceOver labels, headings, focus, errors, Dynamic Type, and touch targets passed"
-        required: true
-        default: false
-        type: boolean
-      session_upgrade_passed:
-        description: "In-place update, Keychain session continuity, force quit, and token refresh passed"
-        required: true
-        default: false
-        type: boolean
-      navigation_and_interactions_passed:
-        description: "Every current tab plus one real Chat, Files, and Calendar interaction passed"
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   actions: read
   contents: read
 
 concurrency:
-  group: human-testing-readiness-${{ inputs.candidate_sha }}
+  group: weave-live-mac-mini-exclusive
   cancel-in-progress: false
 
 jobs:
   finalize-readiness:
     name: Validate physical acceptance and finalize readiness
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
     timeout-minutes: 20
     environment:
-      name: ios-dogfood
+      name: dogfood
     defaults:
       run:
         working-directory: weave
@@ -75,13 +48,10 @@ jobs:
       LIVE_E2E_RUN_ID: ${{ inputs.live_e2e_run_id }}
       DEPLOYMENT_RUN_ID: ${{ inputs.deployment_run_id }}
       IOS_RUN_ID: ${{ inputs.ios_run_id }}
-      INSTALLED_BUILD_NUMBER: ${{ inputs.installed_build_number }}
-      INSTALLED_COMMIT: ${{ inputs.installed_commit }}
-      PHYSICAL_EVIDENCE_REF: ${{ inputs.physical_evidence_ref }}
-      TESTER_OPAQUE_REFERENCE: ${{ inputs.tester_opaque_reference }}
-      VOICEOVER_PASSED: ${{ inputs.voiceover_passed }}
-      SESSION_UPGRADE_PASSED: ${{ inputs.session_upgrade_passed }}
-      NAVIGATION_AND_INTERACTIONS_PASSED: ${{ inputs.navigation_and_interactions_passed }}
+      PHYSICAL_EVIDENCE_RUN_ID: ${{ inputs.physical_evidence_run_id }}
+      EXPECTED_RUNNER_NAME: weave-live-mac-mini
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_TEST_REVIEWED_ENV_FILE || vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
+      WEAVE_E2E_STACK_SCOPE: persistent
     steps:
       - name: Validate immutable input shapes
         working-directory: .
@@ -91,38 +61,20 @@ jobs:
             echo "::error::candidate_sha must be a full lowercase commit SHA." >&2
             exit 1
           }
-          for value in "$LIVE_E2E_RUN_ID" "$DEPLOYMENT_RUN_ID" "$IOS_RUN_ID"; do
+          [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER_NAME" ]] || {
+            echo "::error::Final readiness must reverify dogfood on ${EXPECTED_RUNNER_NAME}." >&2
+            exit 1
+          }
+          [[ "${WEAVE_ENV_FILE:-}" == /* ]] || {
+            echo "::error::Final readiness requires the reviewed persistent-dogfood environment path." >&2
+            exit 1
+          }
+          for value in "$LIVE_E2E_RUN_ID" "$DEPLOYMENT_RUN_ID" "$IOS_RUN_ID" "$PHYSICAL_EVIDENCE_RUN_ID"; do
             [[ "$value" =~ ^[0-9]+$ ]] || {
               echo "::error::All workflow run IDs must be numeric." >&2
               exit 1
             }
           done
-          [[ "$INSTALLED_BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
-            echo "::error::installed_build_number must be a positive integer." >&2
-            exit 1
-          }
-          [[ -n "$PHYSICAL_EVIDENCE_REF" && -n "$TESTER_OPAQUE_REFERENCE" ]]
-          [[ "$INSTALLED_COMMIT" =~ ^[0-9a-f]{40}$ && "$INSTALLED_COMMIT" == "$CANDIDATE_SHA" ]] || {
-            echo "::error::The commit shown by physical Settings diagnostics must equal the candidate." >&2
-            exit 1
-          }
-          python3 - <<'PY'
-          import os
-          from urllib.parse import urlparse
-
-          value = urlparse(os.environ["PHYSICAL_EVIDENCE_REF"])
-          if (
-              value.scheme != "https"
-              or not value.hostname
-              or value.username is not None
-              or value.password is not None
-              or value.query
-              or value.fragment
-          ):
-              raise SystemExit(
-                  "physical_evidence_ref must be an uncredentialed HTTPS reference without query or fragment"
-              )
-          PY
 
       - name: Check out exact Weave candidate
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -168,7 +120,8 @@ jobs:
           verify_run() {
             local run_id="$1"
             local expected_name="$2"
-            local require_head_sha="$3"
+            local expected_path="$3"
+            local require_head_sha="$4"
             local payload
             payload="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
             [[ "$(jq -r '.name' <<<"$payload")" == "$expected_name" ]] || {
@@ -179,14 +132,19 @@ jobs:
               echo "::error::Run ${run_id} (${expected_name}) is not successful." >&2
               exit 1
             }
+            [[ "$(jq -r '.path' <<<"$payload")" == "$expected_path" ]] || {
+              echo "::error::Run ${run_id} (${expected_name}) did not use ${expected_path}." >&2
+              exit 1
+            }
             if [[ "$require_head_sha" == "true" && "$(jq -r '.head_sha' <<<"$payload")" != "$CANDIDATE_SHA" ]]; then
               echo "::error::Run ${run_id} (${expected_name}) does not target ${CANDIDATE_SHA}." >&2
               exit 1
             fi
           }
-          verify_run "$LIVE_E2E_RUN_ID" "Live Stack Product Flow" true
-          verify_run "$DEPLOYMENT_RUN_ID" "Test Stack Deploy" false
-          verify_run "$IOS_RUN_ID" "iOS Dogfood" false
+          verify_run "$LIVE_E2E_RUN_ID" "Live Stack Product Flow" ".github/workflows/live-stack-e2e.yml" true
+          verify_run "$DEPLOYMENT_RUN_ID" "Test Stack Deploy" ".github/workflows/test-stack-deploy.yml" false
+          verify_run "$IOS_RUN_ID" "iOS Dogfood" ".github/workflows/ios-dogfood.yml" false
+          verify_run "$PHYSICAL_EVIDENCE_RUN_ID" "Physical iPhone Human Test" ".github/workflows/physical-iphone-human-test.yml" false
 
       - name: Download ordered support-safe evidence
         env:
@@ -197,64 +155,211 @@ jobs:
           gh run download "$LIVE_E2E_RUN_ID" --name weave-live-stack-acceptance-evidence --dir build/evidence/live
           gh run download "$DEPLOYMENT_RUN_ID" --name weave-test-stack-evidence --dir build/evidence/deployment
           gh run download "$IOS_RUN_ID" --dir build/evidence/ios
-          test -s build/evidence/live/weave-test-app-evidence.json
+          gh run download "$PHYSICAL_EVIDENCE_RUN_ID" \
+            --name "physical-iphone-human-evidence-${CANDIDATE_SHA}" \
+            --dir build/evidence/physical
+          test -s build/evidence/live/human-testing-live-automated-evidence.json
           test -s build/evidence/deployment/dogfood-deployment-evidence.json
-          distribution="$(find build/evidence/ios -name ios-dogfood-distribution.json -type f -print -quit)"
-          test -n "$distribution"
-          cp "$distribution" build/evidence/ios-dogfood-distribution.json
+          test -s build/evidence/deployment/test-stack-manifest.json
+          test -s build/evidence/physical/physical-iphone-human-evidence.json
+          distribution_list="$RUNNER_TEMP/weave-readiness-distributions-${GITHUB_RUN_ID}.txt"
+          automated_list="$RUNNER_TEMP/weave-readiness-automation-${GITHUB_RUN_ID}.txt"
+          find build/evidence/ios -name ios-dogfood-distribution.json -type f -print > "$distribution_list"
+          [[ "$(wc -l < "$distribution_list" | tr -d ' ')" == 1 ]] || {
+            echo "::error::The exact iOS run must contain one distribution evidence document." >&2
+            exit 1
+          }
+          distribution_file="$(sed -n '1p' "$distribution_list")"
+          cp -- "$distribution_file" build/evidence/ios-dogfood-distribution.json
+          find build/evidence/ios -name human-testing-automated-evidence.json -type f -print > "$automated_list"
+          [[ "$(wc -l < "$automated_list" | tr -d ' ')" == 1 ]] || {
+            echo "::error::The exact iOS run must contain one live-bound Simulator automation evidence artifact." >&2
+            exit 1
+          }
+          automated_file="$(sed -n '1p' "$automated_list")"
+          cp -- "$automated_file" build/evidence/human-testing-automated-evidence.json
+          rm -f -- "$distribution_list" "$automated_list"
 
-      - name: Verify installed physical build identity
+      - name: Verify the complete manifest-bound evidence graph
         run: |
           set -euo pipefail
+          automated="build/evidence/human-testing-automated-evidence.json"
           distribution="build/evidence/ios-dogfood-distribution.json"
-          [[ "$(jq -r '.commit' "$distribution")" == "$CANDIDATE_SHA" ]] || {
-            echo "::error::Distributed commit does not match candidate." >&2
+          deployment="build/evidence/deployment/dogfood-deployment-evidence.json"
+          manifest="build/evidence/deployment/test-stack-manifest.json"
+          physical="build/evidence/physical/physical-iphone-human-evidence.json"
+          source_candidate="$(jq -er .sourceCandidateCommit "$deployment")"
+          manifest_digest="$(jq -er .candidateManifestDigest "$manifest")"
+          live_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$LIVE_E2E_RUN_ID"
+          deployment_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$DEPLOYMENT_RUN_ID"
+          distribution_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$IOS_RUN_ID"
+          physical_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$PHYSICAL_EVIDENCE_RUN_ID"
+          [[ "$(jq -r .laneCandidateCommit "$manifest")" == "$CANDIDATE_SHA" && \
+             "$(jq -r .sourceCandidateCommit "$manifest")" == "$source_candidate" && \
+             "$(jq -r .specificationCommit "$manifest")" == "${{ steps.spec-corpus.outputs.commit }}" && \
+             "$(jq -r .evidence.liveE2eRunUrl "$manifest")" == "$live_url" && \
+             "$(jq -r .evidence.deploymentRunUrl "$manifest")" == "$deployment_url" ]] || {
+            echo "::error::Deployment manifest is not bound to the selected source runs." >&2
             exit 1
           }
-          [[ "$(jq -r '.buildNumber' "$distribution")" == "$INSTALLED_BUILD_NUMBER" ]] || {
-            echo "::error::Installed physical build number does not match distribution evidence." >&2
+          [[ "$(jq -r '.laneCandidateCommit' "$distribution")" == "$CANDIDATE_SHA" && \
+             "$(jq -r '.sourceCandidateCommit' "$distribution")" == "$source_candidate" && \
+             "$(jq -r '.commit' "$distribution")" == "$source_candidate" && \
+             "$(jq -r '.candidateManifestDigest' "$distribution")" == "$manifest_digest" && \
+             "$(jq -r '.deploymentRunId' "$distribution")" == "$DEPLOYMENT_RUN_ID" && \
+             "$(jq -r '.deploymentRunUrl' "$distribution")" == "$deployment_url" && \
+             "$(jq -r '.liveE2eRunUrl' "$distribution")" == "$live_url" && \
+             "$(jq -r '.runUrl' "$distribution")" == "$distribution_url" ]] || {
+            echo "::error::Distribution evidence does not match the exact manifest-bound delivery graph." >&2
             exit 1
           }
-          [[ "$INSTALLED_COMMIT" == "$(jq -r '.commit' "$distribution")" ]] || {
-            echo "::error::Installed physical commit does not match TestFlight evidence." >&2
+          [[ "$(jq -r .candidateCommit "$automated")" == "$CANDIDATE_SHA" && \
+             "$(jq -r .sourceCandidateCommit "$automated")" == "$source_candidate" && \
+             "$(jq -r .specCorpusCommit "$automated")" == "${{ steps.spec-corpus.outputs.commit }}" && \
+             "$(jq -r .candidateManifestDigest "$automated")" == "$manifest_digest" && \
+             "$(jq -r .liveE2eRunUrl "$automated")" == "$live_url" ]] || {
+            echo "::error::Automated evidence does not match the exact live manifest." >&2
             exit 1
           }
+          jq -e --slurpfile deployed "$manifest" '
+            .images.server == $deployed[0].images.backend.reference and
+            .images["mcp-server"] == $deployed[0].images.mcp.reference and
+            .images["identity-ops"] == $deployed[0].images["identity-ops"].reference and
+            .images["keycloak-runtime"] == $deployed[0].images.keycloak.reference
+          ' "$automated" >/dev/null || {
+            echo "::error::Automated evidence lost one or more deployed image references." >&2
+            exit 1
+          }
+          [[ "$(jq -r .candidateCommit "$physical")" == "$CANDIDATE_SHA" && \
+             "$(jq -r .sourceCandidateCommit "$physical")" == "$source_candidate" && \
+             "$(jq -r .specCorpusCommit "$physical")" == "${{ steps.spec-corpus.outputs.commit }}" && \
+             "$(jq -r .candidateManifestDigest "$physical")" == "$manifest_digest" && \
+             "$(jq -r .deploymentRunId "$physical")" == "$DEPLOYMENT_RUN_ID" && \
+             "$(jq -r .distributionRunId "$physical")" == "$IOS_RUN_ID" && \
+             "$(jq -r .deploymentRunUrl "$physical")" == "$deployment_url" && \
+             "$(jq -r .distributionRunUrl "$physical")" == "$distribution_url" && \
+             "$(jq -r .liveE2eRunUrl "$physical")" == "$live_url" && \
+             "$(jq -r .physicalEvidenceRef "$physical")" == "$physical_url" && \
+             "$(jq -r .physicalAcceptance.status "$physical")" == passed && \
+             "$(jq -r .physicalAcceptance.protocol.testerConfirmed "$physical")" == true ]] || {
+            echo "::error::Physical evidence is not the exact tester-confirmed delivery protocol." >&2
+            exit 1
+          }
+          python3 tools/human_testing_automated_evidence.py scan \
+            --path "$automated" \
+            --path "$distribution" \
+            --path "$physical"
+          echo "SOURCE_CANDIDATE_SHA=$source_candidate" >> "$GITHUB_ENV"
 
-      - name: Record support-safe physical acceptance input
+      - name: Reverify exact running images and collect current provider health
+        id: fresh-health
         run: |
           set -euo pipefail
-          tester_hash="sha256:$(printf '%s' "$TESTER_OPAQUE_REFERENCE" | sha256sum | awk '{print $1}')"
-          status=passed
-          blockers='[]'
-          voiceover=passed
-          session_upgrade=passed
-          navigation=passed
-          if [[ "$VOICEOVER_PASSED" != "true" ]]; then
-            status=blocked
-            voiceover=not_run
-          fi
-          if [[ "$SESSION_UPGRADE_PASSED" != "true" ]]; then
-            status=blocked
-            session_upgrade=not_run
-          fi
-          if [[ "$NAVIGATION_AND_INTERACTIONS_PASSED" != "true" ]]; then
-            status=blocked
-            navigation=not_run
-          fi
-          if [[ "$status" != "passed" ]]; then
-            blockers="$(jq -n --arg commit "$CANDIDATE_SHA" '[{code:"physical-acceptance-incomplete",summary:"One or more mandatory physical-iPhone acceptance rows are incomplete.",candidateCommit:$commit}]')"
-          fi
+          manifest="build/evidence/deployment/test-stack-manifest.json"
+          deployment="build/evidence/deployment/dogfood-deployment-evidence.json"
+          runtime="build/evidence/dogfood-provider-health-runtime-images.json"
+          health="build/evidence/dogfood-provider-health-summary.json"
+          bound="build/evidence/dogfood-provider-health-evidence.json"
+          manifest_digest="$(jq -er .candidateManifestDigest "$manifest")"
+          generation="$(jq -er .runtime.generation "$manifest")"
+          expected_project="$(jq -er .runtime.composeProject "$manifest")"
+          component_ref() {
+            jq -er --arg component "$1" '.images[$component].reference' "$manifest"
+          }
+          export WEAVE_CANDIDATE_COMMIT="$SOURCE_CANDIDATE_SHA"
+          export WEAVE_IMAGE_SOURCE_COMMIT="$SOURCE_CANDIDATE_SHA"
+          export WEAVE_CANDIDATE_MANIFEST_DIGEST="$manifest_digest"
+          export WEAVE_RESOURCE_GENERATION="$generation"
+          WEAVE_BACKEND_IMAGE="$(component_ref backend)"
+          WEAVE_MCP_IMAGE="$(component_ref mcp)"
+          WEAVE_IDENTITY_OPS_IMAGE="$(component_ref identity-ops)"
+          WEAVE_KEYCLOAK_IMAGE="$(component_ref keycloak)"
+          export WEAVE_BACKEND_IMAGE WEAVE_MCP_IMAGE WEAVE_IDENTITY_OPS_IMAGE WEAVE_KEYCLOAK_IMAGE
+          {
+            printf 'WEAVE_CANDIDATE_COMMIT=%s\n' "$WEAVE_CANDIDATE_COMMIT"
+            printf 'WEAVE_IMAGE_SOURCE_COMMIT=%s\n' "$WEAVE_IMAGE_SOURCE_COMMIT"
+            printf 'WEAVE_CANDIDATE_MANIFEST_DIGEST=%s\n' "$WEAVE_CANDIDATE_MANIFEST_DIGEST"
+            printf 'WEAVE_RESOURCE_GENERATION=%s\n' "$WEAVE_RESOURCE_GENERATION"
+            printf 'WEAVE_BACKEND_IMAGE=%s\n' "$WEAVE_BACKEND_IMAGE"
+            printf 'WEAVE_MCP_IMAGE=%s\n' "$WEAVE_MCP_IMAGE"
+            printf 'WEAVE_IDENTITY_OPS_IMAGE=%s\n' "$WEAVE_IDENTITY_OPS_IMAGE"
+            printf 'WEAVE_KEYCLOAK_IMAGE=%s\n' "$WEAVE_KEYCLOAK_IMAGE"
+          } >> "$GITHUB_ENV"
+          coordinates="$(
+            cd infra/weave-workspace
+            PYTHONPATH=./scripts python3 - <<'PY'
+          import os
+          import stat
+          from pathlib import Path
+          from compose_env import load_context
+
+          reviewed = Path(os.environ["WEAVE_ENV_FILE"])
+          metadata = reviewed.stat()
+          if (not reviewed.is_absolute() or reviewed.is_symlink() or not reviewed.is_file()
+                  or metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o600):
+              raise SystemExit("reviewed dogfood environment must be a runner-owned regular mode-0600 file")
+          context = load_context("test", Path("."), str(reviewed))
+          if context.env["WEAVE_DEPLOYMENT_CONTEXT"] != "persistent-dogfood":
+              raise SystemExit("final health proof requires test + persistent-dogfood")
+          print(context.env["WEAVE_COMPOSE_PROJECT"])
+          print(context.env["WEAVE_BACKEND_HOST_PORT"])
+          PY
+          )"
+          compose_project="$(sed -n '1p' <<<"$coordinates")"
+          backend_port="$(sed -n '2p' <<<"$coordinates")"
+          [[ "$compose_project" == "$expected_project" ]] || {
+            echo "::error::Current reviewed Compose project differs from the deployed manifest." >&2
+            exit 1
+          }
+          observe() {
+            local runtime_name service expected reference observed source container
+            runtime_name="$1"
+            service="$2"
+            expected="$(jq -er --arg name "$runtime_name" '.images[$name].expectedImageId' "$manifest")"
+            reference="$(jq -er --arg name "$runtime_name" '.images[$name].reference' "$manifest")"
+            if [[ -n "$service" ]]; then
+              container="$(cd infra/weave-workspace && ./compose.sh test ps -q "$service")"
+              [[ -n "$container" && "$(wc -l <<<"$container" | tr -d ' ')" == 1 ]] || {
+                echo "::error::Persistent service ${service} does not resolve to exactly one container." >&2
+                return 1
+              }
+              observed="$(docker container inspect --format '{{.Image}}' "$container")"
+            else
+              observed="$(docker image inspect --format '{{.Id}}' "$reference")"
+            fi
+            source="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$reference")"
+            [[ "$expected" == "$observed" && "$source" == "$SOURCE_CANDIDATE_SHA" ]] || {
+              echo "::error::Persistent ${runtime_name} image differs from the candidate manifest." >&2
+              return 1
+            }
+            jq -n --arg reference "$reference" --arg expected "$expected" --arg observed "$observed" --arg source "$source" \
+              '{reference:$reference,expectedImageId:$expected,observedImageId:$observed,sourceCommit:$source,matches:true}'
+          }
           jq -n \
-            --arg candidate "$CANDIDATE_SHA" \
-            --arg status "$status" \
-            --arg voiceover "$voiceover" \
-            --arg sessionUpgrade "$session_upgrade" \
-            --arg navigation "$navigation" \
-            --arg testerHash "$tester_hash" \
-            --arg evidenceRef "$PHYSICAL_EVIDENCE_REF" \
-            --argjson blockers "$blockers" \
-            '{schemaVersion:1,supportSafe:true,candidateCommit:$candidate,physicalAcceptance:{status:$status,physicalIPhone:true,voiceOver:$voiceover,sessionUpgrade:$sessionUpgrade,navigation:$navigation,testerRefHash:$testerHash},physicalEvidenceRef:$evidenceRef,blockers:$blockers}' \
-            > build/evidence/physical/physical-acceptance.json
+            --arg source "$SOURCE_CANDIDATE_SHA" \
+            --argjson backend "$(observe backend backend)" \
+            --argjson identity "$(observe identity-ops '')" \
+            --argjson keycloak "$(observe keycloak keycloak)" \
+            --argjson mcp "$(observe mcp mcp)" \
+            '{schemaVersion:"weave.runtime-image-observation.v1",sourceCandidateCommit:$source,images:{backend:$backend,"identity-ops":$identity,keycloak:$keycloak,mcp:$mcp},supportSafe:true,containsSecretValues:false}' \
+            > "$runtime"
+          python3 tools/dogfood_deployment_evidence.py collect-provider-health \
+            --actuator-metrics-url "http://127.0.0.1:${backend_port}/actuator/metrics" \
+            --output "$health"
+          python3 tools/dogfood_provider_health_evidence.py \
+            --candidate-commit "$CANDIDATE_SHA" \
+            --deployment-run-id "$DEPLOYMENT_RUN_ID" \
+            --health-run-id "$GITHUB_RUN_ID" \
+            --health-run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --deployment-evidence "$deployment" \
+            --test-stack-manifest "$manifest" \
+            --runtime-image-observation "$runtime" \
+            --provider-health "$health" \
+            --output "$bound"
+          python3 tools/human_testing_automated_evidence.py scan \
+            --path "$runtime" \
+            --path "$health" \
+            --path "$bound"
 
       - name: Assemble and require the final readiness manifest
         id: readiness
@@ -262,10 +367,11 @@ jobs:
           set -o pipefail
           python3 tools/human_testing_readiness_assemble.py \
             --candidate-commit "$CANDIDATE_SHA" \
-            --automated-evidence build/evidence/live/human-testing-automated-evidence.json \
+            --automated-evidence build/evidence/human-testing-automated-evidence.json \
             --deployment-evidence build/evidence/deployment/dogfood-deployment-evidence.json \
+            --provider-health-evidence build/evidence/dogfood-provider-health-evidence.json \
             --distribution-evidence build/evidence/ios-dogfood-distribution.json \
-            --physical-evidence build/evidence/physical/physical-acceptance.json \
+            --physical-evidence build/evidence/physical/physical-iphone-human-evidence.json \
             --output build/evidence/human-testing-readiness.json \
             --require-ready 2>&1 | tee build/evidence/readiness-evaluation.log
 
@@ -293,21 +399,50 @@ jobs:
               --test-log ../build/evidence/readiness-evaluation.log \
               --source physical-iphone-acceptance \
               --lane physical-human-acceptance \
-              --commit "$CANDIDATE_SHA" \
+              --commit "$SOURCE_CANDIDATE_SHA" \
               --run-id "$GITHUB_RUN_ID" \
               --run-attempt "$GITHUB_RUN_ATTEMPT" \
               --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           fi
 
+      - name: Scan the final readiness upload allowlist
+        id: upload-safety
+        if: always() && steps.fresh-health.outcome == 'success'
+        run: |
+          set -euo pipefail
+          scan_args=()
+          for path in \
+            build/evidence/human-testing-readiness.json \
+            build/evidence/readiness-evaluation.log \
+            build/evidence/physical/physical-iphone-human-evidence.json \
+            build/evidence/dogfood-provider-health-runtime-images.json \
+            build/evidence/dogfood-provider-health-summary.json \
+            build/evidence/dogfood-provider-health-evidence.json; do
+            if [[ -f "$path" ]]; then
+              scan_args+=(--path "$path")
+            fi
+          done
+          while IFS= read -r path; do
+            scan_args+=(--path "$path")
+          done < <(find build/evidence/physical-acceptance-contract -type f -print 2>/dev/null || true)
+          [[ "${#scan_args[@]}" -gt 0 ]] || {
+            echo "::error::No final readiness evidence exists to scan." >&2
+            exit 1
+          }
+          python3 tools/human_testing_automated_evidence.py scan "${scan_args[@]}"
+
       - name: Upload readiness evidence
-        if: always()
+        if: always() && steps.upload-safety.outcome == 'success'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: human-testing-readiness-${{ inputs.candidate_sha }}
           path: |
             weave/build/evidence/human-testing-readiness.json
             weave/build/evidence/readiness-evaluation.log
-            weave/build/evidence/physical/physical-acceptance.json
+            weave/build/evidence/physical/physical-iphone-human-evidence.json
+            weave/build/evidence/dogfood-provider-health-runtime-images.json
+            weave/build/evidence/dogfood-provider-health-summary.json
+            weave/build/evidence/dogfood-provider-health-evidence.json
             weave/build/evidence/physical-acceptance-contract
           if-no-files-found: warn
           retention-days: 90

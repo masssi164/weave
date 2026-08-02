@@ -28,6 +28,7 @@ import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateStore;
 import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.testing.InMemoryMatrixFacadeClientStateStore;
 import java.time.Instant;
 import java.util.List;
@@ -79,6 +80,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiExceptionHandler.class,
         MatrixProtocolCoreService.class,
         MatrixFacadeClientStateService.class,
+        OrganizationIdentityContextResolver.class,
         InMemoryMatrixFacadeClientStateStore.class,
         MatrixE2eeStateService.class
 })
@@ -156,6 +158,24 @@ class MatrixClientServerProjectionControllerTest {
                 .andExpect(jsonPath("$.user_id").value("@user_example.com:api.weave.test"))
                 .andExpect(jsonPath("$.device_id").value("WEAVE0123456789abcdef0123456789abcdef0123"))
                 .andExpect(jsonPath("$.is_guest").value(false));
+    }
+
+    @Test
+    void malformedOidcIdentityRemainsAStableMatrixAuthorizationFailure() throws Exception {
+        var endpoint = get("/_matrix/client/v3/account/whoami")
+                .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEINVALIDIDENTITY");
+
+        mockMvc.perform(endpoint.with(workspaceJwtWithoutIssuer()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errcode").value("M_FORBIDDEN"))
+                .andExpect(content().string(not(containsString("missing-issuer"))));
+
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEINVALIDSUBJECT")
+                        .with(workspaceJwtWithSubject("invalid subject")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errcode").value("M_FORBIDDEN"))
+                .andExpect(content().string(not(containsString("invalid-identity-claim"))));
     }
 
     @Test
@@ -1049,15 +1069,35 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt(String tokenValue) {
+        return workspaceJwtWithSubject(tokenValue, "user@example.com", true);
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithoutIssuer() {
+        return workspaceJwtWithSubject("missing-issuer-token", "user@example.com", false);
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithSubject(String subject) {
+        return workspaceJwtWithSubject("invalid-subject-token", subject, true);
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithSubject(
+            String tokenValue,
+            String subject,
+            boolean includeIssuer) {
         return jwt().jwt(jwt -> jwt
                         .tokenValue(tokenValue)
-                        .subject("user@example.com")
+                        .subject(subject)
                         .claim("jti", tokenValue)
                         .claim("sid", "weave-test-session-" + tokenValue)
-                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("aud", List.of("weave-app"))
-                        .claim("weave_tenant_id", "tenant-default")
-                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
+                        .claims(claims -> {
+                            if (includeIssuer) {
+                                claims.put("iss", "https://auth.example.invalid/realms/acme");
+                            } else {
+                                claims.remove("iss");
+                            }
+                        }))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

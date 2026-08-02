@@ -233,15 +233,15 @@ class WorkspaceControllerTest {
     }
 
     @Test
-    void rejectsOrganizationManifestWhenTenantClaimIsMissing() throws Exception {
+    void resolvesOrganizationManifestWithoutLegacyTenantAliasClaims() throws Exception {
         mockMvc.perform(get("/api/organization/manifest").with(jwt()
                         .jwt(jwt -> jwt
                                 .subject("calendar-editor@example.invalid")
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("organization-manifest-unauthorized"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.organizationId").value("tenant-default"));
     }
 
     @Test

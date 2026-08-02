@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 public class JpaOrganizationBootstrapRepository implements OrganizationBootstrapRepository {
@@ -27,6 +28,7 @@ public class JpaOrganizationBootstrapRepository implements OrganizationBootstrap
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<OrganizationBootstrapRecord> findByOrganizationId(String organizationId) {
         if (organizationId == null || organizationId.isBlank()) {
             return Optional.empty();
@@ -35,17 +37,31 @@ public class JpaOrganizationBootstrapRepository implements OrganizationBootstrap
     }
 
     @Override
+    @Transactional
     public OrganizationBootstrapRecord save(OrganizationBootstrapRecord record) {
         if (record == null || record.organizationId() == null || record.organizationId().isBlank()) {
             throw new IllegalArgumentException("Organization bootstrap record requires a non-blank organization id.");
         }
         try {
-            OrganizationBootstrapEntity saved = repository.saveAndFlush(new OrganizationBootstrapEntity(
-                    normalize(record.organizationId()),
-                    record.bootstrapMode(),
-                    record.actorPrimaryIdentityKey(),
-                    objectMapper.writeValueAsString(record.retainedAdminPrimaryIdentityKeys()),
-                    record.bootstrappedAt().atOffset(ZoneOffset.UTC)));
+            String organizationId = normalize(record.organizationId());
+            String retainedAdminsJson =
+                    objectMapper.writeValueAsString(record.retainedAdminPrimaryIdentityKeys());
+            OrganizationBootstrapEntity saved = repository.findById(organizationId).orElse(null);
+            if (saved == null) {
+                saved = repository.saveAndFlush(new OrganizationBootstrapEntity(
+                        organizationId,
+                        record.bootstrapMode(),
+                        record.actorPrimaryIdentityKey(),
+                        retainedAdminsJson,
+                        record.bootstrappedAt().atOffset(ZoneOffset.UTC)));
+            } else {
+                saved.replaceBootstrap(
+                        record.bootstrapMode(),
+                        record.actorPrimaryIdentityKey(),
+                        retainedAdminsJson,
+                        record.bootstrappedAt().atOffset(ZoneOffset.UTC));
+                repository.flush();
+            }
             return record(saved);
         } catch (JacksonException exception) {
             throw new OrganizationBootstrapStoreException(

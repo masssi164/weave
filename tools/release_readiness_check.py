@@ -375,7 +375,11 @@ def check_human_testing_readiness(path: Path, candidate_commit: str) -> Check:
         manifest = load_json(path)
         if not isinstance(manifest, dict):
             raise ManifestError("manifest root must be an object")
-        evaluation = evaluate_manifest(manifest, max_provider_age_seconds=180)
+        evaluation = evaluate_manifest(
+            manifest,
+            max_provider_age_seconds=180,
+            provider_age_reference="generated-at",
+        )
     except (json.JSONDecodeError, ManifestError) as error:
         return Check(
             "human-testing-readiness",

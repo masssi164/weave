@@ -19,6 +19,14 @@ public interface MatrixFacadeClientStateStore {
 
     boolean isSessionRevoked(String sessionHash, Instant now);
 
+    /** A bounded, support-safe signal that concurrent persistence did not converge. */
+    final class ConcurrentWriteException extends RuntimeException {
+
+        public ConcurrentWriteException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
     record IdentityProjection(
             String tenantId,
             String identityIssuer,

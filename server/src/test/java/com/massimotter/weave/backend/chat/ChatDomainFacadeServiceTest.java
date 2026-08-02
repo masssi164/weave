@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.chat;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -11,6 +12,7 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.chat.adapter.WeaveCanonicalChatAdapter;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
+import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightRequest;
 import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
@@ -65,6 +67,33 @@ class ChatDomainFacadeServiceTest {
                 .containsEntry("downstreamErrorsReturned", false)
                 .containsEntry("secretsReturned", false);
         assertThat(conversations.conversations()).isEmpty();
+    }
+
+    @Test
+    void adminSelectionUnlocksConversationCreationWithoutBypassingReadiness() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        ChatDomainFacadeService service = service(selections, true, capability());
+
+        assertThatThrownBy(() -> service.createConversation(
+                "create-before-selection",
+                "Blocked conversation",
+                "channel",
+                List.of(),
+                memberJwt()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Chat is not ready.");
+
+        selections.save(selection("chat", "in-memory-test", false, List.of()));
+
+        var created = service.createConversation(
+                "create-after-selection",
+                "Selected conversation",
+                "channel",
+                List.of(),
+                memberJwt());
+
+        assertThat(created.title()).isEqualTo("Selected conversation");
+        assertThat(service.memberReadiness(memberJwt()).memberState()).isEqualTo(ChatMemberState.READY);
     }
 
     @Test
@@ -147,6 +176,62 @@ class ChatDomainFacadeServiceTest {
         assertThat(context.getValue().tenantId()).isEqualTo("tenant-a");
         assertThat(context.getValue().identityIssuer()).isEqualTo("https://auth.example/realms/weave");
         assertThat(context.getValue().actorRef().value()).isEqualTo("user:member-tenant-a");
+    }
+
+    @Test
+    void canonicalContextUsesTheConfiguredTenantWhenHumanTokensOmitTenantClaims() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "synapse-homeserver", false, List.of()));
+        WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
+        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+                capability(), capability(), capability(), capability(), capability(), capability());
+        when(capabilities.snapshot()).thenReturn(snapshot);
+        when(capabilities.snapshot(any())).thenReturn(snapshot);
+        ChatProviderPort provider = Mockito.mock(ChatProviderPort.class);
+        when(provider.configured()).thenReturn(true);
+        when(provider.providerSelectionKeys()).thenReturn(Set.of("synapse-homeserver"));
+        when(provider.readiness()).thenReturn(ProviderReadiness.ready("chat-provider-ready"));
+        when(provider.currentCursor(any(ChatRequestContext.class))).thenReturn(new ChatCursor("chat-revision-8"));
+        ChatDomainFacadeService service = new ChatDomainFacadeService(
+                new ProviderRegistry(List.of(chatProvider(true)), capabilities, selections),
+                selections,
+                capabilities,
+                new InMemoryAuditEventPublisher(),
+                provider,
+                allowAllContexts(),
+                contextProperties(),
+                FIXED);
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .issuer("https://auth.example/realms/weave")
+                .subject("member-with-configured-tenant")
+                .build();
+
+        assertThat(service.syncCursor(jwt)).isEqualTo("chat-revision-8");
+        ArgumentCaptor<ChatRequestContext> context = ArgumentCaptor.forClass(ChatRequestContext.class);
+        verify(provider).currentCursor(context.capture());
+        assertThat(context.getValue().tenantId()).isEqualTo("tenant-default");
+        assertThat(context.getValue().identityIssuer()).isEqualTo("https://auth.example/realms/weave");
+    }
+
+    @Test
+    void malformedOidcIdentityRemainsAChatAuthorizationFailure() {
+        ChatDomainFacadeService service = service(
+                new InMemoryProviderSelectionRepository(), true, capability());
+        Jwt missingIssuer = Jwt.withTokenValue("missing-issuer")
+                .header("alg", "none")
+                .subject("member")
+                .build();
+        Jwt invalidSubject = Jwt.withTokenValue("invalid-subject")
+                .header("alg", "none")
+                .issuer("https://auth.example/realms/weave")
+                .subject("invalid subject")
+                .build();
+
+        assertThatThrownBy(() -> service.syncCursor(missingIssuer))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        assertThatThrownBy(() -> service.syncCursor(invalidSubject))
+                .isInstanceOf(ChatAccessDeniedException.class);
     }
 
     @Test

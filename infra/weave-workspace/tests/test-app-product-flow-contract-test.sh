@@ -43,6 +43,46 @@ python3 -m py_compile \
   "${RUNTIME_IMAGE_EVIDENCE}"
 python3 -m unittest "${DCR_CONTRACT_PROBE_TEST}"
 
+CONTEXT_TEST_OUTPUT_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/weave-testapp-context-contract.XXXXXX")"
+CONTEXT_TEST_NAMESPACE=""
+cleanup_context_contract() {
+  local status="$?" cleanup_status=0
+  set +e
+  if [[ -n "${CONTEXT_TEST_NAMESPACE}" ]]; then
+    python3 "${RUNTIME_CLEANUP}" \
+      --repository-root "${REPOSITORY_ROOT}" \
+      --output-root "${CONTEXT_TEST_OUTPUT_ROOT}" \
+      --namespace "${CONTEXT_TEST_NAMESPACE}" >/dev/null || cleanup_status=$?
+  fi
+  rm -rf -- "${CONTEXT_TEST_OUTPUT_ROOT}" || cleanup_status=$?
+  if ((status != 0)); then
+    return "${status}"
+  fi
+  return "${cleanup_status}"
+}
+trap cleanup_context_contract EXIT
+context_assignments="$(
+  python3 "${CONTEXT_HELPER}" \
+    --repository-root "${REPOSITORY_ROOT}" \
+    --output-root "${CONTEXT_TEST_OUTPUT_ROOT}" \
+    --run-id contract-tenant-42
+)"
+eval "${context_assignments}"
+CONTEXT_TEST_NAMESPACE="${WEAVE_E2E_RUN_NAMESPACE}"
+python3 - "${WEAVE_TEST_APP_CONTEXT_MEMBERSHIPS}" "${WEAVE_TEST_APP_TENANT_ID}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+seed = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+tenant = sys.argv[2]
+memberships = seed.get("memberships")
+if not isinstance(memberships, list) or not memberships:
+    raise SystemExit("testApp context contract omitted memberships")
+if {membership.get("tenantId") for membership in memberships} != {tenant}:
+    raise SystemExit("testApp tenant does not match every context membership")
+PY
+
 contains "${GRADLE_TASKS}" "tasks.register('testApp', Exec)"
 contains "${GRADLE_TASKS}" "commandLine 'bash', 'gradle/tasks/test-app.sh'"
 contains "${LIFECYCLE}" 'prepare_test_app_context.py'
@@ -84,11 +124,15 @@ contains "${LIFECYCLE}" 'status --porcelain=v1 --untracked-files=all'
 contains "${LIFECYCLE}" 'weave.e2e.candidate-commit'
 contains "${LIFECYCLE}" 'weave.e2e.specification-commit'
 contains "${LIFECYCLE}" 'weave.e2e.compose-project'
+contains "${LIFECYCLE}" 'weave.e2e.tenant-id'
+contains "${CONTEXT_HELPER}" 'WEAVE_TEST_APP_TENANT_ID'
 contains "${LIFECYCLE}" 'validate_runtime_image'
 contains "${LIFECYCLE}" 'org.opencontainers.image.revision'
 contains "${LIFECYCLE}" 'com.massimotter.weave.spec-digest'
 contains "${CONTEXT_HELPER}" 'teardown-evidence.json'
 contains "${SECRET_INITIALIZER}" 'identity-bootstrap-owner-token'
+contains "${SECRET_INITIALIZER}" 'chat-e2e-proof-token'
+contains "${CONTEXT_HELPER}" 'weave.context-authorization-seed/v1'
 contains "${CONTEXT_HELPER}" 'weave-test-app-evidence.json'
 contains "${CONTEXT_HELPER}" 'persistence-restart-evidence.json'
 contains "${CONTEXT_HELPER}" 'runtime-image-evidence.json'
@@ -123,6 +167,13 @@ contains "${FLOW}" '/api/bootstrap/owner-invitation'
 contains "${FLOW}" '/api/v1/identity/session/reconcile'
 contains "${FLOW}" '"access_updated"'
 contains "${FLOW}" 'organizationGroups(claims)'
+contains "${FLOW}" '/api/admin/providers/selections'
+contains "${FLOW}" 'new ProviderSelection("chat", "synapse-homeserver")'
+contains "${FLOW}" 'new ProviderSelection("files", "nextcloud-files")'
+contains "${FLOW}" 'new ProviderSelection("calendar", "nextcloud-caldav")'
+contains "${FLOW}" '"recommended_self_hosted_default"'
+contains "${FLOW}" '/api/chat/readiness'
+contains "${FLOW}" '"available".equals(observedState)'
 absent "${FLOW}" 'claims.path("groups")'
 contains "${FLOW}" 'authorization_code_pkce_s256'
 contains "${FLOW}" 'client_credentials_private_key_jwt'
@@ -163,6 +214,18 @@ absent "${FLOW}" 'org.springframework'
 absent "${FLOW}" 'jakarta.persistence'
 absent "${MCP_FLOW}" 'org.springframework'
 absent "${MCP_FLOW}" 'jakarta.persistence'
+
+python3 - "${FLOW}" <<'PY'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+selection = source.index("configureRequiredProviders(ownerSession.accessToken())")
+readiness = source.index("awaitChatReadiness(ownerSession.accessToken())")
+collaboration = source.index("CollaborationJourney collaboration")
+if not selection < readiness < collaboration:
+    raise SystemExit("Fresh product flow must apply providers and await readiness before collaboration")
+PY
 
 contains "${CANDIDATE_WORKFLOW}" 'fresh-product-proof:'
 contains "${CANDIDATE_WORKFLOW}" 'needs: build-candidate'

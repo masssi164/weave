@@ -43,14 +43,27 @@ public class JpaProductProfileOverrideRepository implements ProductProfileOverri
         if (profile == null) {
             throw new IllegalArgumentException("Product profile override must not be null.");
         }
-        repository.saveAndFlush(new ProductProfileOverrideJpaEntity(
-                primaryIdentityKey,
+        String preferencesJson = accessibilityPreferencesJson(profile.accessibilityPreferences());
+        ProductProfileOverrideJpaEntity existing = repository.findById(primaryIdentityKey).orElse(null);
+        if (existing == null) {
+            repository.saveAndFlush(new ProductProfileOverrideJpaEntity(
+                    primaryIdentityKey,
+                    profile.displayName(),
+                    profile.avatar(),
+                    profile.locale(),
+                    profile.timezone(),
+                    preferencesJson,
+                    profile.profileVisibility()));
+            return profile;
+        }
+        existing.replaceOverride(
                 profile.displayName(),
                 profile.avatar(),
                 profile.locale(),
                 profile.timezone(),
-                accessibilityPreferencesJson(profile.accessibilityPreferences()),
-                profile.profileVisibility()));
+                preferencesJson,
+                profile.profileVisibility());
+        repository.flush();
         return profile;
     }
 

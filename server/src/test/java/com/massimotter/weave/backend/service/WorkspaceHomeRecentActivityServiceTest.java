@@ -35,7 +35,8 @@ class WorkspaceHomeRecentActivityServiceTest {
                             ? ContextAuthorizationDecision.allow("shared workspace membership")
                             : ContextAuthorizationDecision.deny("outside the shared workspace");
                 },
-                properties());
+                properties(),
+                identityContexts());
 
         var collaboratorView = service.recentActivity(jwt("collaborator-sub", TENANT));
         var authorView = service.recentActivity(jwt("author-sub", TENANT));
@@ -84,7 +85,8 @@ class WorkspaceHomeRecentActivityServiceTest {
                     checks.add(request);
                     return ContextAuthorizationDecision.deny("outsider has no Context VIEW membership");
                 },
-                properties());
+                properties(),
+                identityContexts());
 
         assertThat(service.recentActivity(jwt("outsider-sub", TENANT))).isEmpty();
         assertThat(checks).isNotEmpty().allSatisfy(request -> {
@@ -118,7 +120,8 @@ class WorkspaceHomeRecentActivityServiceTest {
         WorkspaceHomeRecentActivityService unreadableAudit = new WorkspaceHomeRecentActivityService(
                 unreadablePublisher,
                 request -> ContextAuthorizationDecision.allow("unused"),
-                properties());
+                properties(),
+                identityContexts());
         InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
         audit.publish(event(
                 TENANT,
@@ -133,10 +136,39 @@ class WorkspaceHomeRecentActivityServiceTest {
                 request -> {
                     throw new IllegalStateException("authorization backend failure");
                 },
-                properties());
+                properties(),
+                identityContexts());
 
         assertThat(unreadableAudit.recentActivity(jwt("author-sub", TENANT))).isEmpty();
         assertThat(failedAuthorization.recentActivity(jwt("author-sub", TENANT))).isEmpty();
+    }
+
+    @Test
+    void usesTheConfiguredOrganizationWhenNativeKeycloakClaimsHaveNoTenantAlias() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        audit.publish(event(
+                "tenant-default",
+                SHARED_CONTEXT,
+                "user:author-sub",
+                AuditAction.FILES_WEBDAV_WRITE_COMPLETED,
+                AuditRedactionLevel.SUPPORT_SAFE,
+                "native-organization-file-write",
+                "2026-07-12T10:08:00Z"));
+        List<ContextAuthorizationRequest> checks = new ArrayList<>();
+        WorkspaceHomeRecentActivityService service = new WorkspaceHomeRecentActivityService(
+                audit,
+                request -> {
+                    checks.add(request);
+                    return ContextAuthorizationDecision.allow("shared workspace membership");
+                },
+                properties(),
+                identityContexts());
+
+        assertThat(service.recentActivity(jwtWithoutTenantAlias("author-sub"))).hasSize(1);
+        assertThat(checks).singleElement().satisfies(request -> {
+            assertThat(request.tenantId()).isEqualTo("tenant-default");
+            assertThat(request.principalRef()).isEqualTo("user:author-sub");
+        });
     }
 
     private InMemoryAuditEventPublisher auditFixture() {
@@ -233,7 +265,19 @@ class WorkspaceHomeRecentActivityServiceTest {
                 .build();
     }
 
+    private Jwt jwtWithoutTenantAlias(String subject) {
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .issuer("https://auth.weave.test/realms/weave")
+                .subject(subject)
+                .build();
+    }
+
     private ContextAuthorizationProperties properties() {
         return new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
+    }
+
+    private OrganizationIdentityContextResolver identityContexts() {
+        return OrganizationIdentityContextResolver.configured(properties());
     }
 }

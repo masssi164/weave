@@ -33,6 +33,7 @@ def fail(message: str) -> "NoReturn":
 def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--candidate-commit", required=True)
+    parser.add_argument("--source-candidate-commit", required=True)
     parser.add_argument("--specification-commit", required=True)
     parser.add_argument("--spec-digest", required=True)
     parser.add_argument("--candidate-manifest-digest", required=True)
@@ -145,6 +146,8 @@ def main() -> int:
     args = arguments()
     if not COMMIT.fullmatch(args.candidate_commit):
         fail("candidate commit is invalid")
+    if not COMMIT.fullmatch(args.source_candidate_commit):
+        fail("source candidate commit is invalid")
     if not COMMIT.fullmatch(args.specification_commit):
         fail("specification commit is invalid")
     if not DIGEST.fullmatch(args.spec_digest):
@@ -172,7 +175,7 @@ def main() -> int:
         if (
             manifest.get("schemaVersion")
             != "weave.release.candidate-manifest.v2"
-            or manifest.get("commit") != args.candidate_commit
+            or manifest.get("commit") != args.source_candidate_commit
             or manifest.get("specificationCommit")
             != args.specification_commit
             or manifest.get("specDigest") != args.spec_digest
@@ -250,6 +253,7 @@ def main() -> int:
         {
             "schemaVersion": "weave.test-app-runtime-images/v1",
             "candidateCommit": args.candidate_commit,
+            "sourceCandidateCommit": args.source_candidate_commit,
             "specificationCommit": args.specification_commit,
             "specDigest": args.spec_digest,
             "candidateManifestDigest": args.candidate_manifest_digest,

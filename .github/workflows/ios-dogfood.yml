@@ -40,9 +40,12 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       candidate_sha: ${{ steps.candidate.outputs.sha }}
+      source_candidate_sha: ${{ steps.candidate.outputs.source_sha }}
       deployment_run_id: ${{ steps.candidate.outputs.deployment_run_id }}
       deployment_run_url: ${{ steps.verify.outputs.deployment_run_url }}
+      live_e2e_run_id: ${{ steps.verify.outputs.live_e2e_run_id }}
       live_e2e_run_url: ${{ steps.verify.outputs.live_e2e_run_url }}
+      candidate_manifest_digest: ${{ steps.verify.outputs.candidate_manifest_digest }}
     steps:
       - name: Resolve exact deployed candidate
         id: candidate
@@ -72,21 +75,29 @@ jobs:
             exit 1
           }
           candidate="$(jq -r '.candidateCommit // empty' "$source_evidence")"
+          source_candidate="$(jq -r '.sourceCandidateCommit // empty' "$source_evidence")"
           [[ "$candidate" =~ ^[0-9a-f]{40}$ ]] || {
             echo "::error::Deployment evidence does not contain a full lowercase candidate SHA." >&2
+            exit 1
+          }
+          [[ "$source_candidate" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Deployment evidence does not contain a full lowercase source candidate SHA." >&2
             exit 1
           }
           if [[ "$EVENT_NAME" != workflow_run && "$candidate" != "$INPUT_CANDIDATE_SHA" ]]; then
             echo "::error::Manual candidate_sha does not match deployment evidence." >&2
             exit 1
           fi
-          echo "sha=$candidate" >> "$GITHUB_OUTPUT"
-          echo "deployment_run_id=$deployment_run_id" >> "$GITHUB_OUTPUT"
+          {
+            echo "sha=$candidate"
+            echo "source_sha=$source_candidate"
+            echo "deployment_run_id=$deployment_run_id"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Check out exact candidate
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          ref: ${{ steps.candidate.outputs.sha }}
+          ref: ${{ steps.candidate.outputs.source_sha }}
           fetch-depth: 0
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
@@ -111,6 +122,10 @@ jobs:
             echo "::error::Run ${DEPLOYMENT_RUN_ID} is not Test Stack Deploy." >&2
             exit 1
           }
+          [[ "$(jq -r '.path' <<<"$deployment")" == ".github/workflows/test-stack-deploy.yml" ]] || {
+            echo "::error::Run ${DEPLOYMENT_RUN_ID} does not use the governed deployment workflow." >&2
+            exit 1
+          }
           [[ "$(jq -r '.conclusion' <<<"$deployment")" == "success" ]] || {
             echo "::error::Test Stack Deploy ${DEPLOYMENT_RUN_ID} is not successful." >&2
             exit 1
@@ -121,6 +136,13 @@ jobs:
             echo "::error::Deployment evidence does not target ${CANDIDATE_SHA}." >&2
             exit 1
           }
+          source_candidate="$(jq -r '.sourceCandidateCommit' "$source_evidence")"
+          [[ "$source_candidate" == "${{ steps.candidate.outputs.source_sha }}" && \
+             "$(jq -r '.laneCandidateCommit' "$source_manifest")" == "$CANDIDATE_SHA" && \
+             "$(jq -r '.sourceCandidateCommit' "$source_manifest")" == "$source_candidate" ]] || {
+            echo "::error::Deployment source/lane identity does not match the test-stack manifest." >&2
+            exit 1
+          }
           [[ "$(jq -r '.deployment.stackStatus' "$source_evidence")" == passed && \
              "$(jq -r '.deployment.idempotencyStatus' "$source_evidence")" == passed && \
              "$(jq -r '.branch' "$source_manifest")" == dogfood ]] || {
@@ -128,20 +150,221 @@ jobs:
             exit 1
           }
           deployment_run_url="$(jq -r '.html_url' <<<"$deployment")"
-
-          live_runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/live-stack-e2e.yml/runs?head_sha=${CANDIDATE_SHA}&status=completed&per_page=30")"
-          live_e2e_run_url="$(jq -r '[.workflow_runs[] | select(.conclusion == "success")][0].html_url // empty' <<<"$live_runs")"
-          [[ -n "$live_e2e_run_url" ]] || {
-            echo "::error::No successful isolated Fresh product-flow run targets ${CANDIDATE_SHA}." >&2
+          [[ "$(jq -r '.evidence.deploymentRunUrl' "$source_manifest")" == "$deployment_run_url" ]] || {
+            echo "::error::Test-stack manifest is not bound to this deployment run." >&2
             exit 1
           }
-          echo "deployment_run_url=$deployment_run_url" >> "$GITHUB_OUTPUT"
-          echo "live_e2e_run_url=$live_e2e_run_url" >> "$GITHUB_OUTPUT"
+          candidate_manifest_digest="$(jq -er '.candidateManifestDigest' "$source_manifest")"
+          [[ "$candidate_manifest_digest" == "$(jq -er '.candidateManifestDigest' "$source_evidence")" ]] || {
+            echo "::error::Deployment documents disagree on candidate manifest digest." >&2
+            exit 1
+          }
+          jq -e --slurpfile deployment "$source_evidence" '
+            ([.images | to_entries[] | {key:.key, value:.value.expectedImageId}] | from_entries)
+              == $deployment[0].candidateImages
+          ' "$source_manifest" >/dev/null || {
+            echo "::error::Deployment documents disagree on the four candidate images." >&2
+            exit 1
+          }
+
+          live_e2e_run_url="$(jq -er '.evidence.liveE2eRunUrl' "$source_manifest")"
+          live_e2e_run_id="$(python3 - "$live_e2e_run_url" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" <<'PY'
+          import re
+          import sys
+
+          url, server, repository = sys.argv[1:]
+          match = re.fullmatch(re.escape(f"{server}/{repository}/actions/runs/") + r"([1-9][0-9]*)", url)
+          if match is None:
+              raise SystemExit("test-stack manifest has an invalid live E2E run URL")
+          print(match.group(1))
+          PY
+          )"
+          live_run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${live_e2e_run_id}")"
+          [[ "$(jq -r '.name' <<<"$live_run")" == "Live Stack Product Flow" && \
+             "$(jq -r '.path' <<<"$live_run")" == ".github/workflows/live-stack-e2e.yml" && \
+             "$(jq -r '.conclusion' <<<"$live_run")" == success && \
+             "$(jq -r '.head_sha' <<<"$live_run")" == "$CANDIDATE_SHA" && \
+             "$(jq -r '.html_url' <<<"$live_run")" == "$live_e2e_run_url" ]] || {
+            echo "::error::Manifest-bound isolated Fresh product-flow run is not successful or exact." >&2
+            exit 1
+          }
+          {
+            echo "deployment_run_url=$deployment_run_url"
+            echo "live_e2e_run_id=$live_e2e_run_id"
+            echo "live_e2e_run_url=$live_e2e_run_url"
+            echo "candidate_manifest_digest=$candidate_manifest_digest"
+          } >> "$GITHUB_OUTPUT"
+
+  simulator:
+    name: Verify release-required shell tabs and Profile on fresh iPhone Simulator
+    needs: contract
+    runs-on: macos-15
+    timeout-minutes: 35
+    env:
+      CANDIDATE_SHA: ${{ needs.contract.outputs.candidate_sha }}
+      SOURCE_CANDIDATE_SHA: ${{ needs.contract.outputs.source_candidate_sha }}
+      LIVE_E2E_RUN_ID: ${{ needs.contract.outputs.live_e2e_run_id }}
+      DEPLOYMENT_RUN_ID: ${{ needs.contract.outputs.deployment_run_id }}
+      CANDIDATE_MANIFEST_DIGEST: ${{ needs.contract.outputs.candidate_manifest_digest }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.contract.outputs.source_candidate_sha }}
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.44.4'
+          channel: stable
+          cache: true
+
+      - name: Download exact live collaboration evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/evidence/live build/evidence/deployment build/evidence/simulator
+          gh run download "$LIVE_E2E_RUN_ID" \
+            --name weave-live-stack-acceptance-evidence \
+            --dir build/evidence/live
+          gh run download "$DEPLOYMENT_RUN_ID" \
+            --name weave-test-stack-evidence \
+            --dir build/evidence/deployment
+          test -s build/evidence/live/human-testing-live-automated-evidence.json
+          test -s build/evidence/deployment/test-stack-manifest.json
+          spec_commit="$(jq -er '.specCorpus.gitCommit' specs/weave-specs.lock.json)"
+          jq -e \
+            --arg lane "$CANDIDATE_SHA" \
+            --arg source "$SOURCE_CANDIDATE_SHA" \
+            --arg spec "$spec_commit" '
+              .supportSafe == true and
+              .evidenceMode == "live-provider-backed" and
+              .candidateCommit == $lane and
+              .sourceCandidateCommit == $source and
+              .specCorpusCommit == $spec and
+              .candidateManifestDigest == env.CANDIDATE_MANIFEST_DIGEST and
+              .collaboration.status == "passed" and
+              .collaboration.cleanupStatus == "passed" and
+              .collaboration.repeatCount == 2
+            ' build/evidence/live/human-testing-live-automated-evidence.json >/dev/null
+          jq -e --slurpfile deployment build/evidence/deployment/test-stack-manifest.json '
+            .candidateManifestDigest == $deployment[0].candidateManifestDigest and
+            .images.server == $deployment[0].images.backend.reference and
+            .images["mcp-server"] == $deployment[0].images.mcp.reference and
+            .images["identity-ops"] == $deployment[0].images["identity-ops"].reference and
+            .images["keycloak-runtime"] == $deployment[0].images.keycloak.reference
+          ' build/evidence/live/human-testing-live-automated-evidence.json >/dev/null || {
+            echo "::error::Live automation evidence is not bound to the deployed manifest and four images." >&2
+            exit 1
+          }
+          echo "SPEC_CORPUS_COMMIT=$spec_commit" >> "$GITHUB_ENV"
+
+      - name: Run fixture UI proof on a fresh iPhone Simulator
+        working-directory: .
+        run: |
+          set -euo pipefail
+          export PATH="$PWD/tools/ios-simulator-xcrun:$PATH"
+          simulator_evidence_dir="$PWD/build/evidence/simulator"
+          raw_simulator_log="$RUNNER_TEMP/weave-ios-simulator-ui-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.log"
+          [[ ! -e "$raw_simulator_log" ]] || {
+            echo "::error::Run-scoped Simulator log already exists." >&2
+            exit 1
+          }
+          runtime="$('/usr/bin/xcrun' simctl list runtimes --json \
+            | jq -er '[.runtimes[] | select(.isAvailable == true and (.identifier | startswith("com.apple.CoreSimulator.SimRuntime.iOS-")))][-1].identifier')"
+          device_type="$('/usr/bin/xcrun' simctl list devicetypes --json \
+            | jq -er '[.devicetypes[] | select(.name | startswith("iPhone"))][0].identifier')"
+          simulator_name="Weave-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          simulator_id="$('/usr/bin/xcrun' simctl create "$simulator_name" "$device_type" "$runtime")"
+          [[ "$simulator_id" =~ ^[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$ ]] || {
+            echo "::error::simctl did not return a bounded Simulator UDID." >&2
+            exit 1
+          }
+          cleanup() {
+            original_status=$?
+            trap - EXIT INT TERM
+            set +e
+            '/usr/bin/xcrun' simctl shutdown "$simulator_id" >/dev/null 2>&1
+            '/usr/bin/xcrun' simctl delete "$simulator_id" >/dev/null 2>&1
+            rm -f "$raw_simulator_log"
+            remaining="$('/usr/bin/xcrun' simctl list devices --json \
+              | jq --arg id "$simulator_id" '[.devices[][] | select(.udid == $id)] | length')" || remaining=-1
+            [[ "$remaining" =~ ^[0-9]+$ ]] || remaining=-1
+            cleanup_status=failed
+            cleanup_exit=1
+            if [[ "$remaining" == 0 ]]; then
+              cleanup_status=passed
+              cleanup_exit=0
+            fi
+            simulator_hash="sha256:$(printf '%s' "$simulator_id" | shasum -a 256 | awk '{print $1}')"
+            jq -n \
+              --arg status "$cleanup_status" \
+              --arg simulatorHash "$simulator_hash" \
+              --argjson remaining "$remaining" \
+              '{schemaVersion:"weave.ios-simulator-cleanup.v1",supportSafe:true,freshSimulatorCreated:true,simulatorRefHash:$simulatorHash,cleanupStatus:$status,remainingOwnedSimulators:$remaining}' \
+              > "$simulator_evidence_dir/ios-simulator-cleanup.json"
+            if [[ "$original_status" -ne 0 ]]; then
+              exit "$original_status"
+            fi
+            exit "$cleanup_exit"
+          }
+          trap cleanup EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          '/usr/bin/xcrun' simctl boot "$simulator_id"
+          '/usr/bin/xcrun' simctl bootstatus "$simulator_id" -b
+          cd client
+          flutter pub get
+          flutter gen-l10n
+          flutter test -d "$simulator_id" integration_test/shell_navigation_e2e_test.dart \
+            2>&1 | tee "$raw_simulator_log"
+          grep -F \
+            'IOS_SIMULATOR_UI_RESULT status=passed evidenceMode=fixture-ui surfaces=home,chat,files,calendar,settings,profile supportSafe=true' \
+            "$raw_simulator_log" \
+            > ../build/evidence/simulator/ios-simulator-ui-summary.log
+
+      - name: Bind Simulator and live evidence
+        run: |
+          set -euo pipefail
+          jq -e '
+            .supportSafe == true and
+            .freshSimulatorCreated == true and
+            .cleanupStatus == "passed" and
+            .remainingOwnedSimulators == 0
+          ' build/evidence/simulator/ios-simulator-cleanup.json >/dev/null
+          jq -n \
+            --arg candidate "$CANDIDATE_SHA" \
+            --arg sourceCandidate "$SOURCE_CANDIDATE_SHA" \
+            --arg spec "$SPEC_CORPUS_COMMIT" \
+            --arg evidenceRef "artifact:ios-simulator-current-surfaces-${GITHUB_RUN_NUMBER}" \
+            '{schemaVersion:"weave.ios-simulator-current-surfaces.v1",supportSafe:true,candidateCommit:$candidate,sourceCandidateCommit:$sourceCandidate,specCorpusCommit:$spec,evidenceMode:"fixture-ui",freshSimulator:true,cleanupStatus:"passed",remainingOwnedSimulators:0,surfaces:{home:"passed",chat:"passed",files:"passed",calendar:"passed",settings:"passed",profile:"passed"},evidenceRef:$evidenceRef,credentialsIncluded:false,blockers:[]}' \
+            > build/evidence/simulator/ios-simulator-current-surfaces.json
+          python3 tools/human_testing_automated_evidence.py combine \
+            --live-evidence build/evidence/live/human-testing-live-automated-evidence.json \
+            --simulator-evidence build/evidence/simulator/ios-simulator-current-surfaces.json \
+            --output build/evidence/human-testing-automated-evidence.json
+          python3 tools/human_testing_automated_evidence.py scan \
+            --path build/evidence/simulator/ios-simulator-ui-summary.log \
+            --path build/evidence/simulator/ios-simulator-current-surfaces.json \
+            --path build/evidence/simulator/ios-simulator-cleanup.json \
+            --path build/evidence/human-testing-automated-evidence.json
+
+      - name: Upload support-safe Simulator evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ios-simulator-current-surfaces-${{ github.run_number }}
+          path: |
+            build/evidence/simulator/ios-simulator-current-surfaces.json
+            build/evidence/simulator/ios-simulator-cleanup.json
+            build/evidence/simulator/ios-simulator-ui-summary.log
+            build/evidence/human-testing-automated-evidence.json
+          if-no-files-found: warn
+          retention-days: 30
 
   testflight:
     name: Archive and upload verified TestFlight build
-    needs: contract
-    if: github.event_name == 'workflow_run' || inputs.upload_to_testflight
+    needs: [contract, simulator]
+    if: github.event_name == 'workflow_dispatch' && inputs.upload_to_testflight
     runs-on: macos-15
     timeout-minutes: 60
     environment:
@@ -150,9 +373,11 @@ jobs:
       APPLE_TEAM_ID: KNDHGC2KV6
       APPLE_BUNDLE_ID: com.massimotter.weave
       CANDIDATE_SHA: ${{ needs.contract.outputs.candidate_sha }}
+      SOURCE_CANDIDATE_SHA: ${{ needs.contract.outputs.source_candidate_sha }}
       DEPLOYMENT_RUN_ID: ${{ needs.contract.outputs.deployment_run_id }}
       DEPLOYMENT_RUN_URL: ${{ needs.contract.outputs.deployment_run_url }}
       LIVE_E2E_RUN_URL: ${{ needs.contract.outputs.live_e2e_run_url }}
+      CANDIDATE_MANIFEST_DIGEST: ${{ needs.contract.outputs.candidate_manifest_digest }}
       APPLE_DISTRIBUTION_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_P12_BASE64 }}
       APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
       APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
@@ -163,7 +388,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          ref: ${{ needs.contract.outputs.candidate_sha }}
+          ref: ${{ needs.contract.outputs.source_candidate_sha }}
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
@@ -247,7 +472,7 @@ jobs:
           flutter build ipa \
             --release \
             --build-number "${GITHUB_RUN_NUMBER}" \
-            --dart-define "WEAVE_CANDIDATE_COMMIT=${CANDIDATE_SHA}" \
+            --dart-define "WEAVE_CANDIDATE_COMMIT=${SOURCE_CANDIDATE_SHA}" \
             --dart-define "WEAVE_CANDIDATE_EVIDENCE_REF=${DEPLOYMENT_RUN_URL}" \
             --dart-define "WEAVE_BUILD_CHANNEL=dogfood" \
             --export-options-plist "$WEAVE_IOS_EXPORT_OPTIONS_PATH"
@@ -284,6 +509,7 @@ jobs:
           mkdir -p build/evidence
           jq -n \
             --arg commit "$CANDIDATE_SHA" \
+            --arg sourceCommit "$SOURCE_CANDIDATE_SHA" \
             --arg ref "dogfood" \
             --arg bundleId "$APPLE_BUNDLE_ID" \
             --arg version "${WEAVE_IOS_VERSION:-unknown}" \
@@ -293,8 +519,9 @@ jobs:
             --arg deploymentRunId "$DEPLOYMENT_RUN_ID" \
             --arg deploymentRunUrl "$DEPLOYMENT_RUN_URL" \
             --arg liveE2eRunUrl "$LIVE_E2E_RUN_URL" \
+            --arg candidateManifestDigest "$CANDIDATE_MANIFEST_DIGEST" \
             --arg result "${{ job.status }}" \
-            '{schemaVersion:"weave.ios-dogfood-distribution.v2",supportSafe:true,channel:"testflight",commit:$commit,ref:$ref,bundleId:$bundleId,version:$version,buildNumber:$buildNumber,githubRunId:$runId,runUrl:$runUrl,deploymentRunId:$deploymentRunId,deploymentRunUrl:$deploymentRunUrl,liveE2eRunUrl:$liveE2eRunUrl,result:$result,credentialsIncluded:false}' \
+            '{schemaVersion:"weave.ios-dogfood-distribution.v2",supportSafe:true,channel:"testflight",commit:$sourceCommit,candidateCommit:$commit,laneCandidateCommit:$commit,sourceCandidateCommit:$sourceCommit,candidateManifestDigest:$candidateManifestDigest,ref:$ref,bundleId:$bundleId,version:$version,buildNumber:$buildNumber,githubRunId:$runId,runUrl:$runUrl,deploymentRunId:$deploymentRunId,deploymentRunUrl:$deploymentRunUrl,liveE2eRunUrl:$liveE2eRunUrl,result:$result,credentialsIncluded:false,blockers:[]}' \
             > build/evidence/ios-dogfood-distribution.json
           echo "IOS_DOGFOOD_DISTRIBUTION_RESULT status=${{ job.status }} candidate=${CANDIDATE_SHA} build=${GITHUB_RUN_NUMBER}" \
             | tee build/evidence/ios-dogfood.log
@@ -315,7 +542,7 @@ jobs:
               --append-summary "$GITHUB_STEP_SUMMARY" \
               --source ios-dogfood \
               --lane protected-testflight-distribution \
-              --commit "$CANDIDATE_SHA" \
+              --commit "$SOURCE_CANDIDATE_SHA" \
               --run-id "$GITHUB_RUN_ID" \
               --run-attempt "$GITHUB_RUN_ATTEMPT" \
               --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
@@ -334,8 +561,8 @@ jobs:
 
   stable-signing-fallback:
     name: Install verified development-signed fallback
-    needs: contract
-    if: github.event_name == 'workflow_dispatch' && inputs.upload_to_testflight == false
+    needs: [contract, simulator]
+    if: github.event_name == 'workflow_run' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_testflight == false)
     runs-on:
       - self-hosted
       - macOS
@@ -350,13 +577,17 @@ jobs:
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
       CANDIDATE_SHA: ${{ needs.contract.outputs.candidate_sha }}
+      SOURCE_CANDIDATE_SHA: ${{ needs.contract.outputs.source_candidate_sha }}
       DEPLOYMENT_RUN_ID: ${{ needs.contract.outputs.deployment_run_id }}
       DEPLOYMENT_RUN_URL: ${{ needs.contract.outputs.deployment_run_url }}
       WEAVE_IOS_DEVICE_ID: ${{ secrets.WEAVE_IOS_DEVICE_ID }}
-      WEAVE_CANDIDATE_COMMIT: ${{ needs.contract.outputs.candidate_sha }}
+      WEAVE_CANDIDATE_COMMIT: ${{ needs.contract.outputs.source_candidate_sha }}
+      WEAVE_LANE_CANDIDATE_COMMIT: ${{ needs.contract.outputs.candidate_sha }}
       WEAVE_CANDIDATE_EVIDENCE_REF: ${{ needs.contract.outputs.deployment_run_url }}
       WEAVE_DISTRIBUTION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       WEAVE_DEPLOYMENT_RUN_ID: ${{ needs.contract.outputs.deployment_run_id }}
+      WEAVE_LIVE_E2E_RUN_URL: ${{ needs.contract.outputs.live_e2e_run_url }}
+      WEAVE_CANDIDATE_MANIFEST_DIGEST: ${{ needs.contract.outputs.candidate_manifest_digest }}
       WEAVE_BUILD_NUMBER: ${{ github.run_number }}
       WEAVE_DOGFOOD_EVIDENCE_DIR: ${{ github.workspace }}/build/evidence
     steps:
@@ -374,7 +605,7 @@ jobs:
 
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          ref: ${{ needs.contract.outputs.candidate_sha }}
+          ref: ${{ needs.contract.outputs.source_candidate_sha }}
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
@@ -384,9 +615,28 @@ jobs:
 
       - name: Install the exact candidate in place
         run: |
-          set -o pipefail
+          set -euo pipefail
           mkdir -p build/evidence
-          tools/dogfood_ios_development_fallback.sh 2>&1 | tee build/evidence/ios-dogfood.log
+          raw_fallback_log="$RUNNER_TEMP/weave-ios-fallback-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.log"
+          [[ ! -e "$raw_fallback_log" ]] || {
+            echo "::error::Run-scoped iOS fallback log already exists." >&2
+            exit 1
+          }
+          cleanup_raw_fallback_log() {
+            rm -f -- "$raw_fallback_log"
+          }
+          trap cleanup_raw_fallback_log EXIT INT TERM
+          if ! tools/dogfood_ios_development_fallback.sh >"$raw_fallback_log" 2>&1; then
+            echo "::error::The candidate could not be installed on the protected physical-device runner; raw diagnostics remain private." >&2
+            exit 1
+          fi
+          fallback_marker_pattern='^IOS_DEVELOPMENT_FALLBACK_RESULT status=passed lane=[0-9a-f]{12} source=[0-9a-f]{12} build=[1-9][0-9]* inPlace=(true|false) keychainIdentity=true supportSafe=true$'
+          fallback_marker_count="$(grep -Ec "$fallback_marker_pattern" "$raw_fallback_log" || true)"
+          [[ "$fallback_marker_count" -eq 1 ]] || {
+            echo "::error::The iOS fallback produced no unique support-safe result marker." >&2
+            exit 1
+          }
+          grep -E "$fallback_marker_pattern" "$raw_fallback_log" > build/evidence/ios-dogfood.log
           cp build/evidence/ios-development-fallback.json \
             build/evidence/ios-dogfood-distribution.json
 
@@ -404,10 +654,20 @@ jobs:
             --append-summary "$GITHUB_STEP_SUMMARY" \
             --source ios-dogfood \
             --lane protected-stable-signing-fallback \
-            --commit "$CANDIDATE_SHA" \
+            --commit "$SOURCE_CANDIDATE_SHA" \
             --run-id "$GITHUB_RUN_ID" \
             --run-attempt "$GITHUB_RUN_ATTEMPT" \
             --run-url "$WEAVE_DISTRIBUTION_RUN_URL"
+
+      - name: Verify fallback evidence is support-safe
+        run: |
+          set -euo pipefail
+          python3 tools/human_testing_automated_evidence.py scan \
+            --path build/evidence/ios-dogfood-distribution.json \
+            --path build/evidence/ios-development-fallback.json \
+            --path build/evidence/ios-dogfood.log \
+            --path build/evidence/acceptance-contract/release-evidence-manifest.json \
+            --path build/evidence/acceptance-contract/acceptance-summary.md
 
       - name: Upload support-safe fallback distribution evidence
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -417,5 +677,6 @@ jobs:
             build/evidence/ios-dogfood-distribution.json
             build/evidence/ios-development-fallback.json
             build/evidence/ios-dogfood.log
-            build/evidence/acceptance-contract
+            build/evidence/acceptance-contract/release-evidence-manifest.json
+            build/evidence/acceptance-contract/acceptance-summary.md
           if-no-files-found: error
