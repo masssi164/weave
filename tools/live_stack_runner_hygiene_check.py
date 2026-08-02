@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/live-stack-e2e.yml"
+CANDIDATE_WORKFLOW = ROOT / ".github/workflows/candidate-images.yml"
 DOGFOOD_DEPLOY_WORKFLOW = ROOT / ".github/workflows/test-stack-deploy.yml"
 DOGFOOD_MEMBER_WORKFLOW = ROOT / ".github/workflows/dogfood-member.yml"
 IOS_DOGFOOD_WORKFLOW = ROOT / ".github/workflows/ios-dogfood.yml"
@@ -22,6 +23,7 @@ def require(condition: bool, message: str) -> None:
 
 def main() -> int:
     workflow = WORKFLOW.read_text(encoding="utf-8")
+    candidate_workflow = CANDIDATE_WORKFLOW.read_text(encoding="utf-8")
     deployment = DOGFOOD_DEPLOY_WORKFLOW.read_text(encoding="utf-8")
     member = DOGFOOD_MEMBER_WORKFLOW.read_text(encoding="utf-8")
     ios = IOS_DOGFOOD_WORKFLOW.read_text(encoding="utf-8")
@@ -126,6 +128,16 @@ def main() -> int:
         and 'component_ref keycloak-runtime' in workflow
         and '[[ "$image" == *@sha256:* ]]' in workflow,
         "all runtime images must come from the immutable candidate manifest",
+    )
+    require(
+        candidate_workflow.count("platforms: linux/amd64") == 4
+        and "DOCKER_DEFAULT_PLATFORM: linux/amd64" in workflow
+        and "DOCKER_DEFAULT_PLATFORM: linux/amd64" in deployment
+        and 'docker pull --platform "$DOCKER_DEFAULT_PLATFORM" "$image"'
+        in workflow
+        and "{{.Os}}/{{.Architecture}}" in workflow
+        and '"$DOCKER_DEFAULT_PLATFORM" ]]' in workflow,
+        "the ARM64 Live runner must pull and run the four AMD64 candidate images explicitly",
     )
     require(
         workflow.count("persistent_dogfood_resource_guard.sh") == 2
