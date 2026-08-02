@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -82,13 +83,15 @@ def main() -> int:
         and 'docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin'
         in workflow
         and '(.credsStore? // "") == ""' in workflow
-        and '(.credHelpers? // {}) == {}' in workflow,
+        and '(.credHelpers? // {}) == {}' in workflow
+        and 'printf \'DOCKER_CONFIG=%s\\n\' "$DOCKER_AUTH_ROOT" >> "$GITHUB_ENV"'
+        in workflow,
         "candidate pulls must use one non-interactive run-scoped Docker authority",
     )
     require(
         '("DOCKER_AUTH_ROOT", "weave-live-docker-auth-")' in workflow
         and "docker logout ghcr.io" in workflow
-        and "security -v unlock-keychain" not in workflow,
+        and re.search(r"\bsecurity\b[^\n]*\bunlock-keychain\b", workflow) is None,
         "run-scoped Docker authority must be removed without unlocking host keychains",
     )
     require(
