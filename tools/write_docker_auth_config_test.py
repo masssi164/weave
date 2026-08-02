@@ -53,6 +53,8 @@ def main_test() -> None:
     with tempfile.TemporaryDirectory() as temporary_root:
         unsafe_root = Path(temporary_root) / "unsafe"
         unsafe_root.mkdir(mode=0o755)
+        unsafe_root.chmod(0o755)
+        assert stat.S_IMODE(unsafe_root.stat().st_mode) == 0o755
         expect_failure(
             lambda: write_config(
                 unsafe_root / "config.json", "ghcr.io", actor, token
