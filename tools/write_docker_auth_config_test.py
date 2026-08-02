@@ -25,7 +25,7 @@ def expect_failure(operation, message: str) -> None:
 
 
 def main_test() -> None:
-    actor = "weave-ci"
+    actor = "github-actions[bot]"
     token = "fixture-package-token-that-must-not-be-logged"
     with tempfile.TemporaryDirectory() as temporary_root:
         root = Path(temporary_root) / "weave-live-docker-auth-test"

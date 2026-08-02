@@ -12,7 +12,6 @@ import re
 import stat
 
 
-ACTOR_PATTERN = re.compile(r"^[A-Za-z0-9-]+$")
 REGISTRY_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")
 
 
@@ -30,8 +29,8 @@ def write_config(output: Path, registry: str, actor: str, token: str) -> None:
         raise ValueError("Docker authority output must be named config.json")
     if not REGISTRY_PATTERN.fullmatch(registry):
         raise ValueError("Docker registry contains unsupported characters")
-    if not ACTOR_PATTERN.fullmatch(actor):
-        raise ValueError("GitHub actor contains unsupported characters")
+    if not actor or any(character in actor for character in ("\0", "\r", "\n")):
+        raise ValueError("GitHub actor is missing or malformed")
     if not token or any(character in token for character in ("\0", "\r", "\n")):
         raise ValueError("GitHub package token is missing or malformed")
 
