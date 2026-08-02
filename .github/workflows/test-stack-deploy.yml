@@ -54,6 +54,17 @@ jobs:
       - name: Verify protected persistent deployment request
         run: |
           set -euo pipefail
+          umask 077
+          evidence_dir="$RUNNER_TEMP/weave-test-stack-evidence-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          [[ ! -e "$evidence_dir" && ! -L "$evidence_dir" ]] || {
+            echo "::error::The run-scoped persistent evidence root already exists." >&2
+            exit 1
+          }
+          install -d -m 700 "$evidence_dir"
+          jq -n \
+            '{schemaVersion:"weave.test-stack-run-context.v1",phase:"initialized",supportSafe:true,containsSecretValues:false}' \
+            > "$evidence_dir/run-context.json"
+          echo "WEAVE_TEST_STACK_EVIDENCE_DIR=$evidence_dir" >> "$GITHUB_ENV"
           [[ "$LANE_CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
             echo "::error::Persistent deployment requires an exact lowercase dogfood lane SHA." >&2
             exit 1
@@ -66,6 +77,12 @@ jobs:
             echo "::error::Persistent deployment requires one absolute reviewed test-profile environment path." >&2
             exit 1
           }
+          receipt="$evidence_dir/.run-context.json.tmp"
+          jq -n \
+            --arg lane "$LANE_CANDIDATE_COMMIT" \
+            '{schemaVersion:"weave.test-stack-run-context.v1",laneCandidateCommit:$lane,phase:"request-validated",supportSafe:true,containsSecretValues:false}' \
+            > "$receipt"
+          mv "$receipt" "$evidence_dir/run-context.json"
 
       - name: Check out exact dogfood lane candidate
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -128,10 +145,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          evidence_dir="$RUNNER_TEMP/weave-test-stack-evidence"
-          source_dir="$RUNNER_TEMP/weave-live-source-evidence"
-          rm -rf -- "$evidence_dir" "$source_dir"
-          mkdir -p "$evidence_dir" "$source_dir"
+          evidence_dir="${WEAVE_TEST_STACK_EVIDENCE_DIR:?}"
+          source_dir="$RUNNER_TEMP/weave-live-source-evidence-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          [[ -d "$evidence_dir" && ! -L "$evidence_dir" ]] || {
+            echo "::error::The run-scoped persistent evidence root is unsafe." >&2
+            exit 1
+          }
+          [[ ! -e "$source_dir" && ! -L "$source_dir" ]] || {
+            echo "::error::The run-scoped live-source evidence root already exists." >&2
+            exit 1
+          }
+          install -d -m 700 "$source_dir"
           gh run download "$ISOLATED_E2E_RUN_ID" \
             --name weave-live-stack-acceptance-evidence \
             --dir "$source_dir"
@@ -160,7 +184,6 @@ jobs:
           }
           generation="fresh-${source_candidate:0:12}"
           {
-            echo "WEAVE_TEST_STACK_EVIDENCE_DIR=$evidence_dir"
             echo "WEAVE_CANDIDATE_COMMIT=$source_candidate"
             echo "WEAVE_IMAGE_SOURCE_COMMIT=$source_candidate"
             echo "WEAVE_CANDIDATE_MANIFEST_DIGEST=sha256:$manifest_sha"

@@ -189,8 +189,10 @@ class CandidateSourceMappingTest(unittest.TestCase):
             image_id = arguments[3]
             name = next(name for name, value in images.items() if value == image_id)
             labels = {"org.opencontainers.image.revision": self.source}
-            if name == "identity-ops":
-                labels["com.massimotter.weave.component"] = "keycloak-identity-ops"
+            if name in module.SOURCE_IMAGE_MODULES:
+                labels["com.massimotter.weave.module"] = (
+                    module.SOURCE_IMAGE_MODULES[name]
+                )
             if name == "keycloak":
                 labels.update(
                     {
@@ -229,6 +231,48 @@ class CandidateSourceMappingTest(unittest.TestCase):
         with mock.patch.object(module.subprocess, "run", side_effect=stale_revision):
             with self.assertRaisesRegex(module.MappingError, "changed"):
                 module.assert_local_images(images, self.source)
+
+        for source_name in module.SOURCE_IMAGE_MODULES:
+            for invalid_module in (None, "wrong-module"):
+                with self.subTest(
+                    source_name=source_name,
+                    invalid_module=invalid_module,
+                ):
+                    def invalid_source_module(
+                        arguments: list[str],
+                        **kwargs: object,
+                    ) -> subprocess.CompletedProcess[str]:
+                        result = inspect(arguments, **kwargs)
+                        payload = json.loads(result.stdout)
+                        image_id = arguments[3]
+                        name = next(
+                            name
+                            for name, value in images.items()
+                            if value == image_id
+                        )
+                        if name == source_name:
+                            if invalid_module is None:
+                                payload["Config"]["Labels"].pop(
+                                    "com.massimotter.weave.module"
+                                )
+                            else:
+                                payload["Config"]["Labels"][
+                                    "com.massimotter.weave.module"
+                                ] = invalid_module
+                        return subprocess.CompletedProcess(
+                            arguments, 0, json.dumps(payload), ""
+                        )
+
+                    with mock.patch.object(
+                        module.subprocess,
+                        "run",
+                        side_effect=invalid_source_module,
+                    ):
+                        with self.assertRaisesRegex(
+                            module.MappingError,
+                            f"incorrect module provenance: {source_name}",
+                        ):
+                            module.assert_local_images(images, self.source)
 
         def missing_build_evidence(
             arguments: list[str],
