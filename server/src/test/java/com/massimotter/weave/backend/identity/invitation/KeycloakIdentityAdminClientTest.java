@@ -101,6 +101,121 @@ class KeycloakIdentityAdminClientTest {
   }
 
   @Test
+  void treatsAnAlreadyPresentOrganizationGroupMembershipAsIdempotentSuccess() {
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/organizations/organization-1/members/subject-1/groups"
+                    + "?briefRepresentation=true"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/organizations/organization-1/groups?search=members&exact=true"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(
+            withSuccess(
+                """
+                [{"id":"group-uuid","name":"members","path":"/members"}]
+                """,
+                MediaType.APPLICATION_JSON));
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/organizations/organization-1/groups/group-uuid/members/subject-1"))
+        .andExpect(method(HttpMethod.PUT))
+        .andRespond(withStatus(HttpStatus.CONFLICT));
+
+    client.applyRole("subject-1", "member");
+
+    provider.verify();
+  }
+
+  @Test
+  void rejectsAConflictWhenRemovingAnOrganizationGroupMembership() {
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/organizations/organization-1/members/subject-1/groups"
+                    + "?briefRepresentation=true"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(
+            withSuccess(
+                """
+                [{"id":"member-group","name":"members","path":"/members"},
+                 {"id":"owner-group","name":"owners","path":"/owners"}]
+                """,
+                MediaType.APPLICATION_JSON));
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/organizations/organization-1/groups?search=owners&exact=true"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(
+            withSuccess(
+                """
+                [{"id":"owner-group","name":"owners","path":"/owners"}]
+                """,
+                MediaType.APPLICATION_JSON));
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/organizations/organization-1/groups/owner-group/members/subject-1"))
+        .andExpect(method(HttpMethod.DELETE))
+        .andRespond(withStatus(HttpStatus.CONFLICT));
+
+    assertThatThrownBy(() -> client.applyRole("subject-1", "member"))
+        .isInstanceOf(KeycloakIdentityAdminClient.KeycloakAdminException.class)
+        .hasMessageContaining("sanitized status 409");
+
+    provider.verify();
+  }
+
+  @Test
+  void rejectsAProviderFailureWhenAddingAnOrganizationGroupMembership() {
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/organizations/organization-1/members/subject-1/groups"
+                    + "?briefRepresentation=true"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/organizations/organization-1/groups?search=members&exact=true"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(
+            withSuccess(
+                """
+                [{"id":"group-uuid","name":"members","path":"/members"}]
+                """,
+                MediaType.APPLICATION_JSON));
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/organizations/organization-1/groups/group-uuid/members/subject-1"))
+        .andExpect(method(HttpMethod.PUT))
+        .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+    assertThatThrownBy(() -> client.applyRole("subject-1", "member"))
+        .isInstanceOf(KeycloakIdentityAdminClient.KeycloakAdminException.class)
+        .hasMessageContaining("sanitized status 503");
+
+    provider.verify();
+  }
+
+  @Test
   void checksBootstrapEmptinessThroughTheAuthorizedOrganizationProjection() {
     provider
         .expect(

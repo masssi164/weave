@@ -316,7 +316,8 @@ public class MemberInvitationService {
     try {
       provider = keycloak.issue(organizationId, email, blankToNull(request.displayName()));
     } catch (RuntimeException providerFailure) {
-      ProviderFailureReference failureReference = providerFailureReference(providerFailure);
+      ProviderFailureReference failureReference =
+          providerFailureReference(providerFailure, "invitation-create");
       LOGGER.warn(
           "WEAVE_IDENTITY_INVITATION_PROVIDER_FAILURE category={} operation={} status={} failureType={}",
           failureReference.category(),
@@ -377,7 +378,8 @@ public class MemberInvitationService {
         && intent.invitedBySubject().equals(actorSubject);
   }
 
-  private static ProviderFailureReference providerFailureReference(RuntimeException failure) {
+  private static ProviderFailureReference providerFailureReference(
+      RuntimeException failure, String defaultOperation) {
     if (failure instanceof KeycloakAdminException provider) {
       return new ProviderFailureReference(
           "provider-http", provider.operation(), provider.status());
@@ -403,14 +405,14 @@ public class MemberInvitationService {
     for (Throwable current = failure; current != null; current = current.getCause()) {
       String type = current.getClass().getName();
       if (type.startsWith("org.springframework.security.oauth2.")) {
-        return new ProviderFailureReference("oauth2-client", "invitation-create", 0);
+        return new ProviderFailureReference("oauth2-client", defaultOperation, 0);
       }
       if (type.startsWith("org.springframework.web.client.")
           || type.startsWith("java.net.")) {
-        return new ProviderFailureReference("provider-transport", "invitation-create", 0);
+        return new ProviderFailureReference("provider-transport", defaultOperation, 0);
       }
     }
-    return new ProviderFailureReference("provider-projection", "invitation-inventory", 0);
+    return new ProviderFailureReference("provider-projection", defaultOperation, 0);
   }
 
   private record ProviderFailureReference(String category, String operation, int status) {}
@@ -425,16 +427,28 @@ public class MemberInvitationService {
     }
     try {
       keycloak.applyRole(subject, intent.requestedRole());
-      ProvisioningIntent applied = intents.save(intent.applied(subject, clock.instant()));
-      publish(
-          AuditAction.MEMBER_INVITATION_ACCEPTED,
-          applied,
-          subject,
-          intent.auditCorrelation());
     } catch (RuntimeException providerFailure) {
+      ProviderFailureReference failureReference =
+          providerFailureReference(providerFailure, "identity-session-reconcile");
+      LOGGER.warn(
+          "WEAVE_IDENTITY_SESSION_PROVIDER_FAILURE category={} operation={} status={} failureType={}",
+          failureReference.category(),
+          failureReference.operation(),
+          failureReference.status(),
+          providerFailure.getClass().getSimpleName());
       intents.save(intent.failed("keycloak_provisioning_failed", clock.instant()));
-      throw providerFailure;
+      throw new ApiErrorException(
+          HttpStatus.BAD_GATEWAY,
+          "identity-session-provider-unavailable",
+          "Keycloak could not reconcile the authenticated identity session.",
+          Map.of());
     }
+    ProvisioningIntent applied = intents.save(intent.applied(subject, clock.instant()));
+    publish(
+        AuditAction.MEMBER_INVITATION_ACCEPTED,
+        applied,
+        subject,
+        intent.auditCorrelation());
   }
 
   private ProvisioningIntent requireIntent(

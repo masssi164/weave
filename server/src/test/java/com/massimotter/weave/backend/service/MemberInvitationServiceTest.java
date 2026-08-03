@@ -5,6 +5,7 @@ import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -249,6 +250,30 @@ class MemberInvitationServiceTest {
     verify(keycloak).applyRole("owner-subject", "owner");
     assertThat(intents.findPendingByEmail(TENANT_ID, ORGANIZATION_ID, EMAIL))
         .isEmpty();
+  }
+
+  @Test
+  void mapsIdentitySessionProviderFailureToTheStableBadGatewayContract() {
+    intents.save(pendingIntent("invitation-1", ProvisioningIntentStatus.PENDING));
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.isOrganizationMember(ORGANIZATION_ID, "owner-subject"))
+        .thenReturn(true);
+    doThrow(new KeycloakAdminException(503, "provider unavailable", "organization-group-add"))
+        .when(keycloak)
+        .applyRole("owner-subject", "owner");
+
+    assertThatThrownBy(() -> service.reconcileAuthenticated(authenticatedOwner()))
+        .isInstanceOfSatisfying(
+            ApiErrorException.class,
+            error -> {
+              assertThat(error.status()).isEqualTo(HttpStatus.BAD_GATEWAY);
+              assertThat(error.code())
+                  .isEqualTo("identity-session-provider-unavailable");
+              assertThat(error.getMessage()).doesNotContain("provider unavailable");
+            });
+
+    assertThat(intents.findPendingByEmail(TENANT_ID, ORGANIZATION_ID, EMAIL)).isEmpty();
+    assertThat(audit.events()).isEmpty();
   }
 
   @Test

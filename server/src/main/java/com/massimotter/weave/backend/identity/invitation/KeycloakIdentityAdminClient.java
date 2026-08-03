@@ -378,6 +378,9 @@ public class KeycloakIdentityAdminClient {
   private void setOrganizationGroupMembership(
       String organizationId, String subject, String groupPath, boolean member) {
     JsonNode group = resolveOrganizationGroup(organizationId, groupPath);
+    // Keycloak 26.7 defines 409 for this exact PUT as "already a member", which is the requested
+    // desired state. No other organization-group mutation accepts conflict as success.
+    Set<Integer> expectedStatuses = member ? Set.of(204, 409) : Set.of(204);
     request(
         member ? HttpMethod.PUT : HttpMethod.DELETE,
         adminPath(
@@ -389,7 +392,7 @@ public class KeycloakIdentityAdminClient {
                 + path(subject)),
         null,
         null,
-        204);
+        expectedStatuses);
   }
 
   private JsonNode resolveOrganizationGroup(String organizationId, String groupPath) {
@@ -477,6 +480,15 @@ public class KeycloakIdentityAdminClient {
 
   private String request(
       HttpMethod method, String uri, String body, MediaType contentType, int expectedStatus) {
+    return request(method, uri, body, contentType, Set.of(expectedStatus));
+  }
+
+  private String request(
+      HttpMethod method,
+      String uri,
+      String body,
+      MediaType contentType,
+      Set<Integer> expectedStatuses) {
     String operation = KeycloakIdentityAdminOperationPolicy.requireAllowed(method, uri);
     RestClient.RequestBodySpec request = restClient.method(method).uri(uri);
     if (contentType != null) {
@@ -491,7 +503,10 @@ public class KeycloakIdentityAdminClient {
           request
               .retrieve()
               .onStatus(
-                  status -> status.value() != expectedStatus,
+                  status -> expectedStatuses.contains(status.value()),
+                  (ignored, providerResponse) -> {})
+              .onStatus(
+                  status -> !expectedStatuses.contains(status.value()),
                   (ignored, providerResponse) -> {
                     throw new KeycloakAdminException(
                         providerResponse.getStatusCode().value(),
