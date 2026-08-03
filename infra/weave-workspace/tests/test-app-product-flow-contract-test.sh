@@ -102,6 +102,8 @@ contains "${LIFECYCLE}" 'local minimum_kib=8388608'
 contains "${LIFECYCLE}" 'before image build and resource creation'
 contains "${LIFECYCLE}" 'live-stack-failure-diagnostics.sh'
 contains "${LIFECYCLE}" 'WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS=30'
+contains "${LIFECYCLE}" 'WEAVE_TEST_APP_FAILURE_DIAGNOSTICS_ROOT must be absolute'
+contains "${LIFECYCLE}" 'WEAVE_TEST_APP_FAILURE_DIAGNOSTICS_ROOT is unsafe'
 diagnostics_line="$(grep -nF 'bash "${FAILURE_DIAGNOSTICS}"' "${LIFECYCLE}" | cut -d: -f1)"
 teardown_line="$(grep -nF 'bash "${TEARDOWN}" test' "${LIFECYCLE}" | cut -d: -f1)"
 [[ "${diagnostics_line}" =~ ^[0-9]+$ && "${teardown_line}" =~ ^[0-9]+$ &&

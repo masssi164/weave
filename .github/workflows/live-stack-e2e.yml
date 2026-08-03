@@ -93,7 +93,7 @@ jobs:
             echo "::error::Run-scoped live evidence roots already exist." >&2
             exit 1
           }
-          install -d -m 700 "$evidence_root" "$upload_root"
+          install -d -m 700 "$evidence_root" "$upload_root" "$cleanup_root"
           expected_namespace="weave-e2e-$(printf '%s' "$WEAVE_TEST_APP_RUN_ID" | shasum -a 256 | awk '{print substr($1, 1, 16)}')"
           python3 tools/candidate_source_mapping.py \
             --repository . \
@@ -105,6 +105,7 @@ jobs:
             echo "WEAVE_LIVE_EVIDENCE_ROOT=$evidence_root"
             echo "WEAVE_LIVE_UPLOAD_ROOT=$upload_root"
             echo "WEAVE_TEST_APP_OUTPUT_ROOT=$evidence_root/test-app"
+            echo "WEAVE_TEST_APP_FAILURE_DIAGNOSTICS_ROOT=$cleanup_root/failure-diagnostics"
             echo "WEAVE_EXPECTED_E2E_NAMESPACE=$expected_namespace"
           } >> "$GITHUB_ENV"
 
@@ -289,11 +290,14 @@ jobs:
             echo "::error::The deterministic isolated namespace is invalid." >&2
             exit 1
           }
-          [[ ! -e "$CLEANUP_ROOT" ]] || {
-            echo "::error::The run-scoped cleanup evidence root already exists." >&2
+          [[ -d "$CLEANUP_ROOT" && ! -L "$CLEANUP_ROOT" ]] || {
+            echo "::error::The run-scoped cleanup evidence root is unsafe." >&2
             exit 1
           }
-          install -d -m 700 "$CLEANUP_ROOT"
+          [[ "$(stat -f '%Lp' "$CLEANUP_ROOT")" == "700" ]] || {
+            echo "::error::The run-scoped cleanup evidence root mode is unsafe." >&2
+            exit 1
+          }
           run_root="$WEAVE_TEST_APP_OUTPUT_ROOT/$namespace"
           private_env="$run_root/test.env"
           if [[ -e "$private_env" ]]; then
@@ -344,7 +348,7 @@ jobs:
             exit 1
           }
 
-      - name: Upload support-safe failure cleanup evidence
+      - name: Upload support-safe failure diagnostics and cleanup evidence
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:

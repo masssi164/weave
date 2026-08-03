@@ -128,9 +128,15 @@ def main() -> int:
         and 'label=com.docker.compose.project=$namespace' in workflow
         and workflow.count('label=com.massimotter.weave.namespace=$namespace') == 2
         and "weave-live-stack-failure-cleanup-evidence" in workflow
+        and 'install -d -m 700 "$evidence_root" "$upload_root" "$cleanup_root"'
+        in workflow
+        and 'WEAVE_TEST_APP_FAILURE_DIAGNOSTICS_ROOT=$cleanup_root/failure-diagnostics'
+        in workflow
+        and '[[ -d "$CLEANUP_ROOT" && ! -L "$CLEANUP_ROOT" ]]' in workflow
+        and 'stat -f \'%Lp\' "$CLEANUP_ROOT"' in workflow
         and '("CLEANUP_ROOT", "weave-live-stack-failure-cleanup-")'
         in workflow,
-        "workflow-level recovery must teardown and prove the exact isolated namespace absent",
+        "workflow-level recovery must retain support-safe diagnostics, teardown, and prove the exact isolated namespace absent",
     )
     for marker in (
         '"weave.test-app-product-flow/v1"',
