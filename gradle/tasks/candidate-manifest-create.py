@@ -19,8 +19,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--spec-digest", required=True)
     parser.add_argument("--build-evidence-ref", required=True)
     parser.add_argument("--keycloak-build-evidence-digest", required=True)
-    parser.add_argument("--realm-baseline-artifact", type=Path, required=True)
-    parser.add_argument("--realm-migration-bundle-artifact", type=Path, required=True)
+    parser.add_argument("--semantic-realm-source", type=Path, required=True)
+    parser.add_argument("--realm-migration-definition", type=Path, required=True)
     parser.add_argument(
         "--image",
         action="append",
@@ -61,19 +61,18 @@ def main() -> int:
             image["buildEvidenceDigest"] = args.keycloak_build_evidence_digest
         images.append(image)
     payload = {
-        "schemaVersion": "weave.release.candidate-manifest.v3",
+        "schemaVersion": "weave.release.candidate-manifest.v4",
         "supportSafe": True,
         "commit": args.commit,
         "specificationCommit": args.specification_commit,
         "specDigest": args.spec_digest,
         "buildEvidenceRef": args.build_evidence_ref,
-        "realmArtifacts": {
-            "baselineDigest": artifact_digest(
-                args.realm_baseline_artifact, "realm baseline artifact"
+        "realmDefinition": {
+            "semanticRealmSourceDigest": artifact_digest(
+                args.semantic_realm_source, "semantic realm source"
             ),
-            "migrationBundleDigest": artifact_digest(
-                args.realm_migration_bundle_artifact,
-                "realm migration bundle artifact",
+            "migrationDefinitionDigest": artifact_digest(
+                args.realm_migration_definition, "realm migration definition"
             ),
             "containsSecrets": False,
         },
