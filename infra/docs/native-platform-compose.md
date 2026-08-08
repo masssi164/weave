@@ -1,10 +1,10 @@
 # Native platform Compose status
 
 This document records the executable operator boundary for the native-provider integration
-tranche. It deliberately distinguishes what is runnable now from the remaining Keycloak bootstrap
-work. The desired single-command `docker compose --env-file .env.<environment> up -d` interface is
-not yet qualified: `compose.sh` remains required because it enforces SecretRef permissions,
-provenance labels, resource ownership, and isolated cleanup.
+tranche. The environment file is the authority for `COMPOSE_PROFILES`; the wrapper and direct
+Compose commands therefore resolve the same graph. `compose.sh` remains required for initial
+mutation because it enforces SecretRef permissions, provenance labels, resource ownership, and
+isolated cleanup.
 
 ## Authority and provider model
 
@@ -60,7 +60,7 @@ to the exact ownership-labeled namespace.
 
 ## Dogfood and production blockers
 
-The intended commands remain:
+The supported commands are:
 
 ```bash
 cd infra/weave-workspace
@@ -68,11 +68,9 @@ WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env ./compose.sh dogfood up
 WEAVE_ENV_FILE=/absolute/path/to/reviewed-prod.env ./compose.sh prod up
 ```
 
-They intentionally fail closed in this tranche. Before either command may be called runnable, the
-canonical Keycloak 26.7 File Vault must be mounted and the canonical realm import path must consume
-the direct non-secret SMTP username plus `${vault.smtp-password}`. The temporary bootstrap
-authority must also be retired or narrowed according to the pinned architecture contract. A mode
-`0600` `smtp-password` SecretRef is required; no SMTP username secret exists.
+The canonical Keycloak 26.7 File Vault is mounted by the shared Compose graph. A mode `0600`
+`smtp-password` SecretRef is required in dogfood/prod; the rendered realm import may reference it
+only through the vault alias, and no SMTP username secret exists.
 
 Do not bypass these guards by putting a password in rendered realm JSON, a Compose environment, or
 `kcadm` process arguments. Do not describe dogfood or production as ready until the Vault/import

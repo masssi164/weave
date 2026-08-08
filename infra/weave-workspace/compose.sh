@@ -11,8 +11,4 @@ if [[ $# -lt 2 ]]; then
   exit 2
 fi
 
-if [[ $1 == test ]]; then
-  printf 'WEAVE_COMPOSE_WARNING test is a deprecated CI-only compatibility selector; use dogfood or e2e\n' >&2
-fi
-
 exec python3 "${ROOT_DIR}/scripts/compose_runtime.py" --root "${ROOT_DIR}" "$@"

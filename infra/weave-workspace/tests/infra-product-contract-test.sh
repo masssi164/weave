@@ -12,7 +12,7 @@ require() { grep -Fq -- "$2" "$1" || fail "Expected $1 to contain: $2"; }
 reject() { ! grep -Fq -- "$2" "$1" || fail "Retired contract remains in $1: $2"; }
 
 for file in \
-  compose.yaml compose.dev.yaml compose.dogfood.yaml compose.e2e.yaml compose.test.yaml compose.prod.yaml compose.isolated-e2e.yaml compose.sh \
+  compose.yaml compose.dev.yaml compose.dogfood.yaml compose.e2e.yaml compose.prod.yaml compose.sh \
   environments/dogfood.env.example environments/e2e.env.example \
   scripts/compose_env.py scripts/compose_runtime.py scripts/render_config.py \
   scripts/nextcloud_reconcile.py keycloak/identity_ops.py keycloak/Dockerfile.identity-ops; do
@@ -42,12 +42,10 @@ require "${ROOT_DIR}/compose.yaml" \
   fail "identity-admin private JWK must be mounted only by Server and its one-shot initializer"
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.managed: "true"'
 require "${ROOT_DIR}/compose.dev.yaml" 'host.docker.internal:host-gateway'
-require "${ROOT_DIR}/compose.test.yaml" 'WEAVE_RELEASE_POSTURE: dogfood'
-require "${ROOT_DIR}/compose.test.yaml" 'runtime-state-init:'
 require "${ROOT_DIR}/compose.dogfood.yaml" 'WEAVE_RELEASE_POSTURE: dogfood'
 require "${ROOT_DIR}/compose.e2e.yaml" 'WEAVE_CHAT_E2E_PROOF_ENABLED: "true"'
-require "${ROOT_DIR}/compose.isolated-e2e.yaml" 'WEAVE_CHAT_E2E_PROOF_ENABLED: "true"'
-require "${ROOT_DIR}/compose.isolated-e2e.yaml" 'context-authorization-memberships.json'
+require "${ROOT_DIR}/compose.e2e.yaml" 'context-authorization-memberships.json'
+require "${ROOT_DIR}/compose.e2e.yaml" 'WEAVE_RELEASE_POSTURE: dogfood'
 require "${ROOT_DIR}/compose.yaml" 'runtime-state-volume-init:'
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.operation: volume-initialize'
 require "${ROOT_DIR}/compose.yaml" 'mc alias set -- runtime-state'

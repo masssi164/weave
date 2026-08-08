@@ -52,7 +52,8 @@ RUNTIME_ROOT_SERVICES = {
     # Normal development runs Server, MCP, and Admin Console on the host. The
     # Compose lifecycle converges only the database/Keycloak dependency path.
     "dev": ("keycloak",),
-    "test": ("caddy", "mcp"),
+    "dogfood": ("caddy", "mcp"),
+    "e2e": ("caddy", "mcp"),
     "prod": ("caddy", "mcp"),
 }
 HOST_APPLICATION_SERVICES = (
@@ -732,7 +733,10 @@ def normalized_config(context: ComposeContext, emit: bool) -> dict[str, Any]:
         raise ContractError("normalized Compose model contains a retired privileged identity control plane")
     if context.profile == "dev" and {"backend", "mcp"}.intersection(services):
         raise ContractError("dev must keep the application tier on the host")
-    if context.profile in {"test", "prod"} and not {"backend", "mcp"}.issubset(services):
+    if context.environment in {"dogfood", "e2e", "prod"} and not {
+        "backend",
+        "mcp",
+    }.issubset(services):
         raise ContractError(f"{context.profile} normalized model is missing the application tier")
     validate_mount_contract(model)
     if emit:
@@ -1022,8 +1026,8 @@ def _private_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def persistence_restart_proof(context: ComposeContext) -> None:
-    if context.profile != "test" or context.isolated_namespace is None:
-        raise ContractError("persistence-restart-proof is restricted to isolated testApp stacks")
+    if context.environment != "e2e" or context.isolated_namespace is None:
+        raise ContractError("persistence-restart-proof is restricted to isolated E2E stacks")
     evidence_value = os.environ.get("WEAVE_TEST_APP_RESTART_EVIDENCE_PATH", "")
     run_root_value = os.environ.get("WEAVE_TEST_APP_RUN_ROOT", "")
     if not evidence_value or not run_root_value:
@@ -1164,9 +1168,9 @@ def persistence_restart_proof(context: ComposeContext) -> None:
 
 
 def isolated_collaboration_control(context: ComposeContext, operation: str) -> None:
-    if context.profile != "test" or context.isolated_namespace is None:
+    if context.environment != "e2e" or context.isolated_namespace is None:
         raise ContractError(
-            "collaboration service control is restricted to isolated testApp stacks"
+            "collaboration service control is restricted to isolated E2E stacks"
         )
     deadline = time.monotonic() + COLLABORATION_CONTROL_BUDGET_SECONDS
     if operation == "stop-provider":
@@ -1328,8 +1332,8 @@ def main() -> int:
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument(
         "profile",
-        choices=("dev", "dogfood", "prod", "e2e", "test"),
-        help="operator environment (`test` is deprecated CI compatibility only)",
+        choices=("dev", "dogfood", "prod", "e2e"),
+        help="operator environment",
     )
     parser.add_argument("command", choices=COMMANDS)
     parser.add_argument("extra", nargs=argparse.REMAINDER)

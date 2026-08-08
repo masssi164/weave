@@ -21,7 +21,7 @@ import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
 import compose_runtime as compose_runtime_module  # noqa: E402
-from compose_env import ContractError, load_context  # noqa: E402
+from compose_env import ContractError, compose_environment, load_context  # noqa: E402
 from compose_runtime import (  # noqa: E402
     AGENT_RUNTIME_ROOT,
     PROFILE_SIGNING_TARGET,
@@ -70,6 +70,39 @@ def resolved_model(context) -> dict[str, object]:
         root.mkdir(parents=True, exist_ok=True)
         (root / "public.env").touch(mode=0o600)
     result = compose(context, "config", "--format", "json", capture=True)
+    return json.loads(result.stdout)
+
+
+def raw_resolved_model(context) -> dict[str, object]:
+    """Resolve the documented raw Compose command without wrapper profile flags."""
+    command = [
+        "docker",
+        "compose",
+        "--env-file",
+        str(context.common_env_file),
+        "--env-file",
+        str(context.profile_env_file),
+    ]
+    for compose_file in context.compose_files:
+        command.extend(("--file", str(compose_file)))
+    command.extend(
+        (
+            "--project-name",
+            context.env["WEAVE_COMPOSE_PROJECT"],
+            "config",
+            "--format",
+            "json",
+        )
+    )
+    assert "--profile" not in command
+    result = subprocess.run(
+        command,
+        cwd=context.root,
+        env=compose_environment(context),
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
     return json.loads(result.stdout)
 
 
@@ -628,6 +661,7 @@ def main() -> None:
     assert active_volume_keys(dev) == ("WEAVE_KEYCLOAK_DATA_VOLUME",)
     assert dev.compose_files[1].name == "compose.dev.yaml"
     dev_model = resolved_model(dev)
+    assert set(raw_resolved_model(dev)["services"]) == set(dev_model["services"])
     validate_mount_contract(dev_model)
     assert_keycloak_vault_import_boundary(dev_model, smtp_password=False)
     assert_long_running_services_reap_child_processes(dev_model)
@@ -818,16 +852,17 @@ def main() -> None:
             assert "unmanaged entries" in str(error)
         else:
             raise AssertionError("provider configtree accepted an unmanaged credential file")
-        test = load_context("test", ROOT, str(materialize_example("test", root / "test.env")))
         dogfood = load_context(
             "dogfood", ROOT, str(materialize_example("dogfood", root / "dogfood.env"))
         )
+        test = dogfood
         prod = load_context("prod", ROOT, str(materialize_example("prod", root / "prod.env")))
         assert test.env["WEAVE_DEPLOYMENT_CONTEXT"] == "persistent-dogfood"
         assert prod.env["WEAVE_DEPLOYMENT_CONTEXT"] == "production"
-        assert test.compose_files[1].name == "compose.test.yaml"
+        assert test.profile == "dogfood"
+        assert test.compose_files[1].name == "compose.dogfood.yaml"
         assert prod.compose_files[1].name == "compose.prod.yaml"
-        test_overlay = (ROOT / "compose.test.yaml").read_text(encoding="utf-8")
+        test_overlay = (ROOT / "compose.dogfood.yaml").read_text(encoding="utf-8")
         assert "  keycloak:\n" in test_overlay
         assert "    command:\n      - start\n" in test_overlay
         assert "--optimized" not in test_overlay
@@ -836,16 +871,6 @@ def main() -> None:
         backend_env = _backend_env(test)
         assert (
             f"WEAVE_API_BASE_URL={test.env['WEAVE_API_URL']}\n"
-            in backend_env
-        )
-        assert "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED=true\n" in backend_env
-        assert (
-            "WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID=weave-agent-runtime-admin\n"
-            in backend_env
-        )
-        assert (
-            "WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF="
-            "credentialref://weave/keycloak/weave-agent-runtime-admin\n"
             in backend_env
         )
         assert (
@@ -886,6 +911,12 @@ def main() -> None:
         test_model = resolved_model(test)
         dogfood_model = resolved_model(dogfood)
         prod_model = resolved_model(prod)
+        assert set(raw_resolved_model(dogfood)["services"]) == set(
+            dogfood_model["services"]
+        )
+        assert set(raw_resolved_model(prod)["services"]) == set(
+            prod_model["services"]
+        )
         assert_keycloak_vault_import_boundary(dogfood_model, smtp_password=True)
         assert_keycloak_vault_import_boundary(prod_model, smtp_password=True)
         assert_long_running_services_reap_child_processes(test_model)
@@ -919,11 +950,6 @@ def main() -> None:
         assert_schema_init_boundary(test_model)
         assert_schema_init_boundary(prod_model)
         assert_fresh_start_target_graph(dogfood_model, dogfood)
-        assert_runtime_state_boundary(
-            test_model,
-            test.env["WEAVE_RUNTIME_UID"],
-            test.env["WEAVE_RUNTIME_GID"],
-        )
         regression = json.loads(
             (
                 ROOT
@@ -949,9 +975,12 @@ def main() -> None:
         }
         try:
             os.environ.update(isolated_overrides)
-            isolated = load_context("test", ROOT, str(root / "test.env"))
+            isolated = load_context(
+                "e2e", ROOT, str(materialize_example("e2e", root / "e2e.env"))
+            )
             assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
-            assert isolated.compose_files[2].name == "compose.isolated-e2e.yaml"
+            assert isolated.profile == "e2e"
+            assert isolated.compose_files[1].name == "compose.e2e.yaml"
             assert isolated.env["WEAVE_KEYCLOAK_IMAGE"] == local_image_id
             assert isolated.env["WEAVE_RUNTIME_STATE_VOLUME"].endswith(
                 "_runtime_state"
@@ -961,6 +990,13 @@ def main() -> None:
             )
             assert _image_digest(isolated) == local_image_id
             isolated_backend_env = _backend_env(isolated)
+            assert "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED=true\n" in isolated_backend_env
+            assert "WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID=weave-agent-runtime-admin\n" in isolated_backend_env
+            assert (
+                "WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF="
+                "credentialref://weave/keycloak/weave-agent-runtime-admin\n"
+                in isolated_backend_env
+            )
             assert (
                 f"WEAVE_API_BASE_URL={isolated.env['WEAVE_API_URL']}\n"
                 in isolated_backend_env
@@ -974,10 +1010,19 @@ def main() -> None:
                 not in isolated_backend_env
             )
             assert (
-                isolated.compose_files[2].read_text(encoding="utf-8").count(
+                isolated.compose_files[1].read_text(encoding="utf-8").count(
                     "context-authorization-memberships.json"
                 )
                 == 3
+            )
+            isolated_model = resolved_model(isolated)
+            assert set(raw_resolved_model(isolated)["services"]) == set(
+                isolated_model["services"]
+            )
+            assert_runtime_state_boundary(
+                isolated_model,
+                isolated.env["WEAVE_RUNTIME_UID"],
+                isolated.env["WEAVE_RUNTIME_GID"],
             )
             assert (
                 "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF="
@@ -992,14 +1037,14 @@ def main() -> None:
             assert "keycloak-db-password" in e2e_keycloak
             assert "keycloak-bootstrap-admin-password" in e2e_keycloak
             assert "smtp-password" not in e2e_keycloak
-            os.environ["WEAVE_E2E_STACK_SCOPE"] = "persistent"
+            os.environ["WEAVE_E2E_STACK_SCOPE"] = ""
             try:
-                load_context("test", ROOT, str(root / "test.env"))
+                load_context("e2e", ROOT, str(root / "e2e.env"))
             except ContractError as error:
-                assert "WEAVE_KEYCLOAK_IMAGE" in str(error)
+                assert "e2e requires WEAVE_E2E_STACK_SCOPE=isolated" in str(error)
             else:
                 raise AssertionError(
-                    "persistent test accepted a local Keycloak image ID"
+                    "E2E accepted a non-isolated lifecycle"
                 )
         finally:
             for name, value in previous_overrides.items():
@@ -1011,7 +1056,7 @@ def main() -> None:
         assert "WEAVE_TEST_USERS_FILE" not in runtime_source
         assert "test-users.json" not in runtime_source
         assert '"dev": ("keycloak",)' in runtime_source
-        assert '"test": ("caddy", "mcp")' in runtime_source
+        assert '"e2e": ("caddy", "mcp")' in runtime_source
         assert '"prod": ("caddy", "mcp")' in runtime_source
         assert "HOST_APPLICATION_SERVICES" in runtime_source
         assert '"rm",\n                "--stop",\n                "--force",' in runtime_source
@@ -1020,27 +1065,41 @@ def main() -> None:
         assert 'script(context, "nextcloud_reconcile.py")' in runtime_source
         blocked_provider = root / "blocked-provider.env"
         blocked_provider.write_text(
-            (root / "test.env").read_text()
+            (root / "dogfood.env").read_text()
             + "\nWEAVE_CHAT_PROVIDER=matrix-synapse\n"
         )
         try:
-            load_context("test", ROOT, str(blocked_provider))
+            load_context("dogfood", ROOT, str(blocked_provider))
         except ContractError as error:
-            assert "manifest-bound Keycloak IAM migration" in str(error)
+            assert "missing provider/runtime profiles" in str(error)
         else:
             raise AssertionError("optional Matrix provider bypassed the IAM migration gate")
+        contradictory_profile = root / "contradictory-profile.env"
+        contradictory_profile.write_text(
+            (root / "dogfood.env").read_text().replace(
+                "COMPOSE_PROFILES=dogfood",
+                "COMPOSE_PROFILES=dogfood,provider-matrix",
+            )
+        )
+        try:
+            load_context("dogfood", ROOT, str(contradictory_profile))
+        except ContractError as error:
+            assert "contradict public inputs" in str(error)
+        else:
+            raise AssertionError("provider profile activated without matching provider inputs")
         invalid = root / "invalid.env"
-        invalid.write_text((root / "test.env").read_text())
+        invalid.write_text((root / "e2e.env").read_text())
         try:
             load_context("dogfood", ROOT, str(invalid))
         except ContractError:
             pass
         else:
-            raise AssertionError("public dogfood accepted legacy WEAVE_ENVIRONMENT=test")
+            raise AssertionError("dogfood accepted an E2E environment declaration")
     compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
-    assert "\n  - dogfood\n" not in compose
+    assert "\n  - dogfood\n" in compose
+    assert "\n  - e2e\n" in compose
     assert "\n  - main\n" not in compose
-    assert "\n  - test\n" in compose and "\n  - prod\n" in compose
+    assert "\n  - test\n" not in compose and "\n  - prod\n" in compose
     assert "\n  - provider-matrix\n" in compose
     assert "\n  - provider-nextcloud\n" in compose
     assert "\n  - storage-s3\n" in compose

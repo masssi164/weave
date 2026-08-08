@@ -143,7 +143,7 @@ def _expected_labels(
 ) -> dict[str, str]:
     expected = {
         "com.massimotter.weave.managed": "true",
-        "com.massimotter.weave.environment": "test",
+        "com.massimotter.weave.environment": "e2e",
         "com.massimotter.weave.namespace": context.env["WEAVE_RESOURCE_PREFIX"],
         "com.massimotter.weave.scope": "isolated",
         "com.massimotter.weave.candidate-commit": binding.candidate_commit,
@@ -399,7 +399,7 @@ def _evidence_output_path(context: ComposeContext, explicit: Path | None) -> Pat
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("test",))
+    parser.add_argument("profile", choices=("e2e",))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     parser.add_argument("--isolated", action="store_true")

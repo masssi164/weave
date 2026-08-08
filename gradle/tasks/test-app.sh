@@ -87,7 +87,7 @@ cleanup() {
   set +e
   if [[ "${STACK_PREPARED}" == "true" ]]; then
     if ((primary_status != 0)) && [[ -x "${FAILURE_DIAGNOSTICS}" ]]; then
-      WEAVE_PROFILE=test \
+      WEAVE_PROFILE=e2e \
         WEAVE_RESOURCE_PREFIX="${WEAVE_E2E_RUN_NAMESPACE}" \
         WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS=30 \
         bash "${FAILURE_DIAGNOSTICS}" \
@@ -95,7 +95,7 @@ cleanup() {
         log "WEAVE_TEST_APP_LIFECYCLE_WARNING support-safe failure diagnostics did not complete"
     fi
     WEAVE_TEARDOWN_EVIDENCE_FILE="${WEAVE_TEST_APP_TEARDOWN_EVIDENCE_PATH}" \
-      bash "${TEARDOWN}" test \
+      bash "${TEARDOWN}" e2e \
         --env-file "${WEAVE_ENV_FILE}" \
         --isolated \
         --evidence-file "${WEAVE_TEST_APP_TEARDOWN_EVIDENCE_PATH}" ||
@@ -320,8 +320,8 @@ WEAVE_KEYCLOAK_IMAGE="$(docker image inspect "${KEYCLOAK_IMAGE}" --format '{{.Id
 
 log "Starting one exact, disposable Compose test stack."
 STACK_PREPARED=true
-bash "${COMPOSE}" test up
-bash "${WORKSPACE_ROOT}/operator-check.sh" test
+bash "${COMPOSE}" e2e up
+bash "${WORKSPACE_ROOT}/operator-check.sh" e2e
 
 runtime_image_evidence_arguments=(
   --candidate-commit "${candidate_commit}"

@@ -28,19 +28,7 @@
     }
 }
 
-// Temporary task aliases for workflows that still address the old internal
-// topology profile. New operator documentation and automation must use the
-// explicit dogfood or e2e environment tasks above.
-['config', 'up', 'down'].each { operation ->
-    def operationTitle = operation.capitalize()
-    registerInfraCommandTask(
-        "composeTest${operationTitle}",
-        ['infra/weave-workspace/compose.sh', 'test', operation],
-        "Deprecated CI-only compatibility task for the internal test topology."
-    )
-}
-
-['test', 'prod'].each { profile ->
+['dogfood', 'prod'].each { profile ->
     def profileTitle = profile.capitalize()
     registerInfraCommandTask(
         "compose${profileTitle}AdoptionRehearsal",

@@ -103,7 +103,7 @@ contains "${LIFECYCLE}" 'before image build and resource creation'
 contains "${LIFECYCLE}" 'live-stack-failure-diagnostics.sh'
 contains "${LIFECYCLE}" 'WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS=30'
 diagnostics_line="$(grep -nF 'bash "${FAILURE_DIAGNOSTICS}"' "${LIFECYCLE}" | cut -d: -f1)"
-teardown_line="$(grep -nF 'bash "${TEARDOWN}" test' "${LIFECYCLE}" | cut -d: -f1)"
+teardown_line="$(grep -nF 'bash "${TEARDOWN}" e2e' "${LIFECYCLE}" | cut -d: -f1)"
 [[ "${diagnostics_line}" =~ ^[0-9]+$ && "${teardown_line}" =~ ^[0-9]+$ &&
    ${diagnostics_line} -lt ${teardown_line} ]] ||
   fail "bounded diagnostics must remain immediately before exact teardown"
@@ -145,7 +145,7 @@ contains "${CONTEXT_HELPER}" 'weave-test-app-evidence.json'
 contains "${CONTEXT_HELPER}" 'persistence-restart-evidence.json'
 contains "${CONTEXT_HELPER}" 'runtime-image-evidence.json'
 contains "${RUNTIME_CLEANUP}" 'invalid isolated namespace'
-contains "${RUNTIME_CLEANUP}" 'for generated_input in ("test.env", "hosts")'
+contains "${RUNTIME_CLEANUP}" 'for generated_input in ("e2e.env", "hosts")'
 absent "${LIFECYCLE}" 'reset-password'
 absent "${LIFECYCLE}" 'isolated-e2e-identities.sh'
 absent "${LIFECYCLE}" 'test-users.json'

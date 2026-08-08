@@ -72,7 +72,8 @@ The `infra` module owns environment and Identity Ops tasks under
 ./gradlew :infra:tasks --group "weave infrastructure"
 
 ./gradlew :infra:composeDevConfig
-./gradlew :infra:composeTestConfig
+./gradlew :infra:composeDogfoodConfig
+./gradlew :infra:composeE2eConfig
 ./gradlew :infra:composeProdConfig
 
 ./gradlew :infra:identityDevPlan

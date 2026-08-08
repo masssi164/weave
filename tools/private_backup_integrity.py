@@ -49,7 +49,7 @@ REQUIRED_ARTIFACTS = frozenset(
     )
 )
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
-BACKUP_ID_RE = re.compile(r"^weave-(test|prod)-\d{8}T\d{6}Z-[0-9a-f]{12}$")
+BACKUP_ID_RE = re.compile(r"^weave-(dogfood|prod)-\d{8}T\d{6}Z-[0-9a-f]{12}$")
 PROJECT_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,62}$")
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -174,7 +174,7 @@ def validate_backup(
         r"sha256:[0-9a-f]{64}", candidate_manifest_digest
     ):
         raise IntegrityError("backup manifest candidate manifest digest is invalid")
-    if profile not in {"test", "prod"}:
+    if profile not in {"dogfood", "prod"}:
         raise IntegrityError("backup manifest profile is invalid")
     if (
         not isinstance(backup_id, str)

@@ -24,11 +24,13 @@ x-weave-service: &weave-service
 
 x-core-profiles: &core-profiles
   - dev
-  - test
+  - dogfood
+  - e2e
   - prod
 
 x-application-profiles: &application-profiles
-  - test
+  - dogfood
+  - e2e
   - prod
 
 x-provider-matrix-profiles: &provider-matrix-profiles
@@ -1011,6 +1013,8 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-mcp-server-jwk.json
   runtime-admin-client-jwk:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin
+  identity-bootstrap-owner-token:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/identity-bootstrap-owner-token
   smtp-password:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/smtp-password
   nextcloud-client-secret:

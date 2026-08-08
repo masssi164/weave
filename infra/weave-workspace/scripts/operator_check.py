@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 from compose_env import ComposeContext, ContractError, compose_environment, load_context
 
 
-CORE_SERVICES = ("postgres", "keycloak", "mas", "synapse", "nextcloud", "caddy")
+CORE_SERVICES = ("postgres", "keycloak", "caddy")
 APPLICATION_SERVICES = ("backend", "mcp")
 ACTIVATION_SERVICES = ("mailpit",)
 
@@ -104,9 +104,13 @@ def check(
     require_application: bool,
     member_access_token_file: Path | None = None,
 ) -> dict[str, object]:
-    services = list(CORE_SERVICES)
-    if context.profile in {"dev", "test"}:
+    services = ["keycloak"] if context.environment == "dev" else list(CORE_SERVICES)
+    if "dev-tools" in context.active_profiles or context.environment == "e2e":
         services.extend(ACTIVATION_SERVICES)
+    if "provider-matrix" in context.active_profiles:
+        services.extend(("mas", "synapse"))
+    if "provider-nextcloud" in context.active_profiles:
+        services.append("nextcloud")
     if require_application:
         services.extend(APPLICATION_SERVICES)
     runtime = [_container(context, service) for service in services]
@@ -121,10 +125,15 @@ def check(
         raise ContractError("OIDC discovery issuer differs from the declared public authority")
     endpoints["oidcDiscovery"] = {"status": status, "issuerExact": True}
 
-    probes = {
-        "matrixVersions": context.env["WEAVE_MATRIX_URL"].rstrip("/") + "/_matrix/client/versions",
-        "nextcloudStatus": context.env["WEAVE_FILES_URL"].rstrip("/") + "/status.php",
-    }
+    probes: dict[str, str] = {}
+    if "provider-matrix" in context.active_profiles:
+        probes["matrixVersions"] = (
+            context.env["WEAVE_MATRIX_URL"].rstrip("/") + "/_matrix/client/versions"
+        )
+    if "provider-nextcloud" in context.active_profiles:
+        probes["nextcloudStatus"] = (
+            context.env["WEAVE_FILES_URL"].rstrip("/") + "/status.php"
+        )
     if require_application:
         probes["backendReadiness"] = context.env["WEAVE_API_URL"].rstrip("/") + "/health/ready"
     for name, url in probes.items():
@@ -145,12 +154,18 @@ def check(
             raise ContractError(f"member token did not receive HTTP 403 from admin control plane (HTTP {status})")
         endpoints["adminControlPlaneMemberDenial"] = {"status": 403, "tokenClass": "member"}
 
-    provider_evidence = context.generated_root / "nextcloud/readiness.json"
-    if provider_evidence.is_symlink() or not provider_evidence.is_file():
-        raise ContractError("Nextcloud authenticated DAV readiness evidence is missing")
-    provider = json.loads(provider_evidence.read_text(encoding="utf-8"))
-    if provider.get("ready") is not True or provider.get("supportSafe") is not True:
-        raise ContractError("Nextcloud authenticated DAV provider evidence is unsuccessful")
+    provider_evidence_ref: str | None = None
+    if "provider-nextcloud" in context.active_profiles:
+        provider_evidence = context.generated_root / "nextcloud/readiness.json"
+        if provider_evidence.is_symlink() or not provider_evidence.is_file():
+            raise ContractError("Nextcloud authenticated DAV readiness evidence is missing")
+        provider = json.loads(provider_evidence.read_text(encoding="utf-8"))
+        if provider.get("ready") is not True or provider.get("supportSafe") is not True:
+            raise ContractError("Nextcloud authenticated DAV provider evidence is unsuccessful")
+        provider_evidence_ref = (
+            "evidence:nextcloud-provider-readiness:"
+            + context.env["WEAVE_COMPOSE_PROJECT"]
+        )
 
     return {
         "schemaVersion": "weave.compose-operator-readiness.v1",
@@ -159,7 +174,7 @@ def check(
         "checkedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "services": runtime,
         "endpoints": endpoints,
-        "providerEvidenceRef": "evidence:nextcloud-provider-readiness:" + context.env["WEAVE_COMPOSE_PROJECT"],
+        "providerEvidenceRef": provider_evidence_ref,
         "containsSecretValues": False,
         "supportSafe": True,
         "ready": True,
@@ -176,7 +191,7 @@ def _write(path: Path, value: dict[str, object]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e", "test"))
+    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     parser.add_argument("--require-application", action="store_true")

@@ -28,10 +28,10 @@ class SupportBundleContractTest(unittest.TestCase):
         self.output = base / "output"
         self.generated.mkdir()
         self.context = SimpleNamespace(
-            profile="test",
+            profile="e2e",
             generated_root=self.generated,
             env={
-                "WEAVE_COMPOSE_PROJECT": "weave-test",
+                "WEAVE_COMPOSE_PROJECT": "weave-e2e",
                 "WEAVE_ADMIN_CONSOLE_URL": "https://admin.weave.test:44443",
                 "WEAVE_PROVIDER_PROFILE": "sovereign-default",
                 "WEAVE_SECRET_VALUE": "must-never-appear",

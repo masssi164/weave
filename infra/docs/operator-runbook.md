@@ -297,7 +297,7 @@ Use the least destructive action that solves the problem:
    sequence. Require the second plan to be empty.
 3. **Rollback:** restore the previous coherent application image set and control/data snapshot under
    the reviewed release procedure. Do not rely on old/new API coexistence.
-4. **Isolated E2E cleanup only:** `teardown.sh test --isolated` requires the deterministic run
+4. **Isolated E2E cleanup only:** `teardown.sh e2e --isolated` requires the deterministic run
    namespace, exact ownership labels, exact candidate, identity evidence, and explicit volume-removal
    confirmation. It refuses persistent resources and any label mismatch.
 

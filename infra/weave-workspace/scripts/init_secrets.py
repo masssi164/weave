@@ -389,7 +389,7 @@ def _validate_existing(context: ComposeContext) -> None:
     if storage_s3_selected:
         required.extend(S3_TEXT_SECRETS)
         required.extend(MINIO_ACCESS_KEY_SECRETS)
-    if context.environment in {"e2e", "test"}:
+    if context.environment == "e2e":
         required.extend(TEST_ONLY_SECRETS)
     if context.environment in {"dogfood", "prod"}:
         required.extend(SMTP_SECRETS)
@@ -499,7 +499,7 @@ def initialize(context: ComposeContext) -> None:
             _atomic_write(context.secret_root / name, _random_secret())
         for name in MINIO_ACCESS_KEY_SECRETS:
             _atomic_write(context.secret_root / name, _random_minio_access_key())
-    if context.environment in {"e2e", "test"}:
+    if context.environment == "e2e":
         for name in TEST_ONLY_SECRETS:
             _atomic_write(context.secret_root / name, _random_secret())
     for name, kid in RSA_JWKS:
@@ -543,7 +543,7 @@ def initialize(context: ComposeContext) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e", "test"))
+    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     args = parser.parse_args()

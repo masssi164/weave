@@ -121,7 +121,7 @@ write_operator_check() {
   local status_target="$2"
   mkdir -p "$(dirname -- "${target}")"
   set +e
-  bash "${ROOT_DIR}/operator-check.sh" "${WEAVE_PROFILE:-test}" 2>&1 | redact_stream >"${target}"
+  bash "${ROOT_DIR}/operator-check.sh" "${WEAVE_PROFILE:-e2e}" 2>&1 | redact_stream >"${target}"
   local status=${PIPESTATUS[0]}
   set -e
   printf '%s\n' "${status}" >"${status_target}"
@@ -198,7 +198,7 @@ write_support_bundle() {
   set +e
   WEAVE_SUPPORT_BUNDLE_RUN_CHECKS=true \
     WEAVE_SUPPORT_BUNDLE_LOG_LINES="${WEAVE_LIVE_STACK_SUPPORT_BUNDLE_LOG_LINES:-80}" \
-    bash "${ROOT_DIR}/support-bundle.sh" "${WEAVE_PROFILE:-test}" "${target_dir}" >"${target_dir}/support-bundle-command.txt" 2>&1
+    bash "${ROOT_DIR}/support-bundle.sh" "${WEAVE_PROFILE:-e2e}" "${target_dir}" >"${target_dir}/support-bundle-command.txt" 2>&1
   local status=$?
   set -e
   redact_stream <"${target_dir}/support-bundle-command.txt" |

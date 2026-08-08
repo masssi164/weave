@@ -1,16 +1,23 @@
-# Disposable E2E-only overlay. The run namespace, project, resources, ports,
-# SecretRefs, and generated root are computed from WEAVE_E2E_RUN_ID before
-# Compose renders this file. The proof surface must never enter dogfood/prod.
+# Disposable E2E-only overlay. It owns its application/runtime settings
+# directly and never inherits the persistent dogfood overlay. The run
+# namespace, resources, ports, SecretRefs, and generated root are computed
+# from WEAVE_E2E_RUN_ID before Compose renders this file.
 services:
   keycloak:
-    # E2E inherits the dogfood process topology but must never inherit its
-    # production SMTP credential mount.
+    command:
+      - start
+      - --import-realm
     secrets: !override
       - keycloak-db-password
       - keycloak-bootstrap-admin-password
 
+  mailpit:
+    environment:
+      MP_SMTP_REQUIRE_TLS: "true"
+
   backend:
     environment:
+      WEAVE_RELEASE_POSTURE: dogfood
       WEAVE_CHAT_E2E_PROOF_ENABLED: "true"
       WEAVE_CHAT_E2E_PROOF_TOKEN_FILE: /run/secrets/weave/chat-e2e-proof-token
       WEAVE_CHAT_E2E_PROOF_RUN_ID: ${WEAVE_E2E_RUN_ID:?isolated run ID is required}

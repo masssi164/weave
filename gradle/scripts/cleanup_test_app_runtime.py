@@ -42,7 +42,7 @@ def main() -> int:
             raise SystemExit(
                 "WEAVE_TEST_APP_CLEANUP_ERROR run-output target is not a directory"
             )
-        for generated_input in ("test.env", "hosts"):
+        for generated_input in ("e2e.env", "hosts"):
             candidate = run_root / generated_input
             if candidate.is_symlink():
                 raise SystemExit(

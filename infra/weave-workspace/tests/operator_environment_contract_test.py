@@ -72,7 +72,7 @@ def main() -> int:
         with process_environment():
             dogfood = load_context("dogfood", ROOT, str(dogfood_env))
         assert dogfood.environment == "dogfood"
-        assert dogfood.profile == "test"  # transitional implementation detail
+        assert dogfood.profile == "dogfood"
         assert [path.name for path in dogfood.compose_files] == [
             "compose.yaml",
             "compose.dogfood.yaml",
@@ -94,10 +94,9 @@ def main() -> int:
         ):
             e2e = load_context("e2e", ROOT, str(e2e_env))
         assert e2e.environment == "e2e"
-        assert e2e.profile == "test"  # transitional implementation detail
+        assert e2e.profile == "e2e"
         assert [path.name for path in e2e.compose_files] == [
             "compose.yaml",
-            "compose.dogfood.yaml",
             "compose.e2e.yaml",
         ]
         assert e2e.env["WEAVE_RESOURCE_ENVIRONMENT"] == "e2e"
@@ -107,15 +106,14 @@ def main() -> int:
         assert e2e.env["WEAVE_COMPOSE_PROJECT"] != dogfood.env["WEAVE_COMPOSE_PROJECT"]
         assert e2e.generated_root != dogfood.generated_root
 
-        # Runtime helpers receive the already-normalized public context and
-        # re-enter through the internal `test` selector. Docker-assigned zero
-        # ports must remain valid across that second normalization.
+        # Runtime helpers re-enter through the same public E2E environment.
+        # Docker-assigned zero ports remain valid across normalization.
         with process_environment(
             **e2e.env,
             WEAVE_E2E_STACK_SCOPE="isolated",
             WEAVE_E2E_RUN_ID="contract-run-001",
         ):
-            inner_e2e = load_context("test", ROOT, str(e2e_env))
+            inner_e2e = load_context("e2e", ROOT, str(e2e_env))
         assert inner_e2e.environment == "e2e"
         assert inner_e2e.env["WEAVE_PROXY_HTTPS_HOST_PORT"] == "0"
 
@@ -136,10 +134,10 @@ def main() -> int:
                 "isolated E2E uses the e2e environment",
             )
 
-        legacy_value = temporary / "legacy-test.env"
+        legacy_value = temporary / "mismatched-environment.env"
         legacy_value.write_text(
             dogfood_env.read_text(encoding="utf-8").replace(
-                "WEAVE_ENVIRONMENT=dogfood", "WEAVE_ENVIRONMENT=test"
+                "WEAVE_ENVIRONMENT=dogfood", "WEAVE_ENVIRONMENT=e2e"
             ),
             encoding="utf-8",
         )
@@ -166,7 +164,8 @@ def main() -> int:
 
     shell_source = (ROOT / "compose.sh").read_text(encoding="utf-8")
     assert "<dev|dogfood|prod|e2e>" in shell_source
-    assert "deprecated CI-only compatibility selector" in shell_source
+    assert "deprecated CI-only compatibility selector" not in shell_source
+    assert "test" not in shell_source
 
     print("operator environment contract: PASS")
     return 0
