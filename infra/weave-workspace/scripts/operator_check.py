@@ -105,7 +105,7 @@ def check(
     member_access_token_file: Path | None = None,
 ) -> dict[str, object]:
     services = list(CORE_SERVICES)
-    if context.profile in {"dev", "test"}:
+    if context.environment in {"dogfood", "e2e"} or "dev-tools" in context.active_profiles:
         services.extend(ACTIVATION_SERVICES)
     if require_application:
         services.extend(APPLICATION_SERVICES)
@@ -176,7 +176,7 @@ def _write(path: Path, value: dict[str, object]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e", "test"))
+    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     parser.add_argument("--require-application", action="store_true")

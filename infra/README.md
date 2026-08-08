@@ -69,7 +69,7 @@ For a real single-host deployment, start here:
 - [Matrix/Synapse southbound Chat Application Service](docs/matrix-synapse-chat-appservice.md): private provider credential, namespace, callback, backup/restore, and isolated proof boundaries.
 - [Weaver runtime lifecycle](docs/weaver-runtime-lifecycle.md): Agent Runtime Control cell lifecycle, signed RuntimeProfile v2 input, zero durable cell-byte boundary, external encrypted state, per-cell Keycloak workload identity, and deletion evidence.
 - [Weave MCP workload contract](docs/weave-mcp-tool-contract.md): Spring AI transport, workload-only OIDC admission, protected-resource discovery, token exchange, current ARC context, and fail-closed empty catalogs.
-- [Identity environment parity](docs/identity-environment-parity.md): one stock-Keycloak/Identity-Ops model across test and production, plus the iPhone Mailpit verification boundary.
+- [Identity environment parity](docs/identity-environment-parity.md): one Keycloak identity behavior across dogfood and production, plus the persistent dogfood iPhone/Mailpit verification boundary.
 
 After installation, verify public and host-local state:
 
@@ -85,7 +85,7 @@ Default local names resolve to loopback; non-local installs derive the same patt
 - `https://<tenant_domain>`: Weave product gateway, including `/files` and `/calendar` product routes.
 - `https://api.<tenant_domain>/api`: canonical backend API origin.
 - `https://auth.<tenant_domain>`: Keycloak.
-- `https://mail.<tenant_domain>`: private-CIDR test deployment Mailpit inbox only; absent in production.
+- `https://mail.<tenant_domain>`: private-CIDR dogfood Mailpit inbox; absent in production.
 - `https://matrix.<tenant_domain>`: Matrix/Synapse/MAS behind the matrix hostname.
 - `https://files.<tenant_domain>`: raw Nextcloud technical/admin/protocol fallback.
 
@@ -123,7 +123,7 @@ Optional providers are fail-closed by default:
 - `weave-workspace/operator-check.sh`: host-local container and health checks.
 - `../gradle/tasks/test-app.sh`: the single run-scoped invitation, Keycloak activation, PKCE, WebDAV, ARC, MCP, revocation, and cleanup proof.
 - `weave-workspace/isolated-e2e-calendar-outage.sh`: isolated-only Calendar outage/recovery fixture that deletes only the backend actor's disposable `weave-workspace` calendar and proves cached domain-local degradation while Files stays available.
-- `weave-workspace/persistent-dogfood-observation.sh`: read-only before/after hashes and counts for non-destructive persistent dogfood deployment evidence.
+- `weave-workspace/persistent-dogfood-observation.sh`: read-only before/after subject, Mailpit, TLS, and session hashes/counts for non-destructive persistent dogfood deployment evidence.
 - `weave-workspace/nextcloud-auth-security-audit.sh`: support-safe classification of recent invalid-authentication/throttle sources without counter reset or raw addresses.
 - `weave-workspace/backup.sh`, `adoption-rehearsal.sh`, `restore-private-backup.sh`, and `support-bundle.sh`: private consistency backup, isolated adoption proof, integrity-only guarded restore preflight, and support-safe diagnostics.
 - `weave-workspace/weave-mcp-tool-contract.json`: support-safe canonical domain contract and active Spring AI MCP runtime evidence.
@@ -148,9 +148,10 @@ WEAVE_E2E_STACK_SCOPE=isolated WEAVE_E2E_RUN_ID=<unique-run-id> \
 ```
 
 The environment value is explicit and independent of the Git branch. `dogfood` is persistent;
-`e2e` is always disposable and run-unique. The old `test` selector and Gradle task aliases remain
-only so pre-existing CI can address the transitional application topology while the server-owned
-Matrix/Nextcloud/Identity Ops removal lands. New operator automation must not use them.
+`e2e` is always disposable and run-unique. The reviewed environment file is authoritative for
+`COMPOSE_PROFILES`; there is no second internal topology selector. Defaults select exactly the
+matching environment. A private dev environment may select `dev,dev-tools` to add Mailpit;
+dogfood and prod do not include Mailpit, while E2E includes it through the `e2e` profile.
 
 Compose itself remains the lifecycle engine. After the safety wrapper has created the protected
 SecretRefs, rendered configuration, and ownership-labeled external resources, read-only lifecycle
@@ -164,11 +165,10 @@ docker compose \
   --file compose.yaml \
   --file compose.dogfood.yaml \
   --project-name weave-dogfood \
-  --profile test ps
+  ps
 ```
 
-The final `--profile test` is a documented internal compatibility detail, not an environment
-choice. Use `compose.sh <environment> up/down` for mutation because that narrow wrapper still owns
+Use `compose.sh <environment> up/down` for mutation because that narrow wrapper still owns
 SecretRef permissions, provenance labels, resource adoption checks, identity reconciliation, and
 exact isolated cleanup. It does not select an environment from a branch.
 
@@ -197,10 +197,10 @@ bash weave-workspace/backup.sh dogfood
 
 ```sh
 WEAVE_RESTORE_PREFLIGHT_ONLY=true \
-bash weave-workspace/restore-private-backup.sh /var/backups/weave/<weave-test-timestamp-sha>
+bash weave-workspace/restore-private-backup.sh /var/backups/weave/<weave-dogfood-timestamp-sha>
 ```
 
-Direct restore apply remains `Guarded` until the reviewed Compose/control-store restore workflow has destructive rehearsal evidence. `adoption-rehearsal.sh test` is the one-time former-runtime adoption proof; it backs up the running stack and verifies database plus volume restoration in an isolated namespace before any existing persistent resource receives Compose ownership labels.
+Direct restore apply remains `Guarded` until the reviewed Compose/control-store restore workflow has destructive rehearsal evidence. `adoption-rehearsal.sh dogfood` is the one-time former-runtime adoption proof; it backs up the running stack and verifies database plus volume restoration in an isolated namespace before any existing persistent resource receives Compose ownership labels.
 
 - Create a redacted diagnostics bundle before sharing logs manually:
 

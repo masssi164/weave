@@ -427,8 +427,8 @@
           "fragments": [
             "Pending-identity retirement is guarded.",
             "acknowledge-recovery-is-guarded",
-            "test-profile Identity Ops authority",
-            "isolated backup/restore rehearsal"
+            "isolated e2e clone of the dogfood identity topology",
+            "private backup plus exact cleanup"
           ]
         }
       ]

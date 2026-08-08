@@ -9,9 +9,6 @@ readonly PROFILE="${1:-dev}"
 
 case "${PROFILE}" in
   dev|dogfood|prod|e2e) ;;
-  test)
-    printf 'WEAVE_INSTALL_WARNING test is deprecated CI compatibility; use dogfood or e2e\n' >&2
-    ;;
   *)
     printf 'WEAVE_INSTALL_ERROR environment must be dev, dogfood, prod, or e2e\n' >&2
     exit 2

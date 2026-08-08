@@ -145,6 +145,7 @@ def assemble(
         raise ManifestError("Fresh Start cut report is unsafe, stale, or incomplete")
     if (
         idempotence.get("schemaVersion") != "weave.persistent-test-idempotence.v2"
+        or idempotence.get("runtimeProfile") != "dogfood"
         or idempotence.get("deploymentContext") != "persistent-dogfood"
         or idempotence.get("noChanges") is not True
         or idempotence.get("composeModelStable") is not True

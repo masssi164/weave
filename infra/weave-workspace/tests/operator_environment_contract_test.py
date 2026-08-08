@@ -20,7 +20,7 @@ from compose_env import (  # noqa: E402
     OPERATOR_ENVIRONMENTS,
     load_context,
 )
-from compose_runtime import RUNTIME_ROOT_SERVICES  # noqa: E402
+from compose_runtime import RUNTIME_ROOT_SERVICES, runtime_root_services  # noqa: E402
 
 
 @contextmanager
@@ -67,12 +67,13 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as directory:
         temporary = Path(directory)
         dogfood_env = materialize_example("dogfood", temporary / "dogfood.env")
+        prod_env = materialize_example("prod", temporary / "prod.env")
         e2e_env = materialize_example("e2e", temporary / "e2e.env")
 
         with process_environment():
             dogfood = load_context("dogfood", ROOT, str(dogfood_env))
         assert dogfood.environment == "dogfood"
-        assert dogfood.profile == "test"  # transitional implementation detail
+        assert dogfood.profile == "dogfood"
         assert [path.name for path in dogfood.compose_files] == [
             "compose.yaml",
             "compose.dogfood.yaml",
@@ -82,6 +83,23 @@ def main() -> int:
         assert dogfood.env["WEAVE_COMPOSE_PROJECT"] == "weave-dogfood"
         assert dogfood.compose_base_command.count("--env-file") == 2
         assert str(dogfood_env.resolve()) in dogfood.compose_base_command
+
+        for environment, source in (("dogfood", dogfood_env), ("prod", prod_env)):
+            invalid_optional = temporary / f"{environment}-dev-tools.env"
+            invalid_optional.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    f"COMPOSE_PROFILES={environment}",
+                    f"COMPOSE_PROFILES={environment},dev-tools",
+                ),
+                encoding="utf-8",
+            )
+            with process_environment():
+                expect_contract_error(
+                    lambda environment=environment, invalid_optional=invalid_optional: load_context(
+                        environment, ROOT, str(invalid_optional)
+                    ),
+                    "optional COMPOSE_PROFILES are supported only for dev",
+                )
 
         expect_contract_error(
             lambda: load_context("e2e", ROOT, str(e2e_env)),
@@ -94,10 +112,9 @@ def main() -> int:
         ):
             e2e = load_context("e2e", ROOT, str(e2e_env))
         assert e2e.environment == "e2e"
-        assert e2e.profile == "test"  # transitional implementation detail
+        assert e2e.profile == "e2e"
         assert [path.name for path in e2e.compose_files] == [
             "compose.yaml",
-            "compose.dogfood.yaml",
             "compose.e2e.yaml",
         ]
         assert e2e.env["WEAVE_RESOURCE_ENVIRONMENT"] == "e2e"
@@ -124,10 +141,10 @@ def main() -> int:
                 "isolated E2E uses the e2e environment",
             )
 
-        legacy_value = temporary / "legacy-test.env"
+        legacy_value = temporary / "mismatched-environment.env"
         legacy_value.write_text(
             dogfood_env.read_text(encoding="utf-8").replace(
-                "WEAVE_ENVIRONMENT=dogfood", "WEAVE_ENVIRONMENT=test"
+                "WEAVE_ENVIRONMENT=dogfood", "WEAVE_ENVIRONMENT=e2e"
             ),
             encoding="utf-8",
         )
@@ -141,12 +158,53 @@ def main() -> int:
     assert dev.environment == "dev"
     assert dev.profile == "dev"
     assert RUNTIME_ROOT_SERVICES["dev"] == ("keycloak",)
+    assert RUNTIME_ROOT_SERVICES["dogfood"] == ("caddy", "mailpit", "mcp")
+    assert runtime_root_services(dev) == ("keycloak",)
+    with tempfile.TemporaryDirectory() as directory:
+        dev_tools_env = Path(directory) / "dev-tools.env"
+        dev_tools_env.write_text(
+            dev.profile_env_file.read_text(encoding="utf-8").replace(
+                "COMPOSE_PROFILES=dev", "COMPOSE_PROFILES=dev,dev-tools"
+            ),
+            encoding="utf-8",
+        )
+        dev_tools = load_context("dev", ROOT, str(dev_tools_env))
+    assert dev_tools.active_profiles == ("dev", "dev-tools")
+    assert runtime_root_services(dev_tools) == ("keycloak", "mailpit")
     runtime_source = (ROOT / "scripts" / "compose_runtime.py").read_text(encoding="utf-8")
     assert 'if context.environment != "dev":\n            script(context, "nextcloud_reconcile.py")' in runtime_source
 
     shell_source = (ROOT / "compose.sh").read_text(encoding="utf-8")
     assert "<dev|dogfood|prod|e2e>" in shell_source
-    assert "deprecated CI-only compatibility selector" in shell_source
+    assert "deprecated CI-only compatibility selector" not in shell_source
+    assert "test" not in shell_source
+
+    repository = ROOT.parents[1]
+    for workflow_name in ("test-stack-deploy.yml", "human-testing-readiness.yml"):
+        workflow = (repository / ".github/workflows" / workflow_name).read_text(
+            encoding="utf-8"
+        )
+        assert 'load_context("test"' not in workflow
+        assert "./compose.sh test " not in workflow
+        assert "./operator-check.sh test" not in workflow
+        assert "./install.sh test" not in workflow
+    for module in ("server", "weave-mcp-server"):
+        resource_root = repository / module / "src/main/resources"
+        for environment in ("dogfood", "e2e"):
+            profile = (resource_root / f"application-{environment}.yml").read_text(
+                encoding="utf-8"
+            )
+            assert f"on-profile: {environment}" in profile
+            assert f"profile: {environment}" in profile
+            assert "org.postgresql.Driver" in profile
+
+    dogfood_example = (ROOT / "environments/dogfood.env.example").read_text(
+        encoding="utf-8"
+    )
+    assert "WEAVE_MAILPIT_IMAGE=" in dogfood_example
+    assert "WEAVE_MAILPIT_DATA_VOLUME=" in dogfood_example
+    assert "WEAVE_MAILPIT_REQUIRE_TLS=true" in dogfood_example
+    assert "WEAVE_SMTP_" not in dogfood_example
 
     print("operator environment contract: PASS")
     return 0

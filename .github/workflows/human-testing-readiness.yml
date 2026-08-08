@@ -50,7 +50,7 @@ jobs:
       IOS_RUN_ID: ${{ inputs.ios_run_id }}
       PHYSICAL_EVIDENCE_RUN_ID: ${{ inputs.physical_evidence_run_id }}
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
-      WEAVE_ENV_FILE: ${{ vars.WEAVE_TEST_REVIEWED_ENV_FILE || vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE || vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
       WEAVE_E2E_STACK_SCOPE: persistent
     steps:
       - name: Validate immutable input shapes
@@ -298,9 +298,9 @@ jobs:
           if (not reviewed.is_absolute() or reviewed.is_symlink() or not reviewed.is_file()
                   or metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o600):
               raise SystemExit("reviewed dogfood environment must be a runner-owned regular mode-0600 file")
-          context = load_context("test", Path("."), str(reviewed))
+          context = load_context("dogfood", Path("."), str(reviewed))
           if context.env["WEAVE_DEPLOYMENT_CONTEXT"] != "persistent-dogfood":
-              raise SystemExit("final health proof requires test + persistent-dogfood")
+              raise SystemExit("final health proof requires the dogfood environment and persistent-dogfood context")
           print(context.env["WEAVE_COMPOSE_PROJECT"])
           print(context.env["WEAVE_BACKEND_HOST_PORT"])
           PY
@@ -318,7 +318,7 @@ jobs:
             expected="$(jq -er --arg name "$runtime_name" '.images[$name].expectedImageId' "$manifest")"
             reference="$(jq -er --arg name "$runtime_name" '.images[$name].reference' "$manifest")"
             if [[ -n "$service" ]]; then
-              container="$(cd infra/weave-workspace && ./compose.sh test ps -q "$service")"
+              container="$(cd infra/weave-workspace && ./compose.sh dogfood ps -q "$service")"
               [[ -n "$container" && "$(wc -l <<<"$container" | tr -d ' ')" == 1 ]] || {
                 echo "::error::Persistent service ${service} does not resolve to exactly one container." >&2
                 return 1

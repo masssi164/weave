@@ -34,5 +34,5 @@ jobs:
             echo "::error::The guarded recovery acknowledgement was not supplied." >&2
             exit 1
           }
-          echo "::error::Pending-identity retirement is guarded. The retired root supervisor, sanitizer image, custom Keycloak provider JAR, and dogfood runtime profile are not valid recovery authorities. Use normal invitation resend and authenticated session reconciliation where applicable. A destructive retirement workflow may return only after it is implemented through the test-profile Identity Ops authority and proves isolated backup/restore rehearsal." >&2
+          echo "::error::Pending-identity retirement is guarded. The retired root supervisor, sanitizer image, and custom Keycloak provider JAR are not valid recovery authorities. Use normal invitation resend and authenticated session reconciliation where applicable. A destructive retirement workflow may return only after it is implemented against an isolated e2e clone of the dogfood identity topology and proves private backup plus exact cleanup; it must never mutate persistent dogfood as a recovery shortcut." >&2
           exit 1

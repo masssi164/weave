@@ -22,6 +22,10 @@ renderer = (root / "scripts/render_config.py").read_text(encoding="utf-8")
 assert "handle @synapse {{ reverse_proxy synapse:8008 }}" not in renderer
 assert "handle {{ reverse_proxy mas:8080 }}" not in renderer
 assert render_config._gateway_site("https://api.weave.test:44443") == "https://api.weave.test"
+assert 'mail.{env[\'WEAVE_TENANT_DOMAIN\']}' in renderer
+assert '@private_network remote_ip private_ranges' in renderer
+assert 'reverse_proxy mailpit:8025' in renderer
+assert 'if context.environment in {"dogfood", "e2e"}:' in renderer
 assert """  handle @synapse {{
     reverse_proxy synapse:8008
   }}

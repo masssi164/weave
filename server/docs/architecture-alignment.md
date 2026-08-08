@@ -50,7 +50,7 @@ Owns product-language acceptance contracts:
 - Boards/Tasks is an active v0.1 workspace surface behind backend facade, runtime, authorization, and audit gates.
 - OpenProject is the first provider-backed workspace-sync validation path, not the visible product UX and not a direct client dependency.
 - Provider writes remain disabled/fail-closed unless a later promotion proves authorization, user consent, audit publication, support-bundle redaction, and rollback behavior.
-- Infrastructure docs and workflows must describe `dev`, `test`, and `prod` as the runtime/application profiles, independently from the `dev`, `dogfood`, and `main` Git delivery lanes. Keycloak baseline changes run only through infra-owned rootless one-shot Identity Ops and the matching official `kcadm`; the server may review desired state but never apply it live.
+- Infrastructure docs and workflows must describe `dev`, `dogfood`, `prod`, and `e2e` as the explicit operator/application environments, independently from the `dev`, `dogfood`, and `main` Git delivery lanes. Keycloak baseline changes currently run only through the infra-owned transitional one-shot authority; dynamic product identity lifecycle remains server-owned.
 
 ## Historical gaps that this model closes
 

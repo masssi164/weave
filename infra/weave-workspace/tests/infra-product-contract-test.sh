@@ -12,7 +12,7 @@ require() { grep -Fq -- "$2" "$1" || fail "Expected $1 to contain: $2"; }
 reject() { ! grep -Fq -- "$2" "$1" || fail "Retired contract remains in $1: $2"; }
 
 for file in \
-  compose.yaml compose.dev.yaml compose.dogfood.yaml compose.e2e.yaml compose.test.yaml compose.prod.yaml compose.isolated-e2e.yaml compose.sh \
+  compose.yaml compose.dev.yaml compose.dogfood.yaml compose.e2e.yaml compose.prod.yaml compose.sh \
   environments/dogfood.env.example environments/e2e.env.example \
   scripts/compose_env.py scripts/compose_runtime.py scripts/render_config.py \
   scripts/nextcloud_reconcile.py keycloak/identity_ops.py keycloak/Dockerfile.identity-ops; do
@@ -38,12 +38,10 @@ require "${ROOT_DIR}/compose.yaml" \
   'target: weave/spring.security.oauth2.client.registration.weave-identity-admin.client-secret'
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.managed: "true"'
 require "${ROOT_DIR}/compose.dev.yaml" 'host.docker.internal:host-gateway'
-require "${ROOT_DIR}/compose.test.yaml" 'WEAVE_RELEASE_POSTURE: dogfood'
-require "${ROOT_DIR}/compose.test.yaml" 'runtime-state-init:'
 require "${ROOT_DIR}/compose.dogfood.yaml" 'WEAVE_RELEASE_POSTURE: dogfood'
 require "${ROOT_DIR}/compose.e2e.yaml" 'WEAVE_CHAT_E2E_PROOF_ENABLED: "true"'
-require "${ROOT_DIR}/compose.isolated-e2e.yaml" 'WEAVE_CHAT_E2E_PROOF_ENABLED: "true"'
-require "${ROOT_DIR}/compose.isolated-e2e.yaml" 'context-authorization-memberships.json'
+require "${ROOT_DIR}/compose.e2e.yaml" 'context-authorization-memberships.json'
+require "${ROOT_DIR}/compose.e2e.yaml" 'WEAVE_RELEASE_POSTURE: dogfood'
 require "${ROOT_DIR}/compose.yaml" 'runtime-state-volume-init:'
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.operation: volume-initialize'
 require "${ROOT_DIR}/compose.yaml" 'mc alias set -- runtime-state'
@@ -67,6 +65,8 @@ require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'FROM ${WEAVE_KEYCLOAK_BA
 require "${ROOT_DIR}/scripts/build_keycloak_image.py" 'STOCK_KEYCLOAK_REFERENCE ='
 require "${ROOT_DIR}/scripts/build_keycloak_image.py" '"weave.downstream-keycloak-image.v1"'
 require "${ROOT_DIR}/keycloak/Dockerfile.runtime" 'com.massimotter.weave.keycloak-patch-sha256'
+require "${ROOT_DIR}/keycloak/Dockerfile.runtime" 'kc.sh build --db=postgres --vault=file'
+require "${ROOT_DIR}/compose.prod.yaml" 'target: /opt/keycloak/vault/weave_smtp-password'
 reject "${ROOT_DIR}/scripts/build_identity_ops_image.py" 'com.massimotter.weave.component=keycloak-identity-ops'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'ordinary reconciliation refuses an implicit rotation'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'

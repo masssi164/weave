@@ -15,9 +15,11 @@ repository `AGENTS.md` files. Do not reintroduce executable OpenTofu/Terraform, 
   host. Only the host server may use H2 for the fast development loop.
 - `dogfood` and `prod` are persistent application-tier deployments. `e2e` is disposable and must
   use a run-unique Compose project, resource namespace, generated root, SecretRef root, and ports.
-- The internal Compose profile name `test` remains temporarily for existing CI and for executable
-  Matrix/Nextcloud/Identity Ops dependencies. It is not an operator environment and must not
-  appear in new commands, env files, evidence labels, or documentation.
+- `COMPOSE_PROFILES` in the reviewed environment file selects exactly one matching environment
+  profile. Development may additionally select `dev-tools` for Mailpit; dogfood, prod, and E2E
+  reject optional profiles. The transitional Matrix, Nextcloud, RuntimeState, and Identity Ops
+  dependencies remain in the existing graph until their owning migration tranches remove or
+  optionalize them.
 - Public deployment coordinates live in reviewed environment files. Credentials are individual
   mode-0600 files below `WEAVE_SECRET_ROOT`; never place secret values in env files, Compose
   models, evidence, logs, or support bundles.

@@ -26,16 +26,23 @@ Weaver capability remain orthogonal.
 
 ## Exact runtime profiles
 
-The only runtime/application profiles are:
+The only operator/application environments are:
 
-- `dev`: local provider dependencies; Spring Boot runs on the host with H2.
-- `test`: integrated application and providers with PostgreSQL; disposable E2E or a separately
-  reviewed persistent test deployment.
-- `prod`: release-capable integrated topology with protected, externally supplied coordinates and
-  secrets.
+- `dev`: required local infrastructure; Spring Boot applications run on the host with H2.
+- `dogfood`: persistent production-shaped application topology with PostgreSQL and protected
+  dogfood inputs.
+- `prod`: release-capable topology with PostgreSQL and protected production inputs.
+- `e2e`: disposable production-shaped verification with a run-unique namespace and PostgreSQL.
 
-`dev`, `dogfood`, and `main` may still name Git delivery lanes. Delivery lanes are not runtime
-profiles and must not be passed to Compose, Spring, Identity Ops, backup, or teardown commands.
+`dev`, `dogfood`, and `main` may still name Git delivery lanes. A workflow always selects an
+operator environment explicitly; the Git ref never selects Compose or Spring behavior.
+
+Dogfood uses its private persistent Mailpit instance over implicit TLS so the initial invitation,
+required-action, and email-verification flow remains inspectable on the reviewed LAN. It carries no
+SMTP credential. Production uses reviewed external implicit-TLS SMTP: the username is a non-secret
+environment coordinate and the password is an operator-owned mode-`0600` SecretRef mounted only
+into Keycloak File Vault as `weave_smtp-password`. Declarative production realm state carries only
+`${vault.smtp-password}` and never a rendered credential value.
 
 ## Stock Keycloak
 
@@ -72,7 +79,8 @@ The `infra` module owns environment and Identity Ops tasks under
 ./gradlew :infra:tasks --group "weave infrastructure"
 
 ./gradlew :infra:composeDevConfig
-./gradlew :infra:composeTestConfig
+./gradlew :infra:composeDogfoodConfig
+./gradlew :infra:composeE2eConfig
 ./gradlew :infra:composeProdConfig
 
 ./gradlew :infra:identityDevPlan
@@ -83,8 +91,9 @@ The `infra` module owns environment and Identity Ops tasks under
 ./gradlew :infra:keycloakRuntimeImageBuild
 ```
 
-The same `plan`/`apply`/`verify` task family exists for `test` and `prod`. Test and prod require a
-private reviewed `WEAVE_ENV_FILE`. Desired State never contains human users or passwords.
+The same `plan`/`apply`/`verify` task family exists for `dogfood`, `prod`, and `e2e`. Those
+environments require a private reviewed `WEAVE_ENV_FILE`; E2E additionally requires an isolated
+run identifier. Desired State never contains human users or passwords.
 Automated product proof creates the owner/member through Weave invitations, completes Keycloak
 required actions in a real browser, and retains generated passwords only in process memory.
 The realm keeps native email verification enabled. Invitation registration therefore follows
@@ -124,11 +133,11 @@ set: `backend`, `mcp`, `identity-ops`, and `keycloak`.
 
 An integrated run is acceptable only when:
 
-1. the normalized `test` Compose model is stable;
+1. the normalized `e2e` Compose model is stable and isolated;
 2. Identity Ops apply and verify succeed;
 3. a second explicit Identity Ops plan has `operationCount == 0`;
 4. exact image and pinned-spec-corpus provenance is retained;
-5. teardown touches only the exact owned isolated `test` namespace; and
+5. teardown touches only the exact owned isolated `e2e` namespace; and
 6. support artifacts pass secret and identifier safety checks.
 
 Availability smoke evidence does not replace authenticated E2E behavior or physical-iPhone proof.

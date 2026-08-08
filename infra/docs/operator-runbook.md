@@ -101,8 +101,7 @@ Notes:
 
 Transition boundary: dogfood and E2E still have executable dependencies on Matrix, Nextcloud,
 and the one-shot Identity Ops reconciler in the common graph. This infra tranche does not claim
-those dependencies are gone. Their removal belongs to the server/provider and identity tranches;
-until then the internal Compose profile `test` remains a deprecated CI-only implementation detail.
+those dependencies are gone. Their removal belongs to the server/provider and identity tranches.
 The repository-wide specification lock advances only when the dependent v4 projections land
 atomically.
 
@@ -279,9 +278,10 @@ most one standard refresh-token grant before workspace bootstrap.
 The former `Dogfood Pending Identity Recovery` mutation path is deliberately guarded. Its root
 supervisor, sanitizer image, custom provider JAR, direct member helper, and runtime-profile
 assumptions are retired authorities. The workflow refuses execution and cannot emit readiness.
-A future destructive retirement path must be designed against the `test` profile, run through
-Identity Ops, prove current private backup and isolated restore rehearsal, bind an exact subject
-and tombstone, and remain unable to delete active or ambiguous identities.
+A future destructive retirement path must run against an isolated `e2e` clone of the dogfood
+identity topology, prove current private backup and isolated restore rehearsal, bind an exact
+subject and tombstone, and remain unable to delete active or ambiguous identities. It must never
+use the persistent dogfood namespace as its test fixture.
 
 Physical-iPhone readiness still requires the normal user to complete the current invitation,
 perform a normal OIDC sign-in, and pass the standard Test Stack Deploy plus physical-device
@@ -297,7 +297,7 @@ Use the least destructive action that solves the problem:
    sequence. Require the second plan to be empty.
 3. **Rollback:** restore the previous coherent application image set and control/data snapshot under
    the reviewed release procedure. Do not rely on old/new API coexistence.
-4. **Isolated E2E cleanup only:** `teardown.sh test --isolated` requires the deterministic run
+4. **Isolated E2E cleanup only:** `teardown.sh e2e --isolated` requires the deterministic run
    namespace, exact ownership labels, exact candidate, identity evidence, and explicit volume-removal
    confirmation. It refuses persistent resources and any label mismatch.
 

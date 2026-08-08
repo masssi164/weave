@@ -280,6 +280,16 @@ def realm_payload(realm: dict[str, Any]) -> dict[str, Any]:
             "ssl": str(smtp.get("ssl", False)).lower(),
             "starttls": str(smtp.get("startTls", False)).lower(),
         }
+        if "username" in smtp:
+            smtp_server["user"] = str(smtp["username"])
+            smtp_server["auth"] = "true"
+            if smtp.get("passwordVaultRef") != "${vault.smtp-password}":
+                raise IdentityOpsError(
+                    "SMTP password must use the canonical Keycloak File Vault alias"
+                )
+            smtp_server["password"] = "${vault.smtp-password}"
+        elif "passwordVaultRef" in smtp:
+            raise IdentityOpsError("SMTP Vault password requires a username")
         result["smtpServer"] = smtp_server
     return result
 

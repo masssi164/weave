@@ -3,6 +3,14 @@ services:
     command:
       - start
       - --optimized
+    environment:
+      KC_VAULT_DIR: /opt/keycloak/vault
+    secrets:
+      - source: smtp-password
+        target: /opt/keycloak/vault/weave_smtp-password
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "0"
+        mode: 0400
 
   backend:
     environment:

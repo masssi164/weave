@@ -103,7 +103,7 @@ tasks.register('freshStartBackupRehearsal', Exec) {
         def arguments = [
             'bash',
             'infra/weave-workspace/fresh-start-backup-rehearsal.sh',
-            optionalProperty('freshStartBackupProfile', 'test')
+            optionalProperty('freshStartBackupProfile', 'dogfood')
         ]
         def receipt = providers.gradleProperty('freshStartBackupReceipt').orNull
         if (receipt != null && !receipt.toString().trim().isEmpty()) {
@@ -208,6 +208,8 @@ tasks.register('createCandidateManifest', Exec) {
             '--spec-digest', requiredProperty('specDigest'),
             '--build-evidence-ref', requiredProperty('buildEvidenceRef'),
             '--keycloak-build-evidence-digest', requiredProperty('keycloakRuntimeBuildEvidenceDigest'),
+            '--realm-baseline-artifact', requiredProperty('realmBaselineArtifact'),
+            '--realm-migration-bundle-artifact', requiredProperty('realmMigrationBundleArtifact'),
             '--image',
             'server',
             requiredProperty('serverImage'),
@@ -218,11 +220,6 @@ tasks.register('createCandidateManifest', Exec) {
             requiredProperty('mcpServerImage'),
             requiredProperty('mcpServerSbomDigest'),
             requiredProperty('mcpServerProvenanceDigest'),
-            '--image',
-            'identity-ops',
-            requiredProperty('identityOpsImage'),
-            requiredProperty('identityOpsSbomDigest'),
-            requiredProperty('identityOpsProvenanceDigest'),
             '--image',
             'keycloak-runtime',
             requiredProperty('keycloakRuntimeImage'),

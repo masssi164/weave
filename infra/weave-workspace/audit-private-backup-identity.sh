@@ -133,7 +133,7 @@ main() {
   TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/weave-identity-audit.XXXXXX")"
   chmod 700 "${TEMP_ROOT}"
   python3 "${INTEGRITY_TOOL}" --backup-dir "${BACKUP_DIR}" --output "${TEMP_ROOT}/integrity.json"
-  jq -e '.schemaVersion == "weave.compose-private-backup-integrity.v3" and (.profile == "dogfood" or .profile == "test")' \
+  jq -e '.schemaVersion == "weave.compose-private-backup-integrity.v3" and .profile == "dogfood"' \
     "${TEMP_ROOT}/integrity.json" >/dev/null || fail "backup is not a verified dogfood Compose v3 consistency set"
   tar -C "${TEMP_ROOT}" -xzf "${BACKUP_DIR}/private-config-secrets.tgz" secrets/postgres-admin-password
   local database_coordinates administrator helper_image recorded_subject audit_id ready process_one
@@ -142,7 +142,7 @@ import os
 from pathlib import Path
 from compose_env import load_context
 
-context = load_context("test", Path(os.environ["WEAVE_AUDIT_ROOT"]))
+context = load_context("dogfood", Path(os.environ["WEAVE_AUDIT_ROOT"]))
 print(context.env["WEAVE_DB_ADMIN_USERNAME"])
 print(context.env["WEAVE_POSTGRES_IMAGE"])
 PY

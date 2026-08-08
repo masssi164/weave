@@ -104,7 +104,7 @@ def main() -> int:
         + hashlib.sha256(args.run_id.encode("ascii")).hexdigest()[:16]
     )
     run_root = output_root / namespace
-    env_file = run_root / "test.env"
+    env_file = run_root / "e2e.env"
     hosts_file = run_root / "hosts"
     evidence_file = run_root / "weave-test-app-evidence.json"
     restart_evidence_file = run_root / "persistence-restart-evidence.json"
@@ -117,7 +117,7 @@ def main() -> int:
     values = {
         **ports,
         "WEAVE_DEPLOYMENT_CONTEXT": "disposable",
-        "WEAVE_DEPLOYMENT_SCOPE": "persistent-test",
+        "WEAVE_DEPLOYMENT_SCOPE": "disposable-e2e",
         "WEAVE_PUBLIC_URL": f"https://weave.test:{https_port}",
         "WEAVE_API_ORIGIN": f"https://api.weave.test:{https_port}",
         "WEAVE_API_URL": f"https://api.weave.test:{https_port}/api",
@@ -132,7 +132,7 @@ def main() -> int:
     }
     template = (
         repository
-        / "infra/weave-workspace/environments/test.env.example"
+        / "infra/weave-workspace/environments/e2e.env.example"
     ).read_text(encoding="utf-8")
     atomic_private_write(env_file, update_environment(template, values))
     atomic_private_write(

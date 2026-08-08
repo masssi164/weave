@@ -5,8 +5,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROFILE="${1:-}"
-[[ "${PROFILE}" == test ]] || {
-  printf 'WEAVE_TEARDOWN_ERROR only an explicit test --isolated teardown is supported\n' >&2
+[[ "${PROFILE}" == e2e ]] || {
+  printf 'WEAVE_TEARDOWN_ERROR only an explicit e2e --isolated teardown is supported\n' >&2
   exit 2
 }
 shift

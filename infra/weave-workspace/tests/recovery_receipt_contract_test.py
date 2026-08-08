@@ -42,8 +42,8 @@ class RecoveryReceiptContractTest(unittest.TestCase):
             "schemaVersion": "weave.compose-private-backup.v3",
             "candidateCommit": self.CANDIDATE,
             "candidateManifestDigest": self.CANDIDATE_MANIFEST,
-            "profile": "test",
-            "composeProject": "weave-test",
+            "profile": "dogfood",
+            "composeProject": "weave-dogfood",
             "postgresDumpClientImage": "postgres@sha256:" + "c" * 64,
             "postgresDatabases": self.DATABASES,
             "postgresDatabaseInventoryDigest": database_inventory_digest(
@@ -81,8 +81,8 @@ class RecoveryReceiptContractTest(unittest.TestCase):
         ]
         receipt: dict[str, object] = {
             "schemaVersion": "weave.fresh-start-private-backup-rehearsal.v1",
-            "profile": "test",
-            "composeProject": "weave-test",
+            "profile": "dogfood",
+            "composeProject": "weave-dogfood",
             "candidateCommit": self.CANDIDATE,
             "candidateManifestDigest": self.CANDIDATE_MANIFEST,
             "backupRef": "evidence:private-backup:sha256:" + manifest_digest,

@@ -39,8 +39,8 @@ jobs:
       DOCKER_DEFAULT_PLATFORM: linux/amd64
       LANE_CANDIDATE_COMMIT: ${{ github.event.workflow_run.head_sha || inputs.candidate_sha }}
       ISOLATED_E2E_RUN_ID: ${{ github.event.workflow_run.id || '' }}
-      WEAVE_ENV_FILE: ${{ vars.WEAVE_TEST_REVIEWED_ENV_FILE || vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
-      WEAVE_TEST_BACKUP_ROOT: ${{ vars.WEAVE_TEST_BACKUP_ROOT }}
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE || vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
+      WEAVE_DOGFOOD_BACKUP_ROOT: ${{ vars.WEAVE_DOGFOOD_BACKUP_ROOT }}
       WEAVE_E2E_STACK_SCOPE: persistent
       WEAVE_DOGFOOD_MEMBER_USERNAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_USERNAME }}
       WEAVE_DOGFOOD_MEMBER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
@@ -74,7 +74,7 @@ jobs:
             exit 1
           }
           [[ "${WEAVE_ENV_FILE:-}" == /* ]] || {
-            echo "::error::Persistent deployment requires one absolute reviewed test-profile environment path." >&2
+            echo "::error::Persistent deployment requires one absolute reviewed dogfood environment path." >&2
             exit 1
           }
           receipt="$evidence_dir/.run-context.json.tmp"
@@ -211,9 +211,9 @@ jobs:
           if (not reviewed.is_absolute() or reviewed.is_symlink() or not reviewed.is_file()
                   or metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o600):
               raise SystemExit("reviewed dogfood environment must be a runner-owned regular mode-0600 file")
-          context = load_context("test", Path("."), str(reviewed))
+          context = load_context("dogfood", Path("."), str(reviewed))
           if context.env["WEAVE_DEPLOYMENT_CONTEXT"] != "persistent-dogfood":
-              raise SystemExit("persistent dogfood requires test + persistent-dogfood")
+              raise SystemExit("persistent dogfood requires the dogfood environment and persistent-dogfood context")
           print(context.generated_root)
           print(context.secret_root)
           print(context.tls_root)
@@ -241,7 +241,7 @@ jobs:
         id: fresh-plan
         run: |
           set -euo pipefail
-          backup_root="${WEAVE_TEST_BACKUP_ROOT:-$HOME/.weave/dogfood/backups}"
+          backup_root="${WEAVE_DOGFOOD_BACKUP_ROOT:-$HOME/.weave/dogfood/backups}"
           [[ "$backup_root" == /* ]]
           pending_root="$backup_root/fresh-start/pending/$LANE_CANDIDATE_COMMIT"
           private_root="$pending_root/private"
@@ -252,7 +252,7 @@ jobs:
           if [[ ! -s "$receipt" ]]; then
             WEAVE_BACKUP_ROOT="$private_root" \
               ./gradlew --no-daemon freshStartBackupRehearsal \
-                -PfreshStartBackupProfile=test \
+                -PfreshStartBackupProfile=dogfood \
                 "-PfreshStartBackupReceipt=$receipt"
           fi
           jq -e \
@@ -436,19 +436,19 @@ jobs:
         working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          ./compose.sh test config > "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-first.json"
-          ./compose.sh test identity-plan
+          ./compose.sh dogfood config > "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-first.json"
+          ./compose.sh dogfood identity-plan
           cp "$WEAVE_GENERATED_ROOT/identity-ops/identity-ops.json" "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-first-plan.json"
           jq -e '.command == "plan" and .operationCount == 0' "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-first-plan.json" >/dev/null
-          ./operator-check.sh test
-          ./install.sh test
-          ./compose.sh test config > "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-second.json"
+          ./operator-check.sh dogfood
+          ./install.sh dogfood
+          ./compose.sh dogfood config > "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-second.json"
           cmp -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-first.json" "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-second.json"
-          ./compose.sh test identity-plan
+          ./compose.sh dogfood identity-plan
           cp "$WEAVE_GENERATED_ROOT/identity-ops/identity-ops.json" "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-second-plan.json"
           jq -e '.command == "plan" and .operationCount == 0' "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-second-plan.json" >/dev/null
-          ./operator-check.sh test
-          jq -n '{schemaVersion:"weave.persistent-test-idempotence.v2",runtimeProfile:"test",deploymentContext:"persistent-dogfood",noChanges:true,composeModelStable:true,identityFirstPlanEmpty:true,identitySecondPlanEmpty:true,supportSafe:true,containsSecretValues:false}' \
+          ./operator-check.sh dogfood
+          jq -n '{schemaVersion:"weave.persistent-test-idempotence.v2",runtimeProfile:"dogfood",deploymentContext:"persistent-dogfood",noChanges:true,composeModelStable:true,identityFirstPlanEmpty:true,identitySecondPlanEmpty:true,supportSafe:true,containsSecretValues:false}' \
             > "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-test-idempotence.json"
 
       - name: Create a new invitation through the normal identity flow
@@ -539,7 +539,7 @@ jobs:
           set -euo pipefail
           if [[ -n "${WEAVE_TEST_STACK_EVIDENCE_DIR:-}" ]]; then
             WEAVE_SUPPORT_BUNDLE_RUN_CHECKS=false \
-              ./support-bundle.sh test "$WEAVE_TEST_STACK_EVIDENCE_DIR/support-bundle" || true
+              ./support-bundle.sh dogfood "$WEAVE_TEST_STACK_EVIDENCE_DIR/support-bundle" || true
           fi
 
       - name: Upload persistent dogfood evidence

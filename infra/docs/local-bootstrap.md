@@ -24,7 +24,8 @@ Environment selection is explicit: `dev`, `dogfood`, `prod`, or `e2e`. A branch 
 or changes the environment. The checked-in/default port blocks are:
 
 - `dev`: `58080/59000` Keycloak. Normal `compose.sh dev up` starts PostgreSQL and Keycloak only;
-  Server, MCP, and Admin Console run on the host. Other checked-in dev ports are reserved for
+  Server, MCP, and Admin Console run on the host. A private dev environment may set
+  `COMPOSE_PROFILES=dev,dev-tools` to add Mailpit; other checked-in dev ports are reserved for
   transitional/provider-specific diagnostics and are not started by the normal lifecycle;
 - `dogfood`: `44080/44443`, `48080/49000`, `48025`, and
   `48082/48008/48083/48084/48085`;
@@ -32,8 +33,9 @@ or changes the environment. The checked-in/default port blocks are:
 - `e2e`: dynamically assigned host ports and a namespace derived from the explicit run ID.
 
 The host Spring process in `dev` listens on `127.0.0.1:8080`; the Compose backend service is not
-started in that environment. E2E currently reuses the transitional dogfood application topology,
-but never its project, volumes, network, generated files, SecretRefs, or ports.
+started in that environment. Dogfood and prod do not start Mailpit. E2E owns its application,
+Keycloak, Mailpit, and RuntimeState settings directly and never inherits the persistent dogfood
+overlay.
 
 For a non-destructive rerun:
 
