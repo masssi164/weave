@@ -167,6 +167,8 @@ public final class CanonicalDomainRegistry {
     private static Map<String, String> providerRealityLevels(String key) {
         return switch (key) {
             case "chat" -> Map.of(
+                    "weave-native", "live_write",
+                    "matrix-synapse", "release_ready",
                     "synapse-homeserver", "release_ready",
                     "microsoft-teams", "contract_only",
                     "slack", "contract_only",

@@ -24,25 +24,29 @@ import org.springframework.context.annotation.Configuration;
 public class ProviderCoreConfiguration {
 
     @Bean
-    ProviderPort matrixProviderRegistrySeam(ObjectProvider<ChatProviderPort> chatProviderPort) {
+    ProviderPort chatProviderRegistrySeam(ObjectProvider<ChatProviderPort> chatProviderPort) {
         ChatProviderPort runtime = chatProviderPort.getIfAvailable();
         if (runtime != null) {
-            return RuntimeProviderStatus.fromConformancePort(
-                    ProviderModule.MATRIX,
-                    runtime.providerKey(),
-                    runtime.configured(),
-                    runtime.conformanceProfile(),
-                    "The selected Chat adapter is bound behind the canonical Chat port; runtime reachability is reported by cached capability health.",
-                    List.of("synapse-homeserver", "slack", "microsoft-teams"));
+            return chatProviderRegistrySeamFor(runtime);
         }
         return StaticProviderPort.pending(
                 ProviderModule.MATRIX,
-                "synapse-homeserver",
-                "Matrix/Synapse is the chat and room substrate; provider status stays support-safe and does not expose room keys or raw homeserver errors.",
+                "weave-native",
+                "No Chat runtime adapter is bound; the canonical Chat and Matrix protocol facades remain fail-closed.",
                 Set.of("workspace-room-readiness", "message-sync-readiness", "e2ee-status-readiness", "homeserver-discovery"),
                 Set.of("room-key-export", "raw-homeserver-errors", "direct-flutter-admin-api", "credential-exposure"),
-                List.of("synapse-homeserver", "matrix", "synapse", "slack", "microsoft-teams"),
-                Map.of("substrate", "matrix", "chatE2eeBoundary", "matrix-chat-only", "mediaCallsCovered", false));
+                List.of("weave-native", "matrix-synapse", "synapse-homeserver", "slack", "microsoft-teams"),
+                Map.of("canonicalDomain", "chat", "facade", "/_matrix/client", "mediaCallsCovered", false));
+    }
+
+    ProviderPort chatProviderRegistrySeamFor(ChatProviderPort runtime) {
+        return RuntimeProviderStatus.fromConformancePort(
+                ProviderModule.MATRIX,
+                runtime.providerKey(),
+                runtime.configured(),
+                runtime.conformanceProfile(),
+                "The selected Chat adapter is bound behind the canonical Chat port; runtime reachability is reported by cached capability health.",
+                List.of("weave-native", "matrix-synapse", "synapse-homeserver", "slack", "microsoft-teams"));
     }
 
     @Bean

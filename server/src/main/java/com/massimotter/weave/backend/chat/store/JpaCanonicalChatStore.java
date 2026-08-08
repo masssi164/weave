@@ -260,13 +260,15 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
             insertOperation(context, operationId, "create-room", conversationId, conversationId,
                     transactionId.value(), providerTxn, providerAliasIntent, digest,
                     json(Map.of("conversationId", conversationId, "inviteCount", invites.size())), now);
-            reserveMapping(
-                    context.tenantId(),
-                    activeProviderKey,
-                    "conversation",
-                    conversationId,
-                    null,
-                    providerAliasIntent);
+            if (providerAliasIntent != null) {
+                reserveMapping(
+                        context.tenantId(),
+                        activeProviderKey,
+                        "conversation",
+                        conversationId,
+                        null,
+                        providerAliasIntent);
+            }
             return new PreparedConversation(
                     operationId,
                     new ConversationId(conversationId),
@@ -299,6 +301,26 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
             conversation.commit(now);
             recordChange(context.tenantId(), prepared.conversationId(), "conversation.created",
                     prepared.conversationId().value(), now);
+            return findConversation(context.tenantId(), prepared.conversationId(), context.actorRef()).orElseThrow();
+        });
+    }
+
+    @Override
+    public ChatConversation commitConversation(
+            ChatRequestContext context,
+            PreparedConversation prepared) {
+        return transactions.execute(status -> {
+            if (!operationCommitted(context.tenantId(), prepared.operationId())) {
+                acknowledgeOperation(context.tenantId(), prepared.operationId());
+                Instant now = clock.instant();
+                requireConversationEntity(context.tenantId(), prepared.conversationId()).commit(now);
+                recordCanonicalChangeIfAbsent(
+                        context.tenantId(),
+                        prepared.conversationId(),
+                        "conversation.created",
+                        prepared.conversationId().value(),
+                        now);
+            }
             return findConversation(context.tenantId(), prepared.conversationId(), context.actorRef()).orElseThrow();
         });
     }
@@ -372,6 +394,37 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
     }
 
     @Override
+    public ChatConversation commitMembership(
+            ChatRequestContext context,
+            PreparedMembership prepared) {
+        return transactions.execute(status -> {
+            if (!operationCommitted(context.tenantId(), prepared.operationId())) {
+                Instant now = clock.instant();
+                ChatQuadId membershipId = membershipId(context, prepared.conversationId());
+                Optional<ChatMembershipJpaEntity> persisted = jpa.memberships().findById(membershipId);
+                if (persisted.isPresent()) {
+                    persisted.orElseThrow().transition(prepared.targetState(), now);
+                } else if ("joined".equals(prepared.targetState())) {
+                    insertMembership(context.tenantId(), prepared.conversationId().value(), context.identityIssuer(),
+                            context.actorRef(), "joined", now, now);
+                }
+                acknowledgeOperation(context.tenantId(), prepared.operationId());
+                recordCanonicalChangeIfAbsent(
+                        context.tenantId(),
+                        prepared.conversationId(),
+                        "membership." + prepared.targetState(),
+                        context.actorRef().value(),
+                        now);
+            }
+            if ("left".equals(prepared.targetState())) {
+                return mapConversationWithoutAuthorization(
+                        context.tenantId(), prepared.conversationId(), context.actorRef()).orElseThrow();
+            }
+            return findConversation(context.tenantId(), prepared.conversationId(), context.actorRef()).orElseThrow();
+        });
+    }
+
+    @Override
     public PreparedEncryption prepareEncryption(
             ChatRequestContext context,
             ConversationId conversationId,
@@ -418,6 +471,27 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
                     providerEventRef, prepared.conversationId().value(), providerSourceVersion, "acknowledged");
             recordChange(context.tenantId(), prepared.conversationId(), "encryption.enabled",
                     prepared.conversationId().value(), now);
+            return findConversation(context.tenantId(), prepared.conversationId(), context.actorRef()).orElseThrow();
+        });
+    }
+
+    @Override
+    public ChatConversation commitEncryption(
+            ChatRequestContext context,
+            PreparedEncryption prepared) {
+        return transactions.execute(status -> {
+            if (!operationCommitted(context.tenantId(), prepared.operationId())) {
+                Instant now = clock.instant();
+                requireConversationEntity(context.tenantId(), prepared.conversationId())
+                        .enableEncryption(prepared.algorithm(), now);
+                acknowledgeOperation(context.tenantId(), prepared.operationId());
+                recordCanonicalChangeIfAbsent(
+                        context.tenantId(),
+                        prepared.conversationId(),
+                        "encryption.enabled",
+                        prepared.conversationId().value(),
+                        now);
+            }
             return findConversation(context.tenantId(), prepared.conversationId(), context.actorRef()).orElseThrow();
         });
     }
@@ -499,6 +573,27 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
     }
 
     @Override
+    public ChatTimelineEvent commitEvent(
+            ChatRequestContext context,
+            PreparedEvent prepared) {
+        return transactions.execute(status -> {
+            ConversationId conversationId = new ConversationId(prepared.event().conversationId());
+            if (!operationCommitted(context.tenantId(), prepared.operationId())) {
+                requireEventEntity(context.tenantId(), conversationId, prepared.event().eventId()).commit();
+                acknowledgeOperation(context.tenantId(), prepared.operationId());
+                recordCanonicalChangeIfAbsent(
+                        context.tenantId(),
+                        conversationId,
+                        prepared.event().content().kind() == ChatEventKind.REACTION
+                                ? "reaction.created" : "message.created",
+                        prepared.event().eventId(),
+                        prepared.event().occurredAt());
+            }
+            return requireEvent(context.tenantId(), conversationId, prepared.event().eventId());
+        });
+    }
+
+    @Override
     public PreparedRedaction prepareRedaction(
             ChatRequestContext context,
             ConversationId conversationId,
@@ -562,6 +657,31 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
             recordCallbackChangeIfAbsent(
                     context.tenantId(), new ConversationId(prepared.event().conversationId()),
                     "event.redacted", prepared.event().eventId(), providerKey, providerEventRef, clock.instant());
+            return new ChatRedactionReceipt(
+                    prepared.redactionEventId(),
+                    prepared.event().eventId(),
+                    prepared.event().conversationId(),
+                    context.actorRef().value(),
+                    prepared.occurredAt());
+        });
+    }
+
+    @Override
+    public ChatRedactionReceipt commitRedaction(
+            ChatRequestContext context,
+            PreparedRedaction prepared) {
+        return transactions.execute(status -> {
+            ConversationId conversationId = new ConversationId(prepared.event().conversationId());
+            if (!operationCommitted(context.tenantId(), prepared.operationId())) {
+                requireEventEntity(context.tenantId(), conversationId, prepared.event().eventId()).redact();
+                acknowledgeOperation(context.tenantId(), prepared.operationId());
+                recordCanonicalChangeIfAbsent(
+                        context.tenantId(),
+                        conversationId,
+                        "event.redacted",
+                        prepared.event().eventId(),
+                        clock.instant());
+            }
             return new ChatRedactionReceipt(
                     prepared.redactionEventId(),
                     prepared.event().eventId(),
@@ -1500,6 +1620,12 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
                         operation.state()));
     }
 
+    private boolean operationCommitted(String tenantId, String operationId) {
+        return operation(tenantId, operationId)
+                .map(row -> COMMITTED.equals(row.state()))
+                .orElse(false);
+    }
+
     private Optional<ProviderOperationEcho> providerOperation(String providerTransactionId) {
         if (providerTransactionId == null || providerTransactionId.isBlank()) {
             return Optional.empty();
@@ -2179,6 +2305,18 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
                     canonicalObjectId,
                     deduplicationKey,
                     occurredAt));
+        }
+    }
+
+    private void recordCanonicalChangeIfAbsent(
+            String tenantId,
+            ConversationId conversationId,
+            String kind,
+            String canonicalObjectId,
+            Instant occurredAt) {
+        if (!jpa.changes().existsByTenantIdAndConversationIdAndKindAndCanonicalObjectId(
+                tenantId, conversationId.value(), kind, canonicalObjectId)) {
+            recordChange(tenantId, conversationId, kind, canonicalObjectId, occurredAt);
         }
     }
 
