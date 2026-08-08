@@ -14,9 +14,9 @@ reject() { ! grep -Fq -- "$2" "$1" || fail "Forbidden Nextcloud boundary '$2' re
 require "${ROOT_DIR}/compose.yaml" 'POSTGRES_PASSWORD_FILE: /run/secrets/nextcloud-db-password'
 require "${ROOT_DIR}/compose.yaml" 'FORWARDEDFORHEADERS: HTTP_X_FORWARDED_FOR'
 require "${ROOT_DIR}/compose.yaml" '"127.0.0.1:${WEAVE_NEXTCLOUD_HOST_PORT:-48083}:80"'
-require "${ROOT_DIR}/scripts/render_config.py" 'header_up X-Forwarded-For {{http.request.remote.host}}'
-require "${ROOT_DIR}/scripts/render_config.py" 'header_up X-Forwarded-Host {{host}}'
-require "${ROOT_DIR}/scripts/render_config.py" 'header_up X-Forwarded-Proto {{scheme}}'
+require "${ROOT_DIR}/scripts/render_config.py" 'header_up X-Forwarded-For {http.request.remote.host}'
+require "${ROOT_DIR}/scripts/render_config.py" 'header_up X-Forwarded-Host {host}'
+require "${ROOT_DIR}/scripts/render_config.py" 'header_up X-Forwarded-Proto {scheme}'
 
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'existing Nextcloud actor credential differs from the selected SecretRef'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'weave-workspace'

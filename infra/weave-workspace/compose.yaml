@@ -33,14 +33,19 @@ x-mail-profiles: &mail-profiles
   - dogfood
   - e2e
 
-x-runtime-state-profiles: &runtime-state-profiles
-  - dogfood
-  - e2e
-
 x-application-profiles: &application-profiles
   - dogfood
   - e2e
   - prod
+
+x-provider-matrix-profiles: &provider-matrix-profiles
+  - provider-matrix
+
+x-provider-nextcloud-profiles: &provider-nextcloud-profiles
+  - provider-nextcloud
+
+x-storage-s3-profiles: &storage-s3-profiles
+  - storage-s3
 
 services:
   postgres:
@@ -92,12 +97,6 @@ services:
       WEAVE_BACKEND_DB_USERNAME: ${WEAVE_BACKEND_DB_USERNAME:-weave_backend}
       WEAVE_KEYCLOAK_DB_NAME: ${WEAVE_KEYCLOAK_DB_NAME:-weave_keycloak}
       WEAVE_KEYCLOAK_DB_USERNAME: ${WEAVE_KEYCLOAK_DB_USERNAME:-keycloak}
-      WEAVE_MAS_DB_NAME: ${WEAVE_MAS_DB_NAME:-weave_mas}
-      WEAVE_MAS_DB_USERNAME: ${WEAVE_MAS_DB_USERNAME:-mas}
-      WEAVE_SYNAPSE_DB_NAME: ${WEAVE_SYNAPSE_DB_NAME:-weave_synapse}
-      WEAVE_SYNAPSE_DB_USERNAME: ${WEAVE_SYNAPSE_DB_USERNAME:-synapse}
-      WEAVE_NEXTCLOUD_DB_NAME: ${WEAVE_NEXTCLOUD_DB_NAME:-weave_nextcloud}
-      WEAVE_NEXTCLOUD_DB_USERNAME: ${WEAVE_NEXTCLOUD_DB_USERNAME:-nextcloud}
       WEAVE_CONTROL_DB_USERNAME: ${WEAVE_CONTROL_DB_USERNAME:-weave_control}
     entrypoint:
       - /bin/sh
@@ -108,10 +107,76 @@ services:
       - postgres-admin-password
       - backend-db-password
       - keycloak-db-password
+      - control-db-password
+    networks:
+      weave:
+
+  postgres-reconcile-provider-matrix:
+    profiles: *provider-matrix-profiles
+    image: ${WEAVE_POSTGRES_IMAGE:-postgres:16.9-alpine}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-postgres-reconcile-provider-matrix
+    restart: "no"
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: postgres-provider-matrix
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
+      com.massimotter.weave.one-shot: "true"
+    depends_on:
+      postgres-reconcile:
+        condition: service_completed_successfully
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: postgres
+      PGUSER: ${WEAVE_DB_ADMIN_USERNAME:-weave_admin}
+      WEAVE_PROVIDER_DATABASE_SET: matrix
+      WEAVE_MAS_DB_NAME: ${WEAVE_MAS_DB_NAME:-weave_mas}
+      WEAVE_MAS_DB_USERNAME: ${WEAVE_MAS_DB_USERNAME:-mas}
+      WEAVE_SYNAPSE_DB_NAME: ${WEAVE_SYNAPSE_DB_NAME:-weave_synapse}
+      WEAVE_SYNAPSE_DB_USERNAME: ${WEAVE_SYNAPSE_DB_USERNAME:-synapse}
+    entrypoint:
+      - /bin/sh
+      - /opt/weave/postgres-provider-reconcile.sh
+    volumes:
+      - ./database/postgres-provider-reconcile.sh:/opt/weave/postgres-provider-reconcile.sh:ro
+    secrets:
+      - postgres-admin-password
       - mas-db-password
       - synapse-db-password
+    networks:
+      weave:
+
+  postgres-reconcile-provider-nextcloud:
+    profiles: *provider-nextcloud-profiles
+    image: ${WEAVE_POSTGRES_IMAGE:-postgres:16.9-alpine}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-postgres-reconcile-provider-nextcloud
+    restart: "no"
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: postgres-provider-nextcloud
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
+      com.massimotter.weave.one-shot: "true"
+    depends_on:
+      postgres-reconcile:
+        condition: service_completed_successfully
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: postgres
+      PGUSER: ${WEAVE_DB_ADMIN_USERNAME:-weave_admin}
+      WEAVE_PROVIDER_DATABASE_SET: nextcloud
+      WEAVE_NEXTCLOUD_DB_NAME: ${WEAVE_NEXTCLOUD_DB_NAME:-weave_nextcloud}
+      WEAVE_NEXTCLOUD_DB_USERNAME: ${WEAVE_NEXTCLOUD_DB_USERNAME:-nextcloud}
+    entrypoint:
+      - /bin/sh
+      - /opt/weave/postgres-provider-reconcile.sh
+    volumes:
+      - ./database/postgres-provider-reconcile.sh:/opt/weave/postgres-provider-reconcile.sh:ro
+    secrets:
+      - postgres-admin-password
       - nextcloud-db-password
-      - control-db-password
     networks:
       weave:
 
@@ -127,12 +192,6 @@ services:
     depends_on:
       keycloak:
         condition: service_healthy
-      mas:
-        condition: service_started
-      synapse:
-        condition: service_started
-      nextcloud:
-        condition: service_started
     ports:
       - "${WEAVE_PROXY_HTTP_HOST_PORT:-44080}:80"
       - "${WEAVE_PROXY_HTTPS_HOST_PORT:-44443}:443"
@@ -291,16 +350,6 @@ services:
         uid: "${WEAVE_RUNTIME_UID:-1000}"
         gid: "${WEAVE_RUNTIME_GID:-1000}"
         mode: 0600
-      - source: nextcloud-client-secret
-        target: keycloak-nextcloud
-        uid: "${WEAVE_RUNTIME_UID:-1000}"
-        gid: "${WEAVE_RUNTIME_GID:-1000}"
-        mode: 0600
-      - source: matrix-mas-client-secret
-        target: keycloak-matrix-mas
-        uid: "${WEAVE_RUNTIME_UID:-1000}"
-        gid: "${WEAVE_RUNTIME_GID:-1000}"
-        mode: 0600
     networks:
       weave:
     labels:
@@ -346,7 +395,7 @@ services:
       <<: *weave-resource-labels
       com.massimotter.weave.component: matrix-auth
       com.massimotter.weave.data-class: runtime-ephemeral
-    profiles: *core-profiles
+    profiles: *provider-matrix-profiles
     image: ${WEAVE_MAS_IMAGE:-ghcr.io/element-hq/matrix-authentication-service:1.15.0}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mas
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
@@ -358,7 +407,7 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m
     depends_on:
-      postgres-reconcile:
+      postgres-reconcile-provider-matrix:
         condition: service_completed_successfully
       keycloak:
         condition: service_healthy
@@ -389,7 +438,7 @@ services:
       start_period: 30s
 
   synapse-init:
-    profiles: *core-profiles
+    profiles: *provider-matrix-profiles
     image: ${WEAVE_SYNAPSE_IMAGE:-matrixdotorg/synapse:v1.136.0}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-synapse-init
     restart: "no"
@@ -432,12 +481,12 @@ services:
       <<: *weave-resource-labels
       com.massimotter.weave.component: chat
       com.massimotter.weave.data-class: runtime-ephemeral
-    profiles: *core-profiles
+    profiles: *provider-matrix-profiles
     image: ${WEAVE_SYNAPSE_IMAGE:-matrixdotorg/synapse:v1.136.0}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-synapse
     user: "${WEAVE_SYNAPSE_UID:-991}:${WEAVE_SYNAPSE_GID:-991}"
     depends_on:
-      postgres-reconcile:
+      postgres-reconcile-provider-matrix:
         condition: service_completed_successfully
       mas:
         condition: service_started
@@ -471,11 +520,11 @@ services:
       <<: *weave-resource-labels
       com.massimotter.weave.component: files-calendar
       com.massimotter.weave.data-class: runtime-ephemeral
-    profiles: *core-profiles
+    profiles: *provider-nextcloud-profiles
     image: ${WEAVE_NEXTCLOUD_IMAGE:-nextcloud:31.0.7-apache}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-nextcloud
     depends_on:
-      postgres-reconcile:
+      postgres-reconcile-provider-nextcloud:
         condition: service_completed_successfully
     environment:
       POSTGRES_HOST: postgres
@@ -507,7 +556,7 @@ services:
       start_period: 30s
 
   runtime-state-volume-init:
-    profiles: *runtime-state-profiles
+    profiles: *storage-s3-profiles
     image: ${WEAVE_RUNTIME_STATE_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-runtime-state-volume-init
     restart: "no"
@@ -544,7 +593,7 @@ services:
       com.massimotter.weave.component: runtime-state
       com.massimotter.weave.data-class: runtime-state-sensitive
       com.massimotter.weave.protocol: s3-compatible
-    profiles: *runtime-state-profiles
+    profiles: *storage-s3-profiles
     image: ${WEAVE_RUNTIME_STATE_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-runtime-state
     restart: unless-stopped
@@ -587,7 +636,7 @@ services:
       start_period: 10s
 
   runtime-state-init:
-    profiles: *runtime-state-profiles
+    profiles: *storage-s3-profiles
     image: ${WEAVE_RUNTIME_STATE_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-runtime-state-init
     restart: "no"
@@ -711,6 +760,38 @@ services:
       com.massimotter.weave.one-shot: "true"
       com.massimotter.weave.operation: schema-initialize
 
+  native-files-volume-init:
+    profiles: *application-profiles
+    image: ${WEAVE_POSTGRES_IMAGE:-postgres:16.9-alpine}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-native-files-volume-init
+    restart: "no"
+    user: "0:0"
+    read_only: true
+    network_mode: none
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+    entrypoint:
+      - /bin/sh
+      - -euc
+    command:
+      - |
+        mkdir -p /data/blobs
+        chmod 0700 /data /data/blobs
+        chown ${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000} /data /data/blobs
+    volumes:
+      - native-files-data:/data
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: files-native
+      com.massimotter.weave.data-class: collaboration-sensitive
+      com.massimotter.weave.fresh-start-eligible: "false"
+      com.massimotter.weave.one-shot: "true"
+      com.massimotter.weave.operation: volume-initialize
+
   schema-receipt-check:
     profiles: *application-profiles
     image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
@@ -756,20 +837,18 @@ services:
     depends_on:
       schema-receipt-check:
         condition: service_completed_successfully
+      native-files-volume-init:
+        condition: service_completed_successfully
       keycloak:
         condition: service_healthy
       agent-runtime-keys-init:
         condition: service_completed_successfully
       identity-admin-key-init:
         condition: service_completed_successfully
-      synapse:
-        condition: service_healthy
-      nextcloud:
-        condition: service_healthy
     env_file:
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/backend/public.env
     environment:
-      SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/,optional:configtree:/run/secrets/providers/
     secrets:
       - source: backend-db-password
         target: weave/spring.datasource.password
@@ -777,17 +856,13 @@ services:
         target: /run/secrets/identity-admin/weave-identity-admin-private-jwk.json
       - source: identity-reference-hmac-key
         target: identity-reference-hmac-key
-      - source: nextcloud-actor-token
-        target: weave/weave.nextcloud.files.actor-token
-      - source: nextcloud-actor-token
-        target: weave/weave.calendar.caldav.backend-token
     volumes:
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/agent-runtime-policy.json:/app/agent-runtime-policy.json:ro
       - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/workloads:/run/secrets/agent-runtime/workloads
       - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/profile-signing:/run/secrets/agent-runtime/profile-signing:ro
       - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/state-wrapping:/run/secrets/agent-runtime/state-wrapping:ro
-      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/matrix-appservice-as-token:/run/secrets/matrix/as-token:ro
-      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/matrix-appservice-hs-token:/run/secrets/matrix/hs-token:ro
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/backend/configtree:/run/secrets/providers:ro
+      - native-files-data:/var/lib/weave/files
     ports:
       - "127.0.0.1:${WEAVE_BACKEND_HOST_PORT:-48084}:8080"
     healthcheck:
@@ -980,6 +1055,9 @@ volumes:
   runtime-state-data:
     external: true
     name: ${WEAVE_RUNTIME_STATE_VOLUME:-weave_runtime_state}
+  native-files-data:
+    external: true
+    name: ${WEAVE_NATIVE_FILES_DATA_VOLUME:-weave_native_files_data}
 
 networks:
   weave:

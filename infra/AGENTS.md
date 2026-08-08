@@ -11,8 +11,8 @@ repository `AGENTS.md` files. Do not reintroduce executable OpenTofu/Terraform, 
 - The operator environments are exactly `dev`, `dogfood`, `prod`, and `e2e`; branch names never
   select one. `compose.dogfood.yaml` and `compose.e2e.yaml` give persistent dogfood and disposable
   E2E distinct public entry paths.
-- `dev` starts PostgreSQL and Keycloak in Compose while Server, MCP, and Admin Console run on the
-  host. Only the host server may use H2 for the fast development loop.
+- `dev` starts Keycloak with its dev-file store in Compose while Server, MCP, and Admin Console
+  run on the host. Only the host server may use H2 for the fast development loop.
 - `dogfood` and `prod` are persistent application-tier deployments. `e2e` is disposable and must
   use a run-unique Compose project, resource namespace, generated root, SecretRef root, and ports.
 - `COMPOSE_PROFILES` in the reviewed environment file selects exactly one matching environment

@@ -1338,7 +1338,7 @@ def main() -> None:
         except identity_admin_key_init.KeyPreparationError as error:
             assert "Fresh Start or explicit rotation is required" in str(error)
     renderer = (ROOT / "scripts/render_config.py").read_text(encoding="utf-8")
-    assert '"weave.keycloak-desired-state/v2"' in renderer
+    assert '"weave.keycloak-desired-state/v3"' in renderer
     assert 'if "groups" in desired:' in renderer
     assert 'desired["organizationGroups"] =' not in renderer
     assert 'desired["fineGrainedAdminPermissions"] =' not in renderer

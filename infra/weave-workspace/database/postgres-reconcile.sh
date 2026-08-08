@@ -27,9 +27,6 @@ read_secret() {
 read_secret PGPASSWORD /run/secrets/postgres-admin-password WEAVE_POSTGRES_ADMIN_PASSWORD_FINGERPRINT
 read_secret WEAVE_BACKEND_DB_PASSWORD /run/secrets/backend-db-password WEAVE_BACKEND_DB_PASSWORD_FINGERPRINT
 read_secret WEAVE_KEYCLOAK_DB_PASSWORD /run/secrets/keycloak-db-password WEAVE_KEYCLOAK_DB_PASSWORD_FINGERPRINT
-read_secret WEAVE_MAS_DB_PASSWORD /run/secrets/mas-db-password WEAVE_MAS_DB_PASSWORD_FINGERPRINT
-read_secret WEAVE_SYNAPSE_DB_PASSWORD /run/secrets/synapse-db-password WEAVE_SYNAPSE_DB_PASSWORD_FINGERPRINT
-read_secret WEAVE_NEXTCLOUD_DB_PASSWORD /run/secrets/nextcloud-db-password WEAVE_NEXTCLOUD_DB_PASSWORD_FINGERPRINT
 read_secret WEAVE_CONTROL_DB_PASSWORD /run/secrets/control-db-password WEAVE_CONTROL_DB_PASSWORD_FINGERPRINT
 
 psql --no-psqlrc --set=ON_ERROR_STOP=1 --quiet <<'SQL'
@@ -41,18 +38,6 @@ psql --no-psqlrc --set=ON_ERROR_STOP=1 --quiet <<'SQL'
 \getenv keycloak_user WEAVE_KEYCLOAK_DB_USERNAME
 \getenv keycloak_password WEAVE_KEYCLOAK_DB_PASSWORD
 \getenv keycloak_fingerprint WEAVE_KEYCLOAK_DB_PASSWORD_FINGERPRINT
-\getenv mas_name WEAVE_MAS_DB_NAME
-\getenv mas_user WEAVE_MAS_DB_USERNAME
-\getenv mas_password WEAVE_MAS_DB_PASSWORD
-\getenv mas_fingerprint WEAVE_MAS_DB_PASSWORD_FINGERPRINT
-\getenv synapse_name WEAVE_SYNAPSE_DB_NAME
-\getenv synapse_user WEAVE_SYNAPSE_DB_USERNAME
-\getenv synapse_password WEAVE_SYNAPSE_DB_PASSWORD
-\getenv synapse_fingerprint WEAVE_SYNAPSE_DB_PASSWORD_FINGERPRINT
-\getenv nextcloud_name WEAVE_NEXTCLOUD_DB_NAME
-\getenv nextcloud_user WEAVE_NEXTCLOUD_DB_USERNAME
-\getenv nextcloud_password WEAVE_NEXTCLOUD_DB_PASSWORD
-\getenv nextcloud_fingerprint WEAVE_NEXTCLOUD_DB_PASSWORD_FINGERPRINT
 \getenv control_user WEAVE_CONTROL_DB_USERNAME
 \getenv control_password WEAVE_CONTROL_DB_PASSWORD
 \getenv control_fingerprint WEAVE_CONTROL_DB_PASSWORD_FINGERPRINT
@@ -103,60 +88,6 @@ SELECT format('CREATE DATABASE %I OWNER %I', :'keycloak_name', :'keycloak_user')
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'keycloak_name') \gexec
 
 INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
-SELECT :'mas_user', :'mas_fingerprint'
-WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'mas_user')
-ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp();
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'mas_user', :'mas_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'mas_user') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L', :'mas_user', :'mas_password')
-WHERE NOT EXISTS (
-  SELECT 1 FROM weave_control.database_role_secret_generations
-  WHERE role_name = :'mas_user' AND secret_fingerprint = :'mas_fingerprint'
-) \gexec
-INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
-VALUES (:'mas_user', :'mas_fingerprint')
-ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp()
-WHERE weave_control.database_role_secret_generations.secret_fingerprint IS DISTINCT FROM EXCLUDED.secret_fingerprint;
-SELECT format('CREATE DATABASE %I OWNER %I', :'mas_name', :'mas_user')
-WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'mas_name') \gexec
-
-INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
-SELECT :'synapse_user', :'synapse_fingerprint'
-WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'synapse_user')
-ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp();
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'synapse_user', :'synapse_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'synapse_user') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L', :'synapse_user', :'synapse_password')
-WHERE NOT EXISTS (
-  SELECT 1 FROM weave_control.database_role_secret_generations
-  WHERE role_name = :'synapse_user' AND secret_fingerprint = :'synapse_fingerprint'
-) \gexec
-INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
-VALUES (:'synapse_user', :'synapse_fingerprint')
-ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp()
-WHERE weave_control.database_role_secret_generations.secret_fingerprint IS DISTINCT FROM EXCLUDED.secret_fingerprint;
-SELECT format('CREATE DATABASE %I OWNER %I TEMPLATE template0 LC_COLLATE ''C'' LC_CTYPE ''C''', :'synapse_name', :'synapse_user')
-WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'synapse_name') \gexec
-
-INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
-SELECT :'nextcloud_user', :'nextcloud_fingerprint'
-WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'nextcloud_user')
-ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp();
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'nextcloud_user', :'nextcloud_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'nextcloud_user') \gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L', :'nextcloud_user', :'nextcloud_password')
-WHERE NOT EXISTS (
-  SELECT 1 FROM weave_control.database_role_secret_generations
-  WHERE role_name = :'nextcloud_user' AND secret_fingerprint = :'nextcloud_fingerprint'
-) \gexec
-INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
-VALUES (:'nextcloud_user', :'nextcloud_fingerprint')
-ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp()
-WHERE weave_control.database_role_secret_generations.secret_fingerprint IS DISTINCT FROM EXCLUDED.secret_fingerprint;
-SELECT format('CREATE DATABASE %I OWNER %I', :'nextcloud_name', :'nextcloud_user')
-WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'nextcloud_name') \gexec
-
-INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
 SELECT :'control_user', :'control_fingerprint'
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'control_user')
 ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp();
@@ -174,14 +105,8 @@ WHERE weave_control.database_role_secret_generations.secret_fingerprint IS DISTI
 
 SELECT format('ALTER DATABASE %I OWNER TO %I', :'backend_name', :'backend_user') \gexec
 SELECT format('ALTER DATABASE %I OWNER TO %I', :'keycloak_name', :'keycloak_user') \gexec
-SELECT format('ALTER DATABASE %I OWNER TO %I', :'mas_name', :'mas_user') \gexec
-SELECT format('ALTER DATABASE %I OWNER TO %I', :'synapse_name', :'synapse_user') \gexec
-SELECT format('ALTER DATABASE %I OWNER TO %I', :'nextcloud_name', :'nextcloud_user') \gexec
 SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'backend_name') \gexec
 SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'keycloak_name') \gexec
-SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'mas_name') \gexec
-SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'synapse_name') \gexec
-SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'nextcloud_name') \gexec
 
 ALTER SCHEMA weave_control OWNER TO :"control_user";
 REVOKE ALL ON SCHEMA weave_control FROM PUBLIC;
@@ -242,10 +167,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA weave_control REVOKE ALL ON TABLES FROM PUBLI
 SQL
 
 unset PGPASSWORD WEAVE_BACKEND_DB_PASSWORD WEAVE_KEYCLOAK_DB_PASSWORD \
-  WEAVE_MAS_DB_PASSWORD WEAVE_SYNAPSE_DB_PASSWORD WEAVE_NEXTCLOUD_DB_PASSWORD \
   WEAVE_CONTROL_DB_PASSWORD WEAVE_POSTGRES_ADMIN_PASSWORD_FINGERPRINT \
   WEAVE_BACKEND_DB_PASSWORD_FINGERPRINT WEAVE_KEYCLOAK_DB_PASSWORD_FINGERPRINT \
-  WEAVE_MAS_DB_PASSWORD_FINGERPRINT WEAVE_SYNAPSE_DB_PASSWORD_FINGERPRINT \
-  WEAVE_NEXTCLOUD_DB_PASSWORD_FINGERPRINT WEAVE_CONTROL_DB_PASSWORD_FINGERPRINT
+  WEAVE_CONTROL_DB_PASSWORD_FINGERPRINT
 
 printf '%s\n' 'postgres-reconcile: converged'

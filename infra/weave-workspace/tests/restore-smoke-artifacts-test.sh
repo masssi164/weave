@@ -106,7 +106,7 @@ if WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true bash "${SCRIPT}" "${backup_dir}" >/tm
   echo "restore-smoke accepted a backup directory with a missing postgres.sql" >&2
   exit 1
 fi
-grep -Fq "required private backup artifact is missing or unsafe" /tmp/restore-smoke-missing.out || {
+grep -Fq "backup artifact inventory does not exactly match the private artifact files" /tmp/restore-smoke-missing.out || {
   echo "restore-smoke missing-artifact failure was not actionable" >&2
   cat /tmp/restore-smoke-missing.out >&2
   exit 1

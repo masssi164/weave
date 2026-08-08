@@ -28,6 +28,7 @@ from compose_runtime import (  # noqa: E402
     RESOURCE_METADATA,
     STATE_WRAPPING_TARGET,
     WORKLOADS_TARGET,
+    active_volume_keys,
     compose,
     labels,
     normalized_mount_graph,
@@ -36,7 +37,15 @@ from compose_runtime import (  # noqa: E402
     runtime_root_services,
     validate_mount_contract,
 )
-from render_config import _backend_env, _caddy, _image_digest, _overlay, _render_desired  # noqa: E402
+from render_config import (  # noqa: E402
+    _backend_env,
+    _caddy,
+    _image_digest,
+    _mcp_env,
+    _overlay,
+    _render_desired,
+    _reset_provider_configtree,
+)
 
 
 def materialize_example(profile: str, destination: Path) -> Path:
@@ -544,7 +553,8 @@ def assert_fresh_start_target_graph(
                 labels["com.massimotter.weave.component"],
                 labels["com.massimotter.weave.data-class"],
             )
-    for variable, (component, data_class) in RESOURCE_METADATA.items():
+    for variable in active_volume_keys(context):
+        component, data_class = RESOURCE_METADATA[variable]
         expected[("volume", context.env[variable])] = (
             component,
             data_class,
@@ -641,6 +651,7 @@ def main() -> None:
     )
     assert dev.profile == "dev"
     assert dev.env["WEAVE_DEPLOYMENT_CONTEXT"] == "developer"
+    assert active_volume_keys(dev) == ("WEAVE_KEYCLOAK_DATA_VOLUME",)
     assert dev.compose_files[1].name == "compose.dev.yaml"
     dev_model = resolved_model(dev)
     assert set(raw_resolved_model(dev)["services"]) == set(dev_model["services"])
@@ -650,6 +661,11 @@ def main() -> None:
     assert_long_running_services_reap_child_processes(dev_model)
     assert "backend" not in dev_model["services"]
     assert dev_model["services"]["keycloak"]["user"] == f"{dev.env['WEAVE_RUNTIME_UID']}:0"
+    assert dev_model["services"]["keycloak"]["environment"]["KC_DB"] == "dev-file"
+    assert not dev_model["services"]["keycloak"].get("depends_on")
+    assert {
+        secret["source"] for secret in dev_model["services"]["keycloak"]["secrets"]
+    } == {"keycloak-bootstrap-admin-password"}
     historical = labels(dev, "network", dev.env["WEAVE_DOCKER_NETWORK"])
     historical.update(
         {
@@ -677,8 +693,17 @@ def main() -> None:
         pass
     else:
         raise AssertionError("dev renderer invented a digest from the reviewed version tag")
+    host_mcp_env = _mcp_env(dev, host_dev=True)
+    assert (
+        f"WEAVE_MCP_TOKEN_URI=http://127.0.0.1:{dev.env['WEAVE_KEYCLOAK_HOST_PORT']}"
+        "/realms/weave/protocol/openid-connect/token\n"
+        in host_mcp_env
+    )
+    assert "WEAVE_MCP_BACKEND_FILES_URI=http://127.0.0.1:8080/dav/files\n" in host_mcp_env
+    assert str(dev.secret_root / "keycloak-weave-mcp-server-jwk.json") in host_mcp_env
+    assert "http://keycloak:8080" not in host_mcp_env
     canonical = {
-        "apiVersion": "weave.keycloak-desired-state/v2",
+        "apiVersion": "weave.keycloak-desired-state/v3",
         "keycloakVersion": "26.7.0",
         "environment": "test",
         "revision": "",
@@ -819,6 +844,23 @@ def main() -> None:
         )
         assert "mailpit" in dev_tools_model["services"]
         assert runtime_root_services(dev_tools) == ("keycloak", "mailpit")
+        provider_configtree = root / "provider-configtree"
+        provider_configtree.mkdir()
+        for name in (
+            "matrix-as-token",
+            "matrix-hs-token",
+            "weave.nextcloud.files.actor-token",
+        ):
+            (provider_configtree / name).write_text("stale-test-value\n", encoding="utf-8")
+        _reset_provider_configtree(provider_configtree)
+        assert not tuple(provider_configtree.iterdir())
+        (provider_configtree / "unmanaged").write_text("test\n", encoding="utf-8")
+        try:
+            _reset_provider_configtree(provider_configtree)
+        except ContractError as error:
+            assert "unmanaged entries" in str(error)
+        else:
+            raise AssertionError("provider configtree accepted an unmanaged credential file")
         dogfood = load_context(
             "dogfood", ROOT, str(materialize_example("dogfood", root / "dogfood.env"))
         )
@@ -892,14 +934,17 @@ def main() -> None:
             )
             assert (
                 "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_ADAPTER_KEY="
-                "nextcloud-webdav\n"
+                "weave-native\n"
                 in rendered_backend_env
             )
             assert (
                 "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_CONFIGURATION_REF="
-                "secretref:files:nextcloud\n"
+                "native:filesystem\n"
                 in rendered_backend_env
             )
+            assert "WEAVE_CHAT_PROVIDER=weave-native\n" in rendered_backend_env
+            assert "WEAVE_CALENDAR_PROVIDER=weave-native\n" in rendered_backend_env
+            assert "WEAVE_NEXTCLOUD_BASE_URL=" not in rendered_backend_env
         dogfood_model = resolved_model(dogfood)
         prod_model = resolved_model(prod)
         assert set(raw_resolved_model(dogfood)["services"]) == set(
@@ -920,15 +965,26 @@ def main() -> None:
         assert prod_model["services"]["keycloak"]["user"] == (
             f"{prod.env['WEAVE_RUNTIME_UID']}:0"
         )
+        for model in (dogfood_model, prod_model):
+            assert not {"mas", "synapse", "synapse-init", "nextcloud"}.intersection(
+                model["services"]
+            )
+            backend = model["services"]["backend"]
+            assert "native-files-data" in {
+                volume.get("source")
+                for volume in backend["volumes"]
+                if isinstance(volume, dict)
+            }
+            assert not any(
+                secret.get("source") == "nextcloud-actor-token"
+                for secret in backend.get("secrets", [])
+            )
         assert_agent_runtime_mount_boundary(dogfood_model)
         assert_agent_runtime_mount_boundary(prod_model)
         assert_schema_init_boundary(dogfood_model)
         assert_schema_init_boundary(prod_model)
-        assert_runtime_state_boundary(
-            dogfood_model,
-            dogfood.env["WEAVE_RUNTIME_UID"],
-            dogfood.env["WEAVE_RUNTIME_GID"],
-        )
+        assert_fresh_start_target_graph(dogfood_model, dogfood)
+        assert "runtime-state" not in dogfood_model["services"]
         regression = json.loads(
             (
                 ROOT
@@ -997,6 +1053,11 @@ def main() -> None:
                 isolated_model["services"]
             )
             assert "mailpit" in isolated_model["services"]
+            assert_runtime_state_boundary(
+                isolated_model,
+                isolated.env["WEAVE_RUNTIME_UID"],
+                isolated.env["WEAVE_RUNTIME_GID"],
+            )
             os.environ["WEAVE_E2E_STACK_SCOPE"] = ""
             try:
                 load_context("e2e", ROOT, str(root / "e2e.env"))
@@ -1022,6 +1083,20 @@ def main() -> None:
         assert 'elif command == "down":\n        if context.profile == "dev":' in runtime_source
         assert '"--wait-timeout",\n            "600",' in runtime_source
         assert 'script(context, "nextcloud_reconcile.py")' in runtime_source
+        blocked_provider = root / "blocked-provider.env"
+        blocked_provider.write_text(
+            (root / "dogfood.env").read_text().replace(
+                "COMPOSE_PROFILES=dogfood",
+                "COMPOSE_PROFILES=dogfood,provider-matrix",
+            )
+            + "\nWEAVE_CHAT_PROVIDER=matrix-synapse\n"
+        )
+        try:
+            load_context("dogfood", ROOT, str(blocked_provider))
+        except ContractError as error:
+            assert "manifest-bound Keycloak IAM migration" in str(error)
+        else:
+            raise AssertionError("optional Matrix provider bypassed the IAM migration gate")
         invalid = root / "invalid.env"
         invalid.write_text((root / "e2e.env").read_text())
         try:
@@ -1042,7 +1117,7 @@ def main() -> None:
             try:
                 load_context(environment, ROOT, str(invalid_optional))
             except ContractError as error:
-                assert "optional COMPOSE_PROFILES are supported only for dev" in str(error)
+                assert "optional selections must exactly match" in str(error)
             else:
                 raise AssertionError(f"{environment} accepted the dev-tools profile")
     compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
@@ -1051,13 +1126,16 @@ def main() -> None:
     assert "\n  - main\n" not in compose
     assert "\n  - test\n" not in compose and "\n  - prod\n" in compose
     mail_profiles = compose.split("x-mail-profiles: &mail-profiles", 1)[1].split(
-        "x-runtime-state-profiles:", 1
+        "x-application-profiles:", 1
     )[0]
     assert set(re.findall(r"^  - (.+)$", mail_profiles, re.MULTILINE)) == {
         "dev-tools",
         "dogfood",
         "e2e",
     }
+    assert "\n  - provider-matrix\n" in compose
+    assert "\n  - provider-nextcloud\n" in compose
+    assert "\n  - storage-s3\n" in compose
     assert "/run/secrets/agent-runtime:ro" not in compose
     assert "${WEAVE_TLS_ROOT:-./.generated/dev/tls}:/certs:ro" not in compose
     print("compose profile contract tests passed")

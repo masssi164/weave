@@ -26,12 +26,11 @@ assert 'mail.{env[\'WEAVE_TENANT_DOMAIN\']}' in renderer
 assert '@private_network remote_ip private_ranges' in renderer
 assert 'reverse_proxy mailpit:8025' in renderer
 assert 'if context.environment in {"dogfood", "e2e"}:' in renderer
-assert """  handle @synapse {{
-    reverse_proxy synapse:8008
-  }}
-  handle {{
-    reverse_proxy mas:8080
-  }}""" in renderer
+assert 'if env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse"' in renderer
+assert "reverse_proxy synapse:8008" in renderer
+assert "reverse_proxy mas:8080" in renderer
+assert 'respond "Optional Matrix provider is not selected" 404' in renderer
+assert 'respond "Optional Nextcloud provider is not selected" 404' in renderer
 PY
 
 printf '%s\n' "Caddy gateway configuration contract test passed."

@@ -17,7 +17,9 @@ from urllib.parse import urlsplit
 OPERATOR_ENVIRONMENTS = ("dev", "dogfood", "prod", "e2e")
 ENVIRONMENT_SELECTORS = OPERATOR_ENVIRONMENTS
 COMPOSE_ENVIRONMENT_PROFILES = frozenset(OPERATOR_ENVIRONMENTS)
-OPTIONAL_COMPOSE_PROFILES = frozenset(("dev-tools",))
+OPTIONAL_COMPOSE_PROFILES = frozenset(
+    ("dev-tools", "provider-matrix", "provider-nextcloud", "storage-s3")
+)
 SUPPORTED_COMPOSE_PROFILES = COMPOSE_ENVIRONMENT_PROFILES | OPTIONAL_COMPOSE_PROFILES
 DEPLOYMENT_CONTEXTS = {
     "dev": {"developer", "disposable"},
@@ -138,6 +140,8 @@ class ComposeContext:
         for path in self.compose_files:
             command.extend(("--file", str(path)))
         command.extend(("--project-name", self.env["WEAVE_COMPOSE_PROJECT"]))
+        for profile in self.active_profiles:
+            command.extend(("--profile", profile))
         return command
 
     @property
@@ -237,6 +241,7 @@ def _isolated_overrides(environment: str, env: dict[str, str]) -> tuple[dict[str
             "WEAVE_SYNAPSE_DATA_VOLUME": f"{volume_prefix}_synapse_data",
             "WEAVE_MATRIX_APPSERVICE_VOLUME": f"{volume_prefix}_matrix_chat_appservice_runtime",
             "WEAVE_RUNTIME_STATE_VOLUME": f"{volume_prefix}_runtime_state",
+            "WEAVE_NATIVE_FILES_DATA_VOLUME": f"{volume_prefix}_native_files_data",
         }
     )
     port_names = (
@@ -252,6 +257,9 @@ def _isolated_overrides(environment: str, env: dict[str, str]) -> tuple[dict[str
         "WEAVE_MCP_HOST_PORT",
     )
     supplied_ports = {name: os.environ.get(name, "") for name in port_names}
+    # The public E2E template uses
+    # zero to request Docker-assigned ports. Treat an all-zero/empty set as
+    # unsupplied; a partially explicit set still fails the all-values check.
     if any(value not in {"", "0"} for value in supplied_ports.values()):
         if not all(value.isdigit() and 1024 <= int(value) <= 65535 for value in supplied_ports.values()):
             fail("isolated E2E requires every declared host port to be an integer from 1024 through 65535")
@@ -384,6 +392,11 @@ def _validate_environment(environment: str, profile: str, env: Mapping[str, str]
         "WEAVE_ADMIN_CONSOLE_URL",
         "WEAVE_PROVIDER_PROFILE",
         "COMPOSE_PROFILES",
+        "WEAVE_NATIVE_FILES_DATA_VOLUME",
+        "WEAVE_FILES_PROVIDER",
+        "WEAVE_FILES_NATIVE_BLOB_STORE",
+        "WEAVE_CHAT_PROVIDER",
+        "WEAVE_CALENDAR_PROVIDER",
     )
     missing = [name for name in required if not env.get(name)]
     if missing:
@@ -421,22 +434,65 @@ def _validate_environment(environment: str, profile: str, env: Mapping[str, str]
     if environment_profiles != {environment}:
         fail(f"COMPOSE_PROFILES must select the {environment} environment profile")
     optional_profiles = active_profiles - COMPOSE_ENVIRONMENT_PROFILES
-    if optional_profiles and environment != "dev":
-        fail("optional COMPOSE_PROFILES are supported only for dev")
+    allowed_provider_values = {
+        "WEAVE_FILES_PROVIDER": {"weave-native", "nextcloud-webdav"},
+        "WEAVE_FILES_NATIVE_BLOB_STORE": {"filesystem", "s3-compatible"},
+        "WEAVE_CHAT_PROVIDER": {"weave-native", "matrix-synapse"},
+        "WEAVE_CALENDAR_PROVIDER": {"weave-native", "nextcloud-caldav"},
+    }
+    for name, allowed_values in allowed_provider_values.items():
+        if env[name] not in allowed_values:
+            fail(f"{name} must be one of: {', '.join(sorted(allowed_values))}")
+    expected_optional_profiles = set()
+    if env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse":
+        expected_optional_profiles.add("provider-matrix")
+    if (
+        env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav"
+        or env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav"
+    ):
+        expected_optional_profiles.add("provider-nextcloud")
+    if env["WEAVE_FILES_NATIVE_BLOB_STORE"] == "s3-compatible":
+        expected_optional_profiles.add("storage-s3")
+    if environment == "e2e":
+        expected_optional_profiles.add("storage-s3")
+    if environment == "dev" and "dev-tools" in optional_profiles:
+        expected_optional_profiles.add("dev-tools")
+    if optional_profiles != expected_optional_profiles:
+        fail(
+            "COMPOSE_PROFILES optional selections must exactly match the configured providers "
+            "and environment requirements"
+        )
+    if env["WEAVE_FILES_NATIVE_BLOB_STORE"] == "s3-compatible":
+        fail(
+            "native Files S3-compatible storage is not deployment-qualified with file-based "
+            "credentials; select filesystem until its exact SecretRef binding is implemented"
+        )
+    if (
+        env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse"
+        or env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav"
+        or env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav"
+    ):
+        fail(
+            "optional Matrix/Nextcloud provider activation is blocked until an explicit "
+            "manifest-bound Keycloak IAM migration is implemented and qualified"
+        )
     if environment != "dev":
         image_names = [
             "WEAVE_POSTGRES_IMAGE",
             "WEAVE_CADDY_IMAGE",
             "WEAVE_KEYCLOAK_IMAGE",
             "WEAVE_IDENTITY_OPS_IMAGE",
-            "WEAVE_MAS_IMAGE",
-            "WEAVE_SYNAPSE_IMAGE",
-            "WEAVE_NEXTCLOUD_IMAGE",
             "WEAVE_BACKEND_IMAGE",
             "WEAVE_MCP_IMAGE",
         ]
         if environment in {"dogfood", "e2e"}:
-            image_names.extend(("WEAVE_MAILPIT_IMAGE", "WEAVE_RUNTIME_STATE_IMAGE"))
+            image_names.append("WEAVE_MAILPIT_IMAGE")
+        if "provider-matrix" in active_profiles:
+            image_names.extend(("WEAVE_MAS_IMAGE", "WEAVE_SYNAPSE_IMAGE"))
+        if "provider-nextcloud" in active_profiles:
+            image_names.append("WEAVE_NEXTCLOUD_IMAGE")
+        if "storage-s3" in active_profiles:
+            image_names.append("WEAVE_RUNTIME_STATE_IMAGE")
         local_candidate_images = {
             "WEAVE_BACKEND_IMAGE", "WEAVE_IDENTITY_OPS_IMAGE", "WEAVE_MCP_IMAGE"
         } if environment == "e2e" else set()

@@ -21,8 +21,8 @@ require "${ROOT_DIR}/scripts/init_secrets.py" 'Matrix Application Service tokens
 require "${ROOT_DIR}/compose.yaml" 'install -m 0400'
 require "${ROOT_DIR}/compose.yaml" '! cmp -s /appservice/as-token /appservice/hs-token'
 require "${ROOT_DIR}/compose.yaml" 'matrix-appservice:/run/weave-chat-appservice:ro'
-require "${ROOT_DIR}/compose.yaml" 'matrix-appservice-as-token:/run/secrets/matrix/as-token:ro'
-require "${ROOT_DIR}/compose.yaml" 'matrix-appservice-hs-token:/run/secrets/matrix/hs-token:ro'
+require "${ROOT_DIR}/compose.yaml" 'profiles: *provider-matrix-profiles'
+require "${ROOT_DIR}/compose.yaml" '/backend/configtree:/run/secrets/providers:ro'
 require "${ROOT_DIR}/scripts/render_config.py" '@internal path /api/internal/* /actuator/*'
 require "${ROOT_DIR}/scripts/render_config.py" 'respond @internal'
 
@@ -39,6 +39,8 @@ require "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/chat/st
 
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN='
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN='
+reject "${ROOT_DIR}/compose.yaml" 'matrix-appservice-as-token:/run/secrets/matrix/as-token:ro'
+reject "${ROOT_DIR}/compose.yaml" 'matrix-appservice-hs-token:/run/secrets/matrix/hs-token:ro'
 reject "${ROOT_DIR}/scripts/render_config.py" 'rate_limited: false'
 reject "${ROOT_DIR}/scripts/render_config.py" 'regex: .*'
 

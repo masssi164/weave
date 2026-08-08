@@ -44,11 +44,12 @@ Dogfood/e2e/prod require digest-pinned images and a private `WEAVE_ENV_FILE`. Th
 `WEAVE_SPEC_CORPUS_ROOT` process coordinate is accepted only when it is an absolute Git worktree
 root at the exact commit in `specs/weave-specs.lock.json`.
 
-`dev` contains only PostgreSQL/Keycloak infrastructure; run Server, MCP, and Admin Console on the
-host, with H2 permitted only for the host server. Set `COMPOSE_PROFILES=dev,dev-tools` in a private
-dev environment file only when Mailpit is needed. Dogfood/prod include the backend and MCP tier;
-Mailpit is not part of either default graph. E2E includes Mailpit directly, sets
-`WEAVE_E2E_STACK_SCOPE=isolated`, and requires a bounded unique `WEAVE_E2E_RUN_ID`; cleanup may
+`dev` contains only Keycloak infrastructure; run Server, MCP, and Admin Console on the host, with
+H2 permitted only for the host server. Set `COMPOSE_PROFILES=dev,dev-tools` in a private dev
+environment only when Mailpit is needed. Dogfood/prod include the backend and MCP tier; dogfood
+also keeps persistent Mailpit for initial invitation capture, while prod uses external SMTP.
+E2E includes isolated Mailpit, sets `WEAVE_E2E_STACK_SCOPE=isolated`, and requires a bounded unique
+`WEAVE_E2E_RUN_ID`; cleanup may
 target only that derived namespace.
 
 ## Maintenance rules

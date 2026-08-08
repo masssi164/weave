@@ -135,6 +135,7 @@ volumes = {
     "caddy_config": (f"{volume_prefix}_caddy_config", "caddy-config.tgz", "Caddy config fixture data"),
     "keycloak": (f"{volume_prefix}_keycloak", "keycloak-data.tgz", "Identity fixture data"),
     "matrix_appservice": (f"{volume_prefix}_matrix_appservice", "matrix-appservice.tgz", "Matrix application-service fixture data"),
+    "native_files": (f"{volume_prefix}_native_files", "native-files-data.tgz", "Native Files payload fixture data"),
 }
 
 fixture_files = {
@@ -146,6 +147,7 @@ fixture_files = {
     "caddy_data/acme-marker.txt": "disposable acme continuity marker\n",
     "caddy_config/caddy-config-marker.txt": "disposable caddy config continuity marker\n",
     "matrix_appservice/registration.yaml": "id: weave-chat-appservice\nrate_limited: true\n",
+    "native_files/blobs/restore-proof.txt": "native Files payload survives restore\n",
 }
 for relative, content in fixture_files.items():
     target = seed_dir / relative
@@ -285,6 +287,7 @@ for name, kind in [
     ("caddy-config.tgz", "gateway-config-state"),
     ("keycloak-data.tgz", "keycloak-runtime-state"),
     ("matrix-appservice.tgz", "matrix-appservice-runtime"),
+    ("native-files-data.tgz", "native-files-payload-data"),
     ("private-config-secrets.tgz", "private-config-secretrefs"),
 ]:
     digest, size = sha256_file(backup_dir / name)

@@ -111,6 +111,7 @@ Optional providers are fail-closed by default:
 - `../.github/workflows/ci.yml`: Compose/JPA/contract validation and exact-candidate integration gates.
 - `KEYCLOAK_CONTRACT.md`: realm, client, scope, claim, and audience contract.
 - `docs/local-bootstrap.md`: local port modes, TLS trust, integration test inputs, and native app contract.
+- `docs/native-platform-compose.md`: executable native-provider defaults, developer commands, optional profiles, and current dogfood/prod fail-closed prerequisites.
 - `docs/single-host-operator-guide.md`: single-host deployment target.
 - `docs/operator-runbook.md`: operations, backup/restore, rotation, and triage.
 - `docs/matrix-default-workspace.md`: default Matrix space/room provisioning.
@@ -127,9 +128,8 @@ Optional providers are fail-closed by default:
 - `weave-workspace/nextcloud-auth-security-audit.sh`: support-safe classification of recent invalid-authentication/throttle sources without counter reset or raw addresses.
 - `weave-workspace/backup.sh`, `adoption-rehearsal.sh`, `restore-private-backup.sh`, and `support-bundle.sh`: private consistency backup, isolated adoption proof, integrity-only guarded restore preflight, and support-safe diagnostics.
 - `weave-workspace/weave-mcp-tool-contract.json`: support-safe canonical domain contract and active Spring AI MCP runtime evidence.
-- `weave-workspace/compose.yaml` plus the explicit `compose.dev.yaml`, `compose.dogfood.yaml`,
-  `compose.prod.yaml`, and `compose.e2e.yaml` overlays: the one supported process graph and its
-  four operator environments.
+- `weave-workspace/compose.yaml` plus narrow environment overlays: the native-provider default
+  process graph, optional southbound provider profiles, and its four operator environments.
 - `weave-workspace/keycloak/`: rootless one-shot Desired-State Identity Ops without human-user fixtures.
 
 ## Validation

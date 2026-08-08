@@ -20,7 +20,13 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from bounded_process import BoundedProcessTimeout, run_bounded
-from compose_env import ComposeContext, ContractError, compose_environment, load_context, run
+from compose_env import (
+    ComposeContext,
+    ContractError,
+    compose_environment,
+    load_context,
+    run,
+)
 
 
 COMMANDS = (
@@ -56,14 +62,6 @@ HOST_APPLICATION_SERVICES = (
     "mcp-keycloak-connectivity-check",
 )
 
-
-def runtime_root_services(context: ComposeContext) -> tuple[str, ...]:
-    services = RUNTIME_ROOT_SERVICES[context.profile]
-    if context.environment == "dev" and "dev-tools" in context.active_profiles:
-        return (*services, "mailpit")
-    return services
-
-
 VOLUME_KEYS = (
     "WEAVE_CADDY_DATA_VOLUME",
     "WEAVE_CADDY_CONFIG_VOLUME",
@@ -74,6 +72,7 @@ VOLUME_KEYS = (
     "WEAVE_SYNAPSE_DATA_VOLUME",
     "WEAVE_MATRIX_APPSERVICE_VOLUME",
     "WEAVE_RUNTIME_STATE_VOLUME",
+    "WEAVE_NATIVE_FILES_DATA_VOLUME",
 )
 RESOURCE_METADATA = {
     "WEAVE_CADDY_DATA_VOLUME": ("gateway", "tls-sensitive"),
@@ -85,7 +84,30 @@ RESOURCE_METADATA = {
     "WEAVE_SYNAPSE_DATA_VOLUME": ("chat", "collaboration-sensitive"),
     "WEAVE_MATRIX_APPSERVICE_VOLUME": ("chat-appservice", "credential-sensitive"),
     "WEAVE_RUNTIME_STATE_VOLUME": ("runtime-state", "runtime-state-sensitive"),
+    "WEAVE_NATIVE_FILES_DATA_VOLUME": ("files-native", "collaboration-sensitive"),
 }
+
+
+def active_volume_keys(context: ComposeContext) -> tuple[str, ...]:
+    if getattr(context, "environment", context.profile) == "dev":
+        return ("WEAVE_KEYCLOAK_DATA_VOLUME",)
+    keys = [
+        "WEAVE_CADDY_DATA_VOLUME",
+        "WEAVE_CADDY_CONFIG_VOLUME",
+        "WEAVE_DB_DATA_VOLUME",
+        "WEAVE_KEYCLOAK_DATA_VOLUME",
+        "WEAVE_NATIVE_FILES_DATA_VOLUME",
+    ]
+    profiles = set(context.active_profiles)
+    if profiles.intersection({"dogfood", "e2e", "dev-tools"}):
+        keys.append("WEAVE_MAILPIT_DATA_VOLUME")
+    if "provider-nextcloud" in profiles:
+        keys.append("WEAVE_NEXTCLOUD_DATA_VOLUME")
+    if "provider-matrix" in profiles:
+        keys.extend(("WEAVE_SYNAPSE_DATA_VOLUME", "WEAVE_MATRIX_APPSERVICE_VOLUME"))
+    if "storage-s3" in profiles:
+        keys.append("WEAVE_RUNTIME_STATE_VOLUME")
+    return tuple(keys)
 RESOURCE_PROVENANCE_LABEL_PATTERNS = {
     "com.massimotter.weave.spec-commit": re.compile(r"^[0-9a-f]{40}$"),
     "com.massimotter.weave.spec-digest": re.compile(r"^sha256:[0-9a-f]{64}$"),
@@ -129,6 +151,18 @@ def script(context: ComposeContext, name: str) -> None:
     if context.profile_env_file != context.root / f"environments/{context.profile}.env":
         command.extend(("--env-file", str(context.profile_env_file)))
     subprocess.run(command, cwd=context.root, env=compose_environment(context), check=True)
+
+
+def runtime_root_services(context: ComposeContext) -> tuple[str, ...]:
+    roots = list(RUNTIME_ROOT_SERVICES[context.profile])
+    profiles = set(context.active_profiles)
+    if "provider-matrix" in profiles:
+        roots.append("synapse")
+    if "provider-nextcloud" in profiles:
+        roots.append("nextcloud")
+    if "dev-tools" in profiles and "mailpit" not in roots:
+        roots.append("mailpit")
+    return tuple(roots)
 
 
 def compose(context: ComposeContext, *arguments: str, capture: bool = False) -> subprocess.CompletedProcess[str]:
@@ -224,7 +258,7 @@ def labels(context: ComposeContext, kind: str, name: str) -> dict[str, str]:
 
 def resource_inventory(context: ComposeContext) -> set[tuple[str, str]]:
     resources = {("network", context.env["WEAVE_DOCKER_NETWORK"])}
-    resources.update(("volume", context.env[key]) for key in VOLUME_KEYS)
+    resources.update(("volume", context.env[key]) for key in active_volume_keys(context))
     return resources
 
 
@@ -672,7 +706,7 @@ def prepare(context: ComposeContext) -> None:
     graph = validate_mount_contract(model)
     preflight_protected_sources(context, model, graph)
     ensure_resource(context, "network", context.env["WEAVE_DOCKER_NETWORK"])
-    for key in VOLUME_KEYS:
+    for key in active_volume_keys(context):
         ensure_resource(context, "volume", context.env[key])
 
 
@@ -1235,7 +1269,8 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
                 "--force",
                 *HOST_APPLICATION_SERVICES,
             )
-        compose(context, "up", "-d", "postgres", "postgres-reconcile")
+        if context.environment != "dev":
+            compose(context, "up", "-d", "postgres", "postgres-reconcile")
         identity_ops(context, "identity-apply")
         compose(
             context,
@@ -1247,7 +1282,7 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
             "600",
             *runtime_root_services(context),
         )
-        if context.environment != "dev":
+        if context.environment != "dev" and "provider-nextcloud" in context.active_profiles:
             script(context, "nextcloud_reconcile.py")
     elif command == "down":
         if context.profile == "dev":

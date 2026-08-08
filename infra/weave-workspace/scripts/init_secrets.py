@@ -22,27 +22,39 @@ from compose_env import ComposeContext, ContractError, canonical_json, load_cont
 from crypto_runtime import OPENSSL  # noqa: E402
 
 
-TEXT_SECRETS = (
+CORE_TEXT_SECRETS = (
     "keycloak-bootstrap-admin-password",
     "postgres-admin-password",
     "backend-db-password",
     "identity-reference-hmac-key",
     "keycloak-db-password",
+    "control-db-password",
+)
+MATRIX_TEXT_SECRETS = (
     "mas-db-password",
     "synapse-db-password",
-    "nextcloud-db-password",
-    "control-db-password",
-    "nextcloud-admin-password",
-    "nextcloud-actor-token",
-    "keycloak-nextcloud",
-    "keycloak-matrix-mas",
     "mas-matrix-secret",
     "synapse-registration-shared-secret",
     "synapse-macaroon-secret-key",
     "synapse-form-secret",
     "matrix-appservice-as-token",
     "matrix-appservice-hs-token",
+)
+NEXTCLOUD_TEXT_SECRETS = (
+    "nextcloud-db-password",
+    "nextcloud-admin-password",
+    "nextcloud-actor-token",
+)
+S3_TEXT_SECRETS = (
     "runtime-state-s3-secret-key",
+)
+# Complete shared-secret inventory retained for contract scanners. Runtime
+# generation uses the narrower provider-selected sets above.
+TEXT_SECRETS = (
+    CORE_TEXT_SECRETS
+    + MATRIX_TEXT_SECRETS
+    + NEXTCLOUD_TEXT_SECRETS
+    + S3_TEXT_SECRETS
 )
 CLI_ARGUMENT_SECRETS = (
     # Nextcloud's entrypoint expands both values as option arguments during
@@ -358,42 +370,55 @@ def _validate_existing(context: ComposeContext) -> None:
         raise ContractError(
             "retired identity-admin shared secret exists; Fresh Start or explicit secure removal is required"
         )
+    matrix_selected = context.env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse"
+    nextcloud_selected = (
+        context.env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav"
+        or context.env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav"
+    )
+    storage_s3_selected = "storage-s3" in context.active_profiles
     required = (
-        list(TEXT_SECRETS)
-        + list(MINIO_ACCESS_KEY_SECRETS)
-        + list(HEX_SECRETS)
+        list(CORE_TEXT_SECRETS)
         + [name for name, _ in RSA_JWKS]
         + [name for name, _ in RUNTIME_RSA_JWKS]
-        + [name for name, _ in PEM_KEYS]
     )
-    if context.environment in {"dogfood", "e2e"}:
+    if matrix_selected:
+        required.extend(MATRIX_TEXT_SECRETS)
+        required.extend(HEX_SECRETS)
+        required.extend(name for name, _ in PEM_KEYS)
+    if nextcloud_selected:
+        required.extend(NEXTCLOUD_TEXT_SECRETS)
+    if storage_s3_selected:
+        required.extend(S3_TEXT_SECRETS)
+        required.extend(MINIO_ACCESS_KEY_SECRETS)
+    if context.environment == "e2e":
         required.extend(TEST_ONLY_SECRETS)
-    if context.profile == "prod":
+    if context.environment == "prod":
         required.extend(SMTP_SECRETS)
     for name in required:
         _assert_private_file(context.secret_root / name)
-    for name in HEX_SECRETS:
+    for name in (HEX_SECRETS if matrix_selected else ()):
         value = (context.secret_root / name).read_text(encoding="ascii").strip()
         if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
             raise ContractError(f"secret must be a 32-byte lowercase hex value: {name}")
-    for name in MINIO_ACCESS_KEY_SECRETS:
+    for name in (MINIO_ACCESS_KEY_SECRETS if storage_s3_selected else ()):
         value = (context.secret_root / name).read_text(encoding="ascii").strip()
         if not 3 <= len(value) <= 20 or any(
             character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" for character in value
         ):
             raise ContractError(f"MinIO access key must be 3-20 uppercase alphanumeric characters: {name}")
-    for name in CLI_ARGUMENT_SECRETS:
+    for name in (CLI_ARGUMENT_SECRETS if nextcloud_selected else ()):
         value = (context.secret_root / name).read_bytes()
         if not _valid_cli_argument_secret(value):
             raise ContractError(
                 f"CLI-bound SecretRef is empty, multiline, or option-shaped: {name}"
             )
-    appservice_tokens = tuple(
-        (context.secret_root / name).read_bytes().strip()
-        for name in ("matrix-appservice-as-token", "matrix-appservice-hs-token")
-    )
-    if not all(len(value) >= 64 for value in appservice_tokens) or len(set(appservice_tokens)) != 2:
-        raise ContractError("Matrix Application Service tokens must be distinct high-entropy SecretRefs")
+    if matrix_selected:
+        appservice_tokens = tuple(
+            (context.secret_root / name).read_bytes().strip()
+            for name in ("matrix-appservice-as-token", "matrix-appservice-hs-token")
+        )
+        if not all(len(value) >= 64 for value in appservice_tokens) or len(set(appservice_tokens)) != 2:
+            raise ContractError("Matrix Application Service tokens must be distinct high-entropy SecretRefs")
     for name, _ in RSA_JWKS + RUNTIME_RSA_JWKS:
         value = json.loads((context.secret_root / name).read_text(encoding="utf-8"))
         required_fields = {"kty", "kid", "n", "e", "d", "p", "q", "dp", "dq", "qi"}
@@ -416,7 +441,7 @@ def _validate_existing(context: ComposeContext) -> None:
         raise ContractError(
             "runtime-admin private JWK owner does not match the configured runtime uid"
         )
-    if context.profile == "prod":
+    if context.environment == "prod":
         for name in ("ca.pem", "cert.pem", "key.pem"):
             _assert_private_file(context.tls_root / name)
 
@@ -429,7 +454,7 @@ def initialize(context: ComposeContext) -> None:
         raise ContractError(
             "retired identity-admin shared secret exists; Fresh Start or explicit secure removal is required"
         )
-    if context.profile == "prod":
+    if context.environment == "prod":
         _validate_existing(context)
         return
     runtime_key_root = (
@@ -453,13 +478,29 @@ def initialize(context: ComposeContext) -> None:
                 raise ContractError(
                     "runtime-admin SecretRef directory ownership is invalid"
                 ) from error
-    for name in TEXT_SECRETS:
+    for name in CORE_TEXT_SECRETS:
         _atomic_write(context.secret_root / name, _random_secret())
-    for name in MINIO_ACCESS_KEY_SECRETS:
-        _atomic_write(context.secret_root / name, _random_minio_access_key())
-    for name in HEX_SECRETS:
-        _atomic_write(context.secret_root / name, _random_hex_secret())
-    if context.environment in {"dogfood", "e2e"}:
+    if context.env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse":
+        for name in MATRIX_TEXT_SECRETS:
+            _atomic_write(context.secret_root / name, _random_secret())
+        for name in HEX_SECRETS:
+            _atomic_write(context.secret_root / name, _random_hex_secret())
+        for name, algorithm in PEM_KEYS:
+            path = context.secret_root / name
+            if not path.exists():
+                _atomic_write(path, _pem(algorithm))
+    if (
+        context.env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav"
+        or context.env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav"
+    ):
+        for name in NEXTCLOUD_TEXT_SECRETS:
+            _atomic_write(context.secret_root / name, _random_secret())
+    if "storage-s3" in context.active_profiles:
+        for name in S3_TEXT_SECRETS:
+            _atomic_write(context.secret_root / name, _random_secret())
+        for name in MINIO_ACCESS_KEY_SECRETS:
+            _atomic_write(context.secret_root / name, _random_minio_access_key())
+    if context.environment == "e2e":
         for name in TEST_ONLY_SECRETS:
             _atomic_write(context.secret_root / name, _random_secret())
     for name, kid in RSA_JWKS:
@@ -477,10 +518,6 @@ def initialize(context: ComposeContext) -> None:
                 raise ContractError(
                     "runtime-admin private JWK ownership is invalid"
                 ) from error
-    for name, algorithm in PEM_KEYS:
-        path = context.secret_root / name
-        if not path.exists():
-            _atomic_write(path, _pem(algorithm))
     _generate_tls(context)
     _validate_existing(context)
     manifest = {
