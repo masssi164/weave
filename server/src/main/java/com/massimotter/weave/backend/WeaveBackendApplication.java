@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import com.massimotter.weave.backend.config.ConnectorRuntimeProperties;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.config.FilesRuntimeProperties;
 import com.massimotter.weave.backend.config.GuestAccessProperties;
 import com.massimotter.weave.backend.config.InteropGatewayProperties;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
@@ -17,6 +18,7 @@ import com.massimotter.weave.backend.config.NextcloudFilesProperties;
 import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.ProviderHealthProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.schema.SchemaAuthorityInitializer;
 import com.massimotter.weave.backend.schema.SchemaReceiptVerifier;
@@ -34,6 +36,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         ChatRuntimeProperties.class,
         ConnectorRuntimeProperties.class,
         ContextAuthorizationProperties.class,
+        FilesRuntimeProperties.class,
         GuestAccessProperties.class,
         InteropGatewayProperties.class,
         IdentityInvitationProperties.class,
@@ -44,6 +47,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         PlatformContractProperties.class,
         ProviderHealthProperties.class,
         WeaveSecurityProperties.class,
+        WeaveNativeFilesProperties.class,
         WorkspaceCapabilityProperties.class
 })
 public class WeaveBackendApplication {
