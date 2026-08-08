@@ -118,16 +118,18 @@ print(json.dumps(data,separators=(",",":")))
 }
 
 mailpit_summary() {
-  local volume_identity message_payload message_count database_size database_sha256
-  volume_identity="$(docker volume inspect weave_mailpit_data --format '{{.Name}}|{{.CreatedAt}}|{{.Mountpoint}}')"
+  local volume_name container_name volume_identity message_payload message_count database_size database_sha256
+  volume_name="${WEAVE_MAILPIT_DATA_VOLUME:-weave_dogfood_mailpit_data}"
+  container_name="${WEAVE_RESOURCE_PREFIX:-weave-dogfood}-mailpit"
+  volume_identity="$(docker volume inspect "${volume_name}" --format '{{.Name}}|{{.CreatedAt}}|{{.Mountpoint}}')"
   message_payload="$(curl --silent --show-error --fail "http://127.0.0.1:${WEAVE_MAILPIT_WEB_HOST_PORT:-8025}/api/v1/messages")"
   message_count="$(jq '(.total // .Total // (.messages // [] | length)) | tonumber' <<<"${message_payload}")"
-  database_size="$(docker exec weave-mailpit sh -c 'if [ -f /data/mailpit.db ]; then wc -c </data/mailpit.db; else printf 0; fi' | tr -d '[:space:]')"
+  database_size="$(docker exec "${container_name}" sh -c 'if [ -f /data/mailpit.db ]; then wc -c </data/mailpit.db; else printf 0; fi' | tr -d '[:space:]')"
   [[ "${database_size}" =~ ^[0-9]+$ ]] || fail "Mailpit database size was not numeric"
   ((database_size > 0)) || fail "Mailpit database was empty or unavailable"
   # Hash the stream on the host so the container needs only `sh` and `cat`.
   # Database bytes are never written to evidence or command output.
-  database_sha256="$(docker exec weave-mailpit sh -c 'exec cat /data/mailpit.db' | sha256_stream)"
+  database_sha256="$(docker exec "${container_name}" sh -c 'exec cat /data/mailpit.db' | sha256_stream)"
   [[ "${database_sha256}" =~ ^[0-9a-f]{64}$ ]] || fail "Mailpit database SHA-256 was invalid"
   jq -cn \
     --arg identitySha256 "$(printf '%s' "${volume_identity}" | sha256_stream)" \

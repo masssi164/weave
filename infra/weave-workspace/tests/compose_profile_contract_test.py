@@ -36,7 +36,7 @@ from compose_runtime import (  # noqa: E402
     runtime_root_services,
     validate_mount_contract,
 )
-from render_config import _backend_env, _image_digest, _render_desired  # noqa: E402
+from render_config import _backend_env, _caddy, _image_digest, _overlay, _render_desired  # noqa: E402
 
 
 def materialize_example(profile: str, destination: Path) -> Path:
@@ -113,6 +113,24 @@ def assert_long_running_services_reap_child_processes(model: dict[str, object]) 
         for service in long_running
         if services[service].get("init") is not True
     } == set()
+
+
+def assert_keycloak_smtp_vault_boundary(
+    model: dict[str, object], *, smtp_password: bool
+) -> None:
+    keycloak = model["services"]["keycloak"]
+    smtp = [
+        secret
+        for secret in keycloak.get("secrets", [])
+        if secret.get("source") == "smtp-password"
+    ]
+    if smtp_password:
+        assert keycloak["environment"]["KC_VAULT_DIR"] == "/opt/keycloak/vault"
+        assert len(smtp) == 1
+        assert smtp[0]["target"] == "/opt/keycloak/vault/weave_smtp-password"
+        assert smtp[0].get("mode") in {"0400", 0o400}
+    else:
+        assert not smtp
 
 
 def expect_contract_rejection(action, message: str) -> None:
@@ -798,6 +816,22 @@ def main() -> None:
         assert "--optimized" not in dogfood_overlay
         assert _image_digest(dogfood) == "sha256:" + "a" * 64
         assert _image_digest(prod) == "sha256:" + "a" * 64
+        dogfood_smtp = _overlay(dogfood, "sha256:" + "b" * 64)["smtpEndpoints"]
+        assert dogfood_smtp == {
+            "host": "mailpit",
+            "port": 1025,
+            "fromAddress": "noreply@weave.test",
+            "fromDisplayName": "Weave",
+            "ssl": True,
+            "startTls": False,
+        }
+        dogfood_caddy = _caddy(dogfood)
+        assert "https://mail.weave.test {" in dogfood_caddy
+        assert "@private_network remote_ip private_ranges" in dogfood_caddy
+        assert "reverse_proxy mailpit:8025" in dogfood_caddy
+        assert 'respond "Forbidden" 403' in dogfood_caddy
+        assert "https://mail.weave.example {" not in _caddy(prod)
+        assert "reverse_proxy mailpit:8025" not in _caddy(prod)
         backend_env = _backend_env(dogfood)
         assert (
             f"WEAVE_API_BASE_URL={dogfood.env['WEAVE_API_URL']}\n"
@@ -841,8 +875,10 @@ def main() -> None:
         assert set(raw_resolved_model(prod)["services"]) == set(
             prod_model["services"]
         )
-        assert "mailpit" not in dogfood_model["services"]
+        assert "mailpit" in dogfood_model["services"]
         assert "mailpit" not in prod_model["services"]
+        assert_keycloak_smtp_vault_boundary(dogfood_model, smtp_password=False)
+        assert_keycloak_smtp_vault_boundary(prod_model, smtp_password=True)
         assert_long_running_services_reap_child_processes(dogfood_model)
         assert_long_running_services_reap_child_processes(prod_model)
         assert dogfood_model["services"]["keycloak"]["user"] == (
@@ -945,7 +981,7 @@ def main() -> None:
         assert "WEAVE_TEST_USERS_FILE" not in runtime_source
         assert "test-users.json" not in runtime_source
         assert '"dev": ("keycloak",)' in runtime_source
-        assert '"dogfood": ("caddy", "mcp")' in runtime_source
+        assert '"dogfood": ("caddy", "mailpit", "mcp")' in runtime_source
         assert '"e2e": ("caddy", "mailpit", "mcp")' in runtime_source
         assert '"prod": ("caddy", "mcp")' in runtime_source
         assert "HOST_APPLICATION_SERVICES" in runtime_source
@@ -986,6 +1022,7 @@ def main() -> None:
     )[0]
     assert set(re.findall(r"^  - (.+)$", mail_profiles, re.MULTILINE)) == {
         "dev-tools",
+        "dogfood",
         "e2e",
     }
     assert "/run/secrets/agent-runtime:ro" not in compose

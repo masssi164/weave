@@ -77,7 +77,8 @@ fi
 
 # shellcheck disable=SC2016
 grep -Fq '"${DOGFOOD_MEMBER_SCRIPT}" status' "${SCRIPT}"
-grep -Fq 'weave_mailpit_data' "${SCRIPT}"
+grep -Fq 'WEAVE_MAILPIT_DATA_VOLUME:-weave_dogfood_mailpit_data' "${SCRIPT}"
+grep -Fq 'WEAVE_RESOURCE_PREFIX:-weave-dogfood' "${SCRIPT}"
 grep -Fq '/api/v1/messages' "${SCRIPT}"
 grep -Fq '/data/mailpit.db' "${SCRIPT}"
 grep -Fq 'databaseSha256' "${SCRIPT}"
@@ -130,10 +131,13 @@ cat >"${capture_bin}/docker" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ "${1:-}" == volume && "${2:-}" == inspect ]]; then
-  printf 'weave_mailpit_data|fixture-created|/fixture/mailpit\n'
+  [[ "${3:-}" == fixture_dogfood_mailpit_data ]]
+  printf 'fixture_dogfood_mailpit_data|fixture-created|/fixture/mailpit\n'
 elif [[ "${1:-}" == exec && "$*" == *'wc -c'* ]]; then
+  [[ "${2:-}" == fixture-dogfood-mailpit ]]
   printf '%s\n' "$(printf 'fixture-mailpit-db' | wc -c | tr -d '[:space:]')"
 elif [[ "${1:-}" == exec && "$*" == *'cat /data/mailpit.db'* ]]; then
+  [[ "${2:-}" == fixture-dogfood-mailpit ]]
   printf 'fixture-mailpit-db'
 else
   exit 1
@@ -151,7 +155,10 @@ mailpit_capture="$({
   export PATH="${capture_bin}:${PATH}"
   # shellcheck source=infra/weave-workspace/persistent-dogfood-observation.sh
   source "${SCRIPT}"
-  WEAVE_MAILPIT_WEB_HOST_PORT=8025 mailpit_summary
+  WEAVE_MAILPIT_DATA_VOLUME=fixture_dogfood_mailpit_data \
+    WEAVE_RESOURCE_PREFIX=fixture-dogfood \
+    WEAVE_MAILPIT_WEB_HOST_PORT=8025 \
+    mailpit_summary
 })"
 expected_database_hash="$(printf 'fixture-mailpit-db' | shasum -a 256 | awk '{print $1}')"
 jq -e --arg expectedHash "${expected_database_hash}" '

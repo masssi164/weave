@@ -20,7 +20,7 @@ Weave uses three promotion lanes:
 
 `main` must not receive commits that have bypassed either `dev` integration or `dogfood` deployment.
 
-## Persistent LAN test stack
+## Persistent LAN dogfood stack
 
 The test stack is deployed by the `Test Stack Deploy` GitHub Actions workflow. Candidate evidence keeps two immutable identities: the protected `dev` source commit used to build all artifacts and the `dogfood` lane merge commit being validated and deployed. Neither may be inferred from the other or omitted:
 
@@ -36,13 +36,13 @@ The test stack is deployed by the `Test Stack Deploy` GitHub Actions workflow. C
 
 The workflow and developers use the module-owned Gradle interface:
 
-- `./gradlew :infra:composeTestUp`
-- `./gradlew :infra:identityTestVerify`
-- `./gradlew :infra:composeTestReady`
+- `./gradlew :infra:composeDogfoodUp`
+- `./gradlew :infra:identityDogfoodVerify`
+- `./gradlew :infra:composeDogfoodReady`
 
 The task implementations call the same closed scripts used by CI. Humans do not paste or
 reconstruct the underlying commands for normal test-stack use. The visible entrypoint is the
-`dogfood` delivery result and the iPhone app pointed at the persistent `test` runtime.
+`dogfood` delivery result and the iPhone app pointed at the persistent `dogfood` environment.
 
 ## Fresh generation vs later update
 
@@ -52,7 +52,7 @@ After the new generation has been established, later candidates default to updat
 
 - consume the exact backend, MCP, Identity Ops, and custom Keycloak Runtime image digests proven by the
   isolated candidate run;
-- apply the `test` profile idempotently;
+- apply the `dogfood` environment idempotently;
 - keep only state created under the current generation;
 - reject pre-generation, unowned, or undeclared resources instead of adopting them;
 - run operator checks;
@@ -66,9 +66,9 @@ There is no persistent reset input. The one-time generation cut and any later pe
 
 The protected `dogfood` GitHub environment configures two absolute runner paths:
 
-- `WEAVE_TEST_REVIEWED_ENV_FILE`: root-owned mode `0444` or `0644`, containing only reviewed
-  public `test` coordinates;
-- `WEAVE_TEST_BACKUP_ROOT`: operator-owned mode `0700`, outside the checkout.
+- `WEAVE_DOGFOOD_REVIEWED_ENV_FILE`: runner-owned mode `0600`, containing reviewed dogfood
+  coordinates but no secret values;
+- `WEAVE_DOGFOOD_BACKUP_ROOT`: operator-owned mode `0700`, outside the checkout.
 
 The deployment fails before mutation if either path is absent, weakly permissioned, or symlinked.
 For the generation cut it also fails unless the current plan, private backup, restore probe, exact
@@ -100,7 +100,7 @@ Bootstrap note: GitHub only treats new workflow files as branch-protection candi
 
 ## Provider model
 
-The persistent `dogfood` stack is a disposable Weave-owned dogfood environment. It should not attach to Massimo's `~/server` services by default.
+The persistent `dogfood` stack is a Weave-owned durable validation environment. It should not attach to Massimo's `~/server` services by default.
 
 Default local providers:
 

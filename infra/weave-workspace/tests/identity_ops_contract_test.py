@@ -51,6 +51,42 @@ def main() -> None:
     assert realm["attributes"]["frontendUrl"] == "https://auth.weave.local"
     assert realm["verifyEmail"] is True
     assert realm["smtpServer"]["port"] == "1025"
+    external_realm = identity_ops.realm_payload(
+        {
+            "name": "weave",
+            "verifyEmail": True,
+            "smtp": {
+                "host": "smtp.example.invalid",
+                "port": 465,
+                "fromAddress": "noreply@example.invalid",
+                "fromDisplayName": "Weave",
+                "ssl": True,
+                "startTls": False,
+                "username": "weave-smtp",
+                "passwordVaultRef": "${vault.smtp-password}",
+            },
+        }
+    )
+    assert external_realm["smtpServer"]["user"] == "weave-smtp"
+    assert external_realm["smtpServer"]["auth"] == "true"
+    assert external_realm["smtpServer"]["password"] == "${vault.smtp-password}"
+    try:
+        identity_ops.realm_payload(
+            {
+                "name": "weave",
+                "verifyEmail": True,
+                "smtp": {
+                    "host": "smtp.example.invalid",
+                    "port": 465,
+                    "username": "weave-smtp",
+                    "passwordVaultRef": "plaintext-is-forbidden",
+                },
+            }
+        )
+    except identity_ops.IdentityOpsError:
+        pass
+    else:
+        raise AssertionError("realm payload accepted a non-Vault SMTP password")
     try:
         identity_ops.realm_payload({"name": "weave"})
         raise AssertionError("realm payload accepted missing native email verification policy")

@@ -158,7 +158,7 @@ def main() -> int:
     assert dev.environment == "dev"
     assert dev.profile == "dev"
     assert RUNTIME_ROOT_SERVICES["dev"] == ("keycloak",)
-    assert RUNTIME_ROOT_SERVICES["dogfood"] == ("caddy", "mcp")
+    assert RUNTIME_ROOT_SERVICES["dogfood"] == ("caddy", "mailpit", "mcp")
     assert runtime_root_services(dev) == ("keycloak",)
     with tempfile.TemporaryDirectory() as directory:
         dev_tools_env = Path(directory) / "dev-tools.env"
@@ -178,6 +178,33 @@ def main() -> int:
     assert "<dev|dogfood|prod|e2e>" in shell_source
     assert "deprecated CI-only compatibility selector" not in shell_source
     assert "test" not in shell_source
+
+    repository = ROOT.parents[1]
+    for workflow_name in ("test-stack-deploy.yml", "human-testing-readiness.yml"):
+        workflow = (repository / ".github/workflows" / workflow_name).read_text(
+            encoding="utf-8"
+        )
+        assert 'load_context("test"' not in workflow
+        assert "./compose.sh test " not in workflow
+        assert "./operator-check.sh test" not in workflow
+        assert "./install.sh test" not in workflow
+    for module in ("server", "weave-mcp-server"):
+        resource_root = repository / module / "src/main/resources"
+        for environment in ("dogfood", "e2e"):
+            profile = (resource_root / f"application-{environment}.yml").read_text(
+                encoding="utf-8"
+            )
+            assert f"on-profile: {environment}" in profile
+            assert f"profile: {environment}" in profile
+            assert "org.postgresql.Driver" in profile
+
+    dogfood_example = (ROOT / "environments/dogfood.env.example").read_text(
+        encoding="utf-8"
+    )
+    assert "WEAVE_MAILPIT_IMAGE=" in dogfood_example
+    assert "WEAVE_MAILPIT_DATA_VOLUME=" in dogfood_example
+    assert "WEAVE_MAILPIT_REQUIRE_TLS=true" in dogfood_example
+    assert "WEAVE_SMTP_" not in dogfood_example
 
     print("operator environment contract: PASS")
     return 0

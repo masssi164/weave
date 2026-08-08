@@ -105,7 +105,7 @@ def check(
     member_access_token_file: Path | None = None,
 ) -> dict[str, object]:
     services = list(CORE_SERVICES)
-    if context.environment == "e2e" or "dev-tools" in context.active_profiles:
+    if context.environment in {"dogfood", "e2e"} or "dev-tools" in context.active_profiles:
         services.extend(ACTIVATION_SERVICES)
     if require_application:
         services.extend(APPLICATION_SERVICES)

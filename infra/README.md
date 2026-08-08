@@ -69,7 +69,7 @@ For a real single-host deployment, start here:
 - [Matrix/Synapse southbound Chat Application Service](docs/matrix-synapse-chat-appservice.md): private provider credential, namespace, callback, backup/restore, and isolated proof boundaries.
 - [Weaver runtime lifecycle](docs/weaver-runtime-lifecycle.md): Agent Runtime Control cell lifecycle, signed RuntimeProfile v2 input, zero durable cell-byte boundary, external encrypted state, per-cell Keycloak workload identity, and deletion evidence.
 - [Weave MCP workload contract](docs/weave-mcp-tool-contract.md): Spring AI transport, workload-only OIDC admission, protected-resource discovery, token exchange, current ARC context, and fail-closed empty catalogs.
-- [Identity environment parity](docs/identity-environment-parity.md): one stock-Keycloak/Identity-Ops model across test and production, plus the iPhone Mailpit verification boundary.
+- [Identity environment parity](docs/identity-environment-parity.md): one Keycloak identity behavior across dogfood and production, plus the persistent dogfood iPhone/Mailpit verification boundary.
 
 After installation, verify public and host-local state:
 
@@ -85,7 +85,7 @@ Default local names resolve to loopback; non-local installs derive the same patt
 - `https://<tenant_domain>`: Weave product gateway, including `/files` and `/calendar` product routes.
 - `https://api.<tenant_domain>/api`: canonical backend API origin.
 - `https://auth.<tenant_domain>`: Keycloak.
-- `https://mail.<tenant_domain>`: private-CIDR test deployment Mailpit inbox only; absent in production.
+- `https://mail.<tenant_domain>`: private-CIDR dogfood Mailpit inbox; absent in production.
 - `https://matrix.<tenant_domain>`: Matrix/Synapse/MAS behind the matrix hostname.
 - `https://files.<tenant_domain>`: raw Nextcloud technical/admin/protocol fallback.
 
@@ -123,7 +123,7 @@ Optional providers are fail-closed by default:
 - `weave-workspace/operator-check.sh`: host-local container and health checks.
 - `../gradle/tasks/test-app.sh`: the single run-scoped invitation, Keycloak activation, PKCE, WebDAV, ARC, MCP, revocation, and cleanup proof.
 - `weave-workspace/isolated-e2e-calendar-outage.sh`: isolated-only Calendar outage/recovery fixture that deletes only the backend actor's disposable `weave-workspace` calendar and proves cached domain-local degradation while Files stays available.
-- `weave-workspace/persistent-dogfood-observation.sh`: read-only before/after hashes and counts for non-destructive persistent dogfood deployment evidence.
+- `weave-workspace/persistent-dogfood-observation.sh`: read-only before/after subject, Mailpit, TLS, and session hashes/counts for non-destructive persistent dogfood deployment evidence.
 - `weave-workspace/nextcloud-auth-security-audit.sh`: support-safe classification of recent invalid-authentication/throttle sources without counter reset or raw addresses.
 - `weave-workspace/backup.sh`, `adoption-rehearsal.sh`, `restore-private-backup.sh`, and `support-bundle.sh`: private consistency backup, isolated adoption proof, integrity-only guarded restore preflight, and support-safe diagnostics.
 - `weave-workspace/weave-mcp-tool-contract.json`: support-safe canonical domain contract and active Spring AI MCP runtime evidence.

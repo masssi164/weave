@@ -45,7 +45,7 @@ RUNTIME_ROOT_SERVICES = {
     # Normal development runs Server, MCP, and Admin Console on the host. The
     # Compose lifecycle converges only the database/Keycloak dependency path.
     "dev": ("keycloak",),
-    "dogfood": ("caddy", "mcp"),
+    "dogfood": ("caddy", "mailpit", "mcp"),
     "e2e": ("caddy", "mailpit", "mcp"),
     "prod": ("caddy", "mcp"),
 }

@@ -62,7 +62,7 @@ TEST_ONLY_SECRETS = (
     "identity-bootstrap-owner-token",
     "chat-e2e-proof-token",
 )
-PROD_ONLY_SECRETS = ("smtp-username", "smtp-password")
+SMTP_SECRETS = ("smtp-password",)
 RSA_JWKS = (
     ("keycloak-weave-backend-jwk.json", "weave-backend-current"),
     ("keycloak-weave-mcp-server-jwk.json", "weave-mcp-server-current"),
@@ -315,6 +315,7 @@ def _generate_tls(context: ComposeContext) -> None:
             context.env["WEAVE_PUBLIC_URL"].split("//", 1)[1].split(":", 1)[0],
             context.env["WEAVE_API_ORIGIN"].split("//", 1)[1].split(":", 1)[0],
             context.env["WEAVE_AUTH_URL"].split("//", 1)[1].split(":", 1)[0],
+            f"mail.{context.env['WEAVE_TENANT_DOMAIN']}",
             context.env["WEAVE_MATRIX_URL"].split("//", 1)[1].split(":", 1)[0],
             context.env["WEAVE_FILES_URL"].split("//", 1)[1].split(":", 1)[0],
         }
@@ -363,7 +364,7 @@ def _validate_existing(context: ComposeContext) -> None:
     if context.environment in {"dogfood", "e2e"}:
         required.extend(TEST_ONLY_SECRETS)
     if context.profile == "prod":
-        required.extend(PROD_ONLY_SECRETS)
+        required.extend(SMTP_SECRETS)
     for name in required:
         _assert_private_file(context.secret_root / name)
     for name in HEX_SECRETS:

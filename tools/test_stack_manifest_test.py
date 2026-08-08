@@ -62,7 +62,8 @@ class TestStackManifestTest(unittest.TestCase):
                 "containsSecretValues": False,
             },
             {
-                "schemaVersion": "weave.persistent-test-idempotence.v2", "deploymentContext": "persistent-dogfood",
+                "schemaVersion": "weave.persistent-test-idempotence.v2", "runtimeProfile": "dogfood",
+                "deploymentContext": "persistent-dogfood",
                 "noChanges": True, "composeModelStable": True, "identitySecondPlanEmpty": True,
                 "supportSafe": True, "containsSecretValues": False,
             },

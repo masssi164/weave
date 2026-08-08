@@ -30,6 +30,7 @@ x-core-profiles: &core-profiles
 
 x-mail-profiles: &mail-profiles
   - dev-tools
+  - dogfood
   - e2e
 
 x-runtime-state-profiles: &runtime-state-profiles
@@ -285,7 +286,7 @@ services:
     labels:
       <<: *weave-resource-labels
       com.massimotter.weave.component: mail
-      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.data-class: activation-sensitive
     profiles: *mail-profiles
     image: ${WEAVE_MAILPIT_IMAGE:-axllent/mailpit:v1.27.8}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mailpit
@@ -917,6 +918,8 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/runtime-state-s3-access-key
   runtime-state-s3-secret-key:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/runtime-state-s3-secret-key
+  smtp-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/smtp-password
 
 volumes:
   caddy-data:
