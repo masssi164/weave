@@ -80,6 +80,7 @@ public class SecurityConfig {
                         .requestMatchers("/dav/**", "/caldav/**", "/_matrix/client/**")
                                 .access(workspaceAccessAuthorizationManager)
                         .requestMatchers("/api/**").access(workspaceAccessAuthorizationManager)
+                        .requestMatchers(AdminConsoleRoutePolicy::isPublicConsoleRequest).permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .authenticationEntryPoint(authenticationEntryPoint)
