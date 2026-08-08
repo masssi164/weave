@@ -16,9 +16,13 @@ COMMIT = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 COMPONENTS = {
     "backend": "server",
-    "identity-ops": "identity-ops",
     "keycloak": "keycloak-runtime",
     "mcp": "mcp-server",
+}
+REALM_ARTIFACT_FIELDS = {
+    "baselineDigest",
+    "migrationBundleDigest",
+    "containsSecrets",
 }
 
 
@@ -83,12 +87,20 @@ def assemble(
     manifest_raw = json.dumps(candidate, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
     manifest_digest = "sha256:" + hashlib.sha256(manifest_raw).hexdigest()
     candidate_images = candidate.get("images")
+    realm_artifacts = candidate.get("realmArtifacts")
     if (
-        candidate.get("schemaVersion") != "weave.release.candidate-manifest.v2"
+        candidate.get("schemaVersion") != "weave.release.candidate-manifest.v3"
         or candidate.get("supportSafe") is not True
         or candidate.get("commit") != source
         or not COMMIT.fullmatch(str(candidate.get("specificationCommit", "")))
         or not isinstance(candidate_images, list)
+        or len(candidate_images) != len(COMPONENTS)
+        or any(not isinstance(item, dict) for item in candidate_images)
+        or not isinstance(realm_artifacts, dict)
+        or set(realm_artifacts) != REALM_ARTIFACT_FIELDS
+        or not DIGEST.fullmatch(str(realm_artifacts.get("baselineDigest", "")))
+        or not DIGEST.fullmatch(str(realm_artifacts.get("migrationBundleDigest", "")))
+        or realm_artifacts.get("containsSecrets") is not False
     ):
         raise ManifestError("candidate manifest is unsafe or belongs to another source")
     by_component = {
@@ -97,7 +109,7 @@ def assemble(
         if isinstance(item, dict)
     }
     if set(by_component) != set(COMPONENTS.values()):
-        raise ManifestError("candidate manifest does not contain the exact four runtime images")
+        raise ManifestError("candidate manifest does not contain the exact three runtime images")
     observed = runtime.get("images")
     if (
         runtime.get("schemaVersion") != "weave.runtime-image-observation.v1"
@@ -137,6 +149,10 @@ def assemble(
         or cut.get("sourceCandidateCommit") != source
         or cut.get("candidateManifestDigest") != manifest_digest
         or cut.get("status") != "passed"
+        or cut.get("schemaConverged") is not True
+        or cut.get("realmArtifactsVerified") is not True
+        or cut.get("imagesVerified") is not True
+        or cut.get("newInvitationPending") is not True
         or cut.get("legacyStateMigrated") is not False
         or cut.get("adoptionAuthorized") is not False
         or cut.get("supportSafe") is not True
@@ -144,12 +160,12 @@ def assemble(
     ):
         raise ManifestError("Fresh Start cut report is unsafe, stale, or incomplete")
     if (
-        idempotence.get("schemaVersion") != "weave.persistent-test-idempotence.v2"
+        idempotence.get("schemaVersion") != "weave.persistent-test-idempotence.v3"
         or idempotence.get("runtimeProfile") != "dogfood"
         or idempotence.get("deploymentContext") != "persistent-dogfood"
         or idempotence.get("noChanges") is not True
         or idempotence.get("composeModelStable") is not True
-        or idempotence.get("identitySecondPlanEmpty") is not True
+        or idempotence.get("realmArtifactsUnchanged") is not True
         or idempotence.get("supportSafe") is not True
         or idempotence.get("containsSecretValues") is not False
     ):
@@ -167,7 +183,7 @@ def assemble(
     if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,63}", generation):
         raise ManifestError("resource generation is malformed")
     return {
-        "schemaVersion": "weave.test-stack-manifest.v2",
+        "schemaVersion": "weave.test-stack-manifest.v3",
         "supportSafe": True,
         "containsSecretValues": False,
         "branch": "dogfood",
@@ -175,6 +191,7 @@ def assemble(
         "sourceCandidateCommit": source,
         "specificationCommit": candidate["specificationCommit"],
         "candidateManifestDigest": manifest_digest,
+        "realmArtifacts": dict(realm_artifacts),
         "images": images,
         "runtime": {
             "environment": "persistent-dogfood",
@@ -185,7 +202,7 @@ def assemble(
         "deployment": {
             "freshStartStatus": "passed",
             "composeModelStable": True,
-            "identitySecondPlanEmpty": True,
+            "realmArtifactsUnchanged": True,
             "providerHealth": "available",
             "legacyStateMigrated": False,
             "adoptionAuthorized": False,

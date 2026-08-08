@@ -191,7 +191,6 @@ jobs:
             echo "WEAVE_RESOURCE_GENERATION=$generation"
             echo "WEAVE_BACKEND_IMAGE=$(component_ref server)"
             echo "WEAVE_MCP_IMAGE=$(component_ref mcp-server)"
-            echo "WEAVE_IDENTITY_OPS_IMAGE=$(component_ref identity-ops)"
             echo "WEAVE_KEYCLOAK_IMAGE=$(component_ref keycloak-runtime)"
           } >> "$GITHUB_ENV"
           rm -rf -- "$source_dir"
@@ -431,24 +430,42 @@ jobs:
             sudo dscacheutil -flushcache || true
           fi
 
-      - name: Prove canonical lifecycle convergence and empty second reconciliation
+      - name: Prove canonical lifecycle convergence and stable realm artifacts
         if: steps.approval.outputs.approved == 'true'
         working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
+          baseline="$WEAVE_GENERATED_ROOT/keycloak/import/weave-realm.json"
+          migrations="$WEAVE_GENERATED_ROOT/keycloak/migrations/manifest.json"
+          [[ -f "$baseline" && ! -L "$baseline" && \
+             -f "$migrations" && ! -L "$migrations" ]] || {
+            echo "::error::Rendered persistent realm artifacts are missing or unsafe." >&2
+            exit 1
+          }
+          expected_baseline="$(jq -er .realmArtifacts.baselineDigest "$WEAVE_CANDIDATE_MANIFEST")"
+          expected_migrations="$(jq -er .realmArtifacts.migrationBundleDigest "$WEAVE_CANDIDATE_MANIFEST")"
+          actual_baseline="sha256:$(shasum -a 256 "$baseline" | awk '{print $1}')"
+          actual_migrations="sha256:$(shasum -a 256 "$migrations" | awk '{print $1}')"
+          [[ "$actual_baseline" == "$expected_baseline" && \
+             "$actual_migrations" == "$expected_migrations" ]] || {
+            echo "::error::Rendered persistent realm artifacts differ from the candidate manifest." >&2
+            exit 1
+          }
           ./compose.sh dogfood config > "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-first.json"
-          ./compose.sh dogfood identity-plan
-          cp "$WEAVE_GENERATED_ROOT/identity-ops/identity-ops.json" "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-first-plan.json"
-          jq -e '.command == "plan" and .operationCount == 0' "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-first-plan.json" >/dev/null
+          cp "$baseline" \
+            "$WEAVE_TEST_STACK_EVIDENCE_DIR/weave-realm-first.json"
+          cp "$migrations" \
+            "$WEAVE_TEST_STACK_EVIDENCE_DIR/realm-migrations-first.json"
           ./operator-check.sh dogfood
           ./install.sh dogfood
           ./compose.sh dogfood config > "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-second.json"
           cmp -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-first.json" "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-second.json"
-          ./compose.sh dogfood identity-plan
-          cp "$WEAVE_GENERATED_ROOT/identity-ops/identity-ops.json" "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-second-plan.json"
-          jq -e '.command == "plan" and .operationCount == 0' "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-second-plan.json" >/dev/null
+          cmp -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/weave-realm-first.json" \
+            "$baseline"
+          cmp -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/realm-migrations-first.json" \
+            "$migrations"
           ./operator-check.sh dogfood
-          jq -n '{schemaVersion:"weave.persistent-test-idempotence.v2",runtimeProfile:"dogfood",deploymentContext:"persistent-dogfood",noChanges:true,composeModelStable:true,identityFirstPlanEmpty:true,identitySecondPlanEmpty:true,supportSafe:true,containsSecretValues:false}' \
+          jq -n '{schemaVersion:"weave.persistent-test-idempotence.v3",runtimeProfile:"dogfood",deploymentContext:"persistent-dogfood",noChanges:true,composeModelStable:true,realmArtifactsUnchanged:true,supportSafe:true,containsSecretValues:false}' \
             > "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-test-idempotence.json"
 
       - name: Create a new invitation through the normal identity flow
@@ -491,10 +508,9 @@ jobs:
           jq -n \
             --arg source "$WEAVE_CANDIDATE_COMMIT" \
             --argjson backend "$(observe backend weave-backend server)" \
-            --argjson identity "$(observe identity-ops '' identity-ops)" \
             --argjson keycloak "$(observe keycloak weave-keycloak keycloak-runtime)" \
             --argjson mcp "$(observe mcp weave-mcp-server mcp-server)" \
-            '{schemaVersion:"weave.runtime-image-observation.v1",sourceCandidateCommit:$source,images:{backend:$backend,"identity-ops":$identity,keycloak:$keycloak,mcp:$mcp},supportSafe:true,containsSecretValues:false}' \
+            '{schemaVersion:"weave.runtime-image-observation.v1",sourceCandidateCommit:$source,images:{backend:$backend,keycloak:$keycloak,mcp:$mcp},supportSafe:true,containsSecretValues:false}' \
             > "$runtime"
           python3 tools/dogfood_deployment_evidence.py collect-provider-health \
             --actuator-metrics-url "http://127.0.0.1:${WEAVE_BACKEND_HOST_PORT}/actuator/metrics" \
@@ -504,12 +520,13 @@ jobs:
             --arg source "$WEAVE_CANDIDATE_COMMIT" \
             --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
             --arg planSha "sha256:$WEAVE_FRESH_START_PLAN_SHA" '
-              {schemaVersion:"weave.fresh-start-cut-report.v1",laneCandidateCommit:$lane,sourceCandidateCommit:$source,candidateManifestDigest:$manifest,planSha256:$planSha,status:"passed",schemaConverged:true,identitySecondPlanEmpty:true,imagesVerified:true,newInvitationPending:true,backupVerified:true,isolatedRestoreVerified:true,legacyStateMigrated:false,adoptionAuthorized:false,supportSafe:true,containsSecretValues:false}
+              {schemaVersion:"weave.fresh-start-cut-report.v1",laneCandidateCommit:$lane,sourceCandidateCommit:$source,candidateManifestDigest:$manifest,planSha256:$planSha,status:"passed",schemaConverged:true,realmArtifactsVerified:true,imagesVerified:true,newInvitationPending:true,backupVerified:true,isolatedRestoreVerified:true,legacyStateMigrated:false,adoptionAuthorized:false,supportSafe:true,containsSecretValues:false}
             ' > "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-cut-report.json"
           backend_version="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$WEAVE_BACKEND_IMAGE")"
           python3 tools/dogfood_deployment_evidence.py assemble \
             --candidate-commit "$LANE_CANDIDATE_COMMIT" \
             --candidate-manifest-digest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
+            --candidate-manifest "$WEAVE_CANDIDATE_MANIFEST" \
             --backend-version "$backend_version" \
             --backend-build-number "${WEAVE_CANDIDATE_COMMIT:0:12}" \
             --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \

@@ -8,7 +8,6 @@ REPOSITORY_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
 readonly REPOSITORY_ROOT
 readonly SERVER_IMAGE="${REPOSITORY_ROOT}/server/Dockerfile"
 readonly MCP_IMAGE="${REPOSITORY_ROOT}/weave-mcp-server/Dockerfile"
-readonly IDENTITY_OPS_IMAGE="${REPOSITORY_ROOT}/infra/weave-workspace/keycloak/Dockerfile.identity-ops"
 readonly KEYCLOAK_RUNTIME_IMAGE="${REPOSITORY_ROOT}/infra/weave-workspace/keycloak/Dockerfile.runtime"
 readonly WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/candidate-images.yml"
 readonly CI_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/ci.yml"
@@ -16,6 +15,7 @@ readonly HUMAN_TESTING_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/human-test
 readonly LIVE_STACK_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/live-stack-e2e.yml"
 readonly MAIN_PROMOTION_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/main-promotion-gate.yml"
 readonly TEST_STACK_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/test-stack-deploy.yml"
+readonly FRESH_START_RECREATE="${REPOSITORY_ROOT}/infra/weave-workspace/fresh-start-recreate.py"
 readonly DOCTOR_TASK="${REPOSITORY_ROOT}/gradle/tasks/ci-lifecycle.gradle"
 
 fail() {
@@ -35,7 +35,7 @@ reject() {
   ! grep -Fq -- "${text}" "${file}" || fail "${file} retains retired prerequisite ${text}"
 }
 
-for image in "${SERVER_IMAGE}" "${MCP_IMAGE}" "${IDENTITY_OPS_IMAGE}" "${KEYCLOAK_RUNTIME_IMAGE}"; do
+for image in "${SERVER_IMAGE}" "${MCP_IMAGE}" "${KEYCLOAK_RUNTIME_IMAGE}"; do
   for label in \
     org.opencontainers.image.title \
     org.opencontainers.image.source \
@@ -58,8 +58,6 @@ contains "${SERVER_IMAGE}" 'USER 10001:10001'
 contains "${SERVER_IMAGE}" 'com.massimotter.weave.module="server"'
 contains "${MCP_IMAGE}" 'USER 10001:10001'
 contains "${MCP_IMAGE}" 'com.massimotter.weave.module="weave-mcp-server"'
-contains "${IDENTITY_OPS_IMAGE}" 'USER 1000:1000'
-contains "${IDENTITY_OPS_IMAGE}" 'com.massimotter.weave.module="identity-ops"'
 contains "${KEYCLOAK_RUNTIME_IMAGE}" 'USER 1000:0'
 contains "${KEYCLOAK_RUNTIME_IMAGE}" 'com.massimotter.weave.module="keycloak-runtime"'
 contains "${KEYCLOAK_RUNTIME_IMAGE}" 'com.massimotter.weave.provider-id="weave-workload-client-registration-enforcer"'
@@ -96,8 +94,17 @@ contains "${WORKFLOW}" 'verify_keycloak_build_evidence.py'
 contains "${WORKFLOW}" 'WEAVE_KEYCLOAK_BUILD_EVIDENCE_DIGEST=${{ steps.keycloak_runtime_prepare.outputs.build_evidence_digest }}'
 contains "${WORKFLOW}" 'com.massimotter.weave.keycloak-build-evidence-digest'
 contains "${WORKFLOW}" 'keycloakRuntimeBuildEvidenceDigest=${{ steps.keycloak_runtime_prepare.outputs.build_evidence_digest }}'
-contains "${WORKFLOW}" 'context: infra/weave-workspace/keycloak'
-contains "${WORKFLOW}" 'file: infra/weave-workspace/keycloak/Dockerfile.identity-ops'
+contains "${WORKFLOW}" 'realmBaselineArtifact=$realm_baseline'
+contains "${WORKFLOW}" 'realmMigrationBundleArtifact=$realm_migrations'
+contains "${WORKFLOW}" 'build/candidate/keycloak/import/weave-realm.json'
+contains "${WORKFLOW}" 'build/candidate/keycloak/migrations/manifest.json'
+contains "${WORKFLOW}" '[[ -f "$realm_baseline" && ! -L "$realm_baseline"'
+reject "${WORKFLOW}" 'Dockerfile.identity-ops'
+reject "${WORKFLOW}" 'identity_ops_digest'
+reject "${LIVE_STACK_WORKFLOW}" 'WEAVE_TEST_APP_IDENTITY_OPS_IMAGE'
+reject "${FRESH_START_RECREATE}" 'candidate, "identity-ops"'
+contains "${TEST_STACK_WORKFLOW}" 'actual_baseline="sha256:$(shasum -a 256 "$baseline"'
+contains "${TEST_STACK_WORKFLOW}" 'actual_migrations="sha256:$(shasum -a 256 "$migrations"'
 [[ "$(grep -Fc 'ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}' "${WORKFLOW}")" -eq 2 ]] ||
   fail "${WORKFLOW} must authenticate both specification-corpus checkouts through the deploy key"
 contains "${WORKFLOW}" "printf '/canonical-weave-specs/\\n' >> .git/info/exclude"

@@ -123,7 +123,7 @@ def main() -> int:
     )
     require(
         "WEAVE_EXPECTED_E2E_NAMESPACE" in workflow
-        and "infra/weave-workspace/teardown.sh test" in workflow
+        and "infra/weave-workspace/teardown.sh e2e" in workflow
         and "cleanup_test_app_runtime.py" in workflow
         and 'label=com.docker.compose.project=$namespace' in workflow
         and workflow.count('label=com.massimotter.weave.namespace=$namespace') == 2
@@ -144,25 +144,26 @@ def main() -> int:
         ".collaboration.repeatCount == 2",
         ".directSynapseVerified == true",
         "human_testing_automated_evidence.py live",
+        '--runtime-image-evidence "$WEAVE_LIVE_UPLOAD_ROOT/runtime-image-evidence.json"',
     ):
         require(marker in workflow, f"support-safe evidence gate is missing {marker!r}")
     require(
         'component_ref server' in workflow
         and 'component_ref mcp-server' in workflow
-        and 'component_ref identity-ops' in workflow
         and 'component_ref keycloak-runtime' in workflow
+        and 'component_ref identity-ops' not in workflow
         and '[[ "$image" == *@sha256:* ]]' in workflow,
         "all runtime images must come from the immutable candidate manifest",
     )
     require(
-        candidate_workflow.count("platforms: linux/amd64") == 4
+        candidate_workflow.count("platforms: linux/amd64") == 3
         and "DOCKER_DEFAULT_PLATFORM: linux/amd64" in workflow
         and "DOCKER_DEFAULT_PLATFORM: linux/amd64" in deployment
         and 'docker pull --platform "$DOCKER_DEFAULT_PLATFORM" "$image"'
         in workflow
         and "{{.Os}}/{{.Architecture}}" in workflow
         and '"$DOCKER_DEFAULT_PLATFORM" ]]' in workflow,
-        "the ARM64 Live runner must pull and run the four AMD64 candidate images explicitly",
+        "the ARM64 Live runner must pull and run the three AMD64 candidate images explicitly",
     )
     require(
         workflow.count("persistent_dogfood_resource_guard.sh") == 2

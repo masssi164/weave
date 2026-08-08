@@ -19,6 +19,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--spec-digest", required=True)
     parser.add_argument("--build-evidence-ref", required=True)
     parser.add_argument("--keycloak-build-evidence-digest", required=True)
+    parser.add_argument("--realm-baseline-artifact", type=Path, required=True)
+    parser.add_argument("--realm-migration-bundle-artifact", type=Path, required=True)
     parser.add_argument(
         "--image",
         action="append",
@@ -28,6 +30,21 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args()
+
+
+def artifact_digest(path: Path, label: str) -> str:
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"{label} must be a regular file")
+    raw = path.read_bytes()
+    if not raw:
+        raise ValueError(f"{label} must not be empty")
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{label} must be valid JSON") from error
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must contain a JSON object")
+    return "sha256:" + hashlib.sha256(raw).hexdigest()
 
 
 def main() -> int:
@@ -44,12 +61,22 @@ def main() -> int:
             image["buildEvidenceDigest"] = args.keycloak_build_evidence_digest
         images.append(image)
     payload = {
-        "schemaVersion": "weave.release.candidate-manifest.v2",
+        "schemaVersion": "weave.release.candidate-manifest.v3",
         "supportSafe": True,
         "commit": args.commit,
         "specificationCommit": args.specification_commit,
         "specDigest": args.spec_digest,
         "buildEvidenceRef": args.build_evidence_ref,
+        "realmArtifacts": {
+            "baselineDigest": artifact_digest(
+                args.realm_baseline_artifact, "realm baseline artifact"
+            ),
+            "migrationBundleDigest": artifact_digest(
+                args.realm_migration_bundle_artifact,
+                "realm migration bundle artifact",
+            ),
+            "containsSecrets": False,
+        },
         "images": sorted(images, key=lambda image: image["component"]),
     }
     serialized = json.dumps(

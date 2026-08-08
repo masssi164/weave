@@ -21,9 +21,9 @@ PROVIDER_STATES = {"available", "degraded", "unavailable"}
 IMAGE_COMPONENTS = {
     "backend": "server",
     "mcp": "mcp-server",
-    "identity-ops": "identity-ops",
     "keycloak": "keycloak-runtime",
 }
+REALM_ARTIFACT_FIELDS = {"baselineDigest", "migrationBundleDigest", "containsSecrets"}
 
 
 class EvidenceError(ValueError):
@@ -127,9 +127,11 @@ def assemble(
     runtime = manifest.get("runtime")
     manifest_images = manifest.get("images")
     deployment_images = deployment.get("candidateImages")
+    manifest_realm_artifacts = manifest.get("realmArtifacts")
+    deployment_realm_artifacts = deployment.get("realmArtifacts")
     observed_images = runtime_observation.get("images")
     if (
-        manifest.get("schemaVersion") != "weave.test-stack-manifest.v2"
+        manifest.get("schemaVersion") != "weave.test-stack-manifest.v3"
         or manifest.get("supportSafe") is not True
         or manifest.get("containsSecretValues") is not False
         or lane != candidate
@@ -146,16 +148,28 @@ def assemble(
         or not isinstance(runtime.get("generation"), str)
         or not isinstance(manifest_images, dict)
         or set(manifest_images) != set(IMAGE_COMPONENTS)
+        or not isinstance(manifest_realm_artifacts, dict)
+        or set(manifest_realm_artifacts) != REALM_ARTIFACT_FIELDS
+        or DIGEST.fullmatch(
+            str(manifest_realm_artifacts.get("baselineDigest", ""))
+        ) is None
+        or DIGEST.fullmatch(
+            str(manifest_realm_artifacts.get("migrationBundleDigest", ""))
+        ) is None
+        or manifest_realm_artifacts.get("containsSecrets") is not False
     ):
         raise EvidenceError("test-stack manifest is not one complete persistent candidate")
     if (
-        deployment.get("schemaVersion") != 2
+        deployment.get("schemaVersion") != 3
         or deployment.get("supportSafe") is not True
         or deployment.get("candidateCommit") != candidate
         or deployment.get("sourceCandidateCommit") != source
         or deployment.get("candidateManifestDigest") != manifest_digest
         or not isinstance(deployment_images, dict)
         or set(deployment_images) != set(IMAGE_COMPONENTS)
+        or deployment_realm_artifacts != manifest_realm_artifacts
+        or not isinstance(deployment.get("deployment"), dict)
+        or deployment["deployment"].get("realmArtifactsVerified") is not True
         or manifest.get("evidence", {}).get("deploymentRunUrl") != deployment_url
     ):
         raise EvidenceError("deployment evidence disagrees with the selected persistent manifest")
@@ -187,13 +201,14 @@ def assemble(
         images[canonical_name] = item["reference"]
     provider_health = validate_health(health, max_age_seconds)
     return {
-        "schemaVersion": "weave.dogfood-provider-health-evidence.v1",
+        "schemaVersion": "weave.dogfood-provider-health-evidence.v2",
         "supportSafe": True,
         "containsSecretValues": False,
         "candidateCommit": candidate,
         "sourceCandidateCommit": source,
         "specCorpusCommit": specification,
         "candidateManifestDigest": manifest_digest,
+        "realmArtifacts": dict(manifest_realm_artifacts),
         "images": dict(sorted(images.items())),
         "deploymentRunId": deployment_run_id,
         "deploymentRunUrl": deployment_url,

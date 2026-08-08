@@ -20,7 +20,6 @@ env:
   REGISTRY: ghcr.io
   SERVER_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-server
   MCP_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-mcp-server
-  IDENTITY_OPS_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-identity-ops
   KEYCLOAK_RUNTIME_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-keycloak-runtime
 
 jobs:
@@ -84,7 +83,6 @@ jobs:
     outputs:
       server_digest: ${{ steps.server.outputs.digest }}
       mcp_digest: ${{ steps.mcp.outputs.digest }}
-      identity_ops_digest: ${{ steps.identity_ops.outputs.digest }}
       keycloak_runtime_digest: ${{ steps.keycloak_runtime.outputs.digest }}
       candidate_manifest_digest: ${{ steps.manifest.outputs.digest }}
 
@@ -218,29 +216,6 @@ jobs:
           cache-from: type=gha,scope=candidate-mcp
           cache-to: type=gha,mode=max,scope=candidate-mcp
 
-      - name: Build and publish Identity Ops
-        id: identity_ops
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: infra/weave-workspace/keycloak
-          file: infra/weave-workspace/keycloak/Dockerfile.identity-ops
-          platforms: linux/amd64
-          push: true
-          provenance: mode=max
-          sbom: true
-          tags: |
-            ${{ env.IDENTITY_OPS_IMAGE }}:${{ steps.identity.outputs.tag_sha }}
-            ${{ env.IDENTITY_OPS_IMAGE }}:${{ steps.identity.outputs.tag_run }}
-          build-args: |
-            WEAVE_IMAGE_CREATED=${{ steps.identity.outputs.created }}
-            WEAVE_IMAGE_REVISION=${{ needs.verify-source.outputs.candidate_sha }}
-            WEAVE_IMAGE_VERSION=${{ steps.identity.outputs.version }}
-            WEAVE_SPEC_DIGEST=${{ steps.identity.outputs.spec_digest }}
-            WEAVE_SBOM_REFERENCE=embedded-buildkit-spdx
-            WEAVE_PROVENANCE_REFERENCE=embedded-buildkit-slsa
-          cache-from: type=gha,scope=candidate-identity-ops
-          cache-to: type=gha,mode=max,scope=candidate-identity-ops
-
       - name: Prepare version-pinned Keycloak Runtime context
         id: keycloak_runtime_prepare
         shell: bash
@@ -337,12 +312,6 @@ jobs:
             "10001:10001" \
             "java21-spring-boot-4.1-spring-ai-2.0"
           validate_published_image \
-            "${IDENTITY_OPS_IMAGE}@${{ steps.identity_ops.outputs.digest }}" \
-            "Weave Identity Ops" \
-            "identity-ops" \
-            "1000:1000" \
-            "keycloak-26.7-kcadm-python3"
-          validate_published_image \
             "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
             "Weave Keycloak Runtime" \
             "keycloak-runtime" \
@@ -369,9 +338,6 @@ jobs:
             --image "${MCP_IMAGE}@${{ steps.mcp.outputs.digest }}" \
             --output build/candidate/mcp-attestations.json
           python3 gradle/tasks/oci-attestation-digests.py \
-            --image "${IDENTITY_OPS_IMAGE}@${{ steps.identity_ops.outputs.digest }}" \
-            --output build/candidate/identity-ops-attestations.json
-          python3 gradle/tasks/oci-attestation-digests.py \
             --image "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
             --output build/candidate/keycloak-runtime-attestations.json
 
@@ -381,21 +347,27 @@ jobs:
         run: |
           set -euo pipefail
           evidence_ref="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}"
+          realm_baseline="$GITHUB_WORKSPACE/build/candidate/keycloak/import/weave-realm.json"
+          realm_migrations="$GITHUB_WORKSPACE/build/candidate/keycloak/migrations/manifest.json"
+          [[ -f "$realm_baseline" && ! -L "$realm_baseline" && \
+             -f "$realm_migrations" && ! -L "$realm_migrations" ]] || {
+            echo "::error::Canonical rendered realm baseline or migration bundle is missing." >&2
+            exit 1
+          }
           ./gradlew createCandidateManifest \
             "-PcandidateCommit=$WEAVE_CANDIDATE_COMMIT" \
             "-PspecificationCommit=${{ steps.spec.outputs.commit }}" \
             "-PspecDigest=${{ steps.identity.outputs.spec_digest }}" \
             "-PbuildEvidenceRef=$evidence_ref" \
             "-PkeycloakRuntimeBuildEvidenceDigest=${{ steps.keycloak_runtime_prepare.outputs.build_evidence_digest }}" \
+            "-PrealmBaselineArtifact=$realm_baseline" \
+            "-PrealmMigrationBundleArtifact=$realm_migrations" \
             "-PserverImage=${SERVER_IMAGE}@${{ steps.server.outputs.digest }}" \
             "-PserverSbomDigest=$(jq -r .sbomDigest build/candidate/server-attestations.json)" \
             "-PserverProvenanceDigest=$(jq -r .provenanceDigest build/candidate/server-attestations.json)" \
             "-PmcpServerImage=${MCP_IMAGE}@${{ steps.mcp.outputs.digest }}" \
             "-PmcpServerSbomDigest=$(jq -r .sbomDigest build/candidate/mcp-attestations.json)" \
             "-PmcpServerProvenanceDigest=$(jq -r .provenanceDigest build/candidate/mcp-attestations.json)" \
-            "-PidentityOpsImage=${IDENTITY_OPS_IMAGE}@${{ steps.identity_ops.outputs.digest }}" \
-            "-PidentityOpsSbomDigest=$(jq -r .sbomDigest build/candidate/identity-ops-attestations.json)" \
-            "-PidentityOpsProvenanceDigest=$(jq -r .provenanceDigest build/candidate/identity-ops-attestations.json)" \
             "-PkeycloakRuntimeImage=${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
             "-PkeycloakRuntimeSbomDigest=$(jq -r .sbomDigest build/candidate/keycloak-runtime-attestations.json)" \
             "-PkeycloakRuntimeProvenanceDigest=$(jq -r .provenanceDigest build/candidate/keycloak-runtime-attestations.json)" \
@@ -410,8 +382,12 @@ jobs:
           path: |
             build/candidate/candidate-manifest.json
             build/candidate/candidate-manifest.json.sha256
+            build/candidate/keycloak/import/weave-realm.json
+            build/candidate/keycloak/migrations/manifest.json
             build/candidate/keycloak-runtime-build.json
-            build/candidate/*-attestations.json
+            build/candidate/server-attestations.json
+            build/candidate/mcp-attestations.json
+            build/candidate/keycloak-runtime-attestations.json
           if-no-files-found: error
           retention-days: 90
 
@@ -424,8 +400,9 @@ jobs:
             echo "- Commit: \`$WEAVE_CANDIDATE_COMMIT\`"
             echo "- Server: \`${SERVER_IMAGE}@${{ steps.server.outputs.digest }}\`"
             echo "- MCP: \`${MCP_IMAGE}@${{ steps.mcp.outputs.digest }}\`"
-            echo "- Identity Ops: \`${IDENTITY_OPS_IMAGE}@${{ steps.identity_ops.outputs.digest }}\`"
             echo "- Keycloak Runtime: \`${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}\`"
+            echo "- Realm baseline: \`$(jq -r .realmArtifacts.baselineDigest build/candidate/candidate-manifest.json)\`"
+            echo "- Realm migrations: \`$(jq -r .realmArtifacts.migrationBundleDigest build/candidate/candidate-manifest.json)\`"
             echo "- Deployment proof: candidate manifest digest, never a tag"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -440,7 +417,6 @@ jobs:
     env:
       WEAVE_TEST_APP_SERVER_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-server@${{ needs.build-candidate.outputs.server_digest }}
       WEAVE_TEST_APP_MCP_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-mcp-server@${{ needs.build-candidate.outputs.mcp_digest }}
-      WEAVE_TEST_APP_IDENTITY_OPS_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-identity-ops@${{ needs.build-candidate.outputs.identity_ops_digest }}
       WEAVE_TEST_APP_KEYCLOAK_IMAGE: ghcr.io/${{ github.repository_owner }}/weave-keycloak-runtime@${{ needs.build-candidate.outputs.keycloak_runtime_digest }}
       WEAVE_TEST_APP_OUTPUT_ROOT: ${{ github.workspace }}/weave/build/test-app
       WEAVE_TEST_APP_RUN_ID: candidate-${{ github.run_id }}-${{ github.run_attempt }}

@@ -16,6 +16,13 @@ readonly COMMIT="dddddddddddddddddddddddddddddddddddddddd"
 readonly SPECIFICATION_COMMIT="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 readonly MANIFEST="${TEMP_ROOT}/candidate-manifest.json"
 readonly VALID_MANIFEST="${TEMP_ROOT}/candidate-manifest.valid.json"
+readonly REALM_BASELINE="${TEMP_ROOT}/weave-realm.json"
+readonly REALM_MIGRATIONS="${TEMP_ROOT}/realm-migrations.json"
+
+printf '{"realm":"weave","supportSafe":true}\n' >"${REALM_BASELINE}"
+printf '{"schemaVersion":"weave.keycloak-realm-migrations.v1","migrations":[],"supportSafe":true,"containsSecretValues":false}\n' >"${REALM_MIGRATIONS}"
+readonly EXPECTED_REALM_BASELINE_DIGEST="sha256:$(shasum -a 256 "${REALM_BASELINE}" | awk '{print $1}')"
+readonly EXPECTED_REALM_MIGRATIONS_DIGEST="sha256:$(shasum -a 256 "${REALM_MIGRATIONS}" | awk '{print $1}')"
 
 python3 "${REPOSITORY_ROOT}/gradle/tasks/candidate-manifest-create.py" \
   --commit "${COMMIT}" \
@@ -23,22 +30,28 @@ python3 "${REPOSITORY_ROOT}/gradle/tasks/candidate-manifest-create.py" \
   --spec-digest "${DIGEST}" \
   --build-evidence-ref "https://github.com/masssi164/weave/actions/runs/1/attempts/1" \
   --keycloak-build-evidence-digest "${DIGEST}" \
+  --realm-baseline-artifact "${REALM_BASELINE}" \
+  --realm-migration-bundle-artifact "${REALM_MIGRATIONS}" \
   --image server "ghcr.io/masssi164/weave-server@${DIGEST}" "${SBOM}" "${PROVENANCE}" \
   --image mcp-server "ghcr.io/masssi164/weave-mcp-server@${DIGEST}" "${SBOM}" "${PROVENANCE}" \
-  --image identity-ops "ghcr.io/masssi164/weave-identity-ops@${DIGEST}" "${SBOM}" "${PROVENANCE}" \
   --image keycloak-runtime "ghcr.io/masssi164/weave-keycloak-runtime@${DIGEST}" "${SBOM}" "${PROVENANCE}" \
   --output "${MANIFEST}"
 
 jq -e '
-  .schemaVersion == "weave.release.candidate-manifest.v2" and
+  .schemaVersion == "weave.release.candidate-manifest.v3" and
   .specificationCommit == $specification_commit and
   (.images[] | select(.component == "keycloak-runtime") |
     .buildEvidenceDigest) == $digest and
   ([.images[].component] | sort) ==
-  ["identity-ops", "keycloak-runtime", "mcp-server", "server"]
+  ["keycloak-runtime", "mcp-server", "server"] and
+  .realmArtifacts.containsSecrets == false and
+  .realmArtifacts.baselineDigest == $realm_baseline_digest and
+  .realmArtifacts.migrationBundleDigest == $realm_migrations_digest
 ' \
   --arg digest "${DIGEST}" \
   --arg specification_commit "${SPECIFICATION_COMMIT}" \
+  --arg realm_baseline_digest "${EXPECTED_REALM_BASELINE_DIGEST}" \
+  --arg realm_migrations_digest "${EXPECTED_REALM_MIGRATIONS_DIGEST}" \
   "${MANIFEST}" >/dev/null
 
 cp "${MANIFEST}" "${VALID_MANIFEST}"
@@ -92,7 +105,33 @@ if python3 "${REPOSITORY_ROOT}/gradle/tasks/candidate-manifest-check.py" \
   echo "candidate manifest accepted a missing Keycloak Runtime" >&2
   exit 1
 fi
-grep -Fq 'identity-ops, keycloak-runtime, mcp-server, server' "${TEMP_ROOT}/invalid.out"
+grep -Fq 'keycloak-runtime, mcp-server, server' "${TEMP_ROOT}/invalid.out"
+
+cp "${VALID_MANIFEST}" "${MANIFEST}"
+python3 - "${MANIFEST}" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+manifest = Path(sys.argv[1])
+payload = json.loads(manifest.read_bytes())
+payload["realmArtifacts"]["migrationBundleDigest"] = "sha256:not-a-digest"
+raw = json.dumps(
+    payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+).encode("utf-8")
+manifest.write_bytes(raw)
+manifest.with_suffix(".json.sha256").write_text(
+    f"{hashlib.sha256(raw).hexdigest()}  {manifest.name}\n",
+    encoding="ascii",
+)
+PY
+if python3 "${REPOSITORY_ROOT}/gradle/tasks/candidate-manifest-check.py" \
+  --manifest "${MANIFEST}" >"${TEMP_ROOT}/invalid-realm.out" 2>&1; then
+  echo "candidate manifest accepted malformed realm artifact evidence" >&2
+  exit 1
+fi
+grep -Fq 'realmArtifacts' "${TEMP_ROOT}/invalid-realm.out"
 
 for mutation in \
   missing-build-evidence \

@@ -160,6 +160,13 @@ def assemble(
         raise ManifestError("automated realm artifact evidence is incomplete, mutable, or secret-bearing")
     if deployment.get("realmArtifacts") != realm_artifacts:
         raise ManifestError("deployment realm artifact evidence disagrees with the candidate")
+    if provider_health.get("realmArtifacts") != realm_artifacts:
+        raise ManifestError("provider health realm artifact evidence disagrees with the candidate")
+    deployment_details = require_object(deployment, "deployment", "deployment")
+    if deployment_details.get("realmArtifactsVerified") is not True:
+        raise ManifestError("deployment did not verify the rendered realm artifacts")
+    manifest_deployment = dict(deployment_details)
+    manifest_deployment.pop("realmArtifactsVerified")
     if distribution.get("deploymentRunUrl") != deployment.get("runUrl"):
         raise ManifestError("distribution is not bound to the selected deployment run")
     if distribution.get("liveE2eRunUrl") != automated.get("liveE2eRunUrl"):
@@ -215,7 +222,7 @@ def assemble(
         },
         "surfaces": surfaces,
         "collaboration": require_object(automated, "collaboration", "automated"),
-        "deployment": require_object(deployment, "deployment", "deployment"),
+        "deployment": manifest_deployment,
         "providerHealth": require_object(provider_health, "providerHealth", "provider health"),
         "distribution": {
             "status": distribution_status,
