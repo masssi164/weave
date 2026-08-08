@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import copy
-import hashlib
 import json
 import os
 import re
@@ -38,16 +37,11 @@ from compose_env import (
     specification_context,
 )
 
-
 SECRET_REF_PATHS = {
     "secretref:keycloak/weave-backend-jwk": "keycloak-weave-backend-jwk.json",
     "secretref:keycloak/weave-mcp-server-jwk": "keycloak-weave-mcp-server-jwk.json",
-    "secretref:keycloak/weave-identity-admin-jwk": (
-        "keycloak-weave-identity-admin-jwk.json"
-    ),
-    "secretref:keycloak/weave-agent-runtime-admin-jwk": (
-        "agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin"
-    ),
+    "secretref:keycloak/weave-identity-admin-jwk": "keycloak-weave-identity-admin-jwk.json",
+    "secretref:keycloak/weave-agent-runtime-admin-jwk": "agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin",
     "secretref:smtp/password": "smtp-password",
 }
 REQUIRED_PRIVATE_FILES = (
@@ -731,20 +725,26 @@ def render(context: ComposeContext) -> None:
     baseline = _json(baseline_path)
     assert_revision(baseline, baseline_path)
     baseline_revision = str(baseline["provenance"]["baselineRevision"])
-    semantic_source_digest = sha256_digest(canonical_json(baseline))
-    migration_definition = {
-        "schemaVersion": "weave.keycloak-migration-definition/v1",
-        "keycloakVersion": "26.7.1",
-        "operations": [
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", baseline_revision):
+        raise ContractError("canonical semantic realm baseline revision is malformed")
+    semantic_source_digest = baseline_revision
+    migration_definition_path = context.root / "keycloak/migration-definition.json"
+    migration_definition = _json(migration_definition_path)
+    if (
+        migration_definition.get("schemaVersion") != "weave.keycloak-migration-definition/v1"
+        or migration_definition.get("keycloakVersion") != "26.7.1"
+        or migration_definition.get("containsSecretValues") is not False
+        or migration_definition.get("operations")
+        != [
             {
                 "id": "fgap-v2-primary-organization-post-import",
                 "phase": "post-realm-import",
                 "type": "keycloak-fgap-v2",
                 "desiredStatePointer": "/fineGrainedAdminPermissions",
             }
-        ],
-        "containsSecretValues": False,
-    }
+        ]
+    ):
+        raise ContractError("canonical Keycloak migration definition is malformed")
     migration_definition_payload = canonical_json(migration_definition)
     migration_definition_digest = sha256_digest(migration_definition_payload)
     overlay = _overlay(context, baseline_revision)
@@ -780,7 +780,13 @@ def render(context: ComposeContext) -> None:
     provider_configtree = generated / "backend/configtree"
     _runtime_directory(provider_configtree, runtime_owner)
     _reset_provider_configtree(provider_configtree)
-    _write(generated / "keycloak/semantic-realm-source.json", canonical_json(baseline), private=False)
+    semantic_identity = {
+        "schemaVersion": "weave.keycloak-semantic-realm-source/v1",
+        "source": "spec-corpus:contracts/examples/keycloak-desired-state.valid.json",
+        "semanticRealmSourceDigest": semantic_source_digest,
+        "containsSecretValues": False,
+    }
+    _write(generated / "keycloak/semantic-realm-source.json", canonical_json(semantic_identity), private=False)
     _write(generated / "keycloak/migration-definition.json", migration_definition_payload, private=False)
     _write(generated / "keycloak/overlay.json", overlay_payload, private=False)
     _write(generated / "keycloak/desired-state.json", json.dumps(desired, indent=2, sort_keys=True) + "\n", private=False)
