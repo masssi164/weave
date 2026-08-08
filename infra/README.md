@@ -34,7 +34,7 @@ Those are later product or operations tracks and must stay behind explicit contr
 
 ## Quick start: local/dev provider-stack implementation
 
-This is the concrete local provider-stack implementation path, not the canonical product bootstrap entrypoint. Use it when the approved bootstrap profile selects local/self-hosted provider deployment.
+This is the concrete local/single-host infrastructure implementation path, not the canonical product bootstrap entrypoint. Use it when the approved bootstrap environment selects a local/self-hosted deployment.
 
 Add local host entries before opening browser-facing URLs:
 
