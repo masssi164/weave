@@ -20,6 +20,8 @@ import com.massimotter.weave.backend.config.ProviderHealthProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.identity.migration.KeycloakRealmMigrationCli;
+import com.massimotter.weave.backend.identity.migration.KeycloakRealmMigrationReceiptVerifierCli;
 import com.massimotter.weave.backend.schema.SchemaAuthorityInitializer;
 import com.massimotter.weave.backend.schema.SchemaReceiptVerifier;
 import java.util.Arrays;
@@ -69,6 +71,14 @@ public class WeaveBackendApplication {
             }
             if ("schema-receipt-check".equals(args[0])) {
                 SchemaReceiptVerifier.main(operatorArguments);
+                return;
+            }
+            if ("keycloak-realm-migration".equals(args[0])) {
+                KeycloakRealmMigrationCli.main(operatorArguments);
+                return;
+            }
+            if ("keycloak-realm-migration-receipt-check".equals(args[0])) {
+                KeycloakRealmMigrationReceiptVerifierCli.main(operatorArguments);
                 return;
             }
         }
