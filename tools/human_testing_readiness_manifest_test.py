@@ -164,6 +164,37 @@ class HumanTestingReadinessManifestTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         self.assertIn("proofKinds", completed.stderr)
 
+    def test_realm_artifacts_require_exact_secret_free_sha256_evidence(self) -> None:
+        mutations = (
+            (
+                lambda data: data["realmArtifacts"].pop("baselineDigest"),
+                "baselineDigest",
+            ),
+            (
+                lambda data: data["realmArtifacts"].__setitem__(
+                    "migrationBundleDigest", "sha256:not-a-digest"
+                ),
+                "migrationBundleDigest",
+            ),
+            (
+                lambda data: data["realmArtifacts"].__setitem__("containsSecrets", True),
+                "containsSecrets",
+            ),
+            (
+                lambda data: data["realmArtifacts"].__setitem__(
+                    "unreviewedArtifact", "sha256:" + "f" * 64
+                ),
+                "unreviewedArtifact",
+            ),
+        )
+        for mutate, expected in mutations:
+            with self.subTest(expected=expected):
+                data = copy.deepcopy(self.data)
+                mutate(data)
+                completed = self.run_validate(data)
+                self.assertEqual(completed.returncode, 2, completed.stdout + completed.stderr)
+                self.assertIn(expected, completed.stderr)
+
     def test_physical_protocol_must_bind_candidate_and_all_steps(self) -> None:
         data = copy.deepcopy(self.data)
         data["physicalAcceptance"]["protocol"]["candidateManifestDigest"] = "sha256:" + "f" * 64

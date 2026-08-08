@@ -1,14 +1,18 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "candidateCommit": "1111111111111111111111111111111111111111",
   "sourceCandidateCommit": "2222222222222222222222222222222222222222",
-  "specCorpusCommit": "6bbfb0ec1d85bdd9e24a9ce7785cb5c506c9edf0",
+  "specCorpusCommit": "4e6136efc2a850046213327e752c372e8eabdabe",
   "candidateManifestDigest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
   "images": {
     "server": "ghcr.io/example/weave-server@sha256:5555555555555555555555555555555555555555555555555555555555555555",
     "mcp-server": "ghcr.io/example/weave-mcp@sha256:6666666666666666666666666666666666666666666666666666666666666666",
-    "identity-ops": "ghcr.io/example/weave-identity-ops@sha256:7777777777777777777777777777777777777777777777777777777777777777",
     "keycloak-runtime": "ghcr.io/example/weave-keycloak@sha256:8888888888888888888888888888888888888888888888888888888888888888"
+  },
+  "realmArtifacts": {
+    "baselineDigest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+    "migrationBundleDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "containsSecrets": false
   },
   "evidenceModes": ["live-provider-backed", "fixture-ui"],
   "generatedAtUtc": "2026-07-12T12:00:00Z",
@@ -87,7 +91,7 @@
       "schemaVersion": 1,
       "candidateCommit": "1111111111111111111111111111111111111111",
       "sourceCandidateCommit": "2222222222222222222222222222222222222222",
-      "specCorpusCommit": "6bbfb0ec1d85bdd9e24a9ce7785cb5c506c9edf0",
+      "specCorpusCommit": "4e6136efc2a850046213327e752c372e8eabdabe",
       "candidateManifestDigest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
       "build": {"commit": "2222222222222222222222222222222222222222", "version": "0.1.0-rc.1", "buildNumber": "101", "bundleId": "com.massimotter.weave"},
       "startedAtUtc": "2026-07-12T12:10:00Z",
