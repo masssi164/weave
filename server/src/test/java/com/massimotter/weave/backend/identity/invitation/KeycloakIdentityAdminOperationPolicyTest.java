@@ -18,6 +18,10 @@ class KeycloakIdentityAdminOperationPolicyTest {
                 "organization-inventory"),
             allowed(
                 HttpMethod.GET,
+                "/admin/realms/weave/users?first=0&max=100&briefRepresentation=true",
+                "human-user-inventory"),
+            allowed(
+                HttpMethod.GET,
                 "/admin/realms/weave/organizations/org-1/members"
                     + "?first=0&max=100&briefRepresentation=false",
                 "member-inventory"),
@@ -99,6 +103,57 @@ class KeycloakIdentityAdminOperationPolicyTest {
             allowed(
                 HttpMethod.DELETE,
                 "/admin/realms/weave/users/subject-1/logout",
+                "forbidden"));
+
+    forbidden.forEach(
+        operation ->
+            assertThatThrownBy(
+                    () ->
+                        KeycloakIdentityAdminOperationPolicy.requireAllowed(
+                            operation.method(), operation.uri()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("guarded boundary"));
+  }
+
+  @Test
+  void rejectsHumanUserInventoryMutationAndQueryDrift() {
+    List<AllowedOperation> forbidden =
+        List.of(
+            allowed(
+                HttpMethod.POST,
+                "/admin/realms/weave/users?first=0&max=100&briefRepresentation=true",
+                "forbidden"),
+            allowed(
+                HttpMethod.DELETE,
+                "/admin/realms/weave/users?first=0&max=100&briefRepresentation=true",
+                "forbidden"),
+            allowed(
+                HttpMethod.GET,
+                "/admin/realms/weave/users?first=0&max=100&briefRepresentation=false",
+                "forbidden"),
+            allowed(
+                HttpMethod.GET,
+                "/admin/realms/weave/users?max=100&first=0&briefRepresentation=true",
+                "forbidden"),
+            allowed(
+                HttpMethod.GET,
+                "/admin/realms/weave/users?first=1&max=100&briefRepresentation=true",
+                "forbidden"),
+            allowed(
+                HttpMethod.GET,
+                "/admin/realms/weave/users?first=1000&max=100&briefRepresentation=true",
+                "forbidden"),
+            allowed(
+                HttpMethod.GET,
+                "/admin/realms/weave/users?first=0&max=100&briefRepresentation=true&search=owner",
+                "forbidden"),
+            allowed(
+                HttpMethod.PUT,
+                "/admin/realms/weave/users/subject-1/execute-actions-email",
+                "forbidden"),
+            allowed(
+                HttpMethod.DELETE,
+                "/admin/realms/weave/users/subject-1/credentials/credential-1",
                 "forbidden"));
 
     forbidden.forEach(

@@ -34,6 +34,8 @@ import org.springframework.web.util.UriUtils;
  */
 @Component
 public class KeycloakIdentityAdminClient {
+  private static final int BOOTSTRAP_USER_PAGE_SIZE = 100;
+  private static final int BOOTSTRAP_USER_INVENTORY_LIMIT = 1_000;
   private static final Map<String, String> ROLE_GROUP_PATHS =
       Map.of(
           "owner", "/owners",
@@ -86,40 +88,41 @@ public class KeycloakIdentityAdminClient {
     return list(organizationId, email);
   }
 
-  /**
-   * Returns whether the configured organization contains a person.
-   *
-   * <p>Fresh Weave admits people only through the configured organization. Reading its member
-   * projection keeps this check inside the organization-specific FGAP boundary; the identity
-   * administration client has Keycloak's query-only {@code query-users} collection gate while
-   * visibility remains constrained by the declared Users and Organizations FGAP permissions.
-   * The bounded pagination fails closed if the complete projection cannot be determined.
-   */
+  /** Returns whether the realm contains any human identity, including one outside Weave's org. */
   public boolean hasHumanUsers() {
-    String organizationId = configuredOrganizationId();
-    int pageSize = 100;
-    for (int first = 0; first < 1_000; first += pageSize) {
+    Set<String> observedUserIds = new HashSet<>();
+    for (
+        int first = 0;
+        first < BOOTSTRAP_USER_INVENTORY_LIMIT;
+        first += BOOTSTRAP_USER_PAGE_SIZE) {
       List<JsonNode> users =
           values(
                   json(
                       request(
                           HttpMethod.GET,
                           adminPath(
-                              "/organizations/"
-                                  + path(organizationId)
-                                  + "/members?first="
+                              "/users?first="
                                   + first
                                   + "&max="
-                                  + pageSize
+                                  + BOOTSTRAP_USER_PAGE_SIZE
                                   + "&briefRepresentation=true"),
                           null,
                           null,
                           200)))
               .toList();
-      if (users.stream().anyMatch(user -> !isServiceAccount(user))) {
-        return true;
+      if (users.size() > BOOTSTRAP_USER_PAGE_SIZE) {
+        throw ambiguousHumanUserInventory();
       }
-      if (users.size() < pageSize) {
+      for (JsonNode user : users) {
+        String userId = requiredBootstrapUserField(user, "id");
+        if (!observedUserIds.add(userId)) {
+          throw ambiguousHumanUserInventory();
+        }
+        if (!isUnambiguousServiceAccount(user)) {
+          return true;
+        }
+      }
+      if (users.size() < BOOTSTRAP_USER_PAGE_SIZE) {
         return false;
       }
     }
@@ -460,6 +463,18 @@ public class KeycloakIdentityAdminClient {
         || username.startsWith("service-account-");
   }
 
+  private boolean isUnambiguousServiceAccount(JsonNode user) {
+    String username = requiredBootstrapUserField(user, "username");
+    boolean serviceAccountUsername = username.startsWith("service-account-");
+    boolean serviceAccountReference =
+        !user.path("serviceAccountClientId").asString("").isBlank()
+            || !user.path("serviceAccountClientLink").asString("").isBlank();
+    if (serviceAccountUsername != serviceAccountReference) {
+      throw ambiguousHumanUserInventory();
+    }
+    return serviceAccountUsername;
+  }
+
   private ProviderInvitation toInvitation(JsonNode node) {
     String invitationId = required(node, "id");
     String email = required(node, "email");
@@ -553,6 +568,19 @@ public class KeycloakIdentityAdminClient {
       throw new IllegalStateException("Keycloak returned an invalid member projection");
     }
     return value;
+  }
+
+  private String requiredBootstrapUserField(JsonNode node, String fieldName) {
+    String value = node.path(fieldName).asString("");
+    if (value.isBlank()) {
+      throw ambiguousHumanUserInventory();
+    }
+    return value;
+  }
+
+  private IllegalStateException ambiguousHumanUserInventory() {
+    return new IllegalStateException(
+        "Keycloak human-user inventory is unavailable or ambiguous");
   }
 
   private JsonNode json(String body) {

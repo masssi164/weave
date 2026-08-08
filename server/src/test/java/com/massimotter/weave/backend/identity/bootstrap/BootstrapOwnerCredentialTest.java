@@ -36,6 +36,22 @@ class BootstrapOwnerCredentialTest {
   }
 
   @Test
+  void deletesTheBootstrapSecretRefOnlyAfterTheCallerReportsSuccess() throws IOException {
+    Path tokenFile = privateTokenFile(FIRST_TOKEN);
+    BootstrapOwnerCredential credential = credential(tokenFile);
+
+    assertThat(credential.matches(FIRST_TOKEN)).isTrue();
+
+    credential.deleteAfterSuccess();
+
+    assertThat(Files.exists(tokenFile)).isFalse();
+    assertThatThrownBy(() -> credential.matches(FIRST_TOKEN))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Owner bootstrap token SecretRef is unavailable");
+    credential.deleteAfterSuccess();
+  }
+
+  @Test
   void rejectsBlankShortAndIncorrectCredentialsWithoutExposingTheExpectedValue()
       throws IOException {
     BootstrapOwnerCredential credential = credential(privateTokenFile(FIRST_TOKEN));
