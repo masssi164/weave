@@ -35,7 +35,11 @@ require "${ROOT_DIR}/compose.yaml" 'profiles: *core-profiles'
 require "${ROOT_DIR}/compose.yaml" 'POSTGRES_PASSWORD_FILE: /run/secrets/postgres-admin-password'
 require "${ROOT_DIR}/compose.yaml" 'SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/'
 require "${ROOT_DIR}/compose.yaml" \
-  'target: weave/spring.security.oauth2.client.registration.weave-identity-admin.client-secret'
+  'target: /run/secrets/identity-admin/weave-identity-admin-private-jwk.json'
+require "${ROOT_DIR}/compose.yaml" \
+  'target: /authority/private/weave-identity-admin-private-jwk.json'
+[[ "$(grep -Fc 'source: identity-admin-private-jwk' "${ROOT_DIR}/compose.yaml")" == "2" ]] ||
+  fail "identity-admin private JWK must be mounted only by Server and its one-shot initializer"
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.managed: "true"'
 require "${ROOT_DIR}/compose.dev.yaml" 'host.docker.internal:host-gateway'
 require "${ROOT_DIR}/compose.dogfood.yaml" 'WEAVE_RELEASE_POSTURE: dogfood'
@@ -72,9 +76,11 @@ require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'ordinary reconciliation re
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_MATRIX_FEDERATION_ENABLED'
-require "${ROOT_DIR}/scripts/render_config.py" '"WEAVE_IDENTITY_KEYCLOAK_TOKEN_URI"'
+require "${ROOT_DIR}/scripts/render_config.py" '"WEAVE_IDENTITY_KEYCLOAK_PRIVATE_JWK_FILE"'
 require "${ROOT_DIR}/scripts/render_config.py" \
-  '"spring.security.oauth2.client.registration.weave-identity-admin.client-secret": "keycloak-weave-identity-admin"'
+  '"WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE"'
+reject "${ROOT_DIR}/scripts/render_config.py" \
+  'spring.security.oauth2.client.registration.weave-identity-admin.client-secret'
 require "${ROOT_DIR}/scripts/render_config.py" \
   '"WEAVE_IDENTITY_REFERENCE_HMAC_SECRET_FILE"'
 require "${ROOT_DIR}/scripts/render_config.py" \
@@ -119,6 +125,9 @@ reject "${ROOT_DIR}/compose.yaml" 'WEAVE_IDENTITY_EVENTS_HMAC_SECRET'
 reject "${ROOT_DIR}/compose.yaml" 'weave/weave.identity.invitations.keycloak.client-secret'
 reject "${ROOT_DIR}/scripts/render_config.py" \
   '"weave.identity.invitations.keycloak.client-secret": "keycloak-weave-identity-admin"'
+reject "${ROOT_DIR}/scripts/init_secrets.py" '"keycloak-weave-identity-admin",'
+require "${ROOT_DIR}/scripts/init_secrets.py" \
+  '("keycloak-weave-identity-admin-jwk.json", "weave-identity-admin-current")'
 reject "${REPO_ROOT}/server/src/main/resources/application.yml" 'WEAVE_IDENTITY_EVENTS_HMAC_SECRET'
 reject "${REPO_ROOT}/server/src/main/resources/application-base.yml" 'weave-keycloak:8080'
 reject "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/config/IdentityInvitationProperties.java" \

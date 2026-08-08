@@ -30,5 +30,6 @@ LABEL org.opencontainers.image.title="Weave Identity Ops" \
 
 COPY --from=python-root /mnt/rootfs /
 COPY --chown=1000:1000 identity_ops.py /opt/weave/identity_ops.py
+COPY --chown=1000:1000 identity_admin_key_init.py /opt/weave/identity_admin_key_init.py
 USER 1000:1000
 ENTRYPOINT ["python3", "/opt/weave/identity_ops.py"]

@@ -48,7 +48,9 @@ def classify_kcadm_failure(diagnostic: str) -> str:
 SECRET_REF_FILES = {
     "secretref:keycloak/weave-backend-jwk": "keycloak-weave-backend-jwk.json",
     "secretref:keycloak/weave-mcp-server-jwk": "keycloak-weave-mcp-server-jwk.json",
-    "secretref:keycloak/weave-identity-admin": "keycloak-weave-identity-admin",
+    "secretref:keycloak/weave-identity-admin-jwk": (
+        "keycloak-weave-identity-admin-public-jwks.json"
+    ),
     "secretref:keycloak/weave-agent-runtime-admin-jwk": (
         "agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin"
     ),
@@ -56,7 +58,6 @@ SECRET_REF_FILES = {
     "secretref:keycloak/matrix-mas": "keycloak-matrix-mas",
 }
 SECRET_CLIENT_FILES = {
-    "weave-identity-admin": "keycloak-weave-identity-admin",
     "nextcloud": "keycloak-nextcloud",
     "matrix-mas": "keycloak-matrix-mas",
 }
@@ -311,12 +312,22 @@ def client_payload(client: dict[str, Any]) -> dict[str, Any]:
         filename = SECRET_REF_FILES.get(str(key_ref))
         if filename is None:
             raise IdentityOpsError(f"{client['key']} has no supported private_key_jwt SecretRef")
-        private_jwk = json.loads(private_value(secret_path(filename)))
-        jwks = private_jwk if isinstance(private_jwk, dict) and "keys" in private_jwk else {"keys": [private_jwk]}
+        mounted_jwk = json.loads(private_value(secret_path(filename)))
+        jwks = (
+            mounted_jwk
+            if isinstance(mounted_jwk, dict) and "keys" in mounted_jwk
+            else {"keys": [mounted_jwk]}
+        )
         public_keys = []
         for key in jwks.get("keys", []):
             if not isinstance(key, dict):
                 raise IdentityOpsError(f"{client['key']} JWK set is malformed")
+            if client.get("key") == "client:weave-identity-admin" and any(
+                name in key for name in {"d", "p", "q", "dp", "dq", "qi", "oth", "k"}
+            ):
+                raise IdentityOpsError(
+                    "identity administration realm input must contain public JWKS only"
+                )
             public_key = {
                 name: value
                 for name, value in key.items()
@@ -2228,6 +2239,18 @@ def probe_client_credentials(
                 secret,
             )
         elif client.get("authenticationMethod") == "private_key_jwt":
+            if client.get("key") == "client:weave-identity-admin":
+                status, body = client_credentials_token_response(
+                    server,
+                    realm,
+                    str(client_id),
+                    "deliberately-invalid-no-shared-secret",
+                )
+                if status not in {400, 401} or body.get("error") != "invalid_client":
+                    raise IdentityOpsError(
+                        "identity administration client unexpectedly accepted client-secret authentication"
+                    )
+                continue
             private_jwk = json.loads(
                 private_value(secret_path(SECRET_REF_FILES[key_ref]))
             )
@@ -2272,37 +2295,8 @@ def probe_client_credentials(
             )
 
 
-def administration_read_probe_status(
-    server: str,
-    realm: str,
-    resource_path: str,
-    access_token: str,
-) -> int:
-    endpoint = (
-        f"{server}/admin/realms/{urllib.parse.quote(realm, safe='')}"
-        f"/{resource_path.lstrip('/')}"
-    )
-    request = urllib.request.Request(
-        endpoint,
-        headers={"Authorization": f"Bearer {access_token}"},
-        method="GET",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=15) as response:
-            response.read(4096)
-            return response.status
-    except urllib.error.HTTPError as error:
-        error.read(4096)
-        return error.code
-    except urllib.error.URLError as error:
-        raise IdentityOpsError(
-            "identity-admin positive authorization probe failed; response withheld"
-        ) from error
-
-
-def probe_identity_admin_authorization(
+def verify_identity_admin_public_key_boundary(
     kcadm: Kcadm,
-    server: str,
     realm: str,
     clients: list[dict[str, Any]],
     organizations: list[dict[str, Any]],
@@ -2318,15 +2312,27 @@ def probe_identity_admin_authorization(
     )
     if desired_client is None:
         raise IdentityOpsError("identity administration client is missing from desired state")
-    secret_ref = desired_client.get("secretRef")
-    filename = SECRET_REF_FILES.get(str(secret_ref))
+    key_ref = desired_client.get("keyRef")
+    filename = SECRET_REF_FILES.get(str(key_ref))
     if (
         filename is None
-        or desired_client.get("authenticationMethod") != "client_secret_basic"
+        or desired_client.get("authenticationMethod") != "private_key_jwt"
         or desired_client.get("serviceAccountsEnabled") is not True
     ):
         raise IdentityOpsError(
-            "identity administration client cannot perform the positive authorization probes"
+            "identity administration client does not declare the public-key authority boundary"
+        )
+    public_jwks = json.loads(private_value(secret_path(filename)))
+    keys = public_jwks.get("keys") if isinstance(public_jwks, dict) else None
+    if (
+        not isinstance(keys, list)
+        or len(keys) != 1
+        or not isinstance(keys[0], dict)
+        or keys[0].get("key_ops") != ["verify"]
+        or any(name in keys[0] for name in {"d", "p", "q", "dp", "dq", "qi", "oth", "k"})
+    ):
+        raise IdentityOpsError(
+            "identity administration realm input must contain one public verification JWK"
         )
     observed_client = exact(
         kcadm.call(
@@ -2343,6 +2349,10 @@ def probe_identity_admin_authorization(
     )
     if observed_client is None:
         raise IdentityOpsError("identity administration client was not materialized")
+    if observed_client.get("clientAuthenticatorType") != "client-jwt":
+        raise IdentityOpsError(
+            "identity administration client is not bound to private_key_jwt"
+        )
     account = kcadm.call(
         "get",
         f"clients/{observed_client['id']}/service-account-user",
@@ -2353,17 +2363,6 @@ def probe_identity_admin_authorization(
     if not isinstance(account_id, str) or not account_id:
         raise IdentityOpsError(
             "identity administration service account has no stable identifier"
-        )
-    status, token_response = client_credentials_token_response(
-        server,
-        realm,
-        str(desired_client["clientId"]),
-        private_value(secret_path(filename)),
-    )
-    access_token = token_response.get("access_token")
-    if status != 200 or not isinstance(access_token, str) or not access_token:
-        raise IdentityOpsError(
-            "identity administration token is unavailable for the positive authorization probes"
         )
     desired_organization = exact(
         [
@@ -2392,26 +2391,6 @@ def probe_identity_admin_authorization(
     )
     if not isinstance(organization_id, str) or not organization_id:
         raise IdentityOpsError("primary organization has no stable identifier")
-    read_probes = {
-        "primary-organization": (
-            "organizations/" + urllib.parse.quote(organization_id, safe="")
-        ),
-        "service-account-user": (
-            "users/" + urllib.parse.quote(account_id, safe="")
-        ),
-    }
-    for probe_name, resource_path in read_probes.items():
-        read_status = administration_read_probe_status(
-            server,
-            realm,
-            resource_path,
-            access_token,
-        )
-        if read_status != 200:
-            raise IdentityOpsError(
-                "identity administration positive authorization probe was denied; "
-                f"probe={probe_name}, httpStatus={read_status}, response withheld"
-            )
 
 
 def client_credentials_are_rejected(server: str, client_id: str, secret: str) -> bool:
@@ -2522,9 +2501,8 @@ def main() -> int:
                 desired.get("clients", []),
                 public_issuer,
             )
-            probe_identity_admin_authorization(
+            verify_identity_admin_public_key_boundary(
                 kcadm,
-                args.server,
                 desired["realm"]["name"],
                 desired.get("clients", []),
                 desired.get("organizations", []),

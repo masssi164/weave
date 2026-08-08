@@ -14,12 +14,19 @@ import urllib.parse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "keycloak"))
 MODULE_PATH = ROOT / "keycloak/identity_ops.py"
 SPEC = importlib.util.spec_from_file_location("identity_ops", MODULE_PATH)
 assert SPEC and SPEC.loader
 identity_ops = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = identity_ops
 SPEC.loader.exec_module(identity_ops)
+KEY_MODULE_PATH = ROOT / "keycloak/identity_admin_key_init.py"
+KEY_SPEC = importlib.util.spec_from_file_location("identity_admin_key_init", KEY_MODULE_PATH)
+assert KEY_SPEC and KEY_SPEC.loader
+identity_admin_key_init = importlib.util.module_from_spec(KEY_SPEC)
+sys.modules[KEY_SPEC.name] = identity_admin_key_init
+KEY_SPEC.loader.exec_module(identity_admin_key_init)
 
 
 def main() -> None:
@@ -331,38 +338,6 @@ def main() -> None:
         == "authorization-name-conflict"
     )
 
-    class ReadProbeResponse:
-        status = 200
-
-        def __enter__(self) -> "ReadProbeResponse":
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-        def read(self, _limit: int) -> bytes:
-            return b'{"id":"withheld"}'
-
-    def allowed_read_probe(request: object, **_kwargs: object) -> ReadProbeResponse:
-        assert request.method == "GET"
-        assert request.data is None
-        assert request.headers["Authorization"] == "Bearer test-only"
-        assert request.full_url.endswith(
-            "/admin/realms/weave/organizations/primary-organization-id"
-        )
-        return ReadProbeResponse()
-
-    identity_ops.urllib.request.urlopen = allowed_read_probe
-    try:
-        assert identity_ops.administration_read_probe_status(
-            "http://keycloak:8080",
-            "weave",
-            "organizations/primary-organization-id",
-            "test-only",
-        ) == 200
-    finally:
-        identity_ops.urllib.request.urlopen = original_urlopen
-
     class RejectedKcadm:
         def call(self, *_arguments: str, payload: object = None) -> object:
             assert payload == {"secret": "must-not-leak"}
@@ -563,6 +538,62 @@ def main() -> None:
         )["weave.desired-digest"]
     )
     assert "secret" not in runtime_admin
+
+    identity_public_jwks = {
+        "keys": [
+            {
+                "kty": "RSA",
+                "use": "sig",
+                "alg": "PS256",
+                "kid": "identity-admin-test",
+                "key_ops": ["verify"],
+                "n": "public-modulus",
+                "e": "AQAB",
+            }
+        ]
+    }
+    identity_ops.private_value = lambda _path: json.dumps(identity_public_jwks)
+    identity_admin_contract = {
+        "key": "client:weave-identity-admin",
+        "clientId": "weave-identity-admin",
+        "authenticationMethod": "private_key_jwt",
+        "keyRef": "secretref:keycloak/weave-identity-admin-jwk",
+    }
+    try:
+        identity_admin_payload = identity_ops.client_payload(identity_admin_contract)
+        assert (
+            json.loads(identity_admin_payload["attributes"]["jwks.string"])
+            == identity_public_jwks
+        )
+        identity_ops.private_value = lambda _path: json.dumps(runtime_private_jwk)
+        try:
+            identity_ops.client_payload(identity_admin_contract)
+            raise AssertionError("Identity Ops accepted identity-admin private key material")
+        except identity_ops.IdentityOpsError as error:
+            assert "public JWKS only" in str(error)
+    finally:
+        identity_ops.private_value = original_private_value
+
+    captured_identity_secret_probe: list[tuple[str, str]] = []
+    original_client_credentials = identity_ops.client_credentials_token_response
+    identity_ops.client_credentials_token_response = (
+        lambda _server, _realm, client_id, secret: (
+            captured_identity_secret_probe.append((client_id, secret))
+            or (401, {"error": "invalid_client"})
+        )
+    )
+    try:
+        identity_ops.probe_client_credentials(
+            "http://keycloak:8080",
+            "weave",
+            [{**identity_admin_contract, "serviceAccountsEnabled": True}],
+            "https://auth.weave.local/realms/weave",
+        )
+    finally:
+        identity_ops.client_credentials_token_response = original_client_credentials
+    assert captured_identity_secret_probe == [
+        ("weave-identity-admin", "deliberately-invalid-no-shared-secret")
+    ]
 
     class PrivateKeyJwtSecretKcadm:
         def __init__(self, value: object) -> None:
@@ -1197,6 +1228,17 @@ def main() -> None:
     contract = json.dumps(desired)
     assert "26.7.0" in contract
     compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
+    identity_ops_service = compose.split("\n  identity-ops:\n", 1)[1].split("\n  mailpit:\n", 1)[0]
+    backend_service = compose.split("\n  backend:\n", 1)[1].split("\n  mcp-secret-check:\n", 1)[0]
+    key_init_service = compose.split("\n  identity-admin-key-init:\n", 1)[1].split("\n  identity-ops:\n", 1)[0]
+    assert "weave-identity-admin-private-jwk.json" not in identity_ops_service
+    assert "keycloak-weave-identity-admin:/" not in identity_ops_service
+    assert "identity-admin-public-jwks.json" in identity_ops_service
+    assert "weave-identity-admin-private-jwk.json" in backend_service
+    assert "/authority/output" in key_init_service
+    assert "/authority/private/weave-identity-admin-private-jwk.json" in key_init_service
+    assert "identity-admin-client-secret" not in compose
+    assert "keycloak-weave-identity-admin:/" not in compose
     runtime = (ROOT / "scripts/compose_runtime.py").read_text(encoding="utf-8")
     dockerfile = (ROOT / "keycloak/Dockerfile.identity-ops").read_text(encoding="utf-8")
     assert "FROM ${WEAVE_KEYCLOAK_BASE}" in dockerfile
@@ -1215,6 +1257,7 @@ def main() -> None:
     assert "WEAVE_TEST_USERS_FILE" not in runtime
     assert "test-users.json" not in runtime
     source = MODULE_PATH.read_text(encoding="utf-8")
+    key_source = KEY_MODULE_PATH.read_text(encoding="utf-8")
     assert "/opt/keycloak/bin/kcadm.sh" in source
     assert '"resourceType": "Organizations"' in source
     assert '"resourceType": "Users"' in source
@@ -1235,12 +1278,15 @@ def main() -> None:
     assert 'body.get("error") != "unauthorized_client"' in source
     assert 'client.get("serviceAccountsEnabled") is True' in source
     assert '"token.endpoint.auth.method": "client_secret_basic"' in source
+    assert "identity administration realm input must contain public JWKS only" in source
+    assert "deliberately-invalid-no-shared-secret" in source
+    assert "private JWK; Fresh Start or explicit rotation is required" in key_source
+    assert "values withheld" in key_source
+    assert "Authorization" not in key_source
+    assert "private_value" not in key_source
     assert '"set-password"' not in source
     assert 'kcadm.call("reset-password"' not in source
-    assert "probe_identity_admin_authorization(" in source
-    assert "administration_read_probe_status(" in source
-    assert '"primary-organization"' in source
-    assert '"service-account-user"' in source
+    assert "verify_identity_admin_public_key_boundary(" in source
     assert "/reset-password" not in source
     assert '"map-org-group-role"' in source
     assert '"attach-client-scope"' in source
@@ -1253,6 +1299,44 @@ def main() -> None:
     assert "organization_group_inventory(" in source
     assert "client_credentials_are_rejected(server, client_id, secret)" in source
     assert '"add-roles", "-r", realm, "--uusername", item["username"]' not in source
+
+    with tempfile.TemporaryDirectory() as temporary:
+        authority = Path(temporary)
+        desired_source = authority / "desired.json"
+        desired_source.write_text(json.dumps({
+            "revision": "old",
+            "clients": [
+                {
+                    "key": "client:weave-identity-admin",
+                    "clientId": "weave-identity-admin",
+                    "serviceAccountsEnabled": True,
+                    "authenticationMethod": "client_secret_basic",
+                    "secretRef": "secretref:keycloak/weave-identity-admin",
+                }
+            ],
+            "serviceAccountRoleGrants": [{
+                "clientKey": "client:weave-identity-admin",
+                "roleRefs": ["query-organizations", "query-users"],
+            }],
+            "fineGrainedAdminPermissions": identity_ops.IDENTITY_ADMIN_FGAP_CONTRACT,
+        }), encoding="utf-8")
+        upgraded = identity_admin_key_init.upgraded_desired_state(desired_source)
+        upgraded_client = upgraded["clients"][0]
+        assert upgraded_client["authenticationMethod"] == "private_key_jwt"
+        assert upgraded_client["keyRef"] == identity_admin_key_init.IDENTITY_ADMIN_KEY_REF
+        assert "secretRef" not in upgraded_client
+        assert upgraded["serviceAccountRoleGrants"] == json.loads(
+            desired_source.read_text(encoding="utf-8")
+        )["serviceAccountRoleGrants"]
+        assert upgraded["fineGrainedAdminPermissions"] == identity_ops.IDENTITY_ADMIN_FGAP_CONTRACT
+        invalid_private = authority / "weave-identity-admin-private-jwk.json"
+        invalid_private.write_text("legacy-shared-secret", encoding="utf-8")
+        invalid_private.chmod(0o600)
+        try:
+            identity_admin_key_init.load_private(invalid_private)
+            raise AssertionError("legacy shared secret was accepted as a private JWK")
+        except identity_admin_key_init.KeyPreparationError as error:
+            assert "Fresh Start or explicit rotation is required" in str(error)
     renderer = (ROOT / "scripts/render_config.py").read_text(encoding="utf-8")
     assert '"weave.keycloak-desired-state/v2"' in renderer
     assert 'if "groups" in desired:' in renderer
