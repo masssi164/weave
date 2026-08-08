@@ -77,7 +77,8 @@ class CanonicalDomainRegistryContractTest {
                 .doesNotContain("identity");
         assertThat(registry.providerNamesInMemberContractsAllowed()).isFalse();
         assertThat(providerRealityLevels(registry, "calendar"))
-                .containsEntry("weave-calendar", "contract_only")
+                .containsEntry("weave-native", "live_write")
+                .containsEntry("nextcloud-caldav", "release_ready")
                 .doesNotContainKeys("workspace-calendar", "team-channel-calendar");
         assertThat(providerRealityLevels(registry, "documents"))
                 .containsEntry("onlyoffice", "contract_only")
