@@ -89,6 +89,33 @@ def assert_long_running_services_reap_child_processes(model: dict[str, object]) 
     } == set()
 
 
+def assert_keycloak_vault_import_boundary(
+    model: dict[str, object], *, smtp_password: bool
+) -> None:
+    keycloak = model["services"]["keycloak"]
+    assert "--import-realm" in keycloak["command"]
+    imports = [
+        volume
+        for volume in keycloak["volumes"]
+        if volume.get("target") == "/opt/keycloak/data/import"
+    ]
+    assert len(imports) == 1
+    assert imports[0].get("read_only") is True
+    assert imports[0]["source"].endswith("/keycloak/import")
+    smtp = [
+        secret
+        for secret in keycloak.get("secrets", [])
+        if secret.get("source") == "smtp-password"
+    ]
+    if smtp_password:
+        assert keycloak["environment"]["KC_VAULT_DIR"] == "/opt/keycloak/vault"
+        assert len(smtp) == 1
+        assert smtp[0]["target"] == "/opt/keycloak/vault/weave_smtp-password"
+        assert smtp[0].get("mode") in {"0400", 0o400}
+    else:
+        assert not smtp
+
+
 def expect_contract_rejection(action, message: str) -> None:
     try:
         action()
@@ -602,6 +629,7 @@ def main() -> None:
     assert dev.compose_files[1].name == "compose.dev.yaml"
     dev_model = resolved_model(dev)
     validate_mount_contract(dev_model)
+    assert_keycloak_vault_import_boundary(dev_model, smtp_password=False)
     assert_long_running_services_reap_child_processes(dev_model)
     assert "backend" not in dev_model["services"]
     assert dev_model["services"]["keycloak"]["user"] == f"{dev.env['WEAVE_RUNTIME_UID']}:0"
@@ -858,6 +886,8 @@ def main() -> None:
         test_model = resolved_model(test)
         dogfood_model = resolved_model(dogfood)
         prod_model = resolved_model(prod)
+        assert_keycloak_vault_import_boundary(dogfood_model, smtp_password=True)
+        assert_keycloak_vault_import_boundary(prod_model, smtp_password=True)
         assert_long_running_services_reap_child_processes(test_model)
         assert_long_running_services_reap_child_processes(prod_model)
         assert test_model["services"]["keycloak"]["user"] == (
@@ -954,6 +984,14 @@ def main() -> None:
                 not in backend_env
             )
             assert_collaboration_control_is_bounded(isolated)
+            e2e_overlay = (ROOT / "compose.e2e.yaml").read_text(encoding="utf-8")
+            e2e_keycloak = e2e_overlay.split("\n  keycloak:\n", 1)[1].split(
+                "\n  backend:\n", 1
+            )[0]
+            assert "secrets: !override" in e2e_keycloak
+            assert "keycloak-db-password" in e2e_keycloak
+            assert "keycloak-bootstrap-admin-password" in e2e_keycloak
+            assert "smtp-password" not in e2e_keycloak
             os.environ["WEAVE_E2E_STACK_SCOPE"] = "persistent"
             try:
                 load_context("test", ROOT, str(root / "test.env"))

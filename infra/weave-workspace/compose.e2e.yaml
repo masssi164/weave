@@ -2,6 +2,13 @@
 # SecretRefs, and generated root are computed from WEAVE_E2E_RUN_ID before
 # Compose renders this file. The proof surface must never enter dogfood/prod.
 services:
+  keycloak:
+    # E2E inherits the dogfood process topology but must never inherit its
+    # production SMTP credential mount.
+    secrets: !override
+      - keycloak-db-password
+      - keycloak-bootstrap-admin-password
+
   backend:
     environment:
       WEAVE_CHAT_E2E_PROOF_ENABLED: "true"

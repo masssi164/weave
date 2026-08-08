@@ -2,10 +2,17 @@
 # default data plane; optional external providers are selected explicitly.
 services:
   keycloak:
-    # The pinned upstream image is the standard distribution, not a
-    # PostgreSQL-augmented image produced by `kc.sh build`.
     command:
       - start
+      - --import-realm
+    environment:
+      KC_VAULT_DIR: /opt/keycloak/vault
+    secrets:
+      - source: smtp-password
+        target: /opt/keycloak/vault/weave_smtp-password
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "0"
+        mode: 0400
 
   mailpit:
     environment:
