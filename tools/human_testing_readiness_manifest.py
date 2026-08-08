@@ -64,7 +64,12 @@ REQUIRED_PHYSICAL_STEPS = {
     "postRegrantAccess",
     "identityContinuity",
 }
-REQUIRED_IMAGE_COMPONENTS = {"server", "mcp-server", "identity-ops", "keycloak-runtime"}
+REQUIRED_IMAGE_COMPONENTS = {"server", "mcp-server", "keycloak-runtime"}
+REQUIRED_REALM_ARTIFACT_FIELDS = {
+    "baselineDigest",
+    "migrationBundleDigest",
+    "containsSecrets",
+}
 IMMUTABLE_IMAGE_PATTERN = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
 REQUIRED_COLLABORATION_SCENARIOS = {
     "authenticationShell",
@@ -433,10 +438,19 @@ def evaluate_manifest(
         raise ManifestError("candidateManifestDigest must be a sha256 reference")
     images = _require_object(manifest.get("images"), "images")
     if set(images) != REQUIRED_IMAGE_COMPONENTS:
-        raise ManifestError("images must contain the exact four runtime components")
+        raise ManifestError("images must contain the exact three runtime components")
     for component, reference in images.items():
         if not isinstance(reference, str) or not IMMUTABLE_IMAGE_PATTERN.fullmatch(reference):
             raise ManifestError(f"images.{component} must be an immutable digest reference")
+    realm_artifacts = _require_object(manifest.get("realmArtifacts"), "realmArtifacts")
+    if set(realm_artifacts) != REQUIRED_REALM_ARTIFACT_FIELDS:
+        raise ManifestError("realmArtifacts must contain the exact baseline and migration evidence")
+    for field in ("baselineDigest", "migrationBundleDigest"):
+        digest = _require_string(realm_artifacts.get(field), f"realmArtifacts.{field}")
+        if not HASH_PATTERN.fullmatch(digest):
+            raise ManifestError(f"realmArtifacts.{field} must be a sha256 reference")
+    if realm_artifacts.get("containsSecrets") is not False:
+        raise ManifestError("realmArtifacts.containsSecrets must be false")
     evidence_modes = manifest.get("evidenceModes")
     if evidence_modes != ["live-provider-backed", "fixture-ui"]:
         raise ManifestError("evidenceModes must contain the ordered mandatory live and fixture modes")

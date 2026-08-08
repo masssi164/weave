@@ -17,8 +17,9 @@ from human_testing_readiness_manifest import ManifestError, evaluate_manifest
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 IMMUTABLE_IMAGE_PATTERN = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
-AUTOMATED_IMAGE_COMPONENTS = {"server", "mcp-server", "identity-ops", "keycloak-runtime"}
-DEPLOYMENT_IMAGE_COMPONENTS = {"backend", "mcp", "identity-ops", "keycloak"}
+AUTOMATED_IMAGE_COMPONENTS = {"server", "mcp-server", "keycloak-runtime"}
+DEPLOYMENT_IMAGE_COMPONENTS = {"backend", "mcp", "keycloak"}
+REALM_ARTIFACT_FIELDS = {"baselineDigest", "migrationBundleDigest", "containsSecrets"}
 
 
 def load_object(path: Path, label: str) -> dict[str, Any]:
@@ -148,6 +149,17 @@ def assemble(
         or health_images != automated_images
     ):
         raise ManifestError("candidate image evidence is incomplete or mutable")
+    realm_artifacts = automated.get("realmArtifacts")
+    if (
+        not isinstance(realm_artifacts, dict)
+        or set(realm_artifacts) != REALM_ARTIFACT_FIELDS
+        or DIGEST_PATTERN.fullmatch(str(realm_artifacts.get("baselineDigest"))) is None
+        or DIGEST_PATTERN.fullmatch(str(realm_artifacts.get("migrationBundleDigest"))) is None
+        or realm_artifacts.get("containsSecrets") is not False
+    ):
+        raise ManifestError("automated realm artifact evidence is incomplete, mutable, or secret-bearing")
+    if deployment.get("realmArtifacts") != realm_artifacts:
+        raise ManifestError("deployment realm artifact evidence disagrees with the candidate")
     if distribution.get("deploymentRunUrl") != deployment.get("runUrl"):
         raise ManifestError("distribution is not bound to the selected deployment run")
     if distribution.get("liveE2eRunUrl") != automated.get("liveE2eRunUrl"):
@@ -186,12 +198,13 @@ def assemble(
 
     surfaces = require_automated_origins(automated)
     return {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "candidateCommit": candidate,
         "sourceCandidateCommit": source_candidate,
         "specCorpusCommit": spec_commit,
         "candidateManifestDigest": automated_manifest,
         "images": dict(sorted(automated_images.items())),
+        "realmArtifacts": dict(realm_artifacts),
         "evidenceModes": automated["evidenceModes"],
         "generatedAtUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "state": "blocked",

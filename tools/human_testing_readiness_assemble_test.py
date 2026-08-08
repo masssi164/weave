@@ -42,6 +42,7 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
                 "specCorpusCommit": self.green["specCorpusCommit"],
                 "candidateManifestDigest": self.green["candidateManifestDigest"],
                 "images": copy.deepcopy(self.green["images"]),
+                "realmArtifacts": copy.deepcopy(self.green["realmArtifacts"]),
                 "evidenceModes": self.green["evidenceModes"],
                 "liveE2eRunUrl": "https://github.com/example/weave/actions/runs/1",
                 "surfaces": copy.deepcopy(self.green["surfaces"]),
@@ -55,10 +56,10 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
                 "candidateCommit": self.candidate,
                 "sourceCandidateCommit": self.source_candidate,
                 "candidateManifestDigest": self.green["candidateManifestDigest"],
+                "realmArtifacts": copy.deepcopy(self.green["realmArtifacts"]),
                 "candidateImages": {
                     "backend": "sha256:" + "5" * 64,
                     "mcp": "sha256:" + "6" * 64,
-                    "identity-ops": "sha256:" + "7" * 64,
                     "keycloak": "sha256:" + "8" * 64,
                 },
                 "backendBuild": self.green["builds"]["backend"],
@@ -216,6 +217,26 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
         completed = self.run_assemble(documents)
         self.assertEqual(completed.returncode, 2)
         self.assertIn("image evidence", completed.stderr)
+
+    def test_realm_artifacts_must_be_exact_secret_free_candidate_evidence(self) -> None:
+        mutations = (
+            lambda documents: documents["automated"]["realmArtifacts"].__setitem__(
+                "baselineDigest", "sha256:not-a-digest"
+            ),
+            lambda documents: documents["automated"]["realmArtifacts"].__setitem__(
+                "containsSecrets", True
+            ),
+            lambda documents: documents["deployment"]["realmArtifacts"].__setitem__(
+                "migrationBundleDigest", "sha256:" + "f" * 64
+            ),
+        )
+        for mutate in mutations:
+            with self.subTest(mutation=mutate):
+                documents = self.documents()
+                mutate(documents)
+                completed = self.run_assemble(documents)
+                self.assertEqual(completed.returncode, 2, completed.stdout + completed.stderr)
+                self.assertIn("realm artifact evidence", completed.stderr)
 
 
 if __name__ == "__main__":
