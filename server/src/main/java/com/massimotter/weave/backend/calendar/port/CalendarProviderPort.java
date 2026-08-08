@@ -30,6 +30,14 @@ public interface CalendarProviderPort {
 
     ProviderConformanceProfile conformanceProfile();
 
+    /**
+     * True only when the adapter's sync token is itself a stable, Weave-owned northbound token.
+     * External adapters remain wrapped by the facade so provider tokens never cross the boundary.
+     */
+    default boolean ownsNorthboundSyncTokens() {
+        return false;
+    }
+
     List<CalendarEvent> query(CalendarId calendarId, CalendarScope scope, Instant from, Instant to);
 
     CalendarEvent read(CalendarId calendarId, CalendarScope scope, EventId id);

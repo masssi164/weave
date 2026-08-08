@@ -98,6 +98,7 @@ tasks.register('postgresJpaTest', Test) {
         includeTestsMatching '*JpaMigrationRunEvidenceRepositoryTest'
         includeTestsMatching '*JpaOperationIntentRepositoryPostgresTest'
         includeTestsMatching '*FilesMutationIntentServicePostgresTest'
+        includeTestsMatching '*NativeCalendarProviderAdapterTest'
     }
     useJUnitPlatform()
 }

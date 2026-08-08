@@ -35,8 +35,8 @@ public final class ProviderCapabilityContracts {
                     "files replacement requires dry-run for permissions, versions, links, storage quota, and binary transfer feasibility")),
             Map.entry("calendar", new Definition(
                     List.of("calendar.read", "calendar.manage_events", "calendar.thread_refs"),
-                    List.of("nextcloud-caldav"),
-                    List.of("microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav", "weave-calendar"),
+                    List.of("weave-native"),
+                    List.of("nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"),
                     List.of("WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef"),
                     "workspace/team/channel calendar source is selected by admin; private personal calendars are not the default product source",
                     List.of("RRULE fidelity", "time zones", "resource booking", "attendee response semantics", "online meeting links"),
