@@ -313,16 +313,25 @@ jobs:
           python3 gradle/tasks/oci-attestation-digests.py --image "${MCP_IMAGE}@${{ steps.mcp.outputs.digest }}" --output build/candidate/mcp-attestations.json
           python3 gradle/tasks/oci-attestation-digests.py --image "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" --output build/candidate/keycloak-runtime-attestations.json
 
-      - name: Render candidate semantic realm definitions
+      - name: Resolve canonical realm definition identities
+        id: realm_definition
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p build/candidate/keycloak
-          semantic="$WEAVE_SPEC_CORPUS_ROOT/contracts/examples/keycloak-desired-state.valid.json"
-          migration="$GITHUB_WORKSPACE/build/candidate/keycloak/migration-definition.json"
-          [[ -f "$semantic" && ! -L "$semantic" ]]
-          jq -S -c '{schemaVersion:"weave.keycloak-migration-definition/v1",keycloakVersion:"26.7.1",operations:[{id:"fgap-v2-primary-organization-post-import",phase:"post-realm-import",type:"keycloak-fgap-v2",desiredStatePointer:"/fineGrainedAdminPermissions"}],containsSecretValues:false}' > "$migration"
-          cp "$semantic" build/candidate/keycloak/semantic-realm-source.json
+          semantic="$(jq -er '.provenance.baselineRevision | select(test("^sha256:[0-9a-f]{64}$"))' "$WEAVE_SPEC_CORPUS_ROOT/contracts/examples/keycloak-desired-state.valid.json")"
+          migration="$(python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          path = Path('infra/weave-workspace/keycloak/migration-definition.json')
+          value = json.loads(path.read_text(encoding='utf-8'))
+          payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
+          print('sha256:' + hashlib.sha256(payload).hexdigest())
+          PY
+          )"
+          {
+            echo "semantic_digest=$semantic"
+            echo "migration_digest=$migration"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create immutable candidate manifest
         id: manifest
@@ -330,16 +339,14 @@ jobs:
         run: |
           set -euo pipefail
           evidence_ref="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}"
-          semantic="$GITHUB_WORKSPACE/build/candidate/keycloak/semantic-realm-source.json"
-          migration="$GITHUB_WORKSPACE/build/candidate/keycloak/migration-definition.json"
           ./gradlew createCandidateManifest \
             "-PcandidateCommit=$WEAVE_CANDIDATE_COMMIT" \
             "-PspecificationCommit=${{ steps.spec.outputs.commit }}" \
             "-PspecDigest=${{ steps.identity.outputs.spec_digest }}" \
             "-PbuildEvidenceRef=$evidence_ref" \
             "-PkeycloakRuntimeBuildEvidenceDigest=${{ steps.keycloak_runtime_prepare.outputs.build_evidence_digest }}" \
-            "-PsemanticRealmSource=$semantic" \
-            "-PrealmMigrationDefinition=$migration" \
+            "-PsemanticRealmSourceDigest=${{ steps.realm_definition.outputs.semantic_digest }}" \
+            "-PrealmMigrationDefinitionDigest=${{ steps.realm_definition.outputs.migration_digest }}" \
             "-PserverImage=${SERVER_IMAGE}@${{ steps.server.outputs.digest }}" \
             "-PserverSbomDigest=$(jq -r .sbomDigest build/candidate/server-attestations.json)" \
             "-PserverProvenanceDigest=$(jq -r .provenanceDigest build/candidate/server-attestations.json)" \
@@ -359,8 +366,7 @@ jobs:
           path: |
             build/candidate/candidate-manifest.json
             build/candidate/candidate-manifest.json.sha256
-            build/candidate/keycloak/semantic-realm-source.json
-            build/candidate/keycloak/migration-definition.json
+            infra/weave-workspace/keycloak/migration-definition.json
             build/candidate/keycloak-runtime-build.json
             build/candidate/server-attestations.json
             build/candidate/mcp-attestations.json
