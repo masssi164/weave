@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.config;
 
 import java.net.URI;
+import java.nio.file.Path;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -71,7 +72,12 @@ public class IdentityInvitationProperties {
     private String realm = "weave";
     private String organizationId = "";
     private String organizationAlias = "weave";
-    private String oauthRegistrationId = "weave-identity-admin";
+    private String adminClientId = "weave-identity-admin";
+    private String adminCredentialRef =
+        "credentialref://weave/keycloak/weave-identity-admin";
+    private Path adminPrivateJwkFile =
+        Path.of("/run/secrets/identity-admin/weave-identity-admin-private-jwk.json");
+    private URI privateKeyJwtAudience = URI.create("http://keycloak:8080/realms/weave");
     private Duration timeout = Duration.ofSeconds(10);
     private String referenceHmacSecretFile = "";
 
@@ -107,12 +113,36 @@ public class IdentityInvitationProperties {
       this.organizationAlias = organizationAlias;
     }
 
-    public String oauthRegistrationId() {
-      return oauthRegistrationId;
+    public String adminClientId() {
+      return adminClientId;
     }
 
-    public void setOauthRegistrationId(String oauthRegistrationId) {
-      this.oauthRegistrationId = oauthRegistrationId;
+    public void setAdminClientId(String adminClientId) {
+      this.adminClientId = adminClientId;
+    }
+
+    public String adminCredentialRef() {
+      return adminCredentialRef;
+    }
+
+    public void setAdminCredentialRef(String adminCredentialRef) {
+      this.adminCredentialRef = adminCredentialRef;
+    }
+
+    public Path adminPrivateJwkFile() {
+      return adminPrivateJwkFile;
+    }
+
+    public void setAdminPrivateJwkFile(Path adminPrivateJwkFile) {
+      this.adminPrivateJwkFile = adminPrivateJwkFile;
+    }
+
+    public URI privateKeyJwtAudience() {
+      return privateKeyJwtAudience;
+    }
+
+    public void setPrivateKeyJwtAudience(URI privateKeyJwtAudience) {
+      this.privateKeyJwtAudience = privateKeyJwtAudience;
     }
 
     public Duration timeout() {

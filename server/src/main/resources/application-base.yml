@@ -20,17 +20,6 @@ spring:
       ddl-auto: ${WEAVE_JPA_DDL_AUTO:validate}
   security:
     oauth2:
-      client:
-        provider:
-          weave-identity-admin:
-            token-uri: ${WEAVE_IDENTITY_KEYCLOAK_TOKEN_URI:http://keycloak:8080/realms/weave/protocol/openid-connect/token}
-        registration:
-          weave-identity-admin:
-            provider: weave-identity-admin
-            client-id: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_ID:weave-identity-admin}
-            client-secret: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_SECRET:}
-            client-authentication-method: client_secret_basic
-            authorization-grant-type: client_credentials
       resourceserver:
         jwt:
           # Required for a ready auth contract. Leave blank to start in blocked mode until
@@ -107,8 +96,6 @@ weave:
       keycloak-organization-alias: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_ORGANIZATION_ALIAS:}
       admin-client-id: ${WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID:weave-agent-runtime-admin}
       admin-credential-ref: ${WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF:}
-      entitlement-client-id: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CLIENT_ID:weave-identity-admin}
-      entitlement-credential-ref: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_REF:}
       secret-root: ${WEAVE_AGENT_RUNTIME_SECRET_ROOT:}
       timeout: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_TIMEOUT:10s}
       workload-role: weaver-runtime
@@ -262,7 +249,10 @@ weave:
         realm: ${WEAVE_IDENTITY_KEYCLOAK_REALM:weave}
         organization-id: ${WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ID:}
         organization-alias: ${WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ALIAS:weave}
-        oauth-registration-id: weave-identity-admin
+        admin-client-id: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_ID:weave-identity-admin}
+        admin-credential-ref: ${WEAVE_IDENTITY_KEYCLOAK_CREDENTIAL_REF:credentialref://weave/keycloak/weave-identity-admin}
+        admin-private-jwk-file: ${WEAVE_IDENTITY_KEYCLOAK_PRIVATE_JWK_FILE:/run/secrets/identity-admin/weave-identity-admin-private-jwk.json}
+        private-key-jwt-audience: ${WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE:${WEAVE_OIDC_ISSUER_URI:http://keycloak:8080/realms/weave}}
         timeout: ${WEAVE_IDENTITY_KEYCLOAK_TIMEOUT:10s}
         reference-hmac-secret-file: ${WEAVE_IDENTITY_REFERENCE_HMAC_SECRET_FILE:}
   profile:

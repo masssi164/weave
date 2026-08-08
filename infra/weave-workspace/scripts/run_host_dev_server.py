@@ -41,6 +41,7 @@ def load_environment(path: Path) -> dict[str, str]:
         "WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE",
         "WEAVE_NEXTCLOUD_BASE_URL",
         "WEAVE_IDENTITY_KEYCLOAK_BASE_URL",
+        "WEAVE_IDENTITY_KEYCLOAK_PRIVATE_JWK_FILE",
     ):
         if not values.get(required):
             raise RuntimeError(f"host.env omits {required}")

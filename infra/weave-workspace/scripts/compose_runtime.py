@@ -99,6 +99,12 @@ WORKLOADS_TARGET = AGENT_RUNTIME_ROOT / "workloads"
 RUNTIME_ADMIN_TARGET = (
     WORKLOADS_TARGET / "weave/keycloak/weave-agent-runtime-admin"
 )
+IDENTITY_ADMIN_PRIVATE_TARGET = PurePosixPath(
+    "/run/secrets/identity-admin/weave-identity-admin-private-jwk.json"
+)
+IDENTITY_ADMIN_INITIALIZER_TARGET = PurePosixPath(
+    "/authority/private/weave-identity-admin-private-jwk.json"
+)
 AGENT_RUNTIME_MOUNT_POLICY = {
     ("agent-runtime-keys-init", str(PROFILE_SIGNING_TARGET)): ("read-write", "directory"),
     ("agent-runtime-keys-init", str(STATE_WRAPPING_TARGET)): ("read-write", "directory"),
@@ -421,11 +427,42 @@ def validate_mount_contract(model: dict[str, Any]) -> list[dict[str, Any]]:
             and "weave-identity-admin" in (entry["source"] + entry["target"])
         }
         if identity_admin_targets != {
-            "/run/secrets/weave/spring.security.oauth2.client.registration.weave-identity-admin.client-secret"
+            str(IDENTITY_ADMIN_PRIVATE_TARGET)
         }:
             raise ContractError(
-                "backend identity-admin access must remain one exact Identity adapter SecretRef"
+                "backend identity-admin access must be one exact private-JWK SecretRef"
             )
+
+    identity_admin_private_entries = [
+        entry
+        for entry in graph
+        if "weave-identity-admin-private-jwk" in (entry["source"] + entry["target"])
+    ]
+    declared_identity_admin_private = {
+        ("backend", str(IDENTITY_ADMIN_PRIVATE_TARGET), "read-only", "file"),
+        (
+            "identity-admin-key-init",
+            str(IDENTITY_ADMIN_INITIALIZER_TARGET),
+            "read-only",
+            "file",
+        ),
+    }
+    expected_identity_admin_private = {
+        entry for entry in declared_identity_admin_private if entry[0] in services
+    }
+    observed_identity_admin_private = {
+        (
+            entry["service"],
+            entry["target"],
+            entry["access"],
+            entry["expectedSourceType"],
+        )
+        for entry in identity_admin_private_entries
+    }
+    if observed_identity_admin_private != expected_identity_admin_private:
+        raise ContractError(
+            "identity-admin private JWK must be mounted only by Server and its one-shot initializer"
+        )
 
     if "agent-runtime-keys-init" in services:
         expected_initializer = {
@@ -1155,7 +1192,6 @@ def adopt_secret_updates(context: ComposeContext) -> None:
     if not updates.exists():
         return
     allowed = {
-        "keycloak-weave-identity-admin",
         "keycloak-nextcloud",
         "keycloak-matrix-mas",
     }
