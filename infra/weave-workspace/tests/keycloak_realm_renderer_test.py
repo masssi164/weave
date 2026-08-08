@@ -21,6 +21,7 @@ from realm_renderer import (  # noqa: E402
     project_realm,
     public_jwks,
     sha256_digest,
+    validate_public_jwks,
 )
 
 
@@ -296,6 +297,7 @@ def run() -> None:
             }
         ]
     }
+    assert validate_public_jwks(public, owner="test-owner") == public
     desired = desired_state()
     public_by_ref = {
         str(client["keyRef"]): public
@@ -353,6 +355,15 @@ def run() -> None:
         pass
     else:
         raise AssertionError("public-only JWK was accepted as an owned private credential")
+
+    leaked_public = copy.deepcopy(public)
+    leaked_public["keys"][0]["d"] = "private"
+    try:
+        validate_public_jwks(leaked_public, owner="leaked-public")
+    except RealmProjectionError:
+        pass
+    else:
+        raise AssertionError("private JWK material was accepted in a public projection")
 
     leaked = copy.deepcopy(first)
     leaked["clients"][0]["secret"] = "shared-secret"

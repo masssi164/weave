@@ -20,6 +20,12 @@ sys.path.insert(0, str(KEYCLOAK_MODULE_ROOT))
 
 from compose_env import ComposeContext, ContractError, canonical_json, load_context
 from crypto_runtime import OPENSSL  # noqa: E402
+from realm_renderer import (  # noqa: E402
+    MACHINE_KEY_PROJECTIONS,
+    RealmProjectionError,
+    pretty_json,
+    public_jwks,
+)
 
 
 CORE_TEXT_SECRETS = (
@@ -117,6 +123,38 @@ def _atomic_write(path: Path, payload: bytes) -> None:
     finally:
         if temporary.exists():
             temporary.unlink()
+
+
+def _write_public_projection(path: Path, payload: bytes) -> None:
+    """Atomically replace a non-secret projection when its private owner rotates."""
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    if path.is_symlink():
+        raise ContractError(f"refusing generated public-JWKS symlink target: {path}")
+    temporary = path.with_name(f".{path.name}.{secrets.token_hex(8)}.tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        os.chmod(path, 0o644)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def _project_machine_public_jwks(context: ComposeContext) -> None:
+    output_root = context.generated_root / "keycloak/public-jwks"
+    for secret_ref, (private_name, public_name) in MACHINE_KEY_PROJECTIONS.items():
+        private_path = context.secret_root / private_name
+        _assert_private_file(private_path)
+        try:
+            private_value = json.loads(private_path.read_text(encoding="utf-8"))
+            projection = public_jwks(private_value, owner=secret_ref)
+        except (json.JSONDecodeError, RealmProjectionError) as error:
+            raise ContractError(f"cannot derive {secret_ref} public JWKS") from error
+        _write_public_projection(output_root / public_name, pretty_json(projection))
 
 
 def _random_secret() -> bytes:
@@ -455,6 +493,7 @@ def initialize(context: ComposeContext) -> None:
         )
     if context.environment == "prod":
         _validate_existing(context)
+        _project_machine_public_jwks(context)
         return
     runtime_key_root = (
         context.secret_root / "agent-runtime/workloads/weave/keycloak"
@@ -519,6 +558,7 @@ def initialize(context: ComposeContext) -> None:
                 ) from error
     _generate_tls(context)
     _validate_existing(context)
+    _project_machine_public_jwks(context)
     manifest = {
         "schemaVersion": "weave.compose-secret-generation.v1",
         "environment": context.environment,

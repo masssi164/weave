@@ -24,6 +24,24 @@ PRIVATE_JWK_MEMBERS = frozenset({"d", "p", "q", "dp", "dq", "qi", "oth", "k"})
 ORGANIZATION_ID_NAMESPACE = uuid.UUID("b72cdb67-84a6-5aaa-a30c-70c1f10f76c8")
 WORKLOAD_POLICY_EXECUTOR = "weave-workload-client-registration-enforcer"
 FRESH_START_MIGRATION_SCHEMA = "weave.keycloak-realm-migration-bundle/v1"
+MACHINE_KEY_PROJECTIONS = {
+    "secretref:keycloak/weave-backend-jwk": (
+        "keycloak-weave-backend-jwk.json",
+        "weave-backend.json",
+    ),
+    "secretref:keycloak/weave-mcp-server-jwk": (
+        "keycloak-weave-mcp-server-jwk.json",
+        "weave-mcp-server.json",
+    ),
+    "secretref:keycloak/weave-identity-admin-jwk": (
+        "keycloak-weave-identity-admin-jwk.json",
+        "weave-identity-admin.json",
+    ),
+    "secretref:keycloak/weave-agent-runtime-admin-jwk": (
+        "agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin",
+        "weave-agent-runtime-admin.json",
+    ),
+}
 
 
 def canonical_json(value: object) -> bytes:
@@ -93,6 +111,35 @@ def public_jwks(private_jwk_value: object, *, owner: str) -> dict[str, object]:
             }
         ]
     }
+
+
+def validate_public_jwks(value: object, *, owner: str) -> dict[str, object]:
+    """Validate the public-only projection consumed by the realm renderer."""
+    if not isinstance(value, dict) or set(value) != {"keys"}:
+        raise RealmProjectionError(f"{owner} public JWKS is malformed")
+    keys = value.get("keys")
+    if not isinstance(keys, list) or len(keys) != 1 or not isinstance(keys[0], dict):
+        raise RealmProjectionError(f"{owner} must expose exactly one public verification JWK")
+    key = keys[0]
+    if PRIVATE_JWK_MEMBERS.intersection(key):
+        raise RealmProjectionError(f"{owner} public JWKS contains private key material")
+    expected = {
+        "alg": "PS256",
+        "e": "AQAB",
+        "key_ops": ["verify"],
+        "kty": "RSA",
+        "use": "sig",
+    }
+    if any(key.get(name) != expected_value for name, expected_value in expected.items()):
+        raise RealmProjectionError(f"{owner} public JWKS is not an RSA PS256 verification key")
+    if not isinstance(key.get("kid"), str) or not key["kid"]:
+        raise RealmProjectionError(f"{owner} public JWKS has no key identifier")
+    if not isinstance(key.get("n"), str) or not key["n"]:
+        raise RealmProjectionError(f"{owner} public JWKS has no RSA modulus")
+    allowed = {"alg", "e", "key_ops", "kid", "kty", "n", "use"}
+    if set(key) != allowed:
+        raise RealmProjectionError(f"{owner} public JWKS contains unsupported members")
+    return value
 
 
 def _mapper(mapper: dict[str, Any], client_ids: dict[str, str]) -> dict[str, object]:
