@@ -509,44 +509,77 @@ jobs:
             --mailpit-certificate "$WEAVE_TLS_ROOT/mailpit-cert.pem" \
             --baseline "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-resource-baseline.json"
 
-      - name: Prove canonical lifecycle convergence and stable realm artifacts
+      - name: Prove semantic candidate identity and stable dogfood realm render
         if: env.DEPLOYMENT_MODE == 'routine' || steps.approval.outputs.approved == 'true'
         working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
           ./compose.sh dogfood configure
-          baseline="$WEAVE_GENERATED_ROOT/keycloak/import/weave-realm.json"
-          migrations="$WEAVE_GENERATED_ROOT/keycloak/migrations/manifest.json"
-          [[ -f "$baseline" && ! -L "$baseline" && \
-             -f "$migrations" && ! -L "$migrations" ]] || {
-            echo "::error::Rendered persistent realm artifacts are missing or unsafe." >&2
+          render_manifest="$WEAVE_GENERATED_ROOT/render-manifest.json"
+          render_evidence="$WEAVE_GENERATED_ROOT/keycloak/realm-render-evidence.json"
+          rendered_realm="$WEAVE_GENERATED_ROOT/keycloak/import/weave-realm.json"
+          receipt="$WEAVE_GENERATED_ROOT/keycloak/migrations/fgap-v2-primary-organization-post-import.receipt.json"
+          for required in "$render_manifest" "$render_evidence" "$rendered_realm"; do
+            [[ -f "$required" && ! -L "$required" ]] || {
+              echo "::error::Persistent realm render input is missing or unsafe: $required" >&2
+              exit 1
+            }
+          done
+          candidate_semantic="$(jq -er .realmDefinition.semanticRealmSourceDigest "$WEAVE_CANDIDATE_MANIFEST")"
+          candidate_migration="$(jq -er .realmDefinition.migrationDefinitionDigest "$WEAVE_CANDIDATE_MANIFEST")"
+          jq -e \
+            --arg semantic "$candidate_semantic" \
+            --arg migration "$candidate_migration" '
+              .schemaVersion == "weave.compose-render.v2" and
+              .realmIdentity.semanticRealmSourceDigest == $semantic and
+              .realmIdentity.migrationDefinitionDigest == $migration and
+              (.realmIdentity.overlayDigest | test("^sha256:[0-9a-f]{64}$")) and
+              (.realmIdentity.renderedRealmDigest | test("^sha256:[0-9a-f]{64}$")) and
+              .containsSecretValues == false
+            ' "$render_manifest" >/dev/null
+          expected_rendered="$(jq -er .realmIdentity.renderedRealmDigest "$render_manifest")"
+          actual_rendered="sha256:$(shasum -a 256 "$rendered_realm" | awk '{print $1}')"
+          [[ "$actual_rendered" == "$expected_rendered" ]] || {
+            echo "::error::Dogfood realm bytes do not match their environment render digest." >&2
             exit 1
           }
-          expected_baseline="$(jq -er .realmArtifacts.baselineDigest "$WEAVE_CANDIDATE_MANIFEST")"
-          expected_migrations="$(jq -er .realmArtifacts.migrationBundleDigest "$WEAVE_CANDIDATE_MANIFEST")"
-          actual_baseline="sha256:$(shasum -a 256 "$baseline" | awk '{print $1}')"
-          actual_migrations="sha256:$(shasum -a 256 "$migrations" | awk '{print $1}')"
-          [[ "$actual_baseline" == "$expected_baseline" && \
-             "$actual_migrations" == "$expected_migrations" ]] || {
-            echo "::error::Rendered persistent realm artifacts differ from the candidate manifest." >&2
-            exit 1
-          }
+          jq -e \
+            --arg source "$WEAVE_CANDIDATE_COMMIT" \
+            --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
+            --arg semantic "$candidate_semantic" \
+            --arg migration "$candidate_migration" '
+              .schemaVersion == "weave.keycloak-environment-render-evidence/v1" and
+              .environment == "dogfood" and
+              .candidateCommit == $source and
+              .candidateManifestDigest == $manifest and
+              .realmIdentity.semanticRealmSourceDigest == $semantic and
+              .realmIdentity.migrationDefinitionDigest == $migration and
+              .semanticReadbackDigest == null and
+              .semanticReadbackVerified == false and
+              .supportSafe == true and
+              .containsSecretValues == false
+            ' "$render_evidence" >/dev/null
+          cp "$render_manifest" "$WEAVE_TEST_STACK_EVIDENCE_DIR/render-manifest-first.json"
           ./install.sh dogfood
           ./compose.sh dogfood config > "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-first.json"
-          cp "$baseline" \
-            "$WEAVE_TEST_STACK_EVIDENCE_DIR/weave-realm-first.json"
-          cp "$migrations" \
-            "$WEAVE_TEST_STACK_EVIDENCE_DIR/realm-migrations-first.json"
           ./operator-check.sh dogfood
           ./install.sh dogfood
           ./compose.sh dogfood config > "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-second.json"
           cmp -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-first.json" "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-second.json"
-          cmp -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/weave-realm-first.json" \
-            "$baseline"
-          cmp -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/realm-migrations-first.json" \
-            "$migrations"
+          [[ -f "$receipt" && ! -L "$receipt" ]] || {
+            echo "::error::Qualified Keycloak migration receipt is missing after install." >&2
+            exit 1
+          }
+          python3 scripts/keycloak_realm_evidence.py \
+            --candidate-manifest "$WEAVE_CANDIDATE_MANIFEST" \
+            --first-render-manifest "$WEAVE_TEST_STACK_EVIDENCE_DIR/render-manifest-first.json" \
+            --current-render-manifest "$render_manifest" \
+            --render-evidence "$render_evidence" \
+            --migration-receipt "$receipt" \
+            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/realm-evidence.json"
           ./operator-check.sh dogfood
-          jq -n '{schemaVersion:"weave.persistent-test-idempotence.v3",runtimeProfile:"dogfood",deploymentContext:"persistent-dogfood",noChanges:true,composeModelStable:true,realmArtifactsUnchanged:true,supportSafe:true,containsSecretValues:false}' \
+          jq -n \
+            '{schemaVersion:"weave.persistent-test-idempotence.v4",runtimeProfile:"dogfood",deploymentContext:"persistent-dogfood",noChanges:true,composeModelStable:true,candidateRealmDefinitionMatched:true,environmentRealmRenderStable:true,semanticReadbackVerified:true,supportSafe:true,containsSecretValues:false}' \
             > "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-test-idempotence.json"
 
       - name: Compare routine persistent resource identity
@@ -574,6 +607,8 @@ jobs:
           set -euo pipefail
           mapping="$WEAVE_TEST_STACK_EVIDENCE_DIR/candidate-source-mapping.json"
           runtime="$WEAVE_TEST_STACK_EVIDENCE_DIR/runtime-image-observation.json"
+          realm_evidence="$WEAVE_TEST_STACK_EVIDENCE_DIR/realm-evidence.json"
+          test -s "$realm_evidence"
           observe() {
             local runtime_name="$1" container="$2" component="$3" expected observed reference source
             expected="$(jq -er --arg name "$runtime_name" '.images[$name]' "$mapping")"
@@ -606,7 +641,7 @@ jobs:
               --arg source "$WEAVE_CANDIDATE_COMMIT" \
               --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
               --arg planSha "sha256:$WEAVE_FRESH_START_PLAN_SHA" '
-                {schemaVersion:"weave.fresh-start-cut-report.v2",laneCandidateCommit:$lane,sourceCandidateCommit:$source,candidateManifestDigest:$manifest,planSha256:$planSha,status:"passed",schemaConverged:true,realmArtifactsVerified:true,imagesVerified:true,firstOwnerBootstrapRequired:true,ownerInvitationCreated:false,backupVerified:true,isolatedRestoreVerified:true,legacyStateMigrated:false,adoptionAuthorized:false,supportSafe:true,containsSecretValues:false}
+                {schemaVersion:"weave.fresh-start-cut-report.v3",laneCandidateCommit:$lane,sourceCandidateCommit:$source,candidateManifestDigest:$manifest,planSha256:$planSha,status:"passed",schemaConverged:true,realmEvidenceVerified:true,imagesVerified:true,firstOwnerBootstrapRequired:true,ownerInvitationCreated:false,backupVerified:true,isolatedRestoreVerified:true,legacyStateMigrated:false,adoptionAuthorized:false,supportSafe:true,containsSecretValues:false}
               ' > "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-cut-report.json"
             baseline_arguments=(--fresh-start-cut-report "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-cut-report.json")
             manifest_baseline_arguments=(--fresh-start-cut-report "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-cut-report.json")
@@ -621,6 +656,7 @@ jobs:
             --candidate-commit "$LANE_CANDIDATE_COMMIT" \
             --candidate-manifest-digest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
             --candidate-manifest "$WEAVE_CANDIDATE_MANIFEST" \
+            --realm-evidence "$realm_evidence" \
             --backend-version "$backend_version" \
             --backend-build-number "${WEAVE_CANDIDATE_COMMIT:0:12}" \
             --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
@@ -633,6 +669,7 @@ jobs:
           python3 tools/test_stack_manifest.py \
             --candidate-source-mapping "$mapping" \
             --candidate-manifest "$WEAVE_CANDIDATE_MANIFEST" \
+            --realm-evidence "$realm_evidence" \
             --runtime-image-evidence "$runtime" \
             "${manifest_baseline_arguments[@]}" \
             --deployment-idempotence "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-test-idempotence.json" \
