@@ -37,6 +37,10 @@ REALM_EVIDENCE_DIGEST_FIELDS = {
     "renderedRealmDigest",
     "semanticReadbackDigest",
 }
+REALM_CANDIDATE_IDENTITY_FIELDS = (
+    "semanticRealmSourceDigest",
+    "migrationDefinitionDigest",
+)
 
 
 def load_object(path: Path, label: str) -> dict[str, Any]:
@@ -123,6 +127,15 @@ def require_realm_evidence(document: dict[str, Any], label: str) -> dict[str, An
     return evidence
 
 
+def require_same_realm_candidate_identity(
+    left: dict[str, Any], right: dict[str, Any], left_label: str, right_label: str
+) -> None:
+    if any(left.get(field) != right.get(field) for field in REALM_CANDIDATE_IDENTITY_FIELDS):
+        raise ManifestError(
+            f"{left_label} and {right_label} realm evidence disagree on candidate realm definition"
+        )
+
+
 def assemble(
     *,
     candidate: str,
@@ -190,13 +203,17 @@ def assemble(
     ):
         raise ManifestError("candidate image evidence is incomplete or mutable")
 
-    realm_evidence = require_realm_evidence(automated, "automated")
+    automated_realm_evidence = require_realm_evidence(automated, "automated")
     deployment_realm_evidence = require_realm_evidence(deployment, "deployment")
     health_realm_evidence = require_realm_evidence(provider_health, "provider health")
-    if deployment_realm_evidence != realm_evidence:
-        raise ManifestError("deployment realm evidence disagrees with automated evidence")
-    if health_realm_evidence != realm_evidence:
-        raise ManifestError("provider health realm evidence disagrees with automated evidence")
+    require_same_realm_candidate_identity(
+        automated_realm_evidence,
+        deployment_realm_evidence,
+        "automated E2E",
+        "dogfood deployment",
+    )
+    if health_realm_evidence != deployment_realm_evidence:
+        raise ManifestError("provider health realm evidence disagrees with dogfood deployment evidence")
 
     deployment_details = require_object(deployment, "deployment", "deployment")
     if deployment_details.get("realmEvidenceVerified") is not True:
@@ -247,7 +264,7 @@ def assemble(
         "specCorpusCommit": spec_commit,
         "candidateManifestDigest": automated_manifest,
         "images": dict(sorted(automated_images.items())),
-        "realmEvidence": dict(realm_evidence),
+        "realmEvidence": dict(deployment_realm_evidence),
         "evidenceModes": automated["evidenceModes"],
         "generatedAtUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "state": "blocked",
