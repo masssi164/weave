@@ -43,6 +43,14 @@ management:
         enabled: true
 
 weave:
+  files:
+    # JPA canonical metadata plus private blob storage is the Weave server default.
+    provider: ${WEAVE_FILES_PROVIDER:weave-native}
+    native:
+      blob-store: ${WEAVE_FILES_NATIVE_BLOB_STORE:filesystem}
+      filesystem-root: ${WEAVE_FILES_NATIVE_FILESYSTEM_ROOT:.weave/files/blobs}
+      maximum-blob-bytes: ${WEAVE_FILES_NATIVE_MAXIMUM_BLOB_BYTES:67108864}
+      reconciliation-limit: ${WEAVE_FILES_NATIVE_RECONCILIATION_LIMIT:10000}
   agent-runtime:
     # ARC remains inert until its feature-specific adapters are enabled. JPA is
     # the sole repository authority; long-lived credentials are SecretRefs.

@@ -16,6 +16,13 @@ public interface FilesAuthorityRepository {
 
     Optional<CanonicalFileRecord> findById(String organizationRef, String spaceRef, FileId id);
 
+    List<CanonicalFileRecord> activeFiles(String organizationRef, String spaceRef);
+
+    /** Atomically tombstones old path owners before activating replacement records. */
+    List<CanonicalFileRecord> replace(
+            List<CanonicalFileRecord> tombstones,
+            List<CanonicalFileRecord> activations);
+
     CanonicalFileRecord move(
             String organizationRef, String spaceRef, FileId id, FilePath expectedPath, FilePath destination, Instant movedAt);
 

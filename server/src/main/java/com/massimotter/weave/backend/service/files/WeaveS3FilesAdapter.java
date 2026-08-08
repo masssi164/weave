@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -56,6 +57,7 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 @Component
 @Primary
 @ConditionalOnProperty(name = "weave.files.s3.enabled", havingValue = "true")
+@ConditionalOnExpression("'${weave.files.provider:weave-native}' == 'weave-s3-minio'")
 public class WeaveS3FilesAdapter implements FilesProviderPort {
 
     private static final String COLLECTION_MARKER = ".weave-collection";

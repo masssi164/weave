@@ -55,11 +55,11 @@ public class ProviderCoreConfiguration {
         if (runtime == null) {
             return StaticProviderPort.pending(
                     ProviderModule.FILES,
-                    "nextcloud-files",
+                    "weave-native",
                     "No Files runtime adapter is bound; the canonical Files facade remains fail-closed.",
                     Set.of("list", "read", "write", "create-collection", "delete", "copy", "move"),
                     Set.of("direct-member-provider-api", "credential-exposure", "raw-provider-errors"),
-                    List.of("nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"),
+                    List.of("weave-native", "nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"),
                     Map.of("runtimeBindingObserved", false, "facade", "/dav/files"));
         }
         return RuntimeProviderStatus.fromConformancePort(
@@ -68,7 +68,7 @@ public class ProviderCoreConfiguration {
                 runtime.configured(),
                 runtime.conformanceProfile(),
                 "The selected Files adapter is bound behind the canonical Files port and the /dav/files projection.",
-                List.of("nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"));
+                List.of("weave-native", "nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"));
     }
 
     @Bean
