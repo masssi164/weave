@@ -121,6 +121,8 @@ def main() -> int:
     )
     require(
         "expected_title=\"Candidate Cut $WEAVE_IMAGE_SOURCE_COMMIT\"" in live
+        and "gh api --paginate --slurp" in live
+        and "[.[].workflow_runs[] | select(" in live
         and '.event <<<"$run")" == "workflow_dispatch"' in live
         and '.head_branch <<<"$run")" == "dev"' in live
         and '.display_title <<<"$run")" == "$expected_title"' in live

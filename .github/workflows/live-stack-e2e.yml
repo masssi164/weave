@@ -163,9 +163,9 @@ jobs:
               exit 1
             }
           else
-            runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/candidate-images.yml/runs?branch=dev&event=workflow_dispatch&status=completed&per_page=100")"
+            runs="$(gh api --paginate --slurp "/repos/${GITHUB_REPOSITORY}/actions/workflows/candidate-images.yml/runs?branch=dev&event=workflow_dispatch&status=completed&per_page=100")"
             matching_runs="$(jq -c --arg title "$expected_title" '
-              [.workflow_runs[] | select(
+              [.[].workflow_runs[] | select(
                 .name == "Candidate Cut" and
                 .path == ".github/workflows/candidate-images.yml" and
                 .event == "workflow_dispatch" and
