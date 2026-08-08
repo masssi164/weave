@@ -200,7 +200,7 @@ tasks.register('dogfoodCandidateCheck', Exec) {
 
 tasks.register('createCandidateManifest', Exec) {
     group = 'weave release'
-    description = 'Create and validate one immutable candidate manifest from digest-pinned images and attestations.'
+    description = 'Create and validate one immutable candidate manifest from semantic realm definitions, digest-pinned images, and attestations.'
     workingDir rootProject.projectDir
     outputs.upToDateWhen { false }
     doFirst {
@@ -212,8 +212,8 @@ tasks.register('createCandidateManifest', Exec) {
             '--spec-digest', requiredProperty('specDigest'),
             '--build-evidence-ref', requiredProperty('buildEvidenceRef'),
             '--keycloak-build-evidence-digest', requiredProperty('keycloakRuntimeBuildEvidenceDigest'),
-            '--realm-baseline-artifact', requiredProperty('realmBaselineArtifact'),
-            '--realm-migration-bundle-artifact', requiredProperty('realmMigrationBundleArtifact'),
+            '--semantic-realm-source', requiredProperty('semanticRealmSource'),
+            '--realm-migration-definition', requiredProperty('realmMigrationDefinition'),
             '--image',
             'server',
             requiredProperty('serverImage'),
