@@ -18,6 +18,8 @@ SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 OPERATION_ID = "fgap-v2-primary-organization-post-import"
 RECEIPT_NAME = f"{OPERATION_ID}.receipt.json"
 RECEIPT_SCHEMA = "weave.keycloak-fgap-migration-receipt/v1"
+BACKUP_PROOF_SCHEMA = "weave.keycloak-realm-migration-backup-proof/v1"
+FRESH_START_PROOF_SCHEMA = "weave.keycloak-realm-migration-fresh-start-proof/v1"
 ALLOWED_MUTATIONS = frozenset(
     {
         "create-identity-admin-subject-policy",
@@ -135,6 +137,91 @@ def migration_inputs(context: ComposeContext) -> MigrationInputs:
     )
 
 
+def _precondition_proof_digest(
+    context: ComposeContext, inputs: MigrationInputs
+) -> str:
+    proof, proof_payload = _artifact(inputs.backup_proof_file)
+    if inputs.backup_proof_file.stat().st_mode & 0o777 not in {0o400, 0o600}:
+        raise ContractError("Keycloak migration precondition proof must be mode 0400 or 0600")
+    common = (
+        proof.get("supportSafe") is True
+        and proof.get("status") == "verified"
+        and proof.get("environment") == context.environment
+        and proof.get("realm") == "weave"
+        and proof.get("sourceBaselineRevision") == inputs.target_revision
+        and proof.get("candidateCommit") == context.env["WEAVE_CANDIDATE_COMMIT"]
+        and proof.get("composeProject") == context.env["WEAVE_COMPOSE_PROJECT"]
+    )
+    if not common:
+        raise ContractError("Keycloak migration precondition proof is stale or outside deployment scope")
+
+    if proof.get("schemaVersion") == BACKUP_PROOF_SCHEMA:
+        created_at = proof.get("createdAt")
+        try:
+            parsed_created_at = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+        except ValueError as error:
+            raise ContractError("Keycloak migration backup proof timestamp is malformed") from error
+        if (
+            set(proof)
+            != {
+                "schemaVersion",
+                "supportSafe",
+                "status",
+                "createdAt",
+                "environment",
+                "realm",
+                "sourceBaselineRevision",
+                "backupManifestSha256",
+                "backupIdSha256",
+                "candidateCommit",
+                "composeProject",
+            }
+            or parsed_created_at.tzinfo is None
+            or not SHA256.fullmatch(str(proof.get("backupManifestSha256")))
+            or not SHA256.fullmatch(str(proof.get("backupIdSha256")))
+        ):
+            raise ContractError("Keycloak migration backup proof is stale or outside deployment scope")
+        return _digest(proof_payload)
+
+    if proof.get("schemaVersion") == FRESH_START_PROOF_SCHEMA:
+        if (
+            context.environment != "dogfood"
+            or set(proof)
+            != {
+                "schemaVersion",
+                "supportSafe",
+                "containsSecretValues",
+                "status",
+                "environment",
+                "realm",
+                "sourceBaselineRevision",
+                "freshStartPlanSha256",
+                "freshStartApplyEvidenceSha256",
+                "operationNonce",
+                "retiredGeneration",
+                "targetGeneration",
+                "candidateCommit",
+                "candidateManifestDigest",
+                "composeProject",
+            }
+            or proof.get("containsSecretValues") is not False
+            or not SHA256.fullmatch(str(proof.get("freshStartPlanSha256")))
+            or not SHA256.fullmatch(str(proof.get("freshStartApplyEvidenceSha256")))
+            or not re.fullmatch(
+                r"[a-z0-9][a-z0-9-]{15,63}", str(proof.get("operationNonce", ""))
+            )
+            or not isinstance(proof.get("retiredGeneration"), str)
+            or not proof.get("retiredGeneration")
+            or proof.get("targetGeneration") != context.env["WEAVE_RESOURCE_GENERATION"]
+            or proof.get("candidateManifestDigest")
+            != context.env["WEAVE_CANDIDATE_MANIFEST_DIGEST"]
+        ):
+            raise ContractError("Keycloak Fresh Start proof is stale or outside cutover scope")
+        return _digest(proof_payload)
+
+    raise ContractError("Keycloak migration precondition proof has an unsupported schema")
+
+
 def require_completed_migration(context: ComposeContext) -> MigrationInputs:
     if context.environment not in {"dogfood", "prod"}:
         raise ContractError(
@@ -142,44 +229,7 @@ def require_completed_migration(context: ComposeContext) -> MigrationInputs:
             "this environment remains fail-closed"
         )
     inputs = migration_inputs(context)
-    proof, proof_payload = _artifact(inputs.backup_proof_file)
-    if inputs.backup_proof_file.stat().st_mode & 0o777 not in {0o400, 0o600}:
-        raise ContractError("Keycloak migration backup proof must be mode 0400 or 0600")
-    created_at = proof.get("createdAt")
-    try:
-        parsed_created_at = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
-    except ValueError as error:
-        raise ContractError("Keycloak migration backup proof timestamp is malformed") from error
-    if (
-        set(proof)
-        != {
-            "schemaVersion",
-            "supportSafe",
-            "status",
-            "createdAt",
-            "environment",
-            "realm",
-            "sourceBaselineRevision",
-            "backupManifestSha256",
-            "backupIdSha256",
-            "candidateCommit",
-            "composeProject",
-        }
-        or proof.get("schemaVersion")
-        != "weave.keycloak-realm-migration-backup-proof/v1"
-        or proof.get("supportSafe") is not True
-        or proof.get("status") != "verified"
-        or parsed_created_at.tzinfo is None
-        or proof.get("environment") != context.environment
-        or proof.get("realm") != "weave"
-        or proof.get("sourceBaselineRevision") != inputs.target_revision
-        or not SHA256.fullmatch(str(proof.get("backupManifestSha256")))
-        or not SHA256.fullmatch(str(proof.get("backupIdSha256")))
-        or proof.get("candidateCommit") != context.env["WEAVE_CANDIDATE_COMMIT"]
-        or proof.get("composeProject") != context.env["WEAVE_COMPOSE_PROJECT"]
-    ):
-        raise ContractError("Keycloak migration backup proof is stale or outside deployment scope")
-    backup_proof_digest = _digest(proof_payload)
+    precondition_proof_digest = _precondition_proof_digest(context, inputs)
     try:
         receipt, _ = _artifact(inputs.receipt_file)
     except ContractError as error:
@@ -219,7 +269,10 @@ def require_completed_migration(context: ComposeContext) -> MigrationInputs:
         or receipt.get("bundleDigest") != inputs.bundle_digest
         or receipt.get("baselineArtifactDigest") != inputs.baseline_digest
         or receipt.get("targetBaselineRevision") != inputs.target_revision
-        or receipt.get("backupProofDigest") != backup_proof_digest
+        # The serialized field keeps its historical name because the Java result
+        # schema is already candidate-bound.  It now binds either accepted
+        # precondition proof: persistent backup or approved Fresh Start cutover.
+        or receipt.get("backupProofDigest") != precondition_proof_digest
         or not isinstance(mutations, list)
         or any(not isinstance(item, str) for item in mutations)
         or mutations != sorted(set(mutations))

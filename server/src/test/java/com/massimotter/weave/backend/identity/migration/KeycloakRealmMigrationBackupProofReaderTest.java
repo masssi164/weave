@@ -26,21 +26,40 @@ class KeycloakRealmMigrationBackupProofReaderTest {
       tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
 
   @Test
-  void acceptsOnlyThePrivateSupportSafeProofAndHashesItsExactBytes() throws Exception {
-    Path proof = writeProof(validProof());
-    String expectedDigest =
-        "sha256:"
-            + HexFormat.of()
-                .formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(proof)));
+  void acceptsOnlyThePrivateSupportSafeBackupProofAndHashesItsExactBytes() throws Exception {
+    Path proof = writeProof(validBackupProof());
+    String expectedDigest = digest(proof);
 
-    KeycloakRealmMigrationBackupProofReader.BackupProof result = reader().read(
-        proof, bundle(), "dogfood", CANDIDATE, "weave-dogfood");
+    KeycloakRealmMigrationBackupProofReader.BackupProof result =
+        reader().read(proof, bundle(), "dogfood", CANDIDATE, "weave-dogfood");
 
     assertThat(result.digest()).isEqualTo(expectedDigest);
     assertThat(result.environment()).isEqualTo("dogfood");
     assertThat(result.candidateCommit()).isEqualTo(CANDIDATE);
     assertThat(result.composeProject()).isEqualTo("weave-dogfood");
+  }
+
+  @Test
+  void acceptsAnApprovedFreshStartProofWithoutPretendingItIsABackup() throws Exception {
+    Path proof = writeProof(validFreshStartProof());
+
+    KeycloakRealmMigrationBackupProofReader.BackupProof result =
+        reader().read(proof, bundle(), "dogfood", CANDIDATE, "weave-dogfood");
+
+    assertThat(result.digest()).isEqualTo(digest(proof));
+  }
+
+  @Test
+  void rejectsFreshStartProofForProductionOrWrongCandidate() throws Exception {
+    Path proof = writeProof(validFreshStartProof());
+
+    assertThatThrownBy(() -> reader().read(proof, bundle(), "prod", CANDIDATE, "weave-dogfood"))
+        .isInstanceOf(KeycloakRealmMigrationException.class)
+        .hasMessage("fresh-start-proof-contract-mismatch");
+    assertThatThrownBy(
+            () -> reader().read(proof, bundle(), "dogfood", "c".repeat(40), "weave-dogfood"))
+        .isInstanceOf(KeycloakRealmMigrationException.class)
+        .hasMessage("fresh-start-proof-contract-mismatch");
   }
 
   @Test
@@ -52,7 +71,7 @@ class KeycloakRealmMigrationBackupProofReaderTest {
         .isInstanceOf(KeycloakRealmMigrationException.class)
         .hasMessage("backup-proof-unavailable");
 
-    Path proof = writeProof(validProof());
+    Path proof = writeProof(validBackupProof());
     Path symlink = temporary.resolve("proof-link.json");
     Files.createSymbolicLink(symlink, proof);
     assertThatThrownBy(
@@ -63,7 +82,7 @@ class KeycloakRealmMigrationBackupProofReaderTest {
 
   @Test
   void rejectsAnyGroupOrOtherFileAccess() throws Exception {
-    Path proof = writeProof(validProof());
+    Path proof = writeProof(validBackupProof());
     assumeTrue(Files.getFileStore(proof).supportsFileAttributeView("posix"));
     Files.setPosixFilePermissions(proof, PosixFilePermissions.fromString("rw-r-----"));
 
@@ -75,7 +94,7 @@ class KeycloakRealmMigrationBackupProofReaderTest {
 
   @Test
   void rejectsSecretLikeOrOtherUnreviewedFields() throws Exception {
-    ObjectNode proof = validProof();
+    ObjectNode proof = validBackupProof();
     proof.put("clientSecret", "must-never-enter-a-support-safe-proof");
     Path path = writeProof(proof);
 
@@ -95,7 +114,7 @@ class KeycloakRealmMigrationBackupProofReaderTest {
 
   @Test
   void rejectsAProofFromAnotherCandidateOrComposeProject() throws Exception {
-    Path proof = writeProof(validProof());
+    Path proof = writeProof(validBackupProof());
 
     assertThatThrownBy(
             () -> reader().read(proof, bundle(), "dogfood", "c".repeat(40), "weave-dogfood"))
@@ -108,7 +127,7 @@ class KeycloakRealmMigrationBackupProofReaderTest {
   }
 
   private void assertContractMismatch(String field, String value) throws Exception {
-    ObjectNode proof = validProof();
+    ObjectNode proof = validBackupProof();
     proof.put(field, value);
     Path path = temporary.resolve(field + ".json");
     writeProof(path, proof);
@@ -132,7 +151,7 @@ class KeycloakRealmMigrationBackupProofReaderTest {
         KeycloakFgapMigrationContract.OPERATION_ID);
   }
 
-  private ObjectNode validProof() {
+  private ObjectNode validBackupProof() {
     ObjectNode proof = mapper.createObjectNode();
     proof.put("schemaVersion", "weave.keycloak-realm-migration-backup-proof/v1");
     proof.put("supportSafe", true);
@@ -148,8 +167,28 @@ class KeycloakRealmMigrationBackupProofReaderTest {
     return proof;
   }
 
+  private ObjectNode validFreshStartProof() {
+    ObjectNode proof = mapper.createObjectNode();
+    proof.put("schemaVersion", "weave.keycloak-realm-migration-fresh-start-proof/v1");
+    proof.put("supportSafe", true);
+    proof.put("containsSecretValues", false);
+    proof.put("status", "verified");
+    proof.put("environment", "dogfood");
+    proof.put("realm", "weave");
+    proof.put("sourceBaselineRevision", BASELINE_REVISION);
+    proof.put("freshStartPlanSha256", "sha256:" + "d".repeat(64));
+    proof.put("freshStartApplyEvidenceSha256", "sha256:" + "e".repeat(64));
+    proof.put("operationNonce", "fresh-start-0123456789");
+    proof.put("retiredGeneration", "legacy-generation");
+    proof.put("targetGeneration", "fresh-generation");
+    proof.put("candidateCommit", CANDIDATE);
+    proof.put("candidateManifestDigest", "sha256:" + "f".repeat(64));
+    proof.put("composeProject", "weave-dogfood");
+    return proof;
+  }
+
   private Path writeProof(ObjectNode proof) throws Exception {
-    return writeProof(temporary.resolve("backup-proof.json"), proof);
+    return writeProof(temporary.resolve("migration-proof.json"), proof);
   }
 
   private Path writeProof(Path path, ObjectNode proof) throws Exception {
@@ -161,5 +200,11 @@ class KeycloakRealmMigrationBackupProofReaderTest {
       Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"));
     }
     return path;
+  }
+
+  private static String digest(Path proof) throws Exception {
+    return "sha256:"
+        + HexFormat.of()
+            .formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(proof)));
   }
 }
