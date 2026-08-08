@@ -125,7 +125,7 @@ def migration_inputs(context: ComposeContext) -> MigrationInputs:
     ):
         raise ContractError("Keycloak migration bundle is not the qualified blocked operation")
     realm_identity = rendered.get("realmIdentity")
-    deployment_artifacts = rendered.get("deploymentArtifacts")
+    realm_artifacts = rendered.get("realmArtifacts")
     evidence_identity = evidence.get("realmIdentity")
     overlay_digest = realm_identity.get("overlayDigest") if isinstance(realm_identity, dict) else None
     if (
@@ -138,12 +138,12 @@ def migration_inputs(context: ComposeContext) -> MigrationInputs:
         or realm_identity.get("renderedRealmDigest") != baseline_digest
         or not isinstance(overlay_digest, str)
         or not SHA256.fullmatch(overlay_digest)
-        or not isinstance(deployment_artifacts, dict)
-        or deployment_artifacts.get("migrationBundleDigest") != bundle_digest
-        or deployment_artifacts.get("migrationBundlePath") != "keycloak/migrations/fresh-start-v1.json"
-        or deployment_artifacts.get("renderedRealmPath") != "keycloak/import/weave-realm.json"
-        or deployment_artifacts.get("environmentRenderEvidencePath") != "keycloak/realm-render-evidence.json"
-        or deployment_artifacts.get("containsSecretValues") is not False
+        or not isinstance(realm_artifacts, dict)
+        or realm_artifacts.get("migrationBundleDigest") != bundle_digest
+        or realm_artifacts.get("migrationBundlePath") != "keycloak/migrations/fresh-start-v1.json"
+        or realm_artifacts.get("renderedRealmPath") != "keycloak/import/weave-realm.json"
+        or realm_artifacts.get("environmentRenderEvidencePath") != "keycloak/realm-render-evidence.json"
+        or realm_artifacts.get("containsSecretValues") is not False
         or evidence.get("schemaVersion") != "weave.keycloak-environment-render-evidence/v1"
         or evidence.get("supportSafe") is not True
         or evidence.get("containsSecretValues") is not False
