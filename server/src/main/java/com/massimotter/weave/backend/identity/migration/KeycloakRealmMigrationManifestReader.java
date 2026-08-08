@@ -2,8 +2,6 @@ package com.massimotter.weave.backend.identity.migration;
 
 import static com.massimotter.weave.backend.identity.migration.KeycloakFgapMigrationContract.BUNDLE_PATH;
 
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -13,6 +11,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Set;
 import java.util.regex.Pattern;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /** Reads the secret-free renderer manifest and its one digest-bound migration bundle. */
 final class KeycloakRealmMigrationManifestReader {
@@ -21,7 +21,9 @@ final class KeycloakRealmMigrationManifestReader {
   private static final Set<String> MANIFEST_FIELDS =
       Set.of(
           "schemaVersion",
-          "baselineArtifactDigest",
+          "semanticRealmSourceDigest",
+          "migrationDefinitionDigest",
+          "renderedRealmDigest",
           "bundles",
           "containsSecretValues");
   private static final Set<String> MANIFEST_BUNDLE_FIELDS = Set.of("digest", "path");
@@ -68,10 +70,14 @@ final class KeycloakRealmMigrationManifestReader {
     requireEqualDigest(manifestBytes, expectedManifestDigest, "manifest-digest-mismatch");
     JsonNode manifest = parse(manifestBytes, "manifest-invalid");
     requireExactFields(manifest, MANIFEST_FIELDS, "manifest-shape-invalid");
+    String semanticSourceDigest = manifest.path("semanticRealmSourceDigest").asString();
+    String migrationDefinitionDigest = manifest.path("migrationDefinitionDigest").asString();
+    requireDigest(semanticSourceDigest, "semantic-source-digest-invalid");
+    requireDigest(migrationDefinitionDigest, "migration-definition-digest-invalid");
     if (!KeycloakFgapMigrationContract.MANIFEST_SCHEMA.equals(
             manifest.path("schemaVersion").asString())
         || manifest.path("containsSecretValues").asBoolean(true)
-        || !expectedBaselineDigest.equals(manifest.path("baselineArtifactDigest").asString())) {
+        || !expectedBaselineDigest.equals(manifest.path("renderedRealmDigest").asString())) {
       throw blocked("manifest-contract-mismatch");
     }
 
@@ -99,7 +105,9 @@ final class KeycloakRealmMigrationManifestReader {
         bundleDigest,
         expectedBaselineDigest,
         expectedTargetRevision,
-        KeycloakFgapMigrationContract.OPERATION_ID);
+        KeycloakFgapMigrationContract.OPERATION_ID,
+        semanticSourceDigest,
+        migrationDefinitionDigest);
   }
 
   private static void validateBundle(
@@ -133,12 +141,10 @@ final class KeycloakRealmMigrationManifestReader {
             .equals(operation.path("blockedBy").asString())
         || !KeycloakFgapMigrationContract.DESIRED_STATE_DIGEST.equals(
             operation.path("desiredStateDigest").asString())
-        || !"/fineGrainedAdminPermissions"
-            .equals(operation.path("desiredStatePointer").asString())
+        || !"/fineGrainedAdminPermissions".equals(operation.path("desiredStatePointer").asString())
         || !KeycloakFgapMigrationContract.OPERATION_ID.equals(operation.path("id").asString())
         || !"post-realm-import".equals(operation.path("phase").asString())
-        || !"requires-qualified-admin-rest-executor"
-            .equals(operation.path("status").asString())
+        || !"requires-qualified-admin-rest-executor".equals(operation.path("status").asString())
         || !"keycloak-fgap-v2".equals(operation.path("type").asString())) {
       throw blocked("bundle-operation-contract-mismatch");
     }
@@ -198,21 +204,21 @@ final class KeycloakRealmMigrationManifestReader {
     }
   }
 
-  private static void requireExactFields(
-      JsonNode object, Set<String> expectedFields, String reasonCode) {
+  private static void requireExactFields(JsonNode object, Set<String> expectedFields, String reasonCode) {
     if (!object.isObject()
-        || !object.properties().stream().map(java.util.Map.Entry::getKey).collect(java.util.stream.Collectors.toUnmodifiableSet()).equals(expectedFields)) {
+        || !object.properties().stream()
+            .map(java.util.Map.Entry::getKey)
+            .collect(java.util.stream.Collectors.toUnmodifiableSet())
+            .equals(expectedFields)) {
       throw blocked(reasonCode);
     }
   }
 
-  private static void requireEqualDigest(
-      byte[] payload, String expectedDigest, String reasonCode) {
+  private static void requireEqualDigest(byte[] payload, String expectedDigest, String reasonCode) {
     try {
       String observed =
           "sha256:"
-              + HexFormat.of()
-                  .formatHex(MessageDigest.getInstance("SHA-256").digest(payload));
+              + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(payload));
       if (!MessageDigest.isEqual(
           observed.getBytes(java.nio.charset.StandardCharsets.US_ASCII),
           expectedDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
@@ -238,8 +244,9 @@ final class KeycloakRealmMigrationManifestReader {
       String bundleDigest,
       String baselineArtifactDigest,
       String targetBaselineRevision,
-      String operationId) {
-    /** The realm import established this baseline before the deferred post-import operation. */
+      String operationId,
+      String semanticRealmSourceDigest,
+      String migrationDefinitionDigest) {
     String currentBaselineRevision() {
       return targetBaselineRevision;
     }
