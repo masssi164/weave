@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Create the support-safe precondition proof for the bounded Keycloak migration.
 
-A true Fresh Start does not back up the just-retired realm.  It instead binds the
+A true Fresh Start does not back up the just-retired realm. It instead binds the
 post-import FGAP step to the exact approved Fresh Start plan and apply evidence.
 A persistent non-empty dogfood/prod realm continues to require the private backup
 and isolated restore rehearsal before any static IAM mutation.
@@ -15,6 +15,7 @@ import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from compose_env import ComposeContext, ContractError
 from keycloak_migration import migration_inputs
@@ -29,10 +30,37 @@ def _sha256_bytes(value: bytes) -> str:
     return "sha256:" + hashlib.sha256(value).hexdigest()
 
 
-def _canonical_json(value: object) -> bytes:
-    return json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8") + b"\n"
+def _canonical_json(value: Any) -> bytes:
+    """Match fresh-start.py's constrained RFC 8785 serialization exactly."""
+
+    def serialize(item: Any) -> str:
+        if item is None:
+            return "null"
+        if item is True:
+            return "true"
+        if item is False:
+            return "false"
+        if isinstance(item, str):
+            return json.dumps(item, ensure_ascii=False, separators=(",", ":"))
+        if isinstance(item, list):
+            return "[" + ",".join(serialize(member) for member in item) + "]"
+        if isinstance(item, dict):
+            if not all(isinstance(key, str) for key in item):
+                raise ContractError("Fresh Start canonical JSON keys must be strings")
+            keys = sorted(
+                item,
+                key=lambda key: key.encode("utf-16be", errors="surrogatepass"),
+            )
+            return (
+                "{"
+                + ",".join(
+                    f"{serialize(key)}:{serialize(item[key])}" for key in keys
+                )
+                + "}"
+            )
+        raise ContractError("Fresh Start canonical JSON must not contain numbers")
+
+    return serialize(value).encode("utf-8")
 
 
 def _exact_canonical_json(path: Path, schema: str) -> tuple[dict[str, object], bytes]:
@@ -137,7 +165,7 @@ def _fresh_start_proof(context: ComposeContext, candidate: str) -> dict[str, obj
         not isinstance(operation_nonce, str)
         or not re.fullmatch(r"[a-z0-9][a-z0-9-]{15,63}", operation_nonce)
         or not isinstance(retired_generation, str)
-        or not retired_generation
+        or not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,47}", retired_generation)
     ):
         raise ContractError("Fresh Start migration proof has malformed generation identity")
 
@@ -213,7 +241,7 @@ def create_backup_proof(context: ComposeContext) -> Path:
     """Create the exact migration precondition proof consumed by the one-shot CLI.
 
     The historical function name is retained because compose_runtime is the narrow
-    caller.  The produced artifact is either a Fresh Start cutover proof or the
+    caller. The produced artifact is either a Fresh Start cutover proof or the
     persistent backup proof; it is never a fabricated backup for an empty realm.
     """
     candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
