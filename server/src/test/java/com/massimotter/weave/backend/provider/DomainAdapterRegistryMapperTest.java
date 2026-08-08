@@ -185,8 +185,10 @@ class DomainAdapterRegistryMapperTest {
 
     @Test
     void providerCapabilityContractsUseCanonicalRegistryCandidateKeys() {
+        assertThat(ProviderCapabilityContracts.contract("calendar", Set.of(ProviderModule.CALENDAR)).defaultAdapters())
+                .containsExactly("weave-native");
         assertThat(ProviderCapabilityContracts.contract("calendar", Set.of(ProviderModule.CALENDAR)).externalAdapters())
-                .contains("weave-calendar")
+                .contains("nextcloud-caldav")
                 .doesNotContain("workspace-calendar", "team-channel-calendar");
         assertThat(ProviderCapabilityContracts.contract("documents-collaboration", Set.of(ProviderModule.OFFICE)).defaultAdapters())
                 .containsExactly("onlyoffice");

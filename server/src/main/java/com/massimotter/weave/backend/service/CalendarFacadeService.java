@@ -1,5 +1,10 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.audit.AuditAction;
+import com.massimotter.weave.backend.audit.AuditEvent;
+import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.audit.AuditRedactionLevel;
+import com.massimotter.weave.backend.audit.AuditWriteGate;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.Attendee;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
@@ -46,11 +51,15 @@ import com.massimotter.weave.backend.security.device.DeviceCredential;
 import com.massimotter.weave.backend.security.device.DeviceCredentialException;
 import com.massimotter.weave.backend.security.device.DeviceCredentialService;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -81,6 +90,8 @@ public class CalendarFacadeService {
     private final DeviceCredentialService deviceCredentialService;
     private final IcalendarMapper icalendarMapper = new IcalendarMapper();
     private final Map<String, CalendarSyncCursor> syncCursors = new ConcurrentHashMap<>();
+    private final AuditEventPublisher auditEventPublisher;
+    private final Clock clock;
 
     @Autowired
     public CalendarFacadeService(
@@ -90,7 +101,8 @@ public class CalendarFacadeService {
             ContextAuthorizationProperties contextAuthorizationProperties,
             OrganizationIdentityContextResolver identityContexts,
             DeviceCredentialService deviceCredentialService,
-            WorkspaceCapabilityService workspaceCapabilityService) {
+            WorkspaceCapabilityService workspaceCapabilityService,
+            AuditEventPublisher auditEventPublisher) {
         this.calendarProviderPortProvider = calendarProviderPortProvider;
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties == null
@@ -103,6 +115,8 @@ public class CalendarFacadeService {
         this.appleProfileRenderer = new AppleMobileConfigProfileRenderer(this.calDavPublicBaseUrl);
         this.deviceCredentialService = deviceCredentialService;
         this.workspaceCapabilityService = workspaceCapabilityService;
+        this.auditEventPublisher = auditEventPublisher;
+        this.clock = Clock.systemUTC();
     }
 
     public CalendarScopesResponse scopes() {
@@ -181,15 +195,16 @@ public class CalendarFacadeService {
         CalendarScopeResponse normalizedScope = normalizeScope(scope, "caldav-sync-collection");
         requireContextPermission(normalizedScope, ContextPermission.VIEW, "sync-events");
         CalendarId calendarId = calendarId();
-        String providerToken = providerSyncToken(weaveSyncToken, calendarId, normalizedScope);
+        CalendarProviderPort provider = adapter("sync-events");
+        String providerToken = providerSyncToken(weaveSyncToken, calendarId, normalizedScope, provider);
         try {
-            var changeSet = adapter("sync-events").changes(
+            var changeSet = provider.changes(
                     calendarId,
                     toDomainScope(normalizedScope),
                     providerToken);
             List<CalDavEventResource> changed = changeSet.changes().stream()
                     .filter(change -> !change.deleted())
-                    .map(change -> adapter("read-event").read(
+                    .map(change -> provider.read(
                             calendarId,
                             toDomainScope(normalizedScope),
                             change.eventId()))
@@ -199,13 +214,21 @@ public class CalendarFacadeService {
                     .filter(com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange::deleted)
                     .map(change -> change.eventId().value())
                     .toList();
-            String issuedToken = "weave-caldav-sync-" + UUID.randomUUID();
-            syncCursors.put(issuedToken, new CalendarSyncCursor(
-                    calendarId,
-                    normalizedScope.id(),
-                    changeSet.syncToken()));
+            String issuedToken;
+            if (provider.ownsNorthboundSyncTokens()) {
+                issuedToken = changeSet.syncToken();
+            } else {
+                issuedToken = "weave-caldav-sync-" + UUID.randomUUID();
+                syncCursors.put(issuedToken, new CalendarSyncCursor(
+                        calendarId,
+                        normalizedScope.id(),
+                        changeSet.syncToken()));
+            }
             return new CalDavSyncResult(issuedToken, normalizedScope, changed, deleted);
         } catch (CalendarAdapterException exception) {
+            if (exception.type() == CalendarAdapterException.Type.CONFLICT) {
+                throw invalidSyncToken();
+            }
             throw apiError(exception, "sync-events");
         }
     }
@@ -215,6 +238,7 @@ public class CalendarFacadeService {
         requireContextPermission(scope, ContextPermission.EDIT, "create-event");
         try {
             CalendarEvent event = eventFrom(request, scope, new EventId(UUID.randomUUID() + "@weave.test"));
+            publishEventWriteAudit(scope, event.id(), "create-event", EventVersion.unknown());
             return toResponse(
                     adapter("create-event").write(new CalendarWrite(event, WriteIntent.CREATE, EventVersion.unknown())),
                     scope,
@@ -248,6 +272,7 @@ public class CalendarFacadeService {
             EventVersion expected = request.etag() == null
                     ? EventVersion.unknown()
                     : new EventVersion(request.etag());
+            publishEventWriteAudit(scope, updated.id(), "update-event", expected);
             return toResponse(
                     adapter.write(new CalendarWrite(updated, WriteIntent.UPDATE, expected)),
                     scope,
@@ -261,6 +286,8 @@ public class CalendarFacadeService {
         ScopedEventId eventId = scopedEventId(id);
         requireContextPermission(eventId.scope(), ContextPermission.EDIT, "delete-event");
         try {
+            publishEventWriteAudit(
+                    eventId.scope(), new EventId(eventId.rawId()), "delete-event", EventVersion.unknown());
             adapter("delete-event").delete(
                     calendarId(),
                     toDomainScope(eventId.scope()),
@@ -315,6 +342,8 @@ public class CalendarFacadeService {
         if ("*".equals(ifNoneMatch)) {
             requireContextPermission(normalizedScope, ContextPermission.EDIT, "create-event");
             try {
+                publishEventWriteAudit(
+                        normalizedScope, parsed.id(), "create-event", EventVersion.unknown());
                 return toResponse(adapter("create-event").write(new CalendarWrite(
                         parsed,
                         WriteIntent.CREATE,
@@ -334,6 +363,7 @@ public class CalendarFacadeService {
                         new EventId(eventUid));
                 expectedVersion = providerVersionFor(ifMatch, current.version());
             }
+            publishEventWriteAudit(normalizedScope, parsed.id(), "update-event", expectedVersion);
             return toResponse(provider.write(new CalendarWrite(
                     parsed,
                     WriteIntent.UPDATE,
@@ -351,6 +381,8 @@ public class CalendarFacadeService {
         CalendarScopeResponse normalizedScope = normalizeScope(scope, "delete-caldav-event");
         requireContextPermission(normalizedScope, ContextPermission.EDIT, "delete-event");
         try {
+            publishEventWriteAudit(
+                    normalizedScope, new EventId(eventUid), "delete-event", EventVersion.unknown());
             adapter("delete-event").delete(
                     calendarId(),
                     toDomainScope(normalizedScope),
@@ -798,24 +830,32 @@ public class CalendarFacadeService {
     private String providerSyncToken(
             String weaveSyncToken,
             CalendarId calendarId,
-            CalendarScopeResponse scope) {
+            CalendarScopeResponse scope,
+            CalendarProviderPort provider) {
         if (weaveSyncToken == null || weaveSyncToken.isBlank()) {
             return null;
+        }
+        if (provider.ownsNorthboundSyncTokens()) {
+            return weaveSyncToken.trim();
         }
         CalendarSyncCursor cursor = syncCursors.get(weaveSyncToken.trim());
         if (cursor == null
                 || !cursor.calendarId().equals(calendarId)
                 || !cursor.scopeId().equals(scope.id())) {
-            throw new ApiErrorException(
-                    HttpStatus.CONFLICT,
-                    "caldav-sync-token-invalid",
-                    "The CalDAV sync token is invalid or no longer belongs to this calendar scope.",
-                    Map.of(
-                            "module", "calendar",
-                            "operation", "caldav-sync-collection",
-                            "supportSafe", true));
+            throw invalidSyncToken();
         }
         return cursor.providerToken();
+    }
+
+    private ApiErrorException invalidSyncToken() {
+        return new ApiErrorException(
+                HttpStatus.CONFLICT,
+                "caldav-sync-token-invalid",
+                "The CalDAV sync token is invalid or no longer belongs to this calendar scope.",
+                Map.of(
+                        "module", "calendar",
+                        "operation", "caldav-sync-collection",
+                        "supportSafe", true));
     }
 
     private CalendarEvent parseCalDavEvent(
@@ -976,7 +1016,50 @@ public class CalendarFacadeService {
     }
 
     private CalendarId calendarId() {
-        return new CalendarId(principal().userId());
+        PrincipalContext principal = currentPrincipalContext();
+        return new CalendarId("calendar-" + digest(principal.tenantId()).substring(0, 40));
+    }
+
+    private void publishEventWriteAudit(
+            CalendarScopeResponse scope,
+            EventId eventId,
+            String operation,
+            EventVersion expectedVersion) {
+        PrincipalContext principal = currentPrincipalContext();
+        String contextId = contextId(scope);
+        String subject = String.join("\u0000",
+                principal.tenantId(),
+                principal.principalRef(),
+                contextId,
+                operation,
+                eventId.value(),
+                expectedVersion == null || expectedVersion.value() == null
+                        ? "unknown"
+                        : expectedVersion.value());
+        AuditWriteGate.publishRequired(auditEventPublisher, new AuditEvent(
+                principal.tenantId(),
+                contextId,
+                principal.principalRef(),
+                "weave:calendar-facade",
+                AuditAction.CALENDAR_EVENT_WRITE_ATTEMPTED,
+                clock.instant(),
+                AuditAction.CALENDAR_EVENT_WRITE_ATTEMPTED.wireName() + ":" + digest(subject),
+                AuditRedactionLevel.SUPPORT_SAFE,
+                Map.of(
+                        "module", "calendar",
+                        "operation", operation,
+                        "scopeType", scope.type(),
+                        "supportSafe", true,
+                        "providerDataPlaneExposed", false)));
+    }
+
+    private static String digest(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is required by the Java runtime", exception);
+        }
     }
 
     private CalendarPrincipal principal() {

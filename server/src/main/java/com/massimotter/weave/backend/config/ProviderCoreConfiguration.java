@@ -77,11 +77,11 @@ public class ProviderCoreConfiguration {
         if (runtime == null) {
             return StaticProviderPort.pending(
                     ProviderModule.CALENDAR,
-                    "nextcloud-caldav",
+                    "weave-native",
                     "No Calendar runtime adapter is bound; the canonical Calendar facade remains fail-closed.",
                     Set.of("query", "read", "create", "update", "delete", "free-busy"),
                     Set.of("direct-member-provider-api", "credential-exposure", "raw-provider-errors"),
-                    List.of("nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav", "weave-calendar"),
+                    List.of("weave-native", "nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"),
                     Map.of("runtimeBindingObserved", false, "facade", "/caldav"));
         }
         return RuntimeProviderStatus.fromConformancePort(
@@ -90,7 +90,7 @@ public class ProviderCoreConfiguration {
                 runtime.configured(),
                 runtime.conformanceProfile(),
                 "The selected Calendar adapter is bound behind the canonical Calendar port and the /caldav projection.",
-                List.of("nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav", "weave-calendar"));
+                List.of("weave-native", "nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"));
     }
 
     @Bean
