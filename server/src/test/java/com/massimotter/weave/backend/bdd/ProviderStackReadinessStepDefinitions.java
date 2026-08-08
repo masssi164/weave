@@ -182,7 +182,7 @@ public class ProviderStackReadinessStepDefinitions {
         assertCategoryContract(
                 "chat",
                 Set.of("chat.read", "chat.send"),
-                Set.of("synapse-homeserver"),
+                Set.of("weave-native"),
                 Set.of("microsoft-teams"));
         assertCategoryContract(
                 "files",

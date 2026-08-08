@@ -624,7 +624,7 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.auditEventPublished").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.rawSecretExposed").value(false))
-                .andExpect(jsonPath("$.diagnostics.backendAdapterKey").value("synapse-homeserver"))
+                .andExpect(jsonPath("$.diagnostics.backendAdapterKey").value("weave-native"))
                 .andExpect(jsonPath("$.diagnostics.secretsReturned").value(false));
 
         mockMvc.perform(patch("/api/admin/policies/capability-whitelist")

@@ -17,10 +17,10 @@ public final class ProviderCapabilityContracts {
     private static final Map<String, Definition> DEFINITIONS = Map.ofEntries(
             Map.entry("chat", new Definition(
                     List.of("chat.read", "chat.send", "chat.channels"),
-                    List.of("matrix-chat", "synapse-homeserver"),
-                    List.of("microsoft-teams", "slack", "nextcloud-talk"),
+                    List.of("weave-native"),
+                    List.of("matrix-synapse", "synapse-homeserver", "microsoft-teams", "slack", "nextcloud-talk"),
                     List.of("WeaveSpace", "WeaveConversation", "WeaveMessage", "WeaveThread", "WeaveReaction", "WeaveAttachment", "WeaveMembership", "WeaveHistoryPolicy", "ProviderRef", "MigrationReceipt", "RollbackReceipt", "LossyFieldReport"),
-                    "selected chat provider owns message history; Matrix Chat is the current real release provider path and non-Matrix chat providers remain contract-only until promoted by adapter evidence",
+                    "Weave owns canonical Chat history; optional southbound providers remain private adapters and require their own conformance evidence",
                     List.of("Slack broadcast/thread semantics", "Teams channel permissions", "Matrix E2EE recovery", "rich cards/adaptive blocks", "attachment retention"),
                     "export conversation/message/attachment provenance or document provider export boundary; delete/deprovision follows provider and retention policy",
                     "chat replacement requires preflight, dry-run, membership/history/attachment loss report, and rollback/retention note")),
@@ -149,7 +149,8 @@ public final class ProviderCapabilityContracts {
 
     public static ProviderRealityLevel defaultRealityLevel(String category) {
         return switch (category) {
-            case "chat", "files", "calendar", "boards-tasks", "admin-control-plane", "release-evidence", "manuals-help", "decisions-evidence" -> ProviderRealityLevel.RELEASE_READY;
+            case "files", "calendar", "boards-tasks", "admin-control-plane", "release-evidence", "manuals-help", "decisions-evidence" -> ProviderRealityLevel.RELEASE_READY;
+            case "chat" -> ProviderRealityLevel.LIVE_WRITE;
             case "meetings-calls", "model" -> ProviderRealityLevel.CONFIGURED;
             case "documents-collaboration", "agent-runtime-control" -> ProviderRealityLevel.CONTRACT_ONLY;
             default -> ProviderRealityLevel.CONTRACT_ONLY;

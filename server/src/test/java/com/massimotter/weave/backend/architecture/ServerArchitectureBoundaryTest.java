@@ -317,9 +317,13 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
-    void synapseApplicationServiceRemainsASouthboundPrivateAdapter() throws IOException {
+    void nativeChatOwnsCanonicalDefaultAndSynapseRemainsAPrivateSouthboundAdapter() throws IOException {
+        JavaSource persistenceConfiguration = sourceEndingWith(
+                Path.of("config", "CanonicalChatPersistenceConfiguration.java"));
         JavaSource runtimeConfiguration = sourceEndingWith(
                 Path.of("config", "ChatRuntimeConfiguration.java"));
+        JavaSource nativeAdapter = sourceEndingWith(
+                Path.of("chat", "provider", "weave", "NativeChatProviderAdapter.java"));
         JavaSource canonicalAdapter = sourceEndingWith(
                 Path.of("chat", "provider", "synapse", "SynapseBackedCanonicalChatAdapter.java"));
         JavaSource southboundAdapter = sourceEndingWith(
@@ -331,15 +335,26 @@ class ServerArchitectureBoundaryTest {
         JavaSource secrets = sourceEndingWith(
                 Path.of("chat", "provider", "synapse", "MatrixApplicationServiceSecrets.java"));
 
-        assertThat(runtimeConfiguration.text())
+        assertThat(persistenceConfiguration.text())
                 .contains("CanonicalChatStore")
                 .contains("JpaCanonicalChatStore")
                 .contains("CanonicalChatJpaAuthority")
+                .doesNotContain("MatrixSynapseChatSouthboundAdapter")
+                .doesNotContain("MatrixApplicationServiceSecrets");
+        assertThat(runtimeConfiguration.text())
+                .contains("NativeChatProviderAdapter")
                 .contains("MatrixSynapseChatSouthboundAdapter")
                 .contains("SynapseBackedCanonicalChatAdapter")
                 .doesNotContain("WEAVE_CHAT_STORAGE_MODE")
                 .doesNotContain("JdbcTemplate")
                 .doesNotContain("JdbcCanonicalChatStore");
+        assertThat(nativeAdapter.text())
+                .contains("implements ChatProviderPort")
+                .contains("store.commitConversation(")
+                .contains("store.commitEvent(")
+                .doesNotContain("ChatSouthboundProvider")
+                .doesNotContain("acknowledgeMapping(")
+                .doesNotContain("providerEventRef");
         assertThat(canonicalAdapter.text())
                 .contains("CanonicalChatStore")
                 .contains("MatrixSynapseChatSouthboundAdapter")
