@@ -197,6 +197,37 @@ services:
       retries: 30
       start_period: 40s
 
+  identity-admin-key-init:
+    profiles: *core-profiles
+    image: ${WEAVE_IDENTITY_OPS_IMAGE:-weave-keycloak-identity-ops:26.7.0}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-identity-admin-key-init
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    entrypoint:
+      - python3
+      - /opt/weave/identity_admin_key_init.py
+    volumes:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/keycloak:/authority/output
+    secrets:
+      - source: identity-admin-private-jwk
+        target: /authority/private/weave-identity-admin-private-jwk.json
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0600
+    networks:
+      weave:
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: identity-admin-key-init
+      com.massimotter.weave.data-class: security-sensitive
+      com.massimotter.weave.fresh-start-eligible: "false"
+      com.massimotter.weave.one-shot: "true"
+
   identity-ops:
     profiles: *core-profiles
     image: ${WEAVE_IDENTITY_OPS_IMAGE:-weave-keycloak-identity-ops:26.7.0}
@@ -213,6 +244,8 @@ services:
     depends_on:
       keycloak:
         condition: service_healthy
+      identity-admin-key-init:
+        condition: service_completed_successfully
     command:
       - plan
     environment:
@@ -220,15 +253,11 @@ services:
       XDG_CONFIG_HOME: /tmp
       WEAVE_IDENTITY_ROTATION_EPOCH: ${WEAVE_IDENTITY_ROTATION_EPOCH:-}
     volumes:
-      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/keycloak/desired-state.json:/config/desired-state.json:ro
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/keycloak/desired-state.identity-admin-private-key-jwt.json:/config/desired-state.json:ro
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/keycloak/identity-admin-public-jwks.json:/run/secrets/keycloak-weave-identity-admin-public-jwks.json:ro
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/identity-ops:/evidence
     secrets:
       - source: keycloak-bootstrap-admin-password
-        uid: "${WEAVE_RUNTIME_UID:-1000}"
-        gid: "${WEAVE_RUNTIME_GID:-1000}"
-        mode: 0600
-      - source: identity-admin-client-secret
-        target: keycloak-weave-identity-admin
         uid: "${WEAVE_RUNTIME_UID:-1000}"
         gid: "${WEAVE_RUNTIME_GID:-1000}"
         mode: 0600
@@ -729,6 +758,8 @@ services:
         condition: service_healthy
       agent-runtime-keys-init:
         condition: service_completed_successfully
+      identity-admin-key-init:
+        condition: service_completed_successfully
       synapse:
         condition: service_healthy
       nextcloud:
@@ -740,8 +771,8 @@ services:
     secrets:
       - source: backend-db-password
         target: weave/spring.datasource.password
-      - source: identity-admin-client-secret
-        target: weave/spring.security.oauth2.client.registration.weave-identity-admin.client-secret
+      - source: identity-admin-private-jwk
+        target: /run/secrets/identity-admin/weave-identity-admin-private-jwk.json
       - source: identity-reference-hmac-key
         target: identity-reference-hmac-key
       - source: nextcloud-actor-token
@@ -902,8 +933,8 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/control-db-password
   nextcloud-admin-password:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/nextcloud-admin-password
-  identity-admin-client-secret:
-    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-identity-admin
+  identity-admin-private-jwk:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-identity-admin-jwk.json
   identity-reference-hmac-key:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/identity-reference-hmac-key
   backend-client-jwk:

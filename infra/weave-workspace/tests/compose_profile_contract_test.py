@@ -328,8 +328,26 @@ def assert_agent_runtime_mount_boundary(model: dict[str, object]) -> None:
         if entry["service"] == "backend"
         and "weave-identity-admin" in (entry["source"] + entry["target"])
     } == {
-        "/run/secrets/weave/spring.security.oauth2.client.registration.weave-identity-admin.client-secret"
+        "/run/secrets/identity-admin/weave-identity-admin-private-jwk.json"
     }
+    identity_admin_private = {
+        (entry["service"], entry["target"], entry["access"])
+        for entry in graph
+        if "weave-identity-admin-private-jwk" in (entry["source"] + entry["target"])
+    }
+    assert identity_admin_private == {
+        (
+            "backend",
+            "/run/secrets/identity-admin/weave-identity-admin-private-jwk.json",
+            "read-only",
+        ),
+        (
+            "identity-admin-key-init",
+            "/authority/private/weave-identity-admin-private-jwk.json",
+            "read-only",
+        ),
+    }
+    assert all(service != "identity-ops" for service, _target, _access in identity_admin_private)
     initializer = {
         entry["target"]: entry
         for entry in graph
@@ -759,6 +777,18 @@ def main() -> None:
             "credentialref://weave/keycloak/weave-agent-runtime-admin\n"
             in backend_env
         )
+        assert (
+            "WEAVE_IDENTITY_KEYCLOAK_CREDENTIAL_REF="
+            "credentialref://weave/keycloak/weave-identity-admin\n"
+            in backend_env
+        )
+        assert (
+            "WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE="
+            f"{test.env['WEAVE_AUTH_URL']}/realms/weave\n"
+            in backend_env
+        )
+        assert "WEAVE_IDENTITY_KEYCLOAK_TOKEN_URI=" not in backend_env
+        assert "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_REF=" not in backend_env
         for rendered_backend_env in (backend_env, _backend_env(prod)):
             assert (
                 "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_ENABLED=true\n"

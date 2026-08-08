@@ -27,7 +27,9 @@ from compose_env import (
 SECRET_REF_PATHS = {
     "secretref:keycloak/weave-backend-jwk": "keycloak-weave-backend-jwk.json",
     "secretref:keycloak/weave-mcp-server-jwk": "keycloak-weave-mcp-server-jwk.json",
-    "secretref:keycloak/weave-identity-admin": "keycloak-weave-identity-admin",
+    "secretref:keycloak/weave-identity-admin-jwk": (
+        "keycloak-weave-identity-admin-jwk.json"
+    ),
     "secretref:keycloak/weave-agent-runtime-admin-jwk": (
         "agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin"
     ),
@@ -45,7 +47,7 @@ REQUIRED_PRIVATE_FILES = (
     "nextcloud-db-password",
     "control-db-password",
     "nextcloud-actor-token",
-    "keycloak-weave-identity-admin",
+    "keycloak-weave-identity-admin-jwk.json",
     "keycloak-nextcloud",
     "keycloak-matrix-mas",
     "mas-encryption-secret",
@@ -221,7 +223,7 @@ def _overlay(context: ComposeContext, baseline_revision: str) -> dict[str, objec
         "secretRefs": {
             "weaveBackendJwk": "secretref:keycloak/weave-backend-jwk",
             "weaveMcpServerJwk": "secretref:keycloak/weave-mcp-server-jwk",
-            "identityAdmin": "secretref:keycloak/weave-identity-admin",
+            "identityAdmin": "secretref:keycloak/weave-identity-admin-jwk",
             "agentRuntimeAdmin": "secretref:keycloak/weave-agent-runtime-admin-jwk",
             "nextcloud": "secretref:keycloak/nextcloud",
             "matrixMas": "secretref:keycloak/matrix-mas",
@@ -595,8 +597,19 @@ def _backend_env(context: ComposeContext) -> str:
         "WEAVE_CALDAV_BACKEND_USERNAME": env["WEAVE_NEXTCLOUD_ACTOR_USERNAME"],
         "WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE": calendar_path,
         "WEAVE_IDENTITY_KEYCLOAK_BASE_URL": keycloak_base,
-        "WEAVE_IDENTITY_KEYCLOAK_TOKEN_URI": (
-            f"{keycloak_base}/realms/weave/protocol/openid-connect/token"
+        "WEAVE_IDENTITY_KEYCLOAK_CREDENTIAL_REF": (
+            "credentialref://weave/keycloak/weave-identity-admin"
+        ),
+        "WEAVE_IDENTITY_KEYCLOAK_PRIVATE_JWK_FILE": str(
+            context.secret_root / "keycloak-weave-identity-admin-jwk.json"
+            if host_dev
+            else Path(
+                "/run/secrets/identity-admin/"
+                "weave-identity-admin-private-jwk.json"
+            )
+        ),
+        "WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE": (
+            f"{env['WEAVE_AUTH_URL']}/realms/weave"
         ),
         "WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ALIAS": env["WEAVE_ORGANIZATION_ALIAS"],
         "WEAVE_IDENTITY_REFERENCE_HMAC_SECRET_FILE": str(
@@ -666,9 +679,6 @@ def _backend_env(context: ComposeContext) -> str:
                 "WEAVE_AGENT_RUNTIME_ORGANIZATION_REF": "tenant-default",
                 "WEAVE_AGENT_RUNTIME_KEYCLOAK_ORGANIZATION_ALIAS":
                     env["WEAVE_ORGANIZATION_ALIAS"],
-                "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CLIENT_ID": "weave-identity-admin",
-                "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_REF":
-                    "credentialref://weave/keycloak/weave-identity-admin",
                 "WEAVE_AGENT_RUNTIME_SECRET_ROOT": "/run/secrets/agent-runtime/workloads",
                 "WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES": "weaver-runtime-workload",
                 "WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES":
@@ -745,7 +755,6 @@ def render(context: ComposeContext) -> None:
     _write(generated / "synapse/appservice/hs-token", _read_secret(context, "matrix-appservice-hs-token") + "\n", private=True)
     if context.profile == "dev":
         host_configtree = {
-            "spring.security.oauth2.client.registration.weave-identity-admin.client-secret": "keycloak-weave-identity-admin",
             "weave.nextcloud.files.actor-token": "nextcloud-actor-token",
             "weave.calendar.caldav.backend-token": "nextcloud-actor-token",
         }

@@ -34,7 +34,6 @@ TEXT_SECRETS = (
     "control-db-password",
     "nextcloud-admin-password",
     "nextcloud-actor-token",
-    "keycloak-weave-identity-admin",
     "keycloak-nextcloud",
     "keycloak-matrix-mas",
     "mas-matrix-secret",
@@ -65,6 +64,7 @@ TEST_ONLY_SECRETS = (
 PROD_ONLY_SECRETS = ("smtp-username", "smtp-password")
 RSA_JWKS = (
     ("keycloak-weave-backend-jwk.json", "weave-backend-current"),
+    ("keycloak-weave-identity-admin-jwk.json", "weave-identity-admin-current"),
     ("keycloak-weave-mcp-server-jwk.json", "weave-mcp-server-current"),
 )
 RUNTIME_RSA_JWKS = (
@@ -352,6 +352,11 @@ def _generate_tls(context: ComposeContext) -> None:
 
 
 def _validate_existing(context: ComposeContext) -> None:
+    retired_identity_admin_secret = context.secret_root / "keycloak-weave-identity-admin"
+    if retired_identity_admin_secret.exists() or retired_identity_admin_secret.is_symlink():
+        raise ContractError(
+            "retired identity-admin shared secret exists; Fresh Start or explicit secure removal is required"
+        )
     required = (
         list(TEXT_SECRETS)
         + list(MINIO_ACCESS_KEY_SECRETS)
@@ -418,6 +423,11 @@ def _validate_existing(context: ComposeContext) -> None:
 def initialize(context: ComposeContext) -> None:
     context.secret_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(context.secret_root, 0o700)
+    retired_identity_admin_secret = context.secret_root / "keycloak-weave-identity-admin"
+    if retired_identity_admin_secret.exists() or retired_identity_admin_secret.is_symlink():
+        raise ContractError(
+            "retired identity-admin shared secret exists; Fresh Start or explicit secure removal is required"
+        )
     if context.profile == "prod":
         _validate_existing(context)
         return

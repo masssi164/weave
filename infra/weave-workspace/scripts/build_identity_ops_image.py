@@ -67,6 +67,7 @@ def main() -> int:
         )
     source_paths = (
         "infra/weave-workspace/keycloak/Dockerfile.identity-ops",
+        "infra/weave-workspace/keycloak/identity_admin_key_init.py",
         "infra/weave-workspace/keycloak/identity_ops.py",
         "specs/weave-specs.lock.json",
     )

@@ -20,8 +20,6 @@ public class AgentRuntimeWorkloadIdentityProperties {
     private String keycloakOrganizationAlias = "";
     private String adminClientId = "weave-agent-runtime-admin";
     private String adminCredentialRef = "";
-    private String entitlementClientId = "weave-identity-admin";
-    private String entitlementCredentialRef = "";
     private Path secretRoot;
     private Duration timeout = Duration.ofSeconds(10);
     private String workloadRole = "weaver-runtime";
@@ -103,22 +101,6 @@ public class AgentRuntimeWorkloadIdentityProperties {
         this.adminCredentialRef = adminCredentialRef;
     }
 
-    public String entitlementClientId() {
-        return entitlementClientId;
-    }
-
-    public void setEntitlementClientId(String entitlementClientId) {
-        this.entitlementClientId = entitlementClientId;
-    }
-
-    public String entitlementCredentialRef() {
-        return entitlementCredentialRef;
-    }
-
-    public void setEntitlementCredentialRef(String entitlementCredentialRef) {
-        this.entitlementCredentialRef = entitlementCredentialRef;
-    }
-
     public Path secretRoot() {
         return secretRoot;
     }
@@ -196,18 +178,6 @@ public class AgentRuntimeWorkloadIdentityProperties {
                 realm,
                 adminClientId,
                 adminCredentialRef,
-                SpringSecurityKeycloakAdminAccessTokenProvider.CredentialMethod.PRIVATE_KEY_JWT,
-                issuer,
-                timeout);
-    }
-
-    public SpringSecurityKeycloakAdminAccessTokenProvider.Settings entitlementTokenSettings() {
-        return new SpringSecurityKeycloakAdminAccessTokenProvider.Settings(
-                keycloakAdminBaseUrl,
-                realm,
-                entitlementClientId,
-                entitlementCredentialRef,
-                SpringSecurityKeycloakAdminAccessTokenProvider.CredentialMethod.CLIENT_SECRET_BASIC,
                 issuer,
                 timeout);
     }
