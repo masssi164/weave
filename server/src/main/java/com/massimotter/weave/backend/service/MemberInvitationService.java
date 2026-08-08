@@ -139,12 +139,14 @@ public class MemberInvitationService {
 
     String email = normalizeEmail(request.email());
     List<ProvisioningIntent> pending =
-        intents.findPendingByEmail(tenantId, organizationId, email);
+        intents.findPendingByActor(
+            tenantId, organizationId, BOOTSTRAP_ISSUER, BOOTSTRAP_SUBJECT);
     if (pending.size() > 1) {
       throw bootstrapConflict();
     }
     if (pending.size() == 1) {
-      return existingBootstrapInvitation(organizationId, email, pending.getFirst());
+      return resendExistingBootstrapInvitation(
+          organizationId, email, idempotencyKey, pending.getFirst());
     }
     if (!keycloak.invitationsForEmail(organizationId, email).isEmpty()) {
       throw bootstrapConflict();
@@ -250,13 +252,66 @@ public class MemberInvitationService {
       return false;
   }
 
-  private MemberInvitationResponse existingBootstrapInvitation(
-      String organizationId, String email, ProvisioningIntent intent) {
-    if (!"owner".equals(intent.requestedRole())) {
+  private MemberInvitationResponse resendExistingBootstrapInvitation(
+      String organizationId,
+      String email,
+      String idempotencyKey,
+      ProvisioningIntent intent) {
+    if (!email.equals(intent.invitedEmail())
+        || !"owner".equals(intent.requestedRole())
+        || !idempotencyKey.equals(intent.auditCorrelation())
+        || !BOOTSTRAP_ISSUER.equals(intent.invitedByIssuer())
+        || !BOOTSTRAP_SUBJECT.equals(intent.invitedBySubject())
+        || intent.status() != ProvisioningIntentStatus.PENDING
+        || !intent.expiresAt().isAfter(clock.instant())) {
       throw bootstrapConflict();
     }
-    return correlateExistingInvitation(organizationId, email, intent)
-        .orElseThrow(this::bootstrapConflict);
+
+    List<ProviderInvitation> providerMatches =
+        keycloak.invitationsForEmail(organizationId, email).stream()
+            .filter(invitation -> email.equals(invitation.email()))
+            .filter(
+                invitation ->
+                    intent.providerInvitationId() == null
+                        || intent
+                            .providerInvitationId()
+                            .equals(invitation.providerInvitationId()))
+            .toList();
+    if (providerMatches.size() != 1
+        || !pendingProviderInvitation(providerMatches.getFirst())) {
+      throw bootstrapConflict();
+    }
+
+    ProviderInvitation existing = providerMatches.getFirst();
+    ProvisioningIntent linked =
+        intent.providerInvitationId() == null
+            ? intents.save(
+                intent.withProviderInvitation(
+                    existing.providerInvitationId(), clock.instant()))
+            : intent;
+    ProviderInvitation resent =
+        keycloak.resend(organizationId, existing.providerInvitationId());
+    // An accepted protected replay deliberately emits one email, so every mutation needs its own
+    // audit event while retaining the original caller correlation.
+    publish(
+        AuditAction.MEMBER_INVITATION_RESENT,
+        linked,
+        BOOTSTRAP_SUBJECT,
+        idempotencyKey + ":bootstrap-replay:" + UUID.randomUUID());
+    if (resent == null
+        || !existing.providerInvitationId().equals(resent.providerInvitationId())
+        || !email.equals(resent.email())
+        || !pendingProviderInvitation(resent)) {
+      throw bootstrapConflict();
+    }
+    return response(resent, linked);
+  }
+
+  private boolean pendingProviderInvitation(ProviderInvitation invitation) {
+    return invitation != null
+        && "pending".equals(invitation.lifecycleStatus())
+        && invitation.expiresAt() != null
+        && invitation.expiresAt().isAfter(clock.instant());
   }
 
   private MemberInvitationResponse create(
