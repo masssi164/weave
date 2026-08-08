@@ -16,7 +16,8 @@ dynamic product identity lifecycle through its bounded Admin REST anti-corruptio
 - Admin Console uses browser OIDC and Weave Server `/admin/**`; it never calls Keycloak Admin REST.
 
 There is no general-purpose Identity Ops reconciler, permanent `kcadm` dependency, or second
-identity authority. Routine startup imports the baseline and verifies one exact migration receipt.
+identity authority. Routine startup imports the baseline only when Keycloak itself is fresh and
+verifies one exact migration receipt; it does not reconcile realm state.
 
 ## Static import and File Vault
 
@@ -58,24 +59,34 @@ grants and embedded login are disabled. Human/public and workload clients remain
 ## Bounded post-import migration
 
 Keycloak 26.7 imports client authorization before organizations, so the specific-organization FGAP
-permission requires one post-import operation. A fresh install runs:
-
-```text
-compose.sh <environment> keycloak-migration-apply
-```
+permission requires one bounded post-import operation after the realm baseline exists. This is not
+a general realm reconciler and it does not imply that an old realm must be migrated.
 
 The operation is explicit and bounded:
 
 1. render and digest-validate the exact baseline, migration manifest, and bundle;
-2. start Keycloak once to import the default-deny baseline;
-3. create a mode-0600 random bootstrap SecretRef;
-4. stop Keycloak and invoke `kc.sh bootstrap-admin service` for the exact
+2. establish the realm baseline through Keycloak's supported import path;
+3. require exactly one qualified migration precondition proof;
+4. create a mode-0600 random bootstrap SecretRef;
+5. stop Keycloak and invoke `kc.sh bootstrap-admin service` for the exact
    `weave-realm-migration-bootstrap` client;
-5. restart Keycloak and invoke the Weave Server migration CLI with a secret-file coordinate,
+6. restart Keycloak and invoke the Weave Server migration CLI with a secret-file coordinate,
    never a secret value in argv;
-6. require semantic readback, an empty second plan, deletion of the bootstrap client, and negative
+7. require semantic readback, an empty second plan, deletion of the bootstrap client, and negative
    readback proving absence;
-7. atomically write a support-safe receipt and delete the temporary SecretRef.
+8. atomically write a support-safe receipt and delete the temporary SecretRef.
+
+Two migration preconditions exist and are deliberately distinct:
+
+- **Fresh Start dogfood cutover:** the governed Fresh Start plan and canonical apply evidence prove
+  that the previous owned generation was explicitly retired before recreation. The recreated empty
+  realm therefore does not require a pre-migration backup of the retired realm. The proof binds the
+  Fresh Start plan digest, apply-evidence digest, operation nonce, retired generation, target
+  generation, candidate manifest digest, candidate commit, Compose project, and target realm
+  baseline. No legacy realm state is transferred.
+- **Persistent non-empty dogfood/prod upgrade:** if a realm already exists and is being changed in
+  place, the precondition remains a private candidate-bound backup plus successful isolated restore
+  rehearsal. The Fresh Start proof cannot be supplied by a routine deployment.
 
 The temporary bootstrap services belong to the inactive internal `identity-migration` profile and
 are reachable only by explicit service targeting. Normal Keycloak, Server, MCP, and receipt-check
@@ -84,13 +95,14 @@ private JWK. Failed or stale receipts block application startup.
 
 ## Runtime gate
 
-Dogfood, E2E, and production Server containers depend on the networkless, secretless
-`keycloak-realm-migration-receipt-check` one-shot command. Dogfood/prod can satisfy it through the
-qualified backup-gated migration; dev/E2E fail before application readiness because their
-disposable migration contract is not yet qualified. The receipt binds:
+Dogfood and production application startup requires the networkless, secretless
+`keycloak-realm-migration-receipt-check` one-shot command. A receipt is accepted only when its exact
+precondition proof remains present and bound to the current deployment coordinates. The receipt
+binds:
 
 - exact manifest, bundle, baseline-artifact, and semantic baseline digests;
 - Keycloak `26.7.1` and the one qualified operation ID;
+- either the verified Fresh Start cutover proof or the verified persistent backup proof;
 - a closed mutation-code set and mutation count;
 - semantic readback and empty second plan;
 - bootstrap authority deletion and negative readback;
@@ -99,18 +111,18 @@ disposable migration contract is not yet qualified. The receipt binds:
 Re-running the explicit migration after a valid receipt is a non-mutating success. Routine `up`
 never performs identity reconciliation.
 
-## Operator tasks
+## Operator lifecycle
 
-```text
-./gradlew :infra:keycloakDogfoodMigrationApply
-./gradlew :infra:keycloakProdMigrationApply
-./gradlew :infra:keycloakRuntimeImageBuild
-```
+A normal persistent realm upgrade invokes the bounded migration explicitly before ordinary Compose
+startup. A Fresh Start must instead use the governed Fresh Start plan/apply/recreate lifecycle; it
+must not be initiated by merely declaring an environment or by manually asserting that the realm is
+empty. The recreation task passes the exact Fresh Start plan and apply-evidence paths into the
+Keycloak migration precondition builder.
 
-`install.sh dogfood|prod` invokes the migration once before normal startup. Dev/E2E remain
-fail-closed until a separately reviewed disposable-environment migration contract exists. All destructive E2E
-cleanup, provenance, backup/restore, rootless execution, capability-drop, and support-safety rules
-remain unchanged.
+The current implementation pin still reflects the #1317 integration corpus. Newer accepted corpus
+changes further qualify disposable E2E migration and separate candidate semantic realm identity
+from environment-specific render evidence. Those changes must advance the implementation pin only
+with their complete implementation projection; this document does not claim them prematurely.
 
 Desired state never contains human users or passwords. Automated product proof creates owners and
 members through Weave Server invitations, completes Keycloak required actions in a real browser,
