@@ -17,19 +17,29 @@ import java.util.stream.Collectors;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-/** Consumes only a support-safe proof that infra already verified the private realm backup. */
+/**
+ * Consumes the support-safe precondition proof for the bounded static-IAM migration.
+ *
+ * <p>The historical class/record name remains internal-only. A persistent non-empty realm must
+ * provide the verified private-backup proof. A Fresh Start dogfood cut may instead provide the
+ * exact retirement proof generated from the approved Fresh Start plan and apply evidence. Neither
+ * proof contains credentials or grants general reconciliation authority.
+ */
 final class KeycloakRealmMigrationBackupProofReader {
-  private static final String SCHEMA = "weave.keycloak-realm-migration-backup-proof/v1";
+  private static final String BACKUP_SCHEMA = "weave.keycloak-realm-migration-backup-proof/v1";
+  private static final String FRESH_START_SCHEMA =
+      "weave.keycloak-realm-migration-fresh-start-proof/v1";
   private static final long MAXIMUM_PROOF_BYTES = 32 * 1024;
   private static final Pattern DIGEST = Pattern.compile("sha256:[0-9a-f]{64}");
   private static final Pattern COMMIT = Pattern.compile("[0-9a-f]{40}");
-  private static final Pattern COMPOSE_PROJECT =
-      Pattern.compile("[a-z0-9][a-z0-9_-]{1,62}");
+  private static final Pattern COMPOSE_PROJECT = Pattern.compile("[a-z0-9][a-z0-9_-]{1,62}");
+  private static final Pattern OPERATION_NONCE = Pattern.compile("[a-z0-9][a-z0-9-]{15,63}");
+  private static final Pattern GENERATION = Pattern.compile("[a-z0-9][a-z0-9._-]{2,63}");
   private static final Pattern RFC3339 =
       Pattern.compile(
           "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"
               + "(?:\\.[0-9]{1,9})?(?:Z|[+-][0-9]{2}:[0-9]{2})");
-  private static final Set<String> FIELDS =
+  private static final Set<String> BACKUP_FIELDS =
       Set.of(
           "schemaVersion",
           "supportSafe",
@@ -42,17 +52,22 @@ final class KeycloakRealmMigrationBackupProofReader {
           "backupIdSha256",
           "candidateCommit",
           "composeProject");
-  private static final Set<String> STRING_FIELDS =
+  private static final Set<String> FRESH_START_FIELDS =
       Set.of(
           "schemaVersion",
+          "supportSafe",
+          "containsSecretValues",
           "status",
-          "createdAt",
           "environment",
           "realm",
           "sourceBaselineRevision",
-          "backupManifestSha256",
-          "backupIdSha256",
+          "freshStartPlanSha256",
+          "freshStartApplyEvidenceSha256",
+          "operationNonce",
+          "retiredGeneration",
+          "targetGeneration",
           "candidateCommit",
+          "candidateManifestDigest",
           "composeProject");
 
   private final ObjectMapper mapper;
@@ -70,26 +85,66 @@ final class KeycloakRealmMigrationBackupProofReader {
     requireExpectedScope(expectedEnvironment, expectedCandidateCommit, expectedComposeProject);
     byte[] payload = readProof(proofFile);
     JsonNode proof = parse(payload);
-    requireExactShape(proof);
-
-    String createdAt = proof.path("createdAt").asString();
-    if (!SCHEMA.equals(proof.path("schemaVersion").asString())
-        || !proof.path("supportSafe").asBoolean(false)
-        || !"verified".equals(proof.path("status").asString())
-        || !validRfc3339(createdAt)
-        || !expectedEnvironment.equals(proof.path("environment").asString())
-        || !KeycloakFgapMigrationContract.REALM.equals(proof.path("realm").asString())
-        || !bundle
-            .currentBaselineRevision()
-            .equals(proof.path("sourceBaselineRevision").asString())
-        || !DIGEST.matcher(proof.path("backupManifestSha256").asString()).matches()
-        || !DIGEST.matcher(proof.path("backupIdSha256").asString()).matches()
-        || !expectedCandidateCommit.equals(proof.path("candidateCommit").asString())
-        || !expectedComposeProject.equals(proof.path("composeProject").asString())) {
-      throw blocked("backup-proof-contract-mismatch");
+    String schema = proof.path("schemaVersion").asString();
+    if (BACKUP_SCHEMA.equals(schema)) {
+      requireBackupProof(
+          proof, bundle, expectedEnvironment, expectedCandidateCommit, expectedComposeProject);
+    } else if (FRESH_START_SCHEMA.equals(schema)) {
+      requireFreshStartProof(
+          proof, bundle, expectedEnvironment, expectedCandidateCommit, expectedComposeProject);
+    } else {
+      throw blocked("migration-precondition-proof-schema-unsupported");
     }
     return new BackupProof(
         digest(payload), expectedEnvironment, expectedCandidateCommit, expectedComposeProject);
+  }
+
+  private static void requireBackupProof(
+      JsonNode proof,
+      KeycloakRealmMigrationManifestReader.MigrationBundle bundle,
+      String environment,
+      String candidateCommit,
+      String composeProject) {
+    requireExactShape(proof, BACKUP_FIELDS, Set.of("supportSafe"));
+    String createdAt = proof.path("createdAt").asString();
+    if (!proof.path("supportSafe").asBoolean(false)
+        || !"verified".equals(proof.path("status").asString())
+        || !validRfc3339(createdAt)
+        || !environment.equals(proof.path("environment").asString())
+        || !KeycloakFgapMigrationContract.REALM.equals(proof.path("realm").asString())
+        || !bundle.currentBaselineRevision().equals(proof.path("sourceBaselineRevision").asString())
+        || !DIGEST.matcher(proof.path("backupManifestSha256").asString()).matches()
+        || !DIGEST.matcher(proof.path("backupIdSha256").asString()).matches()
+        || !candidateCommit.equals(proof.path("candidateCommit").asString())
+        || !composeProject.equals(proof.path("composeProject").asString())) {
+      throw blocked("backup-proof-contract-mismatch");
+    }
+  }
+
+  private static void requireFreshStartProof(
+      JsonNode proof,
+      KeycloakRealmMigrationManifestReader.MigrationBundle bundle,
+      String environment,
+      String candidateCommit,
+      String composeProject) {
+    requireExactShape(proof, FRESH_START_FIELDS, Set.of("supportSafe", "containsSecretValues"));
+    if (!"dogfood".equals(environment)
+        || !proof.path("supportSafe").asBoolean(false)
+        || proof.path("containsSecretValues").asBoolean(true)
+        || !"verified".equals(proof.path("status").asString())
+        || !environment.equals(proof.path("environment").asString())
+        || !KeycloakFgapMigrationContract.REALM.equals(proof.path("realm").asString())
+        || !bundle.currentBaselineRevision().equals(proof.path("sourceBaselineRevision").asString())
+        || !DIGEST.matcher(proof.path("freshStartPlanSha256").asString()).matches()
+        || !DIGEST.matcher(proof.path("freshStartApplyEvidenceSha256").asString()).matches()
+        || !OPERATION_NONCE.matcher(proof.path("operationNonce").asString()).matches()
+        || !GENERATION.matcher(proof.path("retiredGeneration").asString()).matches()
+        || !GENERATION.matcher(proof.path("targetGeneration").asString()).matches()
+        || !candidateCommit.equals(proof.path("candidateCommit").asString())
+        || !DIGEST.matcher(proof.path("candidateManifestDigest").asString()).matches()
+        || !composeProject.equals(proof.path("composeProject").asString())) {
+      throw blocked("fresh-start-proof-contract-mismatch");
+    }
   }
 
   private static void requireExpectedScope(
@@ -155,14 +210,15 @@ final class KeycloakRealmMigrationBackupProofReader {
     }
   }
 
-  private static void requireExactShape(JsonNode proof) {
+  private static void requireExactShape(
+      JsonNode proof, Set<String> fields, Set<String> booleanFields) {
     Set<String> observed =
-        proof.properties().stream()
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toUnmodifiableSet());
-    if (!FIELDS.equals(observed)
-        || STRING_FIELDS.stream().anyMatch(field -> !proof.path(field).isString())
-        || !proof.path("supportSafe").isBoolean()) {
+        proof.properties().stream().map(Map.Entry::getKey).collect(Collectors.toUnmodifiableSet());
+    if (!fields.equals(observed)
+        || fields.stream()
+            .filter(field -> !booleanFields.contains(field))
+            .anyMatch(field -> !proof.path(field).isString())
+        || booleanFields.stream().anyMatch(field -> !proof.path(field).isBoolean())) {
       throw blocked("backup-proof-shape-invalid");
     }
   }
