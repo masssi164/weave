@@ -322,7 +322,7 @@ def _render_desired(baseline: dict[str, object], overlay: dict[str, object]) -> 
     desired = _replace_strings(desired, replacements)
     assert isinstance(desired, dict)
     if desired.get("apiVersion") != "weave.keycloak-desired-state/v3":
-        raise ContractError("Identity Ops requires the canonical Keycloak desired-state v3 corpus")
+        raise ContractError("realm projection requires the canonical Keycloak desired-state v3 corpus")
     if desired.get("keycloakVersion") != "26.7.0":
         raise ContractError("canonical desired state must pin Keycloak 26.7.0")
     if "groups" in desired:
@@ -925,6 +925,20 @@ def render(context: ComposeContext) -> None:
     _write(
         generated / "keycloak/migrations/manifest.json",
         pretty_json(migration_manifest),
+        private=False,
+    )
+    _write(
+        generated / "keycloak/migrations/receipt-check.env",
+        "".join(
+            (
+                f"WEAVE_KEYCLOAK_MIGRATION_MANIFEST_DIGEST={sha256_digest(pretty_json(migration_manifest))}\n",
+                f"WEAVE_KEYCLOAK_MIGRATION_BASELINE_DIGEST={baseline_digest}\n",
+                f"WEAVE_KEYCLOAK_MIGRATION_TARGET_REVISION={baseline_revision}\n",
+                f"WEAVE_KEYCLOAK_MIGRATION_ENVIRONMENT={context.environment}\n",
+                f"WEAVE_KEYCLOAK_MIGRATION_CANDIDATE_COMMIT={context.env['WEAVE_CANDIDATE_COMMIT']}\n",
+                f"WEAVE_KEYCLOAK_MIGRATION_COMPOSE_PROJECT={context.env['WEAVE_COMPOSE_PROJECT']}\n",
+            )
+        ),
         private=False,
     )
     secret_index = {

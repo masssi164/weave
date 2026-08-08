@@ -22,9 +22,11 @@ manifest-bound IAM and file-based credential contracts are implemented and quali
 
 ## Development
 
-The supported development flow starts only Keycloak through the guarded infrastructure wrapper,
-then runs the application processes on the host. The helpers validate and load the generated
-public coordinates before invoking the corresponding Gradle `bootRun` task:
+Compose still defines Keycloak as the only normal development dependency and keeps application
+processes on the host. The deferred FGAP migration executor is currently qualified only for
+backup-gated dogfood/prod. Dev therefore remains deliberately fail-closed at the migration gate;
+do not bypass it by fabricating a receipt. Once the separately reviewed disposable-environment
+migration contract lands, the intended commands remain:
 
 ```bash
 cd infra/weave-workspace
@@ -37,7 +39,8 @@ cd admin-console && npm run dev
 
 The host Server and Keycloak use their local H2/dev-file stores. Compose does not start
 PostgreSQL, Server, MCP, or Admin Console in `dev`; Mailpit is an optional developer tool rather
-than a default dependency. The direct Gradle tasks remain `:server:bootRun` and
+than a default dependency. Until the disposable migration contract is qualified, `up` leaves
+Keycloak imported but returns a blocking migration error before host application readiness. The direct Gradle tasks remain `:server:bootRun` and
 `:weave-mcp-server:bootRun`; the helpers exist so a clean shell receives the exact generated
 OIDC, key-file, provider, and loopback coordinates without sourcing a shell fragment.
 
@@ -56,24 +59,22 @@ WEAVE_ENV_FILE=/absolute/path/to/reviewed-e2e.env \
 
 E2E activates Mailpit with implicit TLS and the isolated RuntimeState proof service. Its generated
 root, SecretRefs, ports, network, and volumes are derived from the run ID. Cleanup remains limited
-to the exact ownership-labeled namespace.
+to the exact ownership-labeled namespace. The same deferred FGAP migration currently blocks this
+lane rather than accepting a production backup proof outside its scope.
 
-## Dogfood and production blockers
+## Dogfood and production
 
-The intended commands remain:
+The supported commands are:
 
 ```bash
 cd infra/weave-workspace
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env ./compose.sh dogfood up
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-prod.env ./compose.sh prod up
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env ./install.sh dogfood
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-prod.env ./install.sh prod
 ```
 
-They intentionally fail closed in this tranche. Before either command may be called runnable, the
-canonical Keycloak 26.7 File Vault must be mounted and the canonical realm import path must consume
-the direct non-secret SMTP username plus `${vault.smtp-password}`. The temporary bootstrap
-authority must also be retired or narrowed according to the pinned architecture contract. A mode
-`0600` `smtp-password` SecretRef is required; no SMTP username secret exists.
-
-Do not bypass these guards by putting a password in rendered realm JSON, a Compose environment, or
-`kcadm` process arguments. Do not describe dogfood or production as ready until the Vault/import
-and bootstrap-absence proofs pass.
+Dogfood keeps Mailpit as persistent activation-sensitive infrastructure, requires implicit TLS, and
+has no SMTP shared secret. Production requires a non-secret reviewed SMTP username and a mode-0600
+`smtp-password` SecretRef mounted only into Keycloak File Vault. Both consume the same generated,
+secret-free realm import. The inactive migration-only services mount one temporary mode-0600
+SecretRef; normal Keycloak, Server, and MCP services do not. A valid receipt proves the temporary
+bootstrap authority was deleted and negatively read back before application startup.

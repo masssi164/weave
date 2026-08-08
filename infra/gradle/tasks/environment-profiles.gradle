@@ -18,12 +18,11 @@
         ['infra/weave-workspace/operator-check.sh', profile],
         "Verify runtime and provider readiness for the canonical ${profile} profile."
     )
-    ['plan', 'apply', 'verify'].each { operation ->
-        def operationTitle = operation.capitalize()
+    if (profile in ['dogfood', 'prod']) {
         registerInfraCommandTask(
-            "identity${profileTitle}${operationTitle}",
-            ['infra/weave-workspace/compose.sh', profile, "identity-${operation}"],
-            "Run rootless one-shot Keycloak Identity Ops ${operation} for the ${profile} Compose profile."
+            "keycloak${profileTitle}MigrationApply",
+            ['infra/weave-workspace/compose.sh', profile, 'keycloak-migration-apply'],
+            "Run the backup-gated, receipt-producing Keycloak post-import migration for ${profile}."
         )
     }
 }
@@ -41,12 +40,6 @@ registerInfraCommandTask(
     'composeDevDependenciesReady',
     ['python3', 'infra/weave-workspace/scripts/prepare_dev_dependencies.py', '--root', 'infra/weave-workspace'],
     'Build exact local trust images and reconcile the dev Compose provider dependencies for a host Spring Boot process.'
-)
-
-registerInfraCommandTask(
-    'identityOpsImageBuild',
-    ['python3', 'infra/weave-workspace/scripts/build_identity_ops_image.py', '--root', 'infra/weave-workspace'],
-    'Build the rootless Identity Ops runner from the exact checked-out Weave source.'
 )
 
 registerInfraCommandTask(

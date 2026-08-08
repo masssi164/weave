@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Closed operator interface for normalized Compose and one-shot Identity Ops."""
+"""Closed operator interface for normalized Compose and bounded migrations."""
 
 from __future__ import annotations
 
@@ -8,13 +8,11 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import stat
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -27,6 +25,8 @@ from compose_env import (
     load_context,
     run,
 )
+from keycloak_migration import migration_inputs, require_completed_migration
+from keycloak_migration_backup import create_backup_proof
 
 
 COMMANDS = (
@@ -39,9 +39,7 @@ COMMANDS = (
     "down",
     "ps",
     "logs",
-    "identity-plan",
-    "identity-apply",
-    "identity-verify",
+    "keycloak-migration-apply",
     "persistence-restart-proof",
     "chat-provider-stop-proof",
     "chat-provider-start-proof",
@@ -124,16 +122,12 @@ RUNTIME_ADMIN_TARGET = (
 IDENTITY_ADMIN_PRIVATE_TARGET = PurePosixPath(
     "/run/secrets/identity-admin/weave-identity-admin-private-jwk.json"
 )
-IDENTITY_ADMIN_INITIALIZER_TARGET = PurePosixPath(
-    "/authority/private/weave-identity-admin-private-jwk.json"
-)
 AGENT_RUNTIME_MOUNT_POLICY = {
     ("agent-runtime-keys-init", str(PROFILE_SIGNING_TARGET)): ("read-write", "directory"),
     ("agent-runtime-keys-init", str(STATE_WRAPPING_TARGET)): ("read-write", "directory"),
     ("backend", str(WORKLOADS_TARGET)): ("read-write", "directory"),
     ("backend", str(PROFILE_SIGNING_TARGET)): ("read-only", "directory"),
     ("backend", str(STATE_WRAPPING_TARGET)): ("read-only", "directory"),
-    ("identity-ops", str(RUNTIME_ADMIN_TARGET)): ("read-only", "file"),
 }
 MCP_PROTECTED_SECRET_MARKERS = (
     "weave-agent-runtime-admin",
@@ -474,12 +468,6 @@ def validate_mount_contract(model: dict[str, Any]) -> list[dict[str, Any]]:
     ]
     declared_identity_admin_private = {
         ("backend", str(IDENTITY_ADMIN_PRIVATE_TARGET), "read-only", "file"),
-        (
-            "identity-admin-key-init",
-            str(IDENTITY_ADMIN_INITIALIZER_TARGET),
-            "read-only",
-            "file",
-        ),
     }
     expected_identity_admin_private = {
         entry for entry in declared_identity_admin_private if entry[0] in services
@@ -495,7 +483,7 @@ def validate_mount_contract(model: dict[str, Any]) -> list[dict[str, Any]]:
     }
     if observed_identity_admin_private != expected_identity_admin_private:
         raise ContractError(
-            "identity-admin private JWK must be mounted only by Server and its one-shot initializer"
+            "identity-admin private JWK must be mounted only by Server"
         )
 
     if "agent-runtime-keys-init" in services:
@@ -673,16 +661,16 @@ def prepare_runtime_paths(context: ComposeContext) -> None:
     manifest = context.generated_root / "render-manifest.json"
     if manifest.is_symlink() or not manifest.is_file():
         raise ContractError("render-manifest.json is missing; run render first")
-    evidence_root = context.generated_root / "identity-ops"
-    evidence_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(evidence_root, 0o700)
+    migration_root = context.generated_root / "keycloak/migrations"
+    migration_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(migration_root, 0o700)
     runtime_uid = int(context.env["WEAVE_RUNTIME_UID"])
     runtime_gid = int(context.env["WEAVE_RUNTIME_GID"])
-    if evidence_root.stat().st_uid != runtime_uid or evidence_root.stat().st_gid != runtime_gid:
+    if migration_root.stat().st_uid != runtime_uid or migration_root.stat().st_gid != runtime_gid:
         try:
-            os.chown(evidence_root, runtime_uid, runtime_gid)
+            os.chown(migration_root, runtime_uid, runtime_gid)
         except PermissionError as error:
-            raise ContractError("Identity Ops evidence directory is not writable by the rootless runtime uid/gid") from error
+            raise ContractError("Keycloak migration receipt directory is not writable by the rootless runtime uid/gid") from error
     for path in (
         context.secret_root / "agent-runtime/workloads",
         context.secret_root / "agent-runtime/workloads/weave/keycloak",
@@ -714,9 +702,9 @@ def normalized_config(context: ComposeContext, emit: bool) -> dict[str, Any]:
     result = compose(context, "config", "--format", "json", capture=True)
     model = json.loads(result.stdout)
     services = model.get("services", {})
-    required = {"postgres", "keycloak", "identity-ops"}
+    required = {"postgres", "keycloak"}
     if not required.issubset(services):
-        raise ContractError("normalized Compose model is missing a core or Identity Ops service")
+        raise ContractError("normalized Compose model is missing a core service")
     serialized = json.dumps(model)
     forbidden = ("/var/run/docker.sock", "keycloak-supervisor", "keycloak-admin-sanitizer")
     if any(value in serialized for value in forbidden):
@@ -734,109 +722,87 @@ def normalized_config(context: ComposeContext, emit: bool) -> dict[str, Any]:
     return model
 
 
-def identity_ops(context: ComposeContext, action: str) -> None:
+def _write_migration_bootstrap_secret(context: ComposeContext, path: Path) -> None:
+    if path.exists() or path.is_symlink():
+        raise ContractError("temporary Keycloak migration bootstrap SecretRef already exists")
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="ascii") as stream:
+            stream.write(secrets.token_urlsafe(48) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    finally:
+        if path.exists():
+            os.chmod(path, 0o600)
+            runtime_uid = int(context.env["WEAVE_RUNTIME_UID"])
+            runtime_gid = int(context.env["WEAVE_RUNTIME_GID"])
+            if path.stat().st_uid != runtime_uid or path.stat().st_gid != runtime_gid:
+                try:
+                    os.chown(path, runtime_uid, runtime_gid)
+                except PermissionError as error:
+                    path.unlink()
+                    raise ContractError(
+                        "temporary Keycloak migration SecretRef is not readable by the rootless migration uid/gid"
+                    ) from error
+
+
+def keycloak_migration_apply(context: ComposeContext) -> None:
+    if context.environment not in {"dogfood", "prod"}:
+        raise ContractError(
+            "keycloak-migration-apply is qualified only for dogfood/prod with a verified private backup"
+        )
+    script(context, "init_secrets.py")
+    script(context, "render_config.py")
     prepare(context)
-    compose(context, "up", "-d", "--wait", "keycloak")
-    if not bootstrap_authority_available(context):
-        compose(context, "stop", "keycloak")
+    inputs = migration_inputs(context)
+    try:
+        require_completed_migration(context)
+        print("WEAVE_KEYCLOAK_MIGRATION_RESULT state=already-complete supportSafe=true")
+        return
+    except ContractError:
+        pass
+    compose(context, "up", "-d", "--wait", "--wait-timeout", "600", "keycloak")
+    backup_proof = create_backup_proof(context)
+    credential = context.secret_root / "keycloak-realm-migration-bootstrap-secret"
+    _write_migration_bootstrap_secret(context, credential)
+    try:
+        compose(context, "stop", "--timeout", "30", "keycloak")
         compose(
             context,
             "run",
             "--rm",
             "--no-deps",
-            "keycloak",
-            "bootstrap-admin",
-            "service",
-            "--client-id",
-            "weave-identity-ops-bootstrap",
-            "--client-secret:env=WEAVE_IDENTITY_OPS_BOOTSTRAP_SECRET",
-            "--no-prompt",
+            "keycloak-realm-migration-bootstrap",
         )
-        compose(context, "up", "-d", "--wait", "keycloak")
-        if not bootstrap_authority_available(context):
-            raise ContractError(
-                "temporary Identity Ops bootstrap authority is unavailable after recovery"
-            )
-    command = {
-        "identity-plan": "plan",
-        "identity-apply": "apply",
-        "identity-verify": "verify",
-    }[action]
-    compose(
-        context,
-        "run",
-        "--rm",
-        "--no-deps",
-        "identity-ops",
-        command,
-    )
-    if action == "identity-apply":
-        adopt_secret_updates(context)
-
-
-def bootstrap_authority_available(context: ComposeContext) -> bool:
-    """Probe the one-shot bootstrap client without retaining its access token."""
-    credential = context.secret_root / "keycloak-bootstrap-admin-password"
-    try:
-        metadata = credential.lstat()
-    except OSError as error:
-        raise ContractError(
-            "Identity Ops bootstrap SecretRef is unavailable"
-        ) from error
-    if (
-        credential.is_symlink()
-        or not stat.S_ISREG(metadata.st_mode)
-        or stat.S_IMODE(metadata.st_mode) != 0o600
-    ):
-        raise ContractError("Identity Ops bootstrap SecretRef is unsafe")
-    secret = credential.read_text(encoding="utf-8").strip()
-    if not secret:
-        raise ContractError("Identity Ops bootstrap SecretRef is empty")
-    request = urllib.request.Request(
-        (
-            "http://127.0.0.1:"
-            + context.env["WEAVE_KEYCLOAK_HOST_PORT"]
-            + "/realms/master/protocol/openid-connect/token"
-        ),
-        data=urllib.parse.urlencode(
-            {
-                "grant_type": "client_credentials",
-                "client_id": "weave-identity-ops-bootstrap",
-                "client_secret": secret,
-            }
-        ).encode("ascii"),
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=10) as response:
-            try:
-                payload = json.loads(response.read(1024 * 1024))
-            except (json.JSONDecodeError, UnicodeDecodeError) as error:
-                raise ContractError(
-                    "temporary Identity Ops bootstrap authority probe was malformed"
-                ) from error
-            if response.status != 200 or not isinstance(
-                payload.get("access_token"), str
-            ):
-                raise ContractError(
-                    "temporary Identity Ops bootstrap authority probe was malformed"
-                )
-            return True
-    except urllib.error.HTTPError as error:
-        try:
-            payload = json.loads(error.read(1024 * 1024))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            payload = {}
-        if error.code in {400, 401} and payload.get("error") == "invalid_client":
-            return False
-        raise ContractError(
-            "temporary Identity Ops bootstrap authority probe was rejected"
-        ) from error
-    except (urllib.error.URLError, TimeoutError) as error:
-        raise ContractError(
-            "temporary Identity Ops bootstrap authority probe was unavailable"
-        ) from error
+        compose(context, "up", "-d", "--wait", "--wait-timeout", "600", "keycloak")
+        common_arguments = (
+            f"--manifest-digest={inputs.manifest_digest}",
+            f"--baseline-digest={inputs.baseline_digest}",
+            f"--target-revision={inputs.target_revision}",
+            f"--environment={context.environment}",
+            f"--candidate-commit={context.env['WEAVE_CANDIDATE_COMMIT']}",
+            f"--compose-project={context.env['WEAVE_COMPOSE_PROJECT']}",
+        )
+        compose(
+            context,
+            "run",
+            "--rm",
+            "--no-deps",
+            "keycloak-realm-migration",
+            "keycloak-realm-migration",
+            "--artifact-root=/run/weave-generated",
+            *common_arguments,
+            "--keycloak-base-url=http://keycloak:8080",
+            "--bootstrap-secret-file=/run/secrets/keycloak-realm-migration-bootstrap-secret",
+            "--backup-proof-file=/run/weave-generated/keycloak/migrations/"
+            + backup_proof.name,
+            "--timeout=PT10S",
+        )
+        require_completed_migration(context)
+        print("WEAVE_KEYCLOAK_MIGRATION_RESULT state=complete supportSafe=true")
+    finally:
+        if credential.exists() or credential.is_symlink():
+            credential.unlink()
 
 
 def _service_container(
@@ -1221,27 +1187,6 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
     raise ContractError("unsupported isolated collaboration control operation")
 
 
-def adopt_secret_updates(context: ComposeContext) -> None:
-    updates = context.generated_root / "identity-ops/secret-updates"
-    if not updates.exists():
-        return
-    allowed = {
-        "keycloak-nextcloud",
-        "keycloak-matrix-mas",
-    }
-    for source in updates.iterdir():
-        if source.name not in allowed or source.is_symlink() or not source.is_file():
-            raise ContractError("Identity Ops produced an unexpected SecretRef update")
-        if stat.S_IMODE(source.stat().st_mode) != 0o600:
-            raise ContractError("Identity Ops SecretRef update is not mode-0600")
-        target = context.secret_root / source.name
-        temporary = target.with_name(f".{target.name}.{os.getpid()}.identity-ops")
-        temporary.write_bytes(source.read_bytes())
-        os.chmod(temporary, 0o600)
-        os.replace(temporary, target)
-        source.unlink()
-
-
 def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
     if command == "secrets-init":
         script(context, "init_secrets.py")
@@ -1253,6 +1198,10 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         prepare(context)
     elif command == "provider-prepare":
         subprocess.run([str(context.root / "provision-matrix-default-workspace.sh")], cwd=context.root, env=compose_environment(context), check=True)
+    elif command == "keycloak-migration-apply":
+        if extra:
+            raise ContractError("keycloak-migration-apply does not accept command arguments")
+        keycloak_migration_apply(context)
     elif command == "up":
         script(context, "init_secrets.py")
         script(context, "render_config.py")
@@ -1271,7 +1220,8 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
             )
         if context.environment != "dev":
             compose(context, "up", "-d", "postgres", "postgres-reconcile")
-        identity_ops(context, "identity-apply")
+        compose(context, "up", "-d", "--wait", "--wait-timeout", "600", "keycloak")
+        require_completed_migration(context)
         compose(
             context,
             "up",
@@ -1314,7 +1264,7 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         }[command]
         isolated_collaboration_control(context, operation)
     else:
-        identity_ops(context, command)
+        raise ContractError(f"unsupported Compose operation: {command}")
 
 
 def main() -> int:

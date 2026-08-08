@@ -16,10 +16,10 @@ repository `AGENTS.md` files. Do not reintroduce executable OpenTofu/Terraform, 
 - `dogfood` and `prod` are persistent application-tier deployments. `e2e` is disposable and must
   use a run-unique Compose project, resource namespace, generated root, SecretRef root, and ports.
 - `COMPOSE_PROFILES` in the reviewed environment file selects exactly one matching environment
-  profile. Development may additionally select `dev-tools` for Mailpit; dogfood, prod, and E2E
-  reject optional profiles. The transitional Matrix, Nextcloud, RuntimeState, and Identity Ops
-  dependencies remain in the existing graph until their owning migration tranches remove or
-  optionalize them.
+  profile. Development may additionally select `dev-tools`; provider/storage profiles are selected
+  only with their exact matching provider configuration. Native Files, Calendar, and Chat are the
+  default. Matrix, Nextcloud, and S3-compatible storage are optional and fail closed until their
+  deployment contracts are qualified. No general Identity Ops authority remains.
 - Public deployment coordinates live in reviewed environment files. Credentials are individual
   mode-0600 files below `WEAVE_SECRET_ROOT`; never place secret values in env files, Compose
   models, evidence, logs, or support bundles.
@@ -29,12 +29,14 @@ repository `AGENTS.md` files. Do not reintroduce executable OpenTofu/Terraform, 
 Use `weave-workspace/compose.sh <dev|dogfood|prod|e2e> <command>` with one of:
 
 - `secrets-init`, `render`, `config`, `prepare`, `up`, `down`, `ps`, or `logs`;
-- `identity-plan`, `identity-apply`, or `identity-verify`.
+- `keycloak-migration-apply` for the explicit backup-gated dogfood/prod post-import migration.
 
 `dogfood`, `prod`, and `e2e` require `WEAVE_ENV_FILE` pointing to a private reviewed file. E2E
 also requires `WEAVE_E2E_STACK_SCOPE=isolated` and a valid `WEAVE_E2E_RUN_ID`. The normal
-deployment sequence is `secrets-init -> render -> config -> prepare -> identity-apply -> up ->
-identity-verify`. A normal `down` never removes persistent volumes.
+deployment sequence is `secrets-init -> render -> config -> prepare -> verified private backup ->
+keycloak-migration-apply -> up`. Routine `up` verifies the receipt and never reconciles identity.
+A normal `down` never removes persistent volumes. Dev/E2E remain fail-closed at the deferred FGAP
+migration until a separately reviewed disposable-environment contract exists.
 
 `backup.sh` creates a private, quiesced, candidate-bound backup below an operator-owned mode-0700
 directory outside the checkout. `adoption-rehearsal.sh` verifies that backup through an isolated
@@ -48,7 +50,7 @@ adoption. Never substitute the adoption receipt for Fresh Start evidence.
 ## Validation and safety
 
 - Run `./gradlew infraStatic`, the profile-specific `compose*Config` task, and the relevant
-  protected Keycloak plan/verify task.
+  backup-gated Keycloak migration/receipt check.
 - `./gradlew noExecutableOpenTofuCheck` must remain green.
 - Keep image digests pinned for dogfood/e2e/prod, Compose resources explicitly named and labeled,
   reconciliation idempotent, and teardown bounded to exact isolated ownership evidence.

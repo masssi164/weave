@@ -230,42 +230,6 @@ tasks.register('createCandidateManifest', Exec) {
     }
 }
 
-def configureIdentityOpsTask = { String taskName, String operation, String descriptionText ->
-    tasks.register(taskName, Exec) {
-        group = 'weave operations'
-        description = descriptionText
-        workingDir rootProject.projectDir
-        outputs.upToDateWhen { false }
-        doFirst {
-            commandLine(
-                'bash',
-                'gradle/tasks/identity-ops-run.sh',
-                '--operation', operation,
-                '--image', requiredProperty('identityOpsImage'),
-                '--state-root', requiredProperty('identityOpsStateRoot'),
-                '--env-file', requiredProperty('identityOpsEnvFile'),
-                '--network', requiredProperty('identityOpsNetwork')
-            )
-        }
-    }
-}
-
-configureIdentityOpsTask(
-    'identityOpsPlan',
-    'plan',
-    'Create a reviewable Keycloak Desired State plan in the mounted identity state root.'
-)
-configureIdentityOpsTask(
-    'identityOpsApply',
-    'apply',
-    'Apply only the reviewed Keycloak Desired State plan from the mounted identity state root.'
-)
-configureIdentityOpsTask(
-    'identityOpsValidate',
-    'validate',
-    'Validate the bundled Keycloak Desired State and mirrored provider without contacting Keycloak.'
-)
-
 tasks.register('prepareDogfoodTester', Exec) {
     group = 'weave operations'
     description = 'Idempotently create or verify the protected persistent dogfood member activation state.'

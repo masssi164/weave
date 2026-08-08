@@ -4,15 +4,12 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import os
 import re
 import subprocess
 import tempfile
 import time
-import urllib.error
-import urllib.parse
 from dataclasses import replace
 from pathlib import Path
 
@@ -72,6 +69,9 @@ def resolved_model(context) -> dict[str, object]:
         root = context.generated_root / name
         root.mkdir(parents=True, exist_ok=True)
         (root / "public.env").touch(mode=0o600)
+    migrations = context.generated_root / "keycloak/migrations"
+    migrations.mkdir(parents=True, exist_ok=True)
+    (migrations / "receipt-check.env").touch(mode=0o600)
     result = compose(context, "config", "--format", "json", capture=True)
     return json.loads(result.stdout)
 
@@ -157,135 +157,6 @@ def expect_contract_rejection(action, message: str) -> None:
     except ContractError:
         return
     raise AssertionError(message)
-
-
-def assert_identity_bootstrap_lifecycle(context) -> None:
-    original_prepare = compose_runtime_module.prepare
-    original_compose = compose_runtime_module.compose
-    original_probe = compose_runtime_module.bootstrap_authority_available
-    calls: list[tuple[str, ...]] = []
-
-    def record_compose(_context, *arguments: str, **_kwargs):
-        calls.append(arguments)
-        return None
-
-    compose_runtime_module.prepare = lambda _context: None
-    compose_runtime_module.compose = record_compose
-    compose_runtime_module.bootstrap_authority_available = lambda _context: True
-    try:
-        compose_runtime_module.identity_ops(context, "identity-plan")
-    finally:
-        compose_runtime_module.prepare = original_prepare
-        compose_runtime_module.compose = original_compose
-        compose_runtime_module.bootstrap_authority_available = original_probe
-    assert calls == [
-        ("up", "-d", "--wait", "keycloak"),
-        ("run", "--rm", "--no-deps", "identity-ops", "plan"),
-    ]
-
-    calls.clear()
-    probe_results = iter((False, True))
-    compose_runtime_module.prepare = lambda _context: None
-    compose_runtime_module.compose = record_compose
-    compose_runtime_module.bootstrap_authority_available = (
-        lambda _context: next(probe_results)
-    )
-    try:
-        compose_runtime_module.identity_ops(context, "identity-plan")
-    finally:
-        compose_runtime_module.prepare = original_prepare
-        compose_runtime_module.compose = original_compose
-        compose_runtime_module.bootstrap_authority_available = original_probe
-    assert calls == [
-        ("up", "-d", "--wait", "keycloak"),
-        ("stop", "keycloak"),
-        (
-            "run",
-            "--rm",
-            "--no-deps",
-            "keycloak",
-            "bootstrap-admin",
-            "service",
-            "--client-id",
-            "weave-identity-ops-bootstrap",
-            "--client-secret:env=WEAVE_IDENTITY_OPS_BOOTSTRAP_SECRET",
-            "--no-prompt",
-        ),
-        ("up", "-d", "--wait", "keycloak"),
-        ("run", "--rm", "--no-deps", "identity-ops", "plan"),
-    ]
-
-
-def assert_identity_bootstrap_authority_probe(context, root: Path) -> None:
-    secret_root = root / "bootstrap-probe"
-    secret_root.mkdir(mode=0o700)
-    credential = secret_root / "keycloak-bootstrap-admin-password"
-    credential.write_text("test-bootstrap-secret\n", encoding="utf-8")
-    os.chmod(credential, 0o600)
-    probe_context = replace(
-        context,
-        env={
-            **context.env,
-            "WEAVE_SECRET_ROOT": str(secret_root),
-            "WEAVE_KEYCLOAK_HOST_PORT": "49181",
-        },
-    )
-    original_urlopen = compose_runtime_module.urllib.request.urlopen
-    captured: dict[str, str] = {}
-
-    class Response:
-        status = 200
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_args):
-            return None
-
-        def read(self, _limit: int) -> bytes:
-            return b'{"access_token":"test-only"}'
-
-    def accepted(request, **_kwargs):
-        captured.update(
-            urllib.parse.parse_qsl(request.data.decode("ascii"))
-        )
-        return Response()
-
-    compose_runtime_module.urllib.request.urlopen = accepted
-    try:
-        assert compose_runtime_module.bootstrap_authority_available(probe_context)
-    finally:
-        compose_runtime_module.urllib.request.urlopen = original_urlopen
-    assert captured == {
-        "grant_type": "client_credentials",
-        "client_id": "weave-identity-ops-bootstrap",
-        "client_secret": "test-bootstrap-secret",
-    }
-
-    def rejected(_request, **_kwargs):
-        raise urllib.error.HTTPError(
-            "http://127.0.0.1:49181/token",
-            401,
-            "Unauthorized",
-            {},
-            io.BytesIO(b'{"error":"invalid_client"}'),
-        )
-
-    compose_runtime_module.urllib.request.urlopen = rejected
-    try:
-        assert not compose_runtime_module.bootstrap_authority_available(
-            probe_context
-        )
-    finally:
-        compose_runtime_module.urllib.request.urlopen = original_urlopen
-
-    os.chmod(credential, 0o640)
-    expect_contract_rejection(
-        lambda: compose_runtime_module.bootstrap_authority_available(
-            probe_context
-        ),
-        "mode-0640 bootstrap SecretRef was accepted",
-    )
 
 
 def assert_collaboration_control_is_bounded(context) -> None:
@@ -410,13 +281,7 @@ def assert_agent_runtime_mount_boundary(model: dict[str, object]) -> None:
             "/run/secrets/identity-admin/weave-identity-admin-private-jwk.json",
             "read-only",
         ),
-        (
-            "identity-admin-key-init",
-            "/authority/private/weave-identity-admin-private-jwk.json",
-            "read-only",
-        ),
     }
-    assert all(service != "identity-ops" for service, _target, _access in identity_admin_private)
     initializer = {
         entry["target"]: entry
         for entry in graph
@@ -440,16 +305,7 @@ def assert_agent_runtime_mount_boundary(model: dict[str, object]) -> None:
             assert "weave-identity-admin" not in coordinate
             assert "weave-backend-jwk" not in coordinate
             assert "/agent-runtime/workloads/" not in coordinate
-    assert {
-        (entry["service"], entry["target"], entry["access"])
-        for entry in runtime_admin_entries
-    } == {
-        (
-            "identity-ops",
-            "/run/secrets/agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin",
-            "read-only",
-        )
-    }
+    assert runtime_admin_entries == []
 
 
 def assert_schema_init_boundary(model: dict[str, object]) -> None:
@@ -639,19 +495,16 @@ def assert_protected_source_preflight(dev, root: Path) -> None:
 
 def main() -> None:
     dev = load_context("dev", ROOT)
-    assert_identity_bootstrap_lifecycle(dev)
-    with tempfile.TemporaryDirectory() as temporary:
-        assert_identity_bootstrap_authority_probe(dev, Path(temporary))
     keycloak_launcher = (ROOT / "scripts/run-keycloak.sh").read_text(
         encoding="utf-8"
     )
     assert (
         "read_secret KC_BOOTSTRAP_ADMIN_CLIENT_SECRET "
-        "/run/secrets/keycloak-bootstrap-admin-password"
+        '"${MIGRATION_SECRET}"'
         in keycloak_launcher
     )
     assert (
-        "export KC_BOOTSTRAP_ADMIN_CLIENT_ID=weave-identity-ops-bootstrap"
+        "temporary migration authority reached normal Keycloak startup"
         in keycloak_launcher
     )
     assert (
@@ -673,9 +526,7 @@ def main() -> None:
     assert dev_model["services"]["keycloak"]["user"] == f"{dev.env['WEAVE_RUNTIME_UID']}:0"
     assert dev_model["services"]["keycloak"]["environment"]["KC_DB"] == "dev-file"
     assert not dev_model["services"]["keycloak"].get("depends_on")
-    assert {
-        secret["source"] for secret in dev_model["services"]["keycloak"]["secrets"]
-    } == {"keycloak-bootstrap-admin-password"}
+    assert not dev_model["services"]["keycloak"].get("secrets")
     historical = labels(dev, "network", dev.env["WEAVE_DOCKER_NETWORK"])
     historical.update(
         {
@@ -1012,7 +863,6 @@ def main() -> None:
             "WEAVE_E2E_RUN_ID": "compose-profile-contract",
             "WEAVE_BACKEND_IMAGE": local_image_id,
             "WEAVE_MCP_IMAGE": local_image_id,
-            "WEAVE_IDENTITY_OPS_IMAGE": local_image_id,
             "WEAVE_KEYCLOAK_IMAGE": local_image_id,
         }
         previous_overrides = {
@@ -1074,7 +924,7 @@ def main() -> None:
             )[0]
             assert "secrets: !override" in e2e_keycloak
             assert "keycloak-db-password" in e2e_keycloak
-            assert "keycloak-bootstrap-admin-password" in e2e_keycloak
+            assert "keycloak-realm-migration-bootstrap-secret" not in e2e_keycloak
             assert "smtp-password" not in e2e_keycloak
             os.environ["WEAVE_E2E_STACK_SCOPE"] = "persistent"
             try:

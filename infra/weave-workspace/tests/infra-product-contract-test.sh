@@ -15,7 +15,7 @@ for file in \
   compose.yaml compose.dev.yaml compose.dogfood.yaml compose.e2e.yaml compose.prod.yaml compose.sh \
   environments/dogfood.env.example environments/e2e.env.example \
   scripts/compose_env.py scripts/compose_runtime.py scripts/render_config.py \
-  scripts/nextcloud_reconcile.py keycloak/identity_ops.py keycloak/Dockerfile.identity-ops; do
+  scripts/nextcloud_reconcile.py scripts/keycloak_migration.py keycloak/Dockerfile.runtime; do
   [[ -f "${ROOT_DIR}/${file}" ]] || fail "Missing Compose authority file: ${file}"
 done
 
@@ -36,10 +36,8 @@ require "${ROOT_DIR}/compose.yaml" 'POSTGRES_PASSWORD_FILE: /run/secrets/postgre
 require "${ROOT_DIR}/compose.yaml" 'SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/'
 require "${ROOT_DIR}/compose.yaml" \
   'target: /run/secrets/identity-admin/weave-identity-admin-private-jwk.json'
-require "${ROOT_DIR}/compose.yaml" \
-  'target: /authority/private/weave-identity-admin-private-jwk.json'
-[[ "$(grep -Fc 'source: identity-admin-private-jwk' "${ROOT_DIR}/compose.yaml")" == "2" ]] ||
-  fail "identity-admin private JWK must be mounted only by Server and its one-shot initializer"
+[[ "$(grep -Fc 'source: identity-admin-private-jwk' "${ROOT_DIR}/compose.yaml")" == "1" ]] ||
+  fail "identity-admin private JWK must be mounted only by Weave Server"
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.managed: "true"'
 require "${ROOT_DIR}/compose.dev.yaml" 'host.docker.internal:host-gateway'
 require "${ROOT_DIR}/compose.dogfood.yaml" 'WEAVE_RELEASE_POSTURE: dogfood'
@@ -62,16 +60,23 @@ require "${ROOT_DIR}/scripts/compose_env.py" 'refusing to deploy {environment} f
 require "${ROOT_DIR}/scripts/compose_env.py" 'persistent-dogfood'
 require "${ROOT_DIR}/scripts/compose_runtime.py" 'refusing unowned existing Docker'
 reject "${ROOT_DIR}/scripts/compose_runtime.py" 'WEAVE_ADOPTION_RECEIPT'
-require "${ROOT_DIR}/keycloak/identity_ops.py" '/opt/keycloak/bin/kcadm.sh'
-require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'ARG WEAVE_KEYCLOAK_BASE=quay.io/keycloak/keycloak@sha256:'
-require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'ARG WEAVE_UBI9_BASE=registry.access.redhat.com/ubi9@sha256:'
-require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'FROM ${WEAVE_KEYCLOAK_BASE}'
+[[ ! -e "${ROOT_DIR}/keycloak/identity_ops.py" ]] || fail "general Identity Ops authority remains"
+[[ ! -e "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" ]] || fail "Identity Ops image remains"
+[[ ! -e "${ROOT_DIR}/scripts/build_identity_ops_image.py" ]] || fail "Identity Ops image builder remains"
+reject "${ROOT_DIR}/compose.yaml" 'identity-ops:'
+reject "${ROOT_DIR}/compose.yaml" 'keycloak-bootstrap-admin-password'
+require "${ROOT_DIR}/compose.yaml" 'keycloak-realm-migration-bootstrap:'
+require "${ROOT_DIR}/compose.yaml" 'keycloak-realm-migration-receipt-check:'
+require "${ROOT_DIR}/compose.yaml" 'network_mode: none'
+require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.operation: keycloak-realm-migration-receipt-verify'
+require "${ROOT_DIR}/scripts/keycloak_migration.py" 'bootstrapAuthorityNegativeReadbackVerified'
+reject "${ROOT_DIR}/scripts/compose_runtime.py" 'kcadm'
+reject "${ROOT_DIR}/scripts/compose_runtime.py" '--client-secret:env=WEAVE_IDENTITY'
 require "${ROOT_DIR}/scripts/build_keycloak_image.py" 'STOCK_KEYCLOAK_REFERENCE ='
 require "${ROOT_DIR}/scripts/build_keycloak_image.py" '"weave.downstream-keycloak-image.v1"'
 require "${ROOT_DIR}/keycloak/Dockerfile.runtime" 'com.massimotter.weave.keycloak-patch-sha256'
 require "${ROOT_DIR}/keycloak/Dockerfile.runtime" 'kc.sh build --db=postgres --vault=file'
 require "${ROOT_DIR}/compose.prod.yaml" 'target: /opt/keycloak/vault/weave_smtp-password'
-reject "${ROOT_DIR}/scripts/build_identity_ops_image.py" 'com.massimotter.weave.component=keycloak-identity-ops'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'ordinary reconciliation refuses an implicit rotation'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE'
@@ -103,8 +108,7 @@ require "${REPO_ROOT}/settings.gradle" "'infra',"
 require "${REPO_ROOT}/settings.gradle" "'server',"
 require "${REPO_ROOT}/settings.gradle" "'weave-mcp-server'"
 require "${REPO_ROOT}/infra/build.gradle" 'apply from: "$projectDir/gradle/tasks/environment-profiles.gradle"'
-require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" '"identity${profileTitle}${operationTitle}"'
-require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" "'identityOpsImageBuild'"
+require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" '"keycloak${profileTitle}MigrationApply"'
 require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" "'keycloakRuntimeImageBuild'"
 require "${REPO_ROOT}/server/build.gradle" 'apply from: "${projectDir}/gradle/tasks/development.gradle"'
 require "${REPO_ROOT}/server/gradle/tasks/development.gradle" "'serverDevH2Test'"
@@ -117,8 +121,6 @@ reject "${REPO_ROOT}/build.gradle" 'gradle/tasks/environment-profiles.gradle'
 
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_CREATE_TEST_USER'
 reject "${ROOT_DIR}/scripts/compose_runtime.py" 'WEAVE_TEST_USERS_FILE'
-reject "${ROOT_DIR}/keycloak/identity_ops.py" 'WEAVE_TEST_USERS_FILE'
-reject "${ROOT_DIR}/keycloak/identity_ops.py" 'kcadm.call("set-password"'
 reject "${ROOT_DIR}/compose.yaml" '/var/run/docker.sock'
 reject "${ROOT_DIR}/compose.yaml" 'OpenProject'
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_IDENTITY_EVENTS_HMAC_SECRET'

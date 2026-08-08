@@ -255,7 +255,6 @@ services:
       KC_TRUSTSTORE_PATHS: /opt/weave/trust/ca.pem
     secrets:
       - keycloak-db-password
-      - keycloak-bootstrap-admin-password
     volumes:
       - ./scripts/run-keycloak.sh:/opt/weave/run-keycloak.sh:ro
       - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/opt/weave/trust/ca.pem:ro
@@ -273,11 +272,15 @@ services:
       retries: 30
       start_period: 40s
 
-  identity-admin-key-init:
-    profiles: *core-profiles
-    image: ${WEAVE_IDENTITY_OPS_IMAGE:-weave-keycloak-identity-ops:26.7.0}
-    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-identity-admin-key-init
-    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
+  # These two services are never part of an environment profile. Operators
+  # invoke them only through compose.sh keycloak-migration-apply while the
+  # rendered manifest reports the exact post-import FGAP operation as blocked.
+  keycloak-realm-migration-bootstrap:
+    profiles:
+      - identity-migration
+    image: ${WEAVE_KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7.0}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-keycloak-realm-migration-bootstrap
+    user: "${WEAVE_RUNTIME_UID:-1000}:0"
     restart: "no"
     read_only: true
     security_opt:
@@ -285,29 +288,48 @@ services:
     cap_drop:
       - ALL
     entrypoint:
-      - python3
-      - /opt/weave/identity_admin_key_init.py
-    volumes:
-      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/keycloak:/authority/output
+      - /bin/bash
+      - /opt/weave/run-keycloak.sh
+    command:
+      - bootstrap-admin
+      - service
+      - --client-id
+      - weave-realm-migration-bootstrap
+      - --client-secret:env=KC_BOOTSTRAP_ADMIN_CLIENT_SECRET
+      - --no-prompt
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_PORT: "5432"
+      KC_DB_URL_DATABASE: ${WEAVE_KEYCLOAK_DB_NAME:-weave_keycloak}
+      KC_DB_SCHEMA: public
+      KC_DB_USERNAME: ${WEAVE_KEYCLOAK_DB_USERNAME:-keycloak}
     secrets:
-      - source: identity-admin-private-jwk
-        target: /authority/private/weave-identity-admin-private-jwk.json
+      - keycloak-db-password
+      - source: keycloak-realm-migration-bootstrap-secret
+        target: keycloak-realm-migration-bootstrap-secret
         uid: "${WEAVE_RUNTIME_UID:-1000}"
-        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        gid: "0"
         mode: 0600
+    volumes:
+      - ./scripts/run-keycloak.sh:/opt/weave/run-keycloak.sh:ro
+      - keycloak-data:/opt/keycloak/data
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=0700,uid=${WEAVE_RUNTIME_UID:-1000},gid=0
     networks:
       weave:
     labels:
       <<: *weave-resource-labels
-      com.massimotter.weave.component: identity-admin-key-init
+      com.massimotter.weave.component: keycloak-realm-migration-bootstrap
       com.massimotter.weave.data-class: security-sensitive
       com.massimotter.weave.fresh-start-eligible: "false"
       com.massimotter.weave.one-shot: "true"
 
-  identity-ops:
-    profiles: *core-profiles
-    image: ${WEAVE_IDENTITY_OPS_IMAGE:-weave-keycloak-identity-ops:26.7.0}
-    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-identity-ops
+  keycloak-realm-migration:
+    profiles:
+      - identity-migration
+    image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-keycloak-realm-migration
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
     restart: "no"
     read_only: true
@@ -315,49 +337,23 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=${WEAVE_RUNTIME_UID:-1000},gid=${WEAVE_RUNTIME_GID:-1000}
-    depends_on:
-      keycloak:
-        condition: service_healthy
-      identity-admin-key-init:
-        condition: service_completed_successfully
-    command:
-      - plan
-    environment:
-      HOME: /tmp
-      XDG_CONFIG_HOME: /tmp
-      WEAVE_IDENTITY_ROTATION_EPOCH: ${WEAVE_IDENTITY_ROTATION_EPOCH:-}
-    volumes:
-      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/keycloak/desired-state.identity-admin-private-key-jwt.json:/config/desired-state.json:ro
-      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/keycloak/identity-admin-public-jwks.json:/run/secrets/keycloak-weave-identity-admin-public-jwks.json:ro
-      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/identity-ops:/evidence
     secrets:
-      - source: keycloak-bootstrap-admin-password
+      - source: keycloak-realm-migration-bootstrap-secret
+        target: keycloak-realm-migration-bootstrap-secret
         uid: "${WEAVE_RUNTIME_UID:-1000}"
         gid: "${WEAVE_RUNTIME_GID:-1000}"
         mode: 0600
-      - source: backend-client-jwk
-        target: keycloak-weave-backend-jwk.json
-        uid: "${WEAVE_RUNTIME_UID:-1000}"
-        gid: "${WEAVE_RUNTIME_GID:-1000}"
-        mode: 0600
-      - source: mcp-server-client-jwk
-        target: keycloak-weave-mcp-server-jwk.json
-        uid: "${WEAVE_RUNTIME_UID:-1000}"
-        gid: "${WEAVE_RUNTIME_GID:-1000}"
-        mode: 0600
-      - source: runtime-admin-client-jwk
-        target: agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin
-        uid: "${WEAVE_RUNTIME_UID:-1000}"
-        gid: "${WEAVE_RUNTIME_GID:-1000}"
-        mode: 0600
+    volumes:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}:/run/weave-generated:ro
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/keycloak/migrations:/run/weave-generated/keycloak/migrations
     networks:
       weave:
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
     labels:
       <<: *weave-resource-labels
-      com.massimotter.weave.component: identity-ops
-      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.component: keycloak-realm-migration
+      com.massimotter.weave.data-class: security-sensitive
       com.massimotter.weave.fresh-start-eligible: "false"
       com.massimotter.weave.one-shot: "true"
 
@@ -826,6 +822,46 @@ services:
       com.massimotter.weave.one-shot: "true"
       com.massimotter.weave.operation: schema-receipt-verify
 
+  keycloak-realm-migration-receipt-check:
+    profiles: *application-profiles
+    image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-keycloak-realm-migration-receipt-check
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
+    restart: "no"
+    read_only: true
+    network_mode: none
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    entrypoint:
+      - /bin/sh
+      - -euc
+    command:
+      - |
+        exec java -jar /app/app.jar keycloak-realm-migration-receipt-check \
+          --artifact-root=/run/weave-generated \
+          --manifest-digest="$${WEAVE_KEYCLOAK_MIGRATION_MANIFEST_DIGEST}" \
+          --baseline-digest="$${WEAVE_KEYCLOAK_MIGRATION_BASELINE_DIGEST}" \
+          --target-revision="$${WEAVE_KEYCLOAK_MIGRATION_TARGET_REVISION}" \
+          --backup-proof-file=/run/weave-generated/keycloak/migrations/fgap-v2-primary-organization-post-import.backup-proof.json \
+          --environment="$${WEAVE_KEYCLOAK_MIGRATION_ENVIRONMENT}" \
+          --candidate-commit="$${WEAVE_KEYCLOAK_MIGRATION_CANDIDATE_COMMIT}" \
+          --compose-project="$${WEAVE_KEYCLOAK_MIGRATION_COMPOSE_PROJECT}"
+    env_file:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/keycloak/migrations/receipt-check.env
+    volumes:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}:/run/weave-generated:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: keycloak-realm-migration-receipt-check
+      com.massimotter.weave.data-class: runtime-ephemeral
+      com.massimotter.weave.fresh-start-eligible: "false"
+      com.massimotter.weave.one-shot: "true"
+      com.massimotter.weave.operation: keycloak-realm-migration-receipt-verify
+
   backend:
     <<: *weave-service
     labels:
@@ -845,7 +881,7 @@ services:
         condition: service_healthy
       agent-runtime-keys-init:
         condition: service_completed_successfully
-      identity-admin-key-init:
+      keycloak-realm-migration-receipt-check:
         condition: service_completed_successfully
     env_file:
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/backend/public.env
@@ -994,8 +1030,8 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/backend-db-password
   keycloak-db-password:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-db-password
-  keycloak-bootstrap-admin-password:
-    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-bootstrap-admin-password
+  keycloak-realm-migration-bootstrap-secret:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-realm-migration-bootstrap-secret
   mas-db-password:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/mas-db-password
   synapse-db-password:

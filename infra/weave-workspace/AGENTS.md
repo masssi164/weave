@@ -3,13 +3,14 @@
 This directory implements the single supported local/single-host deployment authority described
 by specification ADR 0017. The exact operator environments and Compose topology profiles are
 `dev`, `dogfood`, `prod`, and `e2e`; do not add a parallel Compose graph, compatibility selector,
-or executable OpenTofu/Terraform fallback. `dev-tools` is the sole optional profile and may be
-combined only with `dev` to start Mailpit.
+or executable OpenTofu/Terraform fallback. `dev-tools`, `provider-matrix`,
+`provider-nextcloud`, and `storage-s3` are the closed optional profile set. Each provider/storage
+profile requires its exact matching provider configuration and remains fail-closed until qualified.
 
 ## Owned files
 
-- `compose.yaml`: common PostgreSQL, Keycloak, MAS, Synapse, Nextcloud, Caddy, backend, and MCP
-  service graph with stable named networks/volumes and ownership labels.
+- `compose.yaml`: common PostgreSQL, Keycloak, Caddy, backend, MCP, native storage, and optional
+  provider definitions with stable named networks/volumes and ownership labels.
 - `compose.<environment>.yaml`: narrow environment-specific overlays.
 - `environments/`: public deployment coordinates. Dogfood/e2e/prod examples must be copied to a
   private operator file supplied through `WEAVE_ENV_FILE`.
@@ -18,9 +19,8 @@ combined only with `dev` to start Mailpit.
   validation. It must never print values.
 - `scripts/render_config.py`: deterministic renderer from the pinned canonical desired state.
 - `scripts/compose_runtime.py` and `compose.sh`: the only normal lifecycle interface.
-- `keycloak/`: rootless one-shot desired-state reconciliation through the pinned official
-  Keycloak `kc.sh` and `kcadm.sh` interfaces. It must not retain a broad administrator or
-  expose raw Admin REST responses.
+- `keycloak/`: canonical realm projection support plus narrowly scoped OAuth verification helpers.
+  Static state enters through realm import; dynamic human lifecycle belongs to Weave Server.
 - `database/postgres-reconcile.sh`: idempotent provider database/role and reconciliation-control
   schema convergence.
 - `backup.sh` and `adoption-rehearsal.sh`: private candidate-bound backup and isolated adoption
@@ -35,9 +35,8 @@ compose.sh <environment> secrets-init
 compose.sh <environment> render
 compose.sh <environment> config
 compose.sh <environment> prepare
-compose.sh <environment> identity-apply
+compose.sh <environment> keycloak-migration-apply
 compose.sh <environment> up
-compose.sh <environment> identity-verify
 ```
 
 Dogfood/e2e/prod require digest-pinned images and a private `WEAVE_ENV_FILE`. The optional
@@ -58,10 +57,9 @@ target only that derived namespace.
   reports, logs, or support bundles. Secret files are regular, non-symlink, least-readable files.
 - Keep workload scope `mcp.tools`, exact resource/audience binding, per-cell workload clients,
   and `private_key_jwt`; do not restore shared/public MCP credentials or bearer relay.
-- Identity Ops plan/apply/verify must be idempotent and fail closed on partial or ambiguous
-  readback, non-empty second plan, secret-capture failure, or redaction findings.
-- Do not delete managed or unmanaged Keycloak resources in ordinary reconciliation. Tombstones
-  require their separately verified protected path.
+- The bounded Keycloak migration must fail closed on partial or ambiguous readback, a non-empty
+  second plan, missing bootstrap-authority deletion, or any stale artifact/receipt digest.
+- Routine startup must not reconcile Keycloak state or mount a bootstrap credential.
 - Never remove persistent volumes from `down`. Destructive isolated cleanup requires exact
   ownership labels and run binding.
 - Run `../../gradlew infraStatic` plus relevant profile config and Keycloak tasks after changes.

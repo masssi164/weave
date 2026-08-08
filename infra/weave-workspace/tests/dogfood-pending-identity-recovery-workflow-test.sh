@@ -19,4 +19,4 @@ reject "${WORKFLOW}" 'keycloak-sanitizer'
 reject "${WORKFLOW}" 'keycloak-event-listener'
 reject "${WORKFLOW}" './compose.sh dogfood'
 
-printf 'DOGFOOD_PENDING_IDENTITY_RECOVERY_CONTRACT status=guarded authority=identity-ops supportSafe=true\n'
+printf 'DOGFOOD_PENDING_IDENTITY_RECOVERY_CONTRACT status=guarded authority=server-migration supportSafe=true\n'

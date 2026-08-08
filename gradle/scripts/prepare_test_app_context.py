@@ -126,7 +126,6 @@ def main() -> int:
         "WEAVE_FILES_URL": f"https://files.weave.test:{https_port}",
         "WEAVE_FILES_PUBLIC_AUTHORITY": f"files.weave.test:{https_port}",
         "WEAVE_KEYCLOAK_IMAGE": placeholder,
-        "WEAVE_IDENTITY_OPS_IMAGE": placeholder,
         "WEAVE_BACKEND_IMAGE": placeholder,
         "WEAVE_MCP_IMAGE": placeholder,
     }

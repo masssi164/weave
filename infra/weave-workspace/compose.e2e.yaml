@@ -9,7 +9,6 @@ services:
     # E2E must never inherit the production SMTP credential mount.
     secrets: !override
       - keycloak-db-password
-      - keycloak-bootstrap-admin-password
 
   mailpit:
     environment:

@@ -29,7 +29,6 @@ from realm_renderer import (  # noqa: E402
 
 
 CORE_TEXT_SECRETS = (
-    "keycloak-bootstrap-admin-password",
     "postgres-admin-password",
     "backend-db-password",
     "identity-reference-hmac-key",
@@ -408,6 +407,15 @@ def _validate_existing(context: ComposeContext) -> None:
         raise ContractError(
             "retired identity-admin shared secret exists; Fresh Start or explicit secure removal is required"
         )
+    for retired in (
+        "keycloak-bootstrap-admin-password",
+        "keycloak-realm-migration-bootstrap-secret",
+    ):
+        path = context.secret_root / retired
+        if path.exists() or path.is_symlink():
+            raise ContractError(
+                f"retired or temporary Keycloak bootstrap SecretRef is present outside an explicit migration: {retired}"
+            )
     matrix_selected = context.env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse"
     nextcloud_selected = (
         context.env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav"
@@ -492,6 +500,15 @@ def initialize(context: ComposeContext) -> None:
         raise ContractError(
             "retired identity-admin shared secret exists; Fresh Start or explicit secure removal is required"
         )
+    for retired in (
+        "keycloak-bootstrap-admin-password",
+        "keycloak-realm-migration-bootstrap-secret",
+    ):
+        path = context.secret_root / retired
+        if path.exists() or path.is_symlink():
+            raise ContractError(
+                f"retired or temporary Keycloak bootstrap SecretRef is present outside an explicit migration: {retired}"
+            )
     if context.environment == "prod":
         _validate_existing(context)
         _project_machine_public_jwks(context)

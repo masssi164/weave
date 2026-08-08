@@ -49,7 +49,7 @@ Prepare provider dependencies, then run Spring Boot separately with H2:
 ./gradlew :server:serverDevBoot
 ```
 
-`composeDevDependenciesReady` builds the rootless Identity Ops image from the pinned official Keycloak distribution, initializes named SecretRefs, renders the `dev` Compose model, reconciles PostgreSQL/Keycloak/Nextcloud, and starts only provider dependencies. `serverDevBoot` starts the host process with `application-dev.yml`: Flyway owns the schema, Hibernate validates it, Open EntityManager in View is disabled, and H2 runs in PostgreSQL compatibility mode. Use `./gradlew :server:serverDevHostSmoke` for a bounded boot/readiness/E2E smoke and `./gradlew :server:serverPostgresIntegrationTest` for the real-PostgreSQL persistence lane.
+`composeDevDependenciesReady` builds the provenance-bound Keycloak runtime and renders the `dev` realm baseline, but the deferred FGAP post-import migration is currently qualified only for backup-gated dogfood/prod. Dev remains fail-closed until the separately reviewed disposable-environment migration contract lands; do not fabricate a receipt. Once unblocked, `serverDevBoot` remains the host H2 process and `./gradlew :server:serverPostgresIntegrationTest` remains the real-PostgreSQL persistence lane.
 
 Nextcloud trusts only the exact Caddy address discovered on the active Docker network. `install.sh` pins `HTTP_X_FORWARDED_FOR`, keeps brute-force protection enabled, provisions calendars through local OCC, and then performs one bounded authenticated WebDAV check plus one CalDAV check. Backend readiness polling does not perform provider authentication, and a `429` stops without retrying.
 
@@ -69,7 +69,7 @@ For a real single-host deployment, start here:
 - [Matrix/Synapse southbound Chat Application Service](docs/matrix-synapse-chat-appservice.md): private provider credential, namespace, callback, backup/restore, and isolated proof boundaries.
 - [Weaver runtime lifecycle](docs/weaver-runtime-lifecycle.md): Agent Runtime Control cell lifecycle, signed RuntimeProfile v2 input, zero durable cell-byte boundary, external encrypted state, per-cell Keycloak workload identity, and deletion evidence.
 - [Weave MCP workload contract](docs/weave-mcp-tool-contract.md): Spring AI transport, workload-only OIDC admission, protected-resource discovery, token exchange, current ARC context, and fail-closed empty catalogs.
-- [Identity environment parity](docs/identity-environment-parity.md): one Keycloak identity behavior across dogfood and production, plus the persistent dogfood iPhone/Mailpit verification boundary.
+- [Identity environment parity](docs/identity-environment-parity.md): one realm-import/Server-lifecycle model across environments, plus the persistent dogfood iPhone/Mailpit verification boundary.
 
 After installation, verify public and host-local state:
 
@@ -117,7 +117,7 @@ Optional providers are fail-closed by default:
 - `docs/matrix-default-workspace.md`: default Matrix space/room provisioning.
 - `docs/matrix-e2ee-posture.md`: current honest E2EE posture.
 - `docs/calendar-caldav-external-clients.md`: CalDAV/CardDAV discovery, revocable client credentials, and fail-closed profile boundaries.
-- `weave-workspace/compose.sh`: the closed `dev|dogfood|prod|e2e` lifecycle and one-shot Keycloak Identity Ops interface.
+- `weave-workspace/compose.sh`: the closed `dev|dogfood|prod|e2e` lifecycle and bounded Keycloak migration interface.
 - `weave-workspace/install.sh`: idempotent environment preparation and apply wrapper.
 - `weave-workspace/teardown.sh`: destructive cleanup for an exact isolated-E2E namespace only; persistent environments have no destructive teardown path.
 - `weave-workspace/release-verify.sh`: public endpoint verification for non-local single-host installs.
@@ -130,7 +130,7 @@ Optional providers are fail-closed by default:
 - `weave-workspace/weave-mcp-tool-contract.json`: support-safe canonical domain contract and active Spring AI MCP runtime evidence.
 - `weave-workspace/compose.yaml` plus narrow environment overlays: the native-provider default
   process graph, optional southbound provider profiles, and its four operator environments.
-- `weave-workspace/keycloak/`: rootless one-shot Desired-State Identity Ops without human-user fixtures.
+- `weave-workspace/keycloak/`: canonical secret-free realm projection and bounded OAuth verification helpers.
 
 ## Validation
 

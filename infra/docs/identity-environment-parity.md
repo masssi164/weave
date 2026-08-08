@@ -1,9 +1,10 @@
 # Identity environment parity
 
-`dogfood`, `prod`, and disposable `e2e` run the same identity behavior: the approved Keycloak
-runtime, the same canonical desired state, native organization roles, and OIDC Authorization Code
-with PKCE. There is no dogfood-only login branch and no production-only realm model. Delivery
-lanes never select an application environment.
+`dev`, `dogfood`, `e2e`, and `prod` run the same identity model: the approved downstream Keycloak
+26.7 runtime, one generated secret-free realm baseline, the bounded Server-owned post-import
+migration, native organization roles, and OIDC Authorization Code with PKCE. There is no
+environment-specific login branch and no general identity reconciler. Delivery lanes never select
+an application environment.
 
 Only reviewed operator coordinates differ:
 

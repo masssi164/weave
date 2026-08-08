@@ -42,7 +42,6 @@ PUBLIC_PROCESS_COORDINATES = {
 DEPLOYMENT_PROCESS_OVERRIDES = {
     "WEAVE_BACKEND_IMAGE",
     "WEAVE_KEYCLOAK_IMAGE",
-    "WEAVE_IDENTITY_OPS_IMAGE",
     "WEAVE_MCP_IMAGE",
 }
 OPERATOR_PROCESS_INPUTS = {
@@ -53,7 +52,6 @@ OPERATOR_PROCESS_INPUTS = {
     "WEAVE_E2E_RUN_ID",
     "WEAVE_E2E_RUN_NAMESPACE",
     "WEAVE_E2E_STACK_SCOPE",
-    "WEAVE_IDENTITY_ROTATION_EPOCH",
     "WEAVE_RESOURCE_GENERATION",
     "WEAVE_RESOURCE_STACK",
     "WEAVE_SPEC_CORPUS_ROOT",
@@ -481,7 +479,6 @@ def _validate_environment(environment: str, profile: str, env: Mapping[str, str]
             "WEAVE_POSTGRES_IMAGE",
             "WEAVE_CADDY_IMAGE",
             "WEAVE_KEYCLOAK_IMAGE",
-            "WEAVE_IDENTITY_OPS_IMAGE",
             "WEAVE_BACKEND_IMAGE",
             "WEAVE_MCP_IMAGE",
         ]
@@ -494,7 +491,7 @@ def _validate_environment(environment: str, profile: str, env: Mapping[str, str]
         if "storage-s3" in active_profiles:
             image_names.append("WEAVE_RUNTIME_STATE_IMAGE")
         local_candidate_images = {
-            "WEAVE_BACKEND_IMAGE", "WEAVE_IDENTITY_OPS_IMAGE", "WEAVE_MCP_IMAGE"
+            "WEAVE_BACKEND_IMAGE", "WEAVE_MCP_IMAGE"
         } if environment == "e2e" else set()
         if environment == "e2e" and env.get("WEAVE_STACK_SCOPE") == "isolated":
             # Live E2E resolves the pinned stock multi-arch index to its exact

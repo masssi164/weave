@@ -20,7 +20,6 @@ from compose_env import (
     ComposeContext,
     ContractError,
     compose_environment,
-    derived_profiles,
     load_context,
 )
 from recovery_receipt import database_inventory_digest
@@ -57,17 +56,7 @@ SERVICE_VOLUMES = {
 
 
 def active_volume_artifacts(context: ComposeContext) -> tuple[tuple[str, str, str], ...]:
-    profiles = set(
-        getattr(
-            context,
-            "active_profiles",
-            derived_profiles(
-                getattr(context, "environment", context.profile),
-                context.profile,
-                context.env,
-            ),
-        )
-    )
+    profiles = set(context.active_profiles)
     selected = {
         "WEAVE_NATIVE_FILES_DATA_VOLUME",
         "WEAVE_CADDY_DATA_VOLUME",

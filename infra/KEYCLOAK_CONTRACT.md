@@ -1,30 +1,31 @@
-# Keycloak and Identity Ops contract
+# Keycloak authority and migration contract
 
-The pinned Weave Specification Corpus and ADR 0017 are normative. This document is the
-operator-facing implementation projection of the
-`weave.keycloak-desired-state/v2` contract.
+The pinned Weave Specification Corpus is normative. This document describes the executable
+infrastructure projection: Keycloak is the identity and OAuth authority, while Weave Server owns
+dynamic product identity lifecycle through its bounded Admin REST anti-corruption layer.
 
-## Architectural boundary
+## Ownership
 
-Keycloak is Weave's fixed identity-management backbone and identity authority, not the Weave
-product API. Human authentication, local users, organizations, groups, roles, invitations,
-required actions, credentials, sessions, workload clients, and upstream identity integration are
-all administered through Keycloak. OIDC and OAuth 2.0 are the client-facing seams; SAML,
-OIDC brokering, and LDAP/AD federation are Keycloak-managed upstream seams. Identity is not a
-runtime-selectable southbound provider category and does not enter the provider patch panel. No
-client may depend on Keycloak Admin REST shapes.
+- The generated, secret-free `keycloak/import/weave-realm.json` is the canonical static realm
+  baseline. It is projected from the pinned desired state and public JWKS derived from each
+  machine identity's owner-held private key.
+- Weave Server owns human invitation, membership, role, session, and organization lifecycle.
+- Agent Runtime Control owns dynamic workload client registration through the restricted DCR
+  boundary.
+- MCP has no Keycloak administrative credential or realm mutation authority.
+- Admin Console uses browser OIDC and Weave Server `/admin/**`; it never calls Keycloak Admin REST.
 
-The fixed realm baseline is reconciled only by the `infra` module. Server startup, the Flutter
-client, Admin Console, and MCP server do not import or mutate realm state. Dynamic Weaver
-workload clients remain Agent Runtime Control scope and are not inferred from a human role.
+There is no general-purpose Identity Ops reconciler, permanent `kcadm` dependency, or second
+identity authority. Routine startup imports the baseline and verifies one exact migration receipt.
 
-The organization roles are `owner`, `admin`, `member`, and `guest`. Their flat Keycloak
-projections are `/owners`, `/admins`, `/members`, and `/guests`. The independent Weaver
-capability `agent-runtime.entitled` projects to `/capabilities/weaver`; that group path is an IDM
-implementation detail and never a Flutter, MCP, public API, or domain contract. Human role and
-Weaver capability remain orthogonal.
+## Static import and File Vault
 
-## Exact runtime profiles
+The renderer emits one realm import plus a manifest-bound migration bundle. Realm artifacts contain
+no private JWK members or real shared-secret values. Dogfood sends invitation mail to its private
+persistent Mailpit instance over implicit TLS and has no SMTP shared secret. Production SMTP
+credentials arrive as a mode-restricted SecretRef through Keycloak File Vault; the realm contains
+only the vault expression. First-party machine clients use `private_key_jwt`: Keycloak receives
+public JWKS, and each private JWK remains with its owning process.
 
 The only operator/application environments are:
 
@@ -49,95 +50,74 @@ into Keycloak File Vault as `weave_smtp-password`. Declarative production realm 
 The runtime uses the approved official Keycloak OCI index by exact digest. It is pulled and
 verified; it is not rebuilt, relabelled, or extended with a custom provider JAR or theme.
 Stock-image evidence records the approved reference, resolved local image ID, and RepoDigest.
-Weave source revision labels apply only to source-built backend, MCP, and Identity Ops images.
+Weave source revision labels apply only to source-built backend and MCP images.
 
 Authentication uses Authorization Code with PKCE S256 through the system browser. Password/direct
 grants and embedded login are disabled. Human/public and workload clients remain separate.
 
-## Rootless one-shot Identity Ops
+## Bounded post-import migration
 
-`infra/weave-workspace/keycloak/identity_ops.py` is the only fixed-baseline reconciler. It runs as
-a rootless, one-shot container and uses the matching official Keycloak `kcadm.sh` distribution.
-It supports exactly `plan`, `apply`, and `verify`.
-
-The lifecycle creates one bounded bootstrap service-account credential, starts stock Keycloak,
-runs Identity Ops, verifies complete readback, and leaves no durable broad administrator. Evidence
-is written only to `WEAVE_GENERATED_ROOT/identity-ops/identity-ops.json`; it is support-safe and
-must contain no raw secret, access token, Admin REST body, member email, or provider response.
-
-Ordinary reconciliation creates or updates managed resources and never deletes managed or
-unmanaged resources. Destructive changes require a separate, reviewed tombstone/recovery contract
-with current backup-and-restore evidence. The former privileged supervisor, sanitizer sidecar,
-custom Keycloak event listener, and Docker-socket control plane are retired authorities.
-
-## Reproducible module tasks
-
-The `infra` module owns environment and Identity Ops tasks under
-`infra/gradle/tasks/environment-profiles.gradle`, applied by `infra/build.gradle`.
+Keycloak 26.7 imports client authorization before organizations, so the specific-organization FGAP
+permission requires one post-import operation. A fresh install runs:
 
 ```text
-./gradlew :infra:tasks --group "weave infrastructure"
+compose.sh <environment> keycloak-migration-apply
+```
 
-./gradlew :infra:composeDevConfig
-./gradlew :infra:composeDogfoodConfig
-./gradlew :infra:composeE2eConfig
-./gradlew :infra:composeProdConfig
+The operation is explicit and bounded:
 
-./gradlew :infra:identityDevPlan
-./gradlew :infra:identityDevApply
-./gradlew :infra:identityDevVerify
+1. render and digest-validate the exact baseline, migration manifest, and bundle;
+2. start Keycloak once to import the default-deny baseline;
+3. create a mode-0600 random bootstrap SecretRef;
+4. stop Keycloak and invoke `kc.sh bootstrap-admin service` for the exact
+   `weave-realm-migration-bootstrap` client;
+5. restart Keycloak and invoke the Weave Server migration CLI with a secret-file coordinate,
+   never a secret value in argv;
+6. require semantic readback, an empty second plan, deletion of the bootstrap client, and negative
+   readback proving absence;
+7. atomically write a support-safe receipt and delete the temporary SecretRef.
 
-./gradlew :infra:identityOpsImageBuild
+The temporary bootstrap services belong to the inactive internal `identity-migration` profile and
+are reachable only by explicit service targeting. Normal Keycloak, Server, MCP, and receipt-check
+services do not mount the bootstrap SecretRef. The migration services receive no first-party
+private JWK. Failed or stale receipts block application startup.
+
+## Runtime gate
+
+Dogfood, E2E, and production Server containers depend on the networkless, secretless
+`keycloak-realm-migration-receipt-check` one-shot command. Dogfood/prod can satisfy it through the
+qualified backup-gated migration; dev/E2E fail before application readiness because their
+disposable migration contract is not yet qualified. The receipt binds:
+
+- exact manifest, bundle, baseline-artifact, and semantic baseline digests;
+- Keycloak `26.7.0` and the one qualified operation ID;
+- a closed mutation-code set and mutation count;
+- semantic readback and empty second plan;
+- bootstrap authority deletion and negative readback;
+- `supportSafe=true` and `containsSecretValues=false`.
+
+Re-running the explicit migration after a valid receipt is a non-mutating success. Routine `up`
+never performs identity reconciliation.
+
+## Operator tasks
+
+```text
+./gradlew :infra:keycloakDogfoodMigrationApply
+./gradlew :infra:keycloakProdMigrationApply
 ./gradlew :infra:keycloakRuntimeImageBuild
 ```
 
-The same `plan`/`apply`/`verify` task family exists for `dogfood`, `prod`, and `e2e`. Those
-environments require a private reviewed `WEAVE_ENV_FILE`; E2E additionally requires an isolated
-run identifier. Desired State never contains human users or passwords.
-Automated product proof creates the owner/member through Weave invitations, completes Keycloak
-required actions in a real browser, and retains generated passwords only in process memory.
-The realm keeps native email verification enabled. Invitation registration therefore follows
-the organization action link and Keycloak's subsequent one-time `VERIFY_EMAIL` action link in
-the same browser session before credential setup. Neither Identity Ops nor Weave Server marks
-email as verified through an administrative API.
+`install.sh dogfood|prod` invokes the migration once before normal startup. Dev/E2E remain
+fail-closed until a separately reviewed disposable-environment migration contract exists. All destructive E2E
+cleanup, provenance, backup/restore, rootless execution, capability-drop, and support-safety rules
+remain unchanged.
 
-Identity Ops verifies the positive delegated-administration boundary after convergence: the
-bounded service account must be able to read the exact primary organization and its own
-service-account user. Keycloak 26.7 cannot combine the required all-Users lifecycle permission
-with a realm-wide negative password-reset permission, so Weave makes no false provider-level
-deny claim. The administrative client remains Guarded behind a closed backend operation
-allowlist and an internal network boundary. Credential, required-action, impersonation,
-session-creation, and general session routes are absent; only member-bound logout after current
-organization membership verification is allowed for revocation/offboarding. A failed positive
-probe blocks apply/readiness without retaining the token or provider response.
+Desired state never contains human users or passwords. Automated product proof creates owners and
+members through Weave Server invitations, completes Keycloak required actions in a real browser,
+and retains generated passwords only in process memory. Neither infrastructure nor Weave Server
+marks email verified through an administrative API.
 
-## Session correctness
-
-Realm reconciliation and user-session reconciliation are distinct:
-
-- Identity Ops converges realm, clients, roles, groups, scopes, and fixed service accounts.
-- `POST /api/v1/identity/session/reconcile` is a provider-neutral product use case. It checks the
-  authenticated subject's current native organization entitlement and returns a typed result.
-- If the response says access changed, the client performs exactly one standard refresh-token
-  grant before workspace bootstrap. It never calls Keycloak Admin REST and never loops refreshes.
-
-A custom Keycloak event listener is not a correctness dependency. A future event adapter may
-reduce latency only after separate threat modelling and interoperability evidence.
-
-## Release evidence
-
-`WEAVE_CANDIDATE_COMMIT` binds lane, deployment, and human evidence. Source-built images bind to
-the protected, tree-equivalent `WEAVE_IMAGE_SOURCE_COMMIT`. The stock Keycloak image instead binds
-to its approved upstream OCI digest. `candidate-source-mapping.json` carries the closed four-image
-set: `backend`, `mcp`, `identity-ops`, and `keycloak`.
-
-An integrated run is acceptable only when:
-
-1. the normalized `e2e` Compose model is stable and isolated;
-2. Identity Ops apply and verify succeed;
-3. a second explicit Identity Ops plan has `operationCount == 0`;
-4. exact image and pinned-spec-corpus provenance is retained;
-5. teardown touches only the exact owned isolated `e2e` namespace; and
-6. support artifacts pass secret and identifier safety checks.
-
-Availability smoke evidence does not replace authenticated E2E behavior or physical-iPhone proof.
+`POST /api/v1/identity/session/reconcile` remains the provider-neutral post-login use case. It
+checks current organization entitlement and permits at most one standard refresh-token grant before
+workspace bootstrap. Admin credential, required-action, impersonation, and general session routes
+remain outside the Server operation allowlist.

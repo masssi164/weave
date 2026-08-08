@@ -23,7 +23,7 @@ KEYCLOAK_ROOT = SCRIPT_ROOT.parent / "keycloak"
 sys.path.insert(0, str(SCRIPT_ROOT))
 sys.path.insert(0, str(KEYCLOAK_ROOT))
 
-import identity_ops  # noqa: E402
+import oauth_probe  # noqa: E402
 import init_secrets  # noqa: E402
 
 
@@ -518,7 +518,7 @@ def workload_token(
     client_id: str,
     private_jwk: dict[str, Any],
 ) -> None:
-    status, response = identity_ops.private_key_jwt_token_response(
+    status, response = oauth_probe.private_key_jwt_token_response(
         base,
         realm,
         client_id,
@@ -529,10 +529,10 @@ def workload_token(
     if status != 200 or not isinstance(access_token, str):
         raise ContractError("workload effective-role projection is not exact")
     try:
-        realm_roles, client_roles = identity_ops.access_token_role_projection(
+        realm_roles, client_roles = oauth_probe.access_token_role_projection(
             access_token
         )
-    except identity_ops.IdentityOpsError as error:
+    except oauth_probe.OAuthProbeError as error:
         raise ContractError(
             "workload effective-role projection is malformed"
         ) from error
@@ -568,7 +568,7 @@ def run(args: argparse.Namespace) -> None:
         f"{base}/realms/{args.realm}/clients-registrations/openid-connect"
     )
     admin_jwk = private_json(args.runtime_admin_jwk)
-    status, token_response = identity_ops.private_key_jwt_token_response(
+    status, token_response = oauth_probe.private_key_jwt_token_response(
         base,
         args.realm,
         "weave-agent-runtime-admin",
@@ -580,9 +580,9 @@ def run(args: argparse.Namespace) -> None:
         raise ContractError("runtime administration authority is not exact")
     try:
         admin_realm_roles, admin_client_roles = (
-            identity_ops.access_token_role_projection(admin_token)
+            oauth_probe.access_token_role_projection(admin_token)
         )
-    except identity_ops.IdentityOpsError as error:
+    except oauth_probe.OAuthProbeError as error:
         raise ContractError(
             "runtime administration token role projection is malformed"
         ) from error
@@ -593,7 +593,7 @@ def run(args: argparse.Namespace) -> None:
     ):
         raise ContractError("runtime administration authority is not exact")
     if (
-        identity_ops.administration_read_probe_status(
+        oauth_probe.administration_read_probe_status(
             base, args.realm, "clients", admin_token
         )
         not in {401, 403}

@@ -12,7 +12,7 @@ Prepare these explicitly:
   `e2e.env.example`, or `prod.env.example`, stored outside the checkout;
 - exact digest references for every dogfood/e2e/prod image;
 - absolute `WEAVE_GENERATED_ROOT`, `WEAVE_SECRET_ROOT`, and `WEAVE_TLS_ROOT` paths;
-- an unprivileged deployment operator able to run the rootless one-shot Identity Ops container;
+- an unprivileged deployment operator able to run the rootless one-shot Server migration command;
 - TLS certificate/key material and an operator-owned mode-0700 backup root outside the checkout.
 
 Recommended file permissions on the host:
@@ -77,33 +77,31 @@ Notes:
 
 - `compose.yaml` plus the selected `compose.dev.yaml`, `compose.dogfood.yaml`,
   `compose.prod.yaml`, or `compose.e2e.yaml` overlays is the only deployment model;
-- `install.sh <environment>` is the supported idempotent apply path and runs
-  `secrets-init → render → config → prepare → identity-apply → up → identity-verify`;
+- `install.sh dogfood|prod` is the supported idempotent apply path and runs
+  `secrets-init → render → prepare → verified private backup → bounded Keycloak migration → up`;
 - dogfood/e2e/prod require a private reviewed `WEAVE_ENV_FILE`, exact image digests, and an exact candidate
   commit; never use `:latest`;
 - for dogfood promotion, `WEAVE_CANDIDATE_COMMIT` remains the checked-out lane SHA used by
   runtime, backup, deployment, and human evidence. Locally built images use
   `WEAVE_IMAGE_SOURCE_COMMIT`, derived by the protected workflow from fetched `origin/dev`.
-  The source must be an ancestor with the same Git tree, and the closed four-image mapping is
+  The source must be an ancestor with the same Git tree, and the closed three-image mapping is
   recorded in `candidate-source-mapping.json`; never accept the source as workflow input. The
   successful isolated run retains those exact IDs on the locked runner, and persistent dogfood
   verifies and consumes them without rebuilding;
-- Identity Ops runs rootless, one-shot, without the Docker socket, and removes its temporary
-  bootstrap authority after every operation;
+- the Server migration CLI runs rootless and one-shot without the Docker socket, proves an empty
+  second plan, deletes its temporary bootstrap client, and negatively verifies absence;
 - build/publish both `weave-backend` and `weave-mcp-server`; MCP is a separate workload boundary
   and must not be folded into the member API process;
-- repeat `identity-plan` after apply and require zero diff. Repeated `install.sh` must preserve
-  volume identity, credentials, organization/person identity, and sessions;
+- repeated migration apply validates the existing receipt without mutation. Repeated `install.sh`
+  must preserve volume identity, credentials, organization/person identity, and sessions;
 - Nextcloud trusts only the exact Caddy container address on the deployment network. Do not widen
   trusted proxies or disable brute-force protection;
 - the direct backend/MCP/provider host ports are loopback-bound. Public `/actuator` is denied;
   `/api/health/live` and `/api/health/ready` remain the public operational contract.
 
-Transition boundary: dogfood and E2E still have executable dependencies on Matrix, Nextcloud,
-and the one-shot Identity Ops reconciler in the common graph. This infra tranche does not claim
-those dependencies are gone. Their removal belongs to the server/provider and identity tranches.
-The repository-wide specification lock advances only when the dependent v4 projections land
-atomically.
+Transition boundary: Matrix and Nextcloud are optional provider profiles and no general identity
+reconciler remains. The deferred FGAP migration is qualified only for backup-gated dogfood/prod;
+dev and disposable E2E remain fail-closed pending their separately reviewed migration contract.
 
 For development, run provider dependencies separately from the host server:
 
@@ -280,8 +278,8 @@ supervisor, sanitizer image, custom provider JAR, direct member helper, and runt
 assumptions are retired authorities. The workflow refuses execution and cannot emit readiness.
 A future destructive retirement path must run against an isolated `e2e` clone of the dogfood
 identity topology, prove current private backup and isolated restore rehearsal, bind an exact
-subject and tombstone, and remain unable to delete active or ambiguous identities. It must never
-use the persistent dogfood namespace as its test fixture.
+subject and tombstone, run through the Server identity boundary, and remain unable to delete active
+or ambiguous identities. It must never use the persistent dogfood namespace as its test fixture.
 
 Physical-iPhone readiness still requires the normal user to complete the current invitation,
 perform a normal OIDC sign-in, and pass the standard Test Stack Deploy plus physical-device
@@ -293,8 +291,8 @@ Use the least destructive action that solves the problem:
 
 1. **Stop/restart:** `WEAVE_ENV_FILE=<reviewed-env> weave-workspace/compose.sh <profile> down`,
    followed by `install.sh <profile>`. `down` never removes named volumes or SecretRefs.
-2. **Repair declared drift:** rerun render/config/prepare and the protected Keycloak plan/apply/verify
-   sequence. Require the second plan to be empty.
+2. **Repair declared drift:** rerun render/config/prepare and the explicit Keycloak migration.
+   Require the receipt-bound second plan to be empty; normal startup never reconciles identity.
 3. **Rollback:** restore the previous coherent application image set and control/data snapshot under
    the reviewed release procedure. Do not rely on old/new API coexistence.
 4. **Isolated E2E cleanup only:** `teardown.sh e2e --isolated` requires the deterministic run
