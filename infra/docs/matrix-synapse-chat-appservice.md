@@ -1,5 +1,9 @@
 # Matrix/Synapse southbound Chat Application Service
 
+This is an optional interoperability/provider profile. `weave-native` is the Server composition
+default and requires no Application Service credential, Synapse, or MAS. The wiring below applies
+only when an environment explicitly selects `WEAVE_CHAT_PROVIDER=matrix-synapse`.
+
 The Weave client talks only to the Matrix Client-Server facade on the API
 origin. Spring authenticates the Keycloak member, enforces canonical
 authorization, commits canonical Chat state through the JPA relational port, and then calls Synapse

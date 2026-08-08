@@ -27,7 +27,7 @@ require "${ROOT_DIR}/scripts/render_config.py" '@internal path /api/internal/* /
 require "${ROOT_DIR}/scripts/render_config.py" 'respond @internal'
 
 require "${REPO_ROOT}/server/src/main/resources/application.yml" 'import: classpath:application-base.yml'
-require "${REPO_ROOT}/server/src/main/resources/application-base.yml" 'provider: ${WEAVE_CHAT_PROVIDER:matrix-synapse}'
+require "${REPO_ROOT}/server/src/main/resources/application-base.yml" 'provider: ${WEAVE_CHAT_PROVIDER:weave-native}'
 require "${REPO_ROOT}/server/src/main/resources/application-base.yml" 'as-token-file: ${WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE:}'
 require "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/config/MatrixApplicationServiceSecurityConfiguration.java" '.securityMatcher("/api/internal/chat/matrix/appservice/**")'
 require "${REPO_ROOT}/weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/chat/store/CanonicalChatPersistence.java" 'weave_chat_appservice_transactions'

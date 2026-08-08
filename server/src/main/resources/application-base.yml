@@ -108,9 +108,9 @@ weave:
       optional-client-scopes: ${WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES:agent-runtime.profile.read,mcp.tools,files.read}
       access-token-lifespan-seconds: ${WEAVE_AGENT_RUNTIME_ACCESS_TOKEN_LIFESPAN_SECONDS:59}
   chat:
-    # Canonical chat has one durable JPA authority. Matrix/Synapse is the default
-    # southbound provider; switching providers never changes persistence.
-    provider: ${WEAVE_CHAT_PROVIDER:matrix-synapse}
+    # Canonical Chat has one durable JPA authority. Weave-native commits directly
+    # to it by default; Matrix/Synapse remains an explicit southbound adapter.
+    provider: ${WEAVE_CHAT_PROVIDER:weave-native}
     e2e-proof:
       # Isolated disposable stacks only. Persistent dogfood leaves this false and
       # does not mount the independent proof token.
