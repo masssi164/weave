@@ -1,10 +1,10 @@
 # Compose Workspace Guide
 
 This directory implements the single supported local/single-host deployment authority described
-by specification ADR 0017. The exact operator environments are `dev`, `dogfood`, `prod`, and
-`e2e`; do not add a parallel Compose graph or executable OpenTofu/Terraform fallback. The legacy
-internal profile selector `test` is CI compatibility only while external-provider dependencies
-remain executable, not a fifth operator environment.
+by specification ADR 0017. The exact operator environments and Compose topology profiles are
+`dev`, `dogfood`, `prod`, and `e2e`; do not add a parallel Compose graph, compatibility selector,
+or executable OpenTofu/Terraform fallback. `dev-tools` is the sole optional profile and may be
+combined only with `dev` to start Mailpit.
 
 ## Owned files
 
@@ -45,8 +45,10 @@ Dogfood/e2e/prod require digest-pinned images and a private `WEAVE_ENV_FILE`. Th
 root at the exact commit in `specs/weave-specs.lock.json`.
 
 `dev` contains only PostgreSQL/Keycloak infrastructure; run Server, MCP, and Admin Console on the
-host, with H2 permitted only for the host server. Dogfood/prod include the backend and MCP tier.
-E2E sets `WEAVE_E2E_STACK_SCOPE=isolated` and a bounded unique `WEAVE_E2E_RUN_ID`; cleanup may
+host, with H2 permitted only for the host server. Set `COMPOSE_PROFILES=dev,dev-tools` in a private
+dev environment file only when Mailpit is needed. Dogfood/prod include the backend and MCP tier;
+Mailpit is not part of either default graph. E2E includes Mailpit directly, sets
+`WEAVE_E2E_STACK_SCOPE=isolated`, and requires a bounded unique `WEAVE_E2E_RUN_ID`; cleanup may
 target only that derived namespace.
 
 ## Maintenance rules

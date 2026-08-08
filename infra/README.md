@@ -148,9 +148,10 @@ WEAVE_E2E_STACK_SCOPE=isolated WEAVE_E2E_RUN_ID=<unique-run-id> \
 ```
 
 The environment value is explicit and independent of the Git branch. `dogfood` is persistent;
-`e2e` is always disposable and run-unique. The old `test` selector and Gradle task aliases remain
-only so pre-existing CI can address the transitional application topology while the server-owned
-Matrix/Nextcloud/Identity Ops removal lands. New operator automation must not use them.
+`e2e` is always disposable and run-unique. The reviewed environment file is authoritative for
+`COMPOSE_PROFILES`; there is no second internal topology selector. Defaults select exactly the
+matching environment. A private dev environment may select `dev,dev-tools` to add Mailpit;
+dogfood and prod do not include Mailpit, while E2E includes it through the `e2e` profile.
 
 Compose itself remains the lifecycle engine. After the safety wrapper has created the protected
 SecretRefs, rendered configuration, and ownership-labeled external resources, read-only lifecycle
@@ -164,11 +165,10 @@ docker compose \
   --file compose.yaml \
   --file compose.dogfood.yaml \
   --project-name weave-dogfood \
-  --profile test ps
+  ps
 ```
 
-The final `--profile test` is a documented internal compatibility detail, not an environment
-choice. Use `compose.sh <environment> up/down` for mutation because that narrow wrapper still owns
+Use `compose.sh <environment> up/down` for mutation because that narrow wrapper still owns
 SecretRef permissions, provenance labels, resource adoption checks, identity reconciliation, and
 exact isolated cleanup. It does not select an environment from a branch.
 
@@ -197,10 +197,10 @@ bash weave-workspace/backup.sh dogfood
 
 ```sh
 WEAVE_RESTORE_PREFLIGHT_ONLY=true \
-bash weave-workspace/restore-private-backup.sh /var/backups/weave/<weave-test-timestamp-sha>
+bash weave-workspace/restore-private-backup.sh /var/backups/weave/<weave-dogfood-timestamp-sha>
 ```
 
-Direct restore apply remains `Guarded` until the reviewed Compose/control-store restore workflow has destructive rehearsal evidence. `adoption-rehearsal.sh test` is the one-time former-runtime adoption proof; it backs up the running stack and verifies database plus volume restoration in an isolated namespace before any existing persistent resource receives Compose ownership labels.
+Direct restore apply remains `Guarded` until the reviewed Compose/control-store restore workflow has destructive rehearsal evidence. `adoption-rehearsal.sh dogfood` is the one-time former-runtime adoption proof; it backs up the running stack and verifies database plus volume restoration in an isolated namespace before any existing persistent resource receives Compose ownership labels.
 
 - Create a redacted diagnostics bundle before sharing logs manually:
 

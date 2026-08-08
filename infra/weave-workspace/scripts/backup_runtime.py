@@ -356,8 +356,8 @@ def _require_no_pending_registration_operations(context: ComposeContext) -> None
 
 
 def backup(context: ComposeContext) -> Path:
-    if context.profile not in ("test", "prod"):
-        raise ContractError("private consistency backups are required for test/prod, not H2 host-dev")
+    if context.environment not in ("dogfood", "prod"):
+        raise ContractError("private consistency backups are required for dogfood/prod, not dev or disposable E2E")
     candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
     if not re.fullmatch(r"[0-9a-f]{40}", candidate):
         raise ContractError("WEAVE_CANDIDATE_COMMIT must bind the private backup to an exact candidate")
@@ -489,7 +489,7 @@ def backup(context: ComposeContext) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dogfood", "prod", "test"))
+    parser.add_argument("profile", choices=("dogfood", "prod"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     args = parser.parse_args()

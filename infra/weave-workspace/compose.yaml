@@ -24,7 +24,21 @@ x-weave-service: &weave-service
 
 x-core-profiles: &core-profiles
   - dev
-  - test
+  - dogfood
+  - e2e
+  - prod
+
+x-mail-profiles: &mail-profiles
+  - dev-tools
+  - e2e
+
+x-runtime-state-profiles: &runtime-state-profiles
+  - dogfood
+  - e2e
+
+x-application-profiles: &application-profiles
+  - dogfood
+  - e2e
   - prod
 
 services:
@@ -272,9 +286,7 @@ services:
       <<: *weave-resource-labels
       com.massimotter.weave.component: mail
       com.massimotter.weave.data-class: runtime-ephemeral
-    profiles:
-      - dev
-      - test
+    profiles: *mail-profiles
     image: ${WEAVE_MAILPIT_IMAGE:-axllent/mailpit:v1.27.8}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mailpit
     environment:
@@ -465,8 +477,7 @@ services:
       start_period: 30s
 
   runtime-state-volume-init:
-    profiles:
-      - test
+    profiles: *runtime-state-profiles
     image: ${WEAVE_RUNTIME_STATE_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-runtime-state-volume-init
     restart: "no"
@@ -503,8 +514,7 @@ services:
       com.massimotter.weave.component: runtime-state
       com.massimotter.weave.data-class: runtime-state-sensitive
       com.massimotter.weave.protocol: s3-compatible
-    profiles:
-      - test
+    profiles: *runtime-state-profiles
     image: ${WEAVE_RUNTIME_STATE_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-runtime-state
     restart: unless-stopped
@@ -547,8 +557,7 @@ services:
       start_period: 10s
 
   runtime-state-init:
-    profiles:
-      - test
+    profiles: *runtime-state-profiles
     image: ${WEAVE_RUNTIME_STATE_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-runtime-state-init
     restart: "no"
@@ -594,9 +603,7 @@ services:
       com.massimotter.weave.operation: bucket-initialize
 
   agent-runtime-keys-init:
-    profiles:
-      - test
-      - prod
+    profiles: *application-profiles
     image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-agent-runtime-keys-init
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
@@ -636,9 +643,7 @@ services:
       com.massimotter.weave.operation: key-initialize
 
   schema-init:
-    profiles:
-      - test
-      - prod
+    profiles: *application-profiles
     image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-schema-init
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
@@ -677,9 +682,7 @@ services:
       com.massimotter.weave.operation: schema-initialize
 
   schema-receipt-check:
-    profiles:
-      - test
-      - prod
+    profiles: *application-profiles
     image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-schema-receipt-check
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
@@ -716,9 +719,7 @@ services:
       <<: *weave-resource-labels
       com.massimotter.weave.component: server
       com.massimotter.weave.data-class: runtime-ephemeral
-    profiles:
-      - test
-      - prod
+    profiles: *application-profiles
     image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-backend
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
@@ -767,9 +768,7 @@ services:
       start_period: 40s
 
   mcp-secret-check:
-    profiles:
-      - test
-      - prod
+    profiles: *application-profiles
     image: ${WEAVE_MCP_IMAGE:-weave-mcp-server:local}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mcp-secret-check
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
@@ -804,9 +803,7 @@ services:
       com.massimotter.weave.one-shot: "true"
 
   mcp-keycloak-connectivity-check:
-    profiles:
-      - test
-      - prod
+    profiles: *application-profiles
     image: ${WEAVE_MCP_IMAGE:-weave-mcp-server:local}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mcp-keycloak-connectivity-check
     restart: "no"
@@ -841,9 +838,7 @@ services:
       <<: *weave-resource-labels
       com.massimotter.weave.component: mcp
       com.massimotter.weave.data-class: runtime-ephemeral
-    profiles:
-      - test
-      - prod
+    profiles: *application-profiles
     image: ${WEAVE_MCP_IMAGE:-weave-mcp-server:local}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mcp-server
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"

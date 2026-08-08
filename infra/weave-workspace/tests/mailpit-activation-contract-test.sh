@@ -33,7 +33,16 @@ grep -Fq '"mailpit-key.pem"' "${ROOT_DIR}/scripts/init_secrets.py"
 grep -Fq '["mailpit"]' "${ROOT_DIR}/scripts/init_secrets.py"
 grep -Fq 'ACTIVATION_SERVICES = ("mailpit",)' \
   "${ROOT_DIR}/scripts/operator_check.py"
-grep -Fq 'if context.profile in {"dev", "test"}:' \
+grep -Fq 'if context.environment == "e2e" or "dev-tools" in context.active_profiles:' \
   "${ROOT_DIR}/scripts/operator_check.py"
+grep -A3 '^x-mail-profiles: &mail-profiles$' "${ROOT_DIR}/compose.yaml" | \
+  grep -Fq -- '- dev-tools'
+grep -A3 '^x-mail-profiles: &mail-profiles$' "${ROOT_DIR}/compose.yaml" | \
+  grep -Fq -- '- e2e'
+if grep -A3 '^x-mail-profiles: &mail-profiles$' "${ROOT_DIR}/compose.yaml" | \
+  grep -Eq -- '- (dev|dogfood|prod)$'; then
+  printf '%s\n' "Mailpit must remain outside default dev/dogfood/prod profiles." >&2
+  exit 1
+fi
 
 printf '%s\n' "Mailpit activation readiness contract test passed."

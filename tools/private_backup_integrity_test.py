@@ -25,7 +25,7 @@ CANDIDATE = "a" * 40
 
 class PrivateBackupIntegrityTest(unittest.TestCase):
     def create_backup(self, root: Path) -> Path:
-        backup = root / f"weave-test-20260722T120000Z-{CANDIDATE[:12]}"
+        backup = root / f"weave-dogfood-20260722T120000Z-{CANDIDATE[:12]}"
         backup.mkdir()
         for name in REQUIRED_ARTIFACTS:
             target = backup / name
@@ -61,8 +61,8 @@ class PrivateBackupIntegrityTest(unittest.TestCase):
             "createdAt": "2026-07-22T12:00:00Z",
             "candidateCommit": CANDIDATE,
             "candidateManifestDigest": "sha256:" + "d" * 64,
-            "profile": "test",
-            "composeProject": "weave-test",
+            "profile": "dogfood",
+            "composeProject": "weave-dogfood",
             "databaseFingerprint": "sha256:" + "b" * 64,
             "postgresDumpClientImage": "postgres@sha256:" + "c" * 64,
             "postgresDatabases": [

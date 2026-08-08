@@ -151,12 +151,12 @@ def _image_digest(context: ComposeContext) -> str:
     if digest_match:
         return digest_match.group(1)
     if (
-        context.profile == "test"
+        context.environment == "e2e"
         and context.isolated_namespace is not None
         and re.fullmatch(r"sha256:[0-9a-f]{64}", image)
     ):
         # compose_env already limits a local Keycloak image ID to the isolated
-        # test boundary. Preserve that exact content digest in desired-state
+        # E2E boundary. Preserve that exact content digest in desired-state
         # provenance instead of reintroducing a conflicting registry-only rule.
         return image
     raise ContractError(
@@ -177,7 +177,7 @@ def _overlay(context: ComposeContext, baseline_revision: str) -> dict[str, objec
             "ssl": False,
             "startTls": False,
         }
-    elif profile == "test":
+    elif profile in {"dogfood", "e2e"}:
         smtp = {
             "host": "mailpit",
             "port": 1025,
@@ -616,7 +616,7 @@ def _backend_env(context: ComposeContext) -> str:
             "true" if context.isolated_namespace is not None else "false"
         ),
     }
-    if context.profile == "test":
+    if context.environment in {"dogfood", "e2e"}:
         values["WEAVE_IDENTITY_BOOTSTRAP_OWNER_TOKEN_FILE"] = (
             "/run/secrets/weave/bootstrap-owner-token"
         )
@@ -631,7 +631,7 @@ def _backend_env(context: ComposeContext) -> str:
                 "WEAVE_AGENT_RUNTIME_SECRET_ROOT": "/run/secrets/agent-runtime/workloads",
             }
         )
-    if context.profile == "test":
+    if context.environment in {"dogfood", "e2e"}:
         values.update(
             {
                 "WEAVE_AGENT_RUNTIME_STATE_STORE_ENABLED": "true",
@@ -839,7 +839,7 @@ def render(context: ComposeContext) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e", "test"))
+    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     args = parser.parse_args()

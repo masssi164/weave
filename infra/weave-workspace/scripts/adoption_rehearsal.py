@@ -780,7 +780,7 @@ def execute(
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dogfood", "prod", "test"))
+    parser.add_argument("profile", choices=("dogfood", "prod"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     parser.add_argument(

@@ -360,7 +360,7 @@ def _validate_existing(context: ComposeContext) -> None:
         + [name for name, _ in RUNTIME_RSA_JWKS]
         + [name for name, _ in PEM_KEYS]
     )
-    if context.profile == "test":
+    if context.environment in {"dogfood", "e2e"}:
         required.extend(TEST_ONLY_SECRETS)
     if context.profile == "prod":
         required.extend(PROD_ONLY_SECRETS)
@@ -448,7 +448,7 @@ def initialize(context: ComposeContext) -> None:
         _atomic_write(context.secret_root / name, _random_minio_access_key())
     for name in HEX_SECRETS:
         _atomic_write(context.secret_root / name, _random_hex_secret())
-    if context.profile == "test":
+    if context.environment in {"dogfood", "e2e"}:
         for name in TEST_ONLY_SECRETS:
             _atomic_write(context.secret_root / name, _random_secret())
     for name, kid in RSA_JWKS:
@@ -496,7 +496,7 @@ def initialize(context: ComposeContext) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e", "test"))
+    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     args = parser.parse_args()

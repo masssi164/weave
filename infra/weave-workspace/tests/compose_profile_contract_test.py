@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Contract tests for branch-independent dev/test/prod Compose profiles."""
+"""Contract tests for branch-independent Compose environment profiles."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
 import compose_runtime as compose_runtime_module  # noqa: E402
-from compose_env import ContractError, load_context  # noqa: E402
+from compose_env import ContractError, compose_environment, load_context  # noqa: E402
 from compose_runtime import (  # noqa: E402
     AGENT_RUNTIME_ROOT,
     PROFILE_SIGNING_TARGET,
@@ -33,6 +33,7 @@ from compose_runtime import (  # noqa: E402
     normalized_mount_graph,
     preflight_protected_sources,
     resource_labels_match,
+    runtime_root_services,
     validate_mount_contract,
 )
 from render_config import _backend_env, _image_digest, _render_desired  # noqa: E402
@@ -63,6 +64,38 @@ def resolved_model(context) -> dict[str, object]:
         root.mkdir(parents=True, exist_ok=True)
         (root / "public.env").touch(mode=0o600)
     result = compose(context, "config", "--format", "json", capture=True)
+    return json.loads(result.stdout)
+
+
+def raw_resolved_model(context) -> dict[str, object]:
+    command = [
+        "docker",
+        "compose",
+        "--env-file",
+        str(context.common_env_file),
+        "--env-file",
+        str(context.profile_env_file),
+    ]
+    for compose_file in context.compose_files:
+        command.extend(("--file", str(compose_file)))
+    command.extend(
+        (
+            "--project-name",
+            context.env["WEAVE_COMPOSE_PROJECT"],
+            "config",
+            "--format",
+            "json",
+        )
+    )
+    assert "--profile" not in command
+    result = subprocess.run(
+        command,
+        cwd=context.root,
+        env=compose_environment(context),
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
     return json.loads(result.stdout)
 
 
@@ -574,6 +607,9 @@ def main() -> None:
     assert dev.env["WEAVE_DEPLOYMENT_CONTEXT"] == "developer"
     assert dev.compose_files[1].name == "compose.dev.yaml"
     dev_model = resolved_model(dev)
+    assert set(raw_resolved_model(dev)["services"]) == set(dev_model["services"])
+    assert "mailpit" not in dev_model["services"]
+    assert runtime_root_services(dev) == ("keycloak",)
     validate_mount_contract(dev_model)
     assert_long_running_services_reap_child_processes(dev_model)
     assert "backend" not in dev_model["services"]
@@ -732,21 +768,39 @@ def main() -> None:
     ]
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary)
-        test = load_context("test", ROOT, str(materialize_example("test", root / "test.env")))
+        dev_tools_env = root / "dev-tools.env"
+        dev_tools_env.write_text(
+            dev.profile_env_file.read_text(encoding="utf-8").replace(
+                "COMPOSE_PROFILES=dev", "COMPOSE_PROFILES=dev,dev-tools"
+            ),
+            encoding="utf-8",
+        )
+        dev_tools = load_context("dev", ROOT, str(dev_tools_env))
+        assert dev_tools.active_profiles == ("dev", "dev-tools")
+        dev_tools_model = resolved_model(dev_tools)
+        assert set(raw_resolved_model(dev_tools)["services"]) == set(
+            dev_tools_model["services"]
+        )
+        assert "mailpit" in dev_tools_model["services"]
+        assert runtime_root_services(dev_tools) == ("keycloak", "mailpit")
+        dogfood = load_context(
+            "dogfood", ROOT, str(materialize_example("dogfood", root / "dogfood.env"))
+        )
         prod = load_context("prod", ROOT, str(materialize_example("prod", root / "prod.env")))
-        assert test.env["WEAVE_DEPLOYMENT_CONTEXT"] == "persistent-dogfood"
+        assert dogfood.env["WEAVE_DEPLOYMENT_CONTEXT"] == "persistent-dogfood"
         assert prod.env["WEAVE_DEPLOYMENT_CONTEXT"] == "production"
-        assert test.compose_files[1].name == "compose.test.yaml"
+        assert dogfood.profile == "dogfood"
+        assert dogfood.compose_files[1].name == "compose.dogfood.yaml"
         assert prod.compose_files[1].name == "compose.prod.yaml"
-        test_overlay = (ROOT / "compose.test.yaml").read_text(encoding="utf-8")
-        assert "  keycloak:\n" in test_overlay
-        assert "    command:\n      - start\n" in test_overlay
-        assert "--optimized" not in test_overlay
-        assert _image_digest(test) == "sha256:" + "a" * 64
+        dogfood_overlay = (ROOT / "compose.dogfood.yaml").read_text(encoding="utf-8")
+        assert "  keycloak:\n" in dogfood_overlay
+        assert "    command:\n      - start\n" in dogfood_overlay
+        assert "--optimized" not in dogfood_overlay
+        assert _image_digest(dogfood) == "sha256:" + "a" * 64
         assert _image_digest(prod) == "sha256:" + "a" * 64
-        backend_env = _backend_env(test)
+        backend_env = _backend_env(dogfood)
         assert (
-            f"WEAVE_API_BASE_URL={test.env['WEAVE_API_URL']}\n"
+            f"WEAVE_API_BASE_URL={dogfood.env['WEAVE_API_URL']}\n"
             in backend_env
         )
         assert "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED=true\n" in backend_env
@@ -779,25 +833,32 @@ def main() -> None:
                 "secretref:files:nextcloud\n"
                 in rendered_backend_env
             )
-        test_model = resolved_model(test)
+        dogfood_model = resolved_model(dogfood)
         prod_model = resolved_model(prod)
-        assert_long_running_services_reap_child_processes(test_model)
+        assert set(raw_resolved_model(dogfood)["services"]) == set(
+            dogfood_model["services"]
+        )
+        assert set(raw_resolved_model(prod)["services"]) == set(
+            prod_model["services"]
+        )
+        assert "mailpit" not in dogfood_model["services"]
+        assert "mailpit" not in prod_model["services"]
+        assert_long_running_services_reap_child_processes(dogfood_model)
         assert_long_running_services_reap_child_processes(prod_model)
-        assert test_model["services"]["keycloak"]["user"] == (
-            f"{test.env['WEAVE_RUNTIME_UID']}:0"
+        assert dogfood_model["services"]["keycloak"]["user"] == (
+            f"{dogfood.env['WEAVE_RUNTIME_UID']}:0"
         )
         assert prod_model["services"]["keycloak"]["user"] == (
             f"{prod.env['WEAVE_RUNTIME_UID']}:0"
         )
-        assert_agent_runtime_mount_boundary(test_model)
+        assert_agent_runtime_mount_boundary(dogfood_model)
         assert_agent_runtime_mount_boundary(prod_model)
-        assert_schema_init_boundary(test_model)
+        assert_schema_init_boundary(dogfood_model)
         assert_schema_init_boundary(prod_model)
-        assert_fresh_start_target_graph(test_model, test)
         assert_runtime_state_boundary(
-            test_model,
-            test.env["WEAVE_RUNTIME_UID"],
-            test.env["WEAVE_RUNTIME_GID"],
+            dogfood_model,
+            dogfood.env["WEAVE_RUNTIME_UID"],
+            dogfood.env["WEAVE_RUNTIME_GID"],
         )
         regression = json.loads(
             (
@@ -824,9 +885,12 @@ def main() -> None:
         }
         try:
             os.environ.update(isolated_overrides)
-            isolated = load_context("test", ROOT, str(root / "test.env"))
+            isolated = load_context(
+                "e2e", ROOT, str(materialize_example("e2e", root / "e2e.env"))
+            )
             assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
-            assert isolated.compose_files[2].name == "compose.isolated-e2e.yaml"
+            assert isolated.profile == "e2e"
+            assert isolated.compose_files[1].name == "compose.e2e.yaml"
             assert isolated.env["WEAVE_KEYCLOAK_IMAGE"] == local_image_id
             assert isolated.env["WEAVE_RUNTIME_STATE_VOLUME"].endswith(
                 "_runtime_state"
@@ -849,7 +913,7 @@ def main() -> None:
                 not in isolated_backend_env
             )
             assert (
-                isolated.compose_files[2].read_text(encoding="utf-8").count(
+                isolated.compose_files[1].read_text(encoding="utf-8").count(
                     "context-authorization-memberships.json"
                 )
                 == 3
@@ -859,15 +923,18 @@ def main() -> None:
                 not in backend_env
             )
             assert_collaboration_control_is_bounded(isolated)
-            os.environ["WEAVE_E2E_STACK_SCOPE"] = "persistent"
+            isolated_model = resolved_model(isolated)
+            assert set(raw_resolved_model(isolated)["services"]) == set(
+                isolated_model["services"]
+            )
+            assert "mailpit" in isolated_model["services"]
+            os.environ["WEAVE_E2E_STACK_SCOPE"] = ""
             try:
-                load_context("test", ROOT, str(root / "test.env"))
+                load_context("e2e", ROOT, str(root / "e2e.env"))
             except ContractError as error:
-                assert "WEAVE_KEYCLOAK_IMAGE" in str(error)
+                assert "e2e requires WEAVE_E2E_STACK_SCOPE=isolated" in str(error)
             else:
-                raise AssertionError(
-                    "persistent test accepted a local Keycloak image ID"
-                )
+                raise AssertionError("E2E accepted a non-isolated lifecycle")
         finally:
             for name, value in previous_overrides.items():
                 if value is None:
@@ -878,7 +945,8 @@ def main() -> None:
         assert "WEAVE_TEST_USERS_FILE" not in runtime_source
         assert "test-users.json" not in runtime_source
         assert '"dev": ("keycloak",)' in runtime_source
-        assert '"test": ("caddy", "mailpit", "mcp")' in runtime_source
+        assert '"dogfood": ("caddy", "mcp")' in runtime_source
+        assert '"e2e": ("caddy", "mailpit", "mcp")' in runtime_source
         assert '"prod": ("caddy", "mcp")' in runtime_source
         assert "HOST_APPLICATION_SERVICES" in runtime_source
         assert '"rm",\n                "--stop",\n                "--force",' in runtime_source
@@ -886,17 +954,40 @@ def main() -> None:
         assert '"--wait-timeout",\n            "600",' in runtime_source
         assert 'script(context, "nextcloud_reconcile.py")' in runtime_source
         invalid = root / "invalid.env"
-        invalid.write_text((root / "test.env").read_text())
+        invalid.write_text((root / "e2e.env").read_text())
         try:
             load_context("dogfood", ROOT, str(invalid))
         except ContractError:
             pass
         else:
-            raise AssertionError("public dogfood accepted legacy WEAVE_ENVIRONMENT=test")
+            raise AssertionError("dogfood accepted an E2E environment declaration")
+        for environment, source in (("dogfood", root / "dogfood.env"), ("prod", root / "prod.env")):
+            invalid_optional = root / f"{environment}-dev-tools.env"
+            invalid_optional.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    f"COMPOSE_PROFILES={environment}",
+                    f"COMPOSE_PROFILES={environment},dev-tools",
+                ),
+                encoding="utf-8",
+            )
+            try:
+                load_context(environment, ROOT, str(invalid_optional))
+            except ContractError as error:
+                assert "optional COMPOSE_PROFILES are supported only for dev" in str(error)
+            else:
+                raise AssertionError(f"{environment} accepted the dev-tools profile")
     compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
-    assert "\n  - dogfood\n" not in compose
+    assert "\n  - dogfood\n" in compose
+    assert "\n  - e2e\n" in compose
     assert "\n  - main\n" not in compose
-    assert "\n  - test\n" in compose and "\n  - prod\n" in compose
+    assert "\n  - test\n" not in compose and "\n  - prod\n" in compose
+    mail_profiles = compose.split("x-mail-profiles: &mail-profiles", 1)[1].split(
+        "x-runtime-state-profiles:", 1
+    )[0]
+    assert set(re.findall(r"^  - (.+)$", mail_profiles, re.MULTILINE)) == {
+        "dev-tools",
+        "e2e",
+    }
     assert "/run/secrets/agent-runtime:ro" not in compose
     assert "${WEAVE_TLS_ROOT:-./.generated/dev/tls}:/certs:ro" not in compose
     print("compose profile contract tests passed")
