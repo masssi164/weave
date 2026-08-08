@@ -379,7 +379,8 @@ def backup(context: ComposeContext) -> Path:
     if stat.S_IMODE(backup_root.stat().st_mode) & 0o077:
         raise ContractError("WEAVE_BACKUP_ROOT must not be group/world accessible")
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    backup_id = f"weave-{context.profile}-{timestamp}-{candidate[:12]}"
+    environment = getattr(context, "environment", context.profile)
+    backup_id = f"weave-{environment}-{timestamp}-{candidate[:12]}"
     destination = backup_root / backup_id
     if destination.exists() or destination.is_symlink():
         raise ContractError("candidate-bound private backup already exists")
@@ -436,7 +437,7 @@ def backup(context: ComposeContext) -> Path:
                 .replace("+00:00", "Z"),
                 "candidateCommit": candidate,
                 "candidateManifestDigest": candidate_manifest_digest,
-                "profile": context.profile,
+                "profile": environment,
                 "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
                 "databaseFingerprint": database_fingerprint,
                 "postgresDumpClientImage": postgres_dump_client_image,
@@ -488,7 +489,7 @@ def backup(context: ComposeContext) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "test", "prod"))
+    parser.add_argument("profile", choices=("dogfood", "prod", "test"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     args = parser.parse_args()

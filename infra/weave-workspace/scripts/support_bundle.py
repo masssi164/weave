@@ -90,7 +90,8 @@ def _safe_evidence(context: ComposeContext, relative: str) -> dict[str, object] 
 def create(context: ComposeContext, output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     timestamp = datetime.now(timezone.utc)
-    basename = f"weave-compose-support-{context.profile}-{timestamp.strftime('%Y%m%dT%H%M%SZ')}"
+    environment = getattr(context, "environment", context.profile)
+    basename = f"weave-compose-support-{environment}-{timestamp.strftime('%Y%m%dT%H%M%SZ')}"
     destination = output_dir / f"{basename}.tar.gz"
     if destination.exists() or destination.is_symlink():
         raise ContractError("support-bundle destination already exists")
@@ -111,7 +112,7 @@ def create(context: ComposeContext, output_dir: Path) -> Path:
                 included.append(target)
         manifest = {
             "schemaVersion": "weave.compose-support-bundle.v1",
-            "profile": context.profile,
+            "profile": environment,
             "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
             "createdAt": timestamp.isoformat().replace("+00:00", "Z"),
             "modelDigest": model["modelDigest"],
@@ -140,7 +141,7 @@ def create(context: ComposeContext, output_dir: Path) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "test", "prod"))
+    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e", "test"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     parser.add_argument("--output-dir", type=Path)

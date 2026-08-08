@@ -314,7 +314,7 @@ def reconcile(context: ComposeContext) -> dict[str, object]:
         raise ContractError("authenticated Nextcloud DAV provider readiness failed")
     return {
         "schemaVersion": "weave.nextcloud-provider-readiness.v1",
-        "profile": context.profile,
+        "profile": context.environment,
         "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
         "checkedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "apps": {name: version for name, (version, _url, _digest) in sorted(APPS.items())},
@@ -335,7 +335,7 @@ def reconcile(context: ComposeContext) -> dict[str, object]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "test", "prod"))
+    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e", "test"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     args = parser.parse_args()

@@ -8,7 +8,7 @@ PROFILE="${WEAVE_PROFILE:-dev}"
 OUTPUT_DIR=""
 
 case "${1:-}" in
-  dev|test|prod) PROFILE="$1"; shift ;;
+  dev|dogfood|prod|e2e|test) PROFILE="$1"; shift ;;
 esac
 if [[ $# -gt 0 ]]; then OUTPUT_DIR="$1"; shift; fi
 [[ $# -eq 0 ]] || { printf 'WEAVE_SUPPORT_BUNDLE_ERROR unexpected arguments\n' >&2; exit 2; }

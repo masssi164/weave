@@ -1,18 +1,20 @@
 # Compose Workspace Guide
 
 This directory implements the single supported local/single-host deployment authority described
-by pinned specification ADR 0017. The exact profiles are `dev`, `test`, and `prod`; do not add
-a parallel Compose graph or executable OpenTofu/Terraform fallback.
+by specification ADR 0017. The exact operator environments are `dev`, `dogfood`, `prod`, and
+`e2e`; do not add a parallel Compose graph or executable OpenTofu/Terraform fallback. The legacy
+internal profile selector `test` is CI compatibility only while external-provider dependencies
+remain executable, not a fifth operator environment.
 
 ## Owned files
 
 - `compose.yaml`: common PostgreSQL, Keycloak, MAS, Synapse, Nextcloud, Caddy, backend, and MCP
   service graph with stable named networks/volumes and ownership labels.
-- `compose.<profile>.yaml`: narrow environment-specific overlays.
-- `environments/`: public deployment coordinates. Test/prod examples must be copied to a
+- `compose.<environment>.yaml`: narrow environment-specific overlays.
+- `environments/`: public deployment coordinates. Dogfood/e2e/prod examples must be copied to a
   private operator file supplied through `WEAVE_ENV_FILE`.
 - `scripts/compose_env.py`: closed environment, naming, and pinned-spec-corpus trust boundary.
-- `scripts/init_secrets.py`: idempotent dev/test secret initialization and prod secret
+- `scripts/init_secrets.py`: idempotent dev/dogfood/e2e secret initialization and prod secret
   validation. It must never print values.
 - `scripts/render_config.py`: deterministic renderer from the pinned canonical desired state.
 - `scripts/compose_runtime.py` and `compose.sh`: the only normal lifecycle interface.
@@ -29,23 +31,23 @@ a parallel Compose graph or executable OpenTofu/Terraform fallback.
 ## Required sequence
 
 ```text
-compose.sh <profile> secrets-init
-compose.sh <profile> render
-compose.sh <profile> config
-compose.sh <profile> prepare
-compose.sh <profile> identity-apply
-compose.sh <profile> up
-compose.sh <profile> identity-verify
+compose.sh <environment> secrets-init
+compose.sh <environment> render
+compose.sh <environment> config
+compose.sh <environment> prepare
+compose.sh <environment> identity-apply
+compose.sh <environment> up
+compose.sh <environment> identity-verify
 ```
 
-Test/prod require digest-pinned images and a private `WEAVE_ENV_FILE`. The optional
+Dogfood/e2e/prod require digest-pinned images and a private `WEAVE_ENV_FILE`. The optional
 `WEAVE_SPEC_CORPUS_ROOT` process coordinate is accepted only when it is an absolute Git worktree
 root at the exact commit in `specs/weave-specs.lock.json`.
 
-`dev` contains provider dependencies only; run Spring Boot separately with the `dev` profile and
-H2. Test/prod include the backend and MCP application tier and use PostgreSQL. Isolated E2E
-sets `WEAVE_E2E_STACK_SCOPE=isolated` and a bounded unique `WEAVE_E2E_RUN_ID`; cleanup may target
-only that derived namespace.
+`dev` contains only PostgreSQL/Keycloak infrastructure; run Server, MCP, and Admin Console on the
+host, with H2 permitted only for the host server. Dogfood/prod include the backend and MCP tier.
+E2E sets `WEAVE_E2E_STACK_SCOPE=isolated` and a bounded unique `WEAVE_E2E_RUN_ID`; cleanup may
+target only that derived namespace.
 
 ## Maintenance rules
 

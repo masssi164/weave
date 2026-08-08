@@ -154,7 +154,7 @@ def check(
 
     return {
         "schemaVersion": "weave.compose-operator-readiness.v1",
-        "profile": context.profile,
+        "profile": context.environment,
         "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
         "checkedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "services": runtime,
@@ -176,7 +176,7 @@ def _write(path: Path, value: dict[str, object]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "test", "prod"))
+    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e", "test"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     parser.add_argument("--require-application", action="store_true")

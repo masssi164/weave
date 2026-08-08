@@ -42,7 +42,9 @@ COMMANDS = (
     "collaboration-restart-proof",
 )
 RUNTIME_ROOT_SERVICES = {
-    "dev": ("caddy", "mailpit"),
+    # Normal development runs Server, MCP, and Admin Console on the host. The
+    # Compose lifecycle converges only the database/Keycloak dependency path.
+    "dev": ("keycloak",),
     "test": ("caddy", "mailpit", "mcp"),
     "prod": ("caddy", "mcp"),
 }
@@ -1196,7 +1198,8 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
             "600",
             *RUNTIME_ROOT_SERVICES[context.profile],
         )
-        script(context, "nextcloud_reconcile.py")
+        if context.environment != "dev":
+            script(context, "nextcloud_reconcile.py")
     elif command == "down":
         if context.profile == "dev":
             compose(
@@ -1233,7 +1236,11 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
-    parser.add_argument("profile", choices=("dev", "test", "prod"))
+    parser.add_argument(
+        "profile",
+        choices=("dev", "dogfood", "prod", "e2e", "test"),
+        help="operator environment (`test` is deprecated CI compatibility only)",
+    )
     parser.add_argument("command", choices=COMMANDS)
     parser.add_argument("extra", nargs=argparse.REMAINDER)
     args = parser.parse_args()

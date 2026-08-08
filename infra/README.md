@@ -34,7 +34,7 @@ Those are later product or operations tracks and must stay behind explicit contr
 
 ## Quick start: local/dev provider-stack implementation
 
-This is the concrete local provider-stack implementation path, not the canonical product bootstrap entrypoint. Use it when the approved bootstrap profile selects local/self-hosted provider deployment.
+This is the concrete local/single-host infrastructure implementation path, not the canonical product bootstrap entrypoint. Use it when the approved bootstrap environment selects a local/self-hosted deployment.
 
 Add local host entries before opening browser-facing URLs:
 
@@ -116,9 +116,9 @@ Optional providers are fail-closed by default:
 - `docs/matrix-default-workspace.md`: default Matrix space/room provisioning.
 - `docs/matrix-e2ee-posture.md`: current honest E2EE posture.
 - `docs/calendar-caldav-external-clients.md`: CalDAV/CardDAV discovery, revocable client credentials, and fail-closed profile boundaries.
-- `weave-workspace/compose.sh`: the closed `dev|test|prod` lifecycle and one-shot Keycloak Identity Ops interface.
-- `weave-workspace/install.sh`: idempotent profile preparation and apply wrapper.
-- `weave-workspace/teardown.sh`: destructive cleanup for an exact isolated-E2E namespace only; persistent profiles have no destructive teardown path.
+- `weave-workspace/compose.sh`: the closed `dev|dogfood|prod|e2e` lifecycle and one-shot Keycloak Identity Ops interface.
+- `weave-workspace/install.sh`: idempotent environment preparation and apply wrapper.
+- `weave-workspace/teardown.sh`: destructive cleanup for an exact isolated-E2E namespace only; persistent environments have no destructive teardown path.
 - `weave-workspace/release-verify.sh`: public endpoint verification for non-local single-host installs.
 - `weave-workspace/operator-check.sh`: host-local container and health checks.
 - `../gradle/tasks/test-app.sh`: the single run-scoped invitation, Keycloak activation, PKCE, WebDAV, ARC, MCP, revocation, and cleanup proof.
@@ -127,7 +127,9 @@ Optional providers are fail-closed by default:
 - `weave-workspace/nextcloud-auth-security-audit.sh`: support-safe classification of recent invalid-authentication/throttle sources without counter reset or raw addresses.
 - `weave-workspace/backup.sh`, `adoption-rehearsal.sh`, `restore-private-backup.sh`, and `support-bundle.sh`: private consistency backup, isolated adoption proof, integrity-only guarded restore preflight, and support-safe diagnostics.
 - `weave-workspace/weave-mcp-tool-contract.json`: support-safe canonical domain contract and active Spring AI MCP runtime evidence.
-- `weave-workspace/compose.yaml` plus `compose.dev.yaml`, `compose.test.yaml`, and `compose.prod.yaml`: the one supported process graph and its three overlays.
+- `weave-workspace/compose.yaml` plus the explicit `compose.dev.yaml`, `compose.dogfood.yaml`,
+  `compose.prod.yaml`, and `compose.e2e.yaml` overlays: the one supported process graph and its
+  four operator environments.
 - `weave-workspace/keycloak/`: rootless one-shot Desired-State Identity Ops without human-user fixtures.
 
 ## Validation
@@ -138,12 +140,37 @@ Repository-safe validation used by CI:
 ./gradlew infraStatic
 ./gradlew :infra:tasks --group "weave infrastructure"
 ./gradlew :infra:composeDevConfig
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env ./gradlew :infra:composeTestConfig
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env ./gradlew :infra:composeDogfoodConfig
 WEAVE_ENV_FILE=/absolute/path/to/reviewed-prod.env ./gradlew :infra:composeProdConfig
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env ./gradlew :infra:composeTestAdoptionCheck
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env ./gradlew :infra:composeTestReady
+WEAVE_E2E_STACK_SCOPE=isolated WEAVE_E2E_RUN_ID=<unique-run-id> \
+  WEAVE_ENV_FILE=/absolute/path/to/reviewed-e2e.env ./gradlew :infra:composeE2eConfig
 ./gradlew :server:serverDevH2Test :server:serverPostgresIntegrationTest
 ```
+
+The environment value is explicit and independent of the Git branch. `dogfood` is persistent;
+`e2e` is always disposable and run-unique. The old `test` selector and Gradle task aliases remain
+only so pre-existing CI can address the transitional application topology while the server-owned
+Matrix/Nextcloud/Identity Ops removal lands. New operator automation must not use them.
+
+Compose itself remains the lifecycle engine. After the safety wrapper has created the protected
+SecretRefs, rendered configuration, and ownership-labeled external resources, read-only lifecycle
+commands may use the same native Compose model directly, for example:
+
+```bash
+cd infra/weave-workspace
+docker compose \
+  --env-file environments/common.env \
+  --env-file /absolute/path/to/reviewed-dogfood.env \
+  --file compose.yaml \
+  --file compose.dogfood.yaml \
+  --project-name weave-dogfood \
+  --profile test ps
+```
+
+The final `--profile test` is a documented internal compatibility detail, not an environment
+choice. Use `compose.sh <environment> up/down` for mutation because that narrow wrapper still owns
+SecretRef permissions, provenance labels, resource adoption checks, identity reconciliation, and
+exact isolated cleanup. It does not select an environment from a branch.
 
 Local host-server validation when Docker is available:
 
@@ -155,15 +182,15 @@ GitHub Actions runs deterministic repository checks on pushes and pull requests.
 
 ## Operator safety
 
-- `./weave-workspace/compose.sh <profile> down` stops a profile without deleting its named volumes or SecretRefs.
-- Destructive cleanup exists only for an exact isolated-E2E project and requires its run-bound ownership evidence. Persistent test/prod volumes are restored or rolled back through reviewed operator procedures, never a generic teardown flag.
+- `./weave-workspace/compose.sh <environment> down` stops an environment without deleting its named volumes or SecretRefs.
+- Destructive cleanup exists only for an exact isolated-E2E project and requires its run-bound ownership evidence. Persistent dogfood/prod volumes are restored or rolled back through reviewed operator procedures, never a generic teardown flag.
 - Create an operator-owned backup before destructive maintenance:
 
 ```sh
 WEAVE_CANDIDATE_COMMIT=<exact-sha> \
 WEAVE_BACKUP_ROOT=/var/backups/weave \
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env \
-bash weave-workspace/backup.sh test
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
+bash weave-workspace/backup.sh dogfood
 ```
 
 - Validate the private v2 consistency set without applying it:

@@ -474,7 +474,7 @@ def initialize(context: ComposeContext) -> None:
     _validate_existing(context)
     manifest = {
         "schemaVersion": "weave.compose-secret-generation.v1",
-        "environment": context.profile,
+        "environment": context.environment,
         "generationFingerprint": "sha256:" + hashlib.sha256(
             canonical_json(
                 sorted(
@@ -496,7 +496,7 @@ def initialize(context: ComposeContext) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "test", "prod"))
+    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e", "test"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     args = parser.parse_args()
