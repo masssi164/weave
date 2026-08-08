@@ -10,5 +10,6 @@ version = '0.1.0'
 apply from: "${projectDir}/gradle/scripts/java-and-dependencies.gradle"
 apply from: "${projectDir}/gradle/tasks/native-runtime.gradle"
 apply from: "${projectDir}/gradle/tasks/development.gradle"
+apply from: "${projectDir}/gradle/tasks/admin-console.gradle"
 apply from: "${projectDir}/gradle/tasks/verification.gradle"
 apply from: "${projectDir}/gradle/tasks/operations.gradle"

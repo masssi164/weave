@@ -173,6 +173,9 @@ function linesFromText(value: string): string[] {
 
 interface AppProps {
   api?: AdminControlPlaneApi;
+  adminConfig?: typeof adminConsoleConfig;
+  authenticationError?: string | null;
+  onSignIn?: () => void | Promise<void>;
   viewerRole?: ViewerRole;
   locale?: AdminConsoleLocale;
 }
@@ -211,6 +214,9 @@ function dryRunEvidenceFailureLabel(
 
 export default function App({
   api = new AdminControlPlaneApi(),
+  adminConfig = adminConsoleConfig,
+  authenticationError = null,
+  onSignIn,
   viewerRole = "owner",
   locale = "en",
 }: AppProps) {
@@ -714,17 +720,23 @@ export default function App({
                   </Typography>
                   <Typography>
                     {copy.adminSignInDescriptionStart}{" "}
-                    <strong>{adminConsoleConfig.oidcClientId}</strong>. This
+                    <strong>{adminConfig.oidcClientId}</strong>. This
                     {" "}{copy.adminSignInDescriptionEnd}
                   </Typography>
                   <Typography sx={{ mt: 1 }}>
                     {copy.adminSignInIssuerLabel}:{" "}
-                    <code>{adminConsoleConfig.oidcIssuerUrl}</code>
+                    <code>{adminConfig.oidcIssuerUrl}</code>
                   </Typography>
+                  {authenticationError ? (
+                    <Alert severity="error" sx={{ mt: 2 }}>
+                      {authenticationError}
+                    </Alert>
+                  ) : null}
                   <Button
                     variant="outlined"
                     sx={{ mt: 2 }}
-                    href={`${adminConsoleConfig.oidcIssuerUrl}/protocol/openid-connect/auth`}
+                    onClick={() => void onSignIn?.()}
+                    disabled={!onSignIn}
                   >
                     {copy.adminSignInOpenBrokerButton}
                   </Button>
