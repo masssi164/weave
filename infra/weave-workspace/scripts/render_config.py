@@ -10,8 +10,22 @@ import json
 import os
 import re
 import stat
+import sys
 from pathlib import Path
 from urllib.parse import urlsplit
+
+KEYCLOAK_MODULE_ROOT = Path(__file__).resolve().parents[1] / "keycloak"
+if str(KEYCLOAK_MODULE_ROOT) not in sys.path:
+    sys.path.insert(0, str(KEYCLOAK_MODULE_ROOT))
+
+from realm_renderer import (  # noqa: E402 - module path is repository-local
+    RealmProjectionError,
+    fresh_start_migration_bundle,
+    pretty_json,
+    project_realm,
+    public_jwks,
+    sha256_digest,
+)
 
 from compose_env import (
     ComposeContext,
@@ -238,10 +252,6 @@ def _overlay(context: ComposeContext, baseline_revision: str) -> dict[str, objec
             "username": username,
             "passwordVaultRef": "${vault.smtp-password}",
         }
-        raise ContractError(
-            "dogfood/prod Keycloak SMTP is blocked until the canonical File Vault "
-            "mount and realm import path are implemented and qualified"
-        )
     else:
         raise ContractError(f"unsupported render environment: {profile}")
     value: dict[str, object] = {
@@ -841,20 +851,56 @@ def render(context: ComposeContext) -> None:
             _read_secret(context, name)
     if context.environment in {"dogfood", "prod"}:
         _read_secret(context, "smtp-password")
+    public_keys: dict[str, dict[str, object]] = {}
+    for secret_ref, filename in SECRET_REF_PATHS.items():
+        if secret_ref == "secretref:smtp/password":
+            continue
+        private_value = json.loads(_read_secret(context, filename))
+        public_keys[secret_ref] = public_jwks(private_value, owner=secret_ref)
+    realm_representation = project_realm(desired, public_keys)
+    baseline_payload = pretty_json(realm_representation)
+    baseline_digest = sha256_digest(baseline_payload)
+    migration_bundle = fresh_start_migration_bundle(desired, baseline_digest)
+    migration_payload = pretty_json(migration_bundle)
+    migration_digest = sha256_digest(migration_payload)
     generated = context.generated_root
     runtime_owner = (int(context.env["WEAVE_RUNTIME_UID"]), int(context.env["WEAVE_RUNTIME_GID"]))
     _runtime_directory(generated / "schema-init", runtime_owner)
     # Compose mounts this directory read-only into Keycloak. Create and own it
     # during rendering so Docker never materializes an absent bind source as a
-    # root-owned host directory. The qualified RealmRepresentation renderer
-    # will populate this directory; until then the dogfood/prod render guard
-    # above keeps persistent environments fail-closed.
+    # root-owned host directory.
     _runtime_directory(generated / "keycloak/import", runtime_owner)
     provider_configtree = generated / "backend/configtree"
     _runtime_directory(provider_configtree, runtime_owner)
     _reset_provider_configtree(provider_configtree)
     _write(generated / "keycloak/overlay.json", json.dumps(overlay, indent=2, sort_keys=True) + "\n", private=False)
     _write(generated / "keycloak/desired-state.json", json.dumps(desired, indent=2, sort_keys=True) + "\n", private=False)
+    _write(
+        generated / "keycloak/import/weave-realm.json",
+        baseline_payload,
+        private=False,
+    )
+    _write(
+        generated / "keycloak/migrations/fresh-start-v1.json",
+        migration_payload,
+        private=False,
+    )
+    migration_manifest = {
+        "schemaVersion": "weave.keycloak-realm-migration-manifest/v1",
+        "baselineArtifactDigest": baseline_digest,
+        "bundles": [
+            {
+                "digest": migration_digest,
+                "path": "keycloak/migrations/fresh-start-v1.json",
+            }
+        ],
+        "containsSecretValues": False,
+    }
+    _write(
+        generated / "keycloak/migrations/manifest.json",
+        pretty_json(migration_manifest),
+        private=False,
+    )
     secret_index = {
         "schemaVersion": "weave.keycloak-secretref-index.v1",
         "desiredStateRevision": desired["revision"],
@@ -973,6 +1019,13 @@ def render(context: ComposeContext) -> None:
         "overlayRevision": overlay["revision"],
         "desiredStateRevision": desired["revision"],
         "keycloakImageDigest": overlay["imageDigest"],
+        "realmArtifacts": {
+            "baselineDigest": baseline_digest,
+            "baselinePath": "keycloak/import/weave-realm.json",
+            "containsSecretValues": False,
+            "migrationBundleDigest": migration_digest,
+            "migrationBundlePath": "keycloak/migrations/fresh-start-v1.json",
+        },
         "containsSecretValues": False,
     }
     _write(generated / "render-manifest.json", json.dumps(manifest, indent=2, sort_keys=True) + "\n", private=False)
@@ -987,7 +1040,14 @@ def main() -> int:
     try:
         context = load_context(args.profile, args.root, args.env_file)
         render(context)
-    except (ContractError, OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+    except (
+        ContractError,
+        RealmProjectionError,
+        OSError,
+        ValueError,
+        KeyError,
+        json.JSONDecodeError,
+    ) as error:
         print(f"WEAVE_RENDER_ERROR {error}", file=os.sys.stderr)
         return 1
     print(f"render: converged {args.profile} configuration (secret values withheld)")
