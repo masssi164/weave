@@ -228,7 +228,7 @@ services:
       com.massimotter.weave.component: identity
       com.massimotter.weave.data-class: runtime-ephemeral
     profiles: *core-profiles
-    image: ${WEAVE_KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7.0}
+    image: ${WEAVE_KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7.1}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-keycloak
     user: "${WEAVE_RUNTIME_UID:-1000}:0"
     depends_on:

@@ -323,8 +323,8 @@ def _render_desired(baseline: dict[str, object], overlay: dict[str, object]) -> 
     assert isinstance(desired, dict)
     if desired.get("apiVersion") != "weave.keycloak-desired-state/v3":
         raise ContractError("realm projection requires the canonical Keycloak desired-state v3 corpus")
-    if desired.get("keycloakVersion") != "26.7.0":
-        raise ContractError("canonical desired state must pin Keycloak 26.7.0")
+    if desired.get("keycloakVersion") != "26.7.1":
+        raise ContractError("canonical desired state must pin Keycloak 26.7.1")
     if "groups" in desired:
         raise ContractError("desired-state v3 must not contain legacy human realm groups")
     client_policies = desired.get("clientPolicies")

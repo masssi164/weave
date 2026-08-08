@@ -266,7 +266,7 @@ fi
 validate_runtime_image \
   "${KEYCLOAK_IMAGE}" \
   "Weave Keycloak Runtime" \
-  "keycloak-26.7.0-downstream-built-in-policy"
+  "keycloak-26.7.1-downstream-built-in-policy"
 
 if [[ -n "${candidate_manifest_path}" ]]; then
   jq -e \

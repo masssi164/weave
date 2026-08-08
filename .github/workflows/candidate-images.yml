@@ -150,7 +150,7 @@ jobs:
           {
             echo "created=$created"
             echo "version=$version"
-            echo "keycloak_version=26.7.0-weave.${WEAVE_CANDIDATE_COMMIT:0:12}"
+            echo "keycloak_version=26.7.1-weave.${WEAVE_CANDIDATE_COMMIT:0:12}"
             echo "spec_digest=$spec_digest"
             echo "tag_sha=sha-$WEAVE_CANDIDATE_COMMIT"
             echo "tag_run=candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
@@ -239,6 +239,10 @@ jobs:
           {
             echo "upstream_commit=$(jq -er .upstreamCommit build/candidate/keycloak-runtime-build.json)"
             echo "archive_sha256=$(jq -er .upstreamArchiveSha256 build/candidate/keycloak-runtime-build.json)"
+            echo "stock_reference=$(jq -er '.stockReference | select(test("^quay.io/keycloak/keycloak@sha256:[0-9a-f]{64}$"))' build/candidate/keycloak-runtime-build.json)"
+            echo "stock_index_digest=$(jq -er '.stockReference | capture("@(?<digest>sha256:[0-9a-f]{64})$").digest' build/candidate/keycloak-runtime-build.json)"
+            echo "stock_platform=$(jq -er '.stockPlatform | select(. == "linux/amd64")' build/candidate/keycloak-runtime-build.json)"
+            echo "stock_platform_manifest_digest=$(jq -er '.stockPlatformManifestDigest | select(test("^sha256:[0-9a-f]{64}$"))' build/candidate/keycloak-runtime-build.json)"
             echo "stock_services_sha256=$(jq -er .stockServicesJarSha256 build/candidate/keycloak-runtime-build.json)"
             echo "patch_sha256=$(jq -er .patchSha256 build/candidate/keycloak-runtime-build.json)"
             echo "patched_services_sha256=$(jq -er .patchedServicesJarSha256 build/candidate/keycloak-runtime-build.json)"
@@ -259,6 +263,7 @@ jobs:
             ${{ env.KEYCLOAK_RUNTIME_IMAGE }}:${{ steps.identity.outputs.tag_sha }}
             ${{ env.KEYCLOAK_RUNTIME_IMAGE }}:${{ steps.identity.outputs.tag_run }}
           build-args: |
+            WEAVE_KEYCLOAK_BASE=${{ steps.keycloak_runtime_prepare.outputs.stock_reference }}
             WEAVE_IMAGE_CREATED=${{ steps.identity.outputs.created }}
             WEAVE_IMAGE_REVISION=${{ needs.verify-source.outputs.candidate_sha }}
             WEAVE_IMAGE_VERSION=${{ steps.identity.outputs.keycloak_version }}
@@ -266,6 +271,9 @@ jobs:
             WEAVE_SPEC_DIGEST=${{ steps.identity.outputs.spec_digest }}
             WEAVE_KEYCLOAK_UPSTREAM_COMMIT=${{ steps.keycloak_runtime_prepare.outputs.upstream_commit }}
             WEAVE_KEYCLOAK_ARCHIVE_SHA256=${{ steps.keycloak_runtime_prepare.outputs.archive_sha256 }}
+            WEAVE_KEYCLOAK_STOCK_INDEX_DIGEST=${{ steps.keycloak_runtime_prepare.outputs.stock_index_digest }}
+            WEAVE_KEYCLOAK_STOCK_PLATFORM=${{ steps.keycloak_runtime_prepare.outputs.stock_platform }}
+            WEAVE_KEYCLOAK_STOCK_PLATFORM_MANIFEST_DIGEST=${{ steps.keycloak_runtime_prepare.outputs.stock_platform_manifest_digest }}
             WEAVE_KEYCLOAK_STOCK_SERVICES_SHA256=${{ steps.keycloak_runtime_prepare.outputs.stock_services_sha256 }}
             WEAVE_KEYCLOAK_PATCH_SHA256=${{ steps.keycloak_runtime_prepare.outputs.patch_sha256 }}
             WEAVE_PATCHED_SERVICES_SHA256=${{ steps.keycloak_runtime_prepare.outputs.patched_services_sha256 }}
@@ -316,7 +324,7 @@ jobs:
             "Weave Keycloak Runtime" \
             "keycloak-runtime" \
             "1000:0" \
-            "keycloak-26.7.0-downstream-built-in-policy"
+            "keycloak-26.7.1-downstream-built-in-policy"
           [[ "$(image_label \
             "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
             com.massimotter.weave.provider-id)" == \
@@ -325,6 +333,18 @@ jobs:
             "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
             com.massimotter.weave.keycloak-build-evidence-digest)" == \
             "${{ steps.keycloak_runtime_prepare.outputs.build_evidence_digest }}" ]]
+          [[ "$(image_label \
+            "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
+            com.massimotter.weave.keycloak-stock-index-digest)" == \
+            "${{ steps.keycloak_runtime_prepare.outputs.stock_index_digest }}" ]]
+          [[ "$(image_label \
+            "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
+            com.massimotter.weave.keycloak-stock-platform)" == \
+            "${{ steps.keycloak_runtime_prepare.outputs.stock_platform }}" ]]
+          [[ "$(image_label \
+            "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
+            com.massimotter.weave.keycloak-stock-platform-manifest-digest)" == \
+            "${{ steps.keycloak_runtime_prepare.outputs.stock_platform_manifest_digest }}" ]]
 
       - name: Resolve exact OCI attestation digests
         shell: bash

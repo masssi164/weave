@@ -514,6 +514,7 @@ def main() -> None:
     assert dev.profile == "dev"
     assert dev.env["WEAVE_DEPLOYMENT_CONTEXT"] == "developer"
     assert active_volume_keys(dev) == ("WEAVE_KEYCLOAK_DATA_VOLUME",)
+    assert dev.env["WEAVE_KEYCLOAK_IMAGE"] == "quay.io/keycloak/keycloak:26.7.1"
     assert dev.compose_files[1].name == "compose.dev.yaml"
     dev_model = resolved_model(dev)
     assert set(raw_resolved_model(dev)["services"]) == set(dev_model["services"])
@@ -565,7 +566,7 @@ def main() -> None:
     assert "http://keycloak:8080" not in host_mcp_env
     canonical = {
         "apiVersion": "weave.keycloak-desired-state/v3",
-        "keycloakVersion": "26.7.0",
+        "keycloakVersion": "26.7.1",
         "environment": "test",
         "revision": "",
         "clientPolicies": [
@@ -576,7 +577,7 @@ def main() -> None:
                 "conditionProvider": "any-client",
                 "executorProvider": "weave-workload-client-registration-enforcer",
                 "executorVersion": "1",
-                "keycloakVersion": "26.7.0",
+                "keycloakVersion": "26.7.1",
                 "runtimeAdminClientKey": "client:weave-agent-runtime-admin",
                 "registrationProvider": "openid-connect",
                 "identifierMetadata": "client_name",
