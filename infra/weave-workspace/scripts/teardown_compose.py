@@ -360,7 +360,7 @@ def teardown(context: ComposeContext, *, dry_run: bool) -> dict[str, object]:
 
     return {
         "schemaVersion": "weave.compose-isolated-teardown.v1",
-        "profile": context.profile,
+        "profile": getattr(context, "environment", context.profile),
         "namespace": context.isolated_namespace,
         "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
         "candidateCommit": candidate,

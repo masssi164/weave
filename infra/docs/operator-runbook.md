@@ -8,9 +8,9 @@ It is meant to remove the remaining tribal knowledge around install, verify, rec
 Prepare these explicitly:
 
 - DNS for `<tenant_domain>`, `api`, `auth`, `matrix`, and the raw `files` protocol/admin fallback;
-- a private reviewed copy of `weave-workspace/environments/test.env.example` or
-  `prod.env.example`, stored outside the checkout;
-- exact digest references for every test/prod image;
+- a private reviewed copy of `weave-workspace/environments/dogfood.env.example`,
+  `e2e.env.example`, or `prod.env.example`, stored outside the checkout;
+- exact digest references for every dogfood/e2e/prod image;
 - absolute `WEAVE_GENERATED_ROOT`, `WEAVE_SECRET_ROOT`, and `WEAVE_TLS_ROOT` paths;
 - an unprivileged deployment operator able to run the rootless one-shot Identity Ops container;
 - TLS certificate/key material and an operator-owned mode-0700 backup root outside the checkout.
@@ -35,7 +35,7 @@ RuntimeProfile signing and RuntimeState wrapping keys; ARC administration creden
 per-cell workload private keys.
 
 Repeated `secrets-init`, `prepare`, and install operations preserve an existing valid generation.
-A missing, symlinked, empty, over-readable, or ambiguous SecretRef fails closed. Test/prod do
+A missing, symlinked, empty, over-readable, or ambiguous SecretRef fails closed. Dogfood/e2e/prod do
 not invent a replacement credential during ordinary deployment.
 
 Rotation guidance:
@@ -59,7 +59,7 @@ not invent a missing trust root.
 cd weave
 git fetch --no-tags --prune origin \
   '+refs/heads/dev:refs/remotes/origin/dev'
-export WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env
+export WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env
 export WEAVE_CANDIDATE_COMMIT="$(git rev-parse HEAD)"
 python3 tools/candidate_source_mapping.py \
   --repository . \
@@ -68,18 +68,18 @@ python3 tools/candidate_source_mapping.py \
 export WEAVE_IMAGE_SOURCE_COMMIT="$(
   jq -er '.sourceCandidateCommit' build/evidence/candidate-source-mapping.json
 )"
-bash infra/weave-workspace/install.sh test
+bash infra/weave-workspace/install.sh dogfood
 bash infra/weave-workspace/release-verify.sh
-bash infra/weave-workspace/operator-check.sh test
+bash infra/weave-workspace/operator-check.sh dogfood
 ```
 
 Notes:
 
-- `compose.yaml` plus exactly one of `compose.dev.yaml`, `compose.test.yaml`, or
-  `compose.prod.yaml` is the only deployment model;
-- `install.sh <profile>` is the supported idempotent apply path and runs
+- `compose.yaml` plus the selected `compose.dev.yaml`, `compose.dogfood.yaml`,
+  `compose.prod.yaml`, or `compose.e2e.yaml` overlays is the only deployment model;
+- `install.sh <environment>` is the supported idempotent apply path and runs
   `secrets-init → render → config → prepare → identity-apply → up → identity-verify`;
-- test/prod require a private reviewed `WEAVE_ENV_FILE`, exact image digests, and an exact candidate
+- dogfood/e2e/prod require a private reviewed `WEAVE_ENV_FILE`, exact image digests, and an exact candidate
   commit; never use `:latest`;
 - for dogfood promotion, `WEAVE_CANDIDATE_COMMIT` remains the checked-out lane SHA used by
   runtime, backup, deployment, and human evidence. Locally built images use
@@ -99,6 +99,13 @@ Notes:
 - the direct backend/MCP/provider host ports are loopback-bound. Public `/actuator` is denied;
   `/api/health/live` and `/api/health/ready` remain the public operational contract.
 
+Transition boundary: dogfood and E2E still have executable dependencies on Matrix, Nextcloud,
+and the one-shot Identity Ops reconciler in the common graph. This infra tranche does not claim
+those dependencies are gone. Their removal belongs to the server/provider and identity tranches;
+until then the internal Compose profile `test` remains a deprecated CI-only implementation detail.
+The repository-wide specification lock advances only when the dependent v4 projections land
+atomically.
+
 For development, run provider dependencies separately from the host server:
 
 ```bash
@@ -108,16 +115,16 @@ For development, run provider dependencies separately from the host server:
 ```
 
 Only this `dev` host process uses H2. Flyway still owns its schema and Hibernate still uses
-`ddl-auto=validate`. PostgreSQL remains mandatory for providers, integration tests, test,
-prod, backup/recovery, and every release claim.
+`ddl-auto=validate`. PostgreSQL remains mandatory for providers, integration tests, dogfood,
+e2e, prod, backup/recovery, and every release claim.
 
 ## 4. Routine verification
 
 Use these in order:
 
 1. `WEAVE_ENV_FILE=<reviewed-env> bash weave-workspace/release-verify.sh`
-2. `WEAVE_ENV_FILE=<reviewed-env> bash weave-workspace/operator-check.sh <test|prod>`
-3. `WEAVE_ENV_FILE=<reviewed-env> weave-workspace/compose.sh <profile> ps`
+2. `WEAVE_ENV_FILE=<reviewed-env> bash weave-workspace/operator-check.sh <dogfood|prod>`
+3. `WEAVE_ENV_FILE=<reviewed-env> weave-workspace/compose.sh <environment> ps`
 
 What `operator-check.sh` adds beyond `release-verify.sh`:
 
@@ -141,8 +148,8 @@ outside the checkout and binds every private consistency set to the exact candid
 ```bash
 WEAVE_CANDIDATE_COMMIT=<exact-sha> \
 WEAVE_BACKUP_ROOT=/var/backups/weave \
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env \
-bash weave-workspace/backup.sh test
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
+bash weave-workspace/backup.sh dogfood
 ```
 
 The helper quiesces the application/provider writers, writes the consistency set, and restarts
@@ -199,15 +206,15 @@ For the one-time migration from the former unlabeled runtime, run:
 ```bash
 WEAVE_CANDIDATE_COMMIT=<exact-sha> \
 WEAVE_BACKUP_ROOT=/var/backups/weave \
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env \
-bash weave-workspace/adoption-rehearsal.sh test
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
+bash weave-workspace/adoption-rehearsal.sh dogfood
 ```
 
 This backs up the existing exact-named runtime, restores all volume inventories and PostgreSQL
 service databases in an isolated namespace, verifies the Weave realm and private SecretRef
 continuity, and emits an owner-controlled mode-`0600`, candidate-bound adoption receipt at the
 canonical generated-state path. Export that exact path as `WEAVE_ADOPTION_RECEIPT` for the
-subsequent `:infra:composeTestUp`; the runtime rejects a missing, stale, symlinked, weakly permissioned,
+subsequent `:infra:composeDogfoodUp`; the runtime rejects a missing, stale, symlinked, weakly permissioned,
 wrong-candidate, wrong-project, or resource-incomplete receipt. The former state is retained as
 restricted migration evidence, not an executable rollback engine.
 
@@ -218,8 +225,8 @@ credential migration or state adoption. Before requesting its exact destructive 
 WEAVE_CANDIDATE_COMMIT=<exact-sha> \
 WEAVE_CANDIDATE_MANIFEST_DIGEST=sha256:<exact-manifest-digest> \
 WEAVE_BACKUP_ROOT=/private/mode-0700/path \
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env \
-bash weave-workspace/fresh-start-backup-rehearsal.sh test
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
+bash weave-workspace/fresh-start-backup-rehearsal.sh dogfood
 ```
 
 This command quiesces the exact former runtime, creates the same private Compose v3 consistency
@@ -294,7 +301,7 @@ Use the least destructive action that solves the problem:
    namespace, exact ownership labels, exact candidate, identity evidence, and explicit volume-removal
    confirmation. It refuses persistent resources and any label mismatch.
 
-There is no generic persistent destructive reset or clean-rebuild command. Persistent test/prod
+There is no generic persistent destructive reset or clean-rebuild command. Persistent dogfood/prod
 deletion, crypto-shred, or full restore requires its own step-up, backup, evidence, and approval
 workflow. Never delete named volumes, generated trust, or credentials merely to repair a failed
 deployment.

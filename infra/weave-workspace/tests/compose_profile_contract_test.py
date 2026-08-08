@@ -877,7 +877,7 @@ def main() -> None:
         runtime_source = (ROOT / "scripts/compose_runtime.py").read_text(encoding="utf-8")
         assert "WEAVE_TEST_USERS_FILE" not in runtime_source
         assert "test-users.json" not in runtime_source
-        assert '"dev": ("caddy", "mailpit")' in runtime_source
+        assert '"dev": ("keycloak",)' in runtime_source
         assert '"test": ("caddy", "mailpit", "mcp")' in runtime_source
         assert '"prod": ("caddy", "mcp")' in runtime_source
         assert "HOST_APPLICATION_SERVICES" in runtime_source
@@ -886,13 +886,13 @@ def main() -> None:
         assert '"--wait-timeout",\n            "600",' in runtime_source
         assert 'script(context, "nextcloud_reconcile.py")' in runtime_source
         invalid = root / "invalid.env"
-        invalid.write_text((root / "test.env").read_text().replace("WEAVE_ENVIRONMENT=test", "WEAVE_ENVIRONMENT=dogfood"))
+        invalid.write_text((root / "test.env").read_text())
         try:
-            load_context("test", ROOT, str(invalid))
+            load_context("dogfood", ROOT, str(invalid))
         except ContractError:
             pass
         else:
-            raise AssertionError("legacy profile value was accepted")
+            raise AssertionError("public dogfood accepted legacy WEAVE_ENVIRONMENT=test")
     compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
     assert "\n  - dogfood\n" not in compose
     assert "\n  - main\n" not in compose

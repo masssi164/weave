@@ -8,9 +8,12 @@ readonly ROOT_DIR
 readonly PROFILE="${1:-dev}"
 
 case "${PROFILE}" in
-  dev|test|prod) ;;
+  dev|dogfood|prod|e2e) ;;
+  test)
+    printf 'WEAVE_INSTALL_WARNING test is deprecated CI compatibility; use dogfood or e2e\n' >&2
+    ;;
   *)
-    printf 'WEAVE_INSTALL_ERROR profile must be dev, test, or prod\n' >&2
+    printf 'WEAVE_INSTALL_ERROR environment must be dev, dogfood, prod, or e2e\n' >&2
     exit 2
     ;;
 esac

@@ -12,7 +12,8 @@ require() { grep -Fq -- "$2" "$1" || fail "Expected $1 to contain: $2"; }
 reject() { ! grep -Fq -- "$2" "$1" || fail "Retired contract remains in $1: $2"; }
 
 for file in \
-  compose.yaml compose.dev.yaml compose.test.yaml compose.prod.yaml compose.isolated-e2e.yaml compose.sh \
+  compose.yaml compose.dev.yaml compose.dogfood.yaml compose.e2e.yaml compose.test.yaml compose.prod.yaml compose.isolated-e2e.yaml compose.sh \
+  environments/dogfood.env.example environments/e2e.env.example \
   scripts/compose_env.py scripts/compose_runtime.py scripts/render_config.py \
   scripts/nextcloud_reconcile.py keycloak/identity_ops.py keycloak/Dockerfile.identity-ops; do
   [[ -f "${ROOT_DIR}/${file}" ]] || fail "Missing Compose authority file: ${file}"
@@ -39,6 +40,8 @@ require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.managed: "true"'
 require "${ROOT_DIR}/compose.dev.yaml" 'host.docker.internal:host-gateway'
 require "${ROOT_DIR}/compose.test.yaml" 'WEAVE_RELEASE_POSTURE: dogfood'
 require "${ROOT_DIR}/compose.test.yaml" 'runtime-state-init:'
+require "${ROOT_DIR}/compose.dogfood.yaml" 'WEAVE_RELEASE_POSTURE: dogfood'
+require "${ROOT_DIR}/compose.e2e.yaml" 'WEAVE_CHAT_E2E_PROOF_ENABLED: "true"'
 require "${ROOT_DIR}/compose.isolated-e2e.yaml" 'WEAVE_CHAT_E2E_PROOF_ENABLED: "true"'
 require "${ROOT_DIR}/compose.isolated-e2e.yaml" 'context-authorization-memberships.json'
 require "${ROOT_DIR}/compose.yaml" 'runtime-state-volume-init:'
@@ -52,8 +55,8 @@ require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.operation: bucket-init
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.operation: key-initialize'
 require "${ROOT_DIR}/compose.yaml" 'MINIO_ROOT_USER_FILE: /run/secrets/runtime-state-s3-access-key'
 require "${ROOT_DIR}/compose.yaml" 'mc version enable runtime-state/weave-runtime-state'
-require "${ROOT_DIR}/scripts/compose_env.py" 'PROFILES = ("dev", "test", "prod")'
-require "${ROOT_DIR}/scripts/compose_env.py" 'refusing to deploy {profile} from an example environment file'
+require "${ROOT_DIR}/scripts/compose_env.py" 'OPERATOR_ENVIRONMENTS = ("dev", "dogfood", "prod", "e2e")'
+require "${ROOT_DIR}/scripts/compose_env.py" 'refusing to deploy {environment} from an example environment file'
 require "${ROOT_DIR}/scripts/compose_env.py" 'persistent-dogfood'
 require "${ROOT_DIR}/scripts/compose_runtime.py" 'refusing unowned existing Docker'
 reject "${ROOT_DIR}/scripts/compose_runtime.py" 'WEAVE_ADOPTION_RECEIPT'

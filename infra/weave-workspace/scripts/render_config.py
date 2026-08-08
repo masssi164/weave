@@ -825,7 +825,7 @@ def render(context: ComposeContext) -> None:
     _write(generated / "agent-runtime-policy.json", json.dumps(runtime_policy, indent=2, sort_keys=True) + "\n", private=False)
     manifest = {
         "schemaVersion": "weave.compose-render.v1",
-        "profile": context.profile,
+        "profile": context.environment,
         "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
         "specificationCommit": specification_commit,
         "baselineRevision": baseline_revision,
@@ -839,7 +839,7 @@ def render(context: ComposeContext) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "test", "prod"))
+    parser.add_argument("profile", choices=("dev", "dogfood", "prod", "e2e", "test"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     args = parser.parse_args()

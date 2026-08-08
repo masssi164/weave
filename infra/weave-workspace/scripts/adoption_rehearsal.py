@@ -465,7 +465,7 @@ def rehearse(
         or manifest.get("candidateCommit") != candidate
         or manifest.get("candidateManifestDigest")
         != candidate_manifest_digest
-        or manifest.get("profile") != context.profile
+        or manifest.get("profile") != getattr(context, "environment", context.profile)
         or manifest.get("composeProject") != context.env["WEAVE_COMPOSE_PROJECT"]
         or not isinstance(postgres_dump_client_image, str)
         or not re.fullmatch(
@@ -687,7 +687,7 @@ def rehearse(
         ):
             resources.append({"kind": "volume", "name": context.env[key]})
         common = {
-            "profile": context.profile,
+            "profile": getattr(context, "environment", context.profile),
             "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
             "candidateCommit": candidate,
             "candidateManifestDigest": candidate_manifest_digest,
@@ -746,7 +746,7 @@ def rehearse(
             purpose=purpose,
             candidate=candidate,
             candidate_manifest_digest=candidate_manifest_digest,
-            profile=context.profile,
+            profile=getattr(context, "environment", context.profile),
             compose_project=context.env["WEAVE_COMPOSE_PROJECT"],
             backup_manifest_digest="sha256:" + manifest_digest,
         )
@@ -780,7 +780,7 @@ def execute(
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "test", "prod"))
+    parser.add_argument("profile", choices=("dogfood", "prod", "test"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     parser.add_argument(
