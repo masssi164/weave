@@ -191,7 +191,7 @@ assert "keycloak-server-spi-private" not in patch_text
 assert "rejectsUnapprovedScopesBeforeDescriptionConversion" in patch_text
 assert "rejectsAnInjectedExtraEffectiveServiceAccountRole" in patch_text
 assert "FROM ${WEAVE_KEYCLOAK_BASE} AS builder" in dockerfile_text
-assert "kc.sh build --db=postgres" in dockerfile_text
+assert "kc.sh build --db=postgres --vault=file" in dockerfile_text
 assert "com.massimotter.weave.keycloak-patch-sha256" in dockerfile_text
 assert "com.massimotter.weave.keycloak-build-evidence-digest" in dockerfile_text
 first_from = dockerfile_text.index("FROM ${WEAVE_KEYCLOAK_BASE}")

@@ -124,10 +124,19 @@ def assert_long_running_services_reap_child_processes(model: dict[str, object]) 
     } == set()
 
 
-def assert_keycloak_smtp_vault_boundary(
+def assert_keycloak_vault_import_boundary(
     model: dict[str, object], *, smtp_password: bool
 ) -> None:
     keycloak = model["services"]["keycloak"]
+    assert "--import-realm" in keycloak["command"]
+    imports = [
+        volume
+        for volume in keycloak["volumes"]
+        if volume.get("target") == "/opt/keycloak/data/import"
+    ]
+    assert len(imports) == 1
+    assert imports[0].get("read_only") is True
+    assert imports[0]["source"].endswith("/keycloak/import")
     smtp = [
         secret
         for secret in keycloak.get("secrets", [])
@@ -658,6 +667,7 @@ def main() -> None:
     assert "mailpit" not in dev_model["services"]
     assert runtime_root_services(dev) == ("keycloak",)
     validate_mount_contract(dev_model)
+    assert_keycloak_vault_import_boundary(dev_model, smtp_password=False)
     assert_long_running_services_reap_child_processes(dev_model)
     assert "backend" not in dev_model["services"]
     assert dev_model["services"]["keycloak"]["user"] == f"{dev.env['WEAVE_RUNTIME_UID']}:0"
@@ -955,8 +965,8 @@ def main() -> None:
         )
         assert "mailpit" in dogfood_model["services"]
         assert "mailpit" not in prod_model["services"]
-        assert_keycloak_smtp_vault_boundary(dogfood_model, smtp_password=False)
-        assert_keycloak_smtp_vault_boundary(prod_model, smtp_password=True)
+        assert_keycloak_vault_import_boundary(dogfood_model, smtp_password=False)
+        assert_keycloak_vault_import_boundary(prod_model, smtp_password=True)
         assert_long_running_services_reap_child_processes(dogfood_model)
         assert_long_running_services_reap_child_processes(prod_model)
         assert dogfood_model["services"]["keycloak"]["user"] == (
@@ -1058,7 +1068,15 @@ def main() -> None:
                 isolated.env["WEAVE_RUNTIME_UID"],
                 isolated.env["WEAVE_RUNTIME_GID"],
             )
-            os.environ["WEAVE_E2E_STACK_SCOPE"] = ""
+            e2e_overlay = (ROOT / "compose.e2e.yaml").read_text(encoding="utf-8")
+            e2e_keycloak = e2e_overlay.split("\n  keycloak:\n", 1)[1].split(
+                "\n  backend:\n", 1
+            )[0]
+            assert "secrets: !override" in e2e_keycloak
+            assert "keycloak-db-password" in e2e_keycloak
+            assert "keycloak-bootstrap-admin-password" in e2e_keycloak
+            assert "smtp-password" not in e2e_keycloak
+            os.environ["WEAVE_E2E_STACK_SCOPE"] = "persistent"
             try:
                 load_context("e2e", ROOT, str(root / "e2e.env"))
             except ContractError as error:

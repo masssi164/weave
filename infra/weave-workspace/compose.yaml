@@ -239,6 +239,7 @@ services:
       - /opt/weave/run-keycloak.sh
     command:
       - start-dev
+      - --import-realm
     environment:
       KC_DB: postgres
       KC_DB_URL_HOST: postgres
@@ -258,6 +259,7 @@ services:
     volumes:
       - ./scripts/run-keycloak.sh:/opt/weave/run-keycloak.sh:ro
       - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/opt/weave/trust/ca.pem:ro
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/keycloak/import:/opt/keycloak/data/import:ro
       - keycloak-data:/opt/keycloak/data
     ports:
       - "127.0.0.1:${WEAVE_KEYCLOAK_HOST_PORT:-48080}:8080"
@@ -1014,6 +1016,8 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-mcp-server-jwk.json
   runtime-admin-client-jwk:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin
+  smtp-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/smtp-password
   nextcloud-client-secret:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-nextcloud
   matrix-mas-client-secret:
@@ -1024,8 +1028,6 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/runtime-state-s3-access-key
   runtime-state-s3-secret-key:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/runtime-state-s3-secret-key
-  smtp-password:
-    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/smtp-password
 
 volumes:
   caddy-data:
