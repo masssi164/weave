@@ -71,7 +71,7 @@ def ssl_context(ca_file: Path | None) -> ssl.SSLContext:
 
 def support_safe_result(response: dict[str, object], email: str) -> dict[str, object]:
     required = (
-        "providerInvitationId",
+        "invitationHandle",
         "organizationId",
         "lifecycleStatus",
         "provisioningStatus",
@@ -86,9 +86,11 @@ def support_safe_result(response: dict[str, object], email: str) -> dict[str, ob
     if response["requestedRole"] != "owner" or "capabilities" in response:
         raise ValueError("Owner bootstrap returned an invalid authority projection")
     return {
-        "schema": "weave-owner-bootstrap-evidence-v1",
+        "schema": "weave-owner-bootstrap-evidence-v2",
         "supportSafe": True,
-        "providerInvitationId": response["providerInvitationId"],
+        "invitationHandleSha256": hashlib.sha256(
+            str(response["invitationHandle"]).encode("utf-8")
+        ).hexdigest(),
         "organizationId": response["organizationId"],
         "emailSha256": hashlib.sha256(email.lower().encode("utf-8")).hexdigest(),
         "lifecycleStatus": response["lifecycleStatus"],

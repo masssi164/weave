@@ -2,6 +2,8 @@ import type {
   GeneratedAdminAuditEventResponse,
   GeneratedAdminControlPlaneResponse,
   GeneratedCapabilityWhitelistResponse,
+  GeneratedMemberInvitationRequest,
+  GeneratedMemberInvitationResponse,
   GeneratedPlatformIdentityReadinessResponse,
   GeneratedProviderReadinessTestRequest,
   GeneratedProviderReadinessTestResponse,
@@ -171,27 +173,30 @@ export type InvitationProvisioningStatus =
   | "pending"
   | "applied"
   | "failed"
-  | "expired";
+  | "expired"
+  | "not_requested";
 
-export interface CreateOrganizationInvitationRequest {
-  email: string;
-  displayName?: string;
+export interface CreateOrganizationInvitationRequest
+  extends Omit<GeneratedMemberInvitationRequest, "role"> {
   role: OrganizationRole;
-  capabilities: string[];
 }
 
-export interface OrganizationInvitation {
-  providerInvitationId: string;
+export interface OrganizationInvitation
+  extends Omit<
+    GeneratedMemberInvitationResponse,
+    | "invitationHandle"
+    | "organizationId"
+    | "email"
+    | "lifecycleStatus"
+    | "provisioningStatus"
+    | "requestedRole"
+  > {
+  invitationHandle: string;
   organizationId: string;
   email: string;
-  displayName?: string;
   lifecycleStatus: string;
   provisioningStatus: InvitationProvisioningStatus;
-  requestedRole: OrganizationRole;
-  capabilities: string[];
-  expiresAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  requestedRole?: OrganizationRole;
 }
 
 export interface SuiteDomainReadiness {
@@ -869,27 +874,43 @@ export class AdminControlPlaneApi {
   ): Promise<OrganizationInvitation> {
     return this.request<OrganizationInvitation>(
       `/admin/organizations/${encodeURIComponent(organizationId)}/invitations`,
-      { method: "POST", body: JSON.stringify(invitation) },
+      {
+        method: "POST",
+        headers: {
+          "Idempotency-Key": invitationIdempotencyKey("create"),
+        },
+        body: JSON.stringify(invitation),
+      },
     );
   }
 
   async resendOrganizationInvitation(
     organizationId: string,
-    providerInvitationId: string,
+    invitationHandle: string,
   ): Promise<OrganizationInvitation> {
     return this.request<OrganizationInvitation>(
-      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(providerInvitationId)}/resend`,
-      { method: "POST" },
+      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(invitationHandle)}/resend`,
+      {
+        method: "POST",
+        headers: {
+          "Idempotency-Key": invitationIdempotencyKey("resend"),
+        },
+      },
     );
   }
 
   async revokeOrganizationInvitation(
     organizationId: string,
-    providerInvitationId: string,
+    invitationHandle: string,
   ): Promise<void> {
     await this.request<void>(
-      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(providerInvitationId)}`,
-      { method: "DELETE" },
+      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(invitationHandle)}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Idempotency-Key": invitationIdempotencyKey("revoke"),
+        },
+      },
     );
   }
 
@@ -916,6 +937,17 @@ export class AdminControlPlaneApi {
     if (response.status === 204) return undefined as T;
     return response.json() as Promise<T>;
   }
+}
+
+function invitationIdempotencyKey(
+  action: "create" | "resend" | "revoke",
+): string {
+  const entropy = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(entropy);
+  const nonce = Array.from(entropy, (value) =>
+    value.toString(16).padStart(2, "0"),
+  ).join("");
+  return `admin-invitation-${action}-${nonce}`;
 }
 
 function normalizeControlPlane(
