@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import ssl
 import stat
 import sys
@@ -28,9 +29,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--api-base-url", required=True)
     parser.add_argument("--token-file", type=Path, required=True)
-    parser.add_argument("--email", required=True)
-    parser.add_argument("--display-name", default="")
-    parser.add_argument("--idempotency-key", required=True)
+    parser.add_argument("--request-file", type=Path, required=True)
     parser.add_argument("--ca-file", type=Path)
     parser.add_argument("--evidence", type=Path)
     return parser.parse_args()
@@ -48,6 +47,28 @@ def read_private_token(path: Path) -> str:
     if not TOKEN_MINIMUM_BYTES <= len(encoded) <= TOKEN_MAXIMUM_BYTES:
         raise ValueError("Owner bootstrap SecretRef has an invalid length")
     return token
+
+
+def read_private_request(path: Path) -> dict[str, str]:
+    resolved = path.expanduser().absolute()
+    if path.is_symlink() or not resolved.is_file():
+        raise ValueError("Owner bootstrap request is not a regular file")
+    mode = stat.S_IMODE(resolved.stat().st_mode)
+    if os.name == "posix" and mode & 0o077:
+        raise ValueError("Owner bootstrap request must not grant group or other access")
+    try:
+        value = json.loads(resolved.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ValueError("Owner bootstrap request is not valid JSON") from error
+    if not isinstance(value, dict) or set(value) != {
+        "displayName",
+        "email",
+        "idempotencyKey",
+    }:
+        raise ValueError("Owner bootstrap request has an invalid shape")
+    if not all(isinstance(item, str) for item in value.values()):
+        raise ValueError("Owner bootstrap request values must be strings")
+    return value
 
 
 def endpoint(base_url: str) -> str:
@@ -86,7 +107,7 @@ def support_safe_result(response: dict[str, object], email: str) -> dict[str, ob
     if response["requestedRole"] != "owner" or "capabilities" in response:
         raise ValueError("Owner bootstrap returned an invalid authority projection")
     return {
-        "schema": "weave-owner-bootstrap-evidence-v2",
+        "schemaVersion": "weave-owner-bootstrap-evidence-v2",
         "supportSafe": True,
         "invitationHandleSha256": hashlib.sha256(
             str(response["invitationHandle"]).encode("utf-8")
@@ -101,34 +122,44 @@ def support_safe_result(response: dict[str, object], email: str) -> dict[str, ob
 
 def write_evidence(path: Path, result: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(
-        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    os.chmod(temporary, 0o600)
-    temporary.replace(path)
+    temporary = path.with_name(path.name + ".tmp-" + secrets.token_hex(8))
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, 0o600)
+        temporary.replace(path)
+    finally:
+        if temporary.exists() or temporary.is_symlink():
+            temporary.unlink()
 
 
 def main() -> int:
     args = parse_args()
-    if not IDEMPOTENCY_PATTERN.fullmatch(args.idempotency_key):
+    owner_request = read_private_request(args.request_file)
+    email = owner_request["email"]
+    display_name = owner_request["displayName"]
+    idempotency_key = owner_request["idempotencyKey"]
+    if not IDEMPOTENCY_PATTERN.fullmatch(idempotency_key):
         raise ValueError(
             "Idempotency key must be 16-128 environment-safe characters"
         )
-    normalized_email = args.email.strip().lower()
+    normalized_email = email.strip().lower()
     if "@" not in normalized_email or len(normalized_email) > 320:
         raise ValueError("A bounded owner email address is required")
 
     request = urllib.request.Request(
         endpoint(args.api_base_url),
         data=json.dumps(
-            {"email": normalized_email, "displayName": args.display_name.strip() or None}
+            {"email": normalized_email, "displayName": display_name.strip() or None}
         ).encode("utf-8"),
         method="POST",
         headers={
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "Idempotency-Key": args.idempotency_key,
+            "Idempotency-Key": idempotency_key,
             "X-Weave-Bootstrap-Token": read_private_token(args.token_file),
         },
     )

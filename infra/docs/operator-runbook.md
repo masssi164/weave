@@ -343,11 +343,11 @@ Protected deployment automation may read cached Micrometer measurements directly
 execute provider probes. Do not publish or proxy this endpoint; use the authenticated admin
 provider-capability-health facade for product/control-plane access.
 
-For the persistent dogfood candidate workflow, capture `persistent-dogfood-observation.sh capture`
-before the first install and after the second, then run `compare`. The helper requires the
-persistent dogfood scope and rejects isolated-E2E coordinates. It compares only hashes/counts for
-the immutable human subject, Mailpit volume/message state, TLS CA/leaf identity, and active session
-set. Database content is never copied into evidence.
+Routine persistent deployment must preserve the existing PostgreSQL, Mailpit, Caddy, and native
+Files volumes and the public TLS CA/leaf fingerprints while converging the same Compose model a
+second time. Deployment automation must not obtain a realm-admin credential merely to inspect a
+human subject or session. Human continuity is instead proven by the activated owner through normal
+OIDC/session evidence; identity recovery uses the Keycloak database backup, not user recreation.
 
 Set `WEAVE_SUPPORT_BUNDLE_RUN_CHECKS=true` when you want the bundle to include fresh `operator-check.sh` and `release-verify.sh` output. The bundle includes public URL/config summaries, container status, disk/volume summaries, strict cached provider-health evidence, the sanitized Nextcloud authentication-source audit, and only a count/content-set hash for recent smoke/operator/verify artifacts found under `.generated`. Raw service/provider logs and raw prior diagnostic artifacts are deliberately excluded because generic redaction cannot prove removal of actor/content identifiers. It is a diagnostics artifact only: it is **not** a backup and cannot restore Postgres databases, Matrix media, Nextcloud files/calendar data, Caddy ACME state, or generated secrets. Review the archive before sharing externally.
 

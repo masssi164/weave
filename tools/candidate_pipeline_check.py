@@ -33,6 +33,7 @@ def main() -> int:
     candidate = read(".github/workflows/candidate-images.yml")
     live = read(".github/workflows/live-stack-e2e.yml")
     deployment = read(".github/workflows/test-stack-deploy.yml")
+    owner_bootstrap = read(".github/workflows/dogfood-owner-bootstrap.yml")
     ios = read(".github/workflows/ios-dogfood.yml")
     physical = read(".github/workflows/physical-iphone-human-test.yml")
     readiness = read(".github/workflows/human-testing-readiness.yml")
@@ -218,11 +219,35 @@ def main() -> int:
             "Resolve exact destructive approval from delivery issue",
             "Apply only the exact approved Fresh Start plan",
             "Prove canonical lifecycle convergence and stable realm artifacts",
-            "Create a new invitation through the normal identity flow",
             "Verify running image identities and assemble deployment evidence",
             "Upload persistent dogfood evidence",
         ),
         "persistent dogfood deployment",
+    )
+    ordered(
+        owner_bootstrap,
+        (
+            "Verify protected dogfood boundary",
+            "Create private owner request",
+            "Run bounded Server-owned owner bootstrap",
+            "Remove private request",
+            "Upload support-safe evidence",
+        ),
+        "bounded first-owner bootstrap",
+    )
+    require(
+        "./compose.sh dogfood bootstrap-owner" in owner_bootstrap
+        and ".requestAnchorPresent == true" in owner_bootstrap
+        and ".bootstrapAuthorityAbsent == true" in owner_bootstrap
+        and ".tokenAbsent == true" in owner_bootstrap
+        and "dogfood-member.sh" not in owner_bootstrap
+        and "admin-cli" not in owner_bootstrap,
+        "first-owner bootstrap does not use the bounded Server-owned lifecycle",
+    )
+    require(
+        "bootstrap-owner" not in deployment
+        and "WEAVE_DOGFOOD_MEMBER_EMAIL" not in deployment,
+        "routine or Fresh Start deployment must not create or resend a human invitation",
     )
     require(
         "weave-realm-first.json" in deployment
@@ -235,7 +260,8 @@ def main() -> int:
         and "composeModelStable:true" in deployment
         and "realmArtifactsUnchanged:true" in deployment
         and "realmArtifactsVerified:true" in deployment
-        and "newInvitationPending:true" in deployment,
+        and "firstOwnerBootstrapRequired:true" in deployment
+        and "ownerInvitationCreated:false" in deployment,
         "persistent deployment does not prove Compose and realm-artifact convergence",
     )
     require(

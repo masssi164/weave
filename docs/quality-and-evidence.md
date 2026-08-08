@@ -87,10 +87,10 @@ There are five deliberately separated lanes:
 - `Physical iPhone Human Test` validates a tester-supplied, support-safe twenty-step protocol
   against the exact manifest-bound deployment and iOS distribution. `Human Testing Readiness`
   consumes that artifact and cannot manufacture human outcomes, timestamps, or confirmation. Its
-  final persistent-runner step independently reverifies all four running image identities and
+  final persistent-runner step independently reverifies all three release image identities and
   captures a new cached provider-health observation; the older deployment snapshot is historical
   evidence only and cannot satisfy the final freshness gate.
-- `Test Stack Deploy` (`.github/workflows/test-stack-deploy.yml`) is the persistent LAN dogfood stack for the `dogfood` branch. It starts only from successful exact-candidate isolated evidence, applies the candidate twice, runs the non-destructive operator checks without the automation-user smoke suite, proves Compose and runtime idempotency plus persistent human/Mailpit/TLS/session invariants, and leaves the verified stack running for human testing.
+- `Test Stack Deploy` (`.github/workflows/test-stack-deploy.yml`) is the persistent LAN dogfood stack for the `dogfood` branch. It starts only from successful exact-candidate isolated evidence, applies the candidate twice, runs non-destructive operator checks, proves Compose/runtime idempotency and persistent PostgreSQL/Mailpit/Caddy/native-Files volume plus public-TLS continuity, and leaves the verified stack running. It has no human identity writer; owner activation and session continuity are separate normal-product evidence.
 
 The persistent test stack is the required bridge between `dev` and `main`: a commit may be promoted to `main` only after it is contained in `dev`, contained in `dogfood`, and has a successful `Test Stack Deploy` run on `dogfood`. See [Dev/Dogfood/Main promotion flow](dev-test-main-promotion-flow.md).
 

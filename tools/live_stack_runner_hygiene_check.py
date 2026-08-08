@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/live-stack-e2e.yml"
 CANDIDATE_WORKFLOW = ROOT / ".github/workflows/candidate-images.yml"
 DOGFOOD_DEPLOY_WORKFLOW = ROOT / ".github/workflows/test-stack-deploy.yml"
-DOGFOOD_MEMBER_WORKFLOW = ROOT / ".github/workflows/dogfood-member.yml"
+DOGFOOD_OWNER_WORKFLOW = ROOT / ".github/workflows/dogfood-owner-bootstrap.yml"
 IOS_DOGFOOD_WORKFLOW = ROOT / ".github/workflows/ios-dogfood.yml"
 PERSISTENT_RESOURCE_GUARD = ROOT / "tools/persistent_dogfood_resource_guard.sh"
 TEST_APP = ROOT / "gradle/tasks/test-app.sh"
@@ -25,7 +25,7 @@ def main() -> int:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     candidate_workflow = CANDIDATE_WORKFLOW.read_text(encoding="utf-8")
     deployment = DOGFOOD_DEPLOY_WORKFLOW.read_text(encoding="utf-8")
-    member = DOGFOOD_MEMBER_WORKFLOW.read_text(encoding="utf-8")
+    owner = DOGFOOD_OWNER_WORKFLOW.read_text(encoding="utf-8")
     ios = IOS_DOGFOOD_WORKFLOW.read_text(encoding="utf-8")
     guard = PERSISTENT_RESOURCE_GUARD.read_text(encoding="utf-8")
     test_app = TEST_APP.read_text(encoding="utf-8")
@@ -49,11 +49,27 @@ def main() -> int:
     positions = [workflow.index(step) for step in ordered_steps]
     require(positions == sorted(positions), "product-flow stages are misordered")
 
-    for document in (workflow, deployment, member, ios):
+    for document in (workflow, deployment, owner, ios):
         require(
             "group: weave-live-mac-mini-exclusive" in document,
             "all Mac runner mutators must share the exclusive lock",
         )
+    for marker in (
+        "./compose.sh dogfood bootstrap-owner",
+        "--request-file",
+        ".bootstrapAuthorityAbsent == true",
+        ".bootstrapMountAbsent == true",
+        ".requestAnchorPresent == true",
+        ".tokenAbsent == true",
+        "Remove private request",
+    ):
+        require(marker in owner, f"bounded owner bootstrap is missing {marker!r}")
+    require(
+        "dogfood-member.sh" not in owner
+        and "admin-cli" not in owner
+        and "WEAVE_KEYCLOAK_ADMIN_PASSWORD" not in owner,
+        "owner bootstrap must not restore the retired direct Keycloak writer",
+    )
     require(
         "cancel-in-progress: false" in workflow,
         "the destructive live workflow must not be cancelled mid-cleanup",

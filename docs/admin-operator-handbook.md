@@ -73,7 +73,7 @@ Until those gates are green, launch requests must fail before provider mutation/
 
 ## Keycloak platform-security operations
 
-Realm, clients, scopes, roles, groups, organizations, SMTP, federation, and broker configuration are infrastructure desired state owned by `infra/identity-ops`. They are deliberately not exposed as public provider dry-run/apply APIs. A second desired-state apply must converge to an empty plan.
+Static realm settings, clients, scopes, roles, groups, the organization baseline, SMTP, federation, and broker configuration derive from the canonical realm source rendered by infrastructure and imported by Keycloak. The bounded post-import migration owns only FGAP state that import cannot express; its second plan must be empty. Neither operation is exposed as a public provider dry-run/apply API.
 
 The Weave Server owns the audited human lifecycle through server-owned contracts:
 

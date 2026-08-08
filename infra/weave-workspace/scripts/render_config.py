@@ -726,9 +726,6 @@ def _backend_env(context: ComposeContext) -> str:
         "WEAVE_WORKSPACE_CALENDAR_ENABLED": "true",
         "WEAVE_WORKSPACE_CALENDAR_READINESS": "ready",
         "WEAVE_MATRIX_FEDERATION_ENABLED": "false",
-        "WEAVE_IDENTITY_BOOTSTRAP_OWNER_ENABLED": (
-            "true" if context.isolated_namespace is not None else "false"
-        ),
     }
     if env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse":
         values.update(
@@ -754,6 +751,7 @@ def _backend_env(context: ComposeContext) -> str:
             }
         )
     if context.environment == "e2e":
+        values["WEAVE_IDENTITY_BOOTSTRAP_OWNER_ENABLED"] = "true"
         values["WEAVE_IDENTITY_BOOTSTRAP_OWNER_TOKEN_FILE"] = (
             "/run/secrets/weave/bootstrap-owner-token"
         )

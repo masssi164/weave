@@ -23,7 +23,7 @@ MAS is served behind the matrix hostname; no separate `mas.<tenant_domain>` entr
 Environment selection is explicit: `dev`, `dogfood`, `prod`, or `e2e`. A branch name never selects
 or changes the environment. The checked-in/default port blocks are:
 
-- `dev`: `58080/59000` Keycloak. Normal `compose.sh dev up` starts Keycloak only;
+- `dev`: `58080/59000` Keycloak. Normal `docker compose --env-file .env.dev up -d` starts Keycloak only;
   Server, MCP, and Admin Console run on the host. A private dev environment may set
   `COMPOSE_PROFILES=dev,dev-tools` to add Mailpit; other checked-in dev ports are reserved for
   transitional/provider-specific diagnostics and are not started by the normal lifecycle;
@@ -38,11 +38,13 @@ production uses reviewed external SMTP and does not start Mailpit. E2E owns its 
 Keycloak, Mailpit, and RuntimeState settings directly and never inherits the persistent dogfood
 overlay.
 
-For a non-destructive rerun:
+Prepare once and use native Compose for a non-destructive rerun:
 
 ```bash
-./gradlew composeDevDown
-./gradlew composeDevDependenciesReady
+cd infra/weave-workspace
+./compose.sh dev configure
+docker compose --env-file .env.dev up -d
+docker compose --env-file .env.dev down
 ```
 
 `down` preserves named volumes and SecretRefs. Destructive cleanup is available only to an exact

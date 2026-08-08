@@ -8,10 +8,10 @@ x-weave-resource-labels: &weave-resource-labels
   com.massimotter.weave.generation: ${WEAVE_RESOURCE_GENERATION:-fresh-v1}
   com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
   com.massimotter.weave.fresh-start-eligible: "true"
-  com.massimotter.weave.spec-commit: ${WEAVE_SPEC_COMMIT:-0000000000000000000000000000000000000000}
-  com.massimotter.weave.spec-digest: ${WEAVE_SPEC_DIGEST:-sha256:0000000000000000000000000000000000000000000000000000000000000000}
-  com.massimotter.weave.candidate-commit: ${WEAVE_CANDIDATE_COMMIT:-0000000000000000000000000000000000000000}
-  com.massimotter.weave.candidate-manifest-digest: ${WEAVE_CANDIDATE_MANIFEST_DIGEST:-sha256:0000000000000000000000000000000000000000000000000000000000000000}
+  com.massimotter.weave.spec-commit: ${WEAVE_SPEC_COMMIT:?prepared deployment descriptor required}
+  com.massimotter.weave.spec-digest: ${WEAVE_SPEC_DIGEST:?prepared deployment descriptor required}
+  com.massimotter.weave.candidate-commit: ${WEAVE_CANDIDATE_COMMIT:?prepared deployment descriptor required}
+  com.massimotter.weave.candidate-manifest-digest: ${WEAVE_CANDIDATE_MANIFEST_DIGEST:?prepared deployment descriptor required}
 
 x-weave-service: &weave-service
   init: true
@@ -22,8 +22,13 @@ x-weave-service: &weave-service
   networks:
     weave:
 
-x-core-profiles: &core-profiles
+x-identity-profiles: &identity-profiles
   - dev
+  - dogfood
+  - e2e
+  - prod
+
+x-deployment-profiles: &deployment-profiles
   - dogfood
   - e2e
   - prod
@@ -54,7 +59,7 @@ services:
       <<: *weave-resource-labels
       com.massimotter.weave.component: postgres
       com.massimotter.weave.data-class: runtime-ephemeral
-    profiles: *core-profiles
+    profiles: *deployment-profiles
     image: ${WEAVE_POSTGRES_IMAGE:-postgres:16.9-alpine}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-db
     environment:
@@ -75,7 +80,7 @@ services:
       start_period: 10s
 
   postgres-reconcile:
-    profiles: *core-profiles
+    profiles: *deployment-profiles
     image: ${WEAVE_POSTGRES_IMAGE:-postgres:16.9-alpine}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-postgres-reconcile
     restart: "no"
@@ -186,7 +191,7 @@ services:
       <<: *weave-resource-labels
       com.massimotter.weave.component: gateway
       com.massimotter.weave.data-class: runtime-ephemeral
-    profiles: *core-profiles
+    profiles: *deployment-profiles
     image: ${WEAVE_CADDY_IMAGE:-caddy:2.10.0-alpine}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-proxy
     depends_on:
@@ -227,7 +232,7 @@ services:
       <<: *weave-resource-labels
       com.massimotter.weave.component: identity
       com.massimotter.weave.data-class: runtime-ephemeral
-    profiles: *core-profiles
+    profiles: *identity-profiles
     image: ${WEAVE_KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7.1}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-keycloak
     user: "${WEAVE_RUNTIME_UID:-1000}:0"
@@ -278,7 +283,7 @@ services:
   keycloak-realm-migration-bootstrap:
     profiles:
       - identity-migration
-    image: ${WEAVE_KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7.0}
+    image: ${WEAVE_KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7.1}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-keycloak-realm-migration-bootstrap
     user: "${WEAVE_RUNTIME_UID:-1000}:0"
     restart: "no"

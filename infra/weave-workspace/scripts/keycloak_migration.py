@@ -102,7 +102,7 @@ def migration_inputs(context: ComposeContext) -> MigrationInputs:
         or bundle.get("baselineArtifactDigest") != baseline_digest
         or bundle.get("containsSecretValues") is not False
         or bundle.get("fromBaselineRevision") is not None
-        or bundle.get("keycloakVersion") != "26.7.0"
+        or bundle.get("keycloakVersion") != "26.7.1"
         or bundle.get("operations") != [expected_operation]
         or not SHA256.fullmatch(str(expected_operation["desiredStateDigest"]))
         or bundle.get("status") != "blocked-post-import-operation"
@@ -214,7 +214,7 @@ def require_completed_migration(context: ComposeContext) -> MigrationInputs:
         or receipt.get("schemaVersion") != RECEIPT_SCHEMA
         or receipt.get("status") != "complete"
         or receipt.get("operationId") != OPERATION_ID
-        or receipt.get("keycloakVersion") != "26.7.0"
+        or receipt.get("keycloakVersion") != "26.7.1"
         or receipt.get("manifestDigest") != inputs.manifest_digest
         or receipt.get("bundleDigest") != inputs.bundle_digest
         or receipt.get("baselineArtifactDigest") != inputs.baseline_digest

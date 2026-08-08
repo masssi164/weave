@@ -127,11 +127,7 @@ def main() -> int:
         # Runtime helpers receive the already-normalized public context and
         # re-enter through the explicit E2E selector. Docker-assigned zero
         # ports must remain valid across that second normalization.
-        with process_environment(
-            **e2e.env,
-            WEAVE_E2E_STACK_SCOPE="isolated",
-            WEAVE_E2E_RUN_ID="contract-run-001",
-        ):
+        with process_environment(**e2e.env):
             inner_e2e = load_context("e2e", ROOT, str(e2e_env))
         assert inner_e2e.environment == "e2e"
         assert inner_e2e.env["WEAVE_PROXY_HTTPS_HOST_PORT"] == "0"

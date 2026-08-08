@@ -144,7 +144,7 @@ def assemble(
             "matches": True,
         }
     if (
-        cut.get("schemaVersion") != "weave.fresh-start-cut-report.v1"
+        cut.get("schemaVersion") != "weave.fresh-start-cut-report.v2"
         or cut.get("laneCandidateCommit") != lane
         or cut.get("sourceCandidateCommit") != source
         or cut.get("candidateManifestDigest") != manifest_digest
@@ -152,7 +152,8 @@ def assemble(
         or cut.get("schemaConverged") is not True
         or cut.get("realmArtifactsVerified") is not True
         or cut.get("imagesVerified") is not True
-        or cut.get("newInvitationPending") is not True
+        or cut.get("firstOwnerBootstrapRequired") is not True
+        or cut.get("ownerInvitationCreated") is not False
         or cut.get("legacyStateMigrated") is not False
         or cut.get("adoptionAuthorized") is not False
         or cut.get("supportSafe") is not True

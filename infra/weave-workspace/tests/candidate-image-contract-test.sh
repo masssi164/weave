@@ -106,7 +106,7 @@ contains "${WORKFLOW}" 'WEAVE_KEYCLOAK_STOCK_PLATFORM_MANIFEST_DIGEST=${{ steps.
 contains "${WORKFLOW}" 'com.massimotter.weave.keycloak-build-evidence-digest'
 contains "${WORKFLOW}" 'com.massimotter.weave.keycloak-stock-index-digest'
 contains "${WORKFLOW}" 'com.massimotter.weave.keycloak-stock-platform-manifest-digest'
-contains "${WORKFLOW}" 'keycloak_version=26.7.1-weave.${GITHUB_SHA:0:12}'
+contains "${WORKFLOW}" 'keycloak_version=26.7.1-weave.${WEAVE_CANDIDATE_COMMIT:0:12}'
 contains "${WORKFLOW}" 'keycloak-26.7.1-downstream-built-in-policy'
 reject "${WORKFLOW}" 'keycloak-26.7.0-downstream-built-in-policy'
 contains "${WORKFLOW}" 'keycloakRuntimeBuildEvidenceDigest=${{ steps.keycloak_runtime_prepare.outputs.build_evidence_digest }}'

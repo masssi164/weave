@@ -19,7 +19,7 @@ class RealmProjectionError(RuntimeError):
     """The semantic baseline cannot be represented safely by Keycloak 26.7."""
 
 
-KEYCLOAK_VERSION = "26.7.0"
+KEYCLOAK_VERSION = "26.7.1"
 PRIVATE_JWK_MEMBERS = frozenset({"d", "p", "q", "dp", "dq", "qi", "oth", "k"})
 ORGANIZATION_ID_NAMESPACE = uuid.UUID("b72cdb67-84a6-5aaa-a30c-70c1f10f76c8")
 WORKLOAD_POLICY_EXECUTOR = "weave-workload-client-registration-enforcer"

@@ -7,8 +7,9 @@ Feature: Enterprise dogfood readiness is proven across users and delivery gates
   Scenario: Persistent dogfood deployment is non-destructive and idempotent
     Given isolated collaboration evidence is green for the candidate
     When the candidate is deployed twice to persistent dogfood
-    Then the Compose model Keycloak reconciliation and runtime assets are idempotent
-    And the persistent member subject mail database TLS identity and active session remain unchanged
+    Then the Compose model static Keycloak migration and runtime assets are idempotent
+    And the PostgreSQL Mailpit Caddy and native Files volumes plus public TLS identity remain unchanged
+    And deployment holds no human identity writer while later OIDC evidence proves the activated owner session
     And cached provider health is support-safe and fresh
 
   @human-ready-ios-distribution

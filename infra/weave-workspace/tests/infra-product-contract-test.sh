@@ -31,7 +31,9 @@ fi
 [[ ! -e "${ROOT_DIR}/keycloak/Dockerfile.sanitizer" ]] ||
   fail "Privileged Keycloak sanitizer authority was not retired"
 
-require "${ROOT_DIR}/compose.yaml" 'profiles: *core-profiles'
+require "${ROOT_DIR}/compose.yaml" 'profiles: *identity-profiles'
+require "${ROOT_DIR}/compose.yaml" 'profiles: *deployment-profiles'
+require "${ROOT_DIR}/compose.yaml" 'profiles: *application-profiles'
 require "${ROOT_DIR}/compose.yaml" 'POSTGRES_PASSWORD_FILE: /run/secrets/postgres-admin-password'
 require "${ROOT_DIR}/compose.yaml" 'SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/'
 require "${ROOT_DIR}/compose.yaml" \

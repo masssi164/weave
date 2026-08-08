@@ -265,8 +265,8 @@
       "evidenceMode": "offline-spec"
     },
     {
-      "tag": "@weave-v01-dogfood-member-invite-activation",
-      "scenario": "Dogfood member invite activation reaches the workspace",
+      "tag": "@weave-v01-dogfood-owner-invite-activation",
+      "scenario": "Dogfood first-owner invite activation reaches the workspace",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
       "executableTest": "tools/dogfood_member_onboarding_gate.sh",
       "evidenceMarkers": [
@@ -391,44 +391,6 @@
             "Trust-preserving app-state reset, open same current handoff, manual login succeeds and records fresh handoff evidence without deleting the Developer App trust anchor.",
             "Dogfood Mailpit check: test/reset emails are captured locally, visible to operator, and not sent externally.",
             "Repeated developer-team/profile trust prompts are a dogfood blocker"
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@weave-v01-lost-pending-identity-retirement",
-      "scenario": "Lost never-activated dogfood identity requires protected retirement",
-      "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "infra/weave-workspace/tests/dogfood-pending-identity-recovery-workflow-test.sh",
-      "evidenceMarkers": [
-        "DOGFOOD_PENDING_IDENTITY_RECOVERY_CONTRACT"
-      ],
-      "evidenceMode": "offline-spec",
-      "additionalEvidence": [
-        {
-          "path": "infra/weave-workspace/tests/dogfood-member-helper-test.sh",
-          "fragments": [
-            "recorded pending subject still exists in Keycloak",
-            "restored_disposable_bootstrap_retired",
-            "lost_pending_identity_retired_and_recreated",
-            "retired-pending-identities"
-          ]
-        },
-        {
-          "path": "infra/weave-workspace/audit-private-backup-identity.sh",
-          "fragments": [
-            "PRIVATE_IDENTITY_AUDIT",
-            "identityRestorableForRecordedMember",
-            "soleDisposableBootstrapIdentity"
-          ]
-        },
-        {
-          "path": ".github/workflows/dogfood-pending-identity-recovery.yml",
-          "fragments": [
-            "Pending-identity retirement is guarded.",
-            "acknowledge-recovery-is-guarded",
-            "isolated e2e clone of the dogfood identity topology",
-            "private backup plus exact cleanup"
           ]
         }
       ]
@@ -1367,7 +1329,7 @@
     },
     {
       "tag": "@weave-sprint8-domain-control-plane-evidence",
-      "scenario": "Admin validates domains, reviews Identity Ops readiness, checks portability, and members see provider-neutral states",
+      "scenario": "Admin validates domains, reviews Keycloak baseline readiness, checks portability, and members see provider-neutral states",
       "feature": "e2e/features/sprint_8_domain_control_plane.feature",
       "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
       "evidenceMarkers": [
@@ -1431,7 +1393,7 @@
             "Product-ready definition",
             "Domain registry version",
             "Migration contract version",
-            "Keycloak Identity Ops evidence",
+            "Keycloak realm baseline evidence",
             "Calls/MatrixRTC readiness artifact",
             "ARC workload identity and lifecycle proof",
             "Weaver/OpenClaw upstream provenance",
@@ -5852,17 +5814,6 @@
       "evidenceMode": "live-runtime",
       "runtimeSources": [
         "dogfood-deployment"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "infra/weave-workspace/persistent-dogfood-observation.sh",
-          "fragments": [
-            "twoNonDestructiveInstallsPreservedState",
-            "activeSessions",
-            "mailpit",
-            "tls"
-          ]
-        }
       ]
     },
     {

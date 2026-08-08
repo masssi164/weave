@@ -48,6 +48,7 @@ class BackupRuntimeContractTest(unittest.TestCase):
         self.context = SimpleNamespace(
             profile="dogfood",
             environment="dogfood",
+            active_profiles=("dogfood",),
             repository_root=self.repository,
             root=ROOT,
             generated_root=self.generated,

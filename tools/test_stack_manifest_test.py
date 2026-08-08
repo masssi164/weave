@@ -61,10 +61,10 @@ class TestStackManifestTest(unittest.TestCase):
                 "supportSafe": True, "containsSecretValues": False,
             },
             {
-                "schemaVersion": "weave.fresh-start-cut-report.v1", "laneCandidateCommit": self.lane,
+                "schemaVersion": "weave.fresh-start-cut-report.v2", "laneCandidateCommit": self.lane,
                 "sourceCandidateCommit": self.source, "candidateManifestDigest": digest, "status": "passed",
                 "schemaConverged": True, "realmArtifactsVerified": True, "imagesVerified": True,
-                "newInvitationPending": True,
+                "firstOwnerBootstrapRequired": True, "ownerInvitationCreated": False,
                 "legacyStateMigrated": False, "adoptionAuthorized": False, "supportSafe": True,
                 "containsSecretValues": False,
             },

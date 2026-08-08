@@ -80,16 +80,15 @@ a Weave CalDAV/iCalendar projection; Chat may use Matrix for transport and
 federation. These projections must use Weave facades and never become provider
 pass-throughs.
 
-## Keycloak Identity Ops direction
+## Keycloak realm baseline direction
 
-Keycloak baseline reconciliation has one writer: the profile-specific Identity Ops
-tasks owned by `infra/weave-workspace`. Identity Ops compares the checked-in
-`weave.keycloak-desired-state/v2` contract with the current support-safe provider
-snapshot and exposes separate `plan`, `apply`, and `verify` operations. The product
-server does not define or persist a second realm model and exposes no realm
-desired-state mutation route.
+Keycloak static baseline configuration has one source: the canonical realm projection owned by
+`infra/weave-workspace`. Environment render produces a reproducible import with no real secret
+values. A separately invoked, backup-gated migration handles only post-import FGAP state. The
+product Server owns dynamic human identity lifecycle through its Keycloak Admin REST boundary and
+does not define or persist a second static realm model.
 
-Minimum Identity Ops evidence:
+Minimum realm baseline evidence:
 
 - realm/client presence and redirect/origin policy status;
 - exact native Organization role groups `/owners`, `/admins`, `/members`, and
@@ -97,12 +96,12 @@ Minimum Identity Ops evidence:
 - the role-free `/capabilities` parent and exact `/capabilities/weaver` human
   entitlement;
 - workload-only role and service-account boundaries;
-- an empty second plan after apply and an independently reproducible verify;
+- an empty second migration plan and an independently reproducible import/receipt check;
 - raw secret and provider-payload redaction.
 
-Ordinary apply converges only the declared managed surface. Destructive recovery,
-implicit secret rotation, and a parallel server-side executor are not compatibility
-paths.
+Routine startup imports only static state and verifies the migration receipt. Destructive
+recovery, implicit secret rotation, general-purpose `kcadm`, and a parallel reconciliation
+authority are not compatibility paths.
 
 ## Sprint 12 provider portability schema v2
 

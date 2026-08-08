@@ -76,7 +76,7 @@ The standards-first dogfood cutover is a Fresh Start. It has no legacy database,
 
 After the new generation has been established, later candidates default to update mode within that generation:
 
-- consume the exact backend, MCP, Identity Ops, and custom Keycloak Runtime image digests proven by the
+- consume the exact backend, MCP, and custom Keycloak Runtime image digests proven by the
   isolated candidate run;
 - apply the `dogfood` environment idempotently;
 - keep only state created under the current generation;

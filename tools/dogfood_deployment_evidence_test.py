@@ -46,7 +46,7 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
 
     def cut(self) -> dict[str, object]:
         return {
-            "schemaVersion": "weave.fresh-start-cut-report.v1",
+            "schemaVersion": "weave.fresh-start-cut-report.v2",
             "laneCandidateCommit": self.lane,
             "sourceCandidateCommit": self.source,
             "candidateManifestDigest": self.manifest,
@@ -54,7 +54,8 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
             "schemaConverged": True,
             "realmArtifactsVerified": True,
             "imagesVerified": True,
-            "newInvitationPending": True,
+            "firstOwnerBootstrapRequired": True,
+            "ownerInvitationCreated": False,
             "legacyStateMigrated": False,
             "adoptionAuthorized": False,
             "supportSafe": True,
@@ -63,11 +64,15 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
 
     def comparison(self) -> dict[str, object]:
         return {
-            "schemaVersion": "weave.persistent-dogfood-comparison.v2",
+            "schemaVersion": "weave.persistent-dogfood-comparison.v3",
             "status": "passed",
             "baselineSource": "pre-deploy",
             "preExistingRuntimeObserved": True,
             "twoNonDestructiveInstallsPreservedState": True,
+            "identityStoreVolumePreserved": True,
+            "mailpitVolumePreserved": True,
+            "tlsIdentityPreserved": True,
+            "humanWriterAbsent": True,
             "supportSafe": True,
         }
 
@@ -91,13 +96,13 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
         evidence = self.assemble(cut=self.cut())
         self.assertEqual(evidence["deployment"]["stackStatus"], "passed")
         self.assertEqual(evidence["deployment"]["baselineSource"], "fresh-start")
-        self.assertEqual(evidence["deployment"]["ownerActivationStatus"], "pending")
+        self.assertEqual(evidence["deployment"]["ownerActivationStatus"], "not-started")
         self.assertFalse(evidence["deployment"]["persistentHumanUnchanged"])
         self.assertFalse(evidence["deployment"]["legacyStateMigrated"])
         self.assertFalse(evidence["deployment"]["adoptionAuthorized"])
         self.assertEqual(evidence["backendBuild"]["commit"], self.source)
         self.assertEqual(evidence["realmArtifacts"], self.realm_artifacts)
-        self.assertEqual(evidence["blockers"][0]["code"], "fresh-owner-activation-pending")
+        self.assertEqual(evidence["blockers"][0]["code"], "first-owner-bootstrap-required")
 
     def test_routine_deployment_proves_new_generation_continuity(self):
         evidence = self.assemble(comparison=self.comparison())

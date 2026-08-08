@@ -18,7 +18,9 @@ profile requires its exact matching provider configuration and remains fail-clos
 - `scripts/init_secrets.py`: idempotent dev/dogfood/e2e secret initialization and prod secret
   validation. It must never print values.
 - `scripts/render_config.py`: deterministic renderer from the pinned canonical desired state.
-- `scripts/compose_runtime.py` and `compose.sh`: the only normal lifecycle interface.
+- `scripts/compose_runtime.py` and `compose.sh`: narrow preparation, invariant verification,
+  migration, and proof tooling. Ordinary prepared lifecycle uses native Compose with the generated
+  `.env.<environment>` descriptor.
 - `keycloak/`: canonical realm projection support plus narrowly scoped OAuth verification helpers.
   Static state enters through realm import; dynamic human lifecycle belongs to Weave Server.
 - `database/postgres-reconcile.sh`: idempotent provider database/role and reconciliation-control
@@ -50,6 +52,10 @@ also keeps persistent Mailpit for initial invitation capture, while prod uses ex
 E2E includes isolated Mailpit, sets `WEAVE_E2E_STACK_SCOPE=isolated`, and requires a bounded unique
 `WEAVE_E2E_RUN_ID`; cleanup may
 target only that derived namespace.
+
+After `configure` (dev) or the explicit migration (dogfood/prod), ordinary lifecycle is:
+`docker compose --env-file .env.<environment> up -d`, `ps`, `logs`, and `down`. Missing derived
+provenance fails Compose interpolation; never hand-author the finalized descriptor.
 
 ## Maintenance rules
 

@@ -26,6 +26,8 @@ if [[ "${PROFILE}" != "dev" && -z "${WEAVE_ENV_FILE:-}" ]]; then
 fi
 
 "${ROOT_DIR}/compose.sh" "${PROFILE}" keycloak-migration-apply
-"${ROOT_DIR}/compose.sh" "${PROFILE}" up
+docker compose \
+  --env-file "${ROOT_DIR}/.env.${PROFILE}" \
+  up -d --remove-orphans --wait --wait-timeout 600
 
 printf 'install: %s exact-candidate stack is running with a verified Keycloak migration receipt\n' "${PROFILE}"

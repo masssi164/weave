@@ -5,7 +5,7 @@ import java.util.Set;
 
 /** Exact Keycloak 26.7 post-import FGAP operation accepted by the migration command. */
 final class KeycloakFgapMigrationContract {
-  static final String KEYCLOAK_VERSION = "26.7.0";
+  static final String KEYCLOAK_VERSION = "26.7.1";
   static final String REALM = "weave";
   static final String BOOTSTRAP_REALM = "master";
   static final String MIGRATION_CLIENT_ID = "weave-realm-migration-bootstrap";

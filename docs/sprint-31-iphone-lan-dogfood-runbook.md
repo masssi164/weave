@@ -91,9 +91,12 @@ It includes the local CA downloads, iPhone trust steps, DNS-first service links,
 infra/weave-workspace/local-invite-link.sh --json
 ```
 
-Before handing Massimo the QR/link, use the protected dogfood-member GitHub workflow to ensure the persistent member or resend activation while it is still pending. The workflow is the remote iPhone-operable path and does not require Admin Console access. The repository helper used by that workflow must never rewrite an active account.
-
-For a missing identity, `ensure` creates it once and sends a short-lived Keycloak required-action email. For a pending identity, `resend_activation` sends a replacement activation message without replacing the user. For an active identity, both operations are non-mutating and no activation mail is sent. The Mailpit action URL is a secret one-time identity-provider artifact; do not put it in the QR, field manual, logs, screenshots, app storage, or GitHub comments.
+Before handing Massimo the QR/link on an empty realm, use the protected **Dogfood Owner Bootstrap**
+workflow. It creates the normal Keycloak Organizations invitation through Weave Server, or resends
+only the exactly correlated pending invitation. Once any human exists the bootstrap fails closed;
+later invitations and resends use the authenticated Admin Console/Server API. The Mailpit action URL
+is a secret one-time identity-provider artifact; do not put it in the QR, field manual, logs,
+screenshots, app storage, or GitHub comments.
 
 Default non-secret enrollment handoff link to give Massimo:
 

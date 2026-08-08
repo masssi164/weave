@@ -255,7 +255,7 @@ def validate_fresh_start_cut(
     value: dict[str, Any], lane: str, source: str, manifest_digest: str
 ) -> None:
     if (
-        value.get("schemaVersion") != "weave.fresh-start-cut-report.v1"
+        value.get("schemaVersion") != "weave.fresh-start-cut-report.v2"
         or value.get("laneCandidateCommit") != lane
         or value.get("sourceCandidateCommit") != source
         or value.get("candidateManifestDigest") != manifest_digest
@@ -263,7 +263,8 @@ def validate_fresh_start_cut(
         or value.get("schemaConverged") is not True
         or value.get("realmArtifactsVerified") is not True
         or value.get("imagesVerified") is not True
-        or value.get("newInvitationPending") is not True
+        or value.get("firstOwnerBootstrapRequired") is not True
+        or value.get("ownerInvitationCreated") is not False
         or value.get("legacyStateMigrated") is not False
         or value.get("adoptionAuthorized") is not False
         or value.get("supportSafe") is not True
@@ -274,11 +275,15 @@ def validate_fresh_start_cut(
 
 def validate_persistent_comparison(value: dict[str, Any]) -> None:
     if (
-        value.get("schemaVersion") != "weave.persistent-dogfood-comparison.v2"
+        value.get("schemaVersion") != "weave.persistent-dogfood-comparison.v3"
         or value.get("status") != "passed"
         or value.get("baselineSource") != "pre-deploy"
         or value.get("preExistingRuntimeObserved") is not True
         or value.get("twoNonDestructiveInstallsPreservedState") is not True
+        or value.get("identityStoreVolumePreserved") is not True
+        or value.get("mailpitVolumePreserved") is not True
+        or value.get("tlsIdentityPreserved") is not True
+        or value.get("humanWriterAbsent") is not True
         or value.get("supportSafe") is not True
     ):
         raise EvidenceError("persistent dogfood comparison is unsafe or incomplete")
@@ -326,15 +331,15 @@ def assemble_deployment(
         validate_fresh_start_cut(fresh_start_cut, candidate, source_candidate, candidate_manifest_digest)
         baseline_source = "fresh-start"
         fresh_status = "passed"
-        owner_activation = "pending"
-        persistent_unchanged = False
+        owner_activation = "not-started"
+        identity_storage_preserved = False
     else:
         assert persistent_comparison is not None
         validate_persistent_comparison(persistent_comparison)
         baseline_source = "pre-deploy"
         fresh_status = "not-required"
         owner_activation = "passed"
-        persistent_unchanged = True
+        identity_storage_preserved = True
     provider_available = provider_health["overall"] == "available"
     passed = idempotency_passed and provider_available
     blockers: list[dict[str, str]] = []
@@ -342,8 +347,8 @@ def assemble_deployment(
         blockers.append({"code": "persistent-dogfood-not-idempotent", "summary": "The repeated deployment reported drift.", "candidateCommit": candidate})
     if not provider_available:
         blockers.append({"code": "provider-health-not-available", "summary": "One or more current provider-backed surfaces are not available.", "candidateCommit": candidate})
-    if owner_activation == "pending":
-        blockers.append({"code": "fresh-owner-activation-pending", "summary": "The new Fresh Start invitation awaits normal human activation.", "candidateCommit": candidate})
+    if owner_activation == "not-started":
+        blockers.append({"code": "first-owner-bootstrap-required", "summary": "The bounded first-owner invitation bootstrap must run before human activation.", "candidateCommit": candidate})
     normalized_url = validate_run_url(run_url)
     return {
         "schemaVersion": 3,
@@ -360,7 +365,7 @@ def assemble_deployment(
             "baselineSource": baseline_source,
             "freshStartStatus": fresh_status,
             "ownerActivationStatus": owner_activation,
-            "persistentHumanUnchanged": persistent_unchanged,
+            "persistentHumanUnchanged": identity_storage_preserved,
             "legacyStateMigrated": False,
             "adoptionAuthorized": False,
             "realmArtifactsVerified": True,

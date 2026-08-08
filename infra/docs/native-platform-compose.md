@@ -1,10 +1,11 @@
 # Native platform Compose status
 
 This document records the executable operator boundary for the native-provider integration
-tranche. It deliberately distinguishes what is runnable now from the remaining Keycloak bootstrap
-work. The desired single-command `docker compose --env-file .env.<environment> up -d` interface is
-not yet qualified: `compose.sh` remains required because it enforces SecretRef permissions,
-provenance labels, resource ownership, and isolated cleanup.
+tranche. Direct Compose owns ordinary lifecycle after one narrow invariant-preparation step.
+`compose.sh` remains only for SecretRef/config rendering, provenance and resource ownership
+verification, the bounded Keycloak migration, and isolated cleanup. Preparation writes one
+mode-0600, secret-free `.env.<environment>` descriptor with the environment overlay, profiles,
+candidate/spec identity, and resource coordinates required by native Compose.
 
 ## Authority and provider model
 
@@ -22,27 +23,25 @@ manifest-bound IAM and file-based credential contracts are implemented and quali
 
 ## Development
 
-Compose still defines Keycloak as the only normal development dependency and keeps application
-processes on the host. The deferred FGAP migration executor is currently qualified only for
-backup-gated dogfood/prod. Dev therefore remains deliberately fail-closed at the migration gate;
-do not bypass it by fabricating a receipt. Once the separately reviewed disposable-environment
-migration contract lands, the intended commands remain:
+Compose defines Keycloak as the only normal development dependency and keeps application
+processes on the host. Prepare the local SecretRefs and deterministic realm import once, then use
+native Compose for ordinary lifecycle:
 
 ```bash
 cd infra/weave-workspace
-./compose.sh dev up
+./compose.sh dev configure
+docker compose --env-file .env.dev up -d
 cd ../..
-python3 infra/weave-workspace/scripts/run_host_dev_server.py boot --root infra/weave-workspace
-python3 infra/weave-workspace/scripts/run_host_dev_mcp.py
+./gradlew :server:bootRun
+./gradlew :weave-mcp-server:bootRun
 cd admin-console && npm run dev
 ```
 
 The host Server and Keycloak use their local H2/dev-file stores. Compose does not start
-PostgreSQL, Server, MCP, or Admin Console in `dev`; Mailpit is an optional developer tool rather
-than a default dependency. Until the disposable migration contract is qualified, `up` leaves
-Keycloak imported but returns a blocking migration error before host application readiness. The direct Gradle tasks remain `:server:bootRun` and
-`:weave-mcp-server:bootRun`; the helpers exist so a clean shell receives the exact generated
-OIDC, key-file, provider, and loopback coordinates without sourcing a shell fragment.
+PostgreSQL, Caddy, Server, MCP, or Admin Console in `dev`; Mailpit is an optional developer tool
+rather than a default dependency. The host launch helpers remain available when a clean shell
+needs the generated OIDC, key-file, provider, and loopback coordinates without sourcing a shell
+fragment.
 
 ## Disposable E2E
 
@@ -64,12 +63,17 @@ lane rather than accepting a production backup proof outside its scope.
 
 ## Dogfood and production
 
-The supported commands are:
+The first candidate for an environment runs the bounded, backup-gated migration, which also
+prepares the finalized native Compose descriptor. Ordinary convergence then uses Compose
+directly:
 
 ```bash
 cd infra/weave-workspace
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env ./install.sh dogfood
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-prod.env ./install.sh prod
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env ./compose.sh dogfood keycloak-migration-apply
+docker compose --env-file .env.dogfood up -d
+
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-prod.env ./compose.sh prod keycloak-migration-apply
+docker compose --env-file .env.prod up -d
 ```
 
 Dogfood keeps Mailpit as persistent activation-sensitive infrastructure, requires implicit TLS, and

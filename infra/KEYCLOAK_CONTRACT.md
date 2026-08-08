@@ -90,7 +90,7 @@ qualified backup-gated migration; dev/E2E fail before application readiness beca
 disposable migration contract is not yet qualified. The receipt binds:
 
 - exact manifest, bundle, baseline-artifact, and semantic baseline digests;
-- Keycloak `26.7.0` and the one qualified operation ID;
+- Keycloak `26.7.1` and the one qualified operation ID;
 - a closed mutation-code set and mutation count;
 - semantic readback and empty second plan;
 - bootstrap authority deletion and negative readback;

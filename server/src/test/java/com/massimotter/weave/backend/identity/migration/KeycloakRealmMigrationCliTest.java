@@ -93,7 +93,7 @@ class KeycloakRealmMigrationCliTest {
           "baselineArtifactDigest": "%s",
           "containsSecretValues": false,
           "fromBaselineRevision": null,
-          "keycloakVersion": "26.7.0",
+          "keycloakVersion": "26.7.1",
           "operations": [
             {
               "blockedBy": "keycloak-26.7-imports-client-authorization-before-organizations",

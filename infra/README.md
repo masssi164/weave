@@ -124,7 +124,7 @@ Optional providers are fail-closed by default:
 - `weave-workspace/operator-check.sh`: host-local container and health checks.
 - `../gradle/tasks/test-app.sh`: the single run-scoped invitation, Keycloak activation, PKCE, WebDAV, ARC, MCP, revocation, and cleanup proof.
 - `weave-workspace/isolated-e2e-calendar-outage.sh`: isolated-only Calendar outage/recovery fixture that deletes only the backend actor's disposable `weave-workspace` calendar and proves cached domain-local degradation while Files stays available.
-- `weave-workspace/persistent-dogfood-observation.sh`: read-only before/after subject, Mailpit, TLS, and session hashes/counts for non-destructive persistent dogfood deployment evidence.
+- `weave-workspace/compose.sh dogfood bootstrap-owner`: bounded, Server-owned first-owner invitation with private request input, persistent Mailpit delivery, and mandatory authority cleanup evidence.
 - `weave-workspace/nextcloud-auth-security-audit.sh`: support-safe classification of recent invalid-authentication/throttle sources without counter reset or raw addresses.
 - `weave-workspace/backup.sh`, `adoption-rehearsal.sh`, `restore-private-backup.sh`, and `support-bundle.sh`: private consistency backup, isolated adoption proof, integrity-only guarded restore preflight, and support-safe diagnostics.
 - `weave-workspace/weave-mcp-tool-contract.json`: support-safe canonical domain contract and active Spring AI MCP runtime evidence.

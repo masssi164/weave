@@ -28,8 +28,11 @@ repository `AGENTS.md` files. Do not reintroduce executable OpenTofu/Terraform, 
 
 Use `weave-workspace/compose.sh <dev|dogfood|prod|e2e> <command>` with one of:
 
-- `secrets-init`, `render`, `config`, `prepare`, `up`, `down`, `ps`, or `logs`;
+- `secrets-init`, `render`, `configure`, `config`, or `prepare` for invariant preparation;
 - `keycloak-migration-apply` for the explicit backup-gated dogfood/prod post-import migration.
+
+Preparation creates a secret-free mode-0600 `.env.<environment>` descriptor. Ordinary prepared
+`up`, `down`, `ps`, and `logs` use native `docker compose --env-file .env.<environment>`.
 
 `dogfood`, `prod`, and `e2e` require `WEAVE_ENV_FILE` pointing to a private reviewed file. E2E
 also requires `WEAVE_E2E_STACK_SCOPE=isolated` and a valid `WEAVE_E2E_RUN_ID`. The normal

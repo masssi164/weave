@@ -54,6 +54,7 @@ class FreshStartBackupRehearsalContractTest(unittest.TestCase):
         self.context = SimpleNamespace(
             profile="dogfood",
             environment="dogfood",
+            active_profiles=("dogfood",),
             generated_root=self.generated,
             env=env,
         )

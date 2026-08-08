@@ -1,0 +1,113 @@
+name: Dogfood Owner Bootstrap
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weave-live-mac-mini-exclusive
+  cancel-in-progress: false
+
+jobs:
+  owner-bootstrap:
+    name: Ephemeral First Owner Bootstrap
+    environment: dogfood
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
+      - weave-live
+    timeout-minutes: 10
+    env:
+      EXPECTED_RUNNER_NAME: weave-live-mac-mini
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE || vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
+      WEAVE_DOGFOOD_OWNER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
+      WEAVE_DOGFOOD_OWNER_DISPLAY_NAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Verify protected dogfood boundary
+        env:
+          DISPATCH_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_NAME:-}" == "${EXPECTED_RUNNER_NAME}" ]]
+          [[ "${DISPATCH_REF}" == dogfood ]]
+          [[ "${WEAVE_ENV_FILE:-}" == /* && -f "${WEAVE_ENV_FILE}" && ! -L "${WEAVE_ENV_FILE}" ]]
+          : "${WEAVE_DOGFOOD_OWNER_EMAIL:?Configure the protected first-owner email}"
+          : "${WEAVE_DOGFOOD_OWNER_DISPLAY_NAME:?Configure the first-owner display name}"
+
+      - name: Check out deployed dogfood ref
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Create private owner request
+        env:
+          REQUEST_FILE: ${{ runner.temp }}/dogfood-owner-bootstrap-request.json
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          email = os.environ["WEAVE_DOGFOOD_OWNER_EMAIL"].strip().lower()
+          request = {
+              "displayName": os.environ["WEAVE_DOGFOOD_OWNER_DISPLAY_NAME"].strip(),
+              "email": email,
+              "idempotencyKey": "owner-bootstrap-" + hashlib.sha256(email.encode()).hexdigest(),
+          }
+          path = Path(os.environ["REQUEST_FILE"])
+          descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+          with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+              json.dump(request, stream, sort_keys=True)
+              stream.write("\n")
+          PY
+
+      - name: Run bounded Server-owned owner bootstrap
+        working-directory: infra/weave-workspace
+        env:
+          REQUEST_FILE: ${{ runner.temp }}/dogfood-owner-bootstrap-request.json
+          EVIDENCE_FILE: ${{ runner.temp }}/dogfood-owner-bootstrap-evidence.json
+        run: |
+          set -euo pipefail
+          ./compose.sh dogfood bootstrap-owner \
+            --request-file "${REQUEST_FILE}" \
+            --evidence-file "${EVIDENCE_FILE}"
+          jq -e '
+            .schemaVersion == "weave-owner-bootstrap-evidence-v2" and
+            .requestedRole == "owner" and
+            .mailMessageMatched == true and
+            .bootstrapAuthorityAbsent == true and
+            .bootstrapMountAbsent == true and
+            .canonicalImageUnchanged == true and
+            .requestAnchorPresent == true and
+            .tokenAbsent == true and
+            .supportSafe == true
+          ' "${EVIDENCE_FILE}" >/dev/null
+          {
+            echo "## Dogfood first owner"
+            echo
+            echo "- Invitation delivery: persistent Mailpit over implicit TLS"
+            echo "- Bootstrap authority absent after operation: true"
+            echo "- Mail inbox: https://mail.weave.test:44443"
+            echo "- The activation link remains in Mailpit and is never copied into workflow output."
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Remove private request
+        if: always()
+        env:
+          REQUEST_FILE: ${{ runner.temp }}/dogfood-owner-bootstrap-request.json
+        run: |
+          rm -f -- "${REQUEST_FILE}"
+
+      - name: Upload support-safe evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: dogfood-owner-bootstrap-evidence
+          path: ${{ runner.temp }}/dogfood-owner-bootstrap-evidence.json
+          if-no-files-found: error
+          retention-days: 30

@@ -42,9 +42,6 @@ jobs:
       WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE || vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
       WEAVE_DOGFOOD_BACKUP_ROOT: ${{ vars.WEAVE_DOGFOOD_BACKUP_ROOT }}
       WEAVE_E2E_STACK_SCOPE: persistent
-      WEAVE_DOGFOOD_MEMBER_USERNAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_USERNAME }}
-      WEAVE_DOGFOOD_MEMBER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
-      WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME }}
       WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/canonical-weave-specs
     defaults:
       run:
@@ -468,23 +465,6 @@ jobs:
           jq -n '{schemaVersion:"weave.persistent-test-idempotence.v3",runtimeProfile:"dogfood",deploymentContext:"persistent-dogfood",noChanges:true,composeModelStable:true,realmArtifactsUnchanged:true,supportSafe:true,containsSecretValues:false}' \
             > "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-test-idempotence.json"
 
-      - name: Create a new invitation through the normal identity flow
-        if: steps.approval.outputs.approved == 'true'
-        working-directory: infra/weave-workspace
-        run: |
-          set -euo pipefail
-          ./dogfood-member.sh ensure \
-            --subject-file "$WEAVE_GENERATED_ROOT/dogfood-member.subject" \
-            --evidence-file "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-invitation.json"
-          jq -e '
-            .schemaVersion == "weave.dogfood.persistent-member.v1" and
-            .state == "pending" and
-            .action == "created_and_activation_sent" and
-            .activation.mailSent == true and
-            .activation.mailVisible == true and
-            .supportSafe == true
-          ' "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-invitation.json" >/dev/null
-
       - name: Verify running image identities and assemble deployment evidence
         if: steps.approval.outputs.approved == 'true'
         run: |
@@ -520,7 +500,7 @@ jobs:
             --arg source "$WEAVE_CANDIDATE_COMMIT" \
             --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
             --arg planSha "sha256:$WEAVE_FRESH_START_PLAN_SHA" '
-              {schemaVersion:"weave.fresh-start-cut-report.v1",laneCandidateCommit:$lane,sourceCandidateCommit:$source,candidateManifestDigest:$manifest,planSha256:$planSha,status:"passed",schemaConverged:true,realmArtifactsVerified:true,imagesVerified:true,newInvitationPending:true,backupVerified:true,isolatedRestoreVerified:true,legacyStateMigrated:false,adoptionAuthorized:false,supportSafe:true,containsSecretValues:false}
+              {schemaVersion:"weave.fresh-start-cut-report.v2",laneCandidateCommit:$lane,sourceCandidateCommit:$source,candidateManifestDigest:$manifest,planSha256:$planSha,status:"passed",schemaConverged:true,realmArtifactsVerified:true,imagesVerified:true,firstOwnerBootstrapRequired:true,ownerInvitationCreated:false,backupVerified:true,isolatedRestoreVerified:true,legacyStateMigrated:false,adoptionAuthorized:false,supportSafe:true,containsSecretValues:false}
             ' > "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-cut-report.json"
           backend_version="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$WEAVE_BACKEND_IMAGE")"
           python3 tools/dogfood_deployment_evidence.py assemble \

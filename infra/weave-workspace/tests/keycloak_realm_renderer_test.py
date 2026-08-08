@@ -108,7 +108,7 @@ def desired_state() -> dict[str, object]:
         )
     return {
         "apiVersion": "weave.keycloak-desired-state/v3",
-        "keycloakVersion": "26.7.0",
+        "keycloakVersion": "26.7.1",
         "provenance": {
             "baselineRevision": "sha256:" + "1" * 64,
             "overlayRevision": "sha256:" + "2" * 64,
@@ -257,7 +257,7 @@ def desired_state() -> dict[str, object]:
                 "conditionProvider": "any-client",
                 "executorProvider": "weave-workload-client-registration-enforcer",
                 "executorVersion": "1",
-                "keycloakVersion": "26.7.0",
+                "keycloakVersion": "26.7.1",
                 "runtimeAdminClientKey": "client:weave-agent-runtime-admin",
                 "registrationProvider": "openid-connect",
                 "identifierMetadata": "client_name",

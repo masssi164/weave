@@ -224,6 +224,8 @@ def _isolated_overrides(environment: str, env: dict[str, str]) -> tuple[dict[str
             "WEAVE_COMPOSE_PROJECT": namespace,
             "WEAVE_RESOURCE_PREFIX": namespace,
             "WEAVE_E2E_RUN_NAMESPACE": namespace,
+            "WEAVE_E2E_RUN_ID": run_id,
+            "WEAVE_E2E_STACK_SCOPE": "isolated",
             "WEAVE_E2E_NAMESPACE": namespace,
             "WEAVE_STACK_SCOPE": "isolated",
             "WEAVE_DOCKER_NETWORK": f"{namespace}_network",

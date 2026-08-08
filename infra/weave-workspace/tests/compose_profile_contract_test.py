@@ -33,6 +33,7 @@ from compose_runtime import (  # noqa: E402
     resource_labels_match,
     runtime_root_services,
     validate_mount_contract,
+    write_native_compose_environment,
 )
 from render_config import (  # noqa: E402
     _backend_env,
@@ -77,35 +78,67 @@ def resolved_model(context) -> dict[str, object]:
 
 
 def raw_resolved_model(context) -> dict[str, object]:
-    command = [
-        "docker",
-        "compose",
-        "--env-file",
-        str(context.common_env_file),
-        "--env-file",
-        str(context.profile_env_file),
-    ]
-    for compose_file in context.compose_files:
-        command.extend(("--file", str(compose_file)))
-    command.extend(
-        (
-            "--project-name",
-            context.env["WEAVE_COMPOSE_PROJECT"],
+    with tempfile.TemporaryDirectory() as temporary:
+        descriptor = write_native_compose_environment(
+            context, Path(temporary) / f".env.{context.environment}"
+        )
+        assert descriptor.stat().st_mode & 0o777 == 0o600
+        command = [
+            "docker",
+            "compose",
+            "--env-file",
+            str(descriptor),
             "config",
             "--format",
             "json",
+        ]
+        assert "--profile" not in command and "--file" not in command
+        clean_environment = {
+            key: value
+            for key, value in os.environ.items()
+            if not key.startswith("WEAVE_") and not key.startswith("COMPOSE_")
+        }
+        result = subprocess.run(
+            command,
+            cwd=context.root,
+            env=clean_environment,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
         )
-    )
-    assert "--profile" not in command
+        model = json.loads(result.stdout)
+        serialized = json.dumps(model, sort_keys=True)
+        assert "prepared deployment descriptor required" not in serialized
+        return model
+
+
+def assert_unprepared_native_compose_fails_closed(context) -> None:
+    clean_environment = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("WEAVE_") and not key.startswith("COMPOSE_")
+    }
     result = subprocess.run(
-        command,
+        [
+            "docker",
+            "compose",
+            "--env-file",
+            str(context.profile_env_file),
+            "--file",
+            str(context.compose_files[0]),
+            "--file",
+            str(context.compose_files[1]),
+            "config",
+        ],
         cwd=context.root,
-        env=compose_environment(context),
-        check=True,
+        env=clean_environment,
+        check=False,
         text=True,
         stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
-    return json.loads(result.stdout)
+    assert result.returncode != 0
+    assert "prepared deployment descriptor required" in result.stderr
 
 
 def assert_long_running_services_reap_child_processes(model: dict[str, object]) -> None:
@@ -518,6 +551,8 @@ def main() -> None:
     assert dev.compose_files[1].name == "compose.dev.yaml"
     dev_model = resolved_model(dev)
     assert set(raw_resolved_model(dev)["services"]) == set(dev_model["services"])
+    assert set(dev_model["services"]) == {"keycloak"}
+    assert_unprepared_native_compose_fails_closed(dev)
     assert "mailpit" not in dev_model["services"]
     assert runtime_root_services(dev) == ("keycloak",)
     validate_mount_contract(dev_model)
@@ -815,6 +850,23 @@ def main() -> None:
         assert set(raw_resolved_model(prod)["services"]) == set(
             prod_model["services"]
         )
+        application_services = {
+            "agent-runtime-keys-init",
+            "backend",
+            "caddy",
+            "keycloak",
+            "keycloak-realm-migration-receipt-check",
+            "mcp",
+            "mcp-keycloak-connectivity-check",
+            "mcp-secret-check",
+            "native-files-volume-init",
+            "postgres",
+            "postgres-reconcile",
+            "schema-init",
+            "schema-receipt-check",
+        }
+        assert set(dogfood_model["services"]) == application_services | {"mailpit"}
+        assert set(prod_model["services"]) == application_services
         assert "mailpit" in dogfood_model["services"]
         assert "mailpit" not in prod_model["services"]
         assert_keycloak_vault_import_boundary(dogfood_model, smtp_password=False)

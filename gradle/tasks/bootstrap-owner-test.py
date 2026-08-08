@@ -6,6 +6,8 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -20,6 +22,28 @@ SPEC.loader.exec_module(bootstrap_owner)
 
 
 class BootstrapOwnerEvidenceTest(unittest.TestCase):
+    def test_reads_only_a_private_exact_request_projection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            request = Path(temporary) / "request.json"
+            request.write_text(
+                json.dumps(
+                    {
+                        "displayName": "Owner",
+                        "email": "owner@example.test",
+                        "idempotencyKey": "owner-bootstrap-run-0001",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            os.chmod(request, 0o600)
+            self.assertEqual(
+                bootstrap_owner.read_private_request(request)["email"],
+                "owner@example.test",
+            )
+            os.chmod(request, 0o640)
+            with self.assertRaisesRegex(ValueError, "group or other"):
+                bootstrap_owner.read_private_request(request)
+
     def test_hashes_the_canonical_invitation_handle_and_email(self) -> None:
         invitation_handle = "inv_opaque-owner-invitation"
         email = "Owner@Example.Test"
@@ -35,7 +59,7 @@ class BootstrapOwnerEvidenceTest(unittest.TestCase):
             email,
         )
 
-        self.assertEqual(result["schema"], "weave-owner-bootstrap-evidence-v2")
+        self.assertEqual(result["schemaVersion"], "weave-owner-bootstrap-evidence-v2")
         self.assertTrue(result["supportSafe"])
         self.assertEqual(
             result["invitationHandleSha256"],
