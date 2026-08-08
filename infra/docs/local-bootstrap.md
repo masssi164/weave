@@ -23,7 +23,7 @@ MAS is served behind the matrix hostname; no separate `mas.<tenant_domain>` entr
 Environment selection is explicit: `dev`, `dogfood`, `prod`, or `e2e`. A branch name never selects
 or changes the environment. The checked-in/default port blocks are:
 
-- `dev`: `58080/59000` Keycloak. Normal `compose.sh dev up` starts PostgreSQL and Keycloak only;
+- `dev`: `58080/59000` Keycloak. Normal `compose.sh dev up` starts Keycloak only;
   Server, MCP, and Admin Console run on the host. Other checked-in dev ports are reserved for
   transitional/provider-specific diagnostics and are not started by the normal lifecycle;
 - `dogfood`: `44080/44443`, `48080/49000`, `48025`, and

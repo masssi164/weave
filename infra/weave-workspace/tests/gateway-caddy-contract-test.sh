@@ -22,12 +22,11 @@ renderer = (root / "scripts/render_config.py").read_text(encoding="utf-8")
 assert "handle @synapse {{ reverse_proxy synapse:8008 }}" not in renderer
 assert "handle {{ reverse_proxy mas:8080 }}" not in renderer
 assert render_config._gateway_site("https://api.weave.test:44443") == "https://api.weave.test"
-assert """  handle @synapse {{
-    reverse_proxy synapse:8008
-  }}
-  handle {{
-    reverse_proxy mas:8080
-  }}""" in renderer
+assert 'if env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse"' in renderer
+assert "reverse_proxy synapse:8008" in renderer
+assert "reverse_proxy mas:8080" in renderer
+assert 'respond "Optional Matrix provider is not selected" 404' in renderer
+assert 'respond "Optional Nextcloud provider is not selected" 404' in renderer
 PY
 
 printf '%s\n' "Caddy gateway configuration contract test passed."

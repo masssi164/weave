@@ -4,8 +4,13 @@ services:
       - host.docker.internal:host-gateway
 
   keycloak:
+    depends_on: !reset {}
     command:
       - start-dev
+    environment:
+      KC_DB: dev-file
+    secrets: !override
+      - keycloak-bootstrap-admin-password
 
   synapse:
     extra_hosts:

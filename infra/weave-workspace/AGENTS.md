@@ -44,8 +44,8 @@ Dogfood/e2e/prod require digest-pinned images and a private `WEAVE_ENV_FILE`. Th
 `WEAVE_SPEC_CORPUS_ROOT` process coordinate is accepted only when it is an absolute Git worktree
 root at the exact commit in `specs/weave-specs.lock.json`.
 
-`dev` contains only PostgreSQL/Keycloak infrastructure; run Server, MCP, and Admin Console on the
-host, with H2 permitted only for the host server. Dogfood/prod include the backend and MCP tier.
+`dev` contains only Keycloak infrastructure; run Server, MCP, and Admin Console on the host, with
+H2 permitted only for the host server. Dogfood/prod include the backend and MCP tier.
 E2E sets `WEAVE_E2E_STACK_SCOPE=isolated` and a bounded unique `WEAVE_E2E_RUN_ID`; cleanup may
 target only that derived namespace.
 

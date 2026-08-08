@@ -18,3 +18,22 @@ services:
         source: ${WEAVE_GENERATED_ROOT:?isolated generated root is required}/context-authorization-memberships.json
         target: /run/weave-e2e/context-authorization-memberships.json
         read_only: true
+    depends_on:
+      runtime-state-init:
+        condition: service_completed_successfully
+    secrets:
+      - source: runtime-state-s3-access-key
+        target: weave/runtime-state-s3-access-key
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0400
+      - source: runtime-state-s3-secret-key
+        target: weave/runtime-state-s3-secret-key
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0400
+      - source: identity-bootstrap-owner-token
+        target: weave/bootstrap-owner-token
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0400

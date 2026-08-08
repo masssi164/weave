@@ -1382,8 +1382,8 @@ def plan_workload_client_policy(
 
 def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = None) -> list[Operation]:
     operations: list[Operation] = []
-    if desired.get("apiVersion") != "weave.keycloak-desired-state/v2" or "groups" in desired:
-        raise IdentityOpsError("Identity Ops accepts only canonical desired-state v2 without legacy realm groups")
+    if desired.get("apiVersion") != "weave.keycloak-desired-state/v3" or "groups" in desired:
+        raise IdentityOpsError("Identity Ops accepts only canonical desired-state v3 without legacy realm groups")
     client_policies = desired.get("clientPolicies")
     if not isinstance(client_policies, list):
         raise IdentityOpsError("desired state must declare clientPolicies")

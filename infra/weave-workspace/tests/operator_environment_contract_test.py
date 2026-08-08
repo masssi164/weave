@@ -107,6 +107,18 @@ def main() -> int:
         assert e2e.env["WEAVE_COMPOSE_PROJECT"] != dogfood.env["WEAVE_COMPOSE_PROJECT"]
         assert e2e.generated_root != dogfood.generated_root
 
+        # Runtime helpers receive the already-normalized public context and
+        # re-enter through the internal `test` selector. Docker-assigned zero
+        # ports must remain valid across that second normalization.
+        with process_environment(
+            **e2e.env,
+            WEAVE_E2E_STACK_SCOPE="isolated",
+            WEAVE_E2E_RUN_ID="contract-run-001",
+        ):
+            inner_e2e = load_context("test", ROOT, str(e2e_env))
+        assert inner_e2e.environment == "e2e"
+        assert inner_e2e.env["WEAVE_PROXY_HTTPS_HOST_PORT"] == "0"
+
         with process_environment(
             WEAVE_E2E_STACK_SCOPE="isolated",
             WEAVE_E2E_RUN_ID="contract-run-002",
@@ -142,7 +154,15 @@ def main() -> int:
     assert dev.profile == "dev"
     assert RUNTIME_ROOT_SERVICES["dev"] == ("keycloak",)
     runtime_source = (ROOT / "scripts" / "compose_runtime.py").read_text(encoding="utf-8")
-    assert 'if context.environment != "dev":\n            script(context, "nextcloud_reconcile.py")' in runtime_source
+    assert (
+        'if context.environment != "dev":\n'
+        '            compose(context, "up", "-d", "postgres", "postgres-reconcile")'
+        in runtime_source
+    )
+    assert (
+        'if context.environment != "dev" and "provider-nextcloud" in context.active_profiles:'
+        in runtime_source
+    )
 
     shell_source = (ROOT / "compose.sh").read_text(encoding="utf-8")
     assert "<dev|dogfood|prod|e2e>" in shell_source

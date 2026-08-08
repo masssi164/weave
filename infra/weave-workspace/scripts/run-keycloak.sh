@@ -13,7 +13,12 @@ read_secret() {
   declare -gx "${variable}=$(<"${path}")"
 }
 
-read_secret KC_DB_PASSWORD /run/secrets/keycloak-db-password
+if [[ -f /run/secrets/keycloak-db-password ]]; then
+  read_secret KC_DB_PASSWORD /run/secrets/keycloak-db-password
+elif [[ "${KC_DB:-}" != "dev-file" || "${1:-}" != "start-dev" ]]; then
+  printf 'WEAVE_KEYCLOAK_START_ERROR missing mounted database secret outside dev-file startup\n' >&2
+  exit 1
+fi
 
 if [[ -f /run/secrets/keycloak-bootstrap-admin-password ]]; then
   if [[ "${1:-}" == "bootstrap-admin" ]]; then

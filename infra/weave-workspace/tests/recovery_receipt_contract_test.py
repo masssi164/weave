@@ -74,6 +74,7 @@ class RecoveryReceiptContractTest(unittest.TestCase):
                     "caddy-data.tgz",
                     "keycloak-data.tgz",
                     "matrix-appservice.tgz",
+                    "native-files-data.tgz",
                     "nextcloud-data.tgz",
                     "synapse-data.tgz",
                 )
@@ -108,8 +109,8 @@ class RecoveryReceiptContractTest(unittest.TestCase):
             "recoveryBoundary": "private-backup-only-no-adoption",
             "legacyStateMigrated": False,
             "adoptionAuthorized": False,
-            "privateArtifactCount": 8,
-            "restoredProviderVolumeCount": 6,
+            "privateArtifactCount": len(inventories) + 2,
+            "restoredProviderVolumeCount": len(inventories),
         }
         receipt_path = root / "FreshStartBackupRehearsal.json"
         receipt_path.write_text(
