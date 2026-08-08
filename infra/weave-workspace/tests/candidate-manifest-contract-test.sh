@@ -14,15 +14,10 @@ readonly SBOM="sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 readonly PROVENANCE="sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 readonly COMMIT="dddddddddddddddddddddddddddddddddddddddd"
 readonly SPECIFICATION_COMMIT="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+readonly SEMANTIC_DIGEST="sha256:1111111111111111111111111111111111111111111111111111111111111111"
+readonly MIGRATION_DIGEST="sha256:2222222222222222222222222222222222222222222222222222222222222222"
 readonly MANIFEST="${TEMP_ROOT}/candidate-manifest.json"
 readonly VALID_MANIFEST="${TEMP_ROOT}/candidate-manifest.valid.json"
-readonly SEMANTIC_REALM_SOURCE="${TEMP_ROOT}/semantic-realm-source.json"
-readonly MIGRATION_DEFINITION="${TEMP_ROOT}/migration-definition.json"
-
-printf '{"apiVersion":"weave.keycloak-desired-state/v3","supportSafe":true}\n' >"${SEMANTIC_REALM_SOURCE}"
-printf '{"schemaVersion":"weave.keycloak-migration-definition/v1","operations":[],"containsSecretValues":false}\n' >"${MIGRATION_DEFINITION}"
-readonly EXPECTED_SEMANTIC_DIGEST="sha256:$(shasum -a 256 "${SEMANTIC_REALM_SOURCE}" | awk '{print $1}')"
-readonly EXPECTED_MIGRATION_DIGEST="sha256:$(shasum -a 256 "${MIGRATION_DEFINITION}" | awk '{print $1}')"
 
 python3 "${REPOSITORY_ROOT}/gradle/tasks/candidate-manifest-create.py" \
   --commit "${COMMIT}" \
@@ -30,8 +25,8 @@ python3 "${REPOSITORY_ROOT}/gradle/tasks/candidate-manifest-create.py" \
   --spec-digest "${DIGEST}" \
   --build-evidence-ref "https://github.com/masssi164/weave/actions/runs/1/attempts/1" \
   --keycloak-build-evidence-digest "${DIGEST}" \
-  --semantic-realm-source "${SEMANTIC_REALM_SOURCE}" \
-  --realm-migration-definition "${MIGRATION_DEFINITION}" \
+  --semantic-realm-source-digest "${SEMANTIC_DIGEST}" \
+  --realm-migration-definition-digest "${MIGRATION_DIGEST}" \
   --image server "ghcr.io/masssi164/weave-server@${DIGEST}" "${SBOM}" "${PROVENANCE}" \
   --image mcp-server "ghcr.io/masssi164/weave-mcp-server@${DIGEST}" "${SBOM}" "${PROVENANCE}" \
   --image keycloak-runtime "ghcr.io/masssi164/weave-keycloak-runtime@${DIGEST}" "${SBOM}" "${PROVENANCE}" \
@@ -50,8 +45,8 @@ jq -e '
 ' \
   --arg digest "${DIGEST}" \
   --arg specification_commit "${SPECIFICATION_COMMIT}" \
-  --arg semantic_digest "${EXPECTED_SEMANTIC_DIGEST}" \
-  --arg migration_digest "${EXPECTED_MIGRATION_DIGEST}" \
+  --arg semantic_digest "${SEMANTIC_DIGEST}" \
+  --arg migration_digest "${MIGRATION_DIGEST}" \
   "${MANIFEST}" >/dev/null
 
 cp "${MANIFEST}" "${VALID_MANIFEST}"
