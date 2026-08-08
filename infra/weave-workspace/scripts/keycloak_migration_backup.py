@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Create a support-safe proof from a verified private pre-migration backup."""
+"""Create the support-safe precondition proof for the bounded Keycloak migration.
+
+A true Fresh Start does not back up the just-retired realm.  It instead binds the
+post-import FGAP step to the exact approved Fresh Start plan and apply evidence.
+A persistent non-empty dogfood/prod realm continues to require the private backup
+and isolated restore rehearsal before any static IAM mutation.
+"""
 
 from __future__ import annotations
 
@@ -15,17 +21,48 @@ from keycloak_migration import migration_inputs
 
 
 BACKUP_PROOF_NAME = "fgap-v2-primary-organization-post-import.backup-proof.json"
+FRESH_START_PROOF_SCHEMA = "weave.keycloak-realm-migration-fresh-start-proof/v1"
+BACKUP_PROOF_SCHEMA = "weave.keycloak-realm-migration-backup-proof/v1"
 
 
 def _sha256_bytes(value: bytes) -> str:
     return "sha256:" + hashlib.sha256(value).hexdigest()
 
 
+def _canonical_json(value: object) -> bytes:
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8") + b"\n"
+
+
+def _exact_canonical_json(path: Path, schema: str) -> tuple[dict[str, object], bytes]:
+    if path.is_symlink() or not path.is_file():
+        raise ContractError("Fresh Start migration proof input is missing or unsafe")
+    payload = path.read_bytes()
+    try:
+        value = json.loads(payload)
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise ContractError("Fresh Start migration proof input is malformed") from error
+    if not isinstance(value, dict) or value.get("schemaVersion") != schema:
+        raise ContractError("Fresh Start migration proof input has an unsupported schema")
+    if value.get("supportSafe") is not True:
+        raise ContractError("Fresh Start migration proof input is not support-safe")
+    if _canonical_json(value) != payload:
+        raise ContractError("Fresh Start migration proof input is not canonical JSON")
+    adjacent = path.with_suffix(path.suffix + ".sha256")
+    if adjacent.is_symlink() or not adjacent.is_file():
+        raise ContractError("Fresh Start migration proof input has no adjacent digest")
+    actual = hashlib.sha256(payload).hexdigest()
+    if adjacent.read_text(encoding="ascii").split()[0] != actual:
+        raise ContractError("Fresh Start migration proof input digest does not match")
+    return value, payload
+
+
 def _atomic_private(
     path: Path, value: dict[str, object], runtime_owner: tuple[int, int]
 ) -> None:
     if path.is_symlink():
-        raise ContractError("Keycloak migration backup proof target is a symlink")
+        raise ContractError("Keycloak migration precondition proof target is a symlink")
     payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode()
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -42,14 +79,88 @@ def _atomic_private(
                 os.chown(path, uid, gid)
             except PermissionError as error:
                 raise ContractError(
-                    "Keycloak migration backup proof is not readable by the rootless Server migration uid/gid"
+                    "Keycloak migration precondition proof is not readable by the rootless Server migration uid/gid"
                 ) from error
     finally:
         if temporary.exists():
             temporary.unlink()
 
 
-def create_backup_proof(context: ComposeContext) -> Path:
+def _fresh_start_proof(context: ComposeContext, candidate: str) -> dict[str, object] | None:
+    plan_value = os.environ.get("WEAVE_FRESH_START_PLAN", "").strip()
+    apply_value = os.environ.get("WEAVE_FRESH_START_APPLY_EVIDENCE", "").strip()
+    if not plan_value and not apply_value:
+        return None
+    if not plan_value or not apply_value:
+        raise ContractError("Fresh Start migration requires both plan and apply evidence")
+
+    plan_path = Path(plan_value).expanduser().absolute()
+    apply_path = Path(apply_value).expanduser().absolute()
+    plan, plan_payload = _exact_canonical_json(plan_path, "weave.infra.fresh-start-plan.v1")
+    applied, apply_payload = _exact_canonical_json(
+        apply_path, "weave.infra.fresh-start-apply-evidence.v1"
+    )
+    plan_digest = hashlib.sha256(plan_payload).hexdigest()
+    inputs = migration_inputs(context)
+
+    expected_environment = (
+        "persistent-dogfood" if context.environment == "dogfood" else context.environment
+    )
+    if context.environment != "dogfood":
+        raise ContractError("Fresh Start Keycloak cutover is qualified only for dogfood")
+    if (
+        plan.get("environment") != expected_environment
+        or plan.get("candidateCommit") != candidate
+        or plan.get("targetGeneration") != context.env["WEAVE_RESOURCE_GENERATION"]
+        or plan.get("candidateManifestDigest")
+        != context.env["WEAVE_CANDIDATE_MANIFEST_DIGEST"]
+        or applied.get("environment") != plan.get("environment")
+        or applied.get("stack") != plan.get("stack")
+        or applied.get("retiredGeneration") != plan.get("retiredGeneration")
+        or applied.get("targetGeneration") != plan.get("targetGeneration")
+        or applied.get("operationNonce") != plan.get("operationNonce")
+        or applied.get("planSha256") != plan_digest
+        or applied.get("status") != "removed-pending-target-recreation"
+        or applied.get("exclusionsVerified") is not True
+    ):
+        raise ContractError("Fresh Start migration proof is outside the approved cutover scope")
+    results = applied.get("results")
+    if (
+        not isinstance(results, list)
+        or not results
+        or any(not isinstance(item, dict) or item.get("status") != "removed" for item in results)
+    ):
+        raise ContractError("Fresh Start migration proof does not prove complete retirement")
+    operation_nonce = plan.get("operationNonce")
+    retired_generation = plan.get("retiredGeneration")
+    if (
+        not isinstance(operation_nonce, str)
+        or not re.fullmatch(r"[a-z0-9][a-z0-9-]{15,63}", operation_nonce)
+        or not isinstance(retired_generation, str)
+        or not retired_generation
+    ):
+        raise ContractError("Fresh Start migration proof has malformed generation identity")
+
+    return {
+        "schemaVersion": FRESH_START_PROOF_SCHEMA,
+        "supportSafe": True,
+        "containsSecretValues": False,
+        "status": "verified",
+        "environment": context.environment,
+        "realm": "weave",
+        "sourceBaselineRevision": inputs.target_revision,
+        "freshStartPlanSha256": _sha256_bytes(plan_payload),
+        "freshStartApplyEvidenceSha256": _sha256_bytes(apply_payload),
+        "operationNonce": operation_nonce,
+        "retiredGeneration": retired_generation,
+        "targetGeneration": context.env["WEAVE_RESOURCE_GENERATION"],
+        "candidateCommit": candidate,
+        "candidateManifestDigest": context.env["WEAVE_CANDIDATE_MANIFEST_DIGEST"],
+        "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
+    }
+
+
+def _persistent_backup_proof(context: ComposeContext, candidate: str) -> dict[str, object]:
     # Imported lazily because the existing backup verifier reads the Compose
     # volume inventory from compose_runtime.
     import adoption_rehearsal
@@ -57,9 +168,6 @@ def create_backup_proof(context: ComposeContext) -> Path:
 
     if context.environment not in {"dogfood", "prod"}:
         raise ContractError("persistent Keycloak migration backup proof is dogfood/prod only")
-    candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
-    if not re.fullmatch(r"[0-9a-f]{40}", candidate):
-        raise ContractError("Keycloak migration backup proof requires an exact candidate commit")
     backup_dir = backup_runtime.backup(context)
     rehearsal = adoption_rehearsal.rehearse(context, backup_dir, "fresh-start")
     if (
@@ -86,8 +194,8 @@ def create_backup_proof(context: ComposeContext) -> Path:
     ):
         raise ContractError("private pre-migration BackupManifest scope is invalid")
     inputs = migration_inputs(context)
-    proof = {
-        "schemaVersion": "weave.keycloak-realm-migration-backup-proof/v1",
+    return {
+        "schemaVersion": BACKUP_PROOF_SCHEMA,
         "supportSafe": True,
         "status": "verified",
         "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -99,6 +207,21 @@ def create_backup_proof(context: ComposeContext) -> Path:
         "candidateCommit": candidate,
         "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
     }
+
+
+def create_backup_proof(context: ComposeContext) -> Path:
+    """Create the exact migration precondition proof consumed by the one-shot CLI.
+
+    The historical function name is retained because compose_runtime is the narrow
+    caller.  The produced artifact is either a Fresh Start cutover proof or the
+    persistent backup proof; it is never a fabricated backup for an empty realm.
+    """
+    candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
+    if not re.fullmatch(r"[0-9a-f]{40}", candidate):
+        raise ContractError("Keycloak migration proof requires an exact candidate commit")
+    proof = _fresh_start_proof(context, candidate)
+    if proof is None:
+        proof = _persistent_backup_proof(context, candidate)
     output = context.generated_root / "keycloak/migrations" / BACKUP_PROOF_NAME
     _atomic_private(
         output,
