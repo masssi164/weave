@@ -73,7 +73,9 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
             "mailpitVolumePreserved": True,
             "tlsIdentityPreserved": True,
             "humanWriterAbsent": True,
+            "baselineSha256": "sha256:" + "f" * 64,
             "supportSafe": True,
+            "containsSecretValues": False,
         }
 
     def assemble(self, *, cut=None, comparison=None, health=None, idempotent=True):

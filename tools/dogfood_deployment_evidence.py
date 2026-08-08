@@ -284,7 +284,9 @@ def validate_persistent_comparison(value: dict[str, Any]) -> None:
         or value.get("mailpitVolumePreserved") is not True
         or value.get("tlsIdentityPreserved") is not True
         or value.get("humanWriterAbsent") is not True
+        or not DIGEST_PATTERN.fullmatch(str(value.get("baselineSha256", "")))
         or value.get("supportSafe") is not True
+        or value.get("containsSecretValues") is not False
     ):
         raise EvidenceError("persistent dogfood comparison is unsafe or incomplete")
 

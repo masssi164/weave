@@ -83,7 +83,29 @@ class TestStackManifestTest(unittest.TestCase):
     def assemble(self, documents):
         mapping, candidate, runtime, cut, idempotence, health = documents
         return module.assemble(mapping=mapping, candidate=candidate, runtime=runtime, cut=cut,
+            comparison=None,
             idempotence=idempotence, health=health, compose_project="weave-dogfood", generation="fresh-v2",
+            live_run_url="https://example.invalid/runs/1", deployment_run_url="https://example.invalid/runs/2")
+
+    def assemble_routine(self, documents):
+        mapping, candidate, runtime, _cut, idempotence, health = documents
+        comparison = {
+            "schemaVersion": "weave.persistent-dogfood-comparison.v3",
+            "status": "passed",
+            "baselineSource": "pre-deploy",
+            "preExistingRuntimeObserved": True,
+            "twoNonDestructiveInstallsPreservedState": True,
+            "identityStoreVolumePreserved": True,
+            "mailpitVolumePreserved": True,
+            "tlsIdentityPreserved": True,
+            "humanWriterAbsent": True,
+            "baselineSha256": "sha256:" + "f" * 64,
+            "supportSafe": True,
+            "containsSecretValues": False,
+        }
+        return module.assemble(mapping=mapping, candidate=candidate, runtime=runtime, cut=None,
+            comparison=comparison, idempotence=idempotence, health=health,
+            compose_project="weave-dogfood", generation="fresh-v2",
             live_run_url="https://example.invalid/runs/1", deployment_run_url="https://example.invalid/runs/2")
 
     def test_exact_source_lane_runtime_manifest_is_accepted(self):
@@ -95,6 +117,11 @@ class TestStackManifestTest(unittest.TestCase):
             self.documents()[1]["realmArtifacts"],
         )
         self.assertEqual(result["deployment"]["freshStartStatus"], "passed")
+
+    def test_routine_deployment_requires_exact_resource_continuity(self):
+        result = self.assemble_routine(self.documents())
+        self.assertEqual(result["deployment"]["freshStartStatus"], "not-required")
+        self.assertEqual(result["deployment"]["persistentContinuityStatus"], "passed")
 
     def test_runtime_image_drift_is_rejected(self):
         documents = self.documents()

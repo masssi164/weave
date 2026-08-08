@@ -59,7 +59,8 @@ def assemble(
     mapping: dict[str, Any],
     candidate: dict[str, Any],
     runtime: dict[str, Any],
-    cut: dict[str, Any],
+    cut: dict[str, Any] | None,
+    comparison: dict[str, Any] | None = None,
     idempotence: dict[str, Any],
     health: dict[str, Any],
     compose_project: str,
@@ -143,7 +144,9 @@ def assemble(
             "sourceCommit": source,
             "matches": True,
         }
-    if (
+    if (cut is None) == (comparison is None):
+        raise ManifestError("exactly one Fresh Start or routine continuity baseline is required")
+    if cut is not None and (
         cut.get("schemaVersion") != "weave.fresh-start-cut-report.v2"
         or cut.get("laneCandidateCommit") != lane
         or cut.get("sourceCandidateCommit") != source
@@ -160,6 +163,21 @@ def assemble(
         or cut.get("containsSecretValues") is not False
     ):
         raise ManifestError("Fresh Start cut report is unsafe, stale, or incomplete")
+    if comparison is not None and (
+        comparison.get("schemaVersion") != "weave.persistent-dogfood-comparison.v3"
+        or comparison.get("status") != "passed"
+        or comparison.get("baselineSource") != "pre-deploy"
+        or comparison.get("preExistingRuntimeObserved") is not True
+        or comparison.get("twoNonDestructiveInstallsPreservedState") is not True
+        or comparison.get("identityStoreVolumePreserved") is not True
+        or comparison.get("mailpitVolumePreserved") is not True
+        or comparison.get("tlsIdentityPreserved") is not True
+        or comparison.get("humanWriterAbsent") is not True
+        or not DIGEST.fullmatch(str(comparison.get("baselineSha256", "")))
+        or comparison.get("supportSafe") is not True
+        or comparison.get("containsSecretValues") is not False
+    ):
+        raise ManifestError("routine dogfood continuity evidence is unsafe or incomplete")
     if (
         idempotence.get("schemaVersion") != "weave.persistent-test-idempotence.v3"
         or idempotence.get("runtimeProfile") != "dogfood"
@@ -201,7 +219,8 @@ def assemble(
             "generation": generation,
         },
         "deployment": {
-            "freshStartStatus": "passed",
+            "freshStartStatus": "passed" if cut is not None else "not-required",
+            "persistentContinuityStatus": "not-required" if cut is not None else "passed",
             "composeModelStable": True,
             "realmArtifactsUnchanged": True,
             "providerHealth": "available",
@@ -225,7 +244,9 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--candidate-source-mapping", type=Path, required=True)
     result.add_argument("--candidate-manifest", type=Path, required=True)
     result.add_argument("--runtime-image-evidence", type=Path, required=True)
-    result.add_argument("--fresh-start-cut-report", type=Path, required=True)
+    baseline = result.add_mutually_exclusive_group(required=True)
+    baseline.add_argument("--fresh-start-cut-report", type=Path)
+    baseline.add_argument("--persistent-comparison", type=Path)
     result.add_argument("--deployment-idempotence", type=Path, required=True)
     result.add_argument("--provider-health", type=Path, required=True)
     result.add_argument("--compose-project", required=True)
@@ -243,7 +264,8 @@ def main() -> int:
             mapping=load(args.candidate_source_mapping, "candidate source mapping"),
             candidate=load(args.candidate_manifest, "candidate manifest"),
             runtime=load(args.runtime_image_evidence, "runtime image evidence"),
-            cut=load(args.fresh_start_cut_report, "Fresh Start cut report"),
+            cut=(load(args.fresh_start_cut_report, "Fresh Start cut report") if args.fresh_start_cut_report else None),
+            comparison=(load(args.persistent_comparison, "persistent comparison") if args.persistent_comparison else None),
             idempotence=load(args.deployment_idempotence, "deployment idempotence"),
             health=load(args.provider_health, "provider health"),
             compose_project=args.compose_project,

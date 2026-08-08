@@ -155,10 +155,18 @@ def main() -> int:
     )
     require(
         "weave.test-stack-run-context.v1" in deployment
-        and '{schemaVersion:"weave.test-stack-run-context.v1",phase:"initialized",supportSafe:true,containsSecretValues:false}' in deployment
+        and 'deploymentMode:$mode,phase:"initialized"' in deployment
         and 'path: ${{ env.WEAVE_TEST_STACK_EVIDENCE_DIR }}' in deployment
         and "if-no-files-found: error" in deployment,
         "persistent deployment does not initialize support-safe evidence before fallible verification",
+    )
+    require(
+        "deployment_mode:" in deployment
+        and "default: routine" in deployment
+        and "- routine" in deployment
+        and "- fresh-start" in deployment
+        and "DEPLOYMENT_MODE: ${{ inputs.deployment_mode || 'routine' }}" in deployment,
+        "persistent deployment does not distinguish routine convergence from explicit Fresh Start",
     )
     require(
         "TF_VAR_create_test_user" not in deployment
@@ -223,6 +231,25 @@ def main() -> int:
             "Upload persistent dogfood evidence",
         ),
         "persistent dogfood deployment",
+    )
+    ordered(
+        deployment,
+        (
+            "Capture routine persistent resource identity",
+            "Prove canonical lifecycle convergence and stable realm artifacts",
+            "Compare routine persistent resource identity",
+            "Verify running image identities and assemble deployment evidence",
+        ),
+        "routine persistent dogfood deployment",
+    )
+    require(
+        "tools/dogfood_resource_continuity.py capture" in deployment
+        and "tools/dogfood_resource_continuity.py compare" in deployment
+        and '--generation "$WEAVE_RESOURCE_GENERATION"' in deployment
+        and '--persistent-comparison "$comparison"' in deployment
+        and "twoNonDestructiveInstallsPreservedState" in read("tools/dogfood_resource_continuity.py")
+        and "humanWriterAbsent" in read("tools/dogfood_resource_continuity.py"),
+        "routine deployment does not prove non-destructive state and authority continuity",
     )
     ordered(
         owner_bootstrap,
