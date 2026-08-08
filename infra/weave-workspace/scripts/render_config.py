@@ -19,12 +19,13 @@ if str(KEYCLOAK_MODULE_ROOT) not in sys.path:
     sys.path.insert(0, str(KEYCLOAK_MODULE_ROOT))
 
 from realm_renderer import (  # noqa: E402 - module path is repository-local
+    MACHINE_KEY_PROJECTIONS,
     RealmProjectionError,
     fresh_start_migration_bundle,
     pretty_json,
     project_realm,
-    public_jwks,
     sha256_digest,
+    validate_public_jwks,
 )
 
 from compose_env import (
@@ -54,10 +55,6 @@ REQUIRED_PRIVATE_FILES = (
     "identity-reference-hmac-key",
     "keycloak-db-password",
     "control-db-password",
-    "keycloak-weave-identity-admin-jwk.json",
-    "keycloak-weave-backend-jwk.json",
-    "keycloak-weave-mcp-server-jwk.json",
-    "agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin",
 )
 
 MATRIX_PRIVATE_FILES = (
@@ -169,6 +166,21 @@ def _json(path: Path) -> dict[str, object]:
     if not isinstance(value, dict):
         raise ContractError(f"expected JSON object: {path}")
     return value
+
+
+def _public_jwks(
+    context: ComposeContext,
+    secret_ref: str,
+    filename: str,
+) -> dict[str, object]:
+    path = context.generated_root / "keycloak/public-jwks" / filename
+    if (
+        path.is_symlink()
+        or not path.is_file()
+        or stat.S_IMODE(path.stat().st_mode) != 0o644
+    ):
+        raise ContractError(f"public JWKS projection is unavailable: {path}")
+    return validate_public_jwks(_json(path), owner=secret_ref)
 
 
 def _origin(value: str) -> str:
@@ -866,11 +878,11 @@ def render(context: ComposeContext) -> None:
     if context.environment == "prod":
         _read_secret(context, "smtp-password")
     public_keys: dict[str, dict[str, object]] = {}
-    for secret_ref, filename in SECRET_REF_PATHS.items():
-        if secret_ref == "secretref:smtp/password":
-            continue
-        private_value = json.loads(_read_secret(context, filename))
-        public_keys[secret_ref] = public_jwks(private_value, owner=secret_ref)
+    for secret_ref, (
+        _private_name,
+        public_name,
+    ) in MACHINE_KEY_PROJECTIONS.items():
+        public_keys[secret_ref] = _public_jwks(context, secret_ref, public_name)
     realm_representation = project_realm(desired, public_keys)
     baseline_payload = pretty_json(realm_representation)
     baseline_digest = sha256_digest(baseline_payload)
