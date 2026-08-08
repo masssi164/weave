@@ -25,6 +25,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
@@ -41,15 +42,19 @@ public final class S3BlobStore implements BlobStorePort {
 
     private final WeaveS3FilesProperties properties;
     private final S3Client client;
+    private final long maximumBlobBytes;
 
     @Autowired
-    public S3BlobStore(WeaveS3FilesProperties properties) {
-        this(properties, client(properties));
+    public S3BlobStore(
+            WeaveS3FilesProperties properties,
+            WeaveNativeFilesProperties nativeProperties) {
+        this(properties, client(properties), nativeProperties.maximumBlobBytes());
     }
 
-    S3BlobStore(WeaveS3FilesProperties properties, S3Client client) {
+    S3BlobStore(WeaveS3FilesProperties properties, S3Client client, long maximumBlobBytes) {
         this.properties = java.util.Objects.requireNonNull(properties, "properties must not be null");
         this.client = java.util.Objects.requireNonNull(client, "client must not be null");
+        this.maximumBlobBytes = maximumBlobBytes;
     }
 
     @Override
@@ -61,6 +66,7 @@ public final class S3BlobStore implements BlobStorePort {
     public BlobReceipt put(BlobScope scope, BlobReference reference, byte[] bytes, String expectedDigest) {
         ensureConfigured();
         byte[] content = bytes == null ? new byte[0] : bytes.clone();
+        requireWithinLimit(content.length, "files-native-blob-too-large");
         String actualDigest = FilesystemBlobStore.digest(content);
         if (!MessageDigest.isEqual(actualDigest.getBytes(StandardCharsets.US_ASCII),
                 requiredDigest(expectedDigest).getBytes(StandardCharsets.US_ASCII))) {
@@ -94,11 +100,20 @@ public final class S3BlobStore implements BlobStorePort {
     public byte[] read(BlobScope scope, BlobReference reference) {
         ensureConfigured();
         try {
-            return client.getObjectAsBytes(GetObjectRequest.builder()
+            String key = key(scope, reference);
+            long contentLength = client.headObject(HeadObjectRequest.builder()
                             .bucket(properties.getBucket())
-                            .key(key(scope, reference))
+                            .key(key)
+                            .build())
+                    .contentLength();
+            requireWithinLimit(contentLength, "files-native-blob-size-invalid");
+            byte[] content = client.getObjectAsBytes(GetObjectRequest.builder()
+                            .bucket(properties.getBucket())
+                            .key(key)
                             .build())
                     .asByteArray();
+            requireWithinLimit(content.length, "files-native-blob-size-invalid");
+            return content;
         } catch (NoSuchKeyException exception) {
             throw conflict("files-native-blob-missing");
         } catch (S3Exception exception) {
@@ -179,6 +194,17 @@ public final class S3BlobStore implements BlobStorePort {
     private void ensureConfigured() {
         if (!configured()) {
             throw unavailable("files-native-s3-not-configured");
+        }
+    }
+
+    private void requireWithinLimit(long size, String code) {
+        if (size < 0 || size > maximumBlobBytes) {
+            HttpStatus status = "files-native-blob-too-large".equals(code)
+                    ? HttpStatus.PAYLOAD_TOO_LARGE
+                    : HttpStatus.CONFLICT;
+            throw new ApiErrorException(status, code,
+                    "The native Files blob exceeds its configured bound.",
+                    Map.of("module", "files", "adapter", "weave-native", "diagnosticsRedacted", true));
         }
     }
 
