@@ -221,6 +221,29 @@ def validate_restore_receipt(receipt: dict[str, Any], *, require_live: bool) -> 
             fail("live release evidence requires all restore checks passed")
 
 
+def validate_backup_binding(
+    manifest_path: Path,
+    manifest: dict[str, Any],
+    receipt: dict[str, Any],
+) -> None:
+    binding = receipt.get("backupBinding")
+    if not isinstance(binding, dict):
+        fail("RestoreReceipt must bind the private backup without exposing its path")
+    backup_id = manifest.get("backupId")
+    if not isinstance(backup_id, str) or not backup_id:
+        fail("BackupManifest backupId is invalid")
+    expected = {
+        "manifestSha256": sha256_file(manifest_path),
+        "backupIdSha256": hashlib.sha256(backup_id.encode("utf-8")).hexdigest(),
+        "candidateCommit": manifest.get("candidateCommit"),
+        "profile": manifest.get("profile"),
+        "composeProject": manifest.get("composeProject"),
+    }
+    for field, expected_value in expected.items():
+        if binding.get(field) != expected_value:
+            fail(f"RestoreReceipt backup binding does not match BackupManifest {field}")
+
+
 def validate_domain_data_hash_proof(proof: dict[str, Any]) -> None:
     if proof.get("artifactKind") != "weave-disposable-domain-data-hash-proof-v1":
         fail("domain data hash proof kind mismatch")
@@ -306,6 +329,7 @@ def validate_checked_in_fixtures() -> None:
     scoreboard = load_json(SCOREBOARD)
     validate_backup_manifest(manifest, fixture=True)
     validate_restore_receipt(receipt, require_live=True)
+    validate_backup_binding(BACKUP_MANIFEST, manifest, receipt)
     validate_redaction_report(report)
     validate_domain_data_hash_proof(proof)
     validate_scoreboard(scoreboard)
@@ -315,11 +339,13 @@ def validate_checked_in_fixtures() -> None:
 
 
 def validate_evidence_dir(path: Path) -> None:
-    manifest = load_with_source(path / "BackupManifest.json")
+    manifest_path = path / "BackupManifest.json"
+    manifest = load_with_source(manifest_path)
     receipt = load_json(path / "RestoreReceipt.json")
     redaction = load_json(path / "support-redaction-report.json")
     validate_backup_manifest(manifest, fixture=False)
     validate_restore_receipt(receipt, require_live=True)
+    validate_backup_binding(manifest_path, manifest, receipt)
     validate_redaction_report(redaction)
     print(f"operator-recovery-check: ok live_evidence_dir={path} restore_proof=release_eligible")
 

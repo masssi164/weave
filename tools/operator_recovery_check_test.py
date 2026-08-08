@@ -41,6 +41,17 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def bind_receipt(manifest_path: Path, receipt: dict) -> None:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    receipt["backupBinding"].update({
+        "manifestSha256": sha256_file(manifest_path),
+        "backupIdSha256": hashlib.sha256(manifest["backupId"].encode("utf-8")).hexdigest(),
+        "candidateCommit": manifest["candidateCommit"],
+        "profile": manifest["profile"],
+        "composeProject": manifest["composeProject"],
+    })
+
+
 def main() -> None:
     default = run()
     assert default.returncode == 0, default.stderr
@@ -74,12 +85,21 @@ def main() -> None:
             "provesRestoredDomainData": True,
             "releaseEligible": True,
         })
+        bind_receipt(evidence / "BackupManifest.json", receipt)
         write_json(evidence / "RestoreReceipt.json", receipt)
         shutil.copyfile(FIXTURE_DIR / "support-redaction-report.fixture.json", evidence / "support-redaction-report.json")
 
         passing = run("--evidence-dir", str(evidence))
         assert passing.returncode == 0, passing.stderr
         assert "restore_proof=release_eligible" in passing.stdout
+
+        receipt["backupBinding"]["manifestSha256"] = "0" * 64
+        write_json(evidence / "RestoreReceipt.json", receipt)
+        binding_mismatch = run("--evidence-dir", str(evidence))
+        assert binding_mismatch.returncode != 0
+        assert "does not match BackupManifest manifestSha256" in binding_mismatch.stderr
+        bind_receipt(evidence / "BackupManifest.json", receipt)
+        write_json(evidence / "RestoreReceipt.json", receipt)
 
         manifest["artifacts"][0]["sha256"] = "0" * 64
         write_json(evidence / "BackupManifest.json", manifest)
@@ -116,7 +136,9 @@ def main() -> None:
                 "bytes": artifact.stat().st_size,
             })
         write_json(evidence / "BackupManifest.json", manifest)
-        shutil.copyfile(FIXTURE_DIR / "restore-receipt.fixture.json", evidence / "RestoreReceipt.json")
+        receipt = json.loads((FIXTURE_DIR / "restore-receipt.fixture.json").read_text(encoding="utf-8"))
+        bind_receipt(evidence / "BackupManifest.json", receipt)
+        write_json(evidence / "RestoreReceipt.json", receipt)
         shutil.copyfile(FIXTURE_DIR / "support-redaction-report.fixture.json", evidence / "support-redaction-report.json")
         blocked = run("--evidence-dir", str(evidence))
         assert blocked.returncode != 0
