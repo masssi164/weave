@@ -37,7 +37,7 @@ assert module.UPSTREAM_TAG == "26.7.0"
 assert module.ARCHIVE_SHA256 == "32267c4f45db91874c46a097415c336d137ee184d25c3481a513905a92669186"
 assert module.STOCK_SERVICES_SHA256 == "052169f7907a21f4e26679bca5c7365627db91b071a7a2fcaeee00230e6b1419"
 specification_commit, specification_digest = module.specification_pin(repository)
-assert specification_commit == "71a654296018fbc4e23efc839427ae2df0ae6190"
+assert specification_commit == "6bbfb0ec1d85bdd9e24a9ce7785cb5c506c9edf0"
 assert specification_digest == "sha256:" + hashlib.sha256(
     (repository / "specs/weave-specs.lock.json").read_bytes()
 ).hexdigest()
