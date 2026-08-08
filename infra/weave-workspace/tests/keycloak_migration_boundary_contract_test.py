@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-import hashlib
 import base64
+import hashlib
 import json
 import os
 import stat
@@ -24,7 +24,7 @@ from keycloak_migration import (  # noqa: E402
     migration_inputs,
     require_completed_migration,
 )
-from keycloak_migration_backup import create_backup_proof  # noqa: E402
+from keycloak_migration_backup import _canonical_json, create_backup_proof  # noqa: E402
 sys.path.insert(0, str(ROOT / "keycloak"))
 import oauth_probe  # noqa: E402
 
@@ -37,6 +37,16 @@ def write(path: Path, value: dict[str, object]) -> bytes:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode()
     path.write_bytes(payload)
+    return payload
+
+
+def write_canonical(path: Path, value: dict[str, object]) -> bytes:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = _canonical_json(value)
+    path.write_bytes(payload)
+    path.with_suffix(path.suffix + ".sha256").write_text(
+        f"{hashlib.sha256(payload).hexdigest()}  {path.name}\n", encoding="ascii"
+    )
     return payload
 
 
@@ -226,6 +236,72 @@ def main() -> None:
         receipt["backupProofDigest"] = digest(proof_file.read_bytes())
         rejected(lambda: require_completed_migration(context))
         inputs = migration_inputs(context)
+        write(inputs.receipt_file, receipt)
+        require_completed_migration(context)
+
+        # A governed Fresh Start proves retirement of the previous generation;
+        # it must not manufacture a backup of the realm that was intentionally removed.
+        inputs.receipt_file.unlink()
+        plan_file = root / "fresh-start-plan.json"
+        apply_file = root / "fresh-start-apply.json"
+        operation_nonce = "fresh-start-0123456789"
+        retired_generation = "legacy-generation"
+        plan = {
+            "schemaVersion": "weave.infra.fresh-start-plan.v1",
+            "supportSafe": True,
+            "environment": "persistent-dogfood",
+            "stack": "weave",
+            "retiredGeneration": retired_generation,
+            "targetGeneration": context.env["WEAVE_RESOURCE_GENERATION"],
+            "operationNonce": operation_nonce,
+            "candidateCommit": context.env["WEAVE_CANDIDATE_COMMIT"],
+            "candidateManifestDigest": context.env["WEAVE_CANDIDATE_MANIFEST_DIGEST"],
+        }
+        plan_payload = write_canonical(plan_file, plan)
+        applied = {
+            "schemaVersion": "weave.infra.fresh-start-apply-evidence.v1",
+            "supportSafe": True,
+            "environment": "persistent-dogfood",
+            "stack": "weave",
+            "retiredGeneration": retired_generation,
+            "targetGeneration": context.env["WEAVE_RESOURCE_GENERATION"],
+            "operationNonce": operation_nonce,
+            "planSha256": hashlib.sha256(plan_payload).hexdigest(),
+            "status": "removed-pending-target-recreation",
+            "exclusionsVerified": True,
+            "results": [{"status": "removed"}],
+        }
+        write_canonical(apply_file, applied)
+        old_values = {
+            key: os.environ.get(key)
+            for key in (
+                "WEAVE_CANDIDATE_COMMIT",
+                "WEAVE_FRESH_START_PLAN",
+                "WEAVE_FRESH_START_APPLY_EVIDENCE",
+            )
+        }
+        os.environ.update(
+            {
+                "WEAVE_CANDIDATE_COMMIT": context.env["WEAVE_CANDIDATE_COMMIT"],
+                "WEAVE_FRESH_START_PLAN": str(plan_file),
+                "WEAVE_FRESH_START_APPLY_EVIDENCE": str(apply_file),
+            }
+        )
+        try:
+            proof_file = create_backup_proof(context)
+        finally:
+            for key, value in old_values.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+        fresh_proof = json.loads(proof_file.read_text(encoding="utf-8"))
+        assert fresh_proof["schemaVersion"] == "weave.keycloak-realm-migration-fresh-start-proof/v1"
+        assert "backupManifestSha256" not in fresh_proof
+        assert "backupIdSha256" not in fresh_proof
+        assert fresh_proof["retiredGeneration"] == retired_generation
+        assert fresh_proof["targetGeneration"] == context.env["WEAVE_RESOURCE_GENERATION"]
+        receipt["backupProofDigest"] = digest(proof_file.read_bytes())
         write(inputs.receipt_file, receipt)
         require_completed_migration(context)
 
