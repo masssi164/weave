@@ -19,7 +19,6 @@ RUN_ID="${WEAVE_TEST_APP_RUN_ID:-}"
 OUTPUT_ROOT="${WEAVE_TEST_APP_OUTPUT_ROOT:-${REPOSITORY_ROOT}/build/test-app}"
 SERVER_IMAGE="${WEAVE_TEST_APP_SERVER_IMAGE:-}"
 MCP_IMAGE="${WEAVE_TEST_APP_MCP_IMAGE:-}"
-IDENTITY_OPS_IMAGE="${WEAVE_TEST_APP_IDENTITY_OPS_IMAGE:-}"
 KEYCLOAK_IMAGE="${WEAVE_TEST_APP_KEYCLOAK_IMAGE:-}"
 LOCAL_SERVER_TAG=""
 LOCAL_MCP_TAG=""
@@ -253,18 +252,6 @@ validate_runtime_image \
   "Weave MCP Server" \
   "java21-spring-boot-4.1-spring-ai-2.0"
 
-if [[ -z "${IDENTITY_OPS_IMAGE}" ]]; then
-  IDENTITY_OPS_IMAGE="$(
-    python3 "${WORKSPACE_ROOT}/scripts/build_identity_ops_image.py" \
-      --root "${WORKSPACE_ROOT}" \
-      --candidate-commit "${image_source_commit}" |
-      tail -n 1
-  )"
-else
-  [[ "${IDENTITY_OPS_IMAGE}" =~ @sha256:[0-9a-f]{64}$ ]] ||
-    fail "WEAVE_TEST_APP_IDENTITY_OPS_IMAGE must be digest-pinned"
-  docker pull "${IDENTITY_OPS_IMAGE}"
-fi
 if [[ -z "${KEYCLOAK_IMAGE}" ]]; then
   KEYCLOAK_IMAGE="$(
     python3 "${WORKSPACE_ROOT}/scripts/build_keycloak_image.py" \
@@ -277,10 +264,6 @@ else
   docker pull "${KEYCLOAK_IMAGE}"
 fi
 validate_runtime_image \
-  "${IDENTITY_OPS_IMAGE}" \
-  "Weave Identity Ops" \
-  "keycloak-26.7-kcadm-python3"
-validate_runtime_image \
   "${KEYCLOAK_IMAGE}" \
   "Weave Keycloak Runtime" \
   "keycloak-26.7.0-downstream-built-in-policy"
@@ -292,9 +275,8 @@ if [[ -n "${candidate_manifest_path}" ]]; then
     --arg spec_digest "${spec_digest}" \
     --arg server "${SERVER_IMAGE}" \
     --arg mcp "${MCP_IMAGE}" \
-    --arg identity_ops "${IDENTITY_OPS_IMAGE}" \
     --arg keycloak "${KEYCLOAK_IMAGE}" '
-      .schemaVersion == "weave.release.candidate-manifest.v2" and
+      .schemaVersion == "weave.release.candidate-manifest.v3" and
       .commit == $source_candidate_commit and
       .specificationCommit == $specification_commit and
       .specDigest == $spec_digest and
@@ -302,9 +284,11 @@ if [[ -n "${candidate_manifest_path}" ]]; then
       ([.images[] | {key: .component, value: .reference}] | from_entries) == {
         "server": $server,
         "mcp-server": $mcp,
-        "identity-ops": $identity_ops,
         "keycloak-runtime": $keycloak
-      }
+      } and
+      .realmArtifacts.containsSecrets == false and
+      (.realmArtifacts.baselineDigest | test("^sha256:[0-9a-f]{64}$")) and
+      (.realmArtifacts.migrationBundleDigest | test("^sha256:[0-9a-f]{64}$"))
     ' "${candidate_manifest_path}" >/dev/null ||
     fail "runtime image inputs do not match the exact candidate manifest"
 fi
@@ -313,8 +297,6 @@ export WEAVE_BACKEND_IMAGE
 WEAVE_BACKEND_IMAGE="$(docker image inspect "${SERVER_IMAGE}" --format '{{.Id}}')"
 export WEAVE_MCP_IMAGE
 WEAVE_MCP_IMAGE="$(docker image inspect "${MCP_IMAGE}" --format '{{.Id}}')"
-export WEAVE_IDENTITY_OPS_IMAGE
-WEAVE_IDENTITY_OPS_IMAGE="$(docker image inspect "${IDENTITY_OPS_IMAGE}" --format '{{.Id}}')"
 export WEAVE_KEYCLOAK_IMAGE
 WEAVE_KEYCLOAK_IMAGE="$(docker image inspect "${KEYCLOAK_IMAGE}" --format '{{.Id}}')"
 
@@ -333,11 +315,16 @@ runtime_image_evidence_arguments=(
   --output "${WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH}"
   --image server "${SERVER_IMAGE}" "${WEAVE_BACKEND_IMAGE}"
   --image mcp-server "${MCP_IMAGE}" "${WEAVE_MCP_IMAGE}"
-  --image identity-ops "${IDENTITY_OPS_IMAGE}" "${WEAVE_IDENTITY_OPS_IMAGE}"
   --image keycloak-runtime "${KEYCLOAK_IMAGE}" "${WEAVE_KEYCLOAK_IMAGE}"
 )
 if [[ -n "${candidate_manifest_path}" ]]; then
-  runtime_image_evidence_arguments+=(--manifest "${candidate_manifest_path}")
+  runtime_image_evidence_arguments+=(
+    --manifest "${candidate_manifest_path}"
+    --realm-baseline-artifact \
+      "${WEAVE_TEST_APP_GENERATED_ROOT}/keycloak/import/weave-realm.json"
+    --realm-migration-bundle-artifact \
+      "${WEAVE_TEST_APP_GENERATED_ROOT}/keycloak/migrations/manifest.json"
+  )
 fi
 python3 "${RUNTIME_IMAGE_EVIDENCE_WRITER}" \
   "${runtime_image_evidence_arguments[@]}"
@@ -539,9 +526,15 @@ jq -e \
   .specificationCommit == $specification_commit and
   .candidateManifestDigest == $candidate_manifest_digest and
   .composeProject == $compose_project and
-  (.images | length) == 4 and
+  (.images | length) == 3 and
   ([.images[].component] | sort) ==
-    ["identity-ops", "keycloak-runtime", "mcp-server", "server"] and
+    ["keycloak-runtime", "mcp-server", "server"] and
+  ((.manifestBound == false and .realmArtifacts == null) or
+    (.manifestBound == true and
+      .realmArtifactsVerified == true and
+      .realmArtifacts.containsSecrets == false and
+      (.realmArtifacts.baselineDigest | test("^sha256:[0-9a-f]{64}$")) and
+      (.realmArtifacts.migrationBundleDigest | test("^sha256:[0-9a-f]{64}$")))) and
   (.images[] | select(.component == "keycloak-runtime") |
     .buildEvidenceDigest | test("^sha256:[0-9a-f]{64}$")) and
   ([.images[].matchesCandidate] | all) and

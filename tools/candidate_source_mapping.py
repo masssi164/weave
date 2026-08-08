@@ -17,13 +17,11 @@ COMMIT = re.compile(r"^[0-9a-f]{40}$")
 IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 IMAGE_NAMES = (
     "backend",
-    "identity-ops",
     "keycloak",
     "mcp",
 )
 SOURCE_IMAGE_MODULES = {
     "backend": "server",
-    "identity-ops": "identity-ops",
     "mcp": "weave-mcp-server",
 }
 KEYCLOAK_MODULE = "keycloak-runtime"
@@ -33,7 +31,6 @@ KEYCLOAK_BUILD_EVIDENCE_LABEL = (
 )
 IMAGE_ENVIRONMENT = {
     "backend": "WEAVE_BACKEND_IMAGE",
-    "identity-ops": "WEAVE_IDENTITY_OPS_IMAGE",
     "keycloak": "WEAVE_KEYCLOAK_IMAGE",
     "mcp": "WEAVE_MCP_IMAGE",
 }
@@ -68,7 +65,7 @@ def parse_images(values: list[str]) -> dict[str, str]:
             raise MappingError(f"duplicate image binding: {name}")
         parsed[name] = image_id
     if tuple(sorted(parsed)) != tuple(sorted(IMAGE_NAMES)):
-        raise MappingError("a complete candidate image mapping requires all four components")
+        raise MappingError("a complete candidate image mapping requires all three components")
     return dict(sorted(parsed.items()))
 
 

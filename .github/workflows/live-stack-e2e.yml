@@ -227,9 +227,8 @@ jobs:
           }
           server_ref="$(component_ref server)"
           mcp_ref="$(component_ref mcp-server)"
-          identity_ref="$(component_ref identity-ops)"
           keycloak_ref="$(component_ref keycloak-runtime)"
-          for image in "$server_ref" "$mcp_ref" "$identity_ref" "$keycloak_ref"; do
+          for image in "$server_ref" "$mcp_ref" "$keycloak_ref"; do
             [[ "$image" == *@sha256:* ]]
             docker pull --platform "$DOCKER_DEFAULT_PLATFORM" "$image"
             [[ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" == \
@@ -237,20 +236,17 @@ jobs:
           done
           server_id="$(docker image inspect --format '{{.Id}}' "$server_ref")"
           mcp_id="$(docker image inspect --format '{{.Id}}' "$mcp_ref")"
-          identity_id="$(docker image inspect --format '{{.Id}}' "$identity_ref")"
           keycloak_id="$(docker image inspect --format '{{.Id}}' "$keycloak_ref")"
           python3 tools/candidate_source_mapping.py \
             --repository . \
             --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
             --image "backend=$server_id" \
-            --image "identity-ops=$identity_id" \
             --image "keycloak=$keycloak_id" \
             --image "mcp=$mcp_id" \
             --output "$WEAVE_LIVE_EVIDENCE_ROOT/candidate-source-mapping.json"
           {
             echo "WEAVE_TEST_APP_SERVER_IMAGE=$server_ref"
             echo "WEAVE_TEST_APP_MCP_IMAGE=$mcp_ref"
-            echo "WEAVE_TEST_APP_IDENTITY_OPS_IMAGE=$identity_ref"
             echo "WEAVE_TEST_APP_KEYCLOAK_IMAGE=$keycloak_ref"
           } >> "$GITHUB_ENV"
 
@@ -308,10 +304,9 @@ jobs:
             export WEAVE_E2E_NAMESPACE="$namespace"
             export WEAVE_BACKEND_IMAGE="$WEAVE_TEST_APP_SERVER_IMAGE"
             export WEAVE_MCP_IMAGE="$WEAVE_TEST_APP_MCP_IMAGE"
-            export WEAVE_IDENTITY_OPS_IMAGE="$WEAVE_TEST_APP_IDENTITY_OPS_IMAGE"
             export WEAVE_KEYCLOAK_IMAGE="$WEAVE_TEST_APP_KEYCLOAK_IMAGE"
             WEAVE_TEARDOWN_EVIDENCE_FILE="$CLEANUP_ROOT/teardown-evidence.json" \
-              bash infra/weave-workspace/teardown.sh test \
+              bash infra/weave-workspace/teardown.sh e2e \
                 --isolated \
                 --evidence-file "$CLEANUP_ROOT/teardown-evidence.json"
             python3 gradle/scripts/cleanup_test_app_runtime.py \
@@ -440,6 +435,7 @@ jobs:
             --product-evidence "$WEAVE_LIVE_UPLOAD_ROOT/weave-test-app-evidence.json" \
             --teardown-evidence "$WEAVE_LIVE_UPLOAD_ROOT/teardown-evidence.json" \
             --candidate-manifest "$WEAVE_LIVE_UPLOAD_ROOT/candidate-manifest.json" \
+            --runtime-image-evidence "$WEAVE_LIVE_UPLOAD_ROOT/runtime-image-evidence.json" \
             --run-url "$WEAVE_CANDIDATE_EVIDENCE_REF" \
             --output "$WEAVE_LIVE_UPLOAD_ROOT/human-testing-live-automated-evidence.json"
           scan_arguments=()

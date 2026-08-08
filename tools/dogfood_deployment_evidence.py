@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import ipaddress
 import json
 import re
@@ -20,7 +21,11 @@ DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 IMAGE_ID_PATTERN = DIGEST_PATTERN
 BUILD_IDENTITY_PATTERN = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$")
 CAPABILITIES = ("chat", "files", "calendar")
-IMAGE_COMPONENTS = frozenset(("backend", "identity-ops", "keycloak", "mcp"))
+IMAGE_COMPONENTS = frozenset(("backend", "keycloak", "mcp"))
+MANIFEST_IMAGE_COMPONENTS = frozenset(("server", "keycloak-runtime", "mcp-server"))
+REALM_ARTIFACT_FIELDS = frozenset(
+    ("baselineDigest", "migrationBundleDigest", "containsSecrets")
+)
 STATE_BY_VALUE = {0: "unavailable", 1: "degraded", 2: "available"}
 PROVIDER_STATES = frozenset(STATE_BY_VALUE.values())
 
@@ -150,7 +155,16 @@ def collect_provider_health(base_url: str) -> dict[str, Any]:
 
 def idempotence_passed(path: Path) -> bool:
     evidence = load_object(path, "deployment idempotence evidence")
-    if evidence.get("supportSafe") is not True or not isinstance(evidence.get("noChanges"), bool):
+    if (
+        evidence.get("schemaVersion") != "weave.persistent-test-idempotence.v3"
+        or evidence.get("runtimeProfile") != "dogfood"
+        or evidence.get("deploymentContext") != "persistent-dogfood"
+        or not isinstance(evidence.get("noChanges"), bool)
+        or evidence.get("composeModelStable") is not True
+        or evidence.get("realmArtifactsUnchanged") is not True
+        or evidence.get("supportSafe") is not True
+        or evidence.get("containsSecretValues") is not False
+    ):
         raise EvidenceError(f"deployment idempotence evidence is unsafe or malformed: {path}")
     return evidence["noChanges"]
 
@@ -174,6 +188,48 @@ def candidate_source_mapping(path: Path, lane_candidate: str) -> tuple[str, dict
     ):
         raise EvidenceError("candidate source mapping is unsafe, incomplete, or stale")
     return source, dict(sorted(images.items()))
+
+
+def candidate_manifest_realm_artifacts(
+    path: Path,
+    source_candidate: str,
+    expected_digest: str,
+) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise EvidenceError("candidate manifest must be a regular file")
+    raw = path.read_bytes()
+    actual_digest = "sha256:" + hashlib.sha256(raw).hexdigest()
+    manifest = load_object(path, "candidate manifest")
+    images = manifest.get("images")
+    realm_artifacts = manifest.get("realmArtifacts")
+    if (
+        actual_digest != expected_digest
+        or manifest.get("schemaVersion") != "weave.release.candidate-manifest.v3"
+        or manifest.get("supportSafe") is not True
+        or manifest.get("commit") != source_candidate
+        or not isinstance(images, list)
+        or len(images) != len(MANIFEST_IMAGE_COMPONENTS)
+        or any(not isinstance(item, dict) for item in images)
+        or {
+            item.get("component")
+            for item in images
+            if isinstance(item, dict)
+        }
+        != MANIFEST_IMAGE_COMPONENTS
+        or not isinstance(realm_artifacts, dict)
+        or set(realm_artifacts) != REALM_ARTIFACT_FIELDS
+        or not DIGEST_PATTERN.fullmatch(
+            str(realm_artifacts.get("baselineDigest", ""))
+        )
+        or not DIGEST_PATTERN.fullmatch(
+            str(realm_artifacts.get("migrationBundleDigest", ""))
+        )
+        or realm_artifacts.get("containsSecrets") is not False
+    ):
+        raise EvidenceError(
+            "candidate manifest realm artifact evidence is unsafe, incomplete, or stale"
+        )
+    return dict(realm_artifacts)
 
 
 def validate_provider_health(value: dict[str, Any]) -> None:
@@ -205,7 +261,7 @@ def validate_fresh_start_cut(
         or value.get("candidateManifestDigest") != manifest_digest
         or value.get("status") != "passed"
         or value.get("schemaConverged") is not True
-        or value.get("identitySecondPlanEmpty") is not True
+        or value.get("realmArtifactsVerified") is not True
         or value.get("imagesVerified") is not True
         or value.get("newInvitationPending") is not True
         or value.get("legacyStateMigrated") is not False
@@ -238,6 +294,7 @@ def assemble_deployment(
     run_url: str,
     provider_health: dict[str, Any],
     candidate_images: dict[str, str],
+    realm_artifacts: dict[str, Any],
     idempotency_passed: bool,
     fresh_start_cut: dict[str, Any] | None = None,
     persistent_comparison: dict[str, Any] | None = None,
@@ -248,6 +305,18 @@ def assemble_deployment(
         raise EvidenceError("candidate manifest digest must be exact")
     if set(candidate_images) != IMAGE_COMPONENTS:
         raise EvidenceError("candidate image mapping is incomplete")
+    if (
+        not isinstance(realm_artifacts, dict)
+        or set(realm_artifacts) != REALM_ARTIFACT_FIELDS
+        or not DIGEST_PATTERN.fullmatch(
+            str(realm_artifacts.get("baselineDigest", ""))
+        )
+        or not DIGEST_PATTERN.fullmatch(
+            str(realm_artifacts.get("migrationBundleDigest", ""))
+        )
+        or realm_artifacts.get("containsSecrets") is not False
+    ):
+        raise EvidenceError("realm artifact evidence is incomplete or unsafe")
     if not BUILD_IDENTITY_PATTERN.fullmatch(backend_version) or not BUILD_IDENTITY_PATTERN.fullmatch(backend_build_number):
         raise EvidenceError("backend build identity is malformed")
     if (fresh_start_cut is None) == (persistent_comparison is None):
@@ -277,11 +346,12 @@ def assemble_deployment(
         blockers.append({"code": "fresh-owner-activation-pending", "summary": "The new Fresh Start invitation awaits normal human activation.", "candidateCommit": candidate})
     normalized_url = validate_run_url(run_url)
     return {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "supportSafe": True,
         "candidateCommit": candidate,
         "sourceCandidateCommit": source_candidate,
         "candidateManifestDigest": candidate_manifest_digest,
+        "realmArtifacts": dict(realm_artifacts),
         "candidateImages": dict(sorted(candidate_images.items())),
         "backendBuild": {"commit": source_candidate, "version": backend_version, "buildNumber": backend_build_number},
         "deployment": {
@@ -293,6 +363,7 @@ def assemble_deployment(
             "persistentHumanUnchanged": persistent_unchanged,
             "legacyStateMigrated": False,
             "adoptionAuthorized": False,
+            "realmArtifactsVerified": True,
         },
         "providerHealth": {
             "overall": provider_health["overall"],
@@ -327,6 +398,7 @@ def parser() -> argparse.ArgumentParser:
     assemble = commands.add_parser("assemble")
     assemble.add_argument("--candidate-commit", required=True)
     assemble.add_argument("--candidate-manifest-digest", required=True)
+    assemble.add_argument("--candidate-manifest", type=Path, required=True)
     assemble.add_argument("--backend-version", required=True)
     assemble.add_argument("--backend-build-number", required=True)
     assemble.add_argument("--run-url", required=True)
@@ -351,15 +423,22 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if summary["overall"] == "available" else 1
         lane = args.candidate_commit.lower()
         source, images = candidate_source_mapping(args.candidate_source_mapping, lane)
+        manifest_digest = args.candidate_manifest_digest.lower()
+        realm_artifacts = candidate_manifest_realm_artifacts(
+            args.candidate_manifest,
+            source,
+            manifest_digest,
+        )
         evidence = assemble_deployment(
             candidate=lane,
             source_candidate=source,
-            candidate_manifest_digest=args.candidate_manifest_digest.lower(),
+            candidate_manifest_digest=manifest_digest,
             backend_version=args.backend_version,
             backend_build_number=args.backend_build_number,
             run_url=args.run_url,
             provider_health=load_object(args.provider_health, "provider health summary"),
             candidate_images=images,
+            realm_artifacts=realm_artifacts,
             idempotency_passed=all(idempotence_passed(path) for path in args.deployment_idempotence),
             fresh_start_cut=(load_object(args.fresh_start_cut_report, "Fresh Start cut report") if args.fresh_start_cut_report else None),
             persistent_comparison=(load_object(args.persistent_comparison, "persistent dogfood comparison") if args.persistent_comparison else None),

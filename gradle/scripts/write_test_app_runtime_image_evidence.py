@@ -15,7 +15,8 @@ from pathlib import Path
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 IMAGE_REFERENCE = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
-COMPONENTS = {"server", "mcp-server", "identity-ops", "keycloak-runtime"}
+COMPONENTS = {"server", "mcp-server", "keycloak-runtime"}
+REALM_ARTIFACT_FIELDS = {"baselineDigest", "migrationBundleDigest", "containsSecrets"}
 RUNNING_SERVICES = {
     "server": "backend",
     "mcp-server": "mcp",
@@ -40,6 +41,8 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--compose-project", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--realm-baseline-artifact", type=Path)
+    parser.add_argument("--realm-migration-bundle-artifact", type=Path)
     parser.add_argument(
         "--image",
         action="append",
@@ -121,6 +124,21 @@ def read_manifest(path: Path, expected_digest: str) -> dict[str, object]:
     return payload
 
 
+def artifact_digest(path: Path, label: str) -> str:
+    if path.is_symlink() or not path.is_file():
+        fail(f"{label} must be a regular non-symlink file")
+    raw = path.read_bytes()
+    if not raw:
+        fail(f"{label} must not be empty")
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as error:
+        fail(f"{label} is invalid JSON: {error.msg}")
+    if not isinstance(payload, dict):
+        fail(f"{label} must contain one JSON object")
+    return "sha256:" + hashlib.sha256(raw).hexdigest()
+
+
 def private_json(path: Path, payload: dict[str, object]) -> None:
     path = path.resolve()
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -170,11 +188,18 @@ def main() -> int:
     manifest_bound = args.manifest is not None
     manifest_references: dict[str, str] = {}
     manifest_keycloak_build_evidence: str | None = None
+    realm_artifacts: dict[str, object] | None = None
+    realm_artifacts_verified = False
     if manifest_bound:
+        if (
+            args.realm_baseline_artifact is None
+            or args.realm_migration_bundle_artifact is None
+        ):
+            fail("manifest-bound evidence requires both rendered realm artifacts")
         manifest = read_manifest(args.manifest, args.candidate_manifest_digest)
         if (
             manifest.get("schemaVersion")
-            != "weave.release.candidate-manifest.v2"
+            != "weave.release.candidate-manifest.v3"
             or manifest.get("commit") != args.source_candidate_commit
             or manifest.get("specificationCommit")
             != args.specification_commit
@@ -183,7 +208,11 @@ def main() -> int:
         ):
             fail("candidate manifest identity does not match the exact testApp run")
         images = manifest.get("images")
-        if not isinstance(images, list):
+        if (
+            not isinstance(images, list)
+            or len(images) != len(COMPONENTS)
+            or any(not isinstance(image, dict) for image in images)
+        ):
             fail("candidate manifest images are invalid")
         manifest_references = {
             image.get("component"): image.get("reference")
@@ -192,6 +221,30 @@ def main() -> int:
         }
         if set(manifest_references) != COMPONENTS:
             fail("candidate manifest image set is incomplete")
+        observed_realm_artifacts = manifest.get("realmArtifacts")
+        if (
+            not isinstance(observed_realm_artifacts, dict)
+            or set(observed_realm_artifacts) != REALM_ARTIFACT_FIELDS
+            or not DIGEST.fullmatch(
+                str(observed_realm_artifacts.get("baselineDigest", ""))
+            )
+            or not DIGEST.fullmatch(
+                str(observed_realm_artifacts.get("migrationBundleDigest", ""))
+            )
+            or observed_realm_artifacts.get("containsSecrets") is not False
+        ):
+            fail("candidate manifest realm artifact evidence is invalid")
+        realm_artifacts = dict(observed_realm_artifacts)
+        if artifact_digest(
+            args.realm_baseline_artifact, "rendered realm baseline"
+        ) != realm_artifacts["baselineDigest"]:
+            fail("rendered realm baseline differs from the candidate manifest")
+        if artifact_digest(
+            args.realm_migration_bundle_artifact,
+            "rendered realm migration bundle",
+        ) != realm_artifacts["migrationBundleDigest"]:
+            fail("rendered realm migration bundle differs from the candidate manifest")
+        realm_artifacts_verified = True
         keycloak_images = [
             image
             for image in images
@@ -205,6 +258,11 @@ def main() -> int:
         manifest_keycloak_build_evidence = str(
             keycloak_images[0]["buildEvidenceDigest"]
         )
+    elif (
+        args.realm_baseline_artifact is not None
+        or args.realm_migration_bundle_artifact is not None
+    ):
+        fail("rendered realm artifacts require a candidate manifest")
 
     evidence_images: list[dict[str, object]] = []
     for component in sorted(COMPONENTS):
@@ -259,6 +317,8 @@ def main() -> int:
             "candidateManifestDigest": args.candidate_manifest_digest,
             "composeProject": args.compose_project,
             "manifestBound": manifest_bound,
+            "realmArtifacts": realm_artifacts,
+            "realmArtifactsVerified": realm_artifacts_verified,
             "images": evidence_images,
             "credentialsIncluded": False,
             "containsSecretValues": False,
@@ -267,7 +327,7 @@ def main() -> int:
     )
     print(
         "WEAVE_RUNTIME_IMAGE_EVIDENCE_OK "
-        f"manifestBound={str(manifest_bound).lower()} components=4 supportSafe=true"
+        f"manifestBound={str(manifest_bound).lower()} components=3 supportSafe=true"
     )
     return 0
 

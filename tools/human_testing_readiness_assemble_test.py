@@ -51,7 +51,7 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
                 "blockers": [],
             },
             "deployment": {
-                "schemaVersion": 1,
+                "schemaVersion": 3,
                 "supportSafe": True,
                 "candidateCommit": self.candidate,
                 "sourceCandidateCommit": self.source_candidate,
@@ -63,14 +63,17 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
                     "keycloak": "sha256:" + "8" * 64,
                 },
                 "backendBuild": self.green["builds"]["backend"],
-                "deployment": self.green["deployment"],
+                "deployment": {
+                    **self.green["deployment"],
+                    "realmArtifactsVerified": True,
+                },
                 "providerHealth": copy.deepcopy(self.green["providerHealth"]),
                 "runUrl": "https://github.com/example/weave/actions/runs/2",
                 "evidenceRefs": ["artifact:deployment"],
                 "blockers": [],
             },
             "health": {
-                "schemaVersion": "weave.dogfood-provider-health-evidence.v1",
+                "schemaVersion": "weave.dogfood-provider-health-evidence.v2",
                 "supportSafe": True,
                 "containsSecretValues": False,
                 "candidateCommit": self.candidate,
@@ -78,6 +81,7 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
                 "specCorpusCommit": self.green["specCorpusCommit"],
                 "candidateManifestDigest": self.green["candidateManifestDigest"],
                 "images": copy.deepcopy(self.green["images"]),
+                "realmArtifacts": copy.deepcopy(self.green["realmArtifacts"]),
                 "deploymentRunUrl": "https://github.com/example/weave/actions/runs/2",
                 "runUrl": "https://github.com/example/weave/actions/runs/4",
                 "providerHealth": copy.deepcopy(self.green["providerHealth"]),
@@ -229,6 +233,9 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
             lambda documents: documents["deployment"]["realmArtifacts"].__setitem__(
                 "migrationBundleDigest", "sha256:" + "f" * 64
             ),
+            lambda documents: documents["health"]["realmArtifacts"].__setitem__(
+                "baselineDigest", "sha256:" + "e" * 64
+            ),
         )
         for mutate in mutations:
             with self.subTest(mutation=mutate):
@@ -237,6 +244,13 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
                 completed = self.run_assemble(documents)
                 self.assertEqual(completed.returncode, 2, completed.stdout + completed.stderr)
                 self.assertIn("realm artifact evidence", completed.stderr)
+
+    def test_deployment_must_verify_rendered_realm_artifacts(self) -> None:
+        documents = self.documents()
+        documents["deployment"]["deployment"]["realmArtifactsVerified"] = False
+        completed = self.run_assemble(documents)
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("did not verify", completed.stderr)
 
 
 if __name__ == "__main__":

@@ -165,7 +165,7 @@ def main() -> int:
             "Create or reuse the exact private backup, restore proof, and Fresh Start plan",
             "Resolve exact destructive approval from delivery issue",
             "Apply only the exact approved Fresh Start plan",
-            "Prove canonical lifecycle convergence and empty second reconciliation",
+            "Prove canonical lifecycle convergence and stable realm artifacts",
             "Create a new invitation through the normal identity flow",
             "Verify running image identities and assemble deployment evidence",
             "Upload persistent dogfood evidence",
@@ -173,11 +173,23 @@ def main() -> int:
         "persistent dogfood deployment",
     )
     require(
-        deployment.count('.operationCount == 0') == 2
+        "weave-realm-first.json" in deployment
+        and "realm-migrations-first.json" in deployment
+        and 'actual_baseline="sha256:$(shasum -a 256 "$baseline"' in deployment
+        and 'actual_migrations="sha256:$(shasum -a 256 "$migrations"' in deployment
+        and '"$actual_baseline" == "$expected_baseline"' in deployment
+        and '"$actual_migrations" == "$expected_migrations"' in deployment
+        and 'runtimeProfile:"dogfood"' in deployment
         and "composeModelStable:true" in deployment
-        and "identitySecondPlanEmpty:true" in deployment
+        and "realmArtifactsUnchanged:true" in deployment
+        and "realmArtifactsVerified:true" in deployment
         and "newInvitationPending:true" in deployment,
-        "persistent deployment does not prove Compose and Identity Ops convergence",
+        "persistent deployment does not prove Compose and realm-artifact convergence",
+    )
+    require(
+        '--runtime-image-evidence "$WEAVE_LIVE_UPLOAD_ROOT/runtime-image-evidence.json"'
+        in live,
+        "live automated evidence does not consume runtime-verified realm artifacts",
     )
 
     for required in (

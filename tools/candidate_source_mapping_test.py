@@ -89,7 +89,7 @@ class CandidateSourceMappingTest(unittest.TestCase):
             )
 
     def test_requires_all_and_only_closed_image_bindings(self) -> None:
-        with self.assertRaisesRegex(module.MappingError, "all four"):
+        with self.assertRaisesRegex(module.MappingError, "all three"):
             module.parse_images(["backend=sha256:" + "1" * 64])
         with self.assertRaisesRegex(module.MappingError, "closed"):
             module.parse_images(["provider=sha256:" + "1" * 64])

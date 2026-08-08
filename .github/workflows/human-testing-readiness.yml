@@ -222,9 +222,9 @@ jobs:
             exit 1
           }
           jq -e --slurpfile deployed "$manifest" '
+            .realmArtifacts == $deployed[0].realmArtifacts and
             .images.server == $deployed[0].images.backend.reference and
             .images["mcp-server"] == $deployed[0].images.mcp.reference and
-            .images["identity-ops"] == $deployed[0].images["identity-ops"].reference and
             .images["keycloak-runtime"] == $deployed[0].images.keycloak.reference
           ' "$automated" >/dev/null || {
             echo "::error::Automated evidence lost one or more deployed image references." >&2
@@ -272,9 +272,8 @@ jobs:
           export WEAVE_RESOURCE_GENERATION="$generation"
           WEAVE_BACKEND_IMAGE="$(component_ref backend)"
           WEAVE_MCP_IMAGE="$(component_ref mcp)"
-          WEAVE_IDENTITY_OPS_IMAGE="$(component_ref identity-ops)"
           WEAVE_KEYCLOAK_IMAGE="$(component_ref keycloak)"
-          export WEAVE_BACKEND_IMAGE WEAVE_MCP_IMAGE WEAVE_IDENTITY_OPS_IMAGE WEAVE_KEYCLOAK_IMAGE
+          export WEAVE_BACKEND_IMAGE WEAVE_MCP_IMAGE WEAVE_KEYCLOAK_IMAGE
           {
             printf 'WEAVE_CANDIDATE_COMMIT=%s\n' "$WEAVE_CANDIDATE_COMMIT"
             printf 'WEAVE_IMAGE_SOURCE_COMMIT=%s\n' "$WEAVE_IMAGE_SOURCE_COMMIT"
@@ -282,7 +281,6 @@ jobs:
             printf 'WEAVE_RESOURCE_GENERATION=%s\n' "$WEAVE_RESOURCE_GENERATION"
             printf 'WEAVE_BACKEND_IMAGE=%s\n' "$WEAVE_BACKEND_IMAGE"
             printf 'WEAVE_MCP_IMAGE=%s\n' "$WEAVE_MCP_IMAGE"
-            printf 'WEAVE_IDENTITY_OPS_IMAGE=%s\n' "$WEAVE_IDENTITY_OPS_IMAGE"
             printf 'WEAVE_KEYCLOAK_IMAGE=%s\n' "$WEAVE_KEYCLOAK_IMAGE"
           } >> "$GITHUB_ENV"
           coordinates="$(
@@ -298,9 +296,9 @@ jobs:
           if (not reviewed.is_absolute() or reviewed.is_symlink() or not reviewed.is_file()
                   or metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o600):
               raise SystemExit("reviewed dogfood environment must be a runner-owned regular mode-0600 file")
-          context = load_context("test", Path("."), str(reviewed))
+          context = load_context("dogfood", Path("."), str(reviewed))
           if context.env["WEAVE_DEPLOYMENT_CONTEXT"] != "persistent-dogfood":
-              raise SystemExit("final health proof requires test + persistent-dogfood")
+              raise SystemExit("final health proof requires dogfood + persistent-dogfood")
           print(context.env["WEAVE_COMPOSE_PROJECT"])
           print(context.env["WEAVE_BACKEND_HOST_PORT"])
           PY
@@ -318,7 +316,7 @@ jobs:
             expected="$(jq -er --arg name "$runtime_name" '.images[$name].expectedImageId' "$manifest")"
             reference="$(jq -er --arg name "$runtime_name" '.images[$name].reference' "$manifest")"
             if [[ -n "$service" ]]; then
-              container="$(cd infra/weave-workspace && ./compose.sh test ps -q "$service")"
+              container="$(cd infra/weave-workspace && ./compose.sh dogfood ps -q "$service")"
               [[ -n "$container" && "$(wc -l <<<"$container" | tr -d ' ')" == 1 ]] || {
                 echo "::error::Persistent service ${service} does not resolve to exactly one container." >&2
                 return 1
@@ -338,10 +336,9 @@ jobs:
           jq -n \
             --arg source "$SOURCE_CANDIDATE_SHA" \
             --argjson backend "$(observe backend backend)" \
-            --argjson identity "$(observe identity-ops '')" \
             --argjson keycloak "$(observe keycloak keycloak)" \
             --argjson mcp "$(observe mcp mcp)" \
-            '{schemaVersion:"weave.runtime-image-observation.v1",sourceCandidateCommit:$source,images:{backend:$backend,"identity-ops":$identity,keycloak:$keycloak,mcp:$mcp},supportSafe:true,containsSecretValues:false}' \
+            '{schemaVersion:"weave.runtime-image-observation.v1",sourceCandidateCommit:$source,images:{backend:$backend,keycloak:$keycloak,mcp:$mcp},supportSafe:true,containsSecretValues:false}' \
             > "$runtime"
           python3 tools/dogfood_deployment_evidence.py collect-provider-health \
             --actuator-metrics-url "http://127.0.0.1:${backend_port}/actuator/metrics" \

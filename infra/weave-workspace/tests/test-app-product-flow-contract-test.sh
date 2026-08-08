@@ -15,6 +15,7 @@ readonly DCR_CONTRACT_PROBE_TEST="${REPOSITORY_ROOT}/infra/weave-workspace/tests
 readonly COMPOSE_RUNTIME="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/compose_runtime.py"
 readonly BOUNDED_PROCESS="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/bounded_process.py"
 readonly RUNTIME_IMAGE_EVIDENCE="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_runtime_image_evidence.py"
+readonly RUNTIME_IMAGE_EVIDENCE_TEST="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_runtime_image_evidence_test.py"
 readonly GRADLE_TASKS="${REPOSITORY_ROOT}/gradle/tasks/architecture-lifecycle.gradle"
 readonly MODULE_BUILD="${REPOSITORY_ROOT}/weave-product-e2e/build.gradle"
 readonly MODULE_TASKS="${REPOSITORY_ROOT}/weave-product-e2e/gradle/tasks/product-flow.gradle"
@@ -44,6 +45,7 @@ python3 -m py_compile \
   "${BOUNDED_PROCESS}" \
   "${RUNTIME_IMAGE_EVIDENCE}"
 python3 -m unittest "${DCR_CONTRACT_PROBE_TEST}"
+python3 -m unittest "${RUNTIME_IMAGE_EVIDENCE_TEST}"
 
 CONTEXT_TEST_OUTPUT_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/weave-testapp-context-contract.XXXXXX")"
 CONTEXT_TEST_NAMESPACE=""
@@ -204,6 +206,11 @@ contains "${RUNTIME_IMAGE_EVIDENCE}" '"weave.test-app-runtime-images/v1"'
 contains "${RUNTIME_IMAGE_EVIDENCE}" 'manifest_references.get(component) != reference'
 contains "${RUNTIME_IMAGE_EVIDENCE}" 'KEYCLOAK_BUILD_EVIDENCE_LABEL'
 contains "${RUNTIME_IMAGE_EVIDENCE}" 'buildEvidenceDigest'
+contains "${RUNTIME_IMAGE_EVIDENCE}" '--realm-baseline-artifact'
+contains "${RUNTIME_IMAGE_EVIDENCE}" '--realm-migration-bundle-artifact'
+contains "${RUNTIME_IMAGE_EVIDENCE}" 'realmArtifactsVerified'
+contains "${LIFECYCLE}" 'WEAVE_TEST_APP_GENERATED_ROOT}/keycloak/import/weave-realm.json'
+contains "${LIFECYCLE}" 'WEAVE_TEST_APP_GENERATED_ROOT}/keycloak/migrations/manifest.json'
 contains "${BROWSER_FLOW}" '--ignore-certificate-errors-spki-list='
 contains "${BROWSER_FLOW}" '--host-resolver-rules='
 contains "${BROWSER_FLOW}" 'isEmailVerificationRequiredAction'
