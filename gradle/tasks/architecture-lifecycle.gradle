@@ -151,11 +151,15 @@ tasks.register('freshStartRecreateTargetGeneration', Exec) {
     workingDir rootProject.projectDir
     outputs.upToDateWhen { false }
     doFirst {
+        def plan = requiredProperty('freshStartManifest')
+        def applyEvidence = requiredProperty('freshStartApplyEvidence')
+        environment 'WEAVE_FRESH_START_PLAN', file(plan).absolutePath
+        environment 'WEAVE_FRESH_START_APPLY_EVIDENCE', file(applyEvidence).absolutePath
         commandLine(
             'python3',
             'infra/weave-workspace/fresh-start-recreate.py',
-            '--plan', requiredProperty('freshStartManifest'),
-            '--apply-evidence', requiredProperty('freshStartApplyEvidence'),
+            '--plan', plan,
+            '--apply-evidence', applyEvidence,
             '--candidate-manifest', requiredProperty('candidateManifest'),
             '--allowlist', optionalProperty(
                 'freshStartAllowlist',
