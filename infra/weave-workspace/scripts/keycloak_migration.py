@@ -20,6 +20,7 @@ RECEIPT_NAME = f"{OPERATION_ID}.receipt.json"
 RECEIPT_SCHEMA = "weave.keycloak-fgap-migration-receipt/v1"
 BACKUP_PROOF_SCHEMA = "weave.keycloak-realm-migration-backup-proof/v1"
 FRESH_START_PROOF_SCHEMA = "weave.keycloak-realm-migration-fresh-start-proof/v1"
+DISPOSABLE_E2E_PROOF_SCHEMA = "weave.keycloak-realm-migration-disposable-e2e-proof/v1"
 ALLOWED_MUTATIONS = frozenset(
     {
         "create-identity-admin-subject-policy",
@@ -188,7 +189,8 @@ def _precondition_proof_digest(context: ComposeContext, inputs: MigrationInputs)
         except ValueError as error:
             raise ContractError("Keycloak migration backup proof timestamp is malformed") from error
         if (
-            set(proof)
+            context.environment not in {"dogfood", "prod"}
+            or set(proof)
             != {
                 "schemaVersion",
                 "supportSafe",
@@ -240,13 +242,42 @@ def _precondition_proof_digest(context: ComposeContext, inputs: MigrationInputs)
         ):
             raise ContractError("Keycloak Fresh Start proof is stale or outside cutover scope")
         return _digest(proof_payload)
+    if proof.get("schemaVersion") == DISPOSABLE_E2E_PROOF_SCHEMA:
+        if (
+            context.environment != "e2e"
+            or context.isolated_namespace is None
+            or set(proof)
+            != {
+                "schemaVersion",
+                "supportSafe",
+                "containsSecretValues",
+                "status",
+                "environment",
+                "realm",
+                "sourceBaselineRevision",
+                "emptyNamespaceProofSha256",
+                "runId",
+                "namespace",
+                "candidateCommit",
+                "candidateManifestDigest",
+                "composeProject",
+            }
+            or proof.get("containsSecretValues") is not False
+            or not SHA256.fullmatch(str(proof.get("emptyNamespaceProofSha256")))
+            or proof.get("runId") != os.environ.get("WEAVE_E2E_RUN_ID")
+            or proof.get("namespace") != context.isolated_namespace
+            or proof.get("candidateManifestDigest")
+            != context.env["WEAVE_CANDIDATE_MANIFEST_DIGEST"]
+        ):
+            raise ContractError("Keycloak disposable E2E proof is stale or outside run scope")
+        return _digest(proof_payload)
     raise ContractError("Keycloak migration precondition proof has an unsupported schema")
 
 
 def require_completed_migration(context: ComposeContext) -> MigrationInputs:
-    if context.environment not in {"dogfood", "prod"}:
+    if context.environment not in {"dogfood", "prod", "e2e"}:
         raise ContractError(
-            "the qualified Keycloak FGAP migration is limited to dogfood/prod; this environment remains fail-closed"
+            "the qualified Keycloak FGAP migration is limited to protected persistent environments and isolated E2E"
         )
     inputs = migration_inputs(context)
     precondition_proof_digest = _precondition_proof_digest(context, inputs)
