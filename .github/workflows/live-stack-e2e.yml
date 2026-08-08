@@ -14,7 +14,7 @@ on:
         default: false
         type: boolean
       candidate_images_run_id:
-        description: Optional successful Candidate Images run for the resolved protected dev source
+        description: Optional successful Candidate Cut run for the resolved protected dev source
         required: false
         type: string
   workflow_call:
@@ -129,14 +129,14 @@ jobs:
           persist-credentials: false
 
       - name: Set up Java 21
-        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
           java-version: "21"
           cache: gradle
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3 # v4.4.2
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       - name: Resolve immutable candidate manifest
         env:
@@ -145,26 +145,40 @@ jobs:
         run: |
           set -euo pipefail
           candidate_run_id="$REQUESTED_CANDIDATE_IMAGES_RUN_ID"
+          expected_title="Candidate Cut $WEAVE_IMAGE_SOURCE_COMMIT"
           if [[ -n "$candidate_run_id" ]]; then
             [[ "$candidate_run_id" =~ ^[0-9]+$ ]] || {
               echo "::error::candidate_images_run_id must be numeric." >&2
               exit 1
             }
             run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${candidate_run_id}")"
-            [[ "$(jq -r .name <<<"$run")" == "Candidate Images" && \
+            [[ "$(jq -r .name <<<"$run")" == "Candidate Cut" && \
                "$(jq -r .path <<<"$run")" == ".github/workflows/candidate-images.yml" && \
+               "$(jq -r .event <<<"$run")" == "workflow_dispatch" && \
+               "$(jq -r .head_branch <<<"$run")" == "dev" && \
+               "$(jq -r .display_title <<<"$run")" == "$expected_title" && \
                "$(jq -r .conclusion <<<"$run")" == success && \
-               "$(jq -r .head_sha <<<"$run")" == "$WEAVE_IMAGE_SOURCE_COMMIT" ]] || {
-              echo "::error::Requested Candidate Images run is not a successful source-candidate build." >&2
+               "$(jq -r .head_sha <<<"$run")" =~ ^[0-9a-f]{40}$ ]] || {
+              echo "::error::Requested Candidate Cut is not a successful protected-dev source build." >&2
               exit 1
             }
           else
-            runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/candidate-images.yml/runs?head_sha=${WEAVE_IMAGE_SOURCE_COMMIT}&status=completed&per_page=30")"
-            candidate_run_id="$(jq -r '[.workflow_runs[] | select(.conclusion == "success")][0].id // empty' <<<"$runs")"
-            [[ -n "$candidate_run_id" ]] || {
-              echo "::error::No successful Candidate Images run exists for protected dev source ${WEAVE_IMAGE_SOURCE_COMMIT}." >&2
+            runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/candidate-images.yml/runs?branch=dev&event=workflow_dispatch&status=completed&per_page=100")"
+            matching_runs="$(jq -c --arg title "$expected_title" '
+              [.workflow_runs[] | select(
+                .name == "Candidate Cut" and
+                .path == ".github/workflows/candidate-images.yml" and
+                .event == "workflow_dispatch" and
+                .head_branch == "dev" and
+                .display_title == $title and
+                .conclusion == "success"
+              )]
+            ' <<<"$runs")"
+            [[ "$(jq -r 'length' <<<"$matching_runs")" == "1" ]] || {
+              echo "::error::Expected exactly one successful Candidate Cut for ${WEAVE_IMAGE_SOURCE_COMMIT}; pass candidate_images_run_id to resolve zero or ambiguous matches." >&2
               exit 1
             }
+            candidate_run_id="$(jq -er '.[0].id' <<<"$matching_runs")"
           fi
           manifest_dir="$WEAVE_LIVE_EVIDENCE_ROOT/candidate-manifest-source"
           install -d -m 700 "$manifest_dir"

@@ -66,7 +66,23 @@ contains "${KEYCLOAK_RUNTIME_IMAGE}" 'com.massimotter.weave.provider-id="weave-w
 contains "${KEYCLOAK_RUNTIME_IMAGE}" 'ARG WEAVE_KEYCLOAK_BUILD_EVIDENCE_DIGEST'
 contains "${KEYCLOAK_RUNTIME_IMAGE}" 'com.massimotter.weave.keycloak-build-evidence-digest="${WEAVE_KEYCLOAK_BUILD_EVIDENCE_DIGEST}"'
 
-contains "${WORKFLOW}" 'tag_sha=sha-$GITHUB_SHA'
+contains "${WORKFLOW}" 'name: Candidate Cut'
+contains "${WORKFLOW}" 'run-name: Candidate Cut ${{ inputs.candidate_sha }}'
+contains "${WORKFLOW}" 'candidate_sha:'
+contains "${WORKFLOW}" 'group: candidate-cut-${{ inputs.candidate_sha }}'
+contains "${WORKFLOW}" 'Verify selected candidate belongs to protected dev'
+contains "${WORKFLOW}" '[[ "$GITHUB_REF" == "refs/heads/dev" ]]'
+contains "${WORKFLOW}" '[[ "$WEAVE_CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$ ]]'
+contains "${WORKFLOW}" 'git merge-base --is-ancestor'
+contains "${WORKFLOW}" 'environment: candidate-cut'
+contains "${WORKFLOW}" 'candidate_sha: ${{ steps.source.outputs.candidate_sha }}'
+contains "${WORKFLOW}" 'WEAVE_CANDIDATE_COMMIT: ${{ needs.verify-source.outputs.candidate_sha }}'
+if sed -n '1,12p' "${WORKFLOW}" | grep -Fq -- '  push:'; then
+  fail "${WORKFLOW} must not publish candidates from a push trigger"
+fi
+reject "${WORKFLOW}" 'github.sha'
+reject "${WORKFLOW}" 'GITHUB_SHA'
+contains "${WORKFLOW}" 'tag_sha=sha-$WEAVE_CANDIDATE_COMMIT'
 contains "${WORKFLOW}" 'tag_run=candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT'
 contains "${WORKFLOW}" 'provenance: mode=max'
 contains "${WORKFLOW}" 'sbom: true'

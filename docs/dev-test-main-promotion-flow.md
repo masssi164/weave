@@ -20,6 +20,32 @@ Weave uses three promotion lanes:
 
 `main` must not receive commits that have bypassed either `dev` integration or `dogfood` deployment.
 
+## Explicit Candidate Cut
+
+An ordinary merge to `dev` runs merge CI only. It does not publish release images or start the
+Fresh product proof. A release owner cuts a candidate explicitly from the protected `dev`
+workflow definition and names one exact lowercase commit already contained in `origin/dev`:
+
+```bash
+git fetch origin dev
+candidate_sha="$(git rev-parse origin/dev)"
+gh workflow run candidate-images.yml --ref dev -f "candidate_sha=$candidate_sha"
+```
+
+The read-only source gate rejects a non-`dev` workflow ref, malformed SHA, checkout mismatch, or
+commit outside protected `dev` before package-write authority is available. The publish job uses
+the protected `candidate-cut` GitHub environment and derives every tag, OCI revision, Keycloak
+build record, manifest field, artifact name, and Linux/AMD64 Fresh proof from the verified SHA.
+Repository configuration must restrict that environment to `dev` and require release-owner
+approval; workflow code does not treat an automatically created, unprotected environment as a
+release approval.
+
+If one candidate was cut more than once, dogfood deliberately refuses to guess. Supply the exact
+successful run ID through `candidate_images_run_id`; the consumer still verifies the workflow
+path, dispatch event, protected branch, run title, manifest bytes/digest, source/spec commits,
+four image digests, attestations, and local OCI identities before use. No downstream lane rebuilds
+or relabels a candidate image.
+
 ## Persistent LAN dogfood stack
 
 The test stack is deployed by the `Test Stack Deploy` GitHub Actions workflow. Candidate evidence keeps two immutable identities: the protected `dev` source commit used to build all artifacts and the `dogfood` lane merge commit being validated and deployed. Neither may be inferred from the other or omitted:
@@ -77,7 +103,7 @@ adoption opportunity.
 
 ## Dogfood candidate validation
 
-A promotion PR from `dev` to `dogfood` is the normal place for the manifest-bound full live validation. `Live Stack Product Flow` runs `./gradlew testApp` against immutable images built once from the protected `dev` source and binds the result to the exact lane candidate. It creates an owner, collaborator, and outsider through real invitations and Keycloak required actions in Chromium, uses fresh Authorization Code + PKCE sessions, proves two complete Chat/Files/Calendar/Home/Profile collaboration passes, direct Synapse readback, JPA/PostgreSQL durability, provider outage/retry idempotency, callback replay, workload OAuth and MCP revoke/regrant, then destroys only its isolated namespace. Only that successful artifact chain can trigger persistent `Test Stack Deploy`. Flutter system-browser authentication and VoiceOver remain physical-device gates; the separate fresh Simulator gate is explicitly fixture UI evidence.
+A promotion PR from `dev` to `dogfood` consumes an existing explicit Candidate Cut and binds its manifest to the exact lane candidate. The comprehensive `./gradlew testApp` Fresh proof first runs natively on Linux/AMD64 during the cut. The current `Live Stack Product Flow` conservatively repeats that manifest-bound product journey on Apple Silicon/OrbStack while re-verifying the exact image IDs and without rebuilding artifacts; reducing it to a narrower target-compatibility smoke remains gated on equivalent lane/source evidence. It creates an owner, collaborator, and outsider through real invitations and Keycloak required actions in Chromium, uses fresh Authorization Code + PKCE sessions, proves two complete Chat/Files/Calendar/Home/Profile collaboration passes, direct Synapse readback, JPA/PostgreSQL durability, provider outage/retry idempotency, callback replay, workload OAuth and MCP revoke/regrant, then destroys only its isolated namespace. Only that successful artifact chain can trigger persistent `Test Stack Deploy`. Flutter system-browser authentication and VoiceOver remain physical-device gates; the separate fresh Simulator gate is explicitly fixture UI evidence.
 
 The old pattern of a scheduled destructive full-E2E run from `main` is not the target model. `main` may keep lightweight smoke, release, or tag checks, but it must not be the primary noisy/destructive full-stack reset lane.
 

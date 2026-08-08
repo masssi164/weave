@@ -95,6 +95,7 @@ registerRootCommandTask('multiUserE2EEvidenceTest', ['python3', 'tools/multi_use
 registerRootCommandTask('matrixToDeviceEvidenceValidatorTest', ['python3', 'tools/validate_matrix_to_device_evidence_test.py'], 'Validate fail-closed reconstruction of count-only Matrix to-device live evidence.')
 registerRootCommandTask('dogfoodDeploymentEvidenceTest', ['python3', 'tools/dogfood_deployment_evidence_test.py'], 'Validate loopback cached-provider metrics and non-destructive persistent dogfood deployment evidence.')
 registerRootCommandTask('candidatePipelineCheck', ['bash', '-lc', 'python3 tools/candidate_source_mapping_test.py && python3 tools/candidate_pipeline_check.py'], 'Validate exact image-source provenance and the ordered isolated E2E, dogfood, TestFlight, physical acceptance, and promotion chain.')
+registerRootCommandTask('workflowActionRuntimeCheck', ['bash', '-lc', 'python3 tools/workflow_action_runtime_check_test.py && python3 tools/workflow_action_runtime_check.py'], 'Reject mutable, unreviewed, or obsolete-runtime GitHub Actions across every workflow.')
 registerRootCommandTask('obsoleteFirstRunContractCheck', ['python3', 'tools/obsolete_first_run_contract_check.py'], 'Reject the obsolete first-run screen, provider, route, API, and member copy in client/server production sources.')
 registerRootCommandTask('gradleStructureCheck', ['python3', 'tools/gradle_structure_check.py'], 'Keep root and JVM module build files thin while module-owned scripts and tasks contain implementation.')
 

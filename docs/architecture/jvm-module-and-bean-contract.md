@@ -146,8 +146,11 @@ provider during the build, runs as a numeric non-root identity, and supports onl
 the provider work area is a bounded executable tmpfs, and the state directory is an explicit
 private mount.
 
-`.github/workflows/candidate-images.yml` is the only candidate image producer. It runs the JVM,
-MCP, and PostgreSQL gates before publishing Server, MCP Server, Identity Ops, and the
+`.github/workflows/candidate-images.yml` is the only candidate image producer. It is a protected,
+dispatch-only Candidate Cut: normal `dev` pushes run merge CI without publishing release
+artifacts. Its read-only gate verifies the selected commit against protected `dev` before the
+`candidate-cut` environment grants package-write authority. It then runs the JVM, MCP, and
+PostgreSQL gates before publishing Server, MCP Server, Identity Ops, and the
 version-pinned Keycloak Runtime. Tags identify a commit and workflow attempt for navigation, but
 deployment identity is always the image digest.
 Each image carries OCI/Weave labels plus embedded SPDX SBOM and SLSA provenance attestations. A

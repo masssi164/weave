@@ -30,6 +30,7 @@ def ordered(document: str, fragments: tuple[str, ...], label: str) -> None:
 
 
 def main() -> int:
+    candidate = read(".github/workflows/candidate-images.yml")
     live = read(".github/workflows/live-stack-e2e.yml")
     deployment = read(".github/workflows/test-stack-deploy.yml")
     ios = read(".github/workflows/ios-dogfood.yml")
@@ -38,6 +39,45 @@ def main() -> int:
     promotion = read(".github/workflows/main-promotion-gate.yml")
     docs = read("docs/ios-dogfood-distribution.md")
     readiness_assembler = read("tools/human_testing_readiness_assemble.py")
+
+    require(
+        "on:\n  workflow_dispatch:\n    inputs:\n      candidate_sha:" in candidate
+        and "\n  push:\n" not in candidate,
+        "Candidate Cut is not dispatch-only with one exact candidate_sha input",
+    )
+    require(
+        "run-name: Candidate Cut ${{ inputs.candidate_sha }}" in candidate
+        and "group: candidate-cut-${{ inputs.candidate_sha }}" in candidate,
+        "Candidate Cut run identity and concurrency are not selected-SHA keyed",
+    )
+    ordered(
+        candidate,
+        (
+            "verify-source:",
+            "Verify selected candidate belongs to protected dev",
+            '[[ "$GITHUB_REF" == "refs/heads/dev" ]]',
+            '[[ "$WEAVE_CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$ ]]',
+            'git merge-base --is-ancestor',
+            "build-candidate:",
+            "environment: candidate-cut",
+            "packages: write",
+            "fresh-product-proof:",
+        ),
+        "protected Candidate Cut",
+    )
+    require(
+        "github.sha" not in candidate
+        and "GITHUB_SHA" not in candidate
+        and candidate.count("needs.verify-source.outputs.candidate_sha") >= 8,
+        "candidate artifacts still derive identity from ambient workflow SHA",
+    )
+    require(
+        "provenance: mode=max" in candidate
+        and "sbom: true" in candidate
+        and "candidate-manifest-${{ needs.verify-source.outputs.candidate_sha }}"
+        in candidate,
+        "Candidate Cut weakened immutable manifest, SBOM, or provenance binding",
+    )
 
     require("push:\n    branches: [dogfood]" in live, "isolated product flow does not run on the exact dogfood commit")
     ordered(
@@ -78,6 +118,16 @@ def main() -> int:
         and "- Live Stack Product Flow" in deployment
         and "weave-live-stack-acceptance-evidence" in deployment,
         "persistent deployment is not downstream of the isolated product flow",
+    )
+    require(
+        "expected_title=\"Candidate Cut $WEAVE_IMAGE_SOURCE_COMMIT\"" in live
+        and '.event <<<"$run")" == "workflow_dispatch"' in live
+        and '.head_branch <<<"$run")" == "dev"' in live
+        and '.display_title <<<"$run")" == "$expected_title"' in live
+        and '"$(jq -r \'length\' <<<"$matching_runs")" == "1"' in live
+        and "runs?head_sha=${WEAVE_IMAGE_SOURCE_COMMIT}" not in live
+        and "[0].id // empty" not in live,
+        "dogfood does not uniquely resolve one successful protected Candidate Cut",
     )
     require("ref: ${{ env.LANE_CANDIDATE_COMMIT }}" in deployment, "persistent deployment does not check out the exact lane candidate")
     require(

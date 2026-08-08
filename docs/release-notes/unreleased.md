@@ -28,6 +28,10 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
+- Makes release candidate creation an explicit protected Candidate Cut instead of an automatic
+  consequence of every `dev` merge. One verified protected-`dev` SHA now owns all image,
+  attestation, manifest, Linux Fresh-proof, and downstream dogfood identities; immutable GitHub
+  Action pins and a canonical CI guard protect the workflow supply chain.
 - Replaces productive JDBC repositories with portable JPA entities, Spring Data repositories and
   explicit MapStruct/domain mappings. H2 remains development feedback only; PostgreSQL uses a
   one-shot code-first Server initializer with advisory lock, catalog fingerprint, authority
