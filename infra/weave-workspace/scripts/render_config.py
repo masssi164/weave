@@ -56,7 +56,6 @@ REQUIRED_PRIVATE_FILES = (
     "keycloak-db-password",
     "control-db-password",
 )
-
 MATRIX_PRIVATE_FILES = (
     "mas-db-password",
     "synapse-db-password",
@@ -146,7 +145,6 @@ def _runtime_directory(path: Path, runtime_owner: tuple[int, int]) -> None:
 
 
 def _reset_provider_configtree(path: Path) -> None:
-    """Remove credentials from a prior provider selection before rendering."""
     if path.is_symlink() or not path.is_dir():
         raise ContractError(f"provider configtree is not a regular directory: {path}")
     entries = tuple(path.iterdir())
@@ -168,17 +166,9 @@ def _json(path: Path) -> dict[str, object]:
     return value
 
 
-def _public_jwks(
-    context: ComposeContext,
-    secret_ref: str,
-    filename: str,
-) -> dict[str, object]:
+def _public_jwks(context: ComposeContext, secret_ref: str, filename: str) -> dict[str, object]:
     path = context.generated_root / "keycloak/public-jwks" / filename
-    if (
-        path.is_symlink()
-        or not path.is_file()
-        or stat.S_IMODE(path.stat().st_mode) != 0o644
-    ):
+    if path.is_symlink() or not path.is_file() or stat.S_IMODE(path.stat().st_mode) != 0o644:
         raise ContractError(f"public JWKS projection is unavailable: {path}")
     return validate_public_jwks(_json(path), owner=secret_ref)
 
@@ -210,9 +200,6 @@ def _image_digest(context: ComposeContext) -> str:
         and context.isolated_namespace is not None
         and re.fullmatch(r"sha256:[0-9a-f]{64}", image)
     ):
-        # compose_env already limits a local Keycloak image ID to the isolated
-        # E2E boundary. Preserve that exact content digest in desired-state
-        # provenance instead of reintroducing a conflicting registry-only rule.
         return image
     raise ContractError(
         f"{context.profile} render requires one immutable downstream Keycloak OCI digest; "
@@ -234,10 +221,7 @@ def _overlay(context: ComposeContext, baseline_revision: str) -> dict[str, objec
         }
     elif profile in {"dogfood", "e2e"}:
         if context.env.get("WEAVE_MAILPIT_REQUIRE_TLS", "").lower() != "true":
-            raise ContractError(
-                f"{profile} SMTP requires Mailpit implicit TLS via "
-                "WEAVE_MAILPIT_REQUIRE_TLS=true"
-            )
+            raise ContractError(f"{profile} SMTP requires Mailpit implicit TLS via WEAVE_MAILPIT_REQUIRE_TLS=true")
         smtp = {
             "host": "mailpit",
             "port": 1025,
@@ -249,9 +233,7 @@ def _overlay(context: ComposeContext, baseline_revision: str) -> dict[str, objec
     elif profile == "prod":
         host = context.env.get("WEAVE_SMTP_HOST", "")
         if not host or host == "mailpit":
-            raise ContractError(
-                "prod requires an external implicit-TLS WEAVE_SMTP_HOST"
-            )
+            raise ContractError("prod requires an external implicit-TLS WEAVE_SMTP_HOST")
         username = context.env.get("WEAVE_SMTP_USERNAME", "")
         if not username:
             raise ContractError("prod requires a non-secret WEAVE_SMTP_USERNAME")
@@ -268,7 +250,7 @@ def _overlay(context: ComposeContext, baseline_revision: str) -> dict[str, objec
     else:
         raise ContractError(f"unsupported render environment: {profile}")
     value: dict[str, object] = {
-        "apiVersion": "weave.keycloak-environment-overlay/v2",
+        "apiVersion": "weave.keycloak-environment-overlay/v3",
         "revision": "",
         "baselineRevision": baseline_revision,
         "environment": profile,
@@ -329,67 +311,36 @@ def _render_desired(baseline: dict[str, object], overlay: dict[str, object]) -> 
         raise ContractError("desired-state v3 must not contain legacy human realm groups")
     client_policies = desired.get("clientPolicies")
     if not isinstance(client_policies, list) or len(client_policies) != 1:
-        raise ContractError(
-            "canonical desired state must declare exactly one workload registration policy"
-        )
+        raise ContractError("canonical desired state must declare exactly one workload registration policy")
     organization_groups = desired.get("organizationGroups")
     if not isinstance(organization_groups, list):
         raise ContractError("desired-state v3 must declare native organizationGroups")
     observed_group_paths = {group.get("path") for group in organization_groups if isinstance(group, dict)}
-    if observed_group_paths != {
-        "/owners",
-        "/admins",
-        "/members",
-        "/guests",
-        "/capabilities",
-        "/capabilities/weaver",
-    }:
-        raise ContractError(
-            "canonical organizationGroups must contain the four role groups and Weaver capability namespace"
-        )
-    if any(
-        group.get("organizationRef") != "organization:weave-primary"
-        for group in organization_groups
-        if isinstance(group, dict)
-    ):
+    if observed_group_paths != {"/owners", "/admins", "/members", "/guests", "/capabilities", "/capabilities/weaver"}:
+        raise ContractError("canonical organizationGroups must contain the four role groups and Weaver capability namespace")
+    if any(group.get("organizationRef") != "organization:weave-primary" for group in organization_groups if isinstance(group, dict)):
         raise ContractError("all canonical groups must belong to the primary organization")
-    by_path = {
-        group.get("path"): group
-        for group in organization_groups
-        if isinstance(group, dict)
-    }
-    if any(
-        by_path[path].get("parentGroupRef") is not None
-        for path in {"/owners", "/admins", "/members", "/guests", "/capabilities"}
-    ):
+    by_path = {group.get("path"): group for group in organization_groups if isinstance(group, dict)}
+    if any(by_path[path].get("parentGroupRef") is not None for path in {"/owners", "/admins", "/members", "/guests", "/capabilities"}):
         raise ContractError("role and capability namespace groups must be top-level")
     if (
-        by_path["/capabilities/weaver"].get("parentGroupRef")
-        != "organization-group:weave-primary:capabilities"
+        by_path["/capabilities/weaver"].get("parentGroupRef") != "organization-group:weave-primary:capabilities"
         or by_path["/capabilities"].get("roleRefs") != []
         or by_path["/capabilities/weaver"].get("roleRefs") != []
     ):
-        raise ContractError(
-            "Weaver capability must be a role-free leaf below the canonical capability namespace"
-        )
+        raise ContractError("Weaver capability must be a role-free leaf below the canonical capability namespace")
     fgap = desired.get("fineGrainedAdminPermissions")
     if not isinstance(fgap, dict) or fgap.get("enabled") is not True:
         raise ContractError("desired-state v3 must enable declared Organizations FGAP")
     grants = desired.get("serviceAccountRoleGrants")
     if not isinstance(grants, list):
         raise ContractError("desired-state v3 service-account grants are missing")
-    identity_grants = [
-        grant for grant in grants
-        if isinstance(grant, dict) and grant.get("clientKey") == "client:weave-identity-admin"
-    ]
+    identity_grants = [grant for grant in grants if isinstance(grant, dict) and grant.get("clientKey") == "client:weave-identity-admin"]
     if len(identity_grants) != 1 or identity_grants[0].get("roleRefs") != [
         "builtin-role:realm-management:query-organizations",
         "builtin-role:realm-management:query-users",
     ]:
-        raise ContractError(
-            "identity admin must have only the query-organizations and query-users collection "
-            "gates plus declared FGAP"
-        )
+        raise ContractError("identity admin must have only the query-organizations and query-users collection gates plus declared FGAP")
     realm_contract = desired.get("realm")
     if not isinstance(realm_contract, dict) or realm_contract.get("adminPermissionsEnabled") is not True:
         raise ContractError("desired-state v3 must enable Keycloak admin permissions")
@@ -435,26 +386,15 @@ https://mail.{env['WEAVE_TENANT_DOMAIN']} {{
   respond "Forbidden" 403
 }}
 """
-    matrix_handler = (
-        "reverse_proxy synapse:8008"
-        if env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse"
-        else 'respond "Optional Matrix provider is not selected" 404'
-    )
-    mas_handler = (
-        "reverse_proxy mas:8080"
-        if env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse"
-        else 'respond "Optional Matrix provider is not selected" 404'
-    )
+    matrix_handler = "reverse_proxy synapse:8008" if env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse" else 'respond "Optional Matrix provider is not selected" 404'
+    mas_handler = "reverse_proxy mas:8080" if env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse" else 'respond "Optional Matrix provider is not selected" 404'
     files_handler = (
         """reverse_proxy nextcloud:80 {
     header_up X-Forwarded-For {http.request.remote.host}
     header_up X-Forwarded-Host {host}
     header_up X-Forwarded-Proto {scheme}
   }"""
-        if (
-            env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav"
-            or env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav"
-        )
+        if (env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav" or env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav")
         else 'respond "Optional Nextcloud provider is not selected" 404'
     )
     return f"""{{
@@ -656,20 +596,10 @@ namespaces:
 def _backend_env(context: ComposeContext) -> str:
     env = context.env
     host_dev = context.profile == "dev"
-    keycloak_base = (
-        f"http://127.0.0.1:{env['WEAVE_KEYCLOAK_HOST_PORT']}" if host_dev else "http://keycloak:8080"
-    )
-    matrix_base = (
-        f"http://127.0.0.1:{env['WEAVE_SYNAPSE_HOST_PORT']}" if host_dev else "http://synapse:8008"
-    )
-    nextcloud_base = (
-        f"http://127.0.0.1:{env['WEAVE_NEXTCLOUD_HOST_PORT']}" if host_dev else "http://nextcloud"
-    )
-    appservice_root = (
-        context.generated_root / "backend/configtree"
-        if host_dev
-        else Path("/run/secrets/providers")
-    )
+    keycloak_base = f"http://127.0.0.1:{env['WEAVE_KEYCLOAK_HOST_PORT']}" if host_dev else "http://keycloak:8080"
+    matrix_base = f"http://127.0.0.1:{env['WEAVE_SYNAPSE_HOST_PORT']}" if host_dev else "http://synapse:8008"
+    nextcloud_base = f"http://127.0.0.1:{env['WEAVE_NEXTCLOUD_HOST_PORT']}" if host_dev else "http://nextcloud"
+    appservice_root = context.generated_root / "backend/configtree" if host_dev else Path("/run/secrets/providers")
     calendar_id = "weave-workspace"
     if context.isolated_namespace is not None:
         calendar_id = f"{calendar_id}-{context.isolated_namespace}"
@@ -683,41 +613,18 @@ def _backend_env(context: ComposeContext) -> str:
         "WEAVE_CHAT_PROVIDER": env["WEAVE_CHAT_PROVIDER"],
         "WEAVE_FILES_PROVIDER": env["WEAVE_FILES_PROVIDER"],
         "WEAVE_FILES_NATIVE_BLOB_STORE": env["WEAVE_FILES_NATIVE_BLOB_STORE"],
-        "WEAVE_FILES_NATIVE_FILESYSTEM_ROOT": (
-            str(context.generated_root / "native-files/blobs")
-            if host_dev
-            else "/var/lib/weave/files/blobs"
-        ),
+        "WEAVE_FILES_NATIVE_FILESYSTEM_ROOT": str(context.generated_root / "native-files/blobs") if host_dev else "/var/lib/weave/files/blobs",
         "WEAVE_CALENDAR_PROVIDER": env["WEAVE_CALENDAR_PROVIDER"],
         "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_ENABLED": "true",
         "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_ORGANIZATION_REF": "tenant-default",
         "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_ADAPTER_KEY": env["WEAVE_FILES_PROVIDER"],
-        "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_CONFIGURATION_REF": (
-            "secretref:files:nextcloud"
-            if env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav"
-            else "native:filesystem"
-        ),
+        "WEAVE_PROVIDER_BINDINGS_BOOTSTRAP_FILES_CONFIGURATION_REF": "secretref:files:nextcloud" if env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav" else "native:filesystem",
         "WEAVE_IDENTITY_KEYCLOAK_BASE_URL": keycloak_base,
-        "WEAVE_IDENTITY_KEYCLOAK_CREDENTIAL_REF": (
-            "credentialref://weave/keycloak/weave-identity-admin"
-        ),
-        "WEAVE_IDENTITY_KEYCLOAK_PRIVATE_JWK_FILE": str(
-            context.secret_root / "keycloak-weave-identity-admin-jwk.json"
-            if host_dev
-            else Path(
-                "/run/secrets/identity-admin/"
-                "weave-identity-admin-private-jwk.json"
-            )
-        ),
-        "WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE": (
-            f"{env['WEAVE_AUTH_URL']}/realms/weave"
-        ),
+        "WEAVE_IDENTITY_KEYCLOAK_CREDENTIAL_REF": "credentialref://weave/keycloak/weave-identity-admin",
+        "WEAVE_IDENTITY_KEYCLOAK_PRIVATE_JWK_FILE": str(context.secret_root / "keycloak-weave-identity-admin-jwk.json" if host_dev else Path("/run/secrets/identity-admin/weave-identity-admin-private-jwk.json")),
+        "WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE": f"{env['WEAVE_AUTH_URL']}/realms/weave",
         "WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ALIAS": env["WEAVE_ORGANIZATION_ALIAS"],
-        "WEAVE_IDENTITY_REFERENCE_HMAC_SECRET_FILE": str(
-            context.secret_root / "identity-reference-hmac-key"
-            if host_dev
-            else Path("/run/secrets/identity-reference-hmac-key")
-        ),
+        "WEAVE_IDENTITY_REFERENCE_HMAC_SECRET_FILE": str(context.secret_root / "identity-reference-hmac-key" if host_dev else Path("/run/secrets/identity-reference-hmac-key")),
         "WEAVE_MATRIX_BASE_URL": env["WEAVE_API_ORIGIN"],
         "WEAVE_WORKSPACE_CHAT_ENABLED": "true",
         "WEAVE_WORKSPACE_CHAT_READINESS": "ready",
@@ -728,105 +635,74 @@ def _backend_env(context: ComposeContext) -> str:
         "WEAVE_MATRIX_FEDERATION_ENABLED": "false",
     }
     if env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse":
-        values.update(
-            {
-                "WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL": matrix_base,
-                "WEAVE_CHAT_MATRIX_SERVER_NAME": env["WEAVE_MATRIX_HOST"],
-                "WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE": str(appservice_root / "matrix-as-token"),
-                "WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE": str(appservice_root / "matrix-hs-token"),
-                "WEAVE_MATRIX_BASE_URL": matrix_base,
-            }
-        )
-    if (
-        env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav"
-        or env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav"
-    ):
-        values.update(
-            {
-                "WEAVE_NEXTCLOUD_BASE_URL": nextcloud_base,
-                "WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME": env["WEAVE_NEXTCLOUD_ACTOR_USERNAME"],
-                "WEAVE_CALDAV_BASE_URL": nextcloud_base,
-                "WEAVE_CALDAV_BACKEND_USERNAME": env["WEAVE_NEXTCLOUD_ACTOR_USERNAME"],
-                "WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE": calendar_path,
-            }
-        )
+        values.update({
+            "WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL": matrix_base,
+            "WEAVE_CHAT_MATRIX_SERVER_NAME": env["WEAVE_MATRIX_HOST"],
+            "WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE": str(appservice_root / "matrix-as-token"),
+            "WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE": str(appservice_root / "matrix-hs-token"),
+            "WEAVE_MATRIX_BASE_URL": matrix_base,
+        })
+    if env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav" or env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav":
+        values.update({
+            "WEAVE_NEXTCLOUD_BASE_URL": nextcloud_base,
+            "WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME": env["WEAVE_NEXTCLOUD_ACTOR_USERNAME"],
+            "WEAVE_CALDAV_BASE_URL": nextcloud_base,
+            "WEAVE_CALDAV_BACKEND_USERNAME": env["WEAVE_NEXTCLOUD_ACTOR_USERNAME"],
+            "WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE": calendar_path,
+        })
     if context.environment == "e2e":
         values["WEAVE_IDENTITY_BOOTSTRAP_OWNER_ENABLED"] = "true"
-        values["WEAVE_IDENTITY_BOOTSTRAP_OWNER_TOKEN_FILE"] = (
-            "/run/secrets/weave/bootstrap-owner-token"
-        )
+        values["WEAVE_IDENTITY_BOOTSTRAP_OWNER_TOKEN_FILE"] = "/run/secrets/weave/bootstrap-owner-token"
     if host_dev:
         values["SPRING_CONFIG_IMPORT"] = f"configtree:{context.generated_root / 'backend/configtree'}/"
     else:
-        values.update(
-            {
-                "SPRING_DATASOURCE_URL": f"jdbc:postgresql://postgres:5432/{env['WEAVE_BACKEND_DB_NAME']}",
-                "SPRING_DATASOURCE_USERNAME": env["WEAVE_BACKEND_DB_USERNAME"],
-                "WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_ENABLED": "true",
-                "WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_SECRET_ROOT": "/run/secrets/agent-runtime/profile-signing",
-                "WEAVE_AGENT_RUNTIME_PROFILE_TTL": "PT2M",
-                "WEAVE_AGENT_RUNTIME_POLICY_ENABLED": "true",
-                "WEAVE_AGENT_RUNTIME_POLICY_FILE": "/app/agent-runtime-policy.json",
-                "WEAVE_AGENT_RUNTIME_ENTITLEMENT_ENABLED": "true",
-                "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CAPABILITIES": "files.read",
-                "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED": "true",
-                "WEAVE_AGENT_RUNTIME_KEYCLOAK_ADMIN_BASE_URL": keycloak_base,
-                "WEAVE_AGENT_RUNTIME_ISSUER":
-                    f"{env['WEAVE_AUTH_URL']}/realms/weave",
-                "WEAVE_AGENT_RUNTIME_REALM": "weave",
-                "WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID": "weave-agent-runtime-admin",
-                "WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF":
-                    "credentialref://weave/keycloak/weave-agent-runtime-admin",
-                "WEAVE_AGENT_RUNTIME_ORGANIZATION_REF": "tenant-default",
-                "WEAVE_AGENT_RUNTIME_KEYCLOAK_ORGANIZATION_ALIAS":
-                    env["WEAVE_ORGANIZATION_ALIAS"],
-                "WEAVE_AGENT_RUNTIME_SECRET_ROOT": "/run/secrets/agent-runtime/workloads",
-                "WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES": "weaver-runtime-workload",
-                "WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES":
-                    "agent-runtime.profile.read,mcp.tools,files.read",
-                "WEAVE_AGENT_RUNTIME_ACCESS_TOKEN_LIFESPAN_SECONDS": "59",
-            }
-        )
+        values.update({
+            "SPRING_DATASOURCE_URL": f"jdbc:postgresql://postgres:5432/{env['WEAVE_BACKEND_DB_NAME']}",
+            "SPRING_DATASOURCE_USERNAME": env["WEAVE_BACKEND_DB_USERNAME"],
+            "WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_ENABLED": "true",
+            "WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_SECRET_ROOT": "/run/secrets/agent-runtime/profile-signing",
+            "WEAVE_AGENT_RUNTIME_PROFILE_TTL": "PT2M",
+            "WEAVE_AGENT_RUNTIME_POLICY_ENABLED": "true",
+            "WEAVE_AGENT_RUNTIME_POLICY_FILE": "/app/agent-runtime-policy.json",
+            "WEAVE_AGENT_RUNTIME_ENTITLEMENT_ENABLED": "true",
+            "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CAPABILITIES": "files.read",
+            "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED": "true",
+            "WEAVE_AGENT_RUNTIME_KEYCLOAK_ADMIN_BASE_URL": keycloak_base,
+            "WEAVE_AGENT_RUNTIME_ISSUER": f"{env['WEAVE_AUTH_URL']}/realms/weave",
+            "WEAVE_AGENT_RUNTIME_REALM": "weave",
+            "WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID": "weave-agent-runtime-admin",
+            "WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF": "credentialref://weave/keycloak/weave-agent-runtime-admin",
+            "WEAVE_AGENT_RUNTIME_ORGANIZATION_REF": "tenant-default",
+            "WEAVE_AGENT_RUNTIME_KEYCLOAK_ORGANIZATION_ALIAS": env["WEAVE_ORGANIZATION_ALIAS"],
+            "WEAVE_AGENT_RUNTIME_SECRET_ROOT": "/run/secrets/agent-runtime/workloads",
+            "WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES": "weaver-runtime-workload",
+            "WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES": "agent-runtime.profile.read,mcp.tools,files.read",
+            "WEAVE_AGENT_RUNTIME_ACCESS_TOKEN_LIFESPAN_SECONDS": "59",
+        })
     if "storage-s3" in context.active_profiles:
-        values.update(
-            {
-                "WEAVE_AGENT_RUNTIME_STATE_STORE_ENABLED": "true",
-                "WEAVE_AGENT_RUNTIME_STATE_WRAPPING_KEY_ROOT":
-                    "/run/secrets/agent-runtime/state-wrapping",
-                "WEAVE_AGENT_RUNTIME_STATE_S3_ENDPOINT": "http://runtime-state:9000",
-                "WEAVE_AGENT_RUNTIME_STATE_S3_REGION": "us-east-1",
-                "WEAVE_AGENT_RUNTIME_STATE_S3_BUCKET": "weave-runtime-state",
-                "WEAVE_AGENT_RUNTIME_STATE_S3_CREDENTIAL_REF":
-                    "secretref:runtime-state/minio",
-                "WEAVE_AGENT_RUNTIME_STATE_S3_ACCESS_KEY_FILE":
-                    "/run/secrets/weave/runtime-state-s3-access-key",
-                "WEAVE_AGENT_RUNTIME_STATE_S3_SECRET_KEY_FILE":
-                    "/run/secrets/weave/runtime-state-s3-secret-key",
-                "WEAVE_AGENT_RUNTIME_STATE_S3_PATH_STYLE_ACCESS": "true",
-            }
-        )
+        values.update({
+            "WEAVE_AGENT_RUNTIME_STATE_STORE_ENABLED": "true",
+            "WEAVE_AGENT_RUNTIME_STATE_WRAPPING_KEY_ROOT": "/run/secrets/agent-runtime/state-wrapping",
+            "WEAVE_AGENT_RUNTIME_STATE_S3_ENDPOINT": "http://runtime-state:9000",
+            "WEAVE_AGENT_RUNTIME_STATE_S3_REGION": "us-east-1",
+            "WEAVE_AGENT_RUNTIME_STATE_S3_BUCKET": "weave-runtime-state",
+            "WEAVE_AGENT_RUNTIME_STATE_S3_CREDENTIAL_REF": "secretref:runtime-state/minio",
+            "WEAVE_AGENT_RUNTIME_STATE_S3_ACCESS_KEY_FILE": "/run/secrets/weave/runtime-state-s3-access-key",
+            "WEAVE_AGENT_RUNTIME_STATE_S3_SECRET_KEY_FILE": "/run/secrets/weave/runtime-state-s3-secret-key",
+            "WEAVE_AGENT_RUNTIME_STATE_S3_PATH_STYLE_ACCESS": "true",
+        })
     if context.isolated_namespace is not None:
         run_id = os.environ.get("WEAVE_E2E_RUN_ID", "")
         if not re.fullmatch(r"[a-z0-9][a-z0-9-]{5,39}", run_id):
-            raise ContractError(
-                "isolated backend authorization requires the validated E2E run ID"
-            )
-        values.update(
-            {
-                "WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM": "preferred_username",
-            }
-        )
+            raise ContractError("isolated backend authorization requires the validated E2E run ID")
+        values.update({"WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM": "preferred_username"})
     return "".join(f"{key}={value}\n" for key, value in sorted(values.items()))
 
 
 def _mcp_env(context: ComposeContext, *, host_dev: bool = False) -> str:
     env = context.env
     issuer = f"{env['WEAVE_AUTH_URL']}/realms/weave"
-    keycloak_base = (
-        f"http://127.0.0.1:{env['WEAVE_KEYCLOAK_HOST_PORT']}"
-        if host_dev
-        else "http://keycloak:8080"
-    )
+    keycloak_base = f"http://127.0.0.1:{env['WEAVE_KEYCLOAK_HOST_PORT']}" if host_dev else "http://keycloak:8080"
     values = {
         "WEAVE_MCP_PORT": "8091",
         "WEAVE_OIDC_ISSUER_URI": issuer,
@@ -844,9 +720,7 @@ def _mcp_env(context: ComposeContext, *, host_dev: bool = False) -> str:
     }
     if host_dev:
         values["WEAVE_MCP_BACKEND_FILES_URI"] = "http://127.0.0.1:8080/dav/files"
-        values["WEAVE_MCP_EXCHANGE_CLIENT_JWK_FILE"] = str(
-            context.secret_root / "keycloak-weave-mcp-server-jwk.json"
-        )
+        values["WEAVE_MCP_EXCHANGE_CLIENT_JWK_FILE"] = str(context.secret_root / "keycloak-weave-mcp-server-jwk.json")
     return "".join(f"{key}={value}\n" for key, value in sorted(values.items()))
 
 
@@ -857,17 +731,32 @@ def render(context: ComposeContext) -> None:
     baseline = _json(baseline_path)
     assert_revision(baseline, baseline_path)
     baseline_revision = str(baseline["provenance"]["baselineRevision"])
+    semantic_source_digest = sha256_digest(canonical_json(baseline))
+    migration_definition = {
+        "schemaVersion": "weave.keycloak-migration-definition/v1",
+        "keycloakVersion": "26.7.1",
+        "operations": [
+            {
+                "id": "fgap-v2-primary-organization-post-import",
+                "phase": "post-realm-import",
+                "type": "keycloak-fgap-v2",
+                "desiredStatePointer": "/fineGrainedAdminPermissions",
+            }
+        ],
+        "containsSecretValues": False,
+    }
+    migration_definition_payload = canonical_json(migration_definition)
+    migration_definition_digest = sha256_digest(migration_definition_payload)
     overlay = _overlay(context, baseline_revision)
+    overlay_payload = canonical_json(overlay)
+    overlay_digest = sha256_digest(overlay_payload)
     desired = _render_desired(baseline, overlay)
     for name in REQUIRED_PRIVATE_FILES:
         _read_secret(context, name)
     if context.env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse":
         for name in MATRIX_PRIVATE_FILES:
             _read_secret(context, name)
-    if (
-        context.env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav"
-        or context.env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav"
-    ):
+    if context.env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav" or context.env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav":
         for name in NEXTCLOUD_PRIVATE_FILES:
             _read_secret(context, name)
     if "storage-s3" in context.active_profiles:
@@ -876,67 +765,47 @@ def render(context: ComposeContext) -> None:
     if context.environment == "prod":
         _read_secret(context, "smtp-password")
     public_keys: dict[str, dict[str, object]] = {}
-    for secret_ref, (
-        _private_name,
-        public_name,
-    ) in MACHINE_KEY_PROJECTIONS.items():
+    for secret_ref, (_private_name, public_name) in MACHINE_KEY_PROJECTIONS.items():
         public_keys[secret_ref] = _public_jwks(context, secret_ref, public_name)
     realm_representation = project_realm(desired, public_keys)
     baseline_payload = pretty_json(realm_representation)
-    baseline_digest = sha256_digest(baseline_payload)
-    migration_bundle = fresh_start_migration_bundle(desired, baseline_digest)
+    rendered_realm_digest = sha256_digest(baseline_payload)
+    migration_bundle = fresh_start_migration_bundle(desired, rendered_realm_digest)
     migration_payload = pretty_json(migration_bundle)
     migration_digest = sha256_digest(migration_payload)
     generated = context.generated_root
     runtime_owner = (int(context.env["WEAVE_RUNTIME_UID"]), int(context.env["WEAVE_RUNTIME_GID"]))
     _runtime_directory(generated / "schema-init", runtime_owner)
-    # Compose mounts this directory read-only into Keycloak. Create and own it
-    # during rendering so Docker never materializes an absent bind source as a
-    # root-owned host directory.
     _runtime_directory(generated / "keycloak/import", runtime_owner)
     provider_configtree = generated / "backend/configtree"
     _runtime_directory(provider_configtree, runtime_owner)
     _reset_provider_configtree(provider_configtree)
-    _write(generated / "keycloak/overlay.json", json.dumps(overlay, indent=2, sort_keys=True) + "\n", private=False)
+    _write(generated / "keycloak/semantic-realm-source.json", canonical_json(baseline), private=False)
+    _write(generated / "keycloak/migration-definition.json", migration_definition_payload, private=False)
+    _write(generated / "keycloak/overlay.json", overlay_payload, private=False)
     _write(generated / "keycloak/desired-state.json", json.dumps(desired, indent=2, sort_keys=True) + "\n", private=False)
-    _write(
-        generated / "keycloak/import/weave-realm.json",
-        baseline_payload,
-        private=False,
-    )
-    _write(
-        generated / "keycloak/migrations/fresh-start-v1.json",
-        migration_payload,
-        private=False,
-    )
+    _write(generated / "keycloak/import/weave-realm.json", baseline_payload, private=False)
+    _write(generated / "keycloak/migrations/fresh-start-v1.json", migration_payload, private=False)
     migration_manifest = {
-        "schemaVersion": "weave.keycloak-realm-migration-manifest/v1",
-        "baselineArtifactDigest": baseline_digest,
-        "bundles": [
-            {
-                "digest": migration_digest,
-                "path": "keycloak/migrations/fresh-start-v1.json",
-            }
-        ],
+        "schemaVersion": "weave.keycloak-realm-migration-manifest/v2",
+        "semanticRealmSourceDigest": semantic_source_digest,
+        "migrationDefinitionDigest": migration_definition_digest,
+        "renderedRealmDigest": rendered_realm_digest,
+        "bundles": [{"digest": migration_digest, "path": "keycloak/migrations/fresh-start-v1.json"}],
         "containsSecretValues": False,
     }
-    _write(
-        generated / "keycloak/migrations/manifest.json",
-        pretty_json(migration_manifest),
-        private=False,
-    )
+    migration_manifest_payload = pretty_json(migration_manifest)
+    _write(generated / "keycloak/migrations/manifest.json", migration_manifest_payload, private=False)
     _write(
         generated / "keycloak/migrations/receipt-check.env",
-        "".join(
-            (
-                f"WEAVE_KEYCLOAK_MIGRATION_MANIFEST_DIGEST={sha256_digest(pretty_json(migration_manifest))}\n",
-                f"WEAVE_KEYCLOAK_MIGRATION_BASELINE_DIGEST={baseline_digest}\n",
-                f"WEAVE_KEYCLOAK_MIGRATION_TARGET_REVISION={baseline_revision}\n",
-                f"WEAVE_KEYCLOAK_MIGRATION_ENVIRONMENT={context.environment}\n",
-                f"WEAVE_KEYCLOAK_MIGRATION_CANDIDATE_COMMIT={context.env['WEAVE_CANDIDATE_COMMIT']}\n",
-                f"WEAVE_KEYCLOAK_MIGRATION_COMPOSE_PROJECT={context.env['WEAVE_COMPOSE_PROJECT']}\n",
-            )
-        ),
+        "".join((
+            f"WEAVE_KEYCLOAK_MIGRATION_MANIFEST_DIGEST={sha256_digest(migration_manifest_payload)}\n",
+            f"WEAVE_KEYCLOAK_MIGRATION_BASELINE_DIGEST={rendered_realm_digest}\n",
+            f"WEAVE_KEYCLOAK_MIGRATION_TARGET_REVISION={baseline_revision}\n",
+            f"WEAVE_KEYCLOAK_MIGRATION_ENVIRONMENT={context.environment}\n",
+            f"WEAVE_KEYCLOAK_MIGRATION_CANDIDATE_COMMIT={context.env['WEAVE_CANDIDATE_COMMIT']}\n",
+            f"WEAVE_KEYCLOAK_MIGRATION_COMPOSE_PROJECT={context.env['WEAVE_COMPOSE_PROJECT']}\n",
+        )),
         private=False,
     )
     secret_index = {
@@ -953,32 +822,15 @@ def render(context: ComposeContext) -> None:
         _write(generated / "synapse/appservice/registration.yaml", _appservice(context), private=True)
         _write(generated / "synapse/appservice/as-token", _read_secret(context, "matrix-appservice-as-token") + "\n", private=True)
         _write(generated / "synapse/appservice/hs-token", _read_secret(context, "matrix-appservice-hs-token") + "\n", private=True)
-    if (
-        context.env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav"
-        or context.env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav"
-    ):
-        host_configtree = {
+    if context.env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav" or context.env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav":
+        for property_name, secret_name in {
             "weave.nextcloud.files.actor-token": "nextcloud-actor-token",
             "weave.calendar.caldav.backend-token": "nextcloud-actor-token",
-        }
-        for property_name, secret_name in host_configtree.items():
-            _write(
-                generated / "backend/configtree" / property_name,
-                _read_secret(context, secret_name) + "\n",
-                private=True,
-                runtime_owner=runtime_owner,
-            )
+        }.items():
+            _write(generated / "backend/configtree" / property_name, _read_secret(context, secret_name) + "\n", private=True, runtime_owner=runtime_owner)
     if context.env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse":
-        for target_name, secret_name in (
-            ("matrix-as-token", "matrix-appservice-as-token"),
-            ("matrix-hs-token", "matrix-appservice-hs-token"),
-        ):
-            _write(
-                generated / "backend/configtree" / target_name,
-                _read_secret(context, secret_name) + "\n",
-                private=True,
-                runtime_owner=runtime_owner,
-            )
+        for target_name, secret_name in (("matrix-as-token", "matrix-appservice-as-token"), ("matrix-hs-token", "matrix-appservice-hs-token")):
+            _write(generated / "backend/configtree" / target_name, _read_secret(context, secret_name) + "\n", private=True, runtime_owner=runtime_owner)
     _write(generated / "backend/public.env", _backend_env(context), private=False)
     if context.profile == "dev":
         _write(generated / "backend/host.env", _backend_env(context), private=False)
@@ -990,10 +842,8 @@ def render(context: ComposeContext) -> None:
         "profileTtlSeconds": 120,
         "workspace": {
             "revision": "workspace-revision:1",
-            "manifestRefTemplate":
-                "webdav-manifest://{organizationRef}/{personRef}/current",
-            "runtimeStateStoreRefTemplate":
-                "runtime-state://{organizationRef}/{personRef}/state",
+            "manifestRefTemplate": "webdav-manifest://{organizationRef}/{personRef}/current",
+            "runtimeStateStoreRefTemplate": "runtime-state://{organizationRef}/{personRef}/state",
         },
         "modelPolicy": {
             "allowedProviders": ["provider-neutral"],
@@ -1005,51 +855,48 @@ def render(context: ComposeContext) -> None:
         "matrix": {
             "accountRefTemplate": "matrix-account://{personRef}",
             "homeserverRefTemplate": "matrix-homeserver://default",
-            "credentialRefTemplate":
-                "credentialref://weave/runtime/{cellRef}/matrix",
+            "credentialRefTemplate": "credentialref://weave/runtime/{cellRef}/matrix",
             "allowedRooms": [],
             "autoJoin": "off",
         },
         "mcp": {
-            "servers": [
-                {
-                    "serverRef": "weave-mcp",
-                    "endpoint": f"{context.env['WEAVE_API_ORIGIN']}/mcp",
-                    "requestedResource": f"{context.env['WEAVE_API_ORIGIN']}/mcp",
-                    "requiredScopes": ["files.read", "mcp.tools"],
-                    "credentialRefTemplate":
-                        "credentialref://weave/runtime/{cellRef}/{workloadClientId}/mcp",
-                    "allowedToolClasses": ["files.read"],
-                }
-            ],
+            "servers": [{
+                "serverRef": "weave-mcp",
+                "endpoint": f"{context.env['WEAVE_API_ORIGIN']}/mcp",
+                "requestedResource": f"{context.env['WEAVE_API_ORIGIN']}/mcp",
+                "requiredScopes": ["files.read", "mcp.tools"],
+                "credentialRefTemplate": "credentialref://weave/runtime/{cellRef}/{workloadClientId}/mcp",
+                "allowedToolClasses": ["files.read"],
+            }],
             "visibleToolClasses": ["files.read"],
         },
-        "approvals": {
-            "pluginRouting": {
-                "enabled": True,
-                "mode": "same-chat",
-                "targetRefs": [],
-            },
-            "execMode": "ask",
-            "persistentTrustPolicy": "bounded",
-        },
-        "sandbox": {
-            "mode": "required",
-            "networkPolicy": "allowlist",
-            "allowedNetworkTargets": [
-                urlsplit(context.env["WEAVE_API_ORIGIN"]).hostname
-            ],
-            "filesystemPolicy": "workspace-only",
-            "approvedMountRefs": [],
-        },
-        "automation": {
-            "heartbeatEnabled": False,
-            "schedulePolicy": "disabled",
-        },
+        "approvals": {"pluginRouting": {"enabled": True, "mode": "same-chat", "targetRefs": []}, "execMode": "ask", "persistentTrustPolicy": "bounded"},
+        "sandbox": {"mode": "required", "networkPolicy": "allowlist", "allowedNetworkTargets": [urlsplit(context.env["WEAVE_API_ORIGIN"]).hostname], "filesystemPolicy": "workspace-only", "approvedMountRefs": []},
+        "automation": {"heartbeatEnabled": False, "schedulePolicy": "disabled"},
     }
     _write(generated / "agent-runtime-policy.json", json.dumps(runtime_policy, indent=2, sort_keys=True) + "\n", private=False)
+    realm_identity = {
+        "semanticRealmSourceDigest": semantic_source_digest,
+        "migrationDefinitionDigest": migration_definition_digest,
+        "overlayDigest": overlay_digest,
+        "renderedRealmDigest": rendered_realm_digest,
+    }
+    render_evidence = {
+        "schemaVersion": "weave.keycloak-environment-render-evidence/v1",
+        "supportSafe": True,
+        "containsSecretValues": False,
+        "environment": context.environment,
+        "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
+        "candidateCommit": context.env["WEAVE_CANDIDATE_COMMIT"],
+        "candidateManifestDigest": context.env["WEAVE_CANDIDATE_MANIFEST_DIGEST"],
+        "specificationCommit": specification_commit,
+        "realmIdentity": realm_identity,
+        "semanticReadbackDigest": None,
+        "semanticReadbackVerified": False,
+    }
+    _write(generated / "keycloak/realm-render-evidence.json", pretty_json(render_evidence), private=False)
     manifest = {
-        "schemaVersion": "weave.compose-render.v1",
+        "schemaVersion": "weave.compose-render.v2",
         "profile": context.environment,
         "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
         "specificationCommit": specification_commit,
@@ -1057,12 +904,13 @@ def render(context: ComposeContext) -> None:
         "overlayRevision": overlay["revision"],
         "desiredStateRevision": desired["revision"],
         "keycloakImageDigest": overlay["imageDigest"],
+        "realmIdentity": realm_identity,
         "realmArtifacts": {
-            "baselineDigest": baseline_digest,
-            "baselinePath": "keycloak/import/weave-realm.json",
-            "containsSecretValues": False,
+            "renderedRealmPath": "keycloak/import/weave-realm.json",
             "migrationBundleDigest": migration_digest,
             "migrationBundlePath": "keycloak/migrations/fresh-start-v1.json",
+            "environmentRenderEvidencePath": "keycloak/realm-render-evidence.json",
+            "containsSecretValues": False,
         },
         "containsSecretValues": False,
     }
@@ -1078,14 +926,7 @@ def main() -> int:
     try:
         context = load_context(args.profile, args.root, args.env_file)
         render(context)
-    except (
-        ContractError,
-        RealmProjectionError,
-        OSError,
-        ValueError,
-        KeyError,
-        json.JSONDecodeError,
-    ) as error:
+    except (ContractError, RealmProjectionError, OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"WEAVE_RENDER_ERROR {error}", file=os.sys.stderr)
         return 1
     print(f"render: converged {args.profile} configuration (secret values withheld)")
