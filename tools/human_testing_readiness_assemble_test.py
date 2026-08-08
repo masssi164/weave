@@ -160,6 +160,30 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
         self.assertEqual(result["realmEvidence"], self.green["realmEvidence"])
         self.assertIn("PHYSICAL_IPHONE_VOICEOVER_RESULT", completed.stdout)
 
+    def test_e2e_render_may_differ_from_dogfood_for_same_candidate_definition(self) -> None:
+        documents = self.documents()
+        automated_realm = documents["automated"]["realmEvidence"]
+        automated_realm["overlayDigest"] = "sha256:" + "1" * 64
+        automated_realm["renderedRealmDigest"] = "sha256:" + "2" * 64
+        automated_realm["semanticReadbackDigest"] = "sha256:" + "3" * 64
+        completed = self.run_assemble(documents)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        result = json.loads((self.root / "result.json").read_text(encoding="utf-8"))
+        self.assertEqual(result["realmEvidence"], documents["deployment"]["realmEvidence"])
+        self.assertNotEqual(
+            documents["automated"]["realmEvidence"]["renderedRealmDigest"],
+            documents["deployment"]["realmEvidence"]["renderedRealmDigest"],
+        )
+
+    def test_e2e_and_dogfood_must_share_candidate_realm_definition(self) -> None:
+        documents = self.documents()
+        documents["automated"]["realmEvidence"]["semanticRealmSourceDigest"] = (
+            "sha256:" + "1" * 64
+        )
+        completed = self.run_assemble(documents)
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("candidate realm definition", completed.stderr)
+
     def test_mismatched_distribution_candidate_fails(self) -> None:
         documents = self.documents()
         documents["distribution"]["laneCandidateCommit"] = "3" * 40
@@ -223,6 +247,12 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
         completed = self.run_assemble(documents)
         self.assertEqual(completed.returncode, 2)
         self.assertIn("image evidence", completed.stderr)
+
+        documents = self.documents()
+        documents["health"]["realmEvidence"]["overlayDigest"] = "sha256:" + "9" * 64
+        completed = self.run_assemble(documents)
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("dogfood deployment evidence", completed.stderr)
 
     def test_realm_evidence_must_be_exact_secret_free_candidate_evidence(self) -> None:
         mutations = (
