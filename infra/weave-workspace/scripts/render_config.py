@@ -844,6 +844,12 @@ def render(context: ComposeContext) -> None:
     generated = context.generated_root
     runtime_owner = (int(context.env["WEAVE_RUNTIME_UID"]), int(context.env["WEAVE_RUNTIME_GID"]))
     _runtime_directory(generated / "schema-init", runtime_owner)
+    # Compose mounts this directory read-only into Keycloak. Create and own it
+    # during rendering so Docker never materializes an absent bind source as a
+    # root-owned host directory. The qualified RealmRepresentation renderer
+    # will populate this directory; until then the dogfood/prod render guard
+    # above keeps persistent environments fail-closed.
+    _runtime_directory(generated / "keycloak/import", runtime_owner)
     provider_configtree = generated / "backend/configtree"
     _runtime_directory(provider_configtree, runtime_owner)
     _reset_provider_configtree(provider_configtree)
