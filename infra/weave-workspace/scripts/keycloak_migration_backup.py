@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Create the support-safe precondition proof for the bounded Keycloak migration.
-
-A true Fresh Start does not back up the just-retired realm. It instead binds the
-post-import FGAP step to the exact approved Fresh Start plan and apply evidence.
-A persistent non-empty dogfood/prod realm continues to require the private backup
-and isolated restore rehearsal before any static IAM mutation.
-"""
+"""Create the exact support-safe precondition proof for bounded Keycloak migration."""
 
 from __future__ import annotations
 
@@ -24,6 +18,8 @@ from keycloak_migration import migration_inputs
 BACKUP_PROOF_NAME = "fgap-v2-primary-organization-post-import.backup-proof.json"
 FRESH_START_PROOF_SCHEMA = "weave.keycloak-realm-migration-fresh-start-proof/v1"
 BACKUP_PROOF_SCHEMA = "weave.keycloak-realm-migration-backup-proof/v1"
+DISPOSABLE_E2E_PROOF_SCHEMA = "weave.keycloak-realm-migration-disposable-e2e-proof/v1"
+EMPTY_NAMESPACE_SCHEMA = "weave.e2e-empty-namespace-proof/v1"
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -131,13 +127,10 @@ def _fresh_start_proof(context: ComposeContext, candidate: str) -> dict[str, obj
     plan_digest = hashlib.sha256(plan_payload).hexdigest()
     inputs = migration_inputs(context)
 
-    expected_environment = (
-        "persistent-dogfood" if context.environment == "dogfood" else context.environment
-    )
     if context.environment != "dogfood":
         raise ContractError("Fresh Start Keycloak cutover is qualified only for dogfood")
     if (
-        plan.get("environment") != expected_environment
+        plan.get("environment") != "persistent-dogfood"
         or plan.get("candidateCommit") != candidate
         or plan.get("targetGeneration") != context.env["WEAVE_RESOURCE_GENERATION"]
         or plan.get("candidateManifestDigest")
@@ -188,9 +181,68 @@ def _fresh_start_proof(context: ComposeContext, candidate: str) -> dict[str, obj
     }
 
 
+def _disposable_e2e_proof(context: ComposeContext, candidate: str) -> dict[str, object]:
+    if context.environment != "e2e" or context.isolated_namespace is None:
+        raise ContractError("disposable migration proof is qualified only for isolated E2E")
+    proof_value = os.environ.get("WEAVE_E2E_EMPTY_NAMESPACE_PROOF", "").strip()
+    if not proof_value:
+        raise ContractError("isolated E2E migration requires an empty-namespace proof")
+    proof_path = Path(proof_value).expanduser().absolute()
+    if proof_path.is_symlink() or not proof_path.is_file():
+        raise ContractError("isolated E2E empty-namespace proof is missing or unsafe")
+    payload = proof_path.read_bytes()
+    try:
+        proof = json.loads(payload)
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise ContractError("isolated E2E empty-namespace proof is malformed") from error
+    resources = proof.get("resources") if isinstance(proof, dict) else None
+    run_id = os.environ.get("WEAVE_E2E_RUN_ID", "")
+    inputs = migration_inputs(context)
+    if (
+        not isinstance(proof, dict)
+        or proof.get("schemaVersion") != EMPTY_NAMESPACE_SCHEMA
+        or proof.get("supportSafe") is not True
+        or proof.get("containsSecretValues") is not False
+        or proof.get("environment") != "e2e"
+        or proof.get("deploymentContext") != "disposable"
+        or proof.get("runId") != run_id
+        or proof.get("namespace") != context.isolated_namespace
+        or proof.get("composeProject") != context.env["WEAVE_COMPOSE_PROJECT"]
+        or proof.get("candidateCommit") != candidate
+        or proof.get("candidateManifestDigest")
+        != context.env["WEAVE_CANDIDATE_MANIFEST_DIGEST"]
+        or proof.get("composeContainersAbsent") is not True
+        or proof.get("verifiedBeforeResourceCreation") is not True
+        or not isinstance(resources, list)
+        or not resources
+        or any(
+            not isinstance(resource, dict)
+            or resource.get("kind") not in {"network", "volume"}
+            or not isinstance(resource.get("name"), str)
+            or not resource.get("name")
+            or resource.get("absent") is not True
+            for resource in resources
+        )
+    ):
+        raise ContractError("isolated E2E empty-namespace proof is stale or outside run scope")
+    return {
+        "schemaVersion": DISPOSABLE_E2E_PROOF_SCHEMA,
+        "supportSafe": True,
+        "containsSecretValues": False,
+        "status": "verified",
+        "environment": "e2e",
+        "realm": "weave",
+        "sourceBaselineRevision": inputs.target_revision,
+        "emptyNamespaceProofSha256": _sha256_bytes(payload),
+        "runId": run_id,
+        "namespace": context.isolated_namespace,
+        "candidateCommit": candidate,
+        "candidateManifestDigest": context.env["WEAVE_CANDIDATE_MANIFEST_DIGEST"],
+        "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
+    }
+
+
 def _persistent_backup_proof(context: ComposeContext, candidate: str) -> dict[str, object]:
-    # Imported lazily because the existing backup verifier reads the Compose
-    # volume inventory from compose_runtime.
     import adoption_rehearsal
     import backup_runtime
 
@@ -238,18 +290,16 @@ def _persistent_backup_proof(context: ComposeContext, candidate: str) -> dict[st
 
 
 def create_backup_proof(context: ComposeContext) -> Path:
-    """Create the exact migration precondition proof consumed by the one-shot CLI.
-
-    The historical function name is retained because compose_runtime is the narrow
-    caller. The produced artifact is either a Fresh Start cutover proof or the
-    persistent backup proof; it is never a fabricated backup for an empty realm.
-    """
+    """Create the single migration precondition proof consumed by the one-shot CLI."""
     candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
     if not re.fullmatch(r"[0-9a-f]{40}", candidate):
         raise ContractError("Keycloak migration proof requires an exact candidate commit")
-    proof = _fresh_start_proof(context, candidate)
-    if proof is None:
-        proof = _persistent_backup_proof(context, candidate)
+    if context.environment == "e2e":
+        proof = _disposable_e2e_proof(context, candidate)
+    else:
+        proof = _fresh_start_proof(context, candidate)
+        if proof is None:
+            proof = _persistent_backup_proof(context, candidate)
     output = context.generated_root / "keycloak/migrations" / BACKUP_PROOF_NAME
     _atomic_private(
         output,
