@@ -9,6 +9,8 @@ import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -18,7 +20,7 @@ class FilesystemBlobStoreTest {
     Path temporaryDirectory;
 
     @Test
-    void atomicallyPublishesAndReadsTheSameOpaqueBlobAfterRestart() {
+    void atomicallyPublishesAndReadsTheSameOpaqueBlobAfterRestart() throws Exception {
         var scope = new BlobScope("org:alpha", "space:home");
         var reference = new BlobReference("v1/file/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         byte[] content = "native files".getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -31,6 +33,16 @@ class FilesystemBlobStoreTest {
         assertThat(restarted.inventory(scope, 10)).containsExactly(reference);
         assertThat(restarted.put(scope, reference, content, digest).digest()).isEqualTo(digest);
         assertThat(restarted.inventory(scope, 10)).containsExactly(reference);
+        Path target = restarted.resolvedPathForTest(scope, reference);
+        if (Files.getFileStore(target).supportsFileAttributeView("posix")) {
+            assertThat(Files.getPosixFilePermissions(target))
+                    .isEqualTo(Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
+            assertThat(Files.getPosixFilePermissions(target.getParent()))
+                    .containsExactlyInAnyOrder(
+                            PosixFilePermission.OWNER_READ,
+                            PosixFilePermission.OWNER_WRITE,
+                            PosixFilePermission.OWNER_EXECUTE);
+        }
     }
 
     @Test

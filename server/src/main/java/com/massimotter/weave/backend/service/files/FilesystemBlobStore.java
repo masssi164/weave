@@ -14,12 +14,15 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
@@ -34,6 +37,11 @@ import org.springframework.stereotype.Component;
         havingValue = WeaveNativeFilesProperties.FILESYSTEM,
         matchIfMissing = true)
 public final class FilesystemBlobStore implements BlobStorePort {
+
+    private static final Set<PosixFilePermission> DIRECTORY_PERMISSIONS =
+            PosixFilePermissions.fromString("rwx------");
+    private static final Set<PosixFilePermission> FILE_PERMISSIONS =
+            PosixFilePermissions.fromString("rw-------");
 
     private final Path configuredRoot;
     private final long maximumBlobBytes;
@@ -68,8 +76,8 @@ public final class FilesystemBlobStore implements BlobStorePort {
             }
             Path temporary = target.resolveSibling(".pending-" + UUID.randomUUID());
             try {
+                createPrivateFile(temporary);
                 OpenOption[] options = {
-                        StandardOpenOption.CREATE_NEW,
                         StandardOpenOption.WRITE,
                         LinkOption.NOFOLLOW_LINKS
                 };
@@ -226,6 +234,7 @@ public final class FilesystemBlobStore implements BlobStorePort {
         if (Files.isSymbolicLink(configuredRoot)) {
             throw unsafePath();
         }
+        enforcePermissions(configuredRoot, DIRECTORY_PERMISSIONS);
         return configuredRoot.toRealPath(LinkOption.NOFOLLOW_LINKS);
     }
 
@@ -241,6 +250,7 @@ public final class FilesystemBlobStore implements BlobStorePort {
                 }
             }
             requireDirectory(current);
+            enforcePermissions(current, DIRECTORY_PERMISSIONS);
         }
     }
 
@@ -271,6 +281,24 @@ public final class FilesystemBlobStore implements BlobStorePort {
         if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
             throw error(HttpStatus.CONFLICT, "files-native-blob-missing",
                     "The native Files metadata does not have a readable blob.");
+        }
+        enforcePermissions(path, FILE_PERMISSIONS);
+    }
+
+    private void createPrivateFile(Path path) throws IOException {
+        try {
+            Files.createFile(path, PosixFilePermissions.asFileAttribute(FILE_PERMISSIONS));
+        } catch (UnsupportedOperationException exception) {
+            Files.createFile(path);
+        }
+        enforcePermissions(path, FILE_PERMISSIONS);
+    }
+
+    private void enforcePermissions(Path path, Set<PosixFilePermission> permissions) throws IOException {
+        try {
+            Files.setPosixFilePermissions(path, permissions);
+        } catch (UnsupportedOperationException ignored) {
+            // Non-POSIX filesystems rely on their platform ACLs; path containment still applies.
         }
     }
 
