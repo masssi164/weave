@@ -56,6 +56,18 @@ class WorkflowActionRuntimeCheckTest(unittest.TestCase):
         )
         self.assertEqual((1, 1), validate(root, manifest))
 
+    def test_accepts_nested_action_from_canonical_repository(self) -> None:
+        nested_pin = {
+            **PIN,
+            "action": "example/actions/supported-action",
+            "source": "https://github.com/example/actions",
+        }
+        root, manifest, _ = self.fixture(
+            f"{nested_pin['action']}@{nested_pin['commit']} # {nested_pin['release']}",
+            pin=nested_pin,
+        )
+        self.assertEqual((1, 1), validate(root, manifest))
+
     def test_rejects_floating_release_ref(self) -> None:
         root, manifest, _ = self.fixture(f"{PIN['action']}@v1 # {PIN['release']}")
         with self.assertRaisesRegex(PolicyError, "must use reviewed commit"):
