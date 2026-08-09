@@ -2,7 +2,6 @@ package com.massimotter.weave.backend.matrix;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -12,19 +11,18 @@ import java.util.Optional;
 import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
-/** PostgreSQL authority for Matrix facade routing/E2EE metadata. */
-@Component
+@Repository
 public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
 
-    MatrixE2eeRelationalStore(JdbcTemplate jdbc, ObjectMapper objectMapper) {
+    public MatrixE2eeRelationalStore(JdbcTemplate jdbc, ObjectMapper objectMapper) {
         this.jdbc = java.util.Objects.requireNonNull(jdbc, "jdbc");
         this.objectMapper = java.util.Objects.requireNonNull(objectMapper, "objectMapper");
     }
@@ -32,9 +30,8 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
     @Override
     @Transactional(readOnly = true)
     public long currentRevision(String tenantId) {
-        Long revision = jdbc.query("select revision from weave_matrix_sync_heads where tenant_id=?",
-                rs -> rs.next() ? rs.getLong(1) : 0L, tenantId);
-        return revision == null ? 0 : revision;
+        Long value = jdbc.query("select revision from weave_matrix_sync_heads where tenant_id=?", rs -> rs.next() ? rs.getLong(1) : 0L, tenantId);
+        return value == null ? 0 : value;
     }
 
     @Override
@@ -45,9 +42,8 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
 
     private long nextRevisionLocked(String tenantId) {
         jdbc.update("insert into weave_matrix_sync_heads(tenant_id,revision,row_version,updated_at_utc) values (?,0,0,now()) on conflict (tenant_id) do nothing", tenantId);
-        Long revision = jdbc.query("select revision from weave_matrix_sync_heads where tenant_id=? for update",
-                rs -> rs.next() ? rs.getLong(1) : 0L, tenantId);
-        long next = (revision == null ? 0 : revision) + 1;
+        Long current = jdbc.query("select revision from weave_matrix_sync_heads where tenant_id=? for update", rs -> rs.next() ? rs.getLong(1) : 0L, tenantId);
+        long next = (current == null ? 0 : current) + 1;
         jdbc.update("update weave_matrix_sync_heads set revision=?,row_version=row_version+1,updated_at_utc=now() where tenant_id=?", next, tenantId);
         return next;
     }
@@ -62,10 +58,10 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
     @Override
     @Transactional(readOnly = true)
     public List<DeviceRecord> devices(String tenantId, String userId, Set<String> requestedDeviceIds) {
-        List<DeviceRecord> rows = jdbc.query("select user_id,device_id,device_keys_json,changed_revision,revoked from weave_matrix_devices where tenant_id=? and user_id=? order by device_id",
+        List<DeviceRecord> all = jdbc.query("select user_id,device_id,device_keys_json,changed_revision,revoked from weave_matrix_devices where tenant_id=? and user_id=? order by device_id",
                 (rs, ignored) -> deviceRecord(rs), tenantId, userId);
-        if (requestedDeviceIds == null || requestedDeviceIds.isEmpty()) return rows;
-        return rows.stream().filter(row -> requestedDeviceIds.contains(row.deviceId())).toList();
+        if (requestedDeviceIds == null || requestedDeviceIds.isEmpty()) return all;
+        return all.stream().filter(device -> requestedDeviceIds.contains(device.deviceId())).toList();
     }
 
     @Override
@@ -78,15 +74,13 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
     @Override
     @Transactional
     public void upsertDevice(String tenantId, String userId, String deviceId, Map<String, Object> deviceKeys, long changedRevision) {
+        String json = writeJson(deviceKeys == null ? Map.of() : deviceKeys);
         jdbc.update("""
                 insert into weave_matrix_devices(tenant_id,user_id,device_id,device_keys_json,changed_revision,revoked,row_version,updated_at_utc)
-                values (?,?,?,?,?,false,0,now())
-                on conflict (tenant_id,user_id,device_id) do update
+                values (?,?,?,?,?,false,0,now()) on conflict (tenant_id,user_id,device_id) do update
                 set device_keys_json=case when excluded.device_keys_json='{}' then weave_matrix_devices.device_keys_json else excluded.device_keys_json end,
-                    changed_revision=excluded.changed_revision,
-                    row_version=weave_matrix_devices.row_version+1,
-                    updated_at_utc=now()
-                """, tenantId, userId, deviceId, writeJson(deviceKeys == null ? Map.of() : deviceKeys), changedRevision);
+                    changed_revision=excluded.changed_revision,revoked=false,row_version=weave_matrix_devices.row_version+1,updated_at_utc=now()
+                """, tenantId, userId, deviceId, json, changedRevision);
     }
 
     @Override
@@ -94,8 +88,8 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
     public void addOneTimeKeys(String tenantId, String userId, String deviceId, Map<String, Object> keys) {
         keys.forEach((keyId, value) -> jdbc.update("""
                 insert into weave_matrix_one_time_keys(tenant_id,user_id,device_id,key_id,algorithm,key_json)
-                values (?,?,?,?,?,?)
-                on conflict (tenant_id,user_id,device_id,key_id) do update set algorithm=excluded.algorithm,key_json=excluded.key_json,claimed_at_utc=null
+                values (?,?,?,?,?,?) on conflict (tenant_id,user_id,device_id,key_id) do update
+                set algorithm=excluded.algorithm,key_json=excluded.key_json,claimed_at_utc=null,claim_ref=null
                 """, tenantId, userId, deviceId, keyId, algorithm(keyId), writeJson(value)));
     }
 
@@ -103,7 +97,7 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
     @Transactional
     public void replaceFallbackKeys(String tenantId, String userId, String deviceId, Map<String, Object> keys, long changedRevision) {
         jdbc.update("delete from weave_matrix_fallback_keys where tenant_id=? and user_id=? and device_id=?", tenantId, userId, deviceId);
-        keys.forEach((keyId, value) -> jdbc.update("insert into weave_matrix_fallback_keys(tenant_id,user_id,device_id,key_id,algorithm,key_json,used,updated_at_utc) values (?,?,?,?,?,?,false,now())",
+        keys.forEach((keyId, value) -> jdbc.update("insert into weave_matrix_fallback_keys(tenant_id,user_id,device_id,key_id,algorithm,key_json,used) values (?,?,?,?,?,?,false)",
                 tenantId, userId, deviceId, keyId, algorithm(keyId), writeJson(value)));
         upsertDevice(tenantId, userId, deviceId, Map.of(), changedRevision);
     }
@@ -111,10 +105,10 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
     @Override
     @Transactional(readOnly = true)
     public Map<String, Long> oneTimeKeyCounts(String tenantId, String userId, String deviceId) {
-        Map<String, Long> counts = new LinkedHashMap<>();
-        jdbc.query("select algorithm,count(*) from weave_matrix_one_time_keys where tenant_id=? and user_id=? and device_id=? group by algorithm order by algorithm",
-                (RowCallbackHandler) rs -> counts.put(rs.getString(1), rs.getLong(2)), tenantId, userId, deviceId);
-        return Map.copyOf(counts);
+        Map<String, Long> result = new LinkedHashMap<>();
+        jdbc.query("select algorithm,count(*) from weave_matrix_one_time_keys where tenant_id=? and user_id=? and device_id=? and claimed_at_utc is null group by algorithm order by algorithm",
+                (RowCallbackHandler) rs -> result.put(rs.getString(1), rs.getLong(2)), tenantId, userId, deviceId);
+        return Map.copyOf(result);
     }
 
     @Override
@@ -127,33 +121,35 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
     @Override
     @Transactional
     public Optional<ClaimedKey> claimOneTimeKey(String tenantId, String userId, String deviceId, String requestedAlgorithm) {
-        List<ClaimedKey> claimed = jdbc.query("""
-                delete from weave_matrix_one_time_keys
-                where (tenant_id,user_id,device_id,key_id) = (
-                    select tenant_id,user_id,device_id,key_id from weave_matrix_one_time_keys
-                    where tenant_id=? and user_id=? and device_id=? and algorithm=?
-                    order by key_id for update skip locked limit 1)
-                returning key_id,key_json
-                """, (rs, ignored) -> new ClaimedKey(rs.getString(1), readValue(rs.getString(2)), false), tenantId, userId, deviceId, requestedAlgorithm);
-        if (!claimed.isEmpty()) return Optional.of(claimed.getFirst());
+        List<Map<String, Object>> candidates = jdbc.query("""
+                select key_id,key_json from weave_matrix_one_time_keys
+                where tenant_id=? and user_id=? and device_id=? and algorithm=? and claimed_at_utc is null
+                order by key_id for update skip locked limit 1
+                """, (rs, ignored) -> Map.of("id", rs.getString(1), "value", readValue(rs.getString(2))), tenantId, userId, deviceId, requestedAlgorithm);
+        if (!candidates.isEmpty()) {
+            Map<String, Object> selected = candidates.getFirst();
+            String keyId = (String) selected.get("id");
+            jdbc.update("delete from weave_matrix_one_time_keys where tenant_id=? and user_id=? and device_id=? and key_id=?", tenantId, userId, deviceId, keyId);
+            return Optional.of(new ClaimedKey(keyId, selected.get("value"), false));
+        }
         return jdbc.query("""
-                update weave_matrix_fallback_keys set used=true,updated_at_utc=now()
-                where (tenant_id,user_id,device_id,key_id) = (
-                    select tenant_id,user_id,device_id,key_id from weave_matrix_fallback_keys
-                    where tenant_id=? and user_id=? and device_id=? and algorithm=?
-                    order by key_id for update skip locked limit 1)
-                returning key_id,key_json
-                """, (rs, ignored) -> new ClaimedKey(rs.getString(1), readValue(rs.getString(2)), true), tenantId, userId, deviceId, requestedAlgorithm).stream().findFirst();
+                select key_id,key_json from weave_matrix_fallback_keys
+                where tenant_id=? and user_id=? and device_id=? and algorithm=? order by key_id for update limit 1
+                """, (rs, ignored) -> new ClaimedKey(rs.getString(1), readValue(rs.getString(2)), true), tenantId, userId, deviceId, requestedAlgorithm)
+                .stream().findFirst().map(claimed -> {
+                    jdbc.update("update weave_matrix_fallback_keys set used=true,updated_at_utc=now() where tenant_id=? and user_id=? and device_id=? and key_id=?", tenantId, userId, deviceId, claimed.keyId());
+                    return claimed;
+                });
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<CrossSigningRecord> crossSigning(String tenantId, String userId) {
-        Map<String, Map<String, Object>> values = new LinkedHashMap<>();
+        Map<String, Map<String, Object>> keys = new LinkedHashMap<>();
         jdbc.query("select usage,key_json from weave_matrix_cross_signing_keys where tenant_id=? and user_id=? order by usage",
-                (RowCallbackHandler) rs -> values.put(rs.getString(1), readObject(rs.getString(2))), tenantId, userId);
-        if (values.isEmpty()) return Optional.empty();
-        return Optional.of(new CrossSigningRecord(values.getOrDefault("master", Map.of()), values.getOrDefault("self_signing", Map.of()), values.getOrDefault("user_signing", Map.of())));
+                (RowCallbackHandler) rs -> keys.put(rs.getString(1), readObject(rs.getString(2))), tenantId, userId);
+        if (keys.isEmpty()) return Optional.empty();
+        return Optional.of(new CrossSigningRecord(keys.getOrDefault("master", Map.of()), keys.getOrDefault("self_signing", Map.of()), keys.getOrDefault("user_signing", Map.of())));
     }
 
     @Override
@@ -167,25 +163,17 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
     @Override
     @Transactional
     public void mergeDeviceSignatures(String tenantId, String userId, String deviceId, Map<String, Object> signatures, long changedRevision) {
-        DeviceRecord device = device(tenantId, userId, deviceId).orElseThrow();
-        upsertDevice(tenantId, userId, deviceId, mergeSignatures(device.deviceKeys(), signatures), changedRevision);
+        device(tenantId, userId, deviceId).ifPresent(device -> upsertDevice(tenantId, userId, deviceId, mergeSignatures(device.deviceKeys(), signatures), changedRevision));
     }
 
     @Override
     @Transactional
     public void mergeCrossSigningSignatures(String tenantId, String userId, String keyId, Map<String, Object> signatures, long changedRevision) {
-        List<Map.Entry<String, Map<String, Object>>> matches = new ArrayList<>();
-        crossSigning(tenantId, userId).ifPresent(record -> {
-            matches.add(Map.entry("master", record.masterKey()));
-            matches.add(Map.entry("self_signing", record.selfSigningKey()));
-            matches.add(Map.entry("user_signing", record.userSigningKey()));
+        crossSigning(tenantId, userId).ifPresent(current -> {
+            saveSigningKey(tenantId, userId, "master", mergeSignatures(current.masterKey(), signatures), changedRevision);
+            saveSigningKey(tenantId, userId, "self_signing", mergeSignatures(current.selfSigningKey(), signatures), changedRevision);
+            saveSigningKey(tenantId, userId, "user_signing", mergeSignatures(current.userSigningKey(), signatures), changedRevision);
         });
-        for (Map.Entry<String, Map<String, Object>> candidate : matches) {
-            Object rawKeys = candidate.getValue().get("keys");
-            if (!(rawKeys instanceof Map<?, ?> keys) || !keys.containsValue(keyId) && !keys.containsKey(keyId)) continue;
-            saveSigningKey(tenantId, userId, candidate.getKey(), mergeSignatures(candidate.getValue(), signatures), changedRevision);
-            return;
-        }
     }
 
     @Override
@@ -194,6 +182,7 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
         List<Long> existing = jdbc.query("""
                 select revision_id from weave_matrix_to_device_messages
                 where tenant_id=? and sender_user_id=? and transaction_id=? and target_user_id=? and target_device_id=? and event_type=?
+                for update
                 """, (rs, ignored) -> rs.getLong(1), tenantId, senderUserId, transactionId, targetUserId, targetDeviceId, eventType);
         if (!existing.isEmpty()) return existing.getFirst();
         long revision = nextRevisionLocked(tenantId);
@@ -231,6 +220,27 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
                     last_issued_revision=greatest(weave_matrix_device_sync_progress.last_issued_revision,excluded.last_issued_revision),
                     row_version=weave_matrix_device_sync_progress.row_version+1,updated_at_utc=now()
                 """, tenantId, userId, deviceId, revision, 0, revision);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long deviceListProgress(String tenantId, String userId, String deviceId) {
+        Long value = jdbc.query("select device_list_revision from weave_matrix_device_sync_progress where tenant_id=? and user_id=? and device_id=?",
+                rs -> rs.next() ? rs.getLong(1) : 0L, tenantId, userId, deviceId);
+        return value == null ? 0 : value;
+    }
+
+    @Override
+    @Transactional
+    public void recordDeviceListProgress(String tenantId, String userId, String deviceId, long revision) {
+        jdbc.update("""
+                insert into weave_matrix_device_sync_progress(tenant_id,user_id,device_id,to_device_sequence,device_list_revision,last_issued_revision,row_version,updated_at_utc)
+                values (?,?,?,?,?,?,0,now())
+                on conflict (tenant_id,user_id,device_id) do update
+                set device_list_revision=greatest(weave_matrix_device_sync_progress.device_list_revision,excluded.device_list_revision),
+                    last_issued_revision=greatest(weave_matrix_device_sync_progress.last_issued_revision,excluded.last_issued_revision),
+                    row_version=weave_matrix_device_sync_progress.row_version+1,updated_at_utc=now()
+                """, tenantId, userId, deviceId, 0, revision, revision);
     }
 
     @Override
