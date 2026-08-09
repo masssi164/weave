@@ -28,10 +28,16 @@ import com.massimotter.weave.backend.schema.SchemaReceiptVerifier;
 import java.util.Arrays;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication
+/**
+ * Product runtime. Relational schema mutation is deliberately excluded here:
+ * operators run the explicit {@code schema-init} command before starting the app,
+ * while Hibernate validates the already-migrated schema.
+ */
+@SpringBootApplication(exclude = FlywayAutoConfiguration.class)
 @EnableScheduling
 @EnableConfigurationProperties({
         CalendarCalDavProperties.class,
