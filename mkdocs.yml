@@ -48,6 +48,7 @@ nav:
       - DevOps release notes policy: devops/release-notes.md
       - DevOps spec governance: devops/spec-governance.md
       - Architecture: architecture.md
+      - Keycloak realm lifecycle: architecture/keycloak-realm-lifecycle.md
       - JVM module and bean contract: architecture/jvm-module-and-bean-contract.md
       - MCP open-standard projection: weave-mcp-projection.md
       - Canonical feature models: canonical-feature-models.md
