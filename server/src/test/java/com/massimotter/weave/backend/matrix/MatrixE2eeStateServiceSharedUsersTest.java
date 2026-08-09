@@ -2,13 +2,11 @@ package com.massimotter.weave.backend.matrix;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
 class MatrixE2eeStateServiceSharedUsersTest {
 
@@ -56,9 +54,8 @@ class MatrixE2eeStateServiceSharedUsersTest {
     }
 
     private MatrixE2eeStateService service() {
-        return new MatrixE2eeStateService(
-                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
-                new StaticListableBeanFactory().getBeanProvider(MatrixE2eeSnapshotStore.class));
+        var mapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
+        return new MatrixE2eeStateService(mapper, new InMemoryMatrixE2eeRelationalStore(mapper));
     }
 
     private MatrixFacadeClientStateService.MatrixIdentity identity(
