@@ -177,8 +177,10 @@ done
 
 contains "${CI_WORKFLOW}" 'group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}'
 contains "${CI_WORKFLOW}" "cancel-in-progress: \${{ github.event_name == 'pull_request' }}"
-reject "${CI_WORKFLOW}" "&& 'labels' || 'full'"
-reject "${CI_WORKFLOW}" "github.event.action != 'labeled'"
+contains "${CI_WORKFLOW}" 'timeout-minutes: 60'
+contains "${CI_WORKFLOW}" "github.event.action != 'labeled'"
+contains "${CI_WORKFLOW}" "github.event.action != 'unlabeled'"
+reject "${CI_WORKFLOW}" '- ready_for_review'
 
 reject "${WORKFLOW}" 'opentofu/setup-opentofu'
 reject "${WORKFLOW}" 'tofu_version'
