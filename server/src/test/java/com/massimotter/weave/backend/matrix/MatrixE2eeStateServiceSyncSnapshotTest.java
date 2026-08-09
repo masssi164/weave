@@ -36,13 +36,13 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
         assertThat(queued.olmPreKeyEnvelopeCount()).isEqualTo(1);
         assertThat(queued.olmExistingSessionEnvelopeCount()).isZero();
         assertThat(queued.targetedDeviceCount()).isEqualTo(1);
-        assertThat(queued.projectedEventCount()).isZero();
+        assertThat(queued.projectedToDeviceEventCount()).isZero();
         assertThat(queued.supportSafe()).isTrue();
 
         assertThat(service.sync(target, 0).toDeviceEvents()).hasSize(1);
         var projected = service.supportSafeToDeviceEvidence();
-        assertThat(projected.projectedEventCount()).isEqualTo(1);
-        assertThat(projected.syncResponseCount()).isEqualTo(1);
+        assertThat(projected.projectedToDeviceEventCount()).isEqualTo(1);
+        assertThat(projected.syncResponsesWithToDeviceEvents()).isEqualTo(1);
     }
 
     @Test
