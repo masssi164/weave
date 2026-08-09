@@ -1,16 +1,12 @@
 package com.massimotter.weave.backend.calendar.domain;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /** Provider-neutral canonical Calendar domain. */
 public final class CalendarDomain {
@@ -66,7 +62,7 @@ public final class CalendarDomain {
     }
 
     /**
-     * Exact RFC5545 temporal semantics. Exactly one representation is populated.
+     * Exact RFC 5545 temporal semantics. Exactly one representation is populated.
      * DATE has no clock/zone; FLOATING has a local clock and no zone; UTC is an
      * instant; ZONED has a local clock plus an IANA TZID.
      */
@@ -142,22 +138,26 @@ public final class CalendarDomain {
         public ZoneId compatibilityZone() {
             return switch (kind) {
                 case ZONED -> zoneId;
-                case UTC -> ZoneOffset.UTC;
-                case DATE -> ZoneOffset.UTC;
+                case UTC, DATE -> ZoneOffset.UTC;
                 case FLOATING -> null;
             };
         }
 
-        public Instant toInstant(ZoneId floatingInterpretation) {
+        public Instant toInstant(ZoneId evaluationZone) {
             return switch (kind) {
-                case DATE -> date.atStartOfDay(ZoneOffset.UTC).toInstant();
+                case DATE -> {
+                    if (evaluationZone == null) {
+                        throw new IllegalArgumentException("DATE values require an explicit evaluation zone for Instant projection");
+                    }
+                    yield date.atStartOfDay(evaluationZone).toInstant();
+                }
                 case UTC -> instant;
                 case ZONED -> localDateTime.atZone(zoneId).toInstant();
                 case FLOATING -> {
-                    if (floatingInterpretation == null) {
-                        throw new IllegalArgumentException("FLOATING values require an explicit interpretation zone");
+                    if (evaluationZone == null) {
+                        throw new IllegalArgumentException("FLOATING values require an explicit evaluation zone");
                     }
-                    yield localDateTime.atZone(floatingInterpretation).toInstant();
+                    yield localDateTime.atZone(evaluationZone).toInstant();
                 }
             };
         }
@@ -199,14 +199,14 @@ public final class CalendarDomain {
         }
     }
 
-    /** Product-profile recurrence. Parsed/validated by the iCal4j adapter. */
+    /** Product-profile recurrence. RRULE/RDATE/EXDATE parsing belongs to the standards adapter. */
     public record RecurrenceSet(
             RecurrenceFrequency frequency,
             int interval,
             Integer count,
             ZonedDateTime until,
-            List<ZonedDateTime> additionalDates,
-            List<ZonedDateTime> excludedDates,
+            List<TemporalValue> additionalDates,
+            List<TemporalValue> excludedDates,
             List<String> byDay,
             List<Integer> byMonthDay,
             List<Integer> byMonth,
@@ -218,8 +218,8 @@ public final class CalendarDomain {
                 int interval,
                 Integer count,
                 ZonedDateTime until,
-                List<ZonedDateTime> additionalDates,
-                List<ZonedDateTime> excludedDates) {
+                List<TemporalValue> additionalDates,
+                List<TemporalValue> excludedDates) {
             this(frequency, interval, count, until, additionalDates, excludedDates,
                     List.of(), List.of(), List.of(), List.of(), null);
         }
@@ -310,7 +310,7 @@ public final class CalendarDomain {
             TemporalValue endValue,
             List<RecurrenceOverride> overrides) {
 
-        /** Backward-compatible constructor for the previous ZONED/DATE model. */
+        /** Backward-compatible constructor for legacy callers; no recurrence semantics are implemented here. */
         public CalendarEvent(
                 CalendarId calendarId,
                 EventId id,
@@ -333,7 +333,6 @@ public final class CalendarDomain {
                     List.of());
         }
 
-        /** Canonical constructor for exact temporal semantics. */
         public CalendarEvent(
                 CalendarId calendarId,
                 EventId id,
@@ -361,8 +360,7 @@ public final class CalendarDomain {
                 throw new IllegalArgumentException("calendar, event, start, and end are required");
             }
             if (startValue.kind() != endValue.kind()
-                    || startValue.kind() == TemporalKind.ZONED
-                    && !startValue.zoneId().equals(endValue.zoneId())) {
+                    || startValue.kind() == TemporalKind.ZONED && !startValue.zoneId().equals(endValue.zoneId())) {
                 throw new IllegalArgumentException("calendar start and end temporal semantics must match");
             }
             scope = scope == null ? CalendarScope.workspace() : scope;
@@ -385,68 +383,21 @@ public final class CalendarDomain {
         }
 
         public ZonedDateTime startsAt() {
-            return zoned(startValue);
+            return switch (startValue.kind()) {
+                case DATE -> startValue.date().atStartOfDay(ZoneOffset.UTC);
+                case UTC -> startValue.instant().atZone(ZoneOffset.UTC);
+                case ZONED -> startValue.localDateTime().atZone(startValue.zoneId());
+                case FLOATING -> throw new IllegalArgumentException("FLOATING values have no implicit zone");
+            };
         }
 
         public ZonedDateTime endsAt() {
-            return zoned(endValue);
-        }
-
-        /**
-         * Compatibility occurrence projection. Native production querying uses the
-         * injected RecurrenceEngine and never iterates from the series origin.
-         */
-        public List<CalendarOccurrence> occurrences(Instant from, Instant to) {
-            if (from == null || to == null || !to.isAfter(from)) {
-                throw new IllegalArgumentException("occurrence query end must be after start");
-            }
-            if (startValue.kind() == TemporalKind.FLOATING) {
-                throw new IllegalArgumentException("FLOATING occurrence queries require an explicit interpretation zone");
-            }
-            Duration duration = Duration.between(startsAt().toInstant(), endsAt().toInstant());
-            Map<Instant, CalendarOccurrence> occurrences = new LinkedHashMap<>();
-            addOccurrence(occurrences, startsAt(), duration);
-            if (recurrence != null) {
-                // This compatibility path is intentionally bounded and used only by old callers.
-                ZonedDateTime candidate = startsAt();
-                int generated = 0;
-                while (generated++ < 10_000) {
-                    candidate = switch (recurrence.frequency()) {
-                        case DAILY -> candidate.plusDays(recurrence.interval());
-                        case WEEKLY -> candidate.plusWeeks(recurrence.interval());
-                        case MONTHLY -> candidate.plusMonths(recurrence.interval());
-                        case YEARLY -> candidate.plusYears(recurrence.interval());
-                    };
-                    if (recurrence.count() != null && generated >= recurrence.count()) break;
-                    if (recurrence.until() != null && candidate.isAfter(recurrence.until())) break;
-                    if (recurrence.count() == null && recurrence.until() == null && candidate.toInstant().isAfter(to)) break;
-                    addOccurrence(occurrences, candidate, duration);
-                }
-                recurrence.additionalDates().forEach(value -> addOccurrence(occurrences, value, duration));
-                recurrence.excludedDates().forEach(value -> occurrences.remove(value.toInstant()));
-            }
-            applyOverrides(occurrences, duration);
-            return occurrences.values().stream()
-                    .filter(occurrence -> occurrence.start().toInstant().isBefore(to)
-                            && occurrence.end().toInstant().isAfter(from))
-                    .sorted(Comparator.comparing(CalendarOccurrence::start))
-                    .toList();
-        }
-
-        private void applyOverrides(Map<Instant, CalendarOccurrence> occurrences, Duration duration) {
-            for (RecurrenceOverride override : overrides) {
-                Instant recurrenceInstant = override.recurrenceId().toInstant(timezone);
-                occurrences.remove(recurrenceInstant);
-                if (!override.cancelled()) {
-                    ZonedDateTime start = zoned(override.start());
-                    ZonedDateTime end = zoned(override.end());
-                    occurrences.put(start.toInstant(), new CalendarOccurrence(id, start, end));
-                }
-            }
-        }
-
-        private void addOccurrence(Map<Instant, CalendarOccurrence> occurrences, ZonedDateTime start, Duration duration) {
-            occurrences.put(start.toInstant(), new CalendarOccurrence(id, start, start.plus(duration)));
+            return switch (endValue.kind()) {
+                case DATE -> endValue.date().atStartOfDay(ZoneOffset.UTC);
+                case UTC -> endValue.instant().atZone(ZoneOffset.UTC);
+                case ZONED -> endValue.localDateTime().atZone(endValue.zoneId());
+                case FLOATING -> throw new IllegalArgumentException("FLOATING values have no implicit zone");
+            };
         }
     }
 
@@ -502,29 +453,25 @@ public final class CalendarDomain {
     private static void requireEndAfterStart(TemporalValue start, TemporalValue end) {
         switch (start.kind()) {
             case DATE -> {
-                if (!end.date().isAfter(start.date())) throw new IllegalArgumentException("DATE DTEND must be exclusive and after DTSTART");
+                if (!end.date().isAfter(start.date())) {
+                    throw new IllegalArgumentException("DATE DTEND must be exclusive and after DTSTART");
+                }
             }
             case FLOATING, ZONED -> {
-                if (!end.localDateTime().isAfter(start.localDateTime())) throw new IllegalArgumentException("event end must be after event start");
+                if (!end.localDateTime().isAfter(start.localDateTime())) {
+                    throw new IllegalArgumentException("event end must be after event start");
+                }
             }
             case UTC -> {
-                if (!end.instant().isAfter(start.instant())) throw new IllegalArgumentException("event end must be after event start");
+                if (!end.instant().isAfter(start.instant())) {
+                    throw new IllegalArgumentException("event end must be after event start");
+                }
             }
         }
     }
 
-    private static ZonedDateTime zoned(TemporalValue value) {
-        return switch (value.kind()) {
-            case DATE -> value.date().atStartOfDay(ZoneOffset.UTC);
-            case UTC -> value.instant().atZone(ZoneOffset.UTC);
-            case ZONED -> value.localDateTime().atZone(value.zoneId());
-            case FLOATING -> throw new IllegalArgumentException("FLOATING values have no implicit zone");
-        };
-    }
-
     private static ZoneId compatibilityZone(TemporalValue value) {
-        if (value == null) return null;
-        return value.compatibilityZone();
+        return value == null ? null : value.compatibilityZone();
     }
 
     private static String joinIntegers(List<Integer> values) {
