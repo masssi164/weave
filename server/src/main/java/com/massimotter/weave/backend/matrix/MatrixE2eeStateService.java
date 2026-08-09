@@ -148,8 +148,6 @@ public class MatrixE2eeStateService {
             String transactionId,
             Map<String, Object> request) {
         requireActive(identity);
-        String validatedEventType = requiredText(eventType, "to-device event type", 255);
-        String validatedTransactionId = requiredText(transactionId, "transaction id", 255);
         int targets = 0;
         for (Map.Entry<String, Object> userEntry : objectMap(request.get("messages")).entrySet()) {
             for (Map.Entry<String, Object> deviceEntry : objectMap(userEntry.getValue()).entrySet()) {
@@ -165,8 +163,8 @@ public class MatrixE2eeStateService {
                             userEntry.getKey(),
                             targetDevice,
                             identity.userId(),
-                            validatedEventType,
-                            validatedTransactionId,
+                            requiredText(eventType, "to-device event type", 255),
+                            requiredText(transactionId, "transaction id", 255),
                             immutableObject(objectMap(deviceEntry.getValue())));
                 }
             }
@@ -206,23 +204,26 @@ public class MatrixE2eeStateService {
             projectedToDeviceEventCount.addAndGet(events.size());
             syncResponsesWithToDeviceEvents.incrementAndGet();
         }
+        long deliveredHighWater = queue.size() == MAX_TO_DEVICE_EVENTS_PER_SYNC
+                ? queue.getLast().revision()
+                : highWater;
         Set<String> changed = new java.util.TreeSet<>(
-                persistence.deviceUsersChanged(identity.tenantId(), afterSequence, highWater));
+                persistence.deviceUsersChanged(identity.tenantId(), afterSequence, deliveredHighWater));
         List<String> left = new ArrayList<>();
         if (shared != null) {
-            persistence.sharedUserChanges(identity.tenantId(), identity.userId(), identity.deviceId(), afterSequence, highWater)
+            persistence.sharedUserChanges(identity.tenantId(), identity.userId(), identity.deviceId(), afterSequence, deliveredHighWater)
                     .forEach((user, state) -> {
                         if (state.shared()) changed.add(user); else left.add(user);
                     });
         }
-        persistence.recordDeviceSyncProgress(identity.tenantId(), identity.userId(), identity.deviceId(), highWater);
+        persistence.recordDeviceSyncProgress(identity.tenantId(), identity.userId(), identity.deviceId(), deliveredHighWater);
         return new MatrixProtocolCoreService.MatrixSyncCrypto(
                 events,
                 List.copyOf(changed),
                 left.stream().distinct().sorted().toList(),
                 persistence.oneTimeKeyCounts(identity.tenantId(), identity.userId(), identity.deviceId()),
                 persistence.unusedFallbackAlgorithms(identity.tenantId(), identity.userId(), identity.deviceId()),
-                highWater);
+                deliveredHighWater);
     }
 
     public SupportSafeToDeviceEvidence supportSafeToDeviceEvidence() {
@@ -357,11 +358,7 @@ public class MatrixE2eeStateService {
         requireActive(identity);
         requireBackup(identity, version);
         if (sessionId != null) { requiredPath(roomId); requiredPath(sessionId); }
-        var result = persistence.putBackupKeys(
-                identity.tenantId(), identity.userId(), version, roomId, sessionId, immutableObject(request));
-        if (result.count() > 100_000) {
-            throw new MatrixProtocolException("M_LIMIT_EXCEEDED", "The Matrix room-key backup limit was reached.");
-        }
+        var result = persistence.putBackupKeys(identity.tenantId(), identity.userId(), version, roomId, sessionId, request);
         return Map.of("count", result.count(), "etag", result.etag());
     }
 
@@ -372,14 +369,10 @@ public class MatrixE2eeStateService {
             String sessionId) {
         requireActive(identity);
         requireBackup(identity, version);
-        try {
-            return persistence.backupKeys(identity.tenantId(), identity.userId(), version, roomId, sessionId);
-        } catch (RuntimeException exception) {
-            throw new MatrixProtocolException("M_NOT_FOUND", "The Matrix room-key backup session was not found.");
-        }
+        return persistence.backupKeys(identity.tenantId(), identity.userId(), version, roomId, sessionId);
     }
 
-    public void deleteBackupKeys(
+    public Map<String, Object> deleteBackupKeys(
             MatrixFacadeClientStateService.MatrixIdentity identity,
             String version,
             String roomId,
@@ -387,6 +380,8 @@ public class MatrixE2eeStateService {
         requireActive(identity);
         requireBackup(identity, version);
         persistence.deleteBackupKeys(identity.tenantId(), identity.userId(), version, roomId, sessionId);
+        var current = persistence.backupVersion(identity.tenantId(), identity.userId(), version).orElseThrow();
+        return Map.of("count", current.count(), "etag", Long.toString(current.revision()));
     }
 
     public void putAccountData(
@@ -394,26 +389,20 @@ public class MatrixE2eeStateService {
             String eventType,
             Map<String, Object> content) {
         requireActive(identity);
-        persistence.putAccountData(
-                identity.tenantId(), identity.userId(),
-                requiredText(eventType, "account-data event type", 255),
-                immutableObject(content),
-                persistence.nextRevision(identity.tenantId()));
+        persistence.putAccountData(identity.tenantId(), identity.userId(), requiredText(eventType, "account data type", 255), immutableObject(content), persistence.nextRevision(identity.tenantId()));
     }
 
     public Map<String, Object> accountData(
             MatrixFacadeClientStateService.MatrixIdentity identity,
             String eventType) {
         requireActive(identity);
-        return persistence.accountData(
-                        identity.tenantId(), identity.userId(),
-                        requiredText(eventType, "account-data event type", 255))
+        return persistence.accountData(identity.tenantId(), identity.userId(), eventType)
                 .orElseThrow(() -> new MatrixProtocolException("M_NOT_FOUND", "The Matrix account-data event was not found."));
     }
 
-    public Map<String, Object> accountData(MatrixFacadeClientStateService.MatrixIdentity identity) {
+    public Map<String, Map<String, Object>> accountData(MatrixFacadeClientStateService.MatrixIdentity identity) {
         requireActive(identity);
-        return Map.copyOf(persistence.accountData(identity.tenantId(), identity.userId()));
+        return persistence.accountData(identity.tenantId(), identity.userId());
     }
 
     private void requireBackup(MatrixFacadeClientStateService.MatrixIdentity identity, String version) {
@@ -422,92 +411,85 @@ public class MatrixE2eeStateService {
         }
     }
 
+    private void putIfPresent(Map<String, Object> target, String userId, Map<String, Object> value) {
+        if (value != null && !value.isEmpty()) target.put(userId, value);
+    }
+
+    private String requireKeyId(String value) {
+        String key = requiredText(value, "key id", 320);
+        if (!key.contains(":")) throw new MatrixProtocolException("M_BAD_JSON", "The Matrix key id is invalid.");
+        return key;
+    }
+
     private Map<String, Object> validatedSigningKey(Object value, String userId, String usage) {
-        Map<String, Object> key = objectMap(value);
-        if (key.isEmpty()) return Map.of();
-        requireEquals(key.get("user_id"), userId, "cross-signing user");
-        if (!stringSet(key.get("usage")).contains(usage)) {
-            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix cross-signing usage is invalid.");
+        if (value == null) return Map.of();
+        Map<String, Object> key = immutableObject(objectMap(value));
+        requireEquals(key.get("user_id"), userId, usage + " signing key user");
+        Object usageValue = key.get("usage");
+        if (!(usageValue instanceof Collection<?> collection) || collection.stream().noneMatch(usage::equals)) {
+            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix signing key usage is invalid.");
         }
-        return immutableObject(key);
+        return key;
     }
 
     private void requireEquals(Object actual, String expected, String field) {
         if (!(actual instanceof String value) || !value.equals(expected)) {
-            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix " + field + " is invalid.");
+            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix " + field + " does not match the authenticated identity.");
         }
-    }
-
-    private String requiredText(Object raw, String field, int maxLength) {
-        if (!(raw instanceof String value) || value.isBlank() || value.length() > maxLength) {
-            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix " + field + " is invalid.");
-        }
-        return value;
-    }
-
-    private String requiredText(String raw, String field, int maxLength) {
-        return requiredText((Object) raw, field, maxLength);
     }
 
     private String requiredPath(String value) {
-        if (value == null || value.isBlank() || value.length() > 512) {
-            throw new MatrixProtocolException("M_INVALID_PARAM", "The Matrix backup path is invalid.");
+        String text = requiredText(value, "Matrix path segment", 512);
+        if (text.indexOf('/') >= 0 || text.indexOf('\0') >= 0) {
+            throw new MatrixProtocolException("M_INVALID_PARAM", "The Matrix path segment is invalid.");
         }
-        return value;
+        return text;
     }
 
-    private String requireKeyId(String keyId) {
-        if (keyId == null || keyId.isBlank() || keyId.length() > 320 || !keyId.contains(":")) {
-            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix key identifier is invalid.");
+    private String requiredText(Object value, String field, int max) {
+        if (!(value instanceof String text) || text.isBlank() || text.length() > max) {
+            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix " + field + " is invalid.");
         }
-        return keyId;
-    }
-
-    private void putIfPresent(Map<String, Object> target, String key, Map<String, Object> value) {
-        if (value != null && !value.isEmpty()) target.put(key, value);
-    }
-
-    private Map<String, Object> objectMap(Object value) {
-        if (value == null) return Map.of();
-        if (!(value instanceof Map<?, ?> map)) {
-            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix request object is invalid.");
-        }
-        Map<String, Object> result = new LinkedHashMap<>();
-        map.forEach((key, nested) -> {
-            if (!(key instanceof String text)) {
-                throw new MatrixProtocolException("M_BAD_JSON", "The Matrix request object key is invalid.");
-            }
-            result.put(text, nested);
-        });
-        return result;
+        return text;
     }
 
     private Set<String> stringSet(Object value) {
-        if (value == null) return Set.of();
-        if (!(value instanceof Collection<?> values)) {
-            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix string list is invalid.");
-        }
-        java.util.TreeSet<String> result = new java.util.TreeSet<>();
-        for (Object item : values) {
-            if (!(item instanceof String text) || text.isBlank()) {
-                throw new MatrixProtocolException("M_BAD_JSON", "The Matrix string list item is invalid.");
-            }
-            result.add(text);
-        }
+        if (!(value instanceof Collection<?> collection)) return Set.of();
+        java.util.LinkedHashSet<String> result = new java.util.LinkedHashSet<>();
+        for (Object item : collection) if (item instanceof String text && !text.isBlank()) result.add(text);
         return Set.copyOf(result);
     }
 
-    private Object immutableValue(Object value) {
-        if (value instanceof Map<?, ?>) return immutableObject(objectMap(value));
-        if (value instanceof Collection<?> values) return List.copyOf(values.stream().map(this::immutableValue).toList());
-        if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean) return value;
-        throw new MatrixProtocolException("M_BAD_JSON", "The Matrix request value is invalid.");
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> objectMap(Object value) {
+        if (value == null) return Map.of();
+        if (!(value instanceof Map<?, ?> map)) throw new MatrixProtocolException("M_BAD_JSON", "The Matrix request body must contain JSON objects.");
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (!(entry.getKey() instanceof String key)) throw new MatrixProtocolException("M_BAD_JSON", "The Matrix request object key is invalid.");
+            result.put(key, entry.getValue());
+        }
+        return result;
     }
 
     private Map<String, Object> immutableObject(Map<String, Object> value) {
+        if (value == null || value.isEmpty()) return Map.of();
         Map<String, Object> result = new LinkedHashMap<>();
         value.forEach((key, nested) -> result.put(key, immutableValue(nested)));
         return Map.copyOf(result);
+    }
+
+    private Object immutableValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> nested = new LinkedHashMap<>();
+            map.forEach((key, item) -> {
+                if (!(key instanceof String text)) throw new MatrixProtocolException("M_BAD_JSON", "The Matrix JSON object key is invalid.");
+                nested.put(text, immutableValue(item));
+            });
+            return Map.copyOf(nested);
+        }
+        if (value instanceof Collection<?> collection) return List.copyOf(collection.stream().map(this::immutableValue).toList());
+        return value;
     }
 
     public record SupportSafeToDeviceEvidence(
@@ -523,6 +505,7 @@ public class MatrixE2eeStateService {
             long transactionCount,
             long projectedEventCount,
             long syncResponseCount,
-            long currentSequence,
-            boolean supportSafe) {}
+            long latestSequence,
+            boolean supportSafe) {
+    }
 }
