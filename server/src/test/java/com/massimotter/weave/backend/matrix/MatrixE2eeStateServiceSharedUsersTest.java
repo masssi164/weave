@@ -17,7 +17,7 @@ class MatrixE2eeStateServiceSharedUsersTest {
         var peer = identity("@peer:api.weave.test", "WEAVEPEERDEVICE", "tenant-a");
 
         service.uploadKeys(peer, keyUpload(peer));
-        long cursorAfterPeerUpload = service.currentSequence();
+        long cursorAfterPeerUpload = service.currentSequence(observer);
 
         var firstSharedSync = service.sync(observer, cursorAfterPeerUpload, Set.of(peer.userId()));
         var retriedSharedSync = service.sync(observer, cursorAfterPeerUpload, Set.of(peer.userId()));
