@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.matrix;
 
-import com.massimotter.weave.backend.config.MatrixFacadeRuntimeProperties;
+import jakarta.annotation.PostConstruct;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,34 +17,25 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
     public static final String OIDC_GATEKEEPER = "spring-boot-resource-server";
     public static final String RUST_PROTOCOL_CORE = "ruma-serde-serde_json-thiserror-tracing";
     public static final String SERVER_JNI_BOUNDARY = "server-jni-wrapper";
-    public static final String FLUTTER_BRIDGE_BOUNDARY = "flutter-rust-bridge";
     public static final String NATIVE_LIBRARY = NativeMatrixCore.LIBRARY_NAME;
     public static final String NATIVE_METHOD = NativeMatrixCore.JNI_METHOD;
 
-    private static final TypeReference<Map<String, Object>> JSON_OBJECT = new TypeReference<>() {
-    };
+    private static final TypeReference<Map<String, Object>> JSON_OBJECT = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
     private final String serverName;
-    private final boolean facadeEnabled;
 
     @Autowired
     public MatrixProtocolCoreService(
             ObjectMapper objectMapper,
-            @Value("${weave.matrix.facade.server-name:api.weave.test}") String serverName,
-            MatrixFacadeRuntimeProperties runtimeProperties) {
-        this(objectMapper, serverName, runtimeProperties != null && runtimeProperties.enabled());
-    }
-
-    /** Test/fixture constructor: exercising the codec is an explicit enablement. */
-    public MatrixProtocolCoreService(ObjectMapper objectMapper, String serverName) {
-        this(objectMapper, serverName, true);
-    }
-
-    MatrixProtocolCoreService(ObjectMapper objectMapper, String serverName, boolean facadeEnabled) {
+            @Value("${weave.matrix.facade.server-name:api.weave.test}") String serverName) {
         this.objectMapper = objectMapper;
         this.serverName = requireText(serverName, "Matrix facade server name");
-        this.facadeEnabled = facadeEnabled;
+    }
+
+    @PostConstruct
+    void verifyRequiredProtocolRuntime() {
+        NativeMatrixCore.ensureLoaded();
     }
 
     public Map<String, Object> versions() {
@@ -218,10 +209,6 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
         return serverName;
     }
 
-    public boolean facadeEnabled() {
-        return facadeEnabled;
-    }
-
     @Override
     public Map<String, Object> project(MatrixProtocolOperation operation, String inputJson) {
         return project(operation, inputJson, true);
@@ -243,10 +230,6 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
         if (operation == null) {
             throw new IllegalArgumentException("Matrix protocol operation is required.");
         }
-        if (!facadeEnabled) {
-            throw new MatrixProtocolException(
-                    "M_UNRECOGNIZED", "The optional Weave Matrix Client-Server facade is disabled.");
-        }
         NativeMatrixCore.ensureLoaded();
         String output = NativeMatrixCore.projectJson(operation.wireName(), inputJson, serverName);
         return readOutput(output, rejectMatrixError);
@@ -258,128 +241,26 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             if (rejectMatrixError && response.get("errcode") instanceof String errcode) {
                 String message = response.get("error") instanceof String error
                         ? error
-                        : "The Matrix protocol core rejected the request.";
+                        : "Matrix protocol operation failed.";
                 throw new MatrixProtocolException(errcode, message);
             }
             return response;
+        } catch (MatrixProtocolException exception) {
+            throw exception;
         } catch (JacksonException exception) {
             throw new MatrixProtocolException(
-                    "M_WEAVE_MATRIX_CORE_ERROR",
-                    "The Rust/Ruma Matrix protocol core returned an invalid payload.");
+                    "M_WEAVE_MATRIX_CORE_ERROR", "Matrix protocol output could not be decoded.");
         }
     }
 
-    private static String requireText(String value, String field) {
+    private static String requireText(String value, String label) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(field + " must not be blank");
+            throw new IllegalArgumentException(label + " is required.");
         }
         return value.trim();
     }
 
-    public record CanonicalProjection(
-            String subject,
-            String cursor,
-            String since,
-            List<CanonicalConversation> conversations,
-            Map<String, Object> accountData,
-            List<Map<String, Object>> toDeviceEvents,
-            List<String> deviceListsChanged,
-            List<String> deviceListsLeft,
-            Map<String, Long> deviceOneTimeKeysCount,
-            List<String> deviceUnusedFallbackKeyTypes) {
-
-        public CanonicalProjection(
-                String subject,
-                String cursor,
-                String since,
-                List<CanonicalConversation> conversations,
-                Map<String, Object> accountData) {
-            this(subject, cursor, since, conversations, accountData,
-                    List.of(), List.of(), List.of(), Map.of(), List.of());
-        }
-
-        public CanonicalProjection {
-            subject = subject == null ? "" : subject;
-            cursor = cursor == null ? "" : cursor;
-            conversations = conversations == null ? List.of() : List.copyOf(conversations);
-            accountData = accountData == null ? Map.of() : Map.copyOf(accountData);
-            toDeviceEvents = toDeviceEvents == null ? List.of() : List.copyOf(toDeviceEvents);
-            deviceListsChanged = deviceListsChanged == null ? List.of() : List.copyOf(deviceListsChanged);
-            deviceListsLeft = deviceListsLeft == null ? List.of() : List.copyOf(deviceListsLeft);
-            deviceOneTimeKeysCount = deviceOneTimeKeysCount == null
-                    ? Map.of()
-                    : Map.copyOf(deviceOneTimeKeysCount);
-            deviceUnusedFallbackKeyTypes = deviceUnusedFallbackKeyTypes == null
-                    ? List.of()
-                    : List.copyOf(deviceUnusedFallbackKeyTypes);
-        }
-    }
-
-    public record MatrixSyncCrypto(
-            List<Map<String, Object>> toDeviceEvents,
-            List<String> deviceListsChanged,
-            List<String> deviceListsLeft,
-            Map<String, Long> oneTimeKeyCounts,
-            List<String> unusedFallbackKeyTypes,
-            long nextSequence) {
-
-        public MatrixSyncCrypto {
-            toDeviceEvents = toDeviceEvents == null ? List.of() : List.copyOf(toDeviceEvents);
-            deviceListsChanged = deviceListsChanged == null ? List.of() : List.copyOf(deviceListsChanged);
-            deviceListsLeft = deviceListsLeft == null ? List.of() : List.copyOf(deviceListsLeft);
-            oneTimeKeyCounts = oneTimeKeyCounts == null ? Map.of() : Map.copyOf(oneTimeKeyCounts);
-            unusedFallbackKeyTypes = unusedFallbackKeyTypes == null ? List.of() : List.copyOf(unusedFallbackKeyTypes);
-            if (nextSequence < 0) {
-                throw new IllegalArgumentException("Matrix E2EE sequence must not be negative.");
-            }
-        }
-
-        public static MatrixSyncCrypto empty() {
-            return new MatrixSyncCrypto(List.of(), List.of(), List.of(), Map.of(), List.of(), 0);
-        }
-    }
-
-    public record CanonicalConversation(
-            String conversationId,
-            String title,
-            long updatedAtEpochMillis,
-            long unreadCount,
-            String encryptionAlgorithm,
-            List<CanonicalMembership> memberships,
-            List<CanonicalMessage> messages) {
-
-        public CanonicalConversation {
-            memberships = memberships == null ? List.of() : List.copyOf(memberships);
-            messages = messages == null ? List.of() : List.copyOf(messages);
-            encryptionAlgorithm = encryptionAlgorithm == null || encryptionAlgorithm.isBlank()
-                    ? null
-                    : encryptionAlgorithm.trim();
-        }
-
-        public CanonicalConversation(
-                String conversationId,
-                String title,
-                long updatedAtEpochMillis,
-                long unreadCount,
-                List<CanonicalMembership> memberships,
-                List<CanonicalMessage> messages) {
-            this(conversationId, title, updatedAtEpochMillis, unreadCount,
-                    null, memberships, messages);
-        }
-
-        public CanonicalConversation(
-                String conversationId,
-                String title,
-                long updatedAtEpochMillis,
-                long unreadCount,
-                List<CanonicalMessage> messages) {
-            this(conversationId, title, updatedAtEpochMillis, unreadCount,
-                    null, List.of(), messages);
-        }
-    }
-
-    public record CanonicalMembership(String memberRef, String state) {
-    }
+    public record CanonicalMembership(String memberRef, String state) {}
 
     public record CanonicalMessage(
             String messageId,
@@ -397,15 +278,16 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             Map<String, Object> presentationExtensions,
             String deliveryState,
             Map<String, Object> encryptedContent,
-            boolean redacted) {
+            boolean redacted) {}
 
-        public CanonicalMessage {
-            presentationExtensions = presentationExtensions == null
-                    ? Map.of()
-                    : Map.copyOf(presentationExtensions);
-            encryptedContent = encryptedContent == null ? null : Map.copyOf(encryptedContent);
-        }
-    }
+    public record CanonicalConversation(
+            String conversationId,
+            String title,
+            long updatedAtEpochMillis,
+            long unreadCount,
+            String encryptionAlgorithm,
+            List<CanonicalMembership> memberships,
+            List<CanonicalMessage> messages) {}
 
     public record ParsedEventContent(
             String kind,
@@ -418,13 +300,48 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             String replyToEventId,
             String reactionKey,
             Map<String, Object> presentationExtensions,
-            Map<String, Object> encryptedContent) {
+            Map<String, Object> encryptedContent) {}
 
-        public ParsedEventContent {
-            presentationExtensions = presentationExtensions == null
-                    ? Map.of()
-                    : Map.copyOf(presentationExtensions);
-            encryptedContent = encryptedContent == null ? null : Map.copyOf(encryptedContent);
+    public record MatrixSyncCrypto(
+            List<Map<String, Object>> toDeviceEvents,
+            List<String> deviceListsChanged,
+            List<String> deviceListsLeft,
+            Map<String, Long> oneTimeKeyCounts,
+            List<String> unusedFallbackKeyTypes,
+            long nextSequence) {
+
+        public MatrixSyncCrypto {
+            toDeviceEvents = toDeviceEvents == null ? List.of() : List.copyOf(toDeviceEvents);
+            deviceListsChanged = deviceListsChanged == null ? List.of() : List.copyOf(deviceListsChanged);
+            deviceListsLeft = deviceListsLeft == null ? List.of() : List.copyOf(deviceListsLeft);
+            oneTimeKeyCounts = oneTimeKeyCounts == null ? Map.of() : Map.copyOf(oneTimeKeyCounts);
+            unusedFallbackKeyTypes = unusedFallbackKeyTypes == null ? List.of() : List.copyOf(unusedFallbackKeyTypes);
+        }
+
+        public static MatrixSyncCrypto empty() {
+            return new MatrixSyncCrypto(List.of(), List.of(), List.of(), Map.of(), List.of(), 0);
+        }
+    }
+
+    private record CanonicalProjection(
+            String subject,
+            String cursor,
+            String since,
+            List<CanonicalConversation> conversations,
+            Map<String, Object> accountData,
+            List<Map<String, Object>> toDeviceEvents,
+            List<String> deviceListsChanged,
+            List<String> deviceListsLeft,
+            Map<String, Long> deviceOneTimeKeysCount,
+            List<String> deviceUnusedFallbackKeyTypes) {
+
+        private CanonicalProjection(
+                String subject,
+                String cursor,
+                String since,
+                List<CanonicalConversation> conversations,
+                Map<String, Object> accountData) {
+            this(subject, cursor, since, conversations, accountData, List.of(), List.of(), List.of(), Map.of(), List.of());
         }
     }
 }
