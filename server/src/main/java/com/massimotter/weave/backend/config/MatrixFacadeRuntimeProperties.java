@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
  * Runtime selection for the optional northbound Matrix Client-Server facade.
@@ -10,7 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * a Matrix protocol edge, and enabling the Matrix edge does not select Synapse.
  */
 @ConfigurationProperties(prefix = "weave.chat.matrix-facade")
-public record MatrixFacadeRuntimeProperties(boolean enabled) {
+public record MatrixFacadeRuntimeProperties(@DefaultValue("true") boolean enabled) {
 
     public static final String ENABLED_PROPERTY = "weave.chat.matrix-facade.enabled";
 }
