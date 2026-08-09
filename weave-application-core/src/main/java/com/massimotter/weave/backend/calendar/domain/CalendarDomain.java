@@ -1,15 +1,18 @@
 package com.massimotter.weave.backend.calendar.domain;
 
-import java.time.Instant;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/** Provider-neutral canonical Calendar domain. */
 public final class CalendarDomain {
 
     private CalendarDomain() {
@@ -21,9 +24,18 @@ public final class CalendarDomain {
         CHANNEL
     }
 
+    public enum TemporalKind {
+        DATE,
+        FLOATING,
+        UTC,
+        ZONED
+    }
+
     public enum RecurrenceFrequency {
         DAILY,
-        WEEKLY
+        WEEKLY,
+        MONTHLY,
+        YEARLY
     }
 
     public enum WriteIntent {
@@ -50,6 +62,104 @@ public final class CalendarDomain {
 
         public static EventVersion unknown() {
             return new EventVersion(null);
+        }
+    }
+
+    /**
+     * Exact RFC5545 temporal semantics. Exactly one representation is populated.
+     * DATE has no clock/zone; FLOATING has a local clock and no zone; UTC is an
+     * instant; ZONED has a local clock plus an IANA TZID.
+     */
+    public record TemporalValue(
+            TemporalKind kind,
+            LocalDate date,
+            LocalDateTime localDateTime,
+            Instant instant,
+            ZoneId zoneId) {
+
+        public TemporalValue {
+            if (kind == null) {
+                throw new IllegalArgumentException("calendar temporal kind is required");
+            }
+            int values = (date == null ? 0 : 1)
+                    + (localDateTime == null ? 0 : 1)
+                    + (instant == null ? 0 : 1);
+            if (values != 1) {
+                throw new IllegalArgumentException("calendar temporal value requires exactly one value representation");
+            }
+            switch (kind) {
+                case DATE -> {
+                    if (date == null || zoneId != null) {
+                        throw new IllegalArgumentException("DATE must contain only a LocalDate");
+                    }
+                }
+                case FLOATING -> {
+                    if (localDateTime == null || zoneId != null) {
+                        throw new IllegalArgumentException("FLOATING must contain only a LocalDateTime");
+                    }
+                }
+                case UTC -> {
+                    if (instant == null || zoneId != null) {
+                        throw new IllegalArgumentException("UTC must contain only an Instant");
+                    }
+                }
+                case ZONED -> {
+                    if (localDateTime == null || zoneId == null || "Z".equals(zoneId.getId())) {
+                        throw new IllegalArgumentException("ZONED requires LocalDateTime and IANA TZID");
+                    }
+                }
+            }
+        }
+
+        public static TemporalValue date(LocalDate value) {
+            return new TemporalValue(TemporalKind.DATE, value, null, null, null);
+        }
+
+        public static TemporalValue floating(LocalDateTime value) {
+            return new TemporalValue(TemporalKind.FLOATING, null, value, null, null);
+        }
+
+        public static TemporalValue utc(Instant value) {
+            return new TemporalValue(TemporalKind.UTC, null, null, value, null);
+        }
+
+        public static TemporalValue zoned(LocalDateTime value, ZoneId zone) {
+            return new TemporalValue(TemporalKind.ZONED, null, value, null, zone);
+        }
+
+        public boolean dateOnly() {
+            return kind == TemporalKind.DATE;
+        }
+
+        public LocalDateTime localProjection() {
+            return switch (kind) {
+                case DATE -> date.atStartOfDay();
+                case FLOATING, ZONED -> localDateTime;
+                case UTC -> LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
+            };
+        }
+
+        public ZoneId compatibilityZone() {
+            return switch (kind) {
+                case ZONED -> zoneId;
+                case UTC -> ZoneOffset.UTC;
+                case DATE -> ZoneOffset.UTC;
+                case FLOATING -> null;
+            };
+        }
+
+        public Instant toInstant(ZoneId floatingInterpretation) {
+            return switch (kind) {
+                case DATE -> date.atStartOfDay(ZoneOffset.UTC).toInstant();
+                case UTC -> instant;
+                case ZONED -> localDateTime.atZone(zoneId).toInstant();
+                case FLOATING -> {
+                    if (floatingInterpretation == null) {
+                        throw new IllegalArgumentException("FLOATING values require an explicit interpretation zone");
+                    }
+                    yield localDateTime.atZone(floatingInterpretation).toInstant();
+                }
+            };
         }
     }
 
@@ -89,13 +199,31 @@ public final class CalendarDomain {
         }
     }
 
+    /** Product-profile recurrence. Parsed/validated by the iCal4j adapter. */
     public record RecurrenceSet(
             RecurrenceFrequency frequency,
             int interval,
             Integer count,
             ZonedDateTime until,
             List<ZonedDateTime> additionalDates,
-            List<ZonedDateTime> excludedDates) {
+            List<ZonedDateTime> excludedDates,
+            List<String> byDay,
+            List<Integer> byMonthDay,
+            List<Integer> byMonth,
+            List<Integer> bySetPos,
+            String weekStart) {
+
+        public RecurrenceSet(
+                RecurrenceFrequency frequency,
+                int interval,
+                Integer count,
+                ZonedDateTime until,
+                List<ZonedDateTime> additionalDates,
+                List<ZonedDateTime> excludedDates) {
+            this(frequency, interval, count, until, additionalDates, excludedDates,
+                    List.of(), List.of(), List.of(), List.of(), null);
+        }
+
         public RecurrenceSet {
             if (frequency == null) {
                 throw new IllegalArgumentException("recurrence frequency is required");
@@ -103,21 +231,63 @@ public final class CalendarDomain {
             if (interval < 1) {
                 throw new IllegalArgumentException("recurrence interval must be positive");
             }
-            if ((count == null) == (until == null)) {
-                throw new IllegalArgumentException("recurrence requires exactly one COUNT or UNTIL bound");
+            if (count != null && until != null) {
+                throw new IllegalArgumentException("recurrence cannot carry COUNT and UNTIL together");
             }
-            if (count != null && count < 1) {
-                throw new IllegalArgumentException("recurrence count must be positive");
-            }
-            if (count != null && count > 10_000) {
-                throw new IllegalArgumentException("recurrence count exceeds the expansion safety limit");
+            if (count != null && (count < 1 || count > 100_000)) {
+                throw new IllegalArgumentException("recurrence count is outside the supported range");
             }
             additionalDates = additionalDates == null ? List.of() : List.copyOf(additionalDates);
             excludedDates = excludedDates == null ? List.of() : List.copyOf(excludedDates);
+            byDay = byDay == null ? List.of() : byDay.stream().map(String::trim).filter(v -> !v.isEmpty()).toList();
+            byMonthDay = byMonthDay == null ? List.of() : List.copyOf(byMonthDay);
+            byMonth = byMonth == null ? List.of() : List.copyOf(byMonth);
+            bySetPos = bySetPos == null ? List.of() : List.copyOf(bySetPos);
+            weekStart = optionalText(weekStart);
+            if (byMonth.stream().anyMatch(value -> value < 1 || value > 12)) {
+                throw new IllegalArgumentException("BYMONTH value is invalid");
+            }
+            if (byMonthDay.stream().anyMatch(value -> value == 0 || value < -31 || value > 31)) {
+                throw new IllegalArgumentException("BYMONTHDAY value is invalid");
+            }
+            if (bySetPos.stream().anyMatch(value -> value == 0 || value < -366 || value > 366)) {
+                throw new IllegalArgumentException("BYSETPOS value is invalid");
+            }
         }
 
-        private int maximumOccurrences() {
-            return count == null ? 10_000 : count;
+        public String rrule() {
+            StringBuilder value = new StringBuilder("FREQ=").append(frequency.name());
+            if (interval != 1) value.append(";INTERVAL=").append(interval);
+            if (count != null) value.append(";COUNT=").append(count);
+            if (until != null) value.append(";UNTIL=").append(until.withZoneSameInstant(ZoneOffset.UTC)
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")));
+            if (!byDay.isEmpty()) value.append(";BYDAY=").append(String.join(",", byDay));
+            if (!byMonthDay.isEmpty()) value.append(";BYMONTHDAY=").append(joinIntegers(byMonthDay));
+            if (!byMonth.isEmpty()) value.append(";BYMONTH=").append(joinIntegers(byMonth));
+            if (!bySetPos.isEmpty()) value.append(";BYSETPOS=").append(joinIntegers(bySetPos));
+            if (weekStart != null) value.append(";WKST=").append(weekStart);
+            return value.toString();
+        }
+    }
+
+    public record RecurrenceOverride(
+            TemporalValue recurrenceId,
+            TemporalValue start,
+            TemporalValue end,
+            boolean cancelled,
+            String title,
+            String description,
+            String location) {
+        public RecurrenceOverride {
+            if (recurrenceId == null) {
+                throw new IllegalArgumentException("recurrence override id is required");
+            }
+            if (!cancelled && (start == null || end == null)) {
+                throw new IllegalArgumentException("moved recurrence override requires start and end");
+            }
+            title = optionalText(title);
+            description = optionalText(description);
+            location = optionalText(location);
         }
     }
 
@@ -135,64 +305,127 @@ public final class CalendarDomain {
             List<Attendee> attendees,
             RecurrenceSet recurrence,
             EventVersion version,
-            Instant updatedAt) {
+            Instant updatedAt,
+            TemporalValue startValue,
+            TemporalValue endValue,
+            List<RecurrenceOverride> overrides) {
+
+        /** Backward-compatible constructor for the previous ZONED/DATE model. */
+        public CalendarEvent(
+                CalendarId calendarId,
+                EventId id,
+                CalendarScope scope,
+                String title,
+                String description,
+                LocalDateTime localStart,
+                LocalDateTime localEnd,
+                ZoneId timezone,
+                boolean allDay,
+                String location,
+                List<Attendee> attendees,
+                RecurrenceSet recurrence,
+                EventVersion version,
+                Instant updatedAt) {
+            this(calendarId, id, scope, title, description, localStart, localEnd, timezone, allDay,
+                    location, attendees, recurrence, version, updatedAt,
+                    allDay ? TemporalValue.date(localStart.toLocalDate()) : TemporalValue.zoned(localStart, timezone),
+                    allDay ? TemporalValue.date(localEnd.toLocalDate()) : TemporalValue.zoned(localEnd, timezone),
+                    List.of());
+        }
+
+        /** Canonical constructor for exact temporal semantics. */
+        public CalendarEvent(
+                CalendarId calendarId,
+                EventId id,
+                CalendarScope scope,
+                String title,
+                String description,
+                TemporalValue start,
+                TemporalValue end,
+                String location,
+                List<Attendee> attendees,
+                RecurrenceSet recurrence,
+                List<RecurrenceOverride> overrides,
+                EventVersion version,
+                Instant updatedAt) {
+            this(calendarId, id, scope, title, description,
+                    start == null ? null : start.localProjection(),
+                    end == null ? null : end.localProjection(),
+                    compatibilityZone(start),
+                    start != null && start.kind() == TemporalKind.DATE,
+                    location, attendees, recurrence, version, updatedAt, start, end, overrides);
+        }
+
         public CalendarEvent {
-            if (calendarId == null || id == null || localStart == null || localEnd == null || timezone == null) {
-                throw new IllegalArgumentException("calendar, event, start, end, and timezone are required");
+            if (calendarId == null || id == null || startValue == null || endValue == null) {
+                throw new IllegalArgumentException("calendar, event, start, and end are required");
+            }
+            if (startValue.kind() != endValue.kind()
+                    || startValue.kind() == TemporalKind.ZONED
+                    && !startValue.zoneId().equals(endValue.zoneId())) {
+                throw new IllegalArgumentException("calendar start and end temporal semantics must match");
             }
             scope = scope == null ? CalendarScope.workspace() : scope;
             title = requireText(title, "event title");
             description = optionalText(description);
             location = optionalText(location);
             attendees = attendees == null ? List.of() : List.copyOf(attendees);
+            overrides = overrides == null ? List.of() : List.copyOf(overrides);
             version = version == null ? EventVersion.unknown() : version;
-            if (!localEnd.isAfter(localStart)) {
-                throw new IllegalArgumentException("event end must be after event start");
+            localStart = startValue.localProjection();
+            localEnd = endValue.localProjection();
+            timezone = compatibilityZone(startValue);
+            allDay = startValue.kind() == TemporalKind.DATE;
+            requireEndAfterStart(startValue, endValue);
+            for (RecurrenceOverride override : overrides) {
+                if (override.recurrenceId().kind() != startValue.kind()) {
+                    throw new IllegalArgumentException("RECURRENCE-ID temporal semantics must match DTSTART");
+                }
             }
         }
 
         public ZonedDateTime startsAt() {
-            return localStart.atZone(timezone);
+            return zoned(startValue);
         }
 
         public ZonedDateTime endsAt() {
-            return localEnd.atZone(timezone);
+            return zoned(endValue);
         }
 
+        /**
+         * Compatibility occurrence projection. Native production querying uses the
+         * injected RecurrenceEngine and never iterates from the series origin.
+         */
         public List<CalendarOccurrence> occurrences(Instant from, Instant to) {
             if (from == null || to == null || !to.isAfter(from)) {
                 throw new IllegalArgumentException("occurrence query end must be after start");
             }
-            Duration localDuration = Duration.between(localStart, localEnd);
-            Map<LocalDateTime, CalendarOccurrence> occurrences = new LinkedHashMap<>();
-            if (recurrence == null) {
-                addOccurrence(occurrences, localStart, localDuration);
-            } else {
+            if (startValue.kind() == TemporalKind.FLOATING) {
+                throw new IllegalArgumentException("FLOATING occurrence queries require an explicit interpretation zone");
+            }
+            Duration duration = Duration.between(startsAt().toInstant(), endsAt().toInstant());
+            Map<Instant, CalendarOccurrence> occurrences = new LinkedHashMap<>();
+            addOccurrence(occurrences, startsAt(), duration);
+            if (recurrence != null) {
+                // This compatibility path is intentionally bounded and used only by old callers.
+                ZonedDateTime candidate = startsAt();
                 int generated = 0;
-                LocalDateTime candidate = localStart;
-                while (generated < recurrence.maximumOccurrences()) {
-                    ZonedDateTime zonedCandidate = candidate.atZone(timezone);
-                    if (recurrence.until() != null && zonedCandidate.isAfter(recurrence.until())) {
-                        break;
-                    }
-                    addOccurrence(occurrences, candidate, localDuration);
-                    generated++;
+                while (generated++ < 10_000) {
                     candidate = switch (recurrence.frequency()) {
                         case DAILY -> candidate.plusDays(recurrence.interval());
                         case WEEKLY -> candidate.plusWeeks(recurrence.interval());
+                        case MONTHLY -> candidate.plusMonths(recurrence.interval());
+                        case YEARLY -> candidate.plusYears(recurrence.interval());
                     };
+                    if (recurrence.count() != null && generated >= recurrence.count()) break;
+                    if (recurrence.until() != null && candidate.isAfter(recurrence.until())) break;
+                    if (recurrence.count() == null && recurrence.until() == null && candidate.toInstant().isAfter(to)) break;
+                    addOccurrence(occurrences, candidate, duration);
                 }
-                if (recurrence.until() != null
-                        && !candidate.atZone(timezone).isAfter(recurrence.until())) {
-                    throw new IllegalArgumentException("recurrence expansion exceeds the safety limit");
-                }
-                recurrence.additionalDates().stream()
-                        .map(value -> value.withZoneSameInstant(timezone).toLocalDateTime())
-                        .forEach(value -> addOccurrence(occurrences, value, localDuration));
-                recurrence.excludedDates().stream()
-                        .map(value -> value.withZoneSameInstant(timezone).toLocalDateTime())
-                        .forEach(occurrences::remove);
+                recurrence.additionalDates().forEach(value -> addOccurrence(occurrences, value, duration));
+                recurrence.excludedDates().forEach(value -> occurrences.remove(value.toInstant()));
             }
+            applyOverrides(occurrences, duration);
             return occurrences.values().stream()
                     .filter(occurrence -> occurrence.start().toInstant().isBefore(to)
                             && occurrence.end().toInstant().isAfter(from))
@@ -200,13 +433,20 @@ public final class CalendarDomain {
                     .toList();
         }
 
-        private void addOccurrence(
-                Map<LocalDateTime, CalendarOccurrence> occurrences,
-                LocalDateTime occurrenceStart,
-                Duration localDuration) {
-            ZonedDateTime start = occurrenceStart.atZone(timezone);
-            ZonedDateTime end = occurrenceStart.plus(localDuration).atZone(timezone);
-            occurrences.put(occurrenceStart, new CalendarOccurrence(id, start, end));
+        private void applyOverrides(Map<Instant, CalendarOccurrence> occurrences, Duration duration) {
+            for (RecurrenceOverride override : overrides) {
+                Instant recurrenceInstant = override.recurrenceId().toInstant(timezone);
+                occurrences.remove(recurrenceInstant);
+                if (!override.cancelled()) {
+                    ZonedDateTime start = zoned(override.start());
+                    ZonedDateTime end = zoned(override.end());
+                    occurrences.put(start.toInstant(), new CalendarOccurrence(id, start, end));
+                }
+            }
+        }
+
+        private void addOccurrence(Map<Instant, CalendarOccurrence> occurrences, ZonedDateTime start, Duration duration) {
+            occurrences.put(start.toInstant(), new CalendarOccurrence(id, start, start.plus(duration)));
         }
     }
 
@@ -257,6 +497,38 @@ public final class CalendarDomain {
                 throw new IllegalArgumentException("calendar changes must carry the change-set sync token");
             }
         }
+    }
+
+    private static void requireEndAfterStart(TemporalValue start, TemporalValue end) {
+        switch (start.kind()) {
+            case DATE -> {
+                if (!end.date().isAfter(start.date())) throw new IllegalArgumentException("DATE DTEND must be exclusive and after DTSTART");
+            }
+            case FLOATING, ZONED -> {
+                if (!end.localDateTime().isAfter(start.localDateTime())) throw new IllegalArgumentException("event end must be after event start");
+            }
+            case UTC -> {
+                if (!end.instant().isAfter(start.instant())) throw new IllegalArgumentException("event end must be after event start");
+            }
+        }
+    }
+
+    private static ZonedDateTime zoned(TemporalValue value) {
+        return switch (value.kind()) {
+            case DATE -> value.date().atStartOfDay(ZoneOffset.UTC);
+            case UTC -> value.instant().atZone(ZoneOffset.UTC);
+            case ZONED -> value.localDateTime().atZone(value.zoneId());
+            case FLOATING -> throw new IllegalArgumentException("FLOATING values have no implicit zone");
+        };
+    }
+
+    private static ZoneId compatibilityZone(TemporalValue value) {
+        if (value == null) return null;
+        return value.compatibilityZone();
+    }
+
+    private static String joinIntegers(List<Integer> values) {
+        return values.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
     }
 
     private static String requireText(String value, String field) {
