@@ -5,7 +5,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
-/** Narrow, tenant-fenced immutable blob boundary for Weave-native Files. */
+/**
+ * Infrastructure Port for tenant-fenced immutable blob I/O used below Files provider adapters.
+ * Provider selection remains at {@link FilesProviderPort}; concrete storage libraries stay behind this boundary.
+ */
 public interface BlobStorePort {
 
     boolean configured();
