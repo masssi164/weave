@@ -1,0 +1,86 @@
+name: Native Collaboration Completion
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/native-collaboration-completion.yml'
+      - 'tools/native_collaboration_completion.py'
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.44.4'
+          channel: stable
+
+      - name: Apply complete native collaboration integration
+        run: |
+          set -euo pipefail
+          python3 tools/native_collaboration_completion.py
+          python3 tools/matrix_relational_cutover.py
+
+      - name: Structural authority gates
+        run: |
+          set -euo pipefail
+          grep -q 'org.apache.opendal.Operator' server/src/main/java/com/massimotter/weave/backend/service/files/FilesystemBlobStore.java
+          grep -q 'org.apache.opendal.Operator' server/src/main/java/com/massimotter/weave/backend/service/files/S3BlobStore.java
+          ! grep -q 'software.amazon.awssdk' server/src/main/java/com/massimotter/weave/backend/service/files/S3BlobStore.java
+          test -d rust/matrix-protocol
+          test -d rust/matrix-client
+          test ! -d rust/matrix-core
+          ! grep -R --line-number --exclude-dir=target -E 'matrix-sdk|matrix_sdk' rust/matrix-protocol
+          grep -q 'ruma = ' rust/matrix-protocol/Cargo.toml
+          grep -q 'libs.ical4j' server/gradle/scripts/java-and-dependencies.gradle
+          grep -q 'NativeCalendarRelationalStore' server/src/main/java/com/massimotter/weave/backend/calendar/adapter/NativeCalendarProviderAdapter.java
+          grep -q "cratePath: '../rust/matrix-client'" client/hook/build.dart
+
+      - name: Compile and focused Java tests
+        run: |
+          set -euo pipefail
+          ./gradlew :server:compileJava :server:test \
+            --tests 'com.massimotter.weave.backend.service.files.FilesystemBlobStoreTest' \
+            --tests 'com.massimotter.weave.backend.service.files.S3BlobStoreTest' \
+            --tests 'com.massimotter.weave.backend.service.calendar.*' \
+            --tests 'com.massimotter.weave.backend.calendar.*' \
+            --tests 'com.massimotter.weave.backend.matrix.*'
+
+      - name: Compile both isolated Rust responsibilities
+        run: |
+          set -euo pipefail
+          cargo test -p weave-matrix-protocol --all-features
+          cargo test -p weave-matrix-client --all-features
+
+      - name: Validate Flutter client crate wiring
+        working-directory: client
+        run: |
+          set -euo pipefail
+          flutter pub get
+          flutter analyze
+
+      - name: Commit complete integration
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'feat(native): complete OpenDAL Ruma iCal4j collaboration core'
+          git fetch origin ${{ github.head_ref }}
+          git rebase origin/${{ github.head_ref }}
+          git push origin HEAD:${{ github.head_ref }}
