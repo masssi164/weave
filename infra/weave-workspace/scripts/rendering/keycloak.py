@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 from compose_env import ComposeContext, ContractError, assert_revision, revision, specification_context
 from realm_renderer import MACHINE_KEY_PROJECTIONS, fresh_start_migration_bundle, pretty_json, project_realm, sha256_digest, validate_public_jwks
-from rendering.io import json_object, read_secret, runtime_directory, write
+from rendering.io import json_object, runtime_directory, write
 
 SECRET_REF_PATHS = {
     "secretref:keycloak/weave-backend-jwk": "keycloak-weave-backend-jwk.json",
@@ -123,28 +123,79 @@ def _desired(baseline: dict[str, object], overlay: dict[str, object]) -> dict[st
 def render_keycloak(context: ComposeContext) -> dict[str, object]:
     corpus_root, specification_commit = specification_context(context)
     baseline_path = corpus_root / "contracts/examples/keycloak-desired-state.valid.json"
+    migration_definition_source = context.root / "keycloak/migration-definition.json"
     baseline = json_object(baseline_path)
     assert_revision(baseline, baseline_path)
     baseline_revision = str(baseline["provenance"]["baselineRevision"])
     overlay = _overlay(context, baseline_revision)
     desired = _desired(baseline, overlay)
+
     public_keys: dict[str, dict[str, object]] = {}
     for secret_ref, (_private_name, public_name) in MACHINE_KEY_PROJECTIONS.items():
         path = context.generated_root / "keycloak/public-jwks" / public_name
         if path.is_symlink() or not path.is_file() or stat.S_IMODE(path.stat().st_mode) != 0o644:
             raise ContractError(f"public JWKS projection is unavailable: {path}")
         public_keys[secret_ref] = validate_public_jwks(json_object(path), owner=secret_ref)
+
     realm_payload = pretty_json(project_realm(desired, public_keys))
     rendered_digest = sha256_digest(realm_payload)
     migration_payload = pretty_json(fresh_start_migration_bundle(desired, rendered_digest))
     migration_digest = sha256_digest(migration_payload)
+    semantic_payload = baseline_path.read_bytes()
+    migration_definition_payload = migration_definition_source.read_bytes()
+    semantic_digest = sha256_digest(semantic_payload)
+    migration_definition_digest = sha256_digest(migration_definition_payload)
+    overlay_payload = json.dumps(overlay, indent=2, sort_keys=True).encode("utf-8") + b"\n"
+    overlay_digest = sha256_digest(overlay_payload)
+
     generated = context.generated_root
     runtime_owner = (int(context.env["WEAVE_RUNTIME_UID"]), int(context.env["WEAVE_RUNTIME_GID"]))
     runtime_directory(generated / "keycloak/import", runtime_owner)
-    write(generated / "keycloak/overlay.json", json.dumps(overlay, indent=2, sort_keys=True)+"\n", private=False)
+    runtime_directory(generated / "keycloak/migrations", runtime_owner)
+
+    write(generated / "keycloak/semantic-realm-source.json", semantic_payload, private=False)
+    write(generated / "keycloak/migration-definition.json", migration_definition_payload, private=False)
+    write(generated / "keycloak/overlay.json", overlay_payload, private=False)
     write(generated / "keycloak/desired-state.json", json.dumps(desired, indent=2, sort_keys=True)+"\n", private=False)
     write(generated / "keycloak/import/weave-realm.json", realm_payload, private=False)
     write(generated / "keycloak/migrations/fresh-start-v1.json", migration_payload, private=False)
+
+    migration_manifest = {
+        "schemaVersion": "weave.keycloak-realm-migration-manifest/v2",
+        "semanticRealmSourceDigest": semantic_digest,
+        "migrationDefinitionDigest": migration_definition_digest,
+        "renderedRealmDigest": rendered_digest,
+        "bundles": [{"digest": migration_digest, "path": "keycloak/migrations/fresh-start-v1.json"}],
+        "containsSecretValues": False,
+    }
+    write(generated / "keycloak/migrations/manifest.json", pretty_json(migration_manifest), private=False)
+
+    realm_identity = {
+        "semanticRealmSourceDigest": semantic_digest,
+        "migrationDefinitionDigest": migration_definition_digest,
+        "overlayDigest": overlay_digest,
+        "renderedRealmDigest": rendered_digest,
+    }
+    render_evidence = {
+        "schemaVersion": "weave.keycloak-environment-render-evidence/v1",
+        "environment": context.environment,
+        "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
+        "candidateCommit": context.env["WEAVE_CANDIDATE_COMMIT"],
+        "candidateManifestDigest": context.env["WEAVE_CANDIDATE_MANIFEST_DIGEST"],
+        "realmIdentity": realm_identity,
+        "semanticReadbackDigest": None,
+        "semanticReadbackVerified": False,
+        "supportSafe": True,
+        "containsSecretValues": False,
+    }
+    write(generated / "keycloak/realm-render-evidence.json", json.dumps(render_evidence, indent=2, sort_keys=True)+"\n", private=False)
+
     secret_index = {"schemaVersion":"weave.keycloak-secretref-index.v1","desiredStateRevision":desired["revision"],"entries":{key:str(context.secret_root/name) for key,name in sorted(SECRET_REF_PATHS.items()) if (context.secret_root/name).exists()}}
     write(generated / "keycloak/secretref-index.json", json.dumps(secret_index, indent=2, sort_keys=True)+"\n", private=True)
-    return {"specificationCommit":specification_commit,"baselineRevision":baseline_revision,"overlay":overlay,"desired":desired,"renderedRealmDigest":rendered_digest,"migrationBundleDigest":migration_digest}
+
+    return {
+        "specificationCommit": specification_commit,
+        "baselineRevision": baseline_revision,
+        "realmIdentity": realm_identity,
+        "migrationBundleDigest": migration_digest,
+    }
