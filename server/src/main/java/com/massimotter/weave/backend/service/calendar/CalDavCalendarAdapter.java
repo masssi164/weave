@@ -63,18 +63,11 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
                 new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine()));
     }
 
-    CalDavCalendarAdapter(
-            CalendarCalDavProperties properties,
-            HttpClient httpClient,
-            IcalendarMapper mapper) {
+    CalDavCalendarAdapter(CalendarCalDavProperties properties, HttpClient httpClient, IcalendarMapper mapper) {
         this(properties, httpClient, mapper, new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine()));
     }
 
-    CalDavCalendarAdapter(
-            CalendarCalDavProperties properties,
-            HttpClient httpClient,
-            IcalendarMapper mapper,
-            CalendarOccurrenceEngine occurrenceEngine) {
+    CalDavCalendarAdapter(CalendarCalDavProperties properties, HttpClient httpClient, IcalendarMapper mapper, CalendarOccurrenceEngine occurrenceEngine) {
         this.properties = properties;
         this.httpClient = httpClient;
         this.mapper = mapper;
@@ -147,7 +140,9 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
         if (response.statusCode() != HTTP_MULTI_STATUS && !isSuccess(response.statusCode())) throw mapStatus(response.statusCode(), "list-events", null);
         List<CalendarEvent> events = parseMultistatus(calendarId, resolvedScope, response.body());
         if (from == null || to == null) return events;
-        return events.stream().filter(event -> !occurrenceEngine.occurrences(event, from, to).isEmpty()).toList();
+        return events.stream()
+                .filter(event -> !occurrenceEngine.occurrences(event, from, to, properties.evaluationZone()).isEmpty())
+                .toList();
     }
 
     @Override
@@ -193,8 +188,8 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
     @Override
     public List<FreeBusyWindow> freeBusy(CalendarId calendarId, CalendarScope scope, Instant from, Instant to) {
         return query(calendarId, scope, from, to).stream()
-                .flatMap(event -> occurrenceEngine.occurrences(event, from, to).stream())
-                .map(occurrence -> new FreeBusyWindow(occurrence.start(), occurrence.end()))
+                .flatMap(event -> occurrenceEngine.occurrences(event, from, to, properties.evaluationZone()).stream())
+                .map(occurrence -> new FreeBusyWindow(occurrence.start().toInstant(), occurrence.end().toInstant()))
                 .sorted(java.util.Comparator.comparing(FreeBusyWindow::start))
                 .toList();
     }
