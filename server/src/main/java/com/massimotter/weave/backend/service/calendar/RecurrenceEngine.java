@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.service.calendar;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
@@ -16,6 +17,8 @@ public interface RecurrenceEngine {
             LocalDateTime from,
             LocalDateTime to,
             int maximumResults);
+
+    List<Instant> utc(String rrule, Instant seed, Instant from, Instant to, int maximumResults);
 
     List<ZonedDateTime> zoned(
             String rrule,
