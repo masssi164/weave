@@ -35,6 +35,39 @@ jobs:
           set -euo pipefail
           python3 tools/native_collaboration_completion.py
           python3 tools/matrix_relational_cutover.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('server/src/main/java/com/massimotter/weave/backend/service/files/FilesystemBlobStore.java')
+          s = p.read_text()
+          s = s.replace('private ApiErrorException map(RuntimeException error, String fallback)',
+                        'private ApiErrorException map(Throwable error, String fallback)')
+          p.write_text(s)
+
+          # Preserve the snapshot-aware package-private constructor used by focused
+          # Calendar tests while production gets the relational store injected.
+          p = Path('server/src/main/java/com/massimotter/weave/backend/calendar/adapter/NativeCalendarProviderAdapter.java')
+          s = p.read_text()
+          marker = '''    NativeCalendarProviderAdapter(
+            CalendarCollectionJpaRepository collections,
+            CalendarEventJpaRepository events,
+            CalendarChangeJpaRepository changes,
+            CalendarSnapshotChangeRepository snapshotChanges,
+            NativeCalendarRelationalStore relationalStore,
+            Clock clock) {'''
+          overload = '''    NativeCalendarProviderAdapter(
+            CalendarCollectionJpaRepository collections,
+            CalendarEventJpaRepository events,
+            CalendarChangeJpaRepository changes,
+            CalendarSnapshotChangeRepository snapshotChanges,
+            Clock clock) {
+        this(collections, events, changes, snapshotChanges, null, clock);
+    }
+
+'''
+          if marker in s and overload not in s:
+              s = s.replace(marker, overload + marker, 1)
+          p.write_text(s)
+          PY
 
       - name: Structural authority gates
         run: |
