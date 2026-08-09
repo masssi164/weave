@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/native-collaboration-qualification.yml'
       - 'server/gradle/tasks/native-runtime.gradle'
+      - 'server/src/test/java/com/massimotter/weave/backend/matrix/**'
       - 'tools/native_collaboration_completion.py'
       - 'tools/matrix_relational_cutover.py'
 
