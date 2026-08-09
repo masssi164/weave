@@ -81,7 +81,7 @@ class WeaveS3FilesAdapterMinioTest {
 
     @Test
     void performsRealWriteReadCopyMoveListAndDeleteThroughOpenDalAgainstMinio() {
-        assertThat(adapter.readiness().ready()).isTrue();
+        assertThat(adapter.readiness().available()).isTrue();
 
         adapter.createCollection(new FilePath("/Team"));
         adapter.createCollection(new FilePath("/Archive"));
