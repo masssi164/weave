@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.calendar.adapter;
 
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.Attendee;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceFrequency;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceOverride;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceSet;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.TemporalKind;
@@ -20,13 +21,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** PostgreSQL-normalized persistence and bounded recurrence projection for native Calendar. */
+/** PostgreSQL-normalized persistence and window-bounded iCal4j recurrence projection. */
 @Component
 public class NativeCalendarRelationalStore {
 
@@ -54,16 +54,11 @@ public class NativeCalendarRelationalStore {
 
     @Transactional
     public void delete(String calendarId, String scopeKey, String eventId) {
-        jdbc.update("delete from weave_calendar_event_overrides where calendar_id=? and scope_key=? and event_id=?",
-                calendarId, scopeKey, eventId);
-        jdbc.update("delete from weave_calendar_recurrence_dates where calendar_id=? and scope_key=? and event_id=?",
-                calendarId, scopeKey, eventId);
-        jdbc.update("delete from weave_calendar_recurrence_rules where calendar_id=? and scope_key=? and event_id=?",
-                calendarId, scopeKey, eventId);
-        jdbc.update("delete from weave_calendar_attendees where calendar_id=? and scope_key=? and event_id=?",
-                calendarId, scopeKey, eventId);
-        jdbc.update("delete from weave_calendar_event_temporals where calendar_id=? and scope_key=? and event_id=?",
-                calendarId, scopeKey, eventId);
+        jdbc.update("delete from weave_calendar_event_overrides where calendar_id=? and scope_key=? and event_id=?", calendarId, scopeKey, eventId);
+        jdbc.update("delete from weave_calendar_recurrence_dates where calendar_id=? and scope_key=? and event_id=?", calendarId, scopeKey, eventId);
+        jdbc.update("delete from weave_calendar_recurrence_rules where calendar_id=? and scope_key=? and event_id=?", calendarId, scopeKey, eventId);
+        jdbc.update("delete from weave_calendar_attendees where calendar_id=? and scope_key=? and event_id=?", calendarId, scopeKey, eventId);
+        jdbc.update("delete from weave_calendar_event_temporals where calendar_id=? and scope_key=? and event_id=?", calendarId, scopeKey, eventId);
     }
 
     @Transactional(readOnly = true)
@@ -77,15 +72,11 @@ public class NativeCalendarRelationalStore {
                 """,
                 (rs, ignored) -> new TemporalPair(
                         temporal(rs.getString("temporal_kind"), rs.getObject("start_date", LocalDate.class),
-                                rs.getObject("start_local", LocalDateTime.class), rs.getObject("start_instant", Instant.class),
-                                rs.getString("timezone_id")),
+                                rs.getObject("start_local", LocalDateTime.class), rs.getObject("start_instant", Instant.class), rs.getString("timezone_id")),
                         temporal(rs.getString("temporal_kind"), rs.getObject("end_date", LocalDate.class),
-                                rs.getObject("end_local", LocalDateTime.class), rs.getObject("end_instant", Instant.class),
-                                rs.getString("timezone_id"))),
+                                rs.getObject("end_local", LocalDateTime.class), rs.getObject("end_instant", Instant.class), rs.getString("timezone_id"))),
                 calendar, scopeKey, eventId);
-        if (temporal.isEmpty()) {
-            return fallback;
-        }
+        if (temporal.isEmpty()) return fallback;
         List<Attendee> attendees = jdbc.query(
                 """
                 select member_ref,display_name,address,attendee_role,response_state
@@ -103,45 +94,65 @@ public class NativeCalendarRelationalStore {
                 fallback.version(), fallback.updatedAt());
     }
 
-    /**
-     * PostgreSQL performs the first candidate cut. Recurrence is expanded only for
-     * rows returned here. ZONED/FLOATING rows stay SQL-selected by type because
-     * their local wall time cannot be compared to an Instant without applying a
-     * per-row TZID/explicit floating interpretation.
-     */
     @Transactional(readOnly = true)
     public List<String> candidateEventIds(
-            String calendarId, String scopeKey, Instant from, Instant to) {
+            String calendarId,
+            String scopeKey,
+            Instant from,
+            Instant to,
+            ZoneId evaluationZone) {
+        LocalDate fromDate = from.atZone(evaluationZone).toLocalDate();
+        LocalDate toDate = to.atZone(evaluationZone).toLocalDate();
+        LocalDateTime fromLocal = from.atZone(evaluationZone).toLocalDateTime();
+        LocalDateTime toLocal = to.atZone(evaluationZone).toLocalDateTime();
         return jdbc.query(
                 """
-                select e.event_id
+                select distinct e.event_id
                 from weave_calendar_events e
                 join weave_calendar_event_temporals t
                   on t.calendar_id=e.calendar_id and t.scope_key=e.scope_key and t.event_id=e.event_id
                 left join weave_calendar_recurrence_rules r
                   on r.calendar_id=e.calendar_id and r.scope_key=e.scope_key and r.event_id=e.event_id
+                left join weave_calendar_event_overrides o
+                  on o.calendar_id=e.calendar_id and o.scope_key=e.scope_key and o.event_id=e.event_id and o.cancelled=false
                 where e.calendar_id=? and e.scope_key=? and e.deleted=false
                   and (
                     r.event_id is not null
                     or (t.temporal_kind='UTC' and t.start_instant < ? and t.end_instant > ?)
                     or (t.temporal_kind='DATE' and t.start_date < ? and t.end_date > ?)
-                    or t.temporal_kind in ('ZONED','FLOATING')
+                    or (t.temporal_kind in ('ZONED','FLOATING') and t.start_local < ? and t.end_local > ?)
+                    or (o.start_instant is not null and o.start_instant < ? and o.end_instant > ?)
+                    or (o.start_date is not null and o.start_date < ? and o.end_date > ?)
+                    or (o.start_local is not null and o.start_local < ? and o.end_local > ?)
                   )
                 order by e.event_id
                 """,
                 (rs, ignored) -> rs.getString(1),
-                calendarId, scopeKey, to, from, to.atZone(ZoneOffset.UTC).toLocalDate(), from.atZone(ZoneOffset.UTC).toLocalDate());
+                calendarId, scopeKey,
+                to, from,
+                toDate, fromDate,
+                toLocal, fromLocal,
+                to, from,
+                toDate, fromDate,
+                toLocal, fromLocal);
+    }
+
+    /** Compatibility overload for existing callers; UTC is explicit rather than implicit in storage semantics. */
+    @Transactional(readOnly = true)
+    public List<String> candidateEventIds(String calendarId, String scopeKey, Instant from, Instant to) {
+        return candidateEventIds(calendarId, scopeKey, from, to, ZoneOffset.UTC);
     }
 
     @Transactional(readOnly = true)
-    public List<Occurrence> occurrences(CalendarEvent event, Instant from, Instant to) {
-        if (event.startValue().kind() == TemporalKind.FLOATING) {
-            throw new IllegalArgumentException(
-                    "FLOATING calendar events require an explicit interpretation zone for Instant-window queries");
-        }
+    public List<Occurrence> occurrences(
+            CalendarEvent event,
+            Instant from,
+            Instant to,
+            ZoneId evaluationZone) {
+        if (evaluationZone == null) throw new IllegalArgumentException("calendar evaluation zone is required");
         Map<String, Occurrence> result = new LinkedHashMap<>();
-        addMasterAndRecurrence(result, event, from, to);
-        applyOverrides(result, event);
+        addMasterAndRecurrence(result, event, from, to, evaluationZone);
+        applyOverrides(result, event, evaluationZone);
         return result.values().stream()
                 .filter(value -> value.start().isBefore(to) && value.end().isAfter(from))
                 .sorted(Comparator.comparing(Occurrence::start))
@@ -149,47 +160,92 @@ public class NativeCalendarRelationalStore {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<Occurrence> occurrences(CalendarEvent event, Instant from, Instant to) {
+        ZoneId zone = event.startValue().kind() == TemporalKind.ZONED
+                ? event.startValue().zoneId()
+                : ZoneOffset.UTC;
+        return occurrences(event, from, to, zone);
+    }
+
     private void addMasterAndRecurrence(
-            Map<String, Occurrence> result, CalendarEvent event, Instant from, Instant to) {
-        Instant masterStart = instant(event.startValue());
-        Instant masterEnd = instant(event.endValue());
-        Duration duration = Duration.between(masterStart, masterEnd);
+            Map<String, Occurrence> result,
+            CalendarEvent event,
+            Instant from,
+            Instant to,
+            ZoneId evaluationZone) {
+        Instant masterStart = event.startValue().toInstant(evaluationZone);
+        Instant masterEnd = event.endValue().toInstant(evaluationZone);
+        Duration exactDuration = Duration.between(masterStart, masterEnd);
         add(result, masterStart, masterEnd);
         RecurrenceSet recurrence = event.recurrence();
-        if (recurrence == null) {
-            return;
-        }
+        if (recurrence == null) return;
         String rrule = recurrence.rrule();
         switch (event.startValue().kind()) {
             case DATE -> recurrenceEngine.dates(
                             rrule,
                             event.startValue().date(),
-                            from.atZone(ZoneOffset.UTC).toLocalDate(),
-                            to.atZone(ZoneOffset.UTC).toLocalDate().plusDays(1),
+                            from.atZone(evaluationZone).toLocalDate(),
+                            to.atZone(evaluationZone).toLocalDate().plusDays(1),
                             MAX_OCCURRENCES)
-                    .forEach(date -> add(result,
-                            date.atStartOfDay(ZoneOffset.UTC).toInstant(),
-                            date.atStartOfDay(ZoneOffset.UTC).toInstant().plus(duration)));
+                    .forEach(date -> {
+                        Instant start = date.atStartOfDay(evaluationZone).toInstant();
+                        long days = java.time.temporal.ChronoUnit.DAYS.between(event.startValue().date(), event.endValue().date());
+                        Instant end = date.plusDays(days).atStartOfDay(evaluationZone).toInstant();
+                        add(result, start, end);
+                    });
+            case FLOATING -> recurrenceEngine.floating(
+                            rrule,
+                            event.startValue().localDateTime(),
+                            from.atZone(evaluationZone).toLocalDateTime(),
+                            to.atZone(evaluationZone).toLocalDateTime(),
+                            MAX_OCCURRENCES)
+                    .forEach(local -> add(result,
+                            local.atZone(evaluationZone).toInstant(),
+                            local.plus(java.time.Duration.between(event.startValue().localDateTime(), event.endValue().localDateTime()))
+                                    .atZone(evaluationZone).toInstant()));
             case UTC -> recurrenceEngine.utc(rrule, event.startValue().instant(), from, to, MAX_OCCURRENCES)
-                    .forEach(start -> add(result, start, start.plus(duration)));
+                    .forEach(start -> add(result, start, start.plus(exactDuration)));
             case ZONED -> {
                 ZoneId zone = event.startValue().zoneId();
                 ZonedDateTime seed = event.startValue().localDateTime().atZone(zone);
+                java.time.Duration localDuration = java.time.Duration.between(event.startValue().localDateTime(), event.endValue().localDateTime());
                 recurrenceEngine.zoned(rrule, seed, from.atZone(zone), to.atZone(zone), MAX_OCCURRENCES)
-                        .forEach(start -> add(result, start.toInstant(), start.toInstant().plus(duration)));
+                        .forEach(start -> add(result, start.toInstant(), start.toLocalDateTime().plus(localDuration).atZone(zone).toInstant()));
             }
-            case FLOATING -> throw new IllegalArgumentException("FLOATING recurrence requires an explicit zone");
         }
-        recurrence.additionalDates().forEach(value -> add(result, value.toInstant(), value.toInstant().plus(duration)));
-        recurrence.excludedDates().forEach(value -> result.remove(key(value.toInstant())));
+        recurrence.additionalDates().forEach(value -> {
+            Instant start = value.toInstant(evaluationZone);
+            add(result, start, occurrenceEnd(event, value, start, exactDuration, evaluationZone));
+        });
+        recurrence.excludedDates().forEach(value -> result.remove(key(value.toInstant(evaluationZone))));
     }
 
-    private void applyOverrides(Map<String, Occurrence> result, CalendarEvent event) {
+    private Instant occurrenceEnd(
+            CalendarEvent event,
+            TemporalValue occurrenceStart,
+            Instant projectedStart,
+            Duration exactDuration,
+            ZoneId evaluationZone) {
+        return switch (event.startValue().kind()) {
+            case DATE -> occurrenceStart.date()
+                    .plusDays(java.time.temporal.ChronoUnit.DAYS.between(event.startValue().date(), event.endValue().date()))
+                    .atStartOfDay(evaluationZone).toInstant();
+            case FLOATING -> occurrenceStart.localDateTime()
+                    .plus(Duration.between(event.startValue().localDateTime(), event.endValue().localDateTime()))
+                    .atZone(evaluationZone).toInstant();
+            case UTC -> projectedStart.plus(exactDuration);
+            case ZONED -> occurrenceStart.localDateTime()
+                    .plus(Duration.between(event.startValue().localDateTime(), event.endValue().localDateTime()))
+                    .atZone(event.startValue().zoneId()).toInstant();
+        };
+    }
+
+    private void applyOverrides(Map<String, Occurrence> result, CalendarEvent event, ZoneId evaluationZone) {
         for (RecurrenceOverride override : event.overrides()) {
-            Instant recurrenceId = instant(override.recurrenceId());
-            result.remove(key(recurrenceId));
+            result.remove(key(override.recurrenceId().toInstant(evaluationZone)));
             if (!override.cancelled()) {
-                add(result, instant(override.start()), instant(override.end()));
+                add(result, override.start().toInstant(evaluationZone), override.end().toInstant(evaluationZone));
             }
         }
     }
@@ -200,15 +256,6 @@ public class NativeCalendarRelationalStore {
 
     private String key(Instant value) {
         return value.toString();
-    }
-
-    private Instant instant(TemporalValue value) {
-        return switch (value.kind()) {
-            case DATE -> value.date().atStartOfDay(ZoneOffset.UTC).toInstant();
-            case UTC -> value.instant();
-            case ZONED -> value.localDateTime().atZone(value.zoneId()).toInstant();
-            case FLOATING -> throw new IllegalArgumentException("FLOATING value has no implicit Instant");
-        };
     }
 
     private void upsertTemporal(CalendarEvent event, String scopeKey) {
@@ -226,15 +273,13 @@ public class NativeCalendarRelationalStore {
                     end_instant=excluded.end_instant,timezone_id=excluded.timezone_id
                 """,
                 event.calendarId().value(), scopeKey, event.id().value(), start.kind().name(),
-                start.date(), end.date(), start.localDateTime(), end.localDateTime(), start.instant(), end.instant(),
-                start.zoneId() == null ? null : start.zoneId().getId());
+                start.date(), end.date(), start.localDateTime(), end.localDateTime(), start.instant(), end.instant(), zone(start));
     }
 
     private void replaceAttendees(CalendarEvent event, String scopeKey) {
         String calendar = event.calendarId().value();
         String id = event.id().value();
-        jdbc.update("delete from weave_calendar_attendees where calendar_id=? and scope_key=? and event_id=?",
-                calendar, scopeKey, id);
+        jdbc.update("delete from weave_calendar_attendees where calendar_id=? and scope_key=? and event_id=?", calendar, scopeKey, id);
         int ordinal = 0;
         for (Attendee attendee : event.attendees()) {
             jdbc.update(
@@ -243,18 +288,15 @@ public class NativeCalendarRelationalStore {
                         calendar_id,scope_key,event_id,ordinal,member_ref,display_name,address,attendee_role,response_state)
                     values (?,?,?,?,?,?,?,?,?)
                     """,
-                    calendar, scopeKey, id, ordinal++, attendee.memberRef(), attendee.displayName(), attendee.address(),
-                    attendee.role(), attendee.response());
+                    calendar, scopeKey, id, ordinal++, attendee.memberRef(), attendee.displayName(), attendee.address(), attendee.role(), attendee.response());
         }
     }
 
     private void replaceRecurrence(CalendarEvent event, String scopeKey) {
         String calendar = event.calendarId().value();
         String id = event.id().value();
-        jdbc.update("delete from weave_calendar_recurrence_dates where calendar_id=? and scope_key=? and event_id=?",
-                calendar, scopeKey, id);
-        jdbc.update("delete from weave_calendar_recurrence_rules where calendar_id=? and scope_key=? and event_id=?",
-                calendar, scopeKey, id);
+        jdbc.update("delete from weave_calendar_recurrence_dates where calendar_id=? and scope_key=? and event_id=?", calendar, scopeKey, id);
+        jdbc.update("delete from weave_calendar_recurrence_rules where calendar_id=? and scope_key=? and event_id=?", calendar, scopeKey, id);
         RecurrenceSet recurrence = event.recurrence();
         if (recurrence == null) return;
         jdbc.update(
@@ -268,34 +310,33 @@ public class NativeCalendarRelationalStore {
                 recurrence.until() == null ? null : recurrence.until().toLocalDateTime(),
                 recurrence.until() == null ? null : recurrence.until().toInstant(),
                 recurrence.until() == null ? null : recurrence.until().getZone().getId(),
-                csv(recurrence.byDay()), csv(recurrence.byMonthDay()), csv(recurrence.byMonth()),
-                csv(recurrence.bySetPos()), recurrence.weekStart());
-        int rdate = 0;
-        for (ZonedDateTime value : recurrence.additionalDates()) {
-            saveRecurrenceDate(calendar, scopeKey, id, "RDATE", rdate++, value);
-        }
-        int exdate = 0;
-        for (ZonedDateTime value : recurrence.excludedDates()) {
-            saveRecurrenceDate(calendar, scopeKey, id, "EXDATE", exdate++, value);
-        }
+                csv(recurrence.byDay()), csv(recurrence.byMonthDay()), csv(recurrence.byMonth()), csv(recurrence.bySetPos()), recurrence.weekStart());
+        int ordinal = 0;
+        for (TemporalValue value : recurrence.additionalDates()) saveRecurrenceDate(calendar, scopeKey, id, "RDATE", ordinal++, value);
+        ordinal = 0;
+        for (TemporalValue value : recurrence.excludedDates()) saveRecurrenceDate(calendar, scopeKey, id, "EXDATE", ordinal++, value);
     }
 
     private void saveRecurrenceDate(
-            String calendar, String scopeKey, String id, String type, int ordinal, ZonedDateTime value) {
+            String calendar,
+            String scopeKey,
+            String id,
+            String type,
+            int ordinal,
+            TemporalValue value) {
         jdbc.update(
                 """
                 insert into weave_calendar_recurrence_dates(
-                    calendar_id,scope_key,event_id,recurrence_type,ordinal,temporal_kind,local_value,timezone_id)
-                values (?,?,?,?,?,'ZONED',?,?)
+                    calendar_id,scope_key,event_id,recurrence_type,ordinal,temporal_kind,date_value,local_value,instant_value,timezone_id)
+                values (?,?,?,?,?,?,?,?,?,?)
                 """,
-                calendar, scopeKey, id, type, ordinal, value.toLocalDateTime(), value.getZone().getId());
+                calendar, scopeKey, id, type, ordinal, value.kind().name(), value.date(), value.localDateTime(), value.instant(), zone(value));
     }
 
     private void replaceOverrides(CalendarEvent event, String scopeKey) {
         String calendar = event.calendarId().value();
         String id = event.id().value();
-        jdbc.update("delete from weave_calendar_event_overrides where calendar_id=? and scope_key=? and event_id=?",
-                calendar, scopeKey, id);
+        jdbc.update("delete from weave_calendar_event_overrides where calendar_id=? and scope_key=? and event_id=?", calendar, scopeKey, id);
         for (RecurrenceOverride override : event.overrides()) {
             TemporalValue recurrenceId = override.recurrenceId();
             TemporalValue start = override.start();
@@ -318,8 +359,7 @@ public class NativeCalendarRelationalStore {
         }
     }
 
-    private RecurrenceSet loadRecurrence(
-            String calendar, String scopeKey, String eventId, RecurrenceSet fallback) {
+    private RecurrenceSet loadRecurrence(String calendar, String scopeKey, String eventId, RecurrenceSet fallback) {
         List<RuleRow> rows = jdbc.query(
                 """
                 select frequency,interval_value,count_value,until_local,until_instant,until_timezone_id,
@@ -334,52 +374,52 @@ public class NativeCalendarRelationalStore {
                 calendar, scopeKey, eventId);
         if (rows.isEmpty()) return fallback;
         RuleRow row = rows.getFirst();
-        List<ZonedDateTime> rdates = recurrenceDates(calendar, scopeKey, eventId, "RDATE");
-        List<ZonedDateTime> exdates = recurrenceDates(calendar, scopeKey, eventId, "EXDATE");
-        ZonedDateTime until = row.untilInstant() != null
-                ? row.untilInstant().atZone(ZoneOffset.UTC)
-                : row.untilLocal() == null ? null : row.untilLocal().atZone(ZoneId.of(row.untilZone()));
+        List<TemporalValue> rdates = loadRecurrenceDates(calendar, scopeKey, eventId, "RDATE");
+        List<TemporalValue> exdates = loadRecurrenceDates(calendar, scopeKey, eventId, "EXDATE");
+        ZonedDateTime until = row.untilInstant != null
+                ? row.untilInstant.atZone(row.untilZone == null ? ZoneOffset.UTC : ZoneId.of(row.untilZone))
+                : row.untilLocal == null ? null : row.untilLocal.atZone(row.untilZone == null ? ZoneOffset.UTC : ZoneId.of(row.untilZone));
         return new RecurrenceSet(
-                com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceFrequency.valueOf(row.frequency()),
-                row.interval(), row.count(), until, rdates, exdates,
-                strings(row.byDay()), integers(row.byMonthDay()), integers(row.byMonth()), integers(row.bySetPos()), row.weekStart());
+                RecurrenceFrequency.valueOf(row.frequency), row.interval, row.count, until,
+                rdates, exdates,
+                strings(row.byDay), integers(row.byMonthDay), integers(row.byMonth), integers(row.bySetPos), row.weekStart);
     }
 
-    private List<ZonedDateTime> recurrenceDates(String calendar, String scopeKey, String eventId, String type) {
+    private List<TemporalValue> loadRecurrenceDates(String calendar, String scopeKey, String eventId, String type) {
         return jdbc.query(
                 """
-                select local_value,timezone_id from weave_calendar_recurrence_dates
-                where calendar_id=? and scope_key=? and event_id=? and recurrence_type=? order by ordinal
+                select temporal_kind,date_value,local_value,instant_value,timezone_id
+                from weave_calendar_recurrence_dates
+                where calendar_id=? and scope_key=? and event_id=? and recurrence_type=?
+                order by ordinal
                 """,
-                (rs, ignored) -> rs.getObject(1, LocalDateTime.class).atZone(ZoneId.of(rs.getString(2))),
+                (rs, ignored) -> temporal(
+                        rs.getString(1), rs.getObject(2, LocalDate.class), rs.getObject(3, LocalDateTime.class),
+                        rs.getObject(4, Instant.class), rs.getString(5)),
                 calendar, scopeKey, eventId, type);
     }
 
     private List<RecurrenceOverride> loadOverrides(String calendar, String scopeKey, String eventId) {
         return jdbc.query(
                 """
-                select temporal_kind,recurrence_date,recurrence_local,recurrence_instant,recurrence_timezone_id,
-                       cancelled,start_date,end_date,start_local,end_local,start_instant,end_instant,timezone_id,
-                       title,description,location
+                select temporal_kind,recurrence_date,recurrence_local,recurrence_instant,recurrence_timezone_id,cancelled,
+                       start_date,end_date,start_local,end_local,start_instant,end_instant,timezone_id,title,description,location
                 from weave_calendar_event_overrides
                 where calendar_id=? and scope_key=? and event_id=? order by recurrence_id_key
                 """,
                 (rs, ignored) -> {
-                    String kind = rs.getString(1);
-                    TemporalValue recurrenceId = temporal(kind, rs.getObject(2, LocalDate.class),
-                            rs.getObject(3, LocalDateTime.class), rs.getObject(4, Instant.class), rs.getString(5));
+                    TemporalKind kind = TemporalKind.valueOf(rs.getString(1));
+                    TemporalValue recurrenceId = temporal(kind.name(), rs.getObject(2, LocalDate.class), rs.getObject(3, LocalDateTime.class), rs.getObject(4, Instant.class), rs.getString(5));
                     boolean cancelled = rs.getBoolean(6);
-                    TemporalValue start = cancelled ? null : temporal(kind, rs.getObject(7, LocalDate.class),
-                            rs.getObject(9, LocalDateTime.class), rs.getObject(11, Instant.class), rs.getString(13));
-                    TemporalValue end = cancelled ? null : temporal(kind, rs.getObject(8, LocalDate.class),
-                            rs.getObject(10, LocalDateTime.class), rs.getObject(12, Instant.class), rs.getString(13));
+                    TemporalValue start = cancelled ? null : temporal(kind.name(), rs.getObject(7, LocalDate.class), rs.getObject(9, LocalDateTime.class), rs.getObject(11, Instant.class), rs.getString(13));
+                    TemporalValue end = cancelled ? null : temporal(kind.name(), rs.getObject(8, LocalDate.class), rs.getObject(10, LocalDateTime.class), rs.getObject(12, Instant.class), rs.getString(13));
                     return new RecurrenceOverride(recurrenceId, start, end, cancelled, rs.getString(14), rs.getString(15), rs.getString(16));
                 },
                 calendar, scopeKey, eventId);
     }
 
-    private TemporalValue temporal(String kind, LocalDate date, LocalDateTime local, Instant instant, String zone) {
-        return switch (TemporalKind.valueOf(kind)) {
+    private TemporalValue temporal(String kindName, LocalDate date, LocalDateTime local, Instant instant, String zone) {
+        return switch (TemporalKind.valueOf(kindName)) {
             case DATE -> TemporalValue.date(date);
             case FLOATING -> TemporalValue.floating(local);
             case UTC -> TemporalValue.utc(instant);
@@ -388,16 +428,16 @@ public class NativeCalendarRelationalStore {
     }
 
     private String recurrenceKey(TemporalValue value) {
-        return switch (value.kind()) {
-            case DATE -> "D:" + value.date();
-            case FLOATING -> "F:" + value.localDateTime();
-            case UTC -> "U:" + value.instant();
-            case ZONED -> "Z:" + value.zoneId().getId() + ":" + value.localDateTime();
+        return value.kind().name() + ':' + switch (value.kind()) {
+            case DATE -> value.date().toString();
+            case FLOATING -> value.localDateTime().toString();
+            case UTC -> value.instant().toString();
+            case ZONED -> value.localDateTime() + "[" + value.zoneId().getId() + "]";
         };
     }
 
     private String zone(TemporalValue value) {
-        return value.zoneId() == null ? null : value.zoneId().getId();
+        return value == null || value.zoneId() == null ? null : value.zoneId().getId();
     }
 
     private String csv(List<?> values) {
@@ -411,7 +451,7 @@ public class NativeCalendarRelationalStore {
     private List<Integer> integers(String value) {
         if (value == null || value.isBlank()) return List.of();
         List<Integer> result = new ArrayList<>();
-        for (String item : value.split(",")) result.add(Integer.valueOf(item));
+        for (String item : value.split(",")) result.add(Integer.parseInt(item));
         return List.copyOf(result);
     }
 
