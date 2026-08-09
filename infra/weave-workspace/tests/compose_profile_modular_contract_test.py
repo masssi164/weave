@@ -66,8 +66,9 @@ def main() -> int:
         "SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}"
     ) == 3
     assert "/backend/public.env" not in compose_source
+    assert "/backend/host.env" not in compose_source
     assert "/mcp/public.env" not in compose_source
-    assert "env_file:\n      - ${WEAVE_GENERATED_ROOT" not in compose_source
+    assert "/mcp/host.env" not in compose_source
 
     for profile in ("dev", "dogfood", "e2e", "prod"):
         assert_spring_profile_contract(profile)
