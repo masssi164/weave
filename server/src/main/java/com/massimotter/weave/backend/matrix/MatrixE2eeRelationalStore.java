@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
@@ -145,7 +146,7 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
         Map<String, Long> counts = new LinkedHashMap<>();
         jdbc.query(
                 "select algorithm,count(*) from weave_matrix_one_time_keys where tenant_id=? and user_id=? and device_id=? group by algorithm order by algorithm",
-                rs -> counts.put(rs.getString(1), rs.getLong(2)),
+                (RowCallbackHandler) rs -> counts.put(rs.getString(1), rs.getLong(2)),
                 tenantId, userId, deviceId);
         return Map.copyOf(counts);
     }
@@ -201,7 +202,7 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
         Map<String, Map<String, Object>> values = new LinkedHashMap<>();
         jdbc.query(
                 "select usage,key_json from weave_matrix_cross_signing_keys where tenant_id=? and user_id=? order by usage",
-                rs -> values.put(rs.getString(1), readObject(rs.getString(2))),
+                (RowCallbackHandler) rs -> values.put(rs.getString(1), readObject(rs.getString(2))),
                 tenantId, userId);
         if (values.isEmpty()) return Optional.empty();
         return Optional.of(new CrossSigningRecord(
@@ -363,7 +364,7 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
                 where tenant_id=? and user_id=? and device_id=? and changed_revision>? and changed_revision<=?
                 order by changed_revision,shared_user_id
                 """,
-                rs -> result.put(rs.getString(1), new DeviceListState(rs.getBoolean(2), rs.getLong(3))),
+                (RowCallbackHandler) rs -> result.put(rs.getString(1), new DeviceListState(rs.getBoolean(2), rs.getLong(3))),
                 tenantId, userId, deviceId, afterRevision, highWater);
         return Map.copyOf(result);
     }
@@ -482,7 +483,7 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
         }
         jdbc.update("update weave_matrix_key_backup_versions set revision=revision+1 where tenant_id=? and user_id=? and version_id=?", tenantId, userId, parsed);
         BackupVersionRecord record = backupVersion(tenantId, userId, version).orElseThrow();
-        return new BackupMutationResult(record.count(), Long.toString(record.revision()));
+        return new BackupMutationResult(record.sessionCount(), writeJson(record.authData()).hashCode());
     }
 
     @Override
@@ -492,66 +493,60 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
         if (sessionId != null) {
             return jdbc.query(
                     "select payload_json from weave_matrix_key_backup_sessions where tenant_id=? and user_id=? and version_id=? and room_id=? and session_id=?",
-                    (rs, ignored) -> readObject(rs.getString(1)), tenantId, userId, parsed, roomId, sessionId)
-                    .stream().findFirst().orElseThrow();
+                    (rs, ignored) -> readObject(rs.getString(1)), tenantId, userId, parsed, roomId, sessionId).stream().findFirst().orElse(Map.of());
         }
         if (roomId != null) {
             Map<String, Object> sessions = new LinkedHashMap<>();
             jdbc.query("select session_id,payload_json from weave_matrix_key_backup_sessions where tenant_id=? and user_id=? and version_id=? and room_id=? order by session_id",
-                    rs -> sessions.put(rs.getString(1), readObject(rs.getString(2))), tenantId, userId, parsed, roomId);
+                    (RowCallbackHandler) rs -> sessions.put(rs.getString(1), readObject(rs.getString(2))), tenantId, userId, parsed, roomId);
             return Map.of("sessions", Map.copyOf(sessions));
         }
         Map<String, Map<String, Object>> rooms = new LinkedHashMap<>();
         jdbc.query("select room_id,session_id,payload_json from weave_matrix_key_backup_sessions where tenant_id=? and user_id=? and version_id=? order by room_id,session_id",
-                rs -> rooms.computeIfAbsent(rs.getString(1), ignored -> new LinkedHashMap<>())
+                (RowCallbackHandler) rs -> rooms.computeIfAbsent(rs.getString(1), ignored -> new LinkedHashMap<>())
                         .put(rs.getString(2), readObject(rs.getString(3))), tenantId, userId, parsed);
-        Map<String, Object> projected = new LinkedHashMap<>();
-        rooms.forEach((room, sessions) -> projected.put(room, Map.of("sessions", Map.copyOf(sessions))));
-        return Map.of("rooms", Map.copyOf(projected));
+        Map<String, Object> result = new LinkedHashMap<>();
+        rooms.forEach((room, sessions) -> result.put(room, Map.of("sessions", Map.copyOf(sessions))));
+        return Map.of("rooms", Map.copyOf(result));
     }
 
     @Override
     @Transactional
-    public void deleteBackupKeys(String tenantId, String userId, String version, String roomId, String sessionId) {
+    public boolean deleteBackupKeys(String tenantId, String userId, String version, String roomId, String sessionId) {
         long parsed = Long.parseLong(version);
+        int deleted;
         if (sessionId != null) {
-            jdbc.update("delete from weave_matrix_key_backup_sessions where tenant_id=? and user_id=? and version_id=? and room_id=? and session_id=?",
+            deleted = jdbc.update("delete from weave_matrix_key_backup_sessions where tenant_id=? and user_id=? and version_id=? and room_id=? and session_id=?",
                     tenantId, userId, parsed, roomId, sessionId);
         } else if (roomId != null) {
-            jdbc.update("delete from weave_matrix_key_backup_sessions where tenant_id=? and user_id=? and version_id=? and room_id=?",
+            deleted = jdbc.update("delete from weave_matrix_key_backup_sessions where tenant_id=? and user_id=? and version_id=? and room_id=?",
                     tenantId, userId, parsed, roomId);
         } else {
-            jdbc.update("delete from weave_matrix_key_backup_sessions where tenant_id=? and user_id=? and version_id=?", tenantId, userId, parsed);
+            deleted = jdbc.update("delete from weave_matrix_key_backup_sessions where tenant_id=? and user_id=? and version_id=?", tenantId, userId, parsed);
         }
-        jdbc.update("update weave_matrix_key_backup_versions set revision=revision+1 where tenant_id=? and user_id=? and version_id=?", tenantId, userId, parsed);
+        if (deleted > 0) jdbc.update("update weave_matrix_key_backup_versions set revision=revision+1 where tenant_id=? and user_id=? and version_id=?", tenantId, userId, parsed);
+        return deleted > 0;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> accountData(String tenantId, String userId) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        jdbc.query("select event_type,content_json from weave_matrix_account_data where tenant_id=? and user_id=? order by event_type",
+                (RowCallbackHandler) rs -> result.put(rs.getString(1), readValue(rs.getString(2))), tenantId, userId);
+        return Map.copyOf(result);
     }
 
     @Override
     @Transactional
-    public void putAccountData(String tenantId, String userId, String eventType, Map<String, Object> content, long revision) {
+    public void putAccountData(String tenantId, String userId, String eventType, Object content, long changedRevision) {
         jdbc.update(
                 """
                 insert into weave_matrix_account_data(tenant_id,user_id,event_type,content_json,changed_revision)
                 values (?,?,?,?,?)
                 on conflict (tenant_id,user_id,event_type) do update set content_json=excluded.content_json,changed_revision=excluded.changed_revision
                 """,
-                tenantId, userId, eventType, writeJson(content), revision);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Optional<Map<String, Object>> accountData(String tenantId, String userId, String eventType) {
-        return jdbc.query("select content_json from weave_matrix_account_data where tenant_id=? and user_id=? and event_type=?",
-                (rs, ignored) -> readObject(rs.getString(1)), tenantId, userId, eventType).stream().findFirst();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Map<String, Map<String, Object>> accountData(String tenantId, String userId) {
-        Map<String, Map<String, Object>> values = new LinkedHashMap<>();
-        jdbc.query("select event_type,content_json from weave_matrix_account_data where tenant_id=? and user_id=? order by event_type",
-                rs -> values.put(rs.getString(1), readObject(rs.getString(2))), tenantId, userId);
-        return Map.copyOf(values);
+                tenantId, userId, eventType, writeJson(content), changedRevision);
     }
 
     @Override
