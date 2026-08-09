@@ -38,13 +38,8 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
         NativeMatrixCore.ensureLoaded();
     }
 
-    public Map<String, Object> versions() {
-        return project(MatrixProtocolOperation.VERSIONS, Map.of());
-    }
-
-    public Map<String, Object> descriptor() {
-        return project(MatrixProtocolOperation.DESCRIPTOR, Map.of());
-    }
+    public Map<String, Object> versions() { return project(MatrixProtocolOperation.VERSIONS, Map.of()); }
+    public Map<String, Object> descriptor() { return project(MatrixProtocolOperation.DESCRIPTOR, Map.of()); }
 
     public Map<String, Object> whoami(String subject, String deviceId) {
         return project(MatrixProtocolOperation.WHOAMI, Map.of(
@@ -65,7 +60,7 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             String cursor,
             String since,
             List<CanonicalConversation> conversations,
-            Map<String, Object> accountData) {
+            Map<String, Map<String, Object>> accountData) {
         return sync(subject, cursor, since, conversations, accountData, MatrixSyncCrypto.empty());
     }
 
@@ -74,7 +69,7 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             String cursor,
             String since,
             List<CanonicalConversation> conversations,
-            Map<String, Object> accountData,
+            Map<String, Map<String, Object>> accountData,
             MatrixSyncCrypto crypto) {
         return project(MatrixProtocolOperation.SYNC, new CanonicalProjection(
                 subject,
@@ -205,9 +200,7 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
         }
     }
 
-    public String serverName() {
-        return serverName;
-    }
+    public String serverName() { return serverName; }
 
     @Override
     public Map<String, Object> project(MatrixProtocolOperation operation, String inputJson) {
@@ -227,9 +220,7 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             MatrixProtocolOperation operation,
             String inputJson,
             boolean rejectMatrixError) {
-        if (operation == null) {
-            throw new IllegalArgumentException("Matrix protocol operation is required.");
-        }
+        if (operation == null) throw new IllegalArgumentException("Matrix protocol operation is required.");
         NativeMatrixCore.ensureLoaded();
         String output = NativeMatrixCore.projectJson(operation.wireName(), inputJson, serverName);
         return readOutput(output, rejectMatrixError);
@@ -254,54 +245,43 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
     }
 
     private static String requireText(String value, String label) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(label + " is required.");
-        }
+        if (value == null || value.isBlank()) throw new IllegalArgumentException(label + " is required.");
         return value.trim();
     }
 
-    public record CanonicalMembership(String memberRef, String state) {}
-
-    public record CanonicalMessage(
-            String messageId,
-            String senderRef,
-            long sentAtEpochMillis,
-            String kind,
-            String messageType,
-            String body,
-            String format,
-            String formattedBody,
-            String relationKind,
-            String relationTargetEventId,
-            String replyToEventId,
-            String reactionKey,
-            Map<String, Object> presentationExtensions,
-            String deliveryState,
-            Map<String, Object> encryptedContent,
-            boolean redacted) {}
+    public record CanonicalProjection(
+            String subject,
+            String cursor,
+            String since,
+            List<CanonicalConversation> conversations,
+            Map<String, Map<String, Object>> accountData,
+            List<Map<String, Object>> toDeviceEvents,
+            List<String> deviceListsChanged,
+            List<String> deviceListsLeft,
+            Map<String, Long> oneTimeKeyCounts,
+            List<String> unusedFallbackKeyTypes) {
+        public CanonicalProjection(String subject, String cursor, String since, List<CanonicalConversation> conversations,
+                                   Map<String, Map<String, Object>> accountData) {
+            this(subject, cursor, since, conversations, accountData, List.of(), List.of(), List.of(), Map.of(), List.of());
+        }
+    }
 
     public record CanonicalConversation(
             String conversationId,
             String title,
-            long updatedAtEpochMillis,
-            long unreadCount,
             String encryptionAlgorithm,
+            long updatedAtEpochMillis,
             List<CanonicalMembership> memberships,
             List<CanonicalMessage> messages) {}
 
-    public record ParsedEventContent(
-            String kind,
-            String messageType,
-            String body,
-            String format,
-            String formattedBody,
-            String relationKind,
-            String relationTargetEventId,
-            String replyToEventId,
-            String reactionKey,
-            Map<String, Object> presentationExtensions,
-            Map<String, Object> encryptedContent) {}
-
+    public record CanonicalMembership(String memberRef, String state) {}
+    public record CanonicalMessage(String messageId, String senderRef, String kind, String body, String messageType,
+                                   String format, String formattedBody, String relationTargetEventId, String reactionKey,
+                                   boolean redacted, long sentAtEpochMillis, Map<String, Object> encryptedContent,
+                                   Map<String, Object> presentationExtensions) {}
+    public record ParsedEventContent(String kind, String body, String messageType, String format, String formattedBody,
+                                     String relationTargetEventId, String reactionKey, Map<String, Object> encryptedContent,
+                                     Map<String, Object> presentationExtensions) {}
     public record MatrixSyncCrypto(
             List<Map<String, Object>> toDeviceEvents,
             List<String> deviceListsChanged,
@@ -309,39 +289,8 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             Map<String, Long> oneTimeKeyCounts,
             List<String> unusedFallbackKeyTypes,
             long nextSequence) {
-
-        public MatrixSyncCrypto {
-            toDeviceEvents = toDeviceEvents == null ? List.of() : List.copyOf(toDeviceEvents);
-            deviceListsChanged = deviceListsChanged == null ? List.of() : List.copyOf(deviceListsChanged);
-            deviceListsLeft = deviceListsLeft == null ? List.of() : List.copyOf(deviceListsLeft);
-            oneTimeKeyCounts = oneTimeKeyCounts == null ? Map.of() : Map.copyOf(oneTimeKeyCounts);
-            unusedFallbackKeyTypes = unusedFallbackKeyTypes == null ? List.of() : List.copyOf(unusedFallbackKeyTypes);
-        }
-
         public static MatrixSyncCrypto empty() {
             return new MatrixSyncCrypto(List.of(), List.of(), List.of(), Map.of(), List.of(), 0);
-        }
-    }
-
-    private record CanonicalProjection(
-            String subject,
-            String cursor,
-            String since,
-            List<CanonicalConversation> conversations,
-            Map<String, Object> accountData,
-            List<Map<String, Object>> toDeviceEvents,
-            List<String> deviceListsChanged,
-            List<String> deviceListsLeft,
-            Map<String, Long> deviceOneTimeKeysCount,
-            List<String> deviceUnusedFallbackKeyTypes) {
-
-        private CanonicalProjection(
-                String subject,
-                String cursor,
-                String since,
-                List<CanonicalConversation> conversations,
-                Map<String, Object> accountData) {
-            this(subject, cursor, since, conversations, accountData, List.of(), List.of(), List.of(), Map.of(), List.of());
         }
     }
 }
