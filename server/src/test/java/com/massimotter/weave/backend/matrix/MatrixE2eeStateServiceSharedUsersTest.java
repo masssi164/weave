@@ -46,7 +46,10 @@ class MatrixE2eeStateServiceSharedUsersTest {
         assertThat(left.deviceListsChanged()).isEmpty();
         assertThat(left.deviceListsLeft()).containsExactly(peer.userId());
         assertThat(retriedLeft.deviceListsLeft()).containsExactly(peer.userId());
-        assertThat(service.sync(observer, left.nextSequence(), Set.of()).deviceListsLeft()).isEmpty();
+
+        String acknowledged = service.combinedCursor("chat-cursor", left.nextSequence());
+        long acknowledgedCryptoSequence = service.cryptoSequence(acknowledged);
+        assertThat(service.sync(observer, acknowledgedCryptoSequence, Set.of()).deviceListsLeft()).isEmpty();
     }
 
     private MatrixE2eeStateService service() {
