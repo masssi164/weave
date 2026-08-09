@@ -148,6 +148,8 @@ public class MatrixE2eeStateService {
             String transactionId,
             Map<String, Object> request) {
         requireActive(identity);
+        String validatedEventType = requiredText(eventType, "to-device event type", 255);
+        String validatedTransactionId = requiredText(transactionId, "transaction id", 255);
         int targets = 0;
         for (Map.Entry<String, Object> userEntry : objectMap(request.get("messages")).entrySet()) {
             for (Map.Entry<String, Object> deviceEntry : objectMap(userEntry.getValue()).entrySet()) {
@@ -158,15 +160,13 @@ public class MatrixE2eeStateService {
                     if (++targets > MAX_TO_DEVICE_TARGETS) {
                         throw new MatrixProtocolException("M_LIMIT_EXCEEDED", "The Matrix to-device target limit was reached.");
                     }
-                    long revision = persistence.nextRevision(identity.tenantId());
                     persistence.appendToDevice(
-                            revision,
                             identity.tenantId(),
                             userEntry.getKey(),
                             targetDevice,
                             identity.userId(),
-                            requiredText(eventType, "to-device event type", 255),
-                            requiredText(transactionId, "transaction id", 255),
+                            validatedEventType,
+                            validatedTransactionId,
                             immutableObject(objectMap(deviceEntry.getValue())));
                 }
             }
@@ -433,16 +433,9 @@ public class MatrixE2eeStateService {
     }
 
     private void requireEquals(Object actual, String expected, String field) {
-        if (!(actual instanceof String value) || !expected.equals(value)) {
-            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix " + field + " does not match the OIDC device session.");
+        if (!(actual instanceof String value) || !value.equals(expected)) {
+            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix " + field + " is invalid.");
         }
-    }
-
-    private String requireKeyId(String keyId) {
-        if (keyId == null || !keyId.matches("[A-Za-z0-9._=-]+:[A-Za-z0-9._=-]{1,256}")) {
-            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix key identifier is invalid.");
-        }
-        return keyId;
     }
 
     private String requiredText(Object raw, String field, int maxLength) {
@@ -452,11 +445,22 @@ public class MatrixE2eeStateService {
         return value;
     }
 
+    private String requiredText(String raw, String field, int maxLength) {
+        return requiredText((Object) raw, field, maxLength);
+    }
+
     private String requiredPath(String value) {
         if (value == null || value.isBlank() || value.length() > 512) {
             throw new MatrixProtocolException("M_INVALID_PARAM", "The Matrix backup path is invalid.");
         }
         return value;
+    }
+
+    private String requireKeyId(String keyId) {
+        if (keyId == null || keyId.isBlank() || keyId.length() > 320 || !keyId.contains(":")) {
+            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix key identifier is invalid.");
+        }
+        return keyId;
     }
 
     private void putIfPresent(Map<String, Object> target, String key, Map<String, Object> value) {
