@@ -28,7 +28,6 @@ import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -40,8 +39,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -140,9 +139,7 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         Set<BlobReference> referenced = new LinkedHashSet<>();
         int inconsistent = 0;
         for (CanonicalFileRecord record : active) {
-            if (record.object().kind() != Kind.FILE) {
-                continue;
-            }
+            if (record.object().kind() != Kind.FILE) continue;
             try {
                 BlobReference reference = reference(record);
                 referenced.add(reference);
@@ -166,8 +163,7 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
             int activeMetadataRecords,
             int inventoriedBlobs,
             int orphanBlobsDeleted,
-            int inconsistentMetadataRecords) {
-    }
+            int inconsistentMetadataRecords) {}
 
     private VersionedListing list(FilesRequestScope scope, FilePath path) {
         List<CanonicalFileRecord> records = authority.activeFiles(scope.organizationRef(), scope.spaceRef());
@@ -268,14 +264,10 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         requireDistinctTreePaths(source, destination);
         List<CanonicalFileRecord> records = authority.activeFiles(scope.organizationRef(), scope.spaceRef());
         List<CanonicalFileRecord> sourceTree = tree(records, source);
-        if (sourceTree.isEmpty()) {
-            throw notFound("copy");
-        }
+        if (sourceTree.isEmpty()) throw notFound("copy");
         ensureParent(records, destination);
         List<CanonicalFileRecord> destinationTree = tree(records, destination);
-        if (!destinationTree.isEmpty() && !overwrite) {
-            throw precondition("The destination already exists.");
-        }
+        if (!destinationTree.isEmpty() && !overwrite) throw precondition("The destination already exists.");
         Instant now = Instant.now(clock);
         List<CanonicalFileRecord> activations = new ArrayList<>();
         for (CanonicalFileRecord sourceRecord : sourceTree) {
@@ -305,24 +297,16 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         requireDistinctTreePaths(source, destination);
         List<CanonicalFileRecord> records = authority.activeFiles(scope.organizationRef(), scope.spaceRef());
         List<CanonicalFileRecord> sourceTree = tree(records, source);
-        if (sourceTree.isEmpty()) {
-            throw notFound("move");
-        }
+        if (sourceTree.isEmpty()) throw notFound("move");
         ensureParent(records, destination);
         List<CanonicalFileRecord> destinationTree = tree(records, destination);
-        if (!destinationTree.isEmpty() && !overwrite) {
-            throw precondition("The destination already exists.");
-        }
+        if (!destinationTree.isEmpty() && !overwrite) throw precondition("The destination already exists.");
         Instant now = Instant.now(clock);
         if (sourceTree.size() == 1 && destinationTree.isEmpty()) {
             CanonicalFileRecord sourceRecord = sourceTree.getFirst();
             return authority.move(
-                    scope.organizationRef(),
-                    scope.spaceRef(),
-                    sourceRecord.object().id(),
-                    source,
-                    destination,
-                    now).object();
+                    scope.organizationRef(), scope.spaceRef(), sourceRecord.object().id(),
+                    source, destination, now).object();
         }
         List<CanonicalFileRecord> moved = sourceTree.stream().map(record -> {
             FilePath movedPath = substitute(record.object().path(), source, destination);
@@ -343,9 +327,7 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
     private void delete(FilesRequestScope scope, FilePath path, FileVersion expectedVersion) {
         List<CanonicalFileRecord> records = authority.activeFiles(scope.organizationRef(), scope.spaceRef());
         List<CanonicalFileRecord> target = tree(records, path);
-        if (target.isEmpty()) {
-            throw notFound("delete");
-        }
+        if (target.isEmpty()) throw notFound("delete");
         CanonicalFileRecord root = byPath(target, path).orElseThrow();
         if (expectedVersion != null && expectedVersion.known()
                 && !Objects.equals(expectedVersion.value(), root.version().value())) {
@@ -394,15 +376,16 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
             String digest,
             String storageReference,
             Instant now) {
-        return new CanonicalFileRecord(scope.organizationRef(), scope.spaceRef(), object, version,
-                digest, storageReference, ACTIVE, now, now, 0);
+        return new CanonicalFileRecord(
+                scope.organizationRef(), scope.spaceRef(), object, version,
+                digest, storageReference, scope.providerBindingRevision(), ACTIVE, now);
     }
 
     private List<CanonicalFileRecord> tombstones(List<CanonicalFileRecord> records, Instant now) {
         return records.stream().map(record -> new CanonicalFileRecord(
                 record.organizationRef(), record.spaceRef(), record.object(), record.version(),
-                record.contentDigest(), record.storageReference(), TOMBSTONED,
-                record.createdAt(), now, record.generation() + 1)).toList();
+                record.contentDigest(), record.storageReference(), record.providerBindingRevision(),
+                TOMBSTONED, now)).toList();
     }
 
     private void ensureParent(FilesRequestScope scope, FilePath path) {
@@ -411,9 +394,7 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
 
     private void ensureParent(List<CanonicalFileRecord> records, FilePath path) {
         FilePath parent = parent(path);
-        if (parent.root()) {
-            return;
-        }
+        if (parent.root()) return;
         CanonicalFileRecord parentRecord = byPath(records, parent)
                 .orElseThrow(() -> conflict("files-native-parent-missing", "The parent collection does not exist."));
         if (parentRecord.object().kind() != Kind.COLLECTION) {
@@ -435,9 +416,7 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
     }
 
     private FilePath substitute(FilePath path, FilePath source, FilePath destination) {
-        if (path.equals(source)) {
-            return destination;
-        }
+        if (path.equals(source)) return destination;
         return new FilePath(destination.value() + path.value().substring(source.value().length()));
     }
 
@@ -445,9 +424,7 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         if (source == null || destination == null || source.root() || destination.root()) {
             throw conflict("files-native-path-invalid", "The requested Files source or destination path is invalid.");
         }
-        if (source.equals(destination)) {
-            throw precondition("The source and destination are identical.");
-        }
+        if (source.equals(destination)) throw precondition("The source and destination are identical.");
         if (destination.value().startsWith(source.value() + "/")) {
             throw conflict("files-native-tree-cycle", "A collection cannot be copied or moved into its own subtree.");
         }
@@ -475,28 +452,24 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
     }
 
     private FileObject rootObject() {
-        return new FileObject(new FileId("weave-root"), FilePath.rootPath(), Kind.COLLECTION,
+        return new FileObject(new FileId("weave-root"), new FilePath("/"), Kind.COLLECTION,
                 0, null, Instant.EPOCH, false);
     }
 
     private FilePath parent(FilePath path) {
-        if (path == null || path.root()) {
-            return FilePath.rootPath();
-        }
+        if (path == null || path.root()) return new FilePath("/");
         String value = path.value();
         int slash = value.lastIndexOf('/');
-        if (slash <= 0) {
-            return FilePath.rootPath();
-        }
+        if (slash <= 0) return new FilePath("/");
         return new FilePath(value.substring(0, slash));
     }
 
-    private String listingVersion(FilePath path, List<CanonicalFileRecord> children) {
+    private FileVersion listingVersion(FilePath path, List<CanonicalFileRecord> children) {
         StringBuilder material = new StringBuilder(path.value());
         children.forEach(child -> material.append('\u0000')
                 .append(child.object().id().value()).append('\u0000')
                 .append(child.version().value()));
-        return FilesystemBlobStore.digest(material.toString().getBytes(StandardCharsets.UTF_8));
+        return new FileVersion(FilesystemBlobStore.digest(material.toString().getBytes(StandardCharsets.UTF_8)));
     }
 
     private ApiErrorException unscoped() {
@@ -521,15 +494,13 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
     private final class Scoped implements FilesProviderPort {
         private final FilesRequestScope scope;
 
-        private Scoped(FilesRequestScope scope) {
-            this.scope = scope;
-        }
+        private Scoped(FilesRequestScope scope) { this.scope = scope; }
 
+        @Override public FilesProviderPort scoped(FilesRequestScope ignored) { return this; }
         @Override public boolean configured() { return WeaveNativeFilesAdapter.this.configured(); }
         @Override public ProviderReadiness readiness() { return WeaveNativeFilesAdapter.this.readiness(); }
         @Override public ProviderCapabilityProbeResult healthProbe() { return WeaveNativeFilesAdapter.this.healthProbe(); }
         @Override public ProviderConformanceProfile conformanceProfile() { return WeaveNativeFilesAdapter.this.conformanceProfile(); }
-        @Override public FilesProviderPort scoped(FilesRequestScope requested) { return WeaveNativeFilesAdapter.this.scoped(requested); }
         @Override public VersionedListing list(FilePath path) { return WeaveNativeFilesAdapter.this.list(scope, path); }
         @Override public Optional<VersionedFile> find(FilePath path) { return WeaveNativeFilesAdapter.this.find(scope, path); }
         @Override public FileContent read(FileId id) { return WeaveNativeFilesAdapter.this.read(scope, id); }
