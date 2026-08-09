@@ -26,9 +26,7 @@ class MatrixE2eeStateServiceSharedUsersTest {
         assertThat(firstSharedSync.deviceListsLeft()).isEmpty();
         assertThat(firstSharedSync.nextSequence()).isGreaterThan(cursorAfterPeerUpload);
         assertThat(retriedSharedSync.deviceListsChanged()).containsExactly(peer.userId());
-        assertThat(service.sync(observer, firstSharedSync.nextSequence(), Set.of(peer.userId()))
-                        .deviceListsChanged())
-                .isEmpty();
+        assertThat(service.sync(observer, firstSharedSync.nextSequence(), Set.of(peer.userId())).deviceListsChanged()).isEmpty();
     }
 
     @Test
@@ -44,9 +42,7 @@ class MatrixE2eeStateServiceSharedUsersTest {
         var left = service.sync(observer, joined.nextSequence(), Set.of());
         var retriedLeft = service.sync(observer, joined.nextSequence(), Set.of());
 
-        assertThat(joined.deviceListsChanged())
-                .contains(peer.userId())
-                .doesNotContain(unrelated.userId());
+        assertThat(joined.deviceListsChanged()).contains(peer.userId()).doesNotContain(unrelated.userId());
         assertThat(left.deviceListsChanged()).isEmpty();
         assertThat(left.deviceListsLeft()).containsExactly(peer.userId());
         assertThat(retriedLeft.deviceListsLeft()).containsExactly(peer.userId());
@@ -54,14 +50,10 @@ class MatrixE2eeStateServiceSharedUsersTest {
     }
 
     private MatrixE2eeStateService service() {
-        var mapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
-        return new MatrixE2eeStateService(mapper, new InMemoryMatrixE2eeRelationalStore(mapper));
+        return new MatrixE2eeStateService(new InMemoryMatrixE2eeRelationalStore());
     }
 
-    private MatrixFacadeClientStateService.MatrixIdentity identity(
-            String userId,
-            String deviceId,
-            String tenantId) {
+    private MatrixFacadeClientStateService.MatrixIdentity identity(String userId, String deviceId, String tenantId) {
         return new MatrixFacadeClientStateService.MatrixIdentity(
                 userId,
                 new ChatActorRef("user:" + userId),
