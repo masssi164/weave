@@ -1,3 +1,13 @@
+def weaveOpenDalClassifier = System.getenv('WEAVE_OPENDAL_CLASSIFIER') ?: {
+    def os = System.getProperty('os.name').toLowerCase(java.util.Locale.ROOT)
+    def arch = System.getProperty('os.arch').toLowerCase(java.util.Locale.ROOT)
+    def arm = arch in ['aarch64', 'arm64']
+    if (os.contains('mac') || os.contains('darwin')) return arm ? 'osx-aarch_64' : 'osx-x86_64'
+    if (os.contains('win')) return 'windows-x86_64'
+    if (os.contains('linux')) return arm ? 'linux-aarch_64' : 'linux-x86_64'
+    throw new GradleException("Unsupported OpenDAL native platform: ${os}/${arch}; set WEAVE_OPENDAL_CLASSIFIER explicitly")
+}.call()
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -18,10 +28,8 @@ dependencies {
     implementation libs.ical4j
     implementation libs.flyway.core
     implementation libs.flyway.postgresql
-    implementation(libs.aws.s3) {
-        exclude group: 'software.amazon.awssdk', module: 'apache-client'
-    }
-    implementation libs.aws.url.connection.client
+    implementation libs.opendal
+    runtimeOnly "org.apache.opendal:opendal:${libs.versions.opendal.get()}:${weaveOpenDalClassifier}"
     implementation project(':weave-application-core')
     implementation project(':weave-files-core')
     implementation project(':weave-persistence-jpa')
