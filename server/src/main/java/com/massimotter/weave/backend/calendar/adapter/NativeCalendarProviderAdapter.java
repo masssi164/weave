@@ -24,6 +24,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.HexFormat;
@@ -47,6 +49,7 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
     private final CalendarChangeJpaRepository changes;
     private final CalendarSnapshotChangeRepository snapshotChanges;
     private final CalendarOccurrenceEngine occurrenceEngine;
+    private final ZoneId evaluationZone;
     private final Clock clock;
 
     @Autowired
@@ -57,6 +60,7 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
             CalendarSnapshotChangeRepository snapshotChanges) {
         this(collections, events, changes, snapshotChanges,
                 new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine()),
+                ZoneOffset.UTC,
                 Clock.systemUTC());
     }
 
@@ -66,7 +70,9 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
             CalendarChangeJpaRepository changes,
             Clock clock) {
         this(collections, events, changes, null,
-                new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine()), clock);
+                new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine()),
+                ZoneOffset.UTC,
+                clock);
     }
 
     NativeCalendarProviderAdapter(
@@ -75,12 +81,14 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
             CalendarChangeJpaRepository changes,
             CalendarSnapshotChangeRepository snapshotChanges,
             CalendarOccurrenceEngine occurrenceEngine,
+            ZoneId evaluationZone,
             Clock clock) {
         this.collections = Objects.requireNonNull(collections, "collections");
         this.events = Objects.requireNonNull(events, "events");
         this.changes = Objects.requireNonNull(changes, "changes");
         this.snapshotChanges = snapshotChanges;
         this.occurrenceEngine = Objects.requireNonNull(occurrenceEngine, "occurrenceEngine");
+        this.evaluationZone = Objects.requireNonNull(evaluationZone, "evaluationZone");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -114,7 +122,9 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
                 .toList();
         if (from == null || to == null) return active;
         requireRange(from, to);
-        return active.stream().filter(event -> !occurrenceEngine.occurrences(event, from, to).isEmpty()).toList();
+        return active.stream()
+                .filter(event -> !occurrenceEngine.occurrences(event, from, to, evaluationZone).isEmpty())
+                .toList();
     }
 
     @Override
@@ -182,8 +192,8 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
     public List<FreeBusyWindow> freeBusy(CalendarId calendarId, CalendarScope scope, Instant from, Instant to) {
         requireRange(from, to);
         return query(calendarId, scope, from, to).stream()
-                .flatMap(event -> occurrenceEngine.occurrences(event, from, to).stream())
-                .map(occurrence -> new FreeBusyWindow(occurrence.start(), occurrence.end()))
+                .flatMap(event -> occurrenceEngine.occurrences(event, from, to, evaluationZone).stream())
+                .map(occurrence -> new FreeBusyWindow(occurrence.start().toInstant(), occurrence.end().toInstant()))
                 .sorted(Comparator.comparing(FreeBusyWindow::start))
                 .toList();
     }
