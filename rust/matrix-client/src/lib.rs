@@ -5,7 +5,7 @@ mod frb_generated;
 
 pub mod frb_api {
     pub fn project_matrix_json(operation: String, input_json: String, server_name: String) -> String {
-        weave_matrix_core::project_json_or_error(operation, input_json, server_name)
+        weave_matrix_protocol::project_json_or_error(operation, input_json, server_name)
     }
 
     #[cfg(feature = "flutter")]
