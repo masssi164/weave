@@ -1,0 +1,9 @@
+# Canonical static infrastructure contracts. One repository-relative test path per line.
+# Keep this list explicit so retired implementation-detail tests cannot be reactivated by filename globbing.
+infra/weave-workspace/tests/candidate-image-contract-test.sh
+infra/weave-workspace/tests/candidate-manifest-contract-test.sh
+infra/weave-workspace/tests/compose_profile_contract_test.py
+infra/weave-workspace/tests/keycloak_migration_boundary_contract_test.py
+infra/weave-workspace/tests/modular-renderer-contract-test.sh
+infra/weave-workspace/tests/operator_environment_contract_test.py
+infra/weave-workspace/tests/test-app-product-flow-contract-test.sh
