@@ -1,10 +1,22 @@
 # Keycloak realm lifecycle
 
-Status: canonical implementation architecture for static IAM ownership, environment rendering, migration qualification, and runtime lifecycle.
+Status: canonical implementation architecture for static IAM ownership, environment rendering, migration qualification, runtime lifecycle, and the boundary to Spring application configuration.
 
 ## Objective
 
-Weave treats Keycloak as a fixed platform identity authority while keeping static IAM configuration reproducible and environment-specific without maintaining multiple hand-edited realm files. The architecture separates candidate semantics, environment projection, static migration, and dynamic human lifecycle.
+Weave treats Keycloak as a fixed platform identity authority while keeping static IAM configuration reproducible and environment-specific without maintaining multiple hand-edited realm files. The architecture separates candidate semantics, environment projection, static migration, dynamic human lifecycle, and Spring application configuration.
+
+## Configuration authority boundaries
+
+Weave has three separate configuration authorities:
+
+1. **Spring application configuration** owns Backend and MCP application behaviour through versioned `application.yml` plus `application-dev.yml`, `application-e2e.yml`, `application-dogfood.yml`, and `application-prod.yml`. Stable environment defaults belong there. External environment variables or config trees override only genuinely deployment-specific values and secrets.
+2. **Infrastructure rendering** owns deployment artifacts that are not Spring application configuration: Keycloak realm projection, Caddy routing, optional provider configuration, runtime policy, and support-safe deployment evidence. Infra must not synthesize Backend or MCP Spring property files.
+3. **Keycloak semantic IAM** owns static realm semantics and explicit migrations. Server runtime does not reconcile static IAM.
+
+`WEAVE_ENVIRONMENT` selects the matching Spring profile in Compose. Provider choice remains a property, not an additional Spring profile: `weave-native` is the default provider for the canonical domain and optional providers remain replaceable southbound adapters.
+
+For OAuth/OIDC, the public issuer is deliberately separate from internal transport. Spring Security validates tokens against the public `issuer-uri`, while `jwk-set-uri` may use the private Keycloak service route. The same rule applies to MCP authorization-server identity versus internal token/JWKS transport.
 
 ## Source of truth
 
@@ -36,9 +48,22 @@ The renderer emits support-safe generated artifacts including:
 - `keycloak/overlay.json`;
 - `keycloak/import/weave-realm.json`;
 - `keycloak/realm-render-evidence.json`;
-- `render-manifest.json`.
+- `render-manifest.json`;
+- Caddy and optional-provider configuration when those providers are selected.
 
-Generated files are deployment artifacts. They are not independently maintained configuration sources.
+Generated files are deployment artifacts. They are not independently maintained configuration sources and they do not include generated Spring application property/env files.
+
+## Renderer decomposition
+
+The environment renderer is intentionally split by responsibility:
+
+- `render_config.py` is orchestration only;
+- `rendering/keycloak.py` owns Keycloak environment projection;
+- `rendering/gateway.py` owns gateway routing and fail-closed public/internal boundaries;
+- `rendering/providers.py` owns optional Matrix/MAS/Appservice configuration;
+- `rendering/io.py` owns atomic support-safe generated-file and secret handling.
+
+This keeps each unit reviewable and prevents infrastructure code from becoming a second application configuration system.
 
 ## Static baseline ownership
 
@@ -80,6 +105,8 @@ Agent Runtime Control owns workload-cell lifecycle and per-cell workload identit
 ## Secret boundary
 
 Private key material remains with the runtime that owns it. Rendering may derive the corresponding public JWK/JWKS and place only public values into the RealmRepresentation.
+
+Spring applications consume mounted secrets through file references or Spring `configtree:` imports where appropriate. Secrets are not copied into generated public environment files.
 
 Generated realm and support-safe evidence must reject:
 
@@ -164,4 +191,4 @@ No v3 candidate reader, rendered-realm candidate authority, dual write, compatib
 
 ## Operator rule
 
-If an IAM change can be known before a concrete human or workload exists, it belongs to the static semantic realm source or an explicit version migration. If it depends on a concrete human or workload lifecycle event, it belongs to Server or Agent Runtime Control.
+If a Backend or MCP value is known for an environment before deployment starts, it belongs in the matching Spring profile. If it is genuinely deployment-specific, it may be supplied externally. If it is an IAM topology decision, it belongs to the static semantic realm source or an explicit version migration. If it depends on a concrete human or workload lifecycle event, it belongs to Server or Agent Runtime Control.
