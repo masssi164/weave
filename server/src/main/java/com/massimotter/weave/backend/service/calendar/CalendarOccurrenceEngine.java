@@ -3,11 +3,9 @@ package com.massimotter.weave.backend.service.calendar;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarOccurrence;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceOverride;
-import com.massimotter.weave.backend.calendar.domain.CalendarDomain.TemporalKind;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.TemporalValue;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -21,8 +19,9 @@ import java.util.Objects;
 
 /**
  * Canonical bounded occurrence projection backed exclusively by {@link RecurrenceEngine}.
- * RFC recurrence grammar remains inside the iCal4j adapter; this class only applies Weave
- * duration, explicit RDATE/EXDATE and RECURRENCE-ID override semantics.
+ * RFC recurrence grammar remains inside the iCal4j adapter. FLOATING and DATE values are
+ * interpreted only for a query using the explicit evaluation zone supplied by the caller;
+ * their stored/serialized temporal semantics are never rewritten.
  */
 public final class CalendarOccurrenceEngine {
 
@@ -33,32 +32,37 @@ public final class CalendarOccurrenceEngine {
         this.recurrenceEngine = Objects.requireNonNull(recurrenceEngine, "recurrenceEngine");
     }
 
-    public List<CalendarOccurrence> occurrences(CalendarEvent event, Instant from, Instant to) {
+    public List<CalendarOccurrence> occurrences(
+            CalendarEvent event,
+            Instant from,
+            Instant to,
+            ZoneId evaluationZone) {
         Objects.requireNonNull(event, "event");
+        Objects.requireNonNull(evaluationZone, "evaluationZone");
         if (from == null || to == null || !from.isBefore(to)) {
             throw new IllegalArgumentException("calendar occurrence window must be bounded");
         }
         Map<String, CalendarOccurrence> values = new LinkedHashMap<>();
         if (event.recurrence() == null) {
-            addIfOverlapping(values, occurrence(event, event.startValue(), event.endValue()), from, to);
+            addIfOverlapping(values, occurrence(event, event.startValue(), event.endValue(), evaluationZone), from, to);
             return List.copyOf(values.values());
         }
 
-        for (TemporalValue start : recurringStarts(event, from, to)) {
+        for (TemporalValue start : recurringStarts(event, from, to, evaluationZone)) {
             if (excluded(event, start)) continue;
             RecurrenceOverride override = override(event, start);
             if (override != null) {
                 if (!override.cancelled()) {
-                    addIfOverlapping(values, occurrence(event, override.start(), override.end()), from, to);
+                    addIfOverlapping(values, occurrence(event, override.start(), override.end(), evaluationZone), from, to);
                 }
                 continue;
             }
-            addIfOverlapping(values, occurrence(event, start, shiftedEnd(event, start)), from, to);
+            addIfOverlapping(values, occurrence(event, start, shiftedEnd(event, start), evaluationZone), from, to);
         }
 
         for (RecurrenceOverride override : event.overrides()) {
             if (!override.cancelled()) {
-                addIfOverlapping(values, occurrence(event, override.start(), override.end()), from, to);
+                addIfOverlapping(values, occurrence(event, override.start(), override.end(), evaluationZone), from, to);
             }
         }
         return values.values().stream()
@@ -67,7 +71,11 @@ public final class CalendarOccurrenceEngine {
                 .toList();
     }
 
-    private List<TemporalValue> recurringStarts(CalendarEvent event, Instant from, Instant to) {
+    private List<TemporalValue> recurringStarts(
+            CalendarEvent event,
+            Instant from,
+            Instant to,
+            ZoneId evaluationZone) {
         List<TemporalValue> starts = new ArrayList<>();
         starts.add(event.startValue());
         String rrule = event.recurrence().rrule();
@@ -75,15 +83,15 @@ public final class CalendarOccurrenceEngine {
             case DATE -> recurrenceEngine.dates(
                             rrule,
                             event.startValue().date(),
-                            from.atZone(ZoneOffset.UTC).toLocalDate(),
-                            to.atZone(ZoneOffset.UTC).toLocalDate().plusDays(1),
+                            from.atZone(evaluationZone).toLocalDate(),
+                            to.atZone(evaluationZone).toLocalDate().plusDays(1),
                             MAX_RESULTS)
                     .stream().map(TemporalValue::date).forEach(starts::add);
             case FLOATING -> recurrenceEngine.floating(
                             rrule,
                             event.startValue().localDateTime(),
-                            LocalDateTime.ofInstant(from, ZoneOffset.UTC),
-                            LocalDateTime.ofInstant(to, ZoneOffset.UTC),
+                            LocalDateTime.ofInstant(from, evaluationZone),
+                            LocalDateTime.ofInstant(to, evaluationZone),
                             MAX_RESULTS)
                     .stream().map(TemporalValue::floating).forEach(starts::add);
             case UTC -> recurrenceEngine.utc(rrule, event.startValue().instant(), from, to, MAX_RESULTS)
@@ -125,23 +133,26 @@ public final class CalendarOccurrenceEngine {
             case UTC -> TemporalValue.utc(start.instant().plus(Duration.between(
                     event.startValue().instant(), event.endValue().instant())));
             case ZONED -> {
-                Duration duration = Duration.between(
-                        event.startValue().localDateTime(), event.endValue().localDateTime());
+                Duration duration = Duration.between(event.startValue().localDateTime(), event.endValue().localDateTime());
                 yield TemporalValue.zoned(start.localDateTime().plus(duration), start.zoneId());
             }
         };
     }
 
-    private CalendarOccurrence occurrence(CalendarEvent event, TemporalValue start, TemporalValue end) {
-        return new CalendarOccurrence(event.id(), instant(start), instant(end));
+    private CalendarOccurrence occurrence(
+            CalendarEvent event,
+            TemporalValue start,
+            TemporalValue end,
+            ZoneId evaluationZone) {
+        return new CalendarOccurrence(event.id(), zoned(start, evaluationZone), zoned(end, evaluationZone));
     }
 
-    private Instant instant(TemporalValue value) {
+    private ZonedDateTime zoned(TemporalValue value, ZoneId evaluationZone) {
         return switch (value.kind()) {
-            case DATE -> value.date().atStartOfDay(ZoneOffset.UTC).toInstant();
-            case FLOATING -> value.localDateTime().toInstant(ZoneOffset.UTC);
-            case UTC -> value.instant();
-            case ZONED -> value.localDateTime().atZone(value.zoneId()).toInstant();
+            case DATE -> value.date().atStartOfDay(evaluationZone);
+            case FLOATING -> value.localDateTime().atZone(evaluationZone);
+            case UTC -> value.instant().atZone(ZoneOffset.UTC);
+            case ZONED -> value.localDateTime().atZone(value.zoneId());
         };
     }
 
@@ -150,8 +161,8 @@ public final class CalendarOccurrenceEngine {
             CalendarOccurrence occurrence,
             Instant from,
             Instant to) {
-        if (occurrence.end().isAfter(from) && occurrence.start().isBefore(to)) {
-            values.put(occurrence.start() + "|" + occurrence.end(), occurrence);
+        if (occurrence.end().toInstant().isAfter(from) && occurrence.start().toInstant().isBefore(to)) {
+            values.put(occurrence.start().toInstant() + "|" + occurrence.end().toInstant(), occurrence);
         }
     }
 
