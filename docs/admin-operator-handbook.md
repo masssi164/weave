@@ -75,6 +75,8 @@ Use `GET /api/admin/platform/identity/readiness` or the embedded `platformIdenti
 
 Readiness is support-safe and covers login, invitations, activation mail, membership projection, session revocation, retained-owner protection, workload-client credentials, and federation/broker posture. LDAP/AD and external OIDC/SAML sources remain Keycloak-managed upstream integrations; their absence must not be presented as an alternative identity-provider choice.
 
+Workspace/Admin Health is the operator control plane for this posture. The client readiness cockpit summarizes overall posture, category health, support-safe evidence, member/admin boundaries, and the next operator action from backend-owned readiness snapshots. Category rows state member impact and policy state without leaking provider internals; provider adapter evidence remains admin-only.
+
 ## Whitelisting and policies
 
 Weave policy is deny-by-default. Capability profiles should use category-level permissions before low-level adapter details. Agent runtime entitlement is never inferred from a human role: only the configured authoritative Keycloak group may derive `agent-runtime.entitled`.
