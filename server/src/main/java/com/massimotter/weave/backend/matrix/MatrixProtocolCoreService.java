@@ -259,12 +259,13 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             List<CanonicalMembership> memberships,
             List<CanonicalMessage> messages) {}
 
-    public record CanonicalMembership(String memberRef, String state) {}
+    public record CanonicalMembership(String memberRef, String membership) {}
 
     public record CanonicalMessage(
-            String messageId,
+            String eventId,
             String senderRef,
-            long sentAtEpochMillis,
+            long timestampEpochMillis,
+            String eventType,
             String kind,
             String messageType,
             String body,
@@ -298,9 +299,20 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             List<String> deviceListsLeft,
             Map<String, Long> oneTimeKeyCounts,
             List<String> unusedFallbackKeyTypes,
-            long nextSequence) {
+            long nextSequence,
+            long deviceListSequence) {
+        public MatrixSyncCrypto(
+                List<Map<String, Object>> toDeviceEvents,
+                List<String> deviceListsChanged,
+                List<String> deviceListsLeft,
+                Map<String, Long> oneTimeKeyCounts,
+                List<String> unusedFallbackKeyTypes,
+                long nextSequence) {
+            this(toDeviceEvents, deviceListsChanged, deviceListsLeft, oneTimeKeyCounts, unusedFallbackKeyTypes, nextSequence, nextSequence);
+        }
+
         public static MatrixSyncCrypto empty() {
-            return new MatrixSyncCrypto(List.of(), List.of(), List.of(), Map.of(), List.of(), 0);
+            return new MatrixSyncCrypto(List.of(), List.of(), List.of(), Map.of(), List.of(), 0, 0);
         }
     }
 }
