@@ -77,11 +77,7 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         this(authority, blobs, Clock.systemUTC(), properties.reconciliationLimit());
     }
 
-    WeaveNativeFilesAdapter(
-            FilesAuthorityRepository authority,
-            BlobStorePort blobs,
-            Clock clock,
-            int reconciliationLimit) {
+    WeaveNativeFilesAdapter(FilesAuthorityRepository authority, BlobStorePort blobs, Clock clock, int reconciliationLimit) {
         this.authority = Objects.requireNonNull(authority, "authority must not be null");
         this.blobs = Objects.requireNonNull(blobs, "blobs must not be null");
         this.clock = clock == null ? Clock.systemUTC() : clock;
@@ -337,12 +333,24 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         if (record.storageReference() == null || record.storageReference().isBlank()) throw conflict("files-native-storage-reference-missing", "The native Files metadata has no private storage reference.");
         return new BlobReference(record.storageReference());
     }
-    private BlobReference blobReference(FileId id, String digest) { return new BlobReference(id.value() + "/" + digest); }
+
+    private BlobReference blobReference(FileId id, String digest) {
+        return new BlobReference(storageToken(id.value()) + "/" + storageToken(digest));
+    }
+
     private BlobScope blobScope(FilesRequestScope scope) { return new BlobScope(scope.organizationRef(), scope.spaceRef()); }
+
     private FileId canonicalId(FilesRequestScope scope, FilePath path) {
         String material = scope.organizationRef() + "\u0000" + scope.spaceRef() + "\u0000" + path.value();
-        return new FileId("weave-" + FilesystemBlobStore.digest(material.getBytes(StandardCharsets.UTF_8)).substring(0, 32));
+        return new FileId("weave-" + storageToken(FilesystemBlobStore.digest(material.getBytes(StandardCharsets.UTF_8))).substring(0, 32));
     }
+
+    private String storageToken(String value) {
+        String token = value == null ? "" : value.trim().toLowerCase(java.util.Locale.ROOT);
+        if (token.startsWith("sha256:")) token = token.substring("sha256:".length());
+        return token.replace(':', '-');
+    }
+
     private FileObject rootObject() { return new FileObject(new FileId("weave-root"), new FilePath("/"), Kind.COLLECTION, 0, null, Instant.EPOCH, false); }
     private FilePath parent(FilePath path) { if (path == null || path.root()) return new FilePath("/"); int slash = path.value().lastIndexOf('/'); return slash <= 0 ? new FilePath("/") : new FilePath(path.value().substring(0, slash)); }
     private FileVersion listingVersion(FilePath path, List<CanonicalFileRecord> children) {
