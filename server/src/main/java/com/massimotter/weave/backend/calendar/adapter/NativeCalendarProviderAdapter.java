@@ -48,6 +48,7 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
     private final CalendarEventJpaRepository events;
     private final CalendarChangeJpaRepository changes;
     private final CalendarSnapshotChangeRepository snapshotChanges;
+    private final NativeCalendarRelationalStore relationalStore;
     private final CalendarOccurrenceEngine occurrenceEngine;
     private final ZoneId evaluationZone;
     private final Clock clock;
@@ -57,19 +58,21 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
             CalendarCollectionJpaRepository collections,
             CalendarEventJpaRepository events,
             CalendarChangeJpaRepository changes,
-            CalendarSnapshotChangeRepository snapshotChanges) {
-        this(collections, events, changes, snapshotChanges,
+            CalendarSnapshotChangeRepository snapshotChanges,
+            NativeCalendarRelationalStore relationalStore) {
+        this(collections, events, changes, snapshotChanges, relationalStore,
                 new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine()),
                 ZoneOffset.UTC,
                 Clock.systemUTC());
     }
 
+    /** Fast non-authoritative test constructor. Production always supplies the normalized relational store. */
     NativeCalendarProviderAdapter(
             CalendarCollectionJpaRepository collections,
             CalendarEventJpaRepository events,
             CalendarChangeJpaRepository changes,
             Clock clock) {
-        this(collections, events, changes, null,
+        this(collections, events, changes, null, null,
                 new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine()),
                 ZoneOffset.UTC,
                 clock);
@@ -80,6 +83,7 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
             CalendarEventJpaRepository events,
             CalendarChangeJpaRepository changes,
             CalendarSnapshotChangeRepository snapshotChanges,
+            NativeCalendarRelationalStore relationalStore,
             CalendarOccurrenceEngine occurrenceEngine,
             ZoneId evaluationZone,
             Clock clock) {
@@ -87,6 +91,7 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
         this.events = Objects.requireNonNull(events, "events");
         this.changes = Objects.requireNonNull(changes, "changes");
         this.snapshotChanges = snapshotChanges;
+        this.relationalStore = relationalStore;
         this.occurrenceEngine = Objects.requireNonNull(occurrenceEngine, "occurrenceEngine");
         this.evaluationZone = Objects.requireNonNull(evaluationZone, "evaluationZone");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -117,12 +122,25 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
     @Transactional(readOnly = true)
     public List<CalendarEvent> query(CalendarId calendarId, CalendarScope scope, Instant from, Instant to) {
         requireCalendarAndScope(calendarId, scope);
-        List<CalendarEvent> active = events.findActive(calendarId.value(), scopeKey(scope)).stream()
+        String scopeKey = scopeKey(scope);
+        if (from != null || to != null) requireRange(from, to);
+
+        List<CalendarEvent> active = events.findActive(calendarId.value(), scopeKey).stream()
                 .map(CalendarEventJpaEntity::toDomain)
+                .map(event -> enrich(event, scopeKey))
                 .toList();
-        if (from == null || to == null) return active;
-        requireRange(from, to);
+        if (from == null) return active;
+
+        if (relationalStore == null) {
+            return active.stream()
+                    .filter(event -> !occurrenceEngine.occurrences(event, from, to, evaluationZone).isEmpty())
+                    .toList();
+        }
+
+        Set<String> candidateIds = Set.copyOf(relationalStore.candidateEventIds(
+                calendarId.value(), scopeKey, from, to, evaluationZone));
         return active.stream()
+                .filter(event -> candidateIds.contains(event.id().value()))
                 .filter(event -> !occurrenceEngine.occurrences(event, from, to, evaluationZone).isEmpty())
                 .toList();
     }
@@ -132,9 +150,11 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
     public CalendarEvent read(CalendarId calendarId, CalendarScope scope, EventId id) {
         requireCalendarAndScope(calendarId, scope);
         if (id == null) throw invalid("read-event", "event id is required");
+        String scopeKey = scopeKey(scope);
         return events.findById(eventKey(calendarId, scope, id))
                 .filter(candidate -> !candidate.deleted())
                 .map(CalendarEventJpaEntity::toDomain)
+                .map(event -> enrich(event, scopeKey))
                 .orElseThrow(() -> notFound("read-event"));
     }
 
@@ -144,15 +164,17 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
         if (write == null) throw invalid("write-event", "calendar write is required");
         CalendarEvent incoming = write.event();
         requireCalendarAndScope(incoming.calendarId(), incoming.scope());
+        String scopeKey = scopeKey(incoming.scope());
         CalendarCollectionJpaEntity collection = lockedCollection(incoming.calendarId(), incoming.scope(), clock.instant());
         CalendarEventId key = eventKey(incoming.calendarId(), incoming.scope(), incoming.id());
         CalendarEventJpaEntity current = events.findById(key).orElse(null);
-        if (write.intent() == WriteIntent.CREATE && current != null && !current.deleted()) {
-            if (sameEvent(current.toDomain(), incoming)) return current.toDomain();
+        CalendarEvent currentDomain = current == null || current.deleted() ? null : enrich(current.toDomain(), scopeKey);
+        if (write.intent() == WriteIntent.CREATE && currentDomain != null) {
+            if (sameEvent(currentDomain, incoming)) return currentDomain;
             throw conflict("create-event");
         }
-        if (write.intent() == WriteIntent.UPDATE && (current == null || current.deleted())) throw notFound("update-event");
-        if (current != null && !current.deleted() && sameEvent(current.toDomain(), incoming)) return current.toDomain();
+        if (write.intent() == WriteIntent.UPDATE && currentDomain == null) throw notFound("update-event");
+        if (currentDomain != null && sameEvent(currentDomain, incoming)) return currentDomain;
         if (write.intent() == WriteIntent.UPDATE) requireExpectedVersion(write.expectedVersion(), current.eventVersion(), "update-event");
 
         Instant timestamp = clock.instant();
@@ -162,10 +184,11 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
         entity.apply(incoming, sequence, version, timestamp);
         collections.save(collection);
         events.save(entity);
+        if (relationalStore != null) relationalStore.save(incoming, scopeKey);
         changes.save(CalendarChangeJpaEntity.create(
-                new CalendarChangeId(incoming.calendarId().value(), scopeKey(incoming.scope()), sequence),
+                new CalendarChangeId(incoming.calendarId().value(), scopeKey, sequence),
                 incoming.id().value(), false, version, timestamp));
-        return entity.toDomain();
+        return enrich(entity.toDomain(), scopeKey);
     }
 
     @Override
@@ -173,6 +196,7 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
     public void delete(CalendarId calendarId, CalendarScope scope, EventId id, EventVersion expectedVersion) {
         requireCalendarAndScope(calendarId, scope);
         if (id == null) throw invalid("delete-event", "event id is required");
+        String scopeKey = scopeKey(scope);
         CalendarEventJpaEntity entity = events.findById(eventKey(calendarId, scope, id)).orElseThrow(() -> notFound("delete-event"));
         if (entity.deleted()) return;
         requireExpectedVersion(expectedVersion, entity.eventVersion(), "delete-event");
@@ -183,8 +207,9 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
         entity.markDeleted(sequence, version, timestamp);
         collections.save(collection);
         events.save(entity);
+        if (relationalStore != null) relationalStore.delete(calendarId.value(), scopeKey, id.value());
         changes.save(CalendarChangeJpaEntity.create(
-                new CalendarChangeId(calendarId.value(), scopeKey(scope), sequence), id.value(), true, version, timestamp));
+                new CalendarChangeId(calendarId.value(), scopeKey, sequence), id.value(), true, version, timestamp));
     }
 
     @Override
@@ -215,6 +240,10 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
                 .map(change -> new CalendarChange(nextToken, new EventId(change.eventId()), change.deleted(), new EventVersion(change.eventVersion())))
                 .toList();
         return new CalendarChangeSet(nextToken, changed);
+    }
+
+    private CalendarEvent enrich(CalendarEvent event, String scopeKey) {
+        return relationalStore == null ? event : relationalStore.enrich(event, scopeKey);
     }
 
     private CalendarCollectionJpaEntity lockedCollection(CalendarId calendarId, CalendarScope scope, Instant timestamp) {
