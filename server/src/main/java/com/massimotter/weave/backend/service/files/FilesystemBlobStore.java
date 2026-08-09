@@ -78,27 +78,30 @@ public final class FilesystemBlobStore implements BlobStorePort {
         String requiredDigest = requiredDigest(expectedDigest);
         String key = key(scope, reference);
         String temporary = parent(key) + ".pending-" + UUID.randomUUID();
+        Path spool = null;
         try {
             validateSandbox(scope, reference, true);
+            spool = Files.createTempFile(root, ".weave-upload-", ".spool");
+            enforcePermissions(spool, FILE_PERMISSIONS);
+
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             long transferred;
             try (InputStream digesting = new DigestInputStream(source, digest);
-                 OutputStream target = operator.createOutputStream(temporary, Math.toIntExact(Math.min(maximumBlobBytes, Integer.MAX_VALUE)))) {
+                 OutputStream target = Files.newOutputStream(spool, StandardOpenOption.TRUNCATE_EXISTING)) {
                 transferred = BlobStorePort.transferBounded(digesting, target, maximumBlobBytes);
             }
             if (transferred != expectedSize) {
-                operator.delete(temporary);
                 throw error(HttpStatus.CONFLICT, "files-native-blob-size-mismatch", "The native Files blob size did not match the requested size.");
             }
             String actualDigest = "sha256:" + HexFormat.of().formatHex(digest.digest());
             if (!MessageDigest.isEqual(actualDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII), requiredDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
-                operator.delete(temporary);
                 throw error(HttpStatus.CONFLICT, "files-native-blob-digest-mismatch", "The native Files blob digest did not match the requested digest.");
             }
-            if (exists(key)) {
-                operator.delete(temporary);
-                return verifyExisting(key, reference, actualDigest, transferred);
-            }
+            if (exists(key)) return verifyExisting(key, reference, actualDigest, transferred);
+
+            byte[] verifiedPayload = Files.readAllBytes(spool);
+            requireWithinLimit(verifiedPayload.length, "files-native-blob-size-invalid");
+            operator.write(temporary, verifiedPayload);
             try {
                 operator.rename(temporary, key);
             } catch (OpenDALException concurrentPublish) {
@@ -113,9 +116,13 @@ public final class FilesystemBlobStore implements BlobStorePort {
             return new BlobReceipt(reference, actualDigest, transferred);
         } catch (ApiErrorException exception) {
             throw exception;
-        } catch (IOException | OpenDALException | NoSuchAlgorithmException | ArithmeticException exception) {
+        } catch (IOException | OpenDALException | NoSuchAlgorithmException exception) {
             try { operator.delete(temporary); } catch (RuntimeException ignored) { }
             throw map(exception, "files-native-blob-write-failed");
+        } finally {
+            if (spool != null) {
+                try { Files.deleteIfExists(spool); } catch (IOException ignored) { }
+            }
         }
     }
 
@@ -127,11 +134,11 @@ public final class FilesystemBlobStore implements BlobStorePort {
             if (!exists(key)) throw conflict("files-native-blob-missing");
             long size = operator.stat(key).getContentLength();
             requireWithinLimit(size, "files-native-blob-size-invalid");
-            try (InputStream source = operator.createInputStream(key)) {
-                long transferred = BlobStorePort.transferBounded(source, target, maximumBlobBytes);
-                if (transferred != size) {
-                    throw error(HttpStatus.CONFLICT, "files-native-blob-size-mismatch", "The native Files blob size did not match its metadata.");
-                }
+            byte[] value = operator.read(key);
+            requireWithinLimit(value.length, "files-native-blob-size-invalid");
+            long transferred = BlobStorePort.transferBounded(new java.io.ByteArrayInputStream(value), target, maximumBlobBytes);
+            if (transferred != size) {
+                throw error(HttpStatus.CONFLICT, "files-native-blob-size-mismatch", "The native Files blob size did not match its metadata.");
             }
         } catch (ApiErrorException exception) {
             throw exception;
@@ -205,21 +212,11 @@ public final class FilesystemBlobStore implements BlobStorePort {
     }
 
     private BlobReceipt verifyExisting(String key, BlobReference reference, String expectedDigest, long expectedSize) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            long transferred;
-            try (InputStream source = new DigestInputStream(operator.createInputStream(key), digest);
-                 OutputStream sink = OutputStream.nullOutputStream()) {
-                transferred = BlobStorePort.transferBounded(source, sink, maximumBlobBytes);
-            }
-            String actualDigest = "sha256:" + HexFormat.of().formatHex(digest.digest());
-            if (transferred != expectedSize || !MessageDigest.isEqual(actualDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII), expectedDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
-                throw conflict("files-native-blob-key-collision");
-            }
-            return new BlobReceipt(reference, expectedDigest, expectedSize);
-        } catch (IOException | NoSuchAlgorithmException exception) {
-            throw map(exception, "files-native-blob-read-failed");
+        byte[] existing = operator.read(key);
+        if (existing.length != expectedSize || !MessageDigest.isEqual(digest(existing).getBytes(java.nio.charset.StandardCharsets.US_ASCII), expectedDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+            throw conflict("files-native-blob-key-collision");
         }
+        return new BlobReceipt(reference, expectedDigest, expectedSize);
     }
 
     private boolean exists(String key) {
