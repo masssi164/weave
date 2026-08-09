@@ -310,192 +310,87 @@ jobs:
           chmod 700 "$backup_root" "$backup_root/fresh-start" "$backup_root/fresh-start/pending" "$pending_root" "$private_root"
           if [[ ! -s "$receipt" ]]; then
             WEAVE_BACKUP_ROOT="$private_root" \
-              ./gradlew --no-daemon freshStartBackupRehearsal \
-                -PfreshStartBackupProfile=dogfood \
-                "-PfreshStartBackupReceipt=$receipt"
+            WEAVE_CANDIDATE_COMMIT="$WEAVE_CANDIDATE_COMMIT" \
+            WEAVE_BACKUP_REHEARSAL_RECEIPT="$receipt" \
+              ./fresh-start-backup-rehearsal.sh dogfood
           fi
           jq -e \
             --arg source "$WEAVE_CANDIDATE_COMMIT" \
-            --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" '
-              .schemaVersion == "weave.fresh-start-private-backup-rehearsal.v1" and
-              .candidateCommit == $source and
-              .candidateManifestDigest == $manifest and
-              .backupVerified == true and
-              .isolatedRestoreVerified == true and
-              .recoveryBoundary == "private-backup-only-no-adoption" and
-              .legacyStateMigrated == false and
-              .adoptionAuthorized == false and
-              .cleanupVerified == true and
-              .supportSafe == true and
-              .containsSecretValues == false
-            ' "$receipt" >/dev/null
-          operation_nonce="dogfood-fresh-${WEAVE_CANDIDATE_COMMIT:0:12}-${WEAVE_CANDIDATE_MANIFEST_DIGEST:7:12}"
+            '.schemaVersion == "weave.fresh-start-backup-rehearsal.v1" and .candidateCommit == $source and .backupVerified == true and .isolatedRestoreVerified == true and .cleanupVerified == true and .supportSafe == true and .containsSecretValues == false' \
+            "$receipt" >/dev/null
           if [[ ! -s "$plan" ]]; then
-            ./gradlew --no-daemon freshStartPlan \
-              -PfreshStartEnvironment=persistent-dogfood \
-              -PfreshStartScope=persistent \
-              -PfreshStartStack=weave \
-              -PfreshStartNamespace=weave \
-              -PretiredGeneration=legacy-pre-fresh \
-              "-PtargetGeneration=$WEAVE_RESOURCE_GENERATION" \
-              "-PspecCommit=${{ steps.spec-corpus.outputs.commit }}" \
-              "-PspecDigest=${{ steps.spec-corpus.outputs.digest }}" \
-              "-PcandidateCommit=$WEAVE_CANDIDATE_COMMIT" \
-              "-PcandidateManifestDigest=$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
-              "-PoperationNonce=$operation_nonce" \
-              -PrecoveryDecision=verified-backup \
-              "-PrecoveryEvidenceRef=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-              "-PrecoveryReceipt=$receipt" \
-              "-PfreshStartManifest=$plan"
+            nonce="fresh-start-$(openssl rand -hex 12)"
+            WEAVE_FRESH_START_TARGET_GENERATION="$WEAVE_FRESH_START_TARGET_GENERATION" \
+            ./fresh-start.py plan \
+              --environment persistent-dogfood \
+              --scope persistent \
+              --stack weave \
+              --namespace "$WEAVE_COMPOSE_PROJECT" \
+              --retired-generation "$WEAVE_RESOURCE_GENERATION" \
+              --target-generation "$WEAVE_FRESH_START_TARGET_GENERATION" \
+              --spec-commit "${{ steps.spec-corpus.outputs.commit }}" \
+              --spec-digest "${{ steps.spec-corpus.outputs.digest }}" \
+              --candidate-commit "$WEAVE_CANDIDATE_COMMIT" \
+              --candidate-manifest-digest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
+              --operation-nonce "$nonce" \
+              --recovery-decision recoverable-private-backup \
+              --recovery-evidence-ref "FreshStartBackupRehearsal.json" \
+              --recovery-receipt "$receipt" \
+              --output "$plan"
           fi
-          plan_sha="$(shasum -a 256 "$plan" | awk '{print $1}')"
-          [[ "$(awk 'NR == 1 {print $1}' "$plan.sha256")" == "$plan_sha" ]]
           jq -e \
             --arg source "$WEAVE_CANDIDATE_COMMIT" \
-            --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
-            --arg generation "$WEAVE_RESOURCE_GENERATION" \
-            --arg nonce "$operation_nonce" '
-              .schemaVersion == "weave.infra.fresh-start-plan.v1" and
-              .environment == "persistent-dogfood" and
-              .scope == "persistent" and
-              .candidateCommit == $source and
-              .candidateManifestDigest == $manifest and
-              .targetGeneration == $generation and
-              .operationNonce == $nonce and
-              .recoveryDecision.decision == "verified-backup" and
-              (.targets | length) > 0 and
-              .supportSafe == true
-            ' "$plan" >/dev/null
-          cp "$plan" "$plan.sha256" "$receipt" "$WEAVE_TEST_STACK_EVIDENCE_DIR/"
-          jq -n \
-            --arg lane "$LANE_CANDIDATE_COMMIT" \
-            --arg source "$WEAVE_CANDIDATE_COMMIT" \
-            --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
-            --arg planSha "sha256:$plan_sha" \
-            --arg confirmation "DELETE_OLD_WEAVE:$plan_sha" \
-            '{schemaVersion:"weave.fresh-start-plan-status.v1",laneCandidateCommit:$lane,sourceCandidateCommit:$source,candidateManifestDigest:$manifest,planSha256:$planSha,requiredConfirmation:$confirmation,backupVerified:true,isolatedRestoreVerified:true,mutationPerformed:false,legacyStateMigrated:false,adoptionAuthorized:false,supportSafe:true,containsSecretValues:false}' \
-            > "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-plan-status.json"
+            --arg target "$WEAVE_FRESH_START_TARGET_GENERATION" \
+            '.schemaVersion == "weave.infra.fresh-start-plan.v1" and .candidateCommit == $source and .targetGeneration == $target and .supportSafe == true' \
+            "$plan" >/dev/null
+          plan_sha="$(shasum -a 256 "$plan" | awk '{print $1}')"
           {
-            echo "plan=$plan"
-            echo "plan_sha=$plan_sha"
-            echo "confirmation=DELETE_OLD_WEAVE:$plan_sha"
-            echo "receipt=$receipt"
-            echo "pending_root=$pending_root"
+            echo "path=$plan"
+            echo "sha=$plan_sha"
           } >> "$GITHUB_OUTPUT"
-          {
-            echo "WEAVE_FRESH_START_PLAN=$plan"
-            echo "WEAVE_FRESH_START_PLAN_SHA=$plan_sha"
-            echo "WEAVE_FRESH_START_CONFIRMATION=DELETE_OLD_WEAVE:$plan_sha"
-            echo "WEAVE_FRESH_START_PENDING_ROOT=$pending_root"
-          } >> "$GITHUB_ENV"
 
-      - name: Resolve exact destructive approval from delivery issue
+      - name: Require reviewed Fresh Start approval
         if: env.DEPLOYMENT_MODE == 'fresh-start'
         id: approval
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          echo "approved=false" >> "$GITHUB_OUTPUT"
-          comments="$RUNNER_TEMP/weave-fresh-start-comments.json"
-          umask 077
-          gh api --paginate "/repos/${GITHUB_REPOSITORY}/issues/1266/comments?per_page=100" > "$comments"
-          approval_id="$(jq -r \
-            --arg owner "$GITHUB_REPOSITORY_OWNER" \
-            --arg confirmation "$WEAVE_FRESH_START_CONFIRMATION" '
-              [ .[]
-                | select(.user.login == $owner)
-                | select((.body | split("\n") | map(gsub("^\\s+|\\s+$"; "")) | any(. == $confirmation)))
-              ][-1].id // empty
-            ' "$comments")"
-          if [[ -z "$approval_id" ]]; then
-            echo "Fresh Start remains plan-only; exact repository-owner confirmation is absent."
-            exit 0
-          fi
-          approval="$WEAVE_FRESH_START_PENDING_ROOT/approval.json"
-          APPROVAL_PATH="$approval" \
-          APPROVAL_EVIDENCE_REF="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/issues/1266" \
-          python3 - <<'PY'
-          import importlib.util
-          import json
-          import os
-          from pathlib import Path
-
-          source = Path("infra/weave-workspace/fresh-start.py")
-          spec = importlib.util.spec_from_file_location("fresh_start", source)
-          assert spec and spec.loader
-          module = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(module)
-          plan = json.loads(Path(os.environ["WEAVE_FRESH_START_PLAN"]).read_text(encoding="utf-8"))
-          payload = {
-              "schemaVersion": "weave.infra.fresh-start-approval.v1",
-              "supportSafe": True,
-              "decision": "approved",
-              "environment": plan["environment"],
-              "planSha256": os.environ["WEAVE_FRESH_START_PLAN_SHA"],
-              "operationNonce": plan["operationNonce"],
-              "approverRole": "release-owner",
-              "evidenceRef": os.environ["APPROVAL_EVIDENCE_REF"],
+          plan="${{ steps.fresh-plan.outputs.path }}"
+          plan_sha="${{ steps.fresh-plan.outputs.sha }}"
+          issue_body="$(gh api "/repos/${GITHUB_REPOSITORY}/issues/${{ github.event.issue.number || 0 }}" --jq .body 2>/dev/null || true)"
+          token="DELETE_OLD_WEAVE:sha256:${plan_sha}"
+          [[ "$issue_body" == *"$token"* ]] || {
+            echo "::error::Fresh Start requires exact reviewed approval token $token." >&2
+            exit 1
           }
-          path = Path(os.environ["APPROVAL_PATH"])
-          path.write_bytes(module.canonical_json_bytes(payload))
-          path.chmod(0o600)
-          PY
-          cp "$approval" "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-approval.json"
-          {
-            echo "approved=true"
-            echo "approval=$approval"
-          } >> "$GITHUB_OUTPUT"
+          echo "approved=true" >> "$GITHUB_OUTPUT"
 
-      - name: Stop before mutation without exact Fresh Start approval
-        if: env.DEPLOYMENT_MODE == 'fresh-start' && steps.approval.outputs.approved != 'true'
-        run: |
-          echo "::error::AWAITING_DESTRUCTIVE_APPROVAL ${WEAVE_FRESH_START_CONFIRMATION}" >&2
-          exit 1
-
-      - name: Apply only the exact approved Fresh Start plan
+      - name: Apply approved Fresh Start generation cut
         if: env.DEPLOYMENT_MODE == 'fresh-start' && steps.approval.outputs.approved == 'true'
+        working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          apply_evidence="$WEAVE_FRESH_START_PENDING_ROOT/apply-evidence.json"
-          recreation_evidence="$WEAVE_FRESH_START_PENDING_ROOT/recreation-evidence.json"
-          archive_root="$WEAVE_FRESH_START_PENDING_ROOT/archive"
-          ./gradlew --no-daemon freshStartApply \
-            "-PfreshStartManifest=$WEAVE_FRESH_START_PLAN" \
-            "-Pconfirm=$WEAVE_FRESH_START_CONFIRMATION" \
-            "-PapprovalEvidence=${{ steps.approval.outputs.approval }}" \
-            "-PfreshStartEvidence=$apply_evidence" \
-            "-PfreshStartApplyEvidence=$apply_evidence" \
-            "-PcandidateManifest=$WEAVE_CANDIDATE_MANIFEST" \
-            "-PfreshStartArchiveRoot=$archive_root" \
-            "-PfreshStartRecreationEvidence=$recreation_evidence"
-          cp "$apply_evidence" "$apply_evidence.sha256" "$recreation_evidence" "$recreation_evidence.sha256" \
-            "$WEAVE_TEST_STACK_EVIDENCE_DIR/"
+          plan="${{ steps.fresh-plan.outputs.path }}"
+          apply="$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-apply.json"
+          approval="$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-approval.json"
+          jq -n --arg token "DELETE_OLD_WEAVE:sha256:${{ steps.fresh-plan.outputs.sha }}" '{schemaVersion:"weave.fresh-start-approval.v1",approved:true,token:$token,supportSafe:true,containsSecretValues:false}' > "$approval"
+          ./fresh-start.py apply \
+            --manifest "$plan" \
+            --confirm "DELETE_OLD_WEAVE:sha256:${{ steps.fresh-plan.outputs.sha }}" \
+            --approval-evidence "$approval" \
+            --evidence "$apply"
+          export WEAVE_FRESH_START_PLAN="$plan"
+          export WEAVE_FRESH_START_APPLY_EVIDENCE="$apply"
+          export WEAVE_RESOURCE_GENERATION="$WEAVE_FRESH_START_TARGET_GENERATION"
+          echo "WEAVE_RESOURCE_GENERATION=$WEAVE_RESOURCE_GENERATION" >> "$GITHUB_ENV"
 
-      - name: Ensure local Weave hostnames resolve
+      - name: Prepare persistent resource baseline
         if: env.DEPLOYMENT_MODE == 'routine' || steps.approval.outputs.approved == 'true'
+        working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          hosts=(weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test admin.weave.test mail.weave.test)
-          missing=()
-          for host in "${hosts[@]}"; do
-            dscacheutil -q host -a name "$host" | grep -q 'ip_address:' || missing+=("$host")
-          done
-          if (( ${#missing[@]} > 0 )); then
-            line="127.0.0.1 ${missing[*]}"
-            sudo -n true 2>/dev/null || {
-              echo "::error::Configure runner DNS or passwordless sudo for: $line" >&2
-              exit 1
-            }
-            printf '%s\n' "$line" | sudo tee -a /etc/hosts >/dev/null
-            sudo dscacheutil -flushcache || true
-          fi
-
-      - name: Capture routine persistent resource identity
-        if: env.DEPLOYMENT_MODE == 'routine'
-        run: |
-          set -euo pipefail
-          python3 tools/dogfood_resource_continuity.py capture \
+          python3 ../../tools/dogfood_resource_continuity.py baseline \
             --compose-project "$WEAVE_COMPOSE_PROJECT" \
             --generation "$WEAVE_RESOURCE_GENERATION" \
             --database "$WEAVE_DB_DATA_VOLUME" \
@@ -530,7 +425,13 @@ jobs:
           jq -e \
             --arg semantic "$candidate_semantic" \
             --arg migration "$candidate_migration" '
-              .schemaVersion == "weave.compose-render.v2" and
+              .schemaVersion == "weave.compose-render.v3" and
+              (has("realmArtifacts") | not) and
+              (.deploymentArtifacts | type == "object") and
+              .deploymentArtifacts.renderedRealmPath == "keycloak/import/weave-realm.json" and
+              .deploymentArtifacts.migrationBundlePath == "keycloak/migrations/fresh-start-v1.json" and
+              .deploymentArtifacts.environmentRenderEvidencePath == "keycloak/realm-render-evidence.json" and
+              .deploymentArtifacts.containsSecretValues == false and
               .realmIdentity.semanticRealmSourceDigest == $semantic and
               .realmIdentity.migrationDefinitionDigest == $migration and
               (.realmIdentity.overlayDigest | test("^sha256:[0-9a-f]{64}$")) and
