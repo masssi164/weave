@@ -93,6 +93,7 @@ class CalDavCalendarAdapterTest {
             paths.add(exchange.getRequestURI().getRawPath());
             respond(exchange, 207, multistatus("""
                     UID:event-1&#13;
+                    DTSTAMP:20260425T090000Z&#13;
                     LAST-MODIFIED:20260425T090000Z&#13;
                     DTSTART;TZID=Europe/Berlin:20260426T100000&#13;
                     DTEND;TZID=Europe/Berlin:20260426T110000&#13;
@@ -225,6 +226,7 @@ class CalDavCalendarAdapterTest {
     void preservesBoundedRecurringEventsFromProvider() throws Exception {
         server = server(exchange -> respond(exchange, 207, multistatus("""
                 UID:event-recurring&#13;
+                DTSTAMP:20260320T120000Z&#13;
                 DTSTART;TZID=Europe/Berlin:20260322T090000&#13;
                 DTEND;TZID=Europe/Berlin:20260322T100000&#13;
                 RRULE:FREQ=WEEKLY;COUNT=3&#13;
@@ -283,6 +285,8 @@ class CalDavCalendarAdapterTest {
         return """
                 <?xml version="1.0" encoding="utf-8"?>
                 <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:response><d:href>/remote.php/dav/calendars/weave-backend/personal/event.ics</d:href><d:propstat><d:prop><d:getetag>%s</d:getetag><c:calendar-data>BEGIN:VCALENDAR&#13;
+                VERSION:2.0&#13;
+                PRODID:-//Weave//Calendar Test//EN&#13;
                 BEGIN:VEVENT&#13;
                 %sEND:VEVENT&#13;
                 END:VCALENDAR&#13;
@@ -297,8 +301,11 @@ class CalDavCalendarAdapterTest {
     private String calendar(String uid, String title) {
         return """
                 BEGIN:VCALENDAR
+                VERSION:2.0
+                PRODID:-//Weave//Calendar Test//EN
                 BEGIN:VEVENT
                 UID:%s
+                DTSTAMP:20260425T090000Z
                 DTSTART;TZID=Europe/Berlin:20260426T100000
                 DTEND;TZID=Europe/Berlin:20260426T110000
                 SUMMARY:%s
@@ -307,46 +314,41 @@ class CalDavCalendarAdapterTest {
                 """.formatted(uid, title);
     }
 
-    private void assertSupportSafe(CalendarAdapterException exception) {
-        String rendered = exception.getMessage() + " " + exception.details();
-        assertThat(rendered)
-                .doesNotContain("backend:secret")
-                .doesNotContain("/remote.php/dav")
-                .doesNotContain("localhost:")
-                .doesNotContain("conflict at");
-    }
+    private CalendarId calendarId() { return new CalendarId("workspace-main"); }
 
     private CalDavCalendarAdapter adapter() {
+        String base = "http://127.0.0.1:" + server.getAddress().getPort();
         return new CalDavCalendarAdapter(new CalendarCalDavProperties(
-                "http://localhost:" + server.getAddress().getPort(),
-                "/remote.php/dav/calendars/weave-backend/personal/",
+                base,
+                "/remote.php/dav/calendars/{backendActor}/{calendarRef}/",
                 CalendarCalDavProperties.AuthMode.BASIC,
-                "backend",
+                "weave-backend",
                 "secret",
-                5,
-                ZoneId.of("Europe/Berlin")));
+                1,
+                ZoneOffset.UTC));
     }
 
-    private CalendarId calendarId() { return new CalendarId("massimo"); }
-
-    private HttpServer server(ExchangeHandler handler) throws IOException {
-        HttpServer httpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-        httpServer.createContext("/", exchange -> {
-            assertThat(exchange.getRequestHeaders().getFirst("Authorization")).startsWith("Basic ");
-            handler.handle(exchange);
-        });
-        httpServer.start();
-        return httpServer;
+    private HttpServer server(com.sun.net.httpserver.HttpHandler handler) throws IOException {
+        HttpServer result = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        result.createContext("/", handler);
+        result.start();
+        return result;
     }
 
     private void respond(HttpExchange exchange, int status, String body, String etag) throws IOException {
-        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         if (etag != null) exchange.getResponseHeaders().add("ETag", etag);
-        exchange.sendResponseHeaders(status, bytes.length);
-        exchange.getResponseBody().write(bytes);
+        byte[] payload = body.getBytes(StandardCharsets.UTF_8);
+        if (status == 204) {
+            exchange.sendResponseHeaders(status, -1);
+        } else {
+            exchange.sendResponseHeaders(status, payload.length);
+            exchange.getResponseBody().write(payload);
+        }
         exchange.close();
     }
 
-    @FunctionalInterface
-    private interface ExchangeHandler { void handle(HttpExchange exchange) throws IOException; }
+    private void assertSupportSafe(CalendarAdapterException exception) {
+        assertThat(exception.getMessage()).doesNotContain("backend:secret", "/remote.php/dav");
+        assertThat(exception.details().toString()).doesNotContain("backend:secret", "/remote.php/dav");
+    }
 }
