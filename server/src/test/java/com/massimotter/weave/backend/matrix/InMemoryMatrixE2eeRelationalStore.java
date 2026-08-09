@@ -23,6 +23,7 @@ final class InMemoryMatrixE2eeRelationalStore implements MatrixE2eePersistence {
     private final Set<String> toDeviceTransactions = ConcurrentHashMap.newKeySet();
     private final Map<DeviceKey, Long> syncProgress = new ConcurrentHashMap<>();
     private final Map<SharedKey, DeviceListState> sharedUsers = new ConcurrentHashMap<>();
+    private final List<SharedChange> sharedUserChanges = java.util.Collections.synchronizedList(new ArrayList<>());
     private final Map<OidcKey, String> oidcBindings = new ConcurrentHashMap<>();
     private final Map<UserKey, Map<String, BackupState>> backups = new ConcurrentHashMap<>();
     private final Map<UserKey, AtomicLong> backupSequences = new ConcurrentHashMap<>();
@@ -196,6 +197,7 @@ final class InMemoryMatrixE2eeRelationalStore implements MatrixE2eePersistence {
             if (current == null || current.shared() != desired) {
                 DeviceListState next = new DeviceListState(desired, nextRevision(tenantId));
                 sharedUsers.put(key, next);
+                sharedUserChanges.add(new SharedChange(key, next));
                 changed.put(sharedUser, next);
             }
         }
@@ -205,12 +207,15 @@ final class InMemoryMatrixE2eeRelationalStore implements MatrixE2eePersistence {
     @Override
     public Map<String, DeviceListState> sharedUserChanges(String tenantId, String userId, String deviceId, long afterRevision, long highWater) {
         Map<String, DeviceListState> result = new LinkedHashMap<>();
-        sharedUsers.forEach((key, state) -> {
-            if (key.tenantId.equals(tenantId) && key.userId.equals(userId) && key.deviceId.equals(deviceId)
-                    && state.changedRevision() > afterRevision && state.changedRevision() <= highWater) {
-                result.put(key.sharedUserId, state);
-            }
-        });
+        synchronized (sharedUserChanges) {
+            sharedUserChanges.stream()
+                    .filter(change -> change.key.tenantId.equals(tenantId)
+                            && change.key.userId.equals(userId)
+                            && change.key.deviceId.equals(deviceId))
+                    .filter(change -> change.state.changedRevision() > afterRevision && change.state.changedRevision() <= highWater)
+                    .sorted(java.util.Comparator.comparingLong(change -> change.state.changedRevision()))
+                    .forEach(change -> result.put(change.key.sharedUserId, change.state));
+        }
         return Map.copyOf(result);
     }
 
@@ -403,6 +408,7 @@ final class InMemoryMatrixE2eeRelationalStore implements MatrixE2eePersistence {
     private record UserKey(String tenantId, String userId) {}
     private record OidcKey(String tenantId, String userId, String sessionHash) {}
     private record SharedKey(String tenantId, String userId, String deviceId, String sharedUserId) {}
+    private record SharedChange(SharedKey key, DeviceListState state) {}
     private record BackupKey(String roomId, String sessionId) {}
     private record ToDeviceState(long revision, String tenantId, String targetUserId, String targetDeviceId, String senderUserId, String eventType, String transactionId, String transactionKey, Map<String, Object> content) {}
 
