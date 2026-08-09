@@ -336,9 +336,19 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
 
     private String calendarHref(CalendarId calendarId, CalendarScope scope, String eventFileName) {
         CalendarScope resolvedScope = normalizeScope(scope);
-        String user = URLEncoder.encode(calendarId.value(), StandardCharsets.UTF_8).replace("+", "%20");
-        String path = properties.calendarPathTemplate().replace("{user}", user);
+        String calendarRef = pathSegment(calendarId.value());
+        String backendActor = pathSegment(properties.backendUsername());
+        String user = pathSegment(calendarId.value());
+        String path = properties.calendarPathTemplate()
+                .replace("{backendActor}", backendActor)
+                .replace("{calendarRef}", calendarRef)
+                .replace("{user}", user);
         path = applyScopePath(path, resolvedScope);
+        if (path.matches(".*\\{[^/{}]+}.*")) {
+            throw new CalendarAdapterException(CalendarAdapterException.Type.NOT_CONFIGURED,
+                    "Calendar provider path template contains an unsupported placeholder.",
+                    Map.of("module", "calendar", "operation", "resolve-calendar-path", "supportSafe", true));
+        }
         if (!path.startsWith("/")) path = "/" + path;
         if (!path.endsWith("/")) path = path + "/";
         return path + eventFileName;
