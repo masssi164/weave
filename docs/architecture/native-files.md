@@ -10,14 +10,14 @@ WebDAV
     -> FilesProviderPort                    (Provider Port)
       -> weave-native                       (Provider Adapter, selected default)
         -> BlobStorePort                    (Infrastructure Port)
-          -> OpenDAL filesystem adapter     (Infrastructure Adapter)
-            -> Apache OpenDAL
+          -> FilesystemBlobStore            (Infrastructure Adapter)
+            -> Apache OpenDAL (filesystem service)
               -> private filesystem storage
 
-      -> s3                                 (separate Provider Adapter)
-        -> object-storage infrastructure port
-          -> OpenDAL S3 adapter where appropriate
-            -> Apache OpenDAL
+      -> weave-s3-minio                     (separate Provider Adapter)
+        -> ObjectStoragePort                (Infrastructure Port)
+          -> OpenDalS3ObjectStorageAdapter  (Infrastructure Adapter)
+            -> Apache OpenDAL (S3 service)
               -> S3
 
       -> optional external providers
@@ -27,13 +27,13 @@ The general terminology is defined in [`provider-and-infrastructure-boundaries.m
 
 `weave-native` owns canonical relational metadata, hierarchy, versions, rights, locks, lifecycle, tombstones, operation intents, change state and reconciliation metadata in Weave PostgreSQL/JPA persistence.
 
-Apache OpenDAL is **not a Files provider**. It is an infrastructure-level storage abstraction that may be used by Files provider adapters where appropriate. OpenDAL types never cross the provider or canonical-domain boundary.
+Apache OpenDAL is **not a Files provider**. It is an infrastructure-level storage abstraction reused below Files provider boundaries. OpenDAL types never cross the infrastructure/provider boundary into canonical Files contracts.
 
-For the `weave-native` provider, OpenDAL uses the filesystem service for private immutable blob storage. S3 remains an independently selectable Files provider even if the S3 provider also chooses OpenDAL internally for object-storage access.
+For `weave-native`, `FilesystemBlobStore` uses OpenDAL's filesystem service for private immutable blob storage. The independently selectable `weave-s3-minio` provider uses `ObjectStoragePort` with `OpenDalS3ObjectStorageAdapter` and OpenDAL's S3 service. Reusing the same infrastructure library does not merge those Provider Adapters.
 
 ## Blob authority
 
-The native provider stores private immutable blob content in filesystem storage through the `BlobStorePort` Infrastructure Port. The concrete infrastructure adapter uses OpenDAL's filesystem service. Raw NIO blob data paths are not parallel native authorities.
+The native provider stores private immutable blob content in filesystem storage through the `BlobStorePort` Infrastructure Port. `FilesystemBlobStore` is the concrete OpenDAL filesystem Infrastructure Adapter. Raw NIO blob data paths are not parallel native authorities.
 
 Canonical/member paths are not blob keys. Blob references are opaque, scoped and validated. Immutable publication verifies content digest and length.
 
@@ -51,13 +51,13 @@ A failed or ambiguous blob/database boundary never becomes silent success.
 
 ## Filesystem behavior
 
-The `weave-native` OpenDAL infrastructure adapter uses the filesystem service. Publication uses a private temporary key and same-backend atomic rename when the required capability is present. Capability checks are part of native configuration validation. A filesystem configuration that cannot satisfy required immutable-publication semantics fails closed.
+The `weave-native` OpenDAL Infrastructure Adapter uses the filesystem service. Publication uses a private temporary key and same-backend atomic rename when the required capability is present. Capability checks are part of native configuration validation. A filesystem configuration that cannot satisfy required immutable-publication semantics fails closed.
 
 ## Separate S3 provider
 
-The S3 provider is a southbound **Provider Adapter** selected independently behind `FilesProviderPort`. S3 is not a storage mode of `weave-native`.
+`weave-s3-minio` is a southbound **Provider Adapter** selected independently behind `FilesProviderPort`. S3 is not a storage mode of `weave-native`.
 
-Its object-storage implementation may use OpenDAL's S3 service behind its own Infrastructure Port if that satisfies the provider's capability, concurrency and operational requirements. Reusing OpenDAL does not merge the S3 provider into `weave-native`; provider identity is defined by the Provider Port/Adapter boundary, not by the library used below it.
+The provider delegates technical object-storage operations to the `ObjectStoragePort` Infrastructure Port. `OpenDalS3ObjectStorageAdapter` implements that port using OpenDAL's S3 service. S3 endpoint, bucket, credentials and provider-specific health/readiness remain scoped to the S3 provider path and do not enter `weave-native`.
 
 S3-provider tests and operations evidence remain provider-scoped and are not native Files evidence.
 
