@@ -92,7 +92,11 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
                         null);
                 assertThat(page.toDeviceEvents()).hasSizeLessThanOrEqualTo(100);
                 assertThat(page.nextSequence()).isGreaterThanOrEqualTo(cursor.toDeviceSequence()).isLessThanOrEqualTo(eventCount);
-                page.toDeviceEvents().forEach(event -> deliveredIndexes.add((Integer) event.get("content") instanceof Integer ? (Integer) event.get("content") : (Integer) ((Map<?, ?>) event.get("content")).get("index")));
+                for (Map<String, Object> event : page.toDeviceEvents()) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> content = (Map<String, Object>) event.get("content");
+                    deliveredIndexes.add((Integer) content.get("index"));
+                }
                 String encoded = service.combinedCursor("chat-cursor", page);
                 cursor = service.cryptoCursor(encoded);
                 if (page.toDeviceEvents().isEmpty()) break;
