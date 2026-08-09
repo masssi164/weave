@@ -31,10 +31,9 @@ public final class Ical4jIcalendarCodec implements IcalendarCodec {
             var writer = new StringWriter(calendarData.length() + 256);
             new CalendarOutputter(true).output(calendar, writer);
             return writer.toString();
+        } catch (CalendarAdapterException exception) {
+            throw exception;
         } catch (ParserException | IOException | ValidationException | IllegalArgumentException exception) {
-            if (exception instanceof CalendarAdapterException adapterException) {
-                throw adapterException;
-            }
             throw invalid("iCalendar payload is invalid.", exception);
         }
     }
