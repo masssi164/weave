@@ -738,7 +738,7 @@ services:
     command:
       - schema-init
     environment:
-      SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT}
+      SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${WEAVE_BACKEND_DB_NAME:-weave_backend}
       SPRING_DATASOURCE_USERNAME: ${WEAVE_BACKEND_DB_USERNAME:-weave_backend}
       WEAVE_CANDIDATE_COMMIT: ${WEAVE_CANDIDATE_COMMIT}
@@ -887,7 +887,7 @@ services:
       keycloak-realm-migration-receipt-check:
         condition: service_completed_successfully
     environment:
-      SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT}
+      SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${WEAVE_BACKEND_DB_NAME:-weave_backend}
       SPRING_DATASOURCE_USERNAME: ${WEAVE_BACKEND_DB_USERNAME:-weave_backend}
       SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/,optional:configtree:/run/secrets/providers/
@@ -1008,7 +1008,7 @@ services:
       mcp-keycloak-connectivity-check:
         condition: service_completed_successfully
     environment:
-      SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT}
+      SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}
     volumes:
       - type: bind
         source: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-mcp-server-jwk.json
@@ -1085,9 +1085,6 @@ volumes:
   mailpit-data:
     external: true
     name: ${WEAVE_MAILPIT_DATA_VOLUME:-weave_mailpit_data}
-  mas-data:
-    external: true
-    name: ${WEAVE_MAS_DATA_VOLUME:-weave_mas_data}
   synapse-data:
     external: true
     name: ${WEAVE_SYNAPSE_DATA_VOLUME:-weave_synapse_data}
@@ -1097,13 +1094,10 @@ volumes:
   nextcloud-data:
     external: true
     name: ${WEAVE_NEXTCLOUD_DATA_VOLUME:-weave_nextcloud_data}
-  native-files-data:
-    external: true
-    name: ${WEAVE_NATIVE_FILES_DATA_VOLUME:-weave_native_files_data}
   runtime-state-data:
     external: true
     name: ${WEAVE_RUNTIME_STATE_DATA_VOLUME:-weave_runtime_state_data}
 
 networks:
   weave:
-    name: ${WEAVE_NETWORK_NAME:-weave_network}
+    name: ${WEAVE_NETWORK_NAME:-weave_net}
