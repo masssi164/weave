@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
+import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.adapter.FilesAuthorityJpaTestFactory;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
@@ -113,8 +114,10 @@ class WeaveNativeFilesAdapterTest {
     @Test
     void unscopedNativeDataOperationsFailClosed() {
         assertThatThrownBy(() -> adapter(authority).find(new FilePath("/anything")))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("require an organization/space scope");
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.getStatus()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT);
+                    assertThat(exception.getCode()).isEqualTo("files-native-scope-required");
+                });
     }
 
     private WeaveNativeFilesAdapter adapter(FilesAuthorityRepository repository) {
