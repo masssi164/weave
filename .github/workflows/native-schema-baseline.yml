@@ -3,86 +3,43 @@ name: Native Schema Baseline
 on:
   pull_request:
     paths:
-      - 'server/**'
-      - 'weave-*/**'
-      - 'gradle/**'
       - '.github/workflows/native-schema-baseline.yml'
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
-  generate:
+  commit-baseline:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    services:
-      postgres:
-        image: postgres:16.9-alpine
-        env:
-          POSTGRES_DB: weave_backend
-          POSTGRES_USER: weave_backend
-          POSTGRES_PASSWORD: weave_backend
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U weave_backend -d weave_backend"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ github.head_ref }}
-      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+      - name: Download the independently generated PostgreSQL baseline
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
-          distribution: temurin
-          java-version: '21'
-      - name: Generate schema from the pre-Flyway JPA model
-        env:
-          WEAVE_PERSISTENCE_URL: jdbc:postgresql://127.0.0.1:5432/weave_backend
-          WEAVE_PERSISTENCE_USERNAME: weave_backend
-          WEAVE_PERSISTENCE_PASSWORD: weave_backend
-          WEAVE_CANDIDATE_COMMIT: ${{ github.event.pull_request.head.sha }}
-          WEAVE_SCHEMA_INIT_RECEIPT_FILE: ${{ runner.temp }}/schema-init-receipt.json
+          name: native-schema-baseline
+          path: build/native-schema-baseline
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '31288003656'
+      - name: Verify and commit the exact generated Flyway baseline
         run: |
           set -euo pipefail
-          ./gradlew :server:bootRun --args='schema-init'
-          mkdir -p build/native-schema-baseline
-          PGPASSWORD=weave_backend pg_dump \
-            --host=127.0.0.1 \
-            --port=5432 \
-            --username=weave_backend \
-            --dbname=weave_backend \
-            --schema-only \
-            --no-owner \
-            --no-privileges \
-            --no-comments \
-            > build/native-schema-baseline/V1__native_schema_baseline.raw.sql
-          sed -E '/^\\(restrict|unrestrict) /d' \
-            build/native-schema-baseline/V1__native_schema_baseline.raw.sql \
-            > build/native-schema-baseline/V1__native_schema_baseline.sql
-          test -s build/native-schema-baseline/V1__native_schema_baseline.sql
-          sha256sum build/native-schema-baseline/V1__native_schema_baseline.sql \
-            > build/native-schema-baseline/V1__native_schema_baseline.sql.sha256
-      - name: Commit exact generated Flyway baseline
-        run: |
-          set -euo pipefail
+          cd build/native-schema-baseline
+          sha256sum --check V1__native_schema_baseline.sql.sha256
+          test "$(wc -l < V1__native_schema_baseline.sql)" -eq 1541
+          cd ../..
           mkdir -p server/src/main/resources/db/migration
-          cp build/native-schema-baseline/V1__native_schema_baseline.sql \
-            server/src/main/resources/db/migration/V1__native_schema_baseline.sql
-          if git diff --quiet -- server/src/main/resources/db/migration/V1__native_schema_baseline.sql; then
-            exit 0
-          fi
+          cp build/native-schema-baseline/V1__native_schema_baseline.sql server/src/main/resources/db/migration/V1__native_schema_baseline.sql
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add server/src/main/resources/db/migration/V1__native_schema_baseline.sql
+          if git diff --cached --quiet; then
+            exit 0
+          fi
           git commit -m 'build(persistence): commit generated native schema baseline'
           git push origin HEAD:${{ github.head_ref }}
-      - name: Upload generated baseline evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: native-schema-baseline
-          path: build/native-schema-baseline/
-          if-no-files-found: error
-          retention-days: 7
