@@ -7,16 +7,12 @@ import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import tools.jackson.databind.ObjectMapper;
 
 class MatrixE2eeStateServicePersistenceTest {
 
-    private final ObjectMapper objectMapper =
-            tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
-
     @Test
     void publicKeysToDeviceEventsAndOpaqueBackupsSurviveServiceRestart() {
-        InMemoryMatrixE2eeRelationalStore store = new InMemoryMatrixE2eeRelationalStore(objectMapper);
+        InMemoryMatrixE2eeRelationalStore store = new InMemoryMatrixE2eeRelationalStore();
         MatrixE2eeStateService first = service(store);
         var trusted = identity("WEAVETRUSTEDDEVICE", "oidc-session-hash-a");
         var second = identity("WEAVESECONDDEVICE");
@@ -36,23 +32,14 @@ class MatrixE2eeStateServicePersistenceTest {
                 "!room:api.weave.test",
                 "session-1",
                 Map.of("session_data", Map.of("ciphertext", "opaque-backup")));
-        first.putAccountData(
-                trusted,
-                "m.secret_storage.default_key",
-                Map.of("key", "weave-recovery-key-id"));
+        first.putAccountData(trusted, "m.secret_storage.default_key", Map.of("key", "weave-recovery-key-id"));
 
         MatrixE2eeStateService restarted = service(store);
         Map<String, Object> queried = restarted.queryKeys(trusted, Map.of(
                 "device_keys", Map.of(trusted.userId(), List.of())));
-        Map<String, Object> backup = restarted.backupKeys(
-                trusted,
-                backupVersion,
-                "!room:api.weave.test",
-                "session-1");
+        Map<String, Object> backup = restarted.backupKeys(trusted, backupVersion, "!room:api.weave.test", "session-1");
         var sync = restarted.sync(second, 0);
-        Map<String, Object> accountData = restarted.accountData(
-                trusted,
-                "m.secret_storage.default_key");
+        Map<String, Object> accountData = restarted.accountData(trusted, "m.secret_storage.default_key");
         long restoredSequence = sync.nextSequence();
 
         restarted.sendToDevice(trusted, "m.room_key", "txn-persisted", Map.of(
@@ -65,19 +52,16 @@ class MatrixE2eeStateServicePersistenceTest {
         assertThat(backup.toString()).contains("opaque-backup").doesNotContain("plaintext", "recoveryKey");
         assertThat(accountData).containsEntry("key", "weave-recovery-key-id");
         assertThat(restarted.currentSequence()).isEqualTo(restoredSequence);
+        assertThat(store.currentRevision("tenant-a")).isEqualTo(restoredSequence);
         assertThat(restarted.sync(second, restoredSequence).toDeviceEvents()).isEmpty();
-        assertThatThrownBy(() -> restarted.requireActive(identity(
-                        "WEAVERENAMEDDEVICE",
-                        "oidc-session-hash-a")))
+        assertThatThrownBy(() -> restarted.requireActive(identity("WEAVERENAMEDDEVICE", "oidc-session-hash-a")))
                 .isInstanceOfSatisfying(MatrixProtocolException.class, exception ->
                         assertThat(exception.errcode()).isEqualTo("M_UNKNOWN_TOKEN"));
-        assertThat(store.load("tenant-a")).isPresent();
-        assertThat(store.load("tenant-a").orElseThrow().sequence()).isEqualTo(restoredSequence);
     }
 
     @Test
     void fallbackKeyClaimAndUsedStateSurviveRestartWithoutMutatingStatusQueries() {
-        InMemoryMatrixE2eeRelationalStore store = new InMemoryMatrixE2eeRelationalStore(objectMapper);
+        InMemoryMatrixE2eeRelationalStore store = new InMemoryMatrixE2eeRelationalStore();
         MatrixE2eeStateService service = service(store);
         var target = identity("WEAVEFALLBACKTARGET");
         var claimant = identity("WEAVEFALLBACKCLAIMANT");
@@ -88,12 +72,10 @@ class MatrixE2eeStateServicePersistenceTest {
 
         assertThat(service.currentSequence()).isEqualTo(sequenceAfterUpload);
         assertThat(status).containsEntry("one_time_key_counts", Map.of());
-        assertThat(service.sync(target, 0).unusedFallbackKeyTypes())
-                .containsExactly("signed_curve25519");
+        assertThat(service.sync(target, 0).unusedFallbackKeyTypes()).containsExactly("signed_curve25519");
 
         Map<String, Object> claimed = service.claimKeys(claimant, Map.of(
-                "one_time_keys", Map.of(
-                        target.userId(), Map.of(target.deviceId(), "signed_curve25519"))));
+                "one_time_keys", Map.of(target.userId(), Map.of(target.deviceId(), "signed_curve25519"))));
 
         assertThat(claimed.toString()).contains("fallback-public-key");
         assertThat(service.sync(target, 0).unusedFallbackKeyTypes()).isEmpty();
@@ -101,17 +83,15 @@ class MatrixE2eeStateServicePersistenceTest {
         MatrixE2eeStateService restarted = service(store);
         assertThat(restarted.sync(target, 0).unusedFallbackKeyTypes()).isEmpty();
         assertThat(restarted.claimKeys(claimant, Map.of(
-                "one_time_keys", Map.of(
-                        target.userId(), Map.of(target.deviceId(), "signed_curve25519")))).toString())
+                "one_time_keys", Map.of(target.userId(), Map.of(target.deviceId(), "signed_curve25519")))).toString())
                 .contains("fallback-public-key");
 
         restarted.uploadKeys(target, fallbackKeyUpload(target, "replacement-fallback-key"));
-        assertThat(restarted.sync(target, 0).unusedFallbackKeyTypes())
-                .containsExactly("signed_curve25519");
+        assertThat(restarted.sync(target, 0).unusedFallbackKeyTypes()).containsExactly("signed_curve25519");
     }
 
-    private MatrixE2eeStateService service(MatrixE2eeRelationalStore store) {
-        return new MatrixE2eeStateService(objectMapper, store);
+    private MatrixE2eeStateService service(MatrixE2eePersistence store) {
+        return new MatrixE2eeStateService(store);
     }
 
     private MatrixFacadeClientStateService.MatrixIdentity identity(String deviceId) {
@@ -128,9 +108,7 @@ class MatrixE2eeStateServicePersistenceTest {
                 oidcSessionHash);
     }
 
-    private Map<String, Object> keyUpload(
-            MatrixFacadeClientStateService.MatrixIdentity identity,
-            String publicKey) {
+    private Map<String, Object> keyUpload(MatrixFacadeClientStateService.MatrixIdentity identity, String publicKey) {
         return Map.of("device_keys", Map.of(
                 "user_id", identity.userId(),
                 "device_id", identity.deviceId(),
@@ -139,9 +117,7 @@ class MatrixE2eeStateServicePersistenceTest {
                 "signatures", Map.of()));
     }
 
-    private Map<String, Object> fallbackKeyUpload(
-            MatrixFacadeClientStateService.MatrixIdentity identity,
-            String publicKey) {
+    private Map<String, Object> fallbackKeyUpload(MatrixFacadeClientStateService.MatrixIdentity identity, String publicKey) {
         return Map.of(
                 "device_keys", keyUpload(identity, publicKey).get("device_keys"),
                 "fallback_keys", Map.of(
