@@ -18,15 +18,17 @@ class MatrixE2eeStateServiceSharedUsersTest {
 
         service.uploadKeys(peer, keyUpload(peer));
         long cursorAfterPeerUpload = service.currentSequence(observer);
+        var initialCursor = new MatrixE2eeStateService.E2eeSyncCursor(cursorAfterPeerUpload, cursorAfterPeerUpload);
 
-        var firstSharedSync = service.sync(observer, cursorAfterPeerUpload, Set.of(peer.userId()));
-        var retriedSharedSync = service.sync(observer, cursorAfterPeerUpload, Set.of(peer.userId()));
+        var firstSharedSync = sync(service, observer, initialCursor, Set.of(peer.userId()));
+        var retriedSharedSync = sync(service, observer, initialCursor, Set.of(peer.userId()));
+        var acknowledged = cursor(service, firstSharedSync);
 
         assertThat(firstSharedSync.deviceListsChanged()).containsExactly(peer.userId());
         assertThat(firstSharedSync.deviceListsLeft()).isEmpty();
         assertThat(firstSharedSync.nextSequence()).isGreaterThan(cursorAfterPeerUpload);
         assertThat(retriedSharedSync.deviceListsChanged()).containsExactly(peer.userId());
-        assertThat(service.sync(observer, firstSharedSync.nextSequence(), Set.of(peer.userId())).deviceListsChanged()).isEmpty();
+        assertThat(sync(service, observer, acknowledged, Set.of(peer.userId())).deviceListsChanged()).isEmpty();
     }
 
     @Test
@@ -38,22 +40,32 @@ class MatrixE2eeStateServiceSharedUsersTest {
 
         service.uploadKeys(peer, keyUpload(peer));
         service.uploadKeys(unrelated, keyUpload(unrelated));
-        var joined = service.sync(observer, 0, Set.of(peer.userId()));
-        var left = service.sync(observer, joined.nextSequence(), Set.of());
-        var retriedLeft = service.sync(observer, joined.nextSequence(), Set.of());
+
+        var initial = new MatrixE2eeStateService.E2eeSyncCursor(0, 0);
+        var joined = sync(service, observer, initial, Set.of(peer.userId()));
+        var joinedCursor = cursor(service, joined);
+        var left = sync(service, observer, joinedCursor, Set.of());
+        var retriedLeft = sync(service, observer, joinedCursor, Set.of());
 
         assertThat(joined.deviceListsChanged()).contains(peer.userId()).doesNotContain(unrelated.userId());
         assertThat(left.deviceListsChanged()).isEmpty();
         assertThat(left.deviceListsLeft()).containsExactly(peer.userId());
         assertThat(retriedLeft.deviceListsLeft()).containsExactly(peer.userId());
+        assertThat(sync(service, observer, cursor(service, left), Set.of()).deviceListsLeft()).isEmpty();
+    }
 
-        String acknowledged = service.combinedCursor("chat-cursor", left);
-        MatrixE2eeStateService.E2eeSyncCursor acknowledgedCrypto = service.cryptoCursor(acknowledged);
-        assertThat(service.sync(
-                observer,
-                acknowledgedCrypto.toDeviceSequence(),
-                acknowledgedCrypto.deviceListSequence(),
-                Set.of()).deviceListsLeft()).isEmpty();
+    private MatrixProtocolCoreService.MatrixSyncCrypto sync(
+            MatrixE2eeStateService service,
+            MatrixFacadeClientStateService.MatrixIdentity identity,
+            MatrixE2eeStateService.E2eeSyncCursor cursor,
+            Set<String> sharedUsers) {
+        return service.sync(identity, cursor.toDeviceSequence(), cursor.deviceListSequence(), sharedUsers);
+    }
+
+    private MatrixE2eeStateService.E2eeSyncCursor cursor(
+            MatrixE2eeStateService service,
+            MatrixProtocolCoreService.MatrixSyncCrypto sync) {
+        return service.cryptoCursor(service.combinedCursor("chat-cursor", sync));
     }
 
     private MatrixE2eeStateService service() {
