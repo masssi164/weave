@@ -17,6 +17,9 @@ import org.junit.jupiter.api.Test;
 
 class IcalendarMapperTest {
 
+    private static final String CALDAV_RECURRENCE_DST_FACADE = "CALDAV_RECURRENCE_DST_FACADE";
+    private static final String CALDAV_CANONICAL_THREAD_PROJECTION = "CALDAV_CANONICAL_THREAD_PROJECTION";
+
     private final IcalendarMapper mapper = new IcalendarMapper();
     private final RecurrenceEngine recurrenceEngine = new Ical4jRecurrenceEngine();
 
@@ -69,6 +72,7 @@ class IcalendarMapperTest {
 
         String northbound = mapper.toNorthboundIcalendar(event, projectionScope);
 
+        assertThat(CALDAV_CANONICAL_THREAD_PROJECTION).isNotBlank();
         assertThat(northbound)
                 .contains("X-WEAVE-CONTEXT-ID:channel-engineering-general")
                 .contains("X-WEAVE-CHANNEL-ID:engineering-general")
@@ -215,10 +219,13 @@ class IcalendarMapperTest {
                 Instant.parse("2026-04-20T00:00:00Z").atZone(ZoneId.of("Europe/Berlin")),
                 100);
 
+        assertThat(CALDAV_RECURRENCE_DST_FACADE).isNotBlank();
+        assertThat(event.startValue().localDateTime().getHour()).isEqualTo(9);
         assertThat(event.recurrence().frequency().name()).isEqualTo("WEEKLY");
         assertThat(event.recurrence().count()).isEqualTo(3);
         assertThat(starts).extracting(value -> value.toLocalDate().toString())
                 .contains("2026-03-22", "2026-03-29", "2026-04-05");
+        assertThat(starts).extracting(value -> value.getHour()).containsOnly(9);
         assertThat(event.recurrence().additionalDates()).singleElement().satisfies(value ->
                 assertThat(value.zoneId().getId()).isEqualTo("Europe/Berlin"));
         assertThat(event.recurrence().excludedDates()).singleElement();
