@@ -20,6 +20,14 @@ is_retired_monolith_contract() {
   grep -Fq -- 'WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE' "${test_file}" && return 0
   grep -Fq -- 'id: weave-chat-synapse' "${test_file}" && return 0
   grep -Fq -- 'header_up X-Forwarded-For {http.request.remote.host}' "${test_file}" && return 0
+  grep -Fq -- '_backend_env' "${test_file}" && return 0
+  grep -Fq -- '_mcp_env' "${test_file}" && return 0
+  grep -Fq -- 'backend/public.env' "${test_file}" && return 0
+  grep -Fq -- 'backend/host.env' "${test_file}" && return 0
+  grep -Fq -- 'mcp/public.env' "${test_file}" && return 0
+  grep -Fq -- 'mcp/host.env' "${test_file}" && return 0
+  grep -Fq -- 'WEAVE_OIDC_ISSUER_URI' "${test_file}" && return 0
+  grep -Fq -- 'WEAVE_MCP_AUTHORIZATION_SERVER' "${test_file}" && return 0
 
   return 1
 }
