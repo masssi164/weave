@@ -40,9 +40,11 @@ Provider changes and migrations must produce machine-readable and reviewer-reada
 
 - **Export report**: source objects discovered, immutable IDs, counts, redacted samples, permissions, attachments/binaries, versions, references, rate-limit notes, and unsupported provider features.
 - **Import report**: target feasibility, object mapping, generated target IDs, skipped objects, idempotency keys, and post-import validation.
+- **ImportFeasibilityReport**: whether apply is feasible, feasible only after explicit manual review, or blocked.
 - **Lossy report**: every unsupported field, permission, workflow transition, recurrence rule, comment, attachment, version, lock, or provider-native feature that cannot be preserved as-is.
 - **Conflict report**: duplicate identities, existing target objects, renamed/deleted source objects, concurrent updates, last-admin guards, membership mismatches, and required admin choices.
-- **Rollback/retention report**: rollback feasibility, retained provider data, retention/legal-hold boundary, and manual remediation steps.
+- **PermissionImpactReport**: ownership, sharing, role, and visibility consequences of the proposed transition.
+- **RollbackRetentionReport**: rollback feasibility, retained provider data, retention/legal-hold boundary, restore-smoke requirements, and manual remediation steps.
 
 A provider switch may be shown to members only as stable capability state and impact copy. Admins/operators see the reports, readiness cards, and next actions in the Admin Console or operator evidence bundle.
 
