@@ -4049,18 +4049,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "weave-matrix-core"
+name = "weave-matrix-client"
 version = "0.1.0"
 dependencies = [
  "flutter_rust_bridge",
- "jni",
  "matrix-sdk",
  "reqwest",
+ "serde_json",
+ "tokio",
+ "weave-matrix-protocol",
+]
+
+[[package]]
+name = "weave-matrix-protocol"
+version = "0.1.0"
+dependencies = [
+ "jni",
  "ruma",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
- "tokio",
  "tracing",
 ]
 
