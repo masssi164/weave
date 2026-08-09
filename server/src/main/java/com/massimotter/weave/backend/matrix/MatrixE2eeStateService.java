@@ -22,6 +22,8 @@ public class MatrixE2eeStateService {
     private static final int MAX_ONE_TIME_KEYS_PER_UPLOAD = 256;
     private static final int MAX_TO_DEVICE_TARGETS = 1_000;
     private static final int MAX_TO_DEVICE_EVENTS_PER_SYNC = 100;
+    private static final String E2EE_CURSOR_MARKER = "|e2ee:";
+    private static final String E2EE_CURSOR_V2_PREFIX = "v2:";
 
     private final MatrixE2eePersistence persistence;
     private final AtomicLong projectedToDeviceEventCount = new AtomicLong();
@@ -131,17 +133,28 @@ public class MatrixE2eeStateService {
     }
 
     public MatrixProtocolCoreService.MatrixSyncCrypto sync(MatrixFacadeClientStateService.MatrixIdentity identity, long afterSequence) {
-        return sync(identity, afterSequence, null);
+        return sync(identity, afterSequence, afterSequence, null);
     }
 
     public MatrixProtocolCoreService.MatrixSyncCrypto sync(MatrixFacadeClientStateService.MatrixIdentity identity, long afterSequence, Collection<String> currentlySharedUserIds) {
+        return sync(identity, afterSequence, afterSequence, currentlySharedUserIds);
+    }
+
+    public MatrixProtocolCoreService.MatrixSyncCrypto sync(
+            MatrixFacadeClientStateService.MatrixIdentity identity,
+            long toDeviceAfterSequence,
+            long deviceListAfterSequence,
+            Collection<String> currentlySharedUserIds) {
         requireActive(identity);
+        if (toDeviceAfterSequence < 0 || deviceListAfterSequence < 0) {
+            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix E2EE sync cursor is invalid.");
+        }
         Set<String> shared = currentlySharedUserIds == null ? null : Set.copyOf(currentlySharedUserIds.stream()
                 .filter(value -> value != null && !value.isBlank() && !value.equals(identity.userId()))
                 .toList());
 
         long persistedDeviceListProgress = persistence.deviceListProgress(identity.tenantId(), identity.userId(), identity.deviceId());
-        long deviceListAfter = Math.max(persistedDeviceListProgress, afterSequence);
+        long deviceListAfter = Math.max(persistedDeviceListProgress, deviceListAfterSequence);
         if (deviceListAfter > persistedDeviceListProgress) {
             persistence.recordDeviceListProgress(identity.tenantId(), identity.userId(), identity.deviceId(), deviceListAfter);
         }
@@ -151,7 +164,7 @@ public class MatrixE2eeStateService {
 
         long snapshotHighWater = persistence.currentRevision(identity.tenantId());
         List<MatrixE2eePersistence.ToDeviceRecord> queue = persistence.toDeviceEvents(
-                identity.tenantId(), identity.userId(), identity.deviceId(), afterSequence, snapshotHighWater,
+                identity.tenantId(), identity.userId(), identity.deviceId(), toDeviceAfterSequence, snapshotHighWater,
                 MAX_TO_DEVICE_EVENTS_PER_SYNC);
         List<Map<String, Object>> events = queue.stream()
                 .map(event -> Map.<String, Object>of("sender", event.senderUserId(), "type", event.eventType(), "content", event.content()))
@@ -177,7 +190,8 @@ public class MatrixE2eeStateService {
                 left.stream().distinct().sorted().toList(),
                 persistence.oneTimeKeyCounts(identity.tenantId(), identity.userId(), identity.deviceId()),
                 persistence.unusedFallbackAlgorithms(identity.tenantId(), identity.userId(), identity.deviceId()),
-                nextSequence);
+                nextSequence,
+                snapshotHighWater);
     }
 
     public SupportSafeToDeviceEvidence supportSafeToDeviceEvidence() {
@@ -193,8 +207,42 @@ public class MatrixE2eeStateService {
 
     public long currentSequence() { throw new IllegalStateException("Matrix E2EE sequence is tenant-scoped; use currentSequence(identity)"); }
     public long currentSequence(MatrixFacadeClientStateService.MatrixIdentity identity) { return persistence.currentRevision(identity.tenantId()); }
-    public String combinedCursor(String chatCursor, long cryptoSequence) { if (cryptoSequence < 0) throw new MatrixProtocolException("M_BAD_JSON", "The Matrix E2EE sync cursor is invalid."); return chatCursor + "|e2ee:" + cryptoSequence; }
-    public long cryptoSequence(String decodedCursor) { if (decodedCursor == null || decodedCursor.isBlank()) return 0; int marker = decodedCursor.lastIndexOf("|e2ee:"); if (marker < 0) return 0; try { return Long.parseLong(decodedCursor.substring(marker + "|e2ee:".length())); } catch (NumberFormatException exception) { throw new MatrixProtocolException("M_BAD_JSON", "The Matrix E2EE sync cursor is invalid."); } }
+
+    public String combinedCursor(String chatCursor, long cryptoSequence) {
+        return combinedCursor(chatCursor, new E2eeSyncCursor(cryptoSequence, cryptoSequence));
+    }
+
+    public String combinedCursor(String chatCursor, MatrixProtocolCoreService.MatrixSyncCrypto crypto) {
+        return combinedCursor(chatCursor, new E2eeSyncCursor(crypto.nextSequence(), crypto.deviceListSequence()));
+    }
+
+    public String combinedCursor(String chatCursor, E2eeSyncCursor cursor) {
+        if (cursor == null || cursor.toDeviceSequence() < 0 || cursor.deviceListSequence() < 0) {
+            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix E2EE sync cursor is invalid.");
+        }
+        return chatCursor + E2EE_CURSOR_MARKER + E2EE_CURSOR_V2_PREFIX + cursor.toDeviceSequence() + ":" + cursor.deviceListSequence();
+    }
+
+    public E2eeSyncCursor cryptoCursor(String decodedCursor) {
+        if (decodedCursor == null || decodedCursor.isBlank()) return new E2eeSyncCursor(0, 0);
+        int marker = decodedCursor.lastIndexOf(E2EE_CURSOR_MARKER);
+        if (marker < 0) return new E2eeSyncCursor(0, 0);
+        String encoded = decodedCursor.substring(marker + E2EE_CURSOR_MARKER.length());
+        try {
+            if (encoded.startsWith(E2EE_CURSOR_V2_PREFIX)) {
+                String[] parts = encoded.substring(E2EE_CURSOR_V2_PREFIX.length()).split(":", -1);
+                if (parts.length != 2) throw new NumberFormatException("invalid v2 cursor");
+                return new E2eeSyncCursor(Long.parseLong(parts[0]), Long.parseLong(parts[1]));
+            }
+            long legacy = Long.parseLong(encoded);
+            return new E2eeSyncCursor(legacy, legacy);
+        } catch (NumberFormatException exception) {
+            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix E2EE sync cursor is invalid.");
+        }
+    }
+
+    public long cryptoSequence(String decodedCursor) { return cryptoCursor(decodedCursor).toDeviceSequence(); }
+    public long cryptoDeviceListSequence(String decodedCursor) { return cryptoCursor(decodedCursor).deviceListSequence(); }
 
     public void revokeDevice(MatrixFacadeClientStateService.MatrixIdentity identity, String deviceId) { requireActive(identity); if (persistence.device(identity.tenantId(), identity.userId(), deviceId).isEmpty()) throw new MatrixProtocolException("M_NOT_FOUND", "The Matrix device was not found."); persistence.revokeDevice(identity.tenantId(), identity.userId(), deviceId, persistence.nextRevision(identity.tenantId())); }
     public void requireActive(MatrixFacadeClientStateService.MatrixIdentity identity) { if (identity.oidcSessionHash() != null && !identity.oidcSessionHash().isBlank() && !persistence.bindOidcSession(identity.tenantId(), identity.userId(), identity.oidcSessionHash(), identity.deviceId())) throw new MatrixProtocolException("M_UNKNOWN_TOKEN", "The OIDC session is bound to a different Matrix device."); persistence.device(identity.tenantId(), identity.userId(), identity.deviceId()).ifPresent(device -> { if (device.revoked()) throw new MatrixProtocolException("M_UNKNOWN_TOKEN", "The Matrix device was revoked."); }); }
@@ -221,6 +269,8 @@ public class MatrixE2eeStateService {
     private Map<String, Object> immutableObject(Map<String, Object> value) { return value == null || value.isEmpty() ? Map.of() : Map.copyOf(value); }
     private Object immutableValue(Object value) { if (value instanceof Map<?, ?> map) { Map<String, Object> nested = new LinkedHashMap<>(); map.forEach((key, item) -> { if (!(key instanceof String text)) throw new MatrixProtocolException("M_BAD_JSON", "Matrix request key is invalid."); nested.put(text, immutableValue(item)); }); return Map.copyOf(nested); } if (value instanceof Collection<?> collection) return List.copyOf(collection.stream().map(this::immutableValue).toList()); return value; }
     private void putIfPresent(Map<String, Object> target, String userId, Map<String, Object> value) { if (value != null && !value.isEmpty()) target.put(userId, value); }
+
+    public record E2eeSyncCursor(long toDeviceSequence, long deviceListSequence) {}
 
     public record SupportSafeToDeviceEvidence(String contractVersion, long activeDeviceCount, long revokedDeviceCount, long queuedEventCount, long encryptedEventCount, long plaintextRoomKeyEventCount, long olmPreKeyEnvelopeCount, long olmExistingSessionEnvelopeCount, long targetedDeviceCount, long transactionCount, long projectedToDeviceEventCount, long syncResponsesWithToDeviceEvents, long currentRevision, boolean supportSafe) {}
 }
