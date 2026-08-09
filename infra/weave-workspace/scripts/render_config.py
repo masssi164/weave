@@ -14,7 +14,7 @@ if str(KEYCLOAK_MODULE_ROOT) not in sys.path:
     sys.path.insert(0, str(KEYCLOAK_MODULE_ROOT))
 
 from compose_env import ComposeContext, ContractError, load_context
-from realm_renderer import RealmProjectionError, sha256_digest
+from realm_renderer import RealmProjectionError
 from rendering.gateway import render_caddy
 from rendering.io import read_secret, runtime_directory, write
 from rendering.keycloak import render_keycloak
@@ -72,8 +72,7 @@ def _reset_provider_configtree(path: Path) -> None:
 
 
 def _render_provider_secrets(context: ComposeContext, runtime_owner: tuple[int, int]) -> None:
-    generated = context.generated_root
-    provider_configtree = generated / "backend/configtree"
+    provider_configtree = context.generated_root / "backend/configtree"
     runtime_directory(provider_configtree, runtime_owner)
     _reset_provider_configtree(provider_configtree)
 
@@ -187,31 +186,22 @@ def render(context: ComposeContext) -> None:
 
     write(generated / "agent-runtime-policy.json", json.dumps(_runtime_policy(context), indent=2, sort_keys=True) + "\n", private=False)
 
-    semantic_source = generated / "keycloak/semantic-realm-source.json"
-    migration_definition = generated / "keycloak/migration-definition.json"
-    render_evidence = generated / "keycloak/realm-render-evidence.json"
     manifest = {
         "schemaVersion": "weave.compose-render.v3",
         "profile": context.environment,
         "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
         "specificationCommit": keycloak["specificationCommit"],
         "baselineRevision": keycloak["baselineRevision"],
-        "realmIdentity": {
-            "semanticRealmSourceDigest": sha256_digest(semantic_source.read_bytes()),
-            "migrationDefinitionDigest": sha256_digest(migration_definition.read_bytes()),
-            "overlayDigest": sha256_digest((generated / "keycloak/overlay.json").read_bytes()),
-            "renderedRealmDigest": keycloak["renderedRealmDigest"],
-        },
+        "realmIdentity": keycloak["realmIdentity"],
         "deploymentArtifacts": {
             "renderedRealmPath": "keycloak/import/weave-realm.json",
+            "migrationBundleDigest": keycloak["migrationBundleDigest"],
             "migrationBundlePath": "keycloak/migrations/fresh-start-v1.json",
             "environmentRenderEvidencePath": "keycloak/realm-render-evidence.json",
             "containsSecretValues": False,
         },
         "containsSecretValues": False,
     }
-    if not render_evidence.is_file():
-        raise ContractError("environment realm render evidence is missing")
     write(generated / "render-manifest.json", json.dumps(manifest, indent=2, sort_keys=True) + "\n", private=False)
 
 
