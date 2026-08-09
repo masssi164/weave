@@ -2,7 +2,6 @@ package com.massimotter.weave.backend.matrix;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import java.time.Duration;
 import java.util.Map;
@@ -14,7 +13,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
 class MatrixE2eeStateServiceSyncSnapshotTest {
 
@@ -29,11 +27,7 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
                 "ciphertext", Map.of("opaque-recipient-key", olmEnvelope));
         Map<String, Object> request = Map.of(
                 "messages", Map.of(target.userId(), Map.of(target.deviceId(), encryptedContent)));
-        service.sendToDevice(
-                sender,
-                "m.room.encrypted",
-                "txn-room-key",
-                request);
+        service.sendToDevice(sender, "m.room.encrypted", "txn-room-key", request);
 
         var queued = service.supportSafeToDeviceEvidence();
         assertThat(queued.contractVersion()).isEqualTo("matrix-to-device-proof-v1");
@@ -109,10 +103,8 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
     }
 
     private MatrixE2eeStateService service() {
-        StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        return new MatrixE2eeStateService(
-                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
-                beans.getBeanProvider(MatrixE2eeSnapshotStore.class));
+        var mapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
+        return new MatrixE2eeStateService(mapper, new InMemoryMatrixE2eeRelationalStore(mapper));
     }
 
     private MatrixFacadeClientStateService.MatrixIdentity identity(String userId, String deviceId) {
