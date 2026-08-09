@@ -5,7 +5,7 @@ spring-ai = "2.0.0"
 springdoc = "3.0.3"
 mapstruct = "1.6.3"
 archunit = "1.4.1"
-testcontainers = "2.0.2"
+testcontainers = "2.0.5"
 cucumber = "7.18.1"
 bouncycastle = "1.84"
 h2-test = "2.3.232"
@@ -25,6 +25,7 @@ mapstruct-processor = { module = "org.mapstruct:mapstruct-processor", version.re
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
 testcontainers-junit = { module = "org.testcontainers:testcontainers-junit-jupiter", version.ref = "testcontainers" }
 testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql", version.ref = "testcontainers" }
+testcontainers-minio = { module = "org.testcontainers:testcontainers-minio", version.ref = "testcontainers" }
 cucumber-java = { module = "io.cucumber:cucumber-java", version.ref = "cucumber" }
 cucumber-spring = { module = "io.cucumber:cucumber-spring", version.ref = "cucumber" }
 cucumber-junit-platform = { module = "io.cucumber:cucumber-junit-platform-engine", version.ref = "cucumber" }
