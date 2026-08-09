@@ -76,17 +76,53 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         this(authority, blobs, Clock.systemUTC(), properties.reconciliationLimit());
     }
 
-    WeaveNativeFilesAdapter(FilesAuthorityRepository authority, BlobStorePort blobs, Clock clock, int reconciliationLimit) {
-        this.authority = Objects.requireNonNull(authority, "authority");
-        this.blobs = Objects.requireNonNull(blobs, "blobs");
-        this.clock = Objects.requireNonNull(clock, "clock");
-        this.reconciliationLimit = reconciliationLimit;
+    WeaveNativeFilesAdapter(
+            FilesAuthorityRepository authority,
+            BlobStorePort blobs,
+            Clock clock,
+            int reconciliationLimit) {
+        this.authority = Objects.requireNonNull(authority, "authority must not be null");
+        this.blobs = Objects.requireNonNull(blobs, "blobs must not be null");
+        this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.reconciliationLimit = Math.max(1, reconciliationLimit);
     }
 
-    @Override public boolean configured() { return true; }
-    @Override public ProviderReadiness readiness() { return ProviderReadiness.ready("files-native-ready"); }
-    @Override public ProviderConformanceProfile conformanceProfile() { return new ProviderConformanceProfile("files", ADAPTER_KEY, Set.of("list", "read", "write", "create_collection", "delete", "copy", "move", "versions", "locks"), Map.of("path", MappingClass.PORTABLE, "content", MappingClass.PORTABLE, "mediaType", MappingClass.PORTABLE, "version", MappingClass.PORTABLE, "lock", MappingClass.PORTABLE, "share", MappingClass.UNSUPPORTED), true, true, true); }
-    @Override public FilesProviderPort scoped(FilesRequestScope scope) { return new Scoped(Objects.requireNonNull(scope, "scope")); }
+    @Override
+    public FilesProviderPort scoped(FilesRequestScope scope) {
+        return new Scoped(Objects.requireNonNull(scope, "scope must not be null"));
+    }
+
+    @Override
+    public boolean configured() {
+        return blobs.configured();
+    }
+
+    @Override
+    public ProviderReadiness readiness() {
+        return configured()
+                ? ProviderReadiness.ready("files-native-ready")
+                : ProviderReadiness.degraded("files-native-blob-store-not-configured");
+    }
+
+    @Override
+    public ProviderConformanceProfile conformanceProfile() {
+        return new ProviderConformanceProfile(
+                "files",
+                ADAPTER_KEY,
+                Set.of("list", "read", "write", "create_collection", "delete", "copy", "move", "versions", "locks"),
+                Map.of(
+                        "canonicalId", MappingClass.PORTABLE,
+                        "path", MappingClass.PORTABLE,
+                        "content", MappingClass.PORTABLE,
+                        "mediaType", MappingClass.PORTABLE,
+                        "version", MappingClass.PORTABLE,
+                        "lock", MappingClass.PORTABLE,
+                        "share", MappingClass.UNSUPPORTED),
+                true,
+                true,
+                true);
+    }
+
     @Override public VersionedListing list(FilePath path) { throw unscoped(); }
     @Override public Optional<VersionedFile> find(FilePath path) { throw unscoped(); }
     @Override public FileContent read(FileId id) { throw unscoped(); }
@@ -96,11 +132,48 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
     @Override public FileObject move(FilePath source, FilePath destination, boolean overwrite) { throw unscoped(); }
     @Override public void delete(FilePath path, FileVersion expectedVersion) { throw unscoped(); }
 
+    public ReconciliationReport reconcile(FilesRequestScope scope) {
+        BlobScope blobScope = blobScope(scope);
+        List<CanonicalFileRecord> active = authority.activeFiles(scope.organizationRef(), scope.spaceRef());
+        Set<BlobReference> referenced = new LinkedHashSet<>();
+        int inconsistent = 0;
+        for (CanonicalFileRecord record : active) {
+            if (record.object().kind() != Kind.FILE) continue;
+            try {
+                BlobReference reference = reference(record);
+                referenced.add(reference);
+                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                blobs.readStream(blobScope, reference, bytes);
+                verify(record, bytes.toByteArray());
+            } catch (ApiErrorException | IllegalArgumentException exception) {
+                inconsistent++;
+            }
+        }
+        List<BlobReference> inventory = blobs.inventory(blobScope, reconciliationLimit);
+        int deleted = 0;
+        for (BlobReference candidate : inventory) {
+            if (!referenced.contains(candidate)) {
+                blobs.delete(blobScope, candidate);
+                deleted++;
+            }
+        }
+        return new ReconciliationReport(active.size(), inventory.size(), deleted, inconsistent);
+    }
+
+    public record ReconciliationReport(
+            int activeMetadataRecords,
+            int inventoriedBlobs,
+            int orphanBlobsDeleted,
+            int inconsistentMetadataRecords) {
+    }
+
     private VersionedListing list(FilesRequestScope scope, FilePath path) {
         List<CanonicalFileRecord> records = authority.activeFiles(scope.organizationRef(), scope.spaceRef());
         if (!path.root()) {
-            CanonicalFileRecord parentRecord = byPath(records, path).orElseThrow(() -> notFound("list"));
-            if (parentRecord.object().kind() != Kind.COLLECTION) throw conflict("files-native-not-a-collection", "The requested Files path is not a collection.");
+            CanonicalFileRecord requested = byPath(records, path).orElseThrow(() -> notFound("list"));
+            if (requested.object().kind() != Kind.COLLECTION) {
+                throw conflict("files-native-not-a-collection", "The requested Files path is not a collection.");
+            }
         }
         List<CanonicalFileRecord> children = records.stream()
                 .filter(record -> parent(record.object().path()).equals(path))
@@ -108,22 +181,33 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
                 .toList();
         Map<FilePath, FileVersion> versions = new LinkedHashMap<>();
         children.forEach(child -> versions.put(child.object().path(), child.version()));
-        long used = records.stream().filter(record -> record.object().kind() == Kind.FILE).mapToLong(record -> record.object().size()).sum();
-        return new VersionedListing(new FileListing(path, children.stream().map(CanonicalFileRecord::object).toList(), new FileQuota(null, used)), listingVersion(path, children), versions);
+        long used = records.stream()
+                .filter(record -> record.object().kind() == Kind.FILE)
+                .mapToLong(record -> record.object().size())
+                .sum();
+        return new VersionedListing(
+                new FileListing(path, children.stream().map(CanonicalFileRecord::object).toList(), new FileQuota(null, used)),
+                listingVersion(path, children),
+                versions);
     }
 
     private Optional<VersionedFile> find(FilesRequestScope scope, FilePath path) {
         if (path.root()) {
             return Optional.of(new VersionedFile(rootObject(), listingVersion(path,
                     authority.activeFiles(scope.organizationRef(), scope.spaceRef()).stream()
-                            .filter(record -> parent(record.object().path()).equals(path)).toList())));
+                            .filter(record -> parent(record.object().path()).equals(path))
+                            .toList())));
         }
-        return authority.findByPath(scope.organizationRef(), scope.spaceRef(), path).map(record -> new VersionedFile(record.object(), record.version()));
+        return authority.findByPath(scope.organizationRef(), scope.spaceRef(), path)
+                .map(record -> new VersionedFile(record.object(), record.version()));
     }
 
     private FileContent read(FilesRequestScope scope, FileId id) {
-        CanonicalFileRecord record = authority.findById(scope.organizationRef(), scope.spaceRef(), id).orElseThrow(() -> notFound("read"));
-        if (record.object().kind() != Kind.FILE) throw conflict("files-native-not-a-file", "The requested Files object has no file content.");
+        CanonicalFileRecord record = authority.findById(scope.organizationRef(), scope.spaceRef(), id)
+                .orElseThrow(() -> notFound("read"));
+        if (record.object().kind() != Kind.FILE) {
+            throw conflict("files-native-not-a-file", "The requested Files object has no file content.");
+        }
         ByteArrayOutputStream target = new ByteArrayOutputStream(Math.toIntExact(Math.min(record.object().size(), Integer.MAX_VALUE)));
         blobs.readStream(blobScope(scope), reference(record), target);
         byte[] content = target.toByteArray();
@@ -132,39 +216,48 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
     }
 
     private FileObject write(FilesRequestScope scope, FileWrite write) {
-        List<CanonicalFileRecord> records = authority.activeFiles(scope.organizationRef(), scope.spaceRef());
-        ensureParent(records, write.path());
-        CanonicalFileRecord current = byPath(records, write.path()).orElse(null);
-        if (current != null && current.object().kind() != Kind.FILE) throw conflict("files-native-not-a-file", "The requested Files path is not a file.");
-        if (write.expectedVersion() != null && write.expectedVersion().known()) {
-            if (current == null || !Objects.equals(write.expectedVersion().value(), current.version().value())) throw precondition("The expected Files version is stale.");
-        }
-        byte[] content = write.content();
-        String digest = FilesystemBlobStore.digest(content);
-        FileId id = current == null ? canonicalId(scope, write.path()) : current.object().id();
-        BlobReference blob = blobReference(id, digest);
-        blobs.putStream(blobScope(scope), blob, new ByteArrayInputStream(content), content.length, digest);
+        ensureParent(scope, write.path());
         Instant now = Instant.now(clock);
-        FileObject object = new FileObject(id, write.path(), Kind.FILE, content.length, write.mediaType(), now, write.hidden());
-        CanonicalFileRecord saved = active(scope, object, new FileVersion(digest), digest, blob.value(), now);
+        byte[] content = write.bytes();
+        String digest = FilesystemBlobStore.digest(content);
+        CanonicalFileRecord existing = authority
+                .findByPath(scope.organizationRef(), scope.spaceRef(), write.path())
+                .orElse(null);
+        if (existing != null && existing.object().kind() != Kind.FILE) {
+            throw conflict("files-native-path-conflict", "A collection already exists at the requested Files path.");
+        }
+        FileId id = existing == null ? canonicalId(scope, write.path()) : existing.object().id();
+        BlobReference reference = blobReference(id, digest);
+        blobs.putStream(blobScope(scope), reference, new ByteArrayInputStream(content), content.length, digest);
+        FileObject object = new FileObject(id, write.path(), Kind.FILE, content.length, write.mediaType(), now, false);
+        CanonicalFileRecord activation = active(scope, object, new FileVersion(digest), digest, reference.value(), now);
         try {
-            return authority.save(saved).object();
-        } catch (RuntimeException exception) {
-            if (current == null) blobs.delete(blobScope(scope), blob);
-            if (exception instanceof DataIntegrityViolationException) throw conflict("files-native-metadata-conflict", "The native Files metadata changed concurrently.");
-            throw exception;
+            return authority.save(activation).object();
+        } catch (DataIntegrityViolationException exception) {
+            CanonicalFileRecord concurrent = authority
+                    .findByPath(scope.organizationRef(), scope.spaceRef(), write.path())
+                    .orElseThrow(() -> conflict("files-native-metadata-conflict", "The native Files metadata changed concurrently."));
+            if (Objects.equals(concurrent.contentDigest(), digest)
+                    && Objects.equals(concurrent.storageReference(), reference.value())) {
+                return concurrent.object();
+            }
+            throw conflict("files-native-metadata-conflict", "The native Files metadata changed concurrently.");
         }
     }
 
     private FileObject createCollection(FilesRequestScope scope, FilePath path) {
-        List<CanonicalFileRecord> records = authority.activeFiles(scope.organizationRef(), scope.spaceRef());
-        if (byPath(records, path).isPresent()) throw precondition("The collection already exists.");
-        ensureParent(records, path);
+        ensureParent(scope, path);
+        if (authority.findByPath(scope.organizationRef(), scope.spaceRef(), path).isPresent()) {
+            throw conflict("files-native-path-conflict", "A Files object already exists at the requested path.");
+        }
         Instant now = Instant.now(clock);
         FileObject object = new FileObject(canonicalId(scope, path), path, Kind.COLLECTION, 0, null, now, false);
         String version = FilesystemBlobStore.digest(("collection\u0000" + path.value()).getBytes(StandardCharsets.UTF_8));
-        try { return authority.save(active(scope, object, new FileVersion(version), null, null, now)).object(); }
-        catch (DataIntegrityViolationException exception) { throw conflict("files-native-metadata-conflict", "The native Files metadata changed concurrently."); }
+        try {
+            return authority.save(active(scope, object, new FileVersion(version), null, null, now)).object();
+        } catch (DataIntegrityViolationException exception) {
+            throw conflict("files-native-metadata-conflict", "The native Files metadata changed concurrently.");
+        }
     }
 
     private FileObject copy(FilesRequestScope scope, FilePath source, FilePath destination, boolean overwrite) {
@@ -183,21 +276,23 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
             String storageReference = null;
             String digest = sourceRecord.contentDigest();
             if (sourceRecord.object().kind() == Kind.FILE) {
-                BlobReference copiedReference = blobReference(copiedId, digest);
                 ByteArrayOutputStream bytes = new ByteArrayOutputStream(Math.toIntExact(Math.min(sourceRecord.object().size(), Integer.MAX_VALUE)));
                 blobs.readStream(blobScope(scope), reference(sourceRecord), bytes);
                 byte[] content = bytes.toByteArray();
                 verify(sourceRecord, content);
+                BlobReference copiedReference = blobReference(copiedId, digest);
                 blobs.putStream(blobScope(scope), copiedReference, new ByteArrayInputStream(content), content.length, digest);
                 storageReference = copiedReference.value();
             }
-            FileObject copied = new FileObject(copiedId, copiedPath, sourceRecord.object().kind(), sourceRecord.object().size(), sourceRecord.object().mediaType(), now, sourceRecord.object().hidden());
+            FileObject copied = new FileObject(copiedId, copiedPath, sourceRecord.object().kind(),
+                    sourceRecord.object().size(), sourceRecord.object().mediaType(), now, sourceRecord.object().hidden());
             activations.add(active(scope, copied, sourceRecord.version(), digest, storageReference, now));
         }
         if (sourceTree.size() == 1 && destinationTree.isEmpty()) {
             CanonicalFileRecord activation = activations.getFirst();
-            try { return authority.save(activation).object(); }
-            catch (DataIntegrityViolationException exception) {
+            try {
+                return authority.save(activation).object();
+            } catch (DataIntegrityViolationException exception) {
                 cleanupBlobs(scope, List.of(activation));
                 throw conflict("files-native-metadata-conflict", "The native Files metadata changed concurrently.");
             }
@@ -222,7 +317,8 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         }
         List<CanonicalFileRecord> moved = sourceTree.stream().map(record -> {
             FilePath movedPath = substitute(record.object().path(), source, destination);
-            FileObject object = new FileObject(record.object().id(), movedPath, record.object().kind(), record.object().size(), record.object().mediaType(), now, record.object().hidden());
+            FileObject object = new FileObject(record.object().id(), movedPath, record.object().kind(),
+                    record.object().size(), record.object().mediaType(), now, record.object().hidden());
             String version = FilesystemBlobStore.digest((record.version().value() + "\u0000" + movedPath.value()).getBytes(StandardCharsets.UTF_8));
             return active(scope, object, new FileVersion(version), record.contentDigest(), record.storageReference(), now);
         }).toList();
@@ -236,33 +332,38 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         List<CanonicalFileRecord> target = tree(records, path);
         if (target.isEmpty()) throw notFound("delete");
         CanonicalFileRecord root = byPath(target, path).orElseThrow();
-        if (expectedVersion != null && expectedVersion.known() && !Objects.equals(expectedVersion.value(), root.version().value())) throw precondition("The expected Files version is stale.");
+        if (expectedVersion != null && expectedVersion.known()
+                && !Objects.equals(expectedVersion.value(), root.version().value())) {
+            throw precondition("The expected Files version is stale.");
+        }
         authority.replace(tombstones(target, Instant.now(clock)), List.of());
         cleanupBlobs(scope, target);
     }
 
     private void cleanupBlobs(FilesRequestScope scope, List<CanonicalFileRecord> records) {
-        Set<String> retained = authority.activeFiles(scope.organizationRef(), scope.spaceRef()).stream().map(CanonicalFileRecord::storageReference).filter(Objects::nonNull).collect(java.util.stream.Collectors.toUnmodifiableSet());
+        Set<String> retained = authority.activeFiles(scope.organizationRef(), scope.spaceRef()).stream()
+                .map(CanonicalFileRecord::storageReference)
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
         for (CanonicalFileRecord record : records) {
-            if (record.object().kind() == Kind.FILE && record.storageReference() != null && !retained.contains(record.storageReference())) {
-                try { blobs.delete(blobScope(scope), new BlobReference(record.storageReference())); } catch (RuntimeException ignored) { }
+            if (record.object().kind() == Kind.FILE
+                    && record.storageReference() != null
+                    && !retained.contains(record.storageReference())) {
+                try {
+                    blobs.delete(blobScope(scope), reference(record));
+                } catch (ApiErrorException ignored) {
+                    // Metadata is already fail-closed; bounded reconciliation owns orphan cleanup.
+                }
             }
         }
     }
 
-    public ReconciliationReport reconcile(FilesRequestScope scope) {
-        List<CanonicalFileRecord> records = authority.activeFiles(scope.organizationRef(), scope.spaceRef());
-        Set<String> referenced = records.stream().map(CanonicalFileRecord::storageReference).filter(Objects::nonNull).collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
-        Set<String> inventory = blobs.inventory(blobScope(scope), reconciliationLimit);
-        List<String> missing = referenced.stream().filter(reference -> !inventory.contains(reference)).sorted().limit(reconciliationLimit).toList();
-        List<String> orphans = inventory.stream().filter(reference -> !referenced.contains(reference)).sorted().limit(reconciliationLimit).toList();
-        orphans.forEach(reference -> blobs.delete(blobScope(scope), new BlobReference(reference)));
-        return new ReconciliationReport(missing, orphans);
-    }
-
     public void readTo(FilesRequestScope scope, FileId id, OutputStream target) {
-        CanonicalFileRecord record = authority.findById(scope.organizationRef(), scope.spaceRef(), id).orElseThrow(() -> notFound("read"));
-        if (record.object().kind() != Kind.FILE) throw conflict("files-native-not-a-file", "The requested Files object has no file content.");
+        CanonicalFileRecord record = authority.findById(scope.organizationRef(), scope.spaceRef(), id)
+                .orElseThrow(() -> notFound("read"));
+        if (record.object().kind() != Kind.FILE) {
+            throw conflict("files-native-not-a-file", "The requested Files object has no file content.");
+        }
         MessageDigest digest = sha256();
         long[] bytes = {0};
         OutputStream bounded = new DigestOutputStream(new OutputStream() {
@@ -270,55 +371,163 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
             @Override public void write(byte[] value, int offset, int length) throws IOException { target.write(value, offset, length); bytes[0] += length; }
         }, digest);
         blobs.readStream(blobScope(scope), reference(record), bounded);
-        if (bytes[0] != record.object().size() || !hex(digest.digest()).equals(record.contentDigest())) throw conflict("files-native-content-digest-mismatch", "Native Files content integrity verification failed.");
-    }
-
-    private CanonicalFileRecord active(FilesRequestScope scope, FileObject object, FileVersion version, String digest, String storageReference, Instant now) {
-        return new CanonicalFileRecord(scope.organizationRef(), scope.spaceRef(), object, version, digest, storageReference, ACTIVE, now, now, 0);
+        String actualDigest = "sha256:" + java.util.HexFormat.of().formatHex(digest.digest());
+        if (bytes[0] != record.object().size() || !actualDigest.equals(record.contentDigest())) {
+            throw conflict("files-native-content-digest-mismatch", "Native Files content integrity verification failed.");
+        }
     }
 
     private List<CanonicalFileRecord> tombstones(List<CanonicalFileRecord> records, Instant now) {
-        return records.stream().map(record -> new CanonicalFileRecord(record.organizationRef(), record.spaceRef(), record.object(), record.version(), record.contentDigest(), record.storageReference(), TOMBSTONED, record.createdAt(), now, record.rowVersion())).toList();
+        return records.stream().map(record -> new CanonicalFileRecord(
+                record.organizationRef(), record.spaceRef(), record.object(), record.version(),
+                record.contentDigest(), record.storageReference(), record.providerBindingRevision(),
+                TOMBSTONED, later(now, record.observedAt()))).toList();
     }
 
-    private BlobScope blobScope(FilesRequestScope scope) { return new BlobScope(scope.organizationRef(), scope.spaceRef()); }
-    private BlobReference reference(CanonicalFileRecord record) { return new BlobReference(record.storageReference()); }
-    private BlobReference blobReference(FileId id, String digest) { return new BlobReference("objects/" + id.value() + "/" + digest); }
+    private CanonicalFileRecord active(
+            FilesRequestScope scope,
+            FileObject object,
+            FileVersion version,
+            String digest,
+            String storageReference,
+            Instant now) {
+        return new CanonicalFileRecord(scope.organizationRef(), scope.spaceRef(), object, version,
+                digest, storageReference, scope.providerBindingRevision(), ACTIVE, now);
+    }
 
-    private FileId canonicalId(FilesRequestScope scope, FilePath path) {
-        return new FileId(java.util.UUID.nameUUIDFromBytes((scope.organizationRef() + "\u0000" + scope.spaceRef() + "\u0000" + path.value()).getBytes(StandardCharsets.UTF_8)).toString());
+    private void verify(CanonicalFileRecord record, byte[] content) {
+        String actual = FilesystemBlobStore.digest(content);
+        if (record.object().size() != content.length
+                || record.contentDigest() == null
+                || !MessageDigest.isEqual(record.contentDigest().getBytes(StandardCharsets.US_ASCII),
+                        actual.getBytes(StandardCharsets.US_ASCII))) {
+            throw conflict("files-native-metadata-blob-mismatch", "The native Files metadata and blob do not match.");
+        }
+    }
+
+    private BlobReference reference(CanonicalFileRecord record) {
+        if (record.storageReference() == null) {
+            throw conflict("files-native-metadata-blob-mismatch", "The native Files metadata does not reference a blob.");
+        }
+        try {
+            return new BlobReference(record.storageReference());
+        } catch (IllegalArgumentException exception) {
+            throw conflict("files-native-metadata-blob-mismatch", "The native Files metadata references an invalid blob.");
+        }
+    }
+
+    private BlobReference blobReference(FileId id, String digest) {
+        return new BlobReference("v1/" + hash(id.value()) + "/" + digest.substring("sha256:".length()));
+    }
+
+    private FileId canonicalId(FilesRequestScope scope, FilePath initialPath) {
+        return new FileId("file:" + hash(scope.organizationRef() + "\u0000" + scope.spaceRef() + "\u0000" + initialPath.value()));
+    }
+
+    private String hash(String value) {
+        return FilesystemBlobStore.digest(value.getBytes(StandardCharsets.UTF_8)).substring("sha256:".length());
+    }
+
+    private FileVersion listingVersion(FilePath path, List<CanonicalFileRecord> children) {
+        StringBuilder canonical = new StringBuilder(path.value());
+        children.stream().sorted(Comparator.comparing(record -> record.object().path().value()))
+                .forEach(record -> canonical.append('\n').append(record.object().id().value())
+                        .append('\n').append(record.version().value()));
+        return new FileVersion(FilesystemBlobStore.digest(canonical.toString().getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private void ensureParent(FilesRequestScope scope, FilePath path) {
+        ensureParent(authority.activeFiles(scope.organizationRef(), scope.spaceRef()), path);
+    }
+
+    private void ensureParent(List<CanonicalFileRecord> records, FilePath path) {
+        FilePath parent = parent(path);
+        if (parent.root()) return;
+        CanonicalFileRecord parentRecord = byPath(records, parent)
+                .orElseThrow(() -> conflict("files-native-parent-missing", "The parent Files collection does not exist."));
+        if (parentRecord.object().kind() != Kind.COLLECTION) {
+            throw conflict("files-native-parent-not-collection", "The parent Files path is not a collection.");
+        }
+    }
+
+    private FilePath parent(FilePath path) {
+        if (path.root() || path.value().lastIndexOf('/') == 0) return new FilePath("/");
+        return new FilePath(path.value().substring(0, path.value().lastIndexOf('/')));
     }
 
     private List<CanonicalFileRecord> tree(List<CanonicalFileRecord> records, FilePath root) {
-        String prefix = root.root() ? "/" : root.value() + "/";
-        return records.stream().filter(record -> record.object().path().equals(root) || record.object().path().value().startsWith(prefix)).sorted(Comparator.comparing(record -> record.object().path().value())).toList();
+        String prefix = root.value() + "/";
+        return records.stream()
+                .filter(record -> record.object().path().equals(root)
+                        || record.object().path().value().startsWith(prefix))
+                .sorted(Comparator.comparingInt(record -> record.object().path().value().length()))
+                .toList();
     }
 
-    private Optional<CanonicalFileRecord> byPath(List<CanonicalFileRecord> records, FilePath path) { return records.stream().filter(record -> record.object().path().equals(path)).findFirst(); }
-    private void ensureParent(List<CanonicalFileRecord> records, FilePath path) { FilePath parent = parent(path); if (parent.root()) return; CanonicalFileRecord record = byPath(records, parent).orElseThrow(() -> conflict("files-native-parent-missing", "The parent collection does not exist.")); if (record.object().kind() != Kind.COLLECTION) throw conflict("files-native-parent-not-collection", "The parent Files object is not a collection."); }
-    private FilePath parent(FilePath path) { if (path.root()) return path; int split = path.value().lastIndexOf('/'); return split <= 0 ? FilePath.rootPath() : new FilePath(path.value().substring(0, split)); }
-    private FilePath substitute(FilePath path, FilePath source, FilePath destination) { String suffix = path.value().substring(source.value().length()); return new FilePath(destination.value() + suffix); }
-    private void requireDistinctTreePaths(FilePath source, FilePath destination) { if (source.equals(destination) || destination.value().startsWith(source.value() + "/")) throw conflict("files-native-invalid-tree-operation", "The destination must be outside the source tree."); }
-    private FileObject rootObject() { return new FileObject(new FileId("root"), FilePath.rootPath(), Kind.COLLECTION, 0, null, Instant.EPOCH, false); }
-    private FileVersion listingVersion(FilePath path, List<CanonicalFileRecord> records) { StringBuilder value = new StringBuilder(path.value()); records.forEach(record -> value.append('\n').append(record.object().id().value()).append(':').append(record.version().value()).append(':').append(record.rowVersion())); return new FileVersion(FilesystemBlobStore.digest(value.toString().getBytes(StandardCharsets.UTF_8))); }
-    private void verify(CanonicalFileRecord record, byte[] content) { if (content.length != record.object().size() || !FilesystemBlobStore.digest(content).equals(record.contentDigest())) throw conflict("files-native-content-digest-mismatch", "Native Files content integrity verification failed."); }
-    private static MessageDigest sha256() { try { return MessageDigest.getInstance("SHA-256"); } catch (NoSuchAlgorithmException exception) { throw new IllegalStateException(exception); } }
-    private static String hex(byte[] bytes) { return java.util.HexFormat.of().formatHex(bytes); }
+    private Optional<CanonicalFileRecord> byPath(List<CanonicalFileRecord> records, FilePath path) {
+        return records.stream().filter(record -> record.object().path().equals(path)).findFirst();
+    }
 
-    private ApiErrorException unscoped() { return conflict("files-native-scope-required", "Native Files operations require an explicit organization/space scope."); }
-    private ApiErrorException notFound(String operation) { return new ApiErrorException(HttpStatus.NOT_FOUND, "files-native-" + operation + "-not-found", "The requested Files object was not found.", Map.of()); }
-    private ApiErrorException conflict(String code, String message) { return new ApiErrorException(HttpStatus.CONFLICT, code, message, Map.of()); }
-    private ApiErrorException precondition(String message) { return new ApiErrorException(HttpStatus.PRECONDITION_FAILED, "files-native-precondition-failed", message, Map.of()); }
+    private FilePath substitute(FilePath path, FilePath source, FilePath destination) {
+        return new FilePath(destination.value() + path.value().substring(source.value().length()));
+    }
 
-    public record ReconciliationReport(List<String> missingBlobReferences, List<String> deletedOrphanReferences) { public ReconciliationReport { missingBlobReferences = List.copyOf(missingBlobReferences); deletedOrphanReferences = List.copyOf(deletedOrphanReferences); } }
+    private void requireDistinctTreePaths(FilePath source, FilePath destination) {
+        if (source.root() || destination.root() || source.equals(destination)
+                || destination.value().startsWith(source.value() + "/")) {
+            throw conflict("files-native-tree-conflict", "The Files tree operation has an invalid destination.");
+        }
+    }
+
+    private BlobScope blobScope(FilesRequestScope scope) {
+        return new BlobScope(scope.organizationRef(), scope.spaceRef());
+    }
+
+    private FileObject rootObject() {
+        return new FileObject(new FileId("files:root"), new FilePath("/"), Kind.COLLECTION,
+                0, null, null, false);
+    }
+
+    private Instant later(Instant candidate, Instant floor) {
+        return candidate.isBefore(floor) ? floor : candidate;
+    }
+
+    private static MessageDigest sha256() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+
+    private ApiErrorException unscoped() {
+        return conflict("files-native-scope-required", "Native Files operations require an explicit organization/space scope.");
+    }
+
+    private ApiErrorException notFound(String operation) {
+        return new ApiErrorException(HttpStatus.NOT_FOUND, "file-not-found",
+                "The requested file or folder was not found.",
+                Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+    }
+
+    private ApiErrorException precondition(String message) {
+        return new ApiErrorException(HttpStatus.PRECONDITION_FAILED, "files-precondition-failed", message,
+                Map.of("module", "files", "adapter", ADAPTER_KEY, "diagnosticsRedacted", true));
+    }
+
+    private ApiErrorException conflict(String code, String message) {
+        return new ApiErrorException(HttpStatus.CONFLICT, code, message,
+                Map.of("module", "files", "adapter", ADAPTER_KEY, "diagnosticsRedacted", true));
+    }
 
     private final class Scoped implements FilesProviderPort {
         private final FilesRequestScope scope;
+
         private Scoped(FilesRequestScope scope) { this.scope = scope; }
+        @Override public FilesProviderPort scoped(FilesRequestScope next) { return WeaveNativeFilesAdapter.this.scoped(next); }
         @Override public boolean configured() { return WeaveNativeFilesAdapter.this.configured(); }
         @Override public ProviderReadiness readiness() { return WeaveNativeFilesAdapter.this.readiness(); }
         @Override public ProviderConformanceProfile conformanceProfile() { return WeaveNativeFilesAdapter.this.conformanceProfile(); }
-        @Override public FilesProviderPort scoped(FilesRequestScope ignored) { return new Scoped(Objects.requireNonNull(ignored, "scope")); }
         @Override public VersionedListing list(FilePath path) { return WeaveNativeFilesAdapter.this.list(scope, path); }
         @Override public Optional<VersionedFile> find(FilePath path) { return WeaveNativeFilesAdapter.this.find(scope, path); }
         @Override public FileContent read(FileId id) { return WeaveNativeFilesAdapter.this.read(scope, id); }
