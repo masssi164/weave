@@ -1,6 +1,6 @@
--- Complete native-provider relational authority after the V2 expansion phase.
--- V1/V2 remain immutable; this migration adds the final logical stream state and
--- removes the legacy Matrix tenant snapshot only after normalized tables exist.
+-- Complete native-provider relational authority before the first accepted persistent-dogfood baseline.
+-- This migration series may still be corrected while the closure PR is unaccepted; after the
+-- first persistent dogfood schema is accepted, applied Flyway migrations are immutable.
 
 create table if not exists weave_matrix_sync_heads (
     tenant_id varchar(255) primary key,
@@ -27,10 +27,10 @@ alter table weave_chat_idempotency
     add column if not exists provider_binding_revision bigint not null default 0;
 
 create index if not exists ix_weave_chat_idempotency_provider_binding
-    on weave_chat_idempotency (tenant_id, user_id, device_id, endpoint_key, provider_binding_revision, transaction_id);
+    on weave_chat_idempotency (tenant_id, user_id, device_id, endpoint_identity, provider_binding_revision, transaction_id);
 
 -- Per-device Matrix to-device ordering uses the explicit Matrix sync revision.
--- sequence_id remains the stable row identity introduced by V2; revision_id is
+-- sequence_id remains only the stable row identity introduced by V2; revision_id is
 -- the protocol ordering/high-water value and is assigned from weave_matrix_sync_heads.
 alter table weave_matrix_to_device_messages
     add column if not exists revision_id bigint;
@@ -46,6 +46,6 @@ create index if not exists ix_weave_matrix_to_device_revision
 alter table weave_matrix_device_sync_progress
     add column if not exists last_issued_revision bigint not null default 0;
 
--- The normalized V2/V3 tables are now authoritative. The tenant-wide snapshot
--- table is intentionally removed rather than retained as a compatibility path.
+-- The normalized V2/V3 tables are authoritative. The tenant-wide snapshot is
+-- deliberately removed rather than retained as a compatibility path.
 drop table if exists weave_matrix_e2ee_snapshots;
