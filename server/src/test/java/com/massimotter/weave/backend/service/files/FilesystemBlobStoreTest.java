@@ -60,6 +60,7 @@ class FilesystemBlobStoreTest {
                 .isEqualTo("files-native-blob-digest-mismatch");
 
         Path target = store.resolvedPathForTest(scope, reference);
+        Files.createDirectories(target.getParent());
         Path outside = temporaryDirectory.resolve("outside");
         Files.write(outside, new byte[] {9});
         Files.createSymbolicLink(target, outside);
@@ -72,6 +73,6 @@ class FilesystemBlobStoreTest {
 
     private FilesystemBlobStore store() {
         return new FilesystemBlobStore(new WeaveNativeFilesProperties(
-                "filesystem", temporaryDirectory.resolve("private-blobs"), 1024, 100));
+                temporaryDirectory.resolve("private-blobs"), 1024, 100));
     }
 }
