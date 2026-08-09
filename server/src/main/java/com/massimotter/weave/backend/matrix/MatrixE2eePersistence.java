@@ -75,8 +75,11 @@ public interface MatrixE2eePersistence {
             Map<String, Object> signatures,
             long changedRevision);
 
-    boolean appendToDevice(
-            long revision,
+    /**
+     * Atomically allocates a logical Matrix revision and appends the to-device event.
+     * Duplicate transactions return the already visible revision without advancing the head.
+     */
+    long appendToDevice(
             String tenantId,
             String targetUserId,
             String targetDeviceId,
