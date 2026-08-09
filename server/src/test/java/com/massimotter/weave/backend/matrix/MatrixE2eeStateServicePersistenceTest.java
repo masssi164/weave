@@ -1,29 +1,23 @@
 package com.massimotter.weave.backend.matrix;
 
-import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.chat.domain.ChatActorRef;
-import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixE2eeSnapshotJpaRepository;
-import java.util.List;
-import java.util.Map;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.support.StaticListableBeanFactory;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.massimotter.weave.backend.chat.domain.ChatActorRef;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
+
 class MatrixE2eeStateServicePersistenceTest {
 
-    private final ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
+    private final ObjectMapper objectMapper =
+            tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
 
     @Test
     void publicKeysToDeviceEventsAndOpaqueBackupsSurviveServiceRestart() {
-        DriverManagerDataSource dataSource =
-                com.massimotter.weave.backend.testing.JpaTestDatabase
-                        .entityFirstDataSource("matrix-e2ee");
-        MatrixE2eeSnapshotJpaRepository repository = repository(dataSource);
-        MatrixE2eeSnapshotStore snapshotStore = snapshotStore(repository);
-        MatrixE2eeStateService first = service(snapshotStore);
+        InMemoryMatrixE2eeRelationalStore store = new InMemoryMatrixE2eeRelationalStore(objectMapper);
+        MatrixE2eeStateService first = service(store);
         var trusted = identity("WEAVETRUSTEDDEVICE", "oidc-session-hash-a");
         var second = identity("WEAVESECONDDEVICE");
 
@@ -47,7 +41,7 @@ class MatrixE2eeStateServicePersistenceTest {
                 "m.secret_storage.default_key",
                 Map.of("key", "weave-recovery-key-id"));
 
-        MatrixE2eeStateService restarted = service(snapshotStore(repository));
+        MatrixE2eeStateService restarted = service(store);
         Map<String, Object> queried = restarted.queryKeys(trusted, Map.of(
                 "device_keys", Map.of(trusted.userId(), List.of())));
         Map<String, Object> backup = restarted.backupKeys(
@@ -77,19 +71,14 @@ class MatrixE2eeStateServicePersistenceTest {
                         "oidc-session-hash-a")))
                 .isInstanceOfSatisfying(MatrixProtocolException.class, exception ->
                         assertThat(exception.errcode()).isEqualTo("M_UNKNOWN_TOKEN"));
-        assertThat(repository.count()).isEqualTo(1);
-        assertThat(repository.findById("tenant-a")).get()
-                .extracting(entity -> entity.sequence())
-                .isEqualTo(restoredSequence);
+        assertThat(store.load("tenant-a")).isPresent();
+        assertThat(store.load("tenant-a").orElseThrow().sequence()).isEqualTo(restoredSequence);
     }
 
     @Test
     void fallbackKeyClaimAndUsedStateSurviveRestartWithoutMutatingStatusQueries() {
-        DriverManagerDataSource dataSource =
-                com.massimotter.weave.backend.testing.JpaTestDatabase
-                        .entityFirstDataSource("matrix-e2ee-fallback");
-        MatrixE2eeSnapshotJpaRepository repository = repository(dataSource);
-        MatrixE2eeStateService service = service(snapshotStore(repository));
+        InMemoryMatrixE2eeRelationalStore store = new InMemoryMatrixE2eeRelationalStore(objectMapper);
+        MatrixE2eeStateService service = service(store);
         var target = identity("WEAVEFALLBACKTARGET");
         var claimant = identity("WEAVEFALLBACKCLAIMANT");
 
@@ -109,7 +98,7 @@ class MatrixE2eeStateServicePersistenceTest {
         assertThat(claimed.toString()).contains("fallback-public-key");
         assertThat(service.sync(target, 0).unusedFallbackKeyTypes()).isEmpty();
 
-        MatrixE2eeStateService restarted = service(snapshotStore(repository));
+        MatrixE2eeStateService restarted = service(store);
         assertThat(restarted.sync(target, 0).unusedFallbackKeyTypes()).isEmpty();
         assertThat(restarted.claimKeys(claimant, Map.of(
                 "one_time_keys", Map.of(
@@ -121,25 +110,8 @@ class MatrixE2eeStateServicePersistenceTest {
                 .containsExactly("signed_curve25519");
     }
 
-    private MatrixE2eeStateService service(MatrixE2eeSnapshotStore store) {
-        StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("matrixE2eeSnapshotStore", store);
-        return new MatrixE2eeStateService(
-                objectMapper,
-                beans.getBeanProvider(MatrixE2eeSnapshotStore.class));
-    }
-
-    private MatrixE2eeSnapshotStore snapshotStore(MatrixE2eeSnapshotJpaRepository repository) {
-        StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("matrixE2eeSnapshotJpaRepository", repository);
-        return new MatrixE2eeSnapshotStore(
-                beans.getBeanProvider(MatrixE2eeSnapshotJpaRepository.class),
-                beans.getBeanProvider(java.time.Clock.class));
-    }
-
-    private MatrixE2eeSnapshotJpaRepository repository(DriverManagerDataSource dataSource) {
-        return com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
-                dataSource, MatrixE2eeSnapshotJpaRepository.class);
+    private MatrixE2eeStateService service(MatrixE2eeRelationalStore store) {
+        return new MatrixE2eeStateService(objectMapper, store);
     }
 
     private MatrixFacadeClientStateService.MatrixIdentity identity(String deviceId) {
