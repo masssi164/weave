@@ -58,7 +58,8 @@ A narrow technology-facing port used inside a provider adapter or protocol facad
 
 Examples:
 
-- `BlobStorePort` for immutable blob I/O
+- `BlobStorePort` for immutable private blob I/O in the native Files provider
+- `ObjectStoragePort` for object-storage access used by the separate S3 Files provider
 - `IcalendarCodec` and `RecurrenceEngine` for iCalendar/RFC 5545 semantics
 - `MatrixProtocolCodec` for Matrix wire projection
 - repository ports for canonical persistence
@@ -69,9 +70,9 @@ A concrete implementation of an Infrastructure Port. It answers **how a provider
 
 Examples:
 
-- OpenDAL filesystem adapter behind `BlobStorePort`
-- an OpenDAL S3 adapter used internally by a separate S3 Files provider
-- iCal4j adapter behind `IcalendarCodec` / `RecurrenceEngine`
+- `FilesystemBlobStore`, the OpenDAL filesystem adapter behind `BlobStorePort`
+- `OpenDalS3ObjectStorageAdapter` behind `ObjectStoragePort` for the separate S3 Files provider
+- iCal4j adapters behind `IcalendarCodec` / `RecurrenceEngine`
 - Ruma + jni-rs adapter behind `MatrixProtocolCodec`
 - Spring Data JPA/Hibernate adapters behind repository ports
 
@@ -93,20 +94,22 @@ WebDAV
     -> FilesProviderPort
       -> WeaveNativeFilesAdapter
         -> BlobStorePort
-          -> OpenDAL filesystem infrastructure adapter
-            -> Apache OpenDAL
+          -> FilesystemBlobStore
+            -> Apache OpenDAL (filesystem service)
               -> private filesystem storage
 
-      -> S3 Files provider adapter
-        -> object-storage infrastructure port
-          -> OpenDAL S3 infrastructure adapter (preferred where requirements are met)
-            -> Apache OpenDAL
+      -> WeaveS3FilesAdapter
+        -> ObjectStoragePort
+          -> OpenDalS3ObjectStorageAdapter
+            -> Apache OpenDAL (S3 service)
               -> S3
 ```
 
-OpenDAL is therefore not a Files provider. The same OpenDAL library may legitimately be reused by multiple provider adapters because it lives below the provider boundary.
+OpenDAL is therefore not a Files provider. The same OpenDAL library is deliberately reused by multiple provider adapters because it lives below the provider boundary.
 
-For `weave-native`, the selected storage service remains the private filesystem service. S3 remains a separate Files provider even if its implementation also uses OpenDAL internally.
+For `weave-native`, the selected storage service remains the private filesystem service. S3 remains a separate Files provider even though its current infrastructure implementation also uses OpenDAL internally.
+
+Provider-specific configuration remains isolated: filesystem root/capability configuration belongs to `weave-native`; endpoint, bucket and S3 credentials belong only to the S3 Provider Adapter and its infrastructure adapter.
 
 ## Calendar example
 
