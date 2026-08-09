@@ -277,9 +277,6 @@ services:
       retries: 30
       start_period: 40s
 
-  # These two services are never part of an environment profile. Operators
-  # invoke them only through compose.sh keycloak-migration-apply while the
-  # rendered manifest reports the exact post-import FGAP operation as blocked.
   keycloak-realm-migration-bootstrap:
     profiles:
       - identity-migration
@@ -740,9 +737,10 @@ services:
         condition: service_completed_successfully
     command:
       - schema-init
-    env_file:
-      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/backend/public.env
     environment:
+      SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${WEAVE_BACKEND_DB_NAME:-weave_backend}
+      SPRING_DATASOURCE_USERNAME: ${WEAVE_BACKEND_DB_USERNAME:-weave_backend}
       WEAVE_CANDIDATE_COMMIT: ${WEAVE_CANDIDATE_COMMIT}
       WEAVE_PERSISTENCE_PASSWORD_FILE: /run/secrets/backend-db-password
       WEAVE_SCHEMA_INIT_RECEIPT_FILE: /run/weave-schema-init/receipt.json
@@ -888,9 +886,10 @@ services:
         condition: service_completed_successfully
       keycloak-realm-migration-receipt-check:
         condition: service_completed_successfully
-    env_file:
-      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/backend/public.env
     environment:
+      SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${WEAVE_BACKEND_DB_NAME:-weave_backend}
+      SPRING_DATASOURCE_USERNAME: ${WEAVE_BACKEND_DB_USERNAME:-weave_backend}
       SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/,optional:configtree:/run/secrets/providers/
     secrets:
       - source: backend-db-password
@@ -1008,8 +1007,8 @@ services:
         condition: service_completed_successfully
       mcp-keycloak-connectivity-check:
         condition: service_completed_successfully
-    env_file:
-      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/mcp/public.env
+    environment:
+      SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT}
     volumes:
       - type: bind
         source: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-mcp-server-jwk.json
@@ -1086,23 +1085,25 @@ volumes:
   mailpit-data:
     external: true
     name: ${WEAVE_MAILPIT_DATA_VOLUME:-weave_mailpit_data}
-  nextcloud-data:
+  mas-data:
     external: true
-    name: ${WEAVE_NEXTCLOUD_DATA_VOLUME:-weave_nextcloud_data}
+    name: ${WEAVE_MAS_DATA_VOLUME:-weave_mas_data}
   synapse-data:
     external: true
     name: ${WEAVE_SYNAPSE_DATA_VOLUME:-weave_synapse_data}
   matrix-appservice:
     external: true
-    name: ${WEAVE_MATRIX_APPSERVICE_VOLUME:-weave_matrix_chat_appservice_runtime}
-  runtime-state-data:
+    name: ${WEAVE_MATRIX_APPSERVICE_VOLUME:-weave_matrix_appservice}
+  nextcloud-data:
     external: true
-    name: ${WEAVE_RUNTIME_STATE_VOLUME:-weave_runtime_state}
+    name: ${WEAVE_NEXTCLOUD_DATA_VOLUME:-weave_nextcloud_data}
   native-files-data:
     external: true
     name: ${WEAVE_NATIVE_FILES_DATA_VOLUME:-weave_native_files_data}
+  runtime-state-data:
+    external: true
+    name: ${WEAVE_RUNTIME_STATE_DATA_VOLUME:-weave_runtime_state_data}
 
 networks:
   weave:
-    external: true
-    name: ${WEAVE_DOCKER_NETWORK:-weave_network}
+    name: ${WEAVE_NETWORK_NAME:-weave_network}
