@@ -101,22 +101,20 @@ def artifacts(root: Path) -> tuple[object, dict[str, object]]:
         profile="dogfood",
         env={**context.env, "WEAVE_GENERATED_ROOT": str(generated)},
     )
-    write(
-        generated / "render-manifest.json",
-        {
-            "schemaVersion": "weave.compose-render.v2",
-            "baselineRevision": target_revision,
+    render_manifest = {
+        "schemaVersion": "weave.compose-render.v3",
+        "baselineRevision": target_revision,
+        "containsSecretValues": False,
+        "realmIdentity": realm_identity,
+        "deploymentArtifacts": {
+            "renderedRealmPath": "keycloak/import/weave-realm.json",
             "containsSecretValues": False,
-            "realmIdentity": realm_identity,
-            "realmArtifacts": {
-                "renderedRealmPath": "keycloak/import/weave-realm.json",
-                "containsSecretValues": False,
-                "migrationBundleDigest": bundle_digest,
-                "migrationBundlePath": "keycloak/migrations/fresh-start-v1.json",
-                "environmentRenderEvidencePath": "keycloak/realm-render-evidence.json",
-            },
+            "migrationBundleDigest": bundle_digest,
+            "migrationBundlePath": "keycloak/migrations/fresh-start-v1.json",
+            "environmentRenderEvidencePath": "keycloak/realm-render-evidence.json",
         },
-    )
+    }
+    write(generated / "render-manifest.json", render_manifest)
     write(
         generated / "keycloak/realm-render-evidence.json",
         {
@@ -197,6 +195,15 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary)
         context, receipt = artifacts(root)
+        render_path = context.generated_root / "render-manifest.json"
+        current_render = json.loads(render_path.read_text(encoding="utf-8"))
+        legacy_render = dict(current_render)
+        legacy_render["schemaVersion"] = "weave.compose-render.v2"
+        legacy_render["realmArtifacts"] = legacy_render.pop("deploymentArtifacts")
+        write(render_path, legacy_render)
+        rejected(lambda: migration_inputs(context))
+        write(render_path, current_render)
+
         backup_dir = root / "private-backup"
         backup_dir.mkdir(mode=0o700)
         backup_manifest = {
