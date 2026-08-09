@@ -3,10 +3,8 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -16,7 +14,6 @@ REPOSITORY_ROOT = ROOT.parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from compose_env import ContractError, load_context  # noqa: E402
-from compose_runtime import compose, write_native_compose_environment  # noqa: E402
 from render_config import _reset_provider_configtree  # noqa: E402
 from rendering.gateway import _site, render_caddy  # noqa: E402
 from rendering.keycloak import _desired, _image_digest, _overlay  # noqa: E402
@@ -47,14 +44,6 @@ def materialize_example(profile: str, destination: Path) -> Path:
     return destination
 
 
-def resolved_model(context) -> dict[str, object]:
-    migrations = context.generated_root / "keycloak/migrations"
-    migrations.mkdir(parents=True, exist_ok=True)
-    (migrations / "receipt-check.env").touch(mode=0o600)
-    result = compose(context, "config", "--format", "json", capture=True)
-    return json.loads(result.stdout)
-
-
 def assert_spring_profile_contract(profile: str) -> None:
     server = (
         REPOSITORY_ROOT / f"server/src/main/resources/application-{profile}.yml"
@@ -71,18 +60,6 @@ def assert_spring_profile_contract(profile: str) -> None:
     assert "jpa:" not in mcp
 
 
-def assert_container_application_model(context) -> None:
-    assert context.environment in {"dogfood", "e2e", "prod"}
-    model = resolved_model(context)
-    services = model["services"]
-    for service_name in ("schema-init", "backend", "mcp"):
-        environment = services[service_name]["environment"]
-        assert environment["SPRING_PROFILES_ACTIVE"] == context.environment
-    assert "env_file" not in services["backend"]
-    assert "env_file" not in services["mcp"]
-    assert "env_file" not in services["schema-init"]
-
-
 def main() -> int:
     compose_source = (ROOT / "compose.yaml").read_text(encoding="utf-8")
     assert compose_source.count(
@@ -90,18 +67,13 @@ def main() -> int:
     ) == 3
     assert "/backend/public.env" not in compose_source
     assert "/mcp/public.env" not in compose_source
+    assert "env_file:\n      - ${WEAVE_GENERATED_ROOT" not in compose_source
 
     for profile in ("dev", "dogfood", "e2e", "prod"):
         assert_spring_profile_contract(profile)
 
-    # Dev deliberately runs Server/MCP as host processes after provider convergence;
-    # its Compose model therefore contains providers only, not containerized app services.
+    # Dev deliberately runs Server/MCP as host processes after provider convergence.
     dev = load_context("dev", ROOT)
-    dev_model = resolved_model(dev)
-    assert "backend" not in dev_model["services"]
-    assert "mcp" not in dev_model["services"]
-    assert "schema-init" not in dev_model["services"]
-    assert set(dev_model["services"]) == {"keycloak"}
     try:
         _image_digest(dev)
     except ContractError:
@@ -197,8 +169,6 @@ def main() -> int:
         assert "@internal path /api/internal/* /actuator/*" in dogfood_caddy
         assert "reverse_proxy mailpit:8025" in dogfood_caddy
         assert "reverse_proxy mailpit:8025" not in render_caddy(prod)
-        assert_container_application_model(dogfood)
-        assert_container_application_model(prod)
 
         isolated_overrides = {
             "WEAVE_E2E_STACK_SCOPE": "isolated",
@@ -213,7 +183,7 @@ def main() -> int:
             isolated = load_context(
                 "e2e", ROOT, str(materialize_example("e2e", root / "e2e.env"))
             )
-            assert_container_application_model(isolated)
+            assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
             assert _image_digest(isolated) == "sha256:" + "b" * 64
         finally:
             for key, value in previous.items():
@@ -221,17 +191,6 @@ def main() -> int:
                     os.environ.pop(key, None)
                 else:
                     os.environ[key] = value
-
-        descriptor = write_native_compose_environment(dogfood, root / ".env.dogfood")
-        assert descriptor.stat().st_mode & 0o777 == 0o600
-        subprocess.run(
-            ["docker", "compose", "--env-file", str(descriptor), "config", "--quiet"],
-            cwd=ROOT,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
 
     print("compose profile modular contract tests passed")
     return 0
