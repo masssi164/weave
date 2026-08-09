@@ -654,9 +654,9 @@ fn validate_server_name(value:&str)->Result<OwnedServerName,MatrixCoreError>{
 fn matrix_user_id(subject:&str,server_name:&OwnedServerName)->Result<OwnedUserId,MatrixCoreError>{if subject.trim().is_empty(){return Err(MatrixCoreError::EmptySubject);} let local=encode_localpart(subject);OwnedUserId::try_from(format!("@{}:{}",local,server_name)).map_err(|_|MatrixCoreError::InvalidMatrixId{kind:"user id"})}
 fn matrix_room_id(id:&str,server_name:&OwnedServerName)->Result<OwnedRoomId,MatrixCoreError>{OwnedRoomId::try_from(format!("!{}:{}",encode_localpart(id),server_name)).map_err(|_|MatrixCoreError::InvalidMatrixId{kind:"room id"})}
 fn matrix_event_id(id:&str,server_name:&OwnedServerName)->Result<OwnedEventId,MatrixCoreError>{OwnedEventId::try_from(format!("${}:{}",encode_localpart(id),server_name)).map_err(|_|MatrixCoreError::InvalidMatrixId{kind:"event id"})}
-fn validate_user_for_server<'a>(value:&'a str,server:&OwnedServerName)->Result<&'a str,MatrixCoreError>{let id=OwnedUserId::try_from(value).map_err(|_|MatrixCoreError::InvalidMatrixId{kind:"user id"})?;if id.server_name()!=server.as_ref(){return Err(MatrixCoreError::InvalidMatrixId{kind:"user id"});}Ok(value)}
-fn validate_room_for_server(value:&str,server:&OwnedServerName)->Result<OwnedRoomId,MatrixCoreError>{let id=OwnedRoomId::try_from(value).map_err(|_|MatrixCoreError::InvalidMatrixId{kind:"room id"})?;if id.server_name()!=server.as_ref(){return Err(MatrixCoreError::InvalidMatrixId{kind:"room id"});}Ok(id)}
-fn validate_event_for_server(value:&str,server:&OwnedServerName)->Result<OwnedEventId,MatrixCoreError>{let id=OwnedEventId::try_from(value).map_err(|_|MatrixCoreError::InvalidMatrixId{kind:"event id"})?;if let Some(name)=id.server_name(){if name!=server.as_ref(){return Err(MatrixCoreError::InvalidMatrixId{kind:"event id"});}}Ok(id)}
+fn validate_user_for_server<'a>(value:&'a str,server:&OwnedServerName)->Result<&'a str,MatrixCoreError>{let id=OwnedUserId::try_from(value).map_err(|_|MatrixCoreError::InvalidMatrixId{kind:"user id"})?;if id.server_name().as_str()!=server.as_str(){return Err(MatrixCoreError::InvalidMatrixId{kind:"user id"});}Ok(value)}
+fn validate_room_for_server(value:&str,server:&OwnedServerName)->Result<OwnedRoomId,MatrixCoreError>{let id=OwnedRoomId::try_from(value).map_err(|_|MatrixCoreError::InvalidMatrixId{kind:"room id"})?;if id.server_name().map(|name|name.as_str())!=Some(server.as_str()){return Err(MatrixCoreError::InvalidMatrixId{kind:"room id"});}Ok(id)}
+fn validate_event_for_server(value:&str,server:&OwnedServerName)->Result<OwnedEventId,MatrixCoreError>{let id=OwnedEventId::try_from(value).map_err(|_|MatrixCoreError::InvalidMatrixId{kind:"event id"})?;if let Some(name)=id.server_name(){if name.as_str()!=server.as_str(){return Err(MatrixCoreError::InvalidMatrixId{kind:"event id"});}}Ok(id)}
 fn encode_localpart(value:&str)->String{value.as_bytes().iter().map(|b|format!("{b:02x}")).collect()}
 fn decode_localpart(value:&str)->Result<String,MatrixCoreError>{if value.len()%2!=0{return Err(MatrixCoreError::InvalidMatrixId{kind:"encoded localpart"});}let bytes=(0..value.len()).step_by(2).map(|i|u8::from_str_radix(&value[i..i+2],16).map_err(|_|MatrixCoreError::InvalidMatrixId{kind:"encoded localpart"})).collect::<Result<Vec<_>,_>>()?;String::from_utf8(bytes).map_err(|_|MatrixCoreError::InvalidMatrixId{kind:"encoded localpart"})}
 fn encode_sync_token(cursor:&str)->String{format!("w1_{}",encode_localpart(cursor))}
@@ -678,24 +678,28 @@ fn message_event(message:&CanonicalMessageInput,server:&OwnedServerName)->Result
 #[cfg(feature="jni")]
 mod jni_bridge{
     use super::*;
-    use jni::{EnvUnowned, JavaVM, sys::jstring};
-    use std::ptr;
-
-    fn with_env_result(vm:&JavaVM,f:impl FnOnce(&mut jni::Env<'_>)->Result<jni::objects::JString<'_>,jni::errors::Error>)->jstring{
-        let mut env=match vm.attach_current_thread(){Ok(env)=>env,Err(_)=>return ptr::null_mut()};
-        match f(&mut env){Ok(value)=>value.into_raw(),Err(_)=>ptr::null_mut()}
-    }
+    use jni::errors::ThrowRuntimeExAndDefault;
+    use jni::objects::{JClass, JString};
+    use jni::sys::jstring;
+    use jni::EnvUnowned;
 
     #[no_mangle]
-    pub extern "system" fn Java_com_massimotter_weave_backend_matrix_NativeMatrixCore_projectJson(
-        env:EnvUnowned<'_>,_class:jni::objects::JClass<'_>,operation:jni::objects::JString<'_>,input_json:jni::objects::JString<'_>,server_name:jni::objects::JString<'_>)->jstring{
-        let Ok(vm)=env.get_java_vm() else{return ptr::null_mut()};
-        with_env_result(&vm,|env|{
-            let operation:String=env.get_string(&operation)?.into();
-            let input:String=env.get_string(&input_json)?.into();
-            let server:String=env.get_string(&server_name)?.into();
-            env.new_string(project_json_or_error(operation,input,server))
-        })
+    pub extern "system" fn Java_com_massimotter_weave_backend_matrix_NativeMatrixCore_projectJson<'local>(
+        mut unowned_env: EnvUnowned<'local>,
+        _class: JClass<'local>,
+        operation: JString<'local>,
+        input_json: JString<'local>,
+        server_name: JString<'local>,
+    ) -> jstring {
+        unowned_env
+            .with_env(|env| -> jni::errors::Result<jstring> {
+                let operation = operation.try_to_string(env).unwrap_or_default();
+                let input_json = input_json.try_to_string(env).unwrap_or_default();
+                let server_name = server_name.try_to_string(env).unwrap_or_default();
+                let payload = project_json_or_error(operation, input_json, server_name);
+                JString::from_str(env, payload).map(JString::into_raw)
+            })
+            .resolve::<ThrowRuntimeExAndDefault>()
     }
 }
 
