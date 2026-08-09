@@ -14,12 +14,14 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceFr
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceSet;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.TemporalValue;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 
 class NativeCalendarProviderAdapterTest {
@@ -30,64 +32,60 @@ class NativeCalendarProviderAdapterTest {
 
     @Test
     void canonicalWritesSurviveRestartAndKeepStableVersions() {
-        try (JpaTestDatabase database = JpaTestDatabase.open()) {
-            NativeCalendarProviderAdapter first = adapter(database);
-            CalendarEvent created = first.write(new CalendarWrite(event("planning", "Planning"), WriteIntent.CREATE, EventVersion.unknown()));
-            NativeCalendarProviderAdapter restarted = adapter(database);
+        DataSource database = JpaTestDatabase.entityFirstDataSource("native-calendar-restart-v2");
+        NativeCalendarProviderAdapter first = adapter(database);
+        CalendarEvent created = first.write(new CalendarWrite(event("planning", "Planning"), WriteIntent.CREATE, EventVersion.unknown()));
+        NativeCalendarProviderAdapter restarted = adapter(database);
 
-            assertThat(restarted.read(CALENDAR, WORKSPACE, created.id()).title()).isEqualTo("Planning");
-            assertThat(restarted.read(CALENDAR, WORKSPACE, created.id()).version()).isEqualTo(created.version());
-        }
+        assertThat(restarted.read(CALENDAR, WORKSPACE, created.id()).title()).isEqualTo("Planning");
+        assertThat(restarted.read(CALENDAR, WORKSPACE, created.id()).version()).isEqualTo(created.version());
     }
 
     @Test
     void updateRequiresMatchingVersionAndDeleteIsDurable() {
-        try (JpaTestDatabase database = JpaTestDatabase.open()) {
-            NativeCalendarProviderAdapter adapter = adapter(database);
-            CalendarEvent created = adapter.write(new CalendarWrite(event("planning", "Planning"), WriteIntent.CREATE, EventVersion.unknown()));
+        DataSource database = JpaTestDatabase.entityFirstDataSource("native-calendar-update-v2");
+        NativeCalendarProviderAdapter adapter = adapter(database);
+        CalendarEvent created = adapter.write(new CalendarWrite(event("planning", "Planning"), WriteIntent.CREATE, EventVersion.unknown()));
 
-            assertThatThrownBy(() -> adapter.write(new CalendarWrite(
-                    withTitle(created, "Wrong"), WriteIntent.UPDATE, new EventVersion("\"stale\""))))
-                    .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> adapter.write(new CalendarWrite(
+                withTitle(created, "Wrong"), WriteIntent.UPDATE, new EventVersion("\"stale\""))))
+                .isInstanceOf(RuntimeException.class);
 
-            CalendarEvent updated = adapter.write(new CalendarWrite(withTitle(created, "Updated"), WriteIntent.UPDATE, created.version()));
-            adapter.delete(CALENDAR, WORKSPACE, updated.id(), updated.version());
+        CalendarEvent updated = adapter.write(new CalendarWrite(withTitle(created, "Updated"), WriteIntent.UPDATE, created.version()));
+        adapter.delete(CALENDAR, WORKSPACE, updated.id(), updated.version());
 
-            assertThatThrownBy(() -> adapter.read(CALENDAR, WORKSPACE, updated.id())).isInstanceOf(RuntimeException.class);
-        }
+        assertThatThrownBy(() -> adapter.read(CALENDAR, WORKSPACE, updated.id())).isInstanceOf(RuntimeException.class);
     }
 
     @Test
     void queryAndFreeBusyUseBoundedIcal4jRecurrenceWithRdateAndExdate() {
-        try (JpaTestDatabase database = JpaTestDatabase.open()) {
-            NativeCalendarProviderAdapter adapter = adapter(database);
-            adapter.write(new CalendarWrite(event("planning", "Planning"), WriteIntent.CREATE, EventVersion.unknown()));
+        DataSource database = JpaTestDatabase.entityFirstDataSource("native-calendar-recurrence-v2");
+        NativeCalendarProviderAdapter adapter = adapter(database);
+        adapter.write(new CalendarWrite(event("planning", "Planning"), WriteIntent.CREATE, EventVersion.unknown()));
 
-            Instant from = Instant.parse("2026-03-27T00:00:00Z");
-            Instant to = Instant.parse("2026-04-04T00:00:00Z");
+        Instant from = Instant.parse("2026-03-27T00:00:00Z");
+        Instant to = Instant.parse("2026-04-04T00:00:00Z");
 
-            assertThat(adapter.query(CALENDAR, WORKSPACE, from, to)).singleElement();
-            assertThat(adapter.freeBusy(CALENDAR, WORKSPACE, from, to))
-                    .extracting(window -> window.start().atZone(ZoneId.of("Europe/Berlin")).toLocalDate().toString())
-                    .containsExactly("2026-03-28", "2026-03-29", "2026-03-31", "2026-04-02");
-        }
+        assertThat(adapter.query(CALENDAR, WORKSPACE, from, to)).singleElement();
+        assertThat(adapter.freeBusy(CALENDAR, WORKSPACE, from, to))
+                .extracting(window -> window.start().atZone(ZoneId.of("Europe/Berlin")).toLocalDate().toString())
+                .containsExactly("2026-03-28", "2026-03-29", "2026-03-31", "2026-04-02");
     }
 
     @Test
     void syncTokensAreScopeBoundAndSnapshotBounded() {
-        try (JpaTestDatabase database = JpaTestDatabase.open()) {
-            NativeCalendarProviderAdapter adapter = adapter(database);
-            CalendarEvent first = adapter.write(new CalendarWrite(event("one", "One"), WriteIntent.CREATE, EventVersion.unknown()));
-            var initial = adapter.changes(CALENDAR, WORKSPACE, null);
-            adapter.write(new CalendarWrite(event("two", "Two"), WriteIntent.CREATE, EventVersion.unknown()));
+        DataSource database = JpaTestDatabase.entityFirstDataSource("native-calendar-sync-v2");
+        NativeCalendarProviderAdapter adapter = adapter(database);
+        CalendarEvent first = adapter.write(new CalendarWrite(event("one", "One"), WriteIntent.CREATE, EventVersion.unknown()));
+        var initial = adapter.changes(CALENDAR, WORKSPACE, null);
+        adapter.write(new CalendarWrite(event("two", "Two"), WriteIntent.CREATE, EventVersion.unknown()));
 
-            assertThat(initial.changes()).extracting(change -> change.eventId().value()).containsExactly(first.id().value());
-            assertThat(adapter.changes(CALENDAR, WORKSPACE, initial.syncToken()).changes())
-                    .extracting(change -> change.eventId().value()).containsExactly("two");
-        }
+        assertThat(initial.changes()).extracting(change -> change.eventId().value()).containsExactly(first.id().value());
+        assertThat(adapter.changes(CALENDAR, WORKSPACE, initial.syncToken()).changes())
+                .extracting(change -> change.eventId().value()).containsExactly("two");
     }
 
-    private NativeCalendarProviderAdapter adapter(JpaTestDatabase database) {
+    private NativeCalendarProviderAdapter adapter(DataSource database) {
         NativeCalendarProviderAdapter target = new NativeCalendarProviderAdapter(
                 JpaTestDatabase.repository(database, CalendarCollectionJpaRepository.class),
                 JpaTestDatabase.repository(database, CalendarEventJpaRepository.class),
