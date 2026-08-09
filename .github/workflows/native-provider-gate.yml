@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           ./gradlew :server:compileJava :server:compileTestJava
-          ./gradlew :server:test \
+          ./gradlew :server:test --stacktrace \
             --tests 'com.massimotter.weave.backend.service.files.*' \
             --tests 'com.massimotter.weave.backend.service.calendar.*' \
             --tests 'com.massimotter.weave.backend.calendar.*' \
