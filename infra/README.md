@@ -4,7 +4,7 @@
 
 `infra/` owns the Docker Compose foundation for a self-hosted Weave deployment: identity, native collaboration services, backend API routing, local HTTPS, provider-readiness checks, backups, restore rehearsal, migration evidence, and support diagnostics. Executable OpenTofu/Terraform and its state have been retired.
 
-This directory is the infrastructure implementation layer inside the Weave monorepo. The canonical product bootstrap boundary is `../docs/bootstrap-foundation-contract.md`; the canonical Keycloak ownership and migration model is `../docs/architecture/keycloak-realm-lifecycle.md`.
+This directory is the provider-stack implementation layer inside the Weave monorepo. The canonical product bootstrap boundary is `../docs/bootstrap-foundation-contract.md`; the canonical Keycloak ownership and migration model is `../docs/architecture/keycloak-realm-lifecycle.md`.
 
 ## What it provisions
 
