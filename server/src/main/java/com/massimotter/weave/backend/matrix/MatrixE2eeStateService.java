@@ -136,28 +136,58 @@ public class MatrixE2eeStateService {
 
     public MatrixProtocolCoreService.MatrixSyncCrypto sync(MatrixFacadeClientStateService.MatrixIdentity identity, long afterSequence, Collection<String> currentlySharedUserIds) {
         requireActive(identity);
-        Set<String> shared = currentlySharedUserIds == null ? null : Set.copyOf(currentlySharedUserIds.stream().filter(value -> value != null && !value.isBlank() && !value.equals(identity.userId())).toList());
-        if (shared != null) persistence.reconcileSharedUsers(identity.tenantId(), identity.userId(), identity.deviceId(), shared);
+        Set<String> shared = currentlySharedUserIds == null ? null : Set.copyOf(currentlySharedUserIds.stream()
+                .filter(value -> value != null && !value.isBlank() && !value.equals(identity.userId()))
+                .toList());
+
+        Map<String, MatrixE2eePersistence.DeviceListState> priorSharedChanges = shared == null
+                ? Map.of()
+                : persistence.sharedUserChanges(
+                        identity.tenantId(), identity.userId(), identity.deviceId(), afterSequence,
+                        persistence.currentRevision(identity.tenantId()));
+        if (shared != null) {
+            persistence.reconcileSharedUsers(identity.tenantId(), identity.userId(), identity.deviceId(), shared);
+        }
 
         long snapshotHighWater = persistence.currentRevision(identity.tenantId());
-        List<MatrixE2eePersistence.ToDeviceRecord> queue = persistence.toDeviceEvents(identity.tenantId(), identity.userId(), identity.deviceId(), afterSequence, snapshotHighWater, MAX_TO_DEVICE_EVENTS_PER_SYNC);
-        List<Map<String, Object>> events = queue.stream().map(event -> Map.<String, Object>of("sender", event.senderUserId(), "type", event.eventType(), "content", event.content())).toList();
+        List<MatrixE2eePersistence.ToDeviceRecord> queue = persistence.toDeviceEvents(
+                identity.tenantId(), identity.userId(), identity.deviceId(), afterSequence, snapshotHighWater,
+                MAX_TO_DEVICE_EVENTS_PER_SYNC);
+        List<Map<String, Object>> events = queue.stream()
+                .map(event -> Map.<String, Object>of(
+                        "sender", event.senderUserId(),
+                        "type", event.eventType(),
+                        "content", event.content()))
+                .toList();
         if (!events.isEmpty()) {
             projectedToDeviceEventCount.addAndGet(events.size());
             syncResponsesWithToDeviceEvents.incrementAndGet();
         }
 
-        long toDeviceDeliveredHighWater = queue.size() == MAX_TO_DEVICE_EVENTS_PER_SYNC ? queue.getLast().revision() : snapshotHighWater;
-        Set<String> changed = new java.util.TreeSet<>(persistence.deviceUsersChanged(identity.tenantId(), afterSequence, snapshotHighWater));
-        List<String> left = new ArrayList<>();
+        long toDeviceDeliveredHighWater = queue.size() == MAX_TO_DEVICE_EVENTS_PER_SYNC
+                ? queue.getLast().revision()
+                : snapshotHighWater;
+        Set<String> changed = new java.util.TreeSet<>(
+                persistence.deviceUsersChanged(identity.tenantId(), afterSequence, snapshotHighWater));
+        Map<String, MatrixE2eePersistence.DeviceListState> sharedChanges = new LinkedHashMap<>(priorSharedChanges);
         if (shared != null) {
-            persistence.sharedUserChanges(identity.tenantId(), identity.userId(), identity.deviceId(), afterSequence, snapshotHighWater)
-                    .forEach((user, state) -> { if (state.shared()) changed.add(user); else left.add(user); });
+            sharedChanges.putAll(persistence.sharedUserChanges(
+                    identity.tenantId(), identity.userId(), identity.deviceId(), afterSequence, snapshotHighWater));
         }
+        List<String> left = new ArrayList<>();
+        sharedChanges.forEach((user, state) -> {
+            if (state.shared()) changed.add(user); else left.add(user);
+        });
 
         long nextSequence = Math.min(snapshotHighWater, toDeviceDeliveredHighWater);
         persistence.recordDeviceSyncProgress(identity.tenantId(), identity.userId(), identity.deviceId(), nextSequence);
-        return new MatrixProtocolCoreService.MatrixSyncCrypto(events, List.copyOf(changed), left.stream().distinct().sorted().toList(), persistence.oneTimeKeyCounts(identity.tenantId(), identity.userId(), identity.deviceId()), persistence.unusedFallbackAlgorithms(identity.tenantId(), identity.userId(), identity.deviceId()), nextSequence);
+        return new MatrixProtocolCoreService.MatrixSyncCrypto(
+                events,
+                List.copyOf(changed),
+                left.stream().distinct().sorted().toList(),
+                persistence.oneTimeKeyCounts(identity.tenantId(), identity.userId(), identity.deviceId()),
+                persistence.unusedFallbackAlgorithms(identity.tenantId(), identity.userId(), identity.deviceId()),
+                nextSequence);
     }
 
     public SupportSafeToDeviceEvidence supportSafeToDeviceEvidence() {
