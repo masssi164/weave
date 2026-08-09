@@ -51,7 +51,7 @@ class MatrixE2eeStateServicePersistenceTest {
                 assertThat(event.toString()).contains("opaque-to-device"));
         assertThat(backup.toString()).contains("opaque-backup").doesNotContain("plaintext", "recoveryKey");
         assertThat(accountData).containsEntry("key", "weave-recovery-key-id");
-        assertThat(restarted.currentSequence()).isEqualTo(restoredSequence);
+        assertThat(restarted.currentSequence(second)).isEqualTo(restoredSequence);
         assertThat(store.currentRevision("tenant-a")).isEqualTo(restoredSequence);
         assertThat(restarted.sync(second, restoredSequence).toDeviceEvents()).isEmpty();
         assertThatThrownBy(() -> restarted.requireActive(identity("WEAVERENAMEDDEVICE", "oidc-session-hash-a")))
@@ -67,10 +67,10 @@ class MatrixE2eeStateServicePersistenceTest {
         var claimant = identity("WEAVEFALLBACKCLAIMANT");
 
         service.uploadKeys(target, fallbackKeyUpload(target, "fallback-public-key"));
-        long sequenceAfterUpload = service.currentSequence();
+        long sequenceAfterUpload = service.currentSequence(target);
         Map<String, Object> status = service.uploadKeys(target, Map.of());
 
-        assertThat(service.currentSequence()).isEqualTo(sequenceAfterUpload);
+        assertThat(service.currentSequence(target)).isEqualTo(sequenceAfterUpload);
         assertThat(status).containsEntry("one_time_key_counts", Map.of());
         assertThat(service.sync(target, 0).unusedFallbackKeyTypes()).containsExactly("signed_curve25519");
 
