@@ -155,8 +155,13 @@ def require_current_evidence_boundaries() -> None:
         "chatDomainFacadeService.sendEvent(",
     )
     require(
+        "server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCodec.java",
+        "Map<String, Object> project(MatrixProtocolOperation operation, String inputJson)",
+    )
+    require(
         "server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCoreService.java",
-        'NativeMatrixCore.projectJson(operation, inputJson, serverName)',
+        "implements MatrixProtocolCodec",
+        "NativeMatrixCore.projectJson(operation.wireName(), inputJson, serverName)",
         'public static final String FLUTTER_BRIDGE_BOUNDARY = "flutter-rust-bridge"',
     )
     forbidden_calls_path = ROOT / "server/src/main/java/com/massimotter/weave/backend/controller/CallsController.java"
