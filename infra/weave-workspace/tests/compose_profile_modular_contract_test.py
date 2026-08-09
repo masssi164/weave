@@ -55,8 +55,7 @@ def resolved_model(context) -> dict[str, object]:
 
 def assert_spring_profile_contract(profile: str) -> None:
     server = (
-        REPOSITORY_ROOT
-        / f"server/src/main/resources/application-{profile}.yml"
+        REPOSITORY_ROOT / f"server/src/main/resources/application-{profile}.yml"
     ).read_text(encoding="utf-8")
     mcp = (
         REPOSITORY_ROOT
@@ -70,7 +69,8 @@ def assert_spring_profile_contract(profile: str) -> None:
     assert "jpa:" not in mcp
 
 
-def assert_application_model(context) -> None:
+def assert_container_application_model(context) -> None:
+    assert context.environment in {"dogfood", "e2e", "prod"}
     model = resolved_model(context)
     services = model["services"]
     for service_name in ("schema-init", "backend", "mcp"):
@@ -92,7 +92,14 @@ def main() -> int:
     for profile in ("dev", "dogfood", "e2e", "prod"):
         assert_spring_profile_contract(profile)
 
+    # Dev deliberately runs Server/MCP as host processes after provider convergence;
+    # its Compose model therefore contains providers only, not containerized app services.
     dev = load_context("dev", ROOT)
+    dev_model = resolved_model(dev)
+    assert "backend" not in dev_model["services"]
+    assert "mcp" not in dev_model["services"]
+    assert "schema-init" not in dev_model["services"]
+    assert set(dev_model["services"]) == {"keycloak"}
     try:
         _image_digest(dev)
     except ContractError:
@@ -119,48 +126,12 @@ def main() -> int:
         "organizations": [{"key": "organization:weave-primary", "alias": "weave"}],
         "clientScopes": [],
         "organizationGroups": [
-            {
-                "key": "owner",
-                "organizationRef": "organization:weave-primary",
-                "path": "/owners",
-                "parentGroupRef": None,
-                "roleRefs": ["role:owner"],
-            },
-            {
-                "key": "admin",
-                "organizationRef": "organization:weave-primary",
-                "path": "/admins",
-                "parentGroupRef": None,
-                "roleRefs": ["role:admin"],
-            },
-            {
-                "key": "member",
-                "organizationRef": "organization:weave-primary",
-                "path": "/members",
-                "parentGroupRef": None,
-                "roleRefs": ["role:member"],
-            },
-            {
-                "key": "guest",
-                "organizationRef": "organization:weave-primary",
-                "path": "/guests",
-                "parentGroupRef": None,
-                "roleRefs": ["role:guest"],
-            },
-            {
-                "key": "capabilities",
-                "organizationRef": "organization:weave-primary",
-                "path": "/capabilities",
-                "parentGroupRef": None,
-                "roleRefs": [],
-            },
-            {
-                "key": "weaver",
-                "organizationRef": "organization:weave-primary",
-                "path": "/capabilities/weaver",
-                "parentGroupRef": "organization-group:weave-primary:capabilities",
-                "roleRefs": [],
-            },
+            {"key": "owner", "organizationRef": "organization:weave-primary", "path": "/owners", "parentGroupRef": None, "roleRefs": ["role:owner"]},
+            {"key": "admin", "organizationRef": "organization:weave-primary", "path": "/admins", "parentGroupRef": None, "roleRefs": ["role:admin"]},
+            {"key": "member", "organizationRef": "organization:weave-primary", "path": "/members", "parentGroupRef": None, "roleRefs": ["role:member"]},
+            {"key": "guest", "organizationRef": "organization:weave-primary", "path": "/guests", "parentGroupRef": None, "roleRefs": ["role:guest"]},
+            {"key": "capabilities", "organizationRef": "organization:weave-primary", "path": "/capabilities", "parentGroupRef": None, "roleRefs": []},
+            {"key": "weaver", "organizationRef": "organization:weave-primary", "path": "/capabilities/weaver", "parentGroupRef": "organization-group:weave-primary:capabilities", "roleRefs": []},
         ],
         "fineGrainedAdminPermissions": {"enabled": True},
         "serviceAccountRoleGrants": [
@@ -212,14 +183,10 @@ def main() -> int:
         assert not tuple(provider_configtree.iterdir())
 
         dogfood = load_context(
-            "dogfood",
-            ROOT,
-            str(materialize_example("dogfood", root / "dogfood.env")),
+            "dogfood", ROOT, str(materialize_example("dogfood", root / "dogfood.env"))
         )
         prod = load_context(
-            "prod",
-            ROOT,
-            str(materialize_example("prod", root / "prod.env")),
+            "prod", ROOT, str(materialize_example("prod", root / "prod.env"))
         )
         assert _image_digest(dogfood) == "sha256:" + "a" * 64
         assert _image_digest(prod) == "sha256:" + "a" * 64
@@ -228,8 +195,8 @@ def main() -> int:
         assert "@internal path /api/internal/* /actuator/*" in dogfood_caddy
         assert "reverse_proxy mailpit:8025" in dogfood_caddy
         assert "reverse_proxy mailpit:8025" not in render_caddy(prod)
-        assert_application_model(dogfood)
-        assert_application_model(prod)
+        assert_container_application_model(dogfood)
+        assert_container_application_model(prod)
 
         isolated_overrides = {
             "WEAVE_E2E_STACK_SCOPE": "isolated",
@@ -242,11 +209,9 @@ def main() -> int:
         try:
             os.environ.update(isolated_overrides)
             isolated = load_context(
-                "e2e",
-                ROOT,
-                str(materialize_example("e2e", root / "e2e.env")),
+                "e2e", ROOT, str(materialize_example("e2e", root / "e2e.env"))
             )
-            assert_application_model(isolated)
+            assert_container_application_model(isolated)
             assert _image_digest(isolated) == "sha256:" + "b" * 64
         finally:
             for key, value in previous.items():
@@ -255,9 +220,7 @@ def main() -> int:
                 else:
                     os.environ[key] = value
 
-        descriptor = write_native_compose_environment(
-            dogfood, root / ".env.dogfood"
-        )
+        descriptor = write_native_compose_environment(dogfood, root / ".env.dogfood")
         assert descriptor.stat().st_mode & 0o777 == 0o600
         subprocess.run(
             ["docker", "compose", "--env-file", str(descriptor), "config", "--quiet"],
