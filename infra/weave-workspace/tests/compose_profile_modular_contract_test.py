@@ -40,6 +40,8 @@ def materialize_example(profile: str, destination: Path) -> Path:
             value,
             flags=re.MULTILINE,
         )
+    if profile in {"dogfood", "e2e"} and "WEAVE_MAILPIT_URL=" not in value:
+        value += "\nWEAVE_MAILPIT_URL=https://mail.weave.test\n"
     destination.write_text(value, encoding="utf-8")
     os.chmod(destination, 0o600)
     return destination
