@@ -9,6 +9,8 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceFrequency;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceSet;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.TemporalKind;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.TemporalValue;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EmbeddedId;
@@ -22,11 +24,11 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
@@ -48,21 +50,15 @@ class CalendarCollectionId implements Serializable {
     @Column(name = "scope_key", nullable = false, length = 768)
     private String scopeKey;
 
-    protected CalendarCollectionId() {
-    }
+    protected CalendarCollectionId() {}
 
     CalendarCollectionId(String calendarId, String scopeKey) {
         this.calendarId = Objects.requireNonNull(calendarId, "calendarId");
         this.scopeKey = Objects.requireNonNull(scopeKey, "scopeKey");
     }
 
-    String calendarId() {
-        return calendarId;
-    }
-
-    String scopeKey() {
-        return scopeKey;
-    }
+    String calendarId() { return calendarId; }
+    String scopeKey() { return scopeKey; }
 
     @Override
     public boolean equals(Object candidate) {
@@ -73,9 +69,7 @@ class CalendarCollectionId implements Serializable {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(calendarId, scopeKey);
-    }
+    public int hashCode() { return Objects.hash(calendarId, scopeKey); }
 }
 
 @Entity
@@ -105,13 +99,9 @@ class CalendarCollectionJpaEntity {
     @Column(name = "row_version", nullable = false)
     private long rowVersion;
 
-    protected CalendarCollectionJpaEntity() {
-    }
+    protected CalendarCollectionJpaEntity() {}
 
-    static CalendarCollectionJpaEntity create(
-            CalendarCollectionId id,
-            CalendarScope scope,
-            Instant timestamp) {
+    static CalendarCollectionJpaEntity create(CalendarCollectionId id, CalendarScope scope, Instant timestamp) {
         CalendarCollectionJpaEntity entity = new CalendarCollectionJpaEntity();
         entity.id = id;
         entity.scopeType = scope.type();
@@ -127,14 +117,10 @@ class CalendarCollectionJpaEntity {
         return latestChangeSequence;
     }
 
-    long latestChangeSequence() {
-        return latestChangeSequence;
-    }
+    long latestChangeSequence() { return latestChangeSequence; }
 }
 
-interface CalendarCollectionJpaRepository
-        extends JpaRepository<CalendarCollectionJpaEntity, CalendarCollectionId> {
-
+interface CalendarCollectionJpaRepository extends JpaRepository<CalendarCollectionJpaEntity, CalendarCollectionId> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select collection from CalendarCollectionJpaEntity collection where collection.id = :id")
     Optional<CalendarCollectionJpaEntity> lockById(@Param("id") CalendarCollectionId id);
@@ -155,8 +141,7 @@ class CalendarEventId implements Serializable {
     @Column(name = "event_id", nullable = false, length = 512)
     private String eventId;
 
-    protected CalendarEventId() {
-    }
+    protected CalendarEventId() {}
 
     CalendarEventId(String calendarId, String scopeKey, String eventId) {
         this.calendarId = Objects.requireNonNull(calendarId, "calendarId");
@@ -164,17 +149,9 @@ class CalendarEventId implements Serializable {
         this.eventId = Objects.requireNonNull(eventId, "eventId");
     }
 
-    String calendarId() {
-        return calendarId;
-    }
-
-    String scopeKey() {
-        return scopeKey;
-    }
-
-    String eventId() {
-        return eventId;
-    }
+    String calendarId() { return calendarId; }
+    String scopeKey() { return scopeKey; }
+    String eventId() { return eventId; }
 
     @Override
     public boolean equals(Object candidate) {
@@ -186,9 +163,7 @@ class CalendarEventId implements Serializable {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(calendarId, scopeKey, eventId);
-    }
+    public int hashCode() { return Objects.hash(calendarId, scopeKey, eventId); }
 }
 
 @Entity
@@ -220,7 +195,8 @@ class CalendarEventJpaEntity {
     @Column(name = "local_end", nullable = false)
     private LocalDateTime localEnd;
 
-    @Column(name = "timezone_id", nullable = false, length = 255)
+    /** Legacy compatibility projection only; detailed temporal authority is normalized separately. */
+    @Column(name = "timezone_id", length = 255)
     private String timezoneId;
 
     @Column(name = "all_day", nullable = false)
@@ -270,8 +246,7 @@ class CalendarEventJpaEntity {
     @Column(name = "row_version", nullable = false)
     private long rowVersion;
 
-    protected CalendarEventJpaEntity() {
-    }
+    protected CalendarEventJpaEntity() {}
 
     static CalendarEventJpaEntity create(CalendarEventId id) {
         CalendarEventJpaEntity entity = new CalendarEventJpaEntity();
@@ -287,7 +262,7 @@ class CalendarEventJpaEntity {
         description = event.description();
         localStart = event.localStart();
         localEnd = event.localEnd();
-        timezoneId = event.timezone().getId();
+        timezoneId = legacyTimezone(event.startValue());
         allDay = event.allDay();
         location = event.location();
         attendeeState = CalendarPersistenceCodec.attendees(event.attendees());
@@ -296,6 +271,14 @@ class CalendarEventJpaEntity {
         updatedAt = CalendarPersistenceTime.utc(timestamp);
         deleted = false;
         changeSequence = sequence;
+    }
+
+    private String legacyTimezone(TemporalValue value) {
+        return switch (value.kind()) {
+            case DATE, FLOATING -> null;
+            case UTC -> "UTC";
+            case ZONED -> value.zoneId().getId();
+        };
     }
 
     private void applyRecurrence(RecurrenceSet recurrence) {
@@ -314,7 +297,7 @@ class CalendarEventJpaEntity {
         recurrenceCount = recurrence.count();
         recurrenceUntilLocal = recurrence.until() == null ? null : recurrence.until().toLocalDateTime();
         recurrenceUntilTimezone = recurrence.until() == null ? null : recurrence.until().getZone().getId();
-        List<ZonedDateTime> recurrenceDates = new java.util.ArrayList<>(recurrence.additionalDates());
+        List<TemporalValue> recurrenceDates = new java.util.ArrayList<>(recurrence.additionalDates());
         additionalDateCount = recurrenceDates.size();
         recurrenceDates.addAll(recurrence.excludedDates());
         recurrenceDateState = CalendarPersistenceCodec.recurrenceDates(recurrenceDates);
@@ -327,16 +310,11 @@ class CalendarEventJpaEntity {
         changeSequence = sequence;
     }
 
-    boolean deleted() {
-        return deleted;
-    }
-
-    String eventVersion() {
-        return eventVersion;
-    }
+    boolean deleted() { return deleted; }
+    String eventVersion() { return eventVersion; }
 
     CalendarEvent toDomain() {
-        List<ZonedDateTime> storedDates = CalendarPersistenceCodec.recurrenceDates(recurrenceDateState);
+        List<TemporalValue> storedDates = CalendarPersistenceCodec.recurrenceDates(recurrenceDateState);
         RecurrenceSet recurrence = recurrenceFrequency == null
                 ? null
                 : new RecurrenceSet(
@@ -348,26 +326,33 @@ class CalendarEventJpaEntity {
                                 : recurrenceUntilLocal.atZone(ZoneId.of(recurrenceUntilTimezone)),
                         storedDates.subList(0, additionalDateCount),
                         storedDates.subList(additionalDateCount, storedDates.size()));
+        TemporalValue start = legacyTemporal(localStart, allDay, timezoneId);
+        TemporalValue end = legacyTemporal(localEnd, allDay, timezoneId);
         return new CalendarEvent(
                 new CalendarId(id.calendarId()),
                 new EventId(id.eventId()),
                 new CalendarScope(scopeType, teamId, channelId),
                 title,
                 description,
-                localStart,
-                localEnd,
-                ZoneId.of(timezoneId),
-                allDay,
+                start,
+                end,
                 location,
                 CalendarPersistenceCodec.attendees(attendeeState),
                 recurrence,
+                List.of(),
                 new EventVersion(eventVersion),
                 CalendarPersistenceTime.instant(updatedAt));
+    }
+
+    private TemporalValue legacyTemporal(LocalDateTime value, boolean dateOnly, String zone) {
+        if (dateOnly) return TemporalValue.date(value.toLocalDate());
+        if (zone == null || zone.isBlank()) return TemporalValue.floating(value);
+        if ("UTC".equals(zone)) return TemporalValue.utc(value.toInstant(ZoneOffset.UTC));
+        return TemporalValue.zoned(value, ZoneId.of(zone));
     }
 }
 
 interface CalendarEventJpaRepository extends JpaRepository<CalendarEventJpaEntity, CalendarEventId> {
-
     @Query("""
             select event from CalendarEventJpaEntity event
             where event.id.calendarId = :calendarId
@@ -395,8 +380,7 @@ class CalendarChangeId implements Serializable {
     @Column(name = "change_sequence", nullable = false)
     private long changeSequence;
 
-    protected CalendarChangeId() {
-    }
+    protected CalendarChangeId() {}
 
     CalendarChangeId(String calendarId, String scopeKey, long changeSequence) {
         this.calendarId = Objects.requireNonNull(calendarId, "calendarId");
@@ -414,9 +398,7 @@ class CalendarChangeId implements Serializable {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(calendarId, scopeKey, changeSequence);
-    }
+    public int hashCode() { return Objects.hash(calendarId, scopeKey, changeSequence); }
 }
 
 @Entity
@@ -438,8 +420,7 @@ class CalendarChangeJpaEntity {
     @Column(name = "changed_at_utc", nullable = false)
     private OffsetDateTime changedAt;
 
-    protected CalendarChangeJpaEntity() {
-    }
+    protected CalendarChangeJpaEntity() {}
 
     static CalendarChangeJpaEntity create(
             CalendarChangeId id,
@@ -456,21 +437,12 @@ class CalendarChangeJpaEntity {
         return entity;
     }
 
-    String eventId() {
-        return eventId;
-    }
-
-    boolean deleted() {
-        return deleted;
-    }
-
-    String eventVersion() {
-        return eventVersion;
-    }
+    String eventId() { return eventId; }
+    boolean deleted() { return deleted; }
+    String eventVersion() { return eventVersion; }
 }
 
 interface CalendarChangeJpaRepository extends JpaRepository<CalendarChangeJpaEntity, CalendarChangeId> {
-
     @Query("""
             select change from CalendarChangeJpaEntity change
             where change.id.calendarId = :calendarId
@@ -485,17 +457,9 @@ interface CalendarChangeJpaRepository extends JpaRepository<CalendarChangeJpaEnt
 }
 
 final class CalendarPersistenceTime {
-
-    private CalendarPersistenceTime() {
-    }
-
-    static OffsetDateTime utc(Instant value) {
-        return OffsetDateTime.ofInstant(value, ZoneOffset.UTC);
-    }
-
-    static Instant instant(OffsetDateTime value) {
-        return value.toInstant();
-    }
+    private CalendarPersistenceTime() {}
+    static OffsetDateTime utc(Instant value) { return OffsetDateTime.ofInstant(value, ZoneOffset.UTC); }
+    static Instant instant(OffsetDateTime value) { return value.toInstant(); }
 }
 
 final class CalendarPersistenceCodec {
@@ -503,8 +467,7 @@ final class CalendarPersistenceCodec {
     private static final String ITEM_SEPARATOR = ",";
     private static final String FIELD_SEPARATOR = "\\.";
 
-    private CalendarPersistenceCodec() {
-    }
+    private CalendarPersistenceCodec() {}
 
     static String attendees(List<Attendee> attendees) {
         return attendees.stream()
@@ -518,53 +481,63 @@ final class CalendarPersistenceCodec {
     }
 
     static List<Attendee> attendees(String state) {
-        if (state == null || state.isEmpty()) {
-            return List.of();
-        }
+        if (state == null || state.isEmpty()) return List.of();
         return java.util.Arrays.stream(state.split(ITEM_SEPARATOR, -1))
                 .map(item -> item.split(FIELD_SEPARATOR, -1))
                 .map(fields -> {
-                    if (fields.length != 5) {
-                        throw new IllegalStateException("stored calendar attendee state is invalid");
-                    }
+                    if (fields.length != 5) throw new IllegalStateException("stored calendar attendee state is invalid");
                     return new Attendee(
-                            decode(fields[0]),
-                            decode(fields[1]),
-                            decode(fields[2]),
-                            decode(fields[3]),
-                            decode(fields[4]));
+                            decode(fields[0]), decode(fields[1]), decode(fields[2]), decode(fields[3]), decode(fields[4]));
                 })
                 .toList();
     }
 
-    static String recurrenceDates(List<ZonedDateTime> values) {
+    static String recurrenceDates(List<TemporalValue> values) {
         return values.stream()
-                .map(value -> encode(value.toString()))
+                .map(CalendarPersistenceCodec::temporalState)
+                .map(CalendarPersistenceCodec::encode)
                 .collect(java.util.stream.Collectors.joining(ITEM_SEPARATOR));
     }
 
-    static List<ZonedDateTime> recurrenceDates(String state) {
-        if (state == null || state.isEmpty()) {
-            return List.of();
-        }
+    static List<TemporalValue> recurrenceDates(String state) {
+        if (state == null || state.isEmpty()) return List.of();
         return java.util.Arrays.stream(state.split(ITEM_SEPARATOR, -1))
                 .map(CalendarPersistenceCodec::decode)
-                .map(ZonedDateTime::parse)
+                .map(CalendarPersistenceCodec::temporalValue)
                 .toList();
     }
 
-    private static String encode(String value) {
-        if (value == null) {
-            return "-";
+    private static String temporalState(TemporalValue value) {
+        return switch (value.kind()) {
+            case DATE -> "DATE|" + value.date();
+            case FLOATING -> "FLOATING|" + value.localDateTime();
+            case UTC -> "UTC|" + value.instant();
+            case ZONED -> "ZONED|" + value.localDateTime() + "|" + value.zoneId().getId();
+        };
+    }
+
+    private static TemporalValue temporalValue(String state) {
+        if (state == null || state.isBlank()) throw new IllegalStateException("stored calendar temporal state is invalid");
+        String[] fields = state.split("\\|", -1);
+        try {
+            return switch (TemporalKind.valueOf(fields[0])) {
+                case DATE -> TemporalValue.date(LocalDate.parse(fields[1]));
+                case FLOATING -> TemporalValue.floating(LocalDateTime.parse(fields[1]));
+                case UTC -> TemporalValue.utc(Instant.parse(fields[1]));
+                case ZONED -> TemporalValue.zoned(LocalDateTime.parse(fields[1]), ZoneId.of(fields[2]));
+            };
+        } catch (RuntimeException exception) {
+            throw new IllegalStateException("stored calendar temporal state is invalid", exception);
         }
-        return Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String encode(String value) {
+        if (value == null) return "-";
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 
     private static String decode(String value) {
-        if ("-".equals(value)) {
-            return null;
-        }
+        if ("-".equals(value)) return null;
         return new String(Base64.getUrlDecoder().decode(value), StandardCharsets.UTF_8);
     }
 }
