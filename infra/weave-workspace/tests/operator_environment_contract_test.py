@@ -5,13 +5,15 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 import tempfile
 from pathlib import Path
 
-from compose_env import ContractError, load_context
-from compose_runtime import runtime_root_services
-
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from compose_env import ContractError, load_context  # noqa: E402
+from compose_runtime import runtime_root_services  # noqa: E402
 
 
 def _materialize_example(profile: str, destination: Path) -> Path:
