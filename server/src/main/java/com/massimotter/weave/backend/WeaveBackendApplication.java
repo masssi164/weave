@@ -2,24 +2,23 @@ package com.massimotter.weave.backend;
 
 import com.massimotter.weave.backend.agentruntime.operator.RuntimeProfileSigningKeyCli;
 import com.massimotter.weave.backend.agentruntime.operator.RuntimeStateWrappingKeyCli;
-import com.massimotter.weave.backend.config.CalendarCalDavProperties;
 import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
+import com.massimotter.weave.backend.config.CalendarCalDavProperties;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import com.massimotter.weave.backend.config.ConnectorRuntimeProperties;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.FilesRuntimeProperties;
 import com.massimotter.weave.backend.config.GuestAccessProperties;
-import com.massimotter.weave.backend.config.InteropGatewayProperties;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
+import com.massimotter.weave.backend.config.InteropGatewayProperties;
 import com.massimotter.weave.backend.config.LiveKitSfuProviderProperties;
 import com.massimotter.weave.backend.config.MatrixChatProperties;
-import com.massimotter.weave.backend.config.MatrixFacadeRuntimeProperties;
 import com.massimotter.weave.backend.config.MigrationToolkitProperties;
 import com.massimotter.weave.backend.config.NextcloudFilesProperties;
 import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.ProviderHealthProperties;
-import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
+import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.identity.migration.KeycloakRealmMigrationCli;
 import com.massimotter.weave.backend.identity.migration.KeycloakRealmMigrationReceiptVerifierCli;
@@ -29,15 +28,10 @@ import java.util.Arrays;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-/**
- * Product runtime. Relational schema mutation is deliberately excluded here:
- * operators run the explicit {@code schema-init} command before starting the app,
- * while Hibernate validates the already-migrated schema.
- */
-@SpringBootApplication(exclude = FlywayAutoConfiguration.class)
+/** Product runtime. Flyway is the sole schema authority; Hibernate validates the migrated schema. */
+@SpringBootApplication
 @EnableScheduling
 @EnableConfigurationProperties({
         CalendarCalDavProperties.class,
@@ -51,7 +45,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         IdentityInvitationProperties.class,
         LiveKitSfuProviderProperties.class,
         MatrixChatProperties.class,
-        MatrixFacadeRuntimeProperties.class,
         MigrationToolkitProperties.class,
         NextcloudFilesProperties.class,
         PlatformContractProperties.class,
