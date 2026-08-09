@@ -115,8 +115,8 @@ class WeaveNativeFilesAdapterTest {
     void unscopedNativeDataOperationsFailClosed() {
         assertThatThrownBy(() -> adapter(authority).find(new FilePath("/anything")))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
-                    assertThat(exception.getStatus()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT);
-                    assertThat(exception.getCode()).isEqualTo("files-native-scope-required");
+                    assertThat(exception.status()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT);
+                    assertThat(exception.code()).isEqualTo("files-native-scope-required");
                 });
     }
 
