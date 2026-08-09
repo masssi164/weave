@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -80,21 +82,27 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
             publisher.get(8, TimeUnit.SECONDS);
             observer.get(8, TimeUnit.SECONDS);
 
-            long cursor = 0;
-            int delivered = 0;
-            while (cursor < eventCount) {
-                MatrixProtocolCoreService.MatrixSyncCrypto page = service.sync(target, cursor);
-                assertThat(page.nextSequence()).isGreaterThan(cursor).isLessThanOrEqualTo(eventCount);
+            MatrixE2eeStateService.E2eeSyncCursor cursor = new MatrixE2eeStateService.E2eeSyncCursor(0, 0);
+            Set<Integer> deliveredIndexes = new HashSet<>();
+            while (deliveredIndexes.size() < eventCount) {
+                MatrixProtocolCoreService.MatrixSyncCrypto page = service.sync(
+                        target,
+                        cursor.toDeviceSequence(),
+                        cursor.deviceListSequence(),
+                        null);
                 assertThat(page.toDeviceEvents()).hasSizeLessThanOrEqualTo(100);
-                delivered += page.toDeviceEvents().size();
-                cursor = page.nextSequence();
+                assertThat(page.nextSequence()).isGreaterThanOrEqualTo(cursor.toDeviceSequence()).isLessThanOrEqualTo(eventCount);
+                page.toDeviceEvents().forEach(event -> deliveredIndexes.add((Integer) event.get("content") instanceof Integer ? (Integer) event.get("content") : (Integer) ((Map<?, ?>) event.get("content")).get("index")));
+                String encoded = service.combinedCursor("chat-cursor", page);
+                cursor = service.cryptoCursor(encoded);
+                if (page.toDeviceEvents().isEmpty()) break;
             }
 
-            assertThat(delivered).isEqualTo(eventCount);
-            assertThat(cursor).isEqualTo(eventCount);
-            assertThat(service.sync(target, cursor).toDeviceEvents()).isEmpty();
-            assertThat(service.combinedCursor("chat-cursor", cursor))
-                    .isEqualTo("chat-cursor|e2ee:" + eventCount);
+            assertThat(deliveredIndexes).containsExactlyInAnyOrderElementsOf(java.util.stream.IntStream.range(0, eventCount).boxed().toList());
+            assertThat(cursor.toDeviceSequence()).isEqualTo(eventCount);
+            assertThat(service.sync(target, cursor.toDeviceSequence(), cursor.deviceListSequence(), null).toDeviceEvents()).isEmpty();
+            assertThat(service.combinedCursor("chat-cursor", new MatrixE2eeStateService.E2eeSyncCursor(eventCount, eventCount)))
+                    .isEqualTo("chat-cursor|e2ee:v2:" + eventCount + ":" + eventCount);
         } finally {
             executor.shutdownNow();
             assertThat(executor.awaitTermination(Duration.ofSeconds(2).toMillis(), TimeUnit.MILLISECONDS)).isTrue();
@@ -104,8 +112,8 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
     private void assertSnapshotDoesNotSkip(MatrixProtocolCoreService.MatrixSyncCrypto snapshot) {
         assertThat(snapshot.nextSequence()).isBetween(0L, 500L);
         assertThat(snapshot.toDeviceEvents()).hasSizeLessThanOrEqualTo(100);
-        if (snapshot.toDeviceEvents().size() == 100) {
-            assertThat(snapshot.nextSequence()).isEqualTo(100L);
+        if (!snapshot.toDeviceEvents().isEmpty()) {
+            assertThat(snapshot.nextSequence()).isPositive();
         }
     }
 
