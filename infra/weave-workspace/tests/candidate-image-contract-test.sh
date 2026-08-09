@@ -17,6 +17,9 @@ readonly MAIN_PROMOTION_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/main-prom
 readonly TEST_STACK_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/test-stack-deploy.yml"
 readonly FRESH_START_RECREATE="${REPOSITORY_ROOT}/infra/weave-workspace/fresh-start-recreate.py"
 readonly DOCTOR_TASK="${REPOSITORY_ROOT}/gradle/tasks/ci-lifecycle.gradle"
+readonly RENDERER="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/render_config.py"
+readonly MIGRATION_VALIDATOR="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/keycloak_migration.py"
+readonly REALM_EVIDENCE="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/keycloak_realm_evidence.py"
 
 fail() {
   printf 'candidate image contract failed: %s\n' "$*" >&2
@@ -127,13 +130,29 @@ reject "${LIVE_STACK_WORKFLOW}" 'WEAVE_TEST_APP_IDENTITY_OPS_IMAGE'
 reject "${FRESH_START_RECREATE}" 'candidate, "identity-ops"'
 contains "${TEST_STACK_WORKFLOW}" 'candidate_semantic="$(jq -er .realmDefinition.semanticRealmSourceDigest'
 contains "${TEST_STACK_WORKFLOW}" 'candidate_migration="$(jq -er .realmDefinition.migrationDefinitionDigest'
+contains "${TEST_STACK_WORKFLOW}" '.schemaVersion == "weave.compose-render.v3"'
+contains "${TEST_STACK_WORKFLOW}" '.deploymentArtifacts.renderedRealmPath == "keycloak/import/weave-realm.json"'
+contains "${TEST_STACK_WORKFLOW}" '(has("realmArtifacts") | not)'
 contains "${TEST_STACK_WORKFLOW}" '.realmIdentity.semanticRealmSourceDigest == $semantic'
 contains "${TEST_STACK_WORKFLOW}" '.realmIdentity.migrationDefinitionDigest == $migration'
 contains "${TEST_STACK_WORKFLOW}" 'actual_rendered="sha256:$(shasum -a 256 "$rendered_realm"'
 contains "${TEST_STACK_WORKFLOW}" '--output "$WEAVE_TEST_STACK_EVIDENCE_DIR/realm-evidence.json"'
 contains "${TEST_STACK_WORKFLOW}" 'realmEvidenceVerified:true'
+reject "${TEST_STACK_WORKFLOW}" '.schemaVersion == "weave.compose-render.v2"'
 reject "${TEST_STACK_WORKFLOW}" 'actual_baseline="sha256:$(shasum -a 256 "$baseline"'
 reject "${TEST_STACK_WORKFLOW}" 'actual_migrations="sha256:$(shasum -a 256 "$migrations"'
+
+contains "${RENDERER}" '"schemaVersion": "weave.compose-render.v3"'
+contains "${RENDERER}" '"deploymentArtifacts": {'
+reject "${RENDERER}" '"realmArtifacts": {'
+reject "${RENDERER}" '"schemaVersion": "weave.compose-render.v2"'
+contains "${MIGRATION_VALIDATOR}" 'rendered.get("deploymentArtifacts")'
+contains "${MIGRATION_VALIDATOR}" 'rendered.get("schemaVersion") != "weave.compose-render.v3"'
+contains "${MIGRATION_VALIDATOR}" '"realmArtifacts" in rendered'
+contains "${REALM_EVIDENCE}" 'manifest.get("schemaVersion") != "weave.compose-render.v3"'
+contains "${REALM_EVIDENCE}" 'manifest.get("deploymentArtifacts")'
+contains "${REALM_EVIDENCE}" '"realmArtifacts" in manifest'
+
 [[ "$(grep -Fc 'ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}' "${WORKFLOW}")" -eq 2 ]] ||
   fail "${WORKFLOW} must authenticate both specification-corpus checkouts through the deploy key"
 contains "${WORKFLOW}" "printf '/canonical-weave-specs/\\n' >> .git/info/exclude"
