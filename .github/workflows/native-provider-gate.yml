@@ -49,7 +49,9 @@ jobs:
           test ! -d rust/matrix-core
           ! grep -R --line-number --exclude-dir=target -E 'matrix-sdk|matrix_sdk' rust/matrix-protocol
           ! grep -R --line-number -E 'MatrixE2eeSnapshot(Store|JpaEntity|JpaRepository)|weave_matrix_e2ee_snapshots' server/src/main weave-persistence-jpa/src/main
-          ! grep -R --line-number -E 'weave\.chat\.matrix-facade\.enabled|facadeEnabled' server/src/main
+          ! grep -R --line-number -E 'weave\.chat\.matrix-facade\.enabled|facadeEnabled|weave\.matrix\.core\.library\.path|matrixCoreLibrary|weave_matrix_core' server gradle .github rust Cargo.toml Cargo.lock
           grep -q 'org.apache.opendal' server/src/main/java/com/massimotter/weave/backend/service/files/FilesystemBlobStore.java
-          grep -q 'org.apache.opendal' server/src/main/java/com/massimotter/weave/backend/service/files/S3BlobStore.java
-          ! grep -q 'software.amazon.awssdk' server/src/main/java/com/massimotter/weave/backend/service/files/S3BlobStore.java
+          ! grep -q 'software.amazon.awssdk' server/src/main/java/com/massimotter/weave/backend/service/files/FilesystemBlobStore.java
+          test ! -e server/src/main/java/com/massimotter/weave/backend/service/files/S3BlobStore.java
+          test ! -e server/src/test/java/com/massimotter/weave/backend/service/files/S3BlobStoreTest.java
+          ! grep -R --line-number -E 'S3_COMPATIBLE|weave\.files\.native\.blob-store' server weave-files-core weave-application-core docs README.md
