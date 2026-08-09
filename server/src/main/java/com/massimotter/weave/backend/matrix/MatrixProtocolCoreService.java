@@ -34,9 +34,7 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
     }
 
     @PostConstruct
-    void verifyRequiredProtocolRuntime() {
-        NativeMatrixCore.ensureLoaded();
-    }
+    void verifyRequiredProtocolRuntime() { NativeMatrixCore.ensureLoaded(); }
 
     public Map<String, Object> versions() { return project(MatrixProtocolOperation.VERSIONS, Map.of()); }
     public Map<String, Object> descriptor() { return project(MatrixProtocolOperation.DESCRIPTOR, Map.of()); }
@@ -72,16 +70,9 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             Map<String, Map<String, Object>> accountData,
             MatrixSyncCrypto crypto) {
         return project(MatrixProtocolOperation.SYNC, new CanonicalProjection(
-                subject,
-                cursor,
-                since,
-                conversations,
-                accountData,
-                crypto.toDeviceEvents(),
-                crypto.deviceListsChanged(),
-                crypto.deviceListsLeft(),
-                crypto.oneTimeKeyCounts(),
-                crypto.unusedFallbackKeyTypes()));
+                subject, cursor, since, conversations, accountData,
+                crypto.toDeviceEvents(), crypto.deviceListsChanged(), crypto.deviceListsLeft(),
+                crypto.oneTimeKeyCounts(), crypto.unusedFallbackKeyTypes()));
     }
 
     public void validateSyncToken(String since) {
@@ -172,8 +163,7 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
         Object roomId = project(MatrixProtocolOperation.ROOM_ID,
                 Map.of("conversationId", requireText(conversationId, "conversation id"))).get("roomId");
         if (!(roomId instanceof String value) || value.isBlank()) {
-            throw new MatrixProtocolException(
-                    "M_WEAVE_MATRIX_CORE_ERROR", "Matrix room identifier could not be projected.");
+            throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Matrix room identifier could not be projected.");
         }
         return value;
     }
@@ -182,8 +172,7 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
         Object userId = project(MatrixProtocolOperation.USER_ID,
                 Map.of("memberRef", requireText(memberRef, "member reference"))).get("userId");
         if (!(userId instanceof String value) || value.isBlank()) {
-            throw new MatrixProtocolException(
-                    "M_WEAVE_MATRIX_CORE_ERROR", "Matrix user identifier could not be projected.");
+            throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Matrix user identifier could not be projected.");
         }
         return value;
     }
@@ -195,8 +184,7 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
                     "error", requireText(message, "Matrix error message")));
             return project(MatrixProtocolOperation.ERROR, input, false);
         } catch (JacksonException exception) {
-            throw new MatrixProtocolException(
-                    "M_WEAVE_MATRIX_CORE_ERROR", "Matrix error input could not be serialized.");
+            throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Matrix error input could not be serialized.");
         }
     }
 
@@ -211,36 +199,28 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
         try {
             return project(operation, objectMapper.writeValueAsString(input));
         } catch (JacksonException exception) {
-            throw new MatrixProtocolException(
-                    "M_WEAVE_MATRIX_CORE_ERROR", "Canonical Chat input could not be serialized.");
+            throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Canonical Chat input could not be serialized.");
         }
     }
 
-    private Map<String, Object> project(
-            MatrixProtocolOperation operation,
-            String inputJson,
-            boolean rejectMatrixError) {
+    private Map<String, Object> project(MatrixProtocolOperation operation, String inputJson, boolean rejectMatrixError) {
         if (operation == null) throw new IllegalArgumentException("Matrix protocol operation is required.");
         NativeMatrixCore.ensureLoaded();
-        String output = NativeMatrixCore.projectJson(operation.wireName(), inputJson, serverName);
-        return readOutput(output, rejectMatrixError);
+        return readOutput(NativeMatrixCore.projectJson(operation.wireName(), inputJson, serverName), rejectMatrixError);
     }
 
     private Map<String, Object> readOutput(String output, boolean rejectMatrixError) {
         try {
             Map<String, Object> response = objectMapper.readValue(output, JSON_OBJECT);
             if (rejectMatrixError && response.get("errcode") instanceof String errcode) {
-                String message = response.get("error") instanceof String error
-                        ? error
-                        : "Matrix protocol operation failed.";
+                String message = response.get("error") instanceof String error ? error : "Matrix protocol operation failed.";
                 throw new MatrixProtocolException(errcode, message);
             }
             return response;
         } catch (MatrixProtocolException exception) {
             throw exception;
         } catch (JacksonException exception) {
-            throw new MatrixProtocolException(
-                    "M_WEAVE_MATRIX_CORE_ERROR", "Matrix protocol output could not be decoded.");
+            throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Matrix protocol output could not be decoded.");
         }
     }
 
@@ -260,8 +240,12 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             List<String> deviceListsLeft,
             Map<String, Long> oneTimeKeyCounts,
             List<String> unusedFallbackKeyTypes) {
-        public CanonicalProjection(String subject, String cursor, String since, List<CanonicalConversation> conversations,
-                                   Map<String, Map<String, Object>> accountData) {
+        public CanonicalProjection(
+                String subject,
+                String cursor,
+                String since,
+                List<CanonicalConversation> conversations,
+                Map<String, Map<String, Object>> accountData) {
             this(subject, cursor, since, conversations, accountData, List.of(), List.of(), List.of(), Map.of(), List.of());
         }
     }
@@ -269,19 +253,45 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
     public record CanonicalConversation(
             String conversationId,
             String title,
-            String encryptionAlgorithm,
             long updatedAtEpochMillis,
+            int unreadCount,
+            String encryptionAlgorithm,
             List<CanonicalMembership> memberships,
             List<CanonicalMessage> messages) {}
 
     public record CanonicalMembership(String memberRef, String state) {}
-    public record CanonicalMessage(String messageId, String senderRef, String kind, String body, String messageType,
-                                   String format, String formattedBody, String relationTargetEventId, String reactionKey,
-                                   boolean redacted, long sentAtEpochMillis, Map<String, Object> encryptedContent,
-                                   Map<String, Object> presentationExtensions) {}
-    public record ParsedEventContent(String kind, String body, String messageType, String format, String formattedBody,
-                                     String relationTargetEventId, String reactionKey, Map<String, Object> encryptedContent,
-                                     Map<String, Object> presentationExtensions) {}
+
+    public record CanonicalMessage(
+            String messageId,
+            String senderRef,
+            long sentAtEpochMillis,
+            String kind,
+            String messageType,
+            String body,
+            String format,
+            String formattedBody,
+            String relationKind,
+            String relationTargetEventId,
+            String replyToEventId,
+            String reactionKey,
+            Map<String, Object> presentationExtensions,
+            String deliveryState,
+            Map<String, Object> encryptedContent,
+            boolean redacted) {}
+
+    public record ParsedEventContent(
+            String kind,
+            String body,
+            String messageType,
+            String format,
+            String formattedBody,
+            String relationKind,
+            String relationTargetEventId,
+            String replyToEventId,
+            String reactionKey,
+            Map<String, Object> encryptedContent,
+            Map<String, Object> presentationExtensions) {}
+
     public record MatrixSyncCrypto(
             List<Map<String, Object>> toDeviceEvents,
             List<String> deviceListsChanged,
