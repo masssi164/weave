@@ -140,11 +140,7 @@ public class MatrixE2eeStateService {
                 .filter(value -> value != null && !value.isBlank() && !value.equals(identity.userId()))
                 .toList());
 
-        Map<String, MatrixE2eePersistence.DeviceListState> priorSharedChanges = shared == null
-                ? Map.of()
-                : persistence.sharedUserChanges(
-                        identity.tenantId(), identity.userId(), identity.deviceId(), afterSequence,
-                        persistence.currentRevision(identity.tenantId()));
+        long deviceListAfter = persistence.deviceListProgress(identity.tenantId(), identity.userId(), identity.deviceId());
         if (shared != null) {
             persistence.reconcileSharedUsers(identity.tenantId(), identity.userId(), identity.deviceId(), shared);
         }
@@ -154,33 +150,26 @@ public class MatrixE2eeStateService {
                 identity.tenantId(), identity.userId(), identity.deviceId(), afterSequence, snapshotHighWater,
                 MAX_TO_DEVICE_EVENTS_PER_SYNC);
         List<Map<String, Object>> events = queue.stream()
-                .map(event -> Map.<String, Object>of(
-                        "sender", event.senderUserId(),
-                        "type", event.eventType(),
-                        "content", event.content()))
+                .map(event -> Map.<String, Object>of("sender", event.senderUserId(), "type", event.eventType(), "content", event.content()))
                 .toList();
         if (!events.isEmpty()) {
             projectedToDeviceEventCount.addAndGet(events.size());
             syncResponsesWithToDeviceEvents.incrementAndGet();
         }
 
-        long toDeviceDeliveredHighWater = queue.size() == MAX_TO_DEVICE_EVENTS_PER_SYNC
-                ? queue.getLast().revision()
-                : snapshotHighWater;
-        Set<String> changed = new java.util.TreeSet<>(
-                persistence.deviceUsersChanged(identity.tenantId(), afterSequence, snapshotHighWater));
-        Map<String, MatrixE2eePersistence.DeviceListState> sharedChanges = new LinkedHashMap<>(priorSharedChanges);
-        if (shared != null) {
-            sharedChanges.putAll(persistence.sharedUserChanges(
-                    identity.tenantId(), identity.userId(), identity.deviceId(), afterSequence, snapshotHighWater));
-        }
+        long toDeviceDeliveredHighWater = queue.size() == MAX_TO_DEVICE_EVENTS_PER_SYNC ? queue.getLast().revision() : snapshotHighWater;
+        Set<String> changed = new java.util.TreeSet<>(persistence.deviceUsersChanged(identity.tenantId(), deviceListAfter, snapshotHighWater));
+        Map<String, MatrixE2eePersistence.DeviceListState> sharedChanges = shared == null
+                ? Map.of()
+                : persistence.sharedUserChanges(identity.tenantId(), identity.userId(), identity.deviceId(), deviceListAfter, snapshotHighWater);
         List<String> left = new ArrayList<>();
-        sharedChanges.forEach((user, state) -> {
-            if (state.shared()) changed.add(user); else left.add(user);
-        });
+        sharedChanges.forEach((user, state) -> { if (state.shared()) changed.add(user); else left.add(user); });
 
         long nextSequence = Math.min(snapshotHighWater, toDeviceDeliveredHighWater);
         persistence.recordDeviceSyncProgress(identity.tenantId(), identity.userId(), identity.deviceId(), nextSequence);
+        if (shared != null) {
+            persistence.recordDeviceListProgress(identity.tenantId(), identity.userId(), identity.deviceId(), snapshotHighWater);
+        }
         return new MatrixProtocolCoreService.MatrixSyncCrypto(
                 events,
                 List.copyOf(changed),
@@ -221,16 +210,16 @@ public class MatrixE2eeStateService {
     public Map<String, Map<String, Object>> accountData(MatrixFacadeClientStateService.MatrixIdentity identity) { requireActive(identity); return persistence.accountData(identity.tenantId(), identity.userId()); }
 
     private void requireBackup(MatrixFacadeClientStateService.MatrixIdentity identity, String version) { if (persistence.backupVersion(identity.tenantId(), identity.userId(), version).isEmpty()) throw new MatrixProtocolException("M_NOT_FOUND", "The Matrix room-key backup version was not found."); }
-    private Map<String, Object> validatedSigningKey(Object raw, String expectedUserId, String expectedUsage) { Map<String, Object> key = immutableObject(objectMap(raw)); if (key.isEmpty()) return Map.of(); requireEquals(key.get("user_id"), expectedUserId, expectedUsage + " user"); if (!stringSet(key.get("usage")).contains(expectedUsage)) throw new MatrixProtocolException("M_INVALID_PARAM", "The Matrix cross-signing usage was invalid."); return key; }
-    private String requireKeyId(String keyId) { return requiredText(keyId, "Matrix key identifier", 320); }
-    private void requireEquals(Object actual, String expected, String label) { if (!(actual instanceof String value) || !value.equals(expected)) throw new MatrixProtocolException("M_INVALID_PARAM", "The Matrix " + label + " did not match the authenticated device."); }
-    private String requiredText(Object value, String label, int max) { if (!(value instanceof String text) || text.isBlank() || text.length() > max) throw new MatrixProtocolException("M_INVALID_PARAM", "The " + label + " is invalid."); return text.trim(); }
+    private Map<String, Object> validatedSigningKey(Object raw, String expectedUserId, String expectedUsage) { Map<String, Object> key = immutableObject(objectMap(raw)); if (key.isEmpty()) return Map.of(); requireEquals(key.get("user_id"), expectedUserId, "cross-signing user"); if (!stringSet(key.get("usage")).contains(expectedUsage)) throw new MatrixProtocolException("M_BAD_JSON", "Matrix cross-signing usage is invalid."); return key; }
+    private void requireEquals(Object actual, String expected, String label) { if (!(actual instanceof String text) || !text.equals(expected)) throw new MatrixProtocolException("M_BAD_JSON", "Matrix " + label + " is invalid."); }
+    private String requireKeyId(String value) { return requiredText(value, "one-time key id", 255); }
     private String requiredPath(String value) { return requiredText(value, "Matrix path identifier", 512); }
-    private Set<String> stringSet(Object value) { if (!(value instanceof Collection<?> collection)) return Set.of(); java.util.LinkedHashSet<String> values = new java.util.LinkedHashSet<>(); for (Object item : collection) if (item instanceof String text) values.add(text); return Set.copyOf(values); }
-    private Map<String, Object> immutableObject(Map<String, Object> value) { return value == null || value.isEmpty() ? Map.of() : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(value)); }
-    private Object immutableValue(Object value) { if (value instanceof Map<?, ?> map) return immutableObject(objectMap(map)); if (value instanceof Collection<?> collection) return List.copyOf(collection); return value; }
-    @SuppressWarnings("unchecked") private Map<String, Object> objectMap(Object value) { if (value == null) return Map.of(); if (!(value instanceof Map<?, ?> map)) throw new MatrixProtocolException("M_BAD_JSON", "Matrix request body contained an invalid object."); Map<String, Object> result = new LinkedHashMap<>(); map.forEach((key, nested) -> { if (!(key instanceof String text)) throw new MatrixProtocolException("M_BAD_JSON", "Matrix object keys must be strings."); result.put(text, nested); }); return result; }
-    private void putIfPresent(Map<String, Object> target, String key, Map<String, Object> value) { if (value != null && !value.isEmpty()) target.put(key, value); }
+    private String requiredText(Object value, String label, int maximumLength) { if (!(value instanceof String text) || text.isBlank() || text.length() > maximumLength) throw new MatrixProtocolException("M_BAD_JSON", "Matrix " + label + " is invalid."); return text; }
+    private Set<String> stringSet(Object value) { if (value == null) return Set.of(); if (value instanceof Collection<?> collection) return collection.stream().filter(String.class::isInstance).map(String.class::cast).collect(java.util.stream.Collectors.toUnmodifiableSet()); if (value instanceof Map<?, ?> map) return map.keySet().stream().filter(String.class::isInstance).map(String.class::cast).collect(java.util.stream.Collectors.toUnmodifiableSet()); throw new MatrixProtocolException("M_BAD_JSON", "Matrix string collection is invalid."); }
+    private Map<String, Object> objectMap(Object value) { if (value == null) return Map.of(); if (!(value instanceof Map<?, ?> map)) throw new MatrixProtocolException("M_BAD_JSON", "Matrix request object is invalid."); Map<String, Object> result = new LinkedHashMap<>(); map.forEach((key, nested) -> { if (!(key instanceof String text)) throw new MatrixProtocolException("M_BAD_JSON", "Matrix request key is invalid."); result.put(text, nested); }); return result; }
+    private Map<String, Object> immutableObject(Map<String, Object> value) { return value == null || value.isEmpty() ? Map.of() : Map.copyOf(value); }
+    private Object immutableValue(Object value) { if (value instanceof Map<?, ?> map) { Map<String, Object> nested = new LinkedHashMap<>(); map.forEach((key, item) -> { if (!(key instanceof String text)) throw new MatrixProtocolException("M_BAD_JSON", "Matrix request key is invalid."); nested.put(text, immutableValue(item)); }); return Map.copyOf(nested); } if (value instanceof Collection<?> collection) return List.copyOf(collection.stream().map(this::immutableValue).toList()); return value; }
+    private void putIfPresent(Map<String, Object> target, String userId, Map<String, Object> value) { if (value != null && !value.isEmpty()) target.put(userId, value); }
 
-    public record SupportSafeToDeviceEvidence(String contractVersion, long activeDeviceCount, long revokedDeviceCount, long queuedEventCount, long encryptedEventCount, long plaintextRoomKeyEventCount, long olmPreKeyEnvelopeCount, long olmExistingSessionEnvelopeCount, long targetedDeviceCount, long transactionCount, long projectedEventCount, long syncResponseCount, long sequence, boolean supportSafe) {}
+    public record SupportSafeToDeviceEvidence(String contractVersion, long activeDeviceCount, long revokedDeviceCount, long queuedEventCount, long encryptedEventCount, long plaintextRoomKeyEventCount, long olmPreKeyEnvelopeCount, long olmExistingSessionEnvelopeCount, long targetedDeviceCount, long transactionCount, long projectedToDeviceEventCount, long syncResponsesWithToDeviceEvents, long currentRevision, boolean supportSafe) {}
 }
