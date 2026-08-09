@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - '.github/workflows/native-collaboration-qualification.yml'
+      - 'server/gradle/tasks/native-runtime.gradle'
+      - 'tools/native_collaboration_completion.py'
+      - 'tools/matrix_relational_cutover.py'
 
 permissions:
   contents: write
@@ -78,6 +81,7 @@ jobs:
           test ! -d rust/matrix-core
           ! grep -R --line-number --exclude-dir=target -E 'matrix-sdk|matrix_sdk' rust/matrix-protocol
           grep -q 'ruma = ' rust/matrix-protocol/Cargo.toml
+          grep -q "weave-matrix-protocol" server/gradle/tasks/native-runtime.gradle
           grep -q 'NativeCalendarRelationalStore' server/src/main/java/com/massimotter/weave/backend/calendar/adapter/NativeCalendarProviderAdapter.java
           grep -q 'net.fortuna.ical4j' server/src/main/java/com/massimotter/weave/backend/service/calendar/Ical4jRecurrenceEngine.java
           grep -q "cratePath: '../rust/matrix-client'" client/hook/build.dart
