@@ -237,12 +237,33 @@ final class InMemoryMatrixE2eeRelationalStore implements MatrixE2eePersistence {
         long revoked = devices.values().stream().filter(device -> device.revoked).count();
         long encrypted = toDevice.stream().filter(event -> "m.room.encrypted".equals(event.eventType)).count();
         long plaintext = toDevice.stream().filter(event -> "m.room_key".equals(event.eventType) || "m.forwarded_room_key".equals(event.eventType)).count();
+        long[] olm = {0, 0};
+        synchronized (toDevice) {
+            toDevice.stream().filter(event -> "m.room.encrypted".equals(event.eventType))
+                    .forEach(event -> accumulateOlmEnvelopeCounts(event.content, olm));
+        }
         long targets = toDevice.stream().map(event -> event.tenantId + "\u0000" + event.targetUserId + "\u0000" + event.targetDeviceId).distinct().count();
-        return new SupportSafeStats(active, revoked, toDevice.size(), encrypted, plaintext, 0, 0, targets, toDeviceTransactions.size(), revisions.values().stream().mapToLong(AtomicLong::get).max().orElse(0));
+        return new SupportSafeStats(active, revoked, toDevice.size(), encrypted, plaintext, olm[0], olm[1], targets, toDeviceTransactions.size(), revisions.values().stream().mapToLong(AtomicLong::get).max().orElse(0));
     }
 
     private String algorithm(String keyId) { int separator = keyId.indexOf(':'); return separator > 0 ? keyId.substring(0, separator) : keyId; }
-    private boolean matches(Map<String, Object> key, String keyId) { return objectMap(key.get("keys")).containsKey(keyId); }
+    private boolean matches(Map<String, Object> key, String keyId) {
+        return objectMap(key.get("keys")).entrySet().stream()
+                .anyMatch(entry -> entry.getKey().equals(keyId)
+                        || (entry.getValue() instanceof String value && value.equals(keyId)));
+    }
+    private void accumulateOlmEnvelopeCounts(Map<String, Object> content, long[] counts) {
+        Object ciphertext = content.get("ciphertext");
+        if (!(ciphertext instanceof Map<?, ?> map)) return;
+        for (Object rawEnvelope : map.values()) {
+            if (!(rawEnvelope instanceof Map<?, ?> envelope)) continue;
+            Object type = envelope.get("type");
+            if (type instanceof Number number) {
+                if (number.intValue() == 0) counts[0]++;
+                else if (number.intValue() == 1) counts[1]++;
+            }
+        }
+    }
     private Map<String, Object> mergeSignatures(Map<String, Object> stored, Map<String, Object> uploaded) { Map<String, Object> result = new LinkedHashMap<>(stored); Map<String, Object> signatures = new LinkedHashMap<>(objectMap(stored.get("signatures"))); objectMap(uploaded).forEach((user, raw) -> { Map<String, Object> existing = new LinkedHashMap<>(objectMap(signatures.get(user))); existing.putAll(objectMap(raw)); signatures.put(user, Map.copyOf(existing)); }); if (!signatures.isEmpty()) result.put("signatures", Map.copyOf(signatures)); return Map.copyOf(result); }
     private Map<String, Object> objectMap(Object value) { if (value == null) return Map.of(); if (!(value instanceof Map<?, ?> map)) throw new IllegalArgumentException("expected object"); Map<String, Object> result = new LinkedHashMap<>(); map.forEach((key, nested) -> { if (key instanceof String text) result.put(text, nested); }); return result; }
 
