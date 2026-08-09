@@ -29,8 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,24 +46,37 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
     private final CalendarCollectionJpaRepository collections;
     private final CalendarEventJpaRepository events;
     private final CalendarChangeJpaRepository changes;
+    private final CalendarSnapshotChangeRepository snapshotChanges;
     private final Clock clock;
 
     @Autowired
     NativeCalendarProviderAdapter(
             CalendarCollectionJpaRepository collections,
             CalendarEventJpaRepository events,
-            CalendarChangeJpaRepository changes) {
-        this(collections, events, changes, Clock.systemUTC());
+            CalendarChangeJpaRepository changes,
+            CalendarSnapshotChangeRepository snapshotChanges) {
+        this(collections, events, changes, snapshotChanges, Clock.systemUTC());
+    }
+
+    /** Focused unit-test constructor; production always receives the snapshot-bounded repository. */
+    NativeCalendarProviderAdapter(
+            CalendarCollectionJpaRepository collections,
+            CalendarEventJpaRepository events,
+            CalendarChangeJpaRepository changes,
+            Clock clock) {
+        this(collections, events, changes, null, clock);
     }
 
     NativeCalendarProviderAdapter(
             CalendarCollectionJpaRepository collections,
             CalendarEventJpaRepository events,
             CalendarChangeJpaRepository changes,
+            CalendarSnapshotChangeRepository snapshotChanges,
             Clock clock) {
         this.collections = Objects.requireNonNull(collections, "collections");
         this.events = Objects.requireNonNull(events, "events");
         this.changes = Objects.requireNonNull(changes, "changes");
+        this.snapshotChanges = snapshotChanges;
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -248,13 +261,19 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
             String sinceToken) {
         requireCalendarAndScope(calendarId, scope);
         CalendarCollectionId collectionId = collectionKey(calendarId, scope);
-        long latestSequence = collections.findById(collectionId)
+        long snapshotHighWater = collections.findById(collectionId)
                 .map(CalendarCollectionJpaEntity::latestChangeSequence)
                 .orElse(0L);
-        long sinceSequence = parseSyncToken(calendarId, scope, sinceToken, latestSequence);
-        String nextToken = syncToken(calendarId, scope, latestSequence);
-        List<CalendarChange> changed = changes.findSince(
-                        calendarId.value(), scopeKey(scope), sinceSequence).stream()
+        long sinceSequence = parseSyncToken(calendarId, scope, sinceToken, snapshotHighWater);
+        String nextToken = syncToken(calendarId, scope, snapshotHighWater);
+        List<CalendarChangeJpaEntity> snapshot = snapshotChanges == null
+                ? changes.findSince(calendarId.value(), scopeKey(scope), sinceSequence)
+                : snapshotChanges.findSnapshot(
+                        calendarId.value(),
+                        scopeKey(scope),
+                        sinceSequence,
+                        snapshotHighWater);
+        List<CalendarChange> changed = snapshot.stream()
                 .map(change -> new CalendarChange(
                         nextToken,
                         new EventId(change.eventId()),
@@ -276,10 +295,7 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
         return collections.saveAndFlush(CalendarCollectionJpaEntity.create(id, scope, timestamp));
     }
 
-    private void requireExpectedVersion(
-            EventVersion expected,
-            String current,
-            String operation) {
+    private void requireExpectedVersion(EventVersion expected, String current, String operation) {
         if (expected != null
                 && expected.value() != null
                 && !expected.value().equals(current)) {
