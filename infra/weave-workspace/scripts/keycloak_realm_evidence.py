@@ -44,7 +44,8 @@ def digest(value: dict[str, Any]) -> str:
 def identity(manifest: dict[str, Any], label: str) -> dict[str, Any]:
     value = manifest.get("realmIdentity")
     if (
-        manifest.get("schemaVersion") != "weave.compose-render.v2"
+        manifest.get("schemaVersion") != "weave.compose-render.v3"
+        or "realmArtifacts" in manifest
         or manifest.get("containsSecretValues") is not False
         or not isinstance(value, dict)
         or set(value)
@@ -57,7 +58,7 @@ def identity(manifest: dict[str, Any], label: str) -> dict[str, Any]:
         or any(not DIGEST.fullmatch(str(value.get(key, ""))) for key in value)
     ):
         raise EvidenceError(f"{label} does not contain one exact realm identity")
-    artifacts = manifest.get("realmArtifacts")
+    artifacts = manifest.get("deploymentArtifacts")
     if (
         not isinstance(artifacts, dict)
         or artifacts.get("renderedRealmPath") != "keycloak/import/weave-realm.json"
@@ -66,7 +67,7 @@ def identity(manifest: dict[str, Any], label: str) -> dict[str, Any]:
         != "keycloak/realm-render-evidence.json"
         or artifacts.get("containsSecretValues") is not False
     ):
-        raise EvidenceError(f"{label} realm render artifacts are incomplete")
+        raise EvidenceError(f"{label} deployment render artifacts are incomplete")
     return value
 
 
