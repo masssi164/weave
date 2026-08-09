@@ -170,9 +170,13 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
     @Transactional
     public void mergeCrossSigningSignatures(String tenantId, String userId, String keyId, Map<String, Object> signatures, long changedRevision) {
         crossSigning(tenantId, userId).ifPresent(current -> {
-            saveSigningKey(tenantId, userId, "master", mergeSignatures(current.masterKey(), signatures), changedRevision);
-            saveSigningKey(tenantId, userId, "self_signing", mergeSignatures(current.selfSigningKey(), signatures), changedRevision);
-            saveSigningKey(tenantId, userId, "user_signing", mergeSignatures(current.userSigningKey(), signatures), changedRevision);
+            if (matchesCrossSigningKey(current.masterKey(), keyId)) {
+                saveSigningKey(tenantId, userId, "master", mergeSignatures(current.masterKey(), signatures), changedRevision);
+            } else if (matchesCrossSigningKey(current.selfSigningKey(), keyId)) {
+                saveSigningKey(tenantId, userId, "self_signing", mergeSignatures(current.selfSigningKey(), signatures), changedRevision);
+            } else if (matchesCrossSigningKey(current.userSigningKey(), keyId)) {
+                saveSigningKey(tenantId, userId, "user_signing", mergeSignatures(current.userSigningKey(), signatures), changedRevision);
+            }
         });
     }
 
@@ -441,10 +445,13 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
         long queued = scalar("select count(*) from weave_matrix_to_device_messages");
         long encrypted = scalar("select count(*) from weave_matrix_to_device_messages where event_type='m.room.encrypted'");
         long plaintextRoomKey = scalar("select count(*) from weave_matrix_to_device_messages where event_type in ('m.room_key','m.forwarded_room_key')");
+        long[] olm = {0, 0};
+        jdbc.query("select content_json from weave_matrix_to_device_messages where event_type='m.room.encrypted'",
+                (RowCallbackHandler) rs -> accumulateOlmEnvelopeCounts(readObject(rs.getString(1)), olm));
         long targets = scalar("select count(distinct tenant_id || chr(0) || target_user_id || chr(0) || target_device_id) from weave_matrix_to_device_messages");
         long transactions = scalar("select count(distinct tenant_id || chr(0) || sender_user_id || chr(0) || transaction_id) from weave_matrix_to_device_messages");
         long revision = scalar("select coalesce(max(revision),0) from weave_matrix_sync_heads");
-        return new SupportSafeStats(active, revoked, queued, encrypted, plaintextRoomKey, 0, 0, targets, transactions, revision);
+        return new SupportSafeStats(active, revoked, queued, encrypted, plaintextRoomKey, olm[0], olm[1], targets, transactions, revision);
     }
 
     private DeviceRecord deviceRecord(ResultSet rs) throws SQLException { return new DeviceRecord(rs.getString(1), rs.getString(2), readObject(rs.getString(3)), rs.getLong(4), rs.getBoolean(5)); }
@@ -472,10 +479,30 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
         Map<String, Object> signatures = new LinkedHashMap<>(objectMap(stored.get("signatures")));
         objectMap(uploaded).forEach((user, raw) -> {
             Map<String, Object> existing = new LinkedHashMap<>(objectMap(signatures.get(user)));
-            existing.putAll(objectMap(raw)); signatures.put(user, Map.copyOf(existing));
+            existing.putAll(objectMap(raw));
+            signatures.put(user, Map.copyOf(existing));
         });
         if (!signatures.isEmpty()) merged.put("signatures", Map.copyOf(signatures));
         return Map.copyOf(merged);
+    }
+
+    private boolean matchesCrossSigningKey(Map<String, Object> key, String requestedKeyId) {
+        return objectMap(key.get("keys")).entrySet().stream()
+                .anyMatch(entry -> entry.getKey().equals(requestedKeyId)
+                        || (entry.getValue() instanceof String value && value.equals(requestedKeyId)));
+    }
+
+    private void accumulateOlmEnvelopeCounts(Map<String, Object> content, long[] counts) {
+        Object ciphertext = content.get("ciphertext");
+        if (!(ciphertext instanceof Map<?, ?> map)) return;
+        for (Object rawEnvelope : map.values()) {
+            if (!(rawEnvelope instanceof Map<?, ?> envelope)) continue;
+            Object type = envelope.get("type");
+            if (type instanceof Number number) {
+                if (number.intValue() == 0) counts[0]++;
+                else if (number.intValue() == 1) counts[1]++;
+            }
+        }
     }
 
     private String algorithm(String keyId) { int separator = keyId.indexOf(':'); return separator > 0 ? keyId.substring(0, separator) : keyId; }
