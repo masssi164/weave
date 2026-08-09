@@ -25,9 +25,8 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
         Map<String, Object> encryptedContent = Map.of(
                 "algorithm", "m.olm.v1.curve25519-aes-sha2",
                 "ciphertext", Map.of("opaque-recipient-key", olmEnvelope));
-        Map<String, Object> request = Map.of(
-                "messages", Map.of(target.userId(), Map.of(target.deviceId(), encryptedContent)));
-        service.sendToDevice(sender, "m.room.encrypted", "txn-room-key", request);
+        service.sendToDevice(sender, "m.room.encrypted", "txn-room-key",
+                Map.of("messages", Map.of(target.userId(), Map.of(target.deviceId(), encryptedContent))));
 
         var queued = service.supportSafeToDeviceEvidence();
         assertThat(queued.contractVersion()).isEqualTo("matrix-to-device-proof-v1");
@@ -65,9 +64,7 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
                             sender,
                             "m.room_key",
                             "txn-" + index,
-                            Map.of("messages", Map.of(
-                                    target.userId(),
-                                    Map.of(target.deviceId(), Map.of("index", index)))));
+                            Map.of("messages", Map.of(target.userId(), Map.of(target.deviceId(), Map.of("index", index)))));
                 }
                 publishing.set(false);
             });
@@ -92,8 +89,7 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
                     .isEqualTo("chat-cursor|e2ee:" + eventCount);
         } finally {
             executor.shutdownNow();
-            assertThat(executor.awaitTermination(Duration.ofSeconds(2).toMillis(), TimeUnit.MILLISECONDS))
-                    .isTrue();
+            assertThat(executor.awaitTermination(Duration.ofSeconds(2).toMillis(), TimeUnit.MILLISECONDS)).isTrue();
         }
     }
 
@@ -103,8 +99,7 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
     }
 
     private MatrixE2eeStateService service() {
-        var mapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
-        return new MatrixE2eeStateService(mapper, new InMemoryMatrixE2eeRelationalStore(mapper));
+        return new MatrixE2eeStateService(new InMemoryMatrixE2eeRelationalStore());
     }
 
     private MatrixFacadeClientStateService.MatrixIdentity identity(String userId, String deviceId) {
@@ -118,9 +113,7 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
 
     private void await(CountDownLatch latch) {
         try {
-            if (!latch.await(2, TimeUnit.SECONDS)) {
-                throw new AssertionError("The concurrent Matrix E2EE test did not start.");
-            }
+            if (!latch.await(2, TimeUnit.SECONDS)) throw new AssertionError("The concurrent Matrix E2EE test did not start.");
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new AssertionError("The concurrent Matrix E2EE test was interrupted.", exception);
