@@ -24,7 +24,11 @@ create index if not exists ix_weave_matrix_shared_users_changes
     on weave_matrix_shared_users (tenant_id, user_id, device_id, changed_revision);
 
 alter table weave_chat_idempotency
-    add column if not exists provider_binding_revision bigint not null default 0;
+    add column if not exists provider_binding_revision bigint not null default 1;
+
+alter table weave_chat_idempotency
+    add constraint ck_weave_chat_idempotency_provider_binding_revision
+    check (provider_binding_revision > 0);
 
 create index if not exists ix_weave_chat_idempotency_provider_binding
     on weave_chat_idempotency (tenant_id, user_id, device_id, endpoint_identity, provider_binding_revision, transaction_id);
