@@ -1,6 +1,43 @@
 #!/usr/bin/env python3
 from pathlib import Path
 
+# First normalize the small Spring/Jackson/Jdbc API differences discovered by
+# the compile-only cutover gate. This keeps the actual service transformation
+# deterministic and repeatable.
+store = Path('server/src/main/java/com/massimotter/weave/backend/matrix/MatrixE2eeRelationalStore.java')
+store_text = store.read_text()
+store_text = store_text.replace(
+'''        jdbc.query(
+                "select key_id,key_json from weave_matrix_one_time_keys where tenant_id=? and user_id=? and device_id=? order by key_id",
+                row -> oneTimeKeys.put(row.getString(1), readValue(row.getString(2))),
+                tenantId, userId, deviceId);''',
+'''        jdbc.query(
+                "select key_id,key_json from weave_matrix_one_time_keys where tenant_id=? and user_id=? and device_id=? order by key_id",
+                (org.springframework.jdbc.core.RowCallbackHandler)
+                        row -> oneTimeKeys.put(row.getString(1), readValue(row.getString(2))),
+                tenantId, userId, deviceId);''')
+store_text = store_text.replace(
+'''        jdbc.query(
+                "select user_id,event_type,content_json from weave_matrix_account_data where tenant_id=? order by user_id,event_type",
+                rs -> result.computeIfAbsent(rs.getString("user_id"), ignored -> new LinkedHashMap<>())
+                        .put(rs.getString("event_type"), readObject(rs.getString("content_json"))),
+                tenantId);''',
+'''        jdbc.query(
+                "select user_id,event_type,content_json from weave_matrix_account_data where tenant_id=? order by user_id,event_type",
+                (org.springframework.jdbc.core.RowCallbackHandler)
+                        rs -> result.computeIfAbsent(rs.getString("user_id"), ignored -> new LinkedHashMap<>())
+                                .put(rs.getString("event_type"), readObject(rs.getString("content_json"))),
+                tenantId);''')
+store_text = store_text.replace(
+'''        String keyId = key.path("keys").properties().hasNext()
+                ? key.path("keys").properties().next().getKey()
+                : usage;''',
+'''        var keyProperties = key.path("keys").properties();
+        String keyId = keyProperties.isEmpty()
+                ? usage
+                : keyProperties.iterator().next().getKey();''')
+store.write_text(store_text)
+
 p = Path('server/src/main/java/com/massimotter/weave/backend/matrix/MatrixE2eeStateService.java')
 s = p.read_text()
 
