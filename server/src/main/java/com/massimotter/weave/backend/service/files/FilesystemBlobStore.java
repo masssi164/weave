@@ -5,6 +5,8 @@ import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -12,6 +14,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -30,12 +33,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
-/**
- * Apache OpenDAL-backed private filesystem blob store for the weave-native Files provider.
- *
- * <p>NIO is restricted to establishing and validating the private filesystem sandbox plus durability permissions.
- * Blob read/write/list/delete/rename are performed exclusively through OpenDAL's filesystem operator.</p>
- */
+/** OpenDAL-backed filesystem Infrastructure Adapter for weave-native immutable blobs. */
 @Component
 @Primary
 public final class FilesystemBlobStore implements BlobStorePort {
@@ -70,40 +68,61 @@ public final class FilesystemBlobStore implements BlobStorePort {
     @Override public boolean configured() { return true; }
 
     @Override
-    public BlobReceipt put(BlobScope scope, BlobReference reference, byte[] bytes, String expectedDigest) {
-        byte[] content = bytes == null ? new byte[0] : bytes.clone();
-        requireWithinLimit(content.length, "files-native-blob-too-large");
-        String actualDigest = digest(content);
-        if (!MessageDigest.isEqual(actualDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII), requiredDigest(expectedDigest).getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
-            throw error(HttpStatus.CONFLICT, "files-native-blob-digest-mismatch", "The native Files blob digest did not match the requested digest.");
-        }
+    public BlobReceipt putStream(
+            BlobScope scope,
+            BlobReference reference,
+            InputStream source,
+            long expectedSize,
+            String expectedDigest) {
+        requireWithinLimit(expectedSize, "files-native-blob-too-large");
+        String requiredDigest = requiredDigest(expectedDigest);
         String key = key(scope, reference);
+        Path spool = null;
         try {
             validateSandbox(scope, reference, true);
-            if (exists(key)) return verifyExisting(key, reference, actualDigest, content.length);
+            spool = Files.createTempFile(root, ".weave-upload-", ".tmp");
+            enforcePermissions(spool, FILE_PERMISSIONS);
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            long transferred;
+            try (InputStream digesting = new DigestInputStream(source, digest);
+                 OutputStream target = Files.newOutputStream(spool, StandardOpenOption.TRUNCATE_EXISTING)) {
+                transferred = BlobStorePort.transferBounded(digesting, target, maximumBlobBytes);
+            }
+            if (transferred != expectedSize) {
+                throw error(HttpStatus.CONFLICT, "files-native-blob-size-mismatch", "The native Files blob size did not match the requested size.");
+            }
+            String actualDigest = "sha256:" + HexFormat.of().formatHex(digest.digest());
+            if (!MessageDigest.isEqual(actualDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII), requiredDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+                throw error(HttpStatus.CONFLICT, "files-native-blob-digest-mismatch", "The native Files blob digest did not match the requested digest.");
+            }
+            if (exists(key)) return verifyExisting(key, reference, actualDigest, transferred);
             String temporary = parent(key) + ".pending-" + UUID.randomUUID();
-            operator.write(temporary, content);
+            operator.write(temporary, Files.readAllBytes(spool));
             try {
                 operator.rename(temporary, key);
             } catch (OpenDALException concurrentPublish) {
                 operator.delete(temporary);
-                if (exists(key)) return verifyExisting(key, reference, actualDigest, content.length);
+                if (exists(key)) return verifyExisting(key, reference, actualDigest, transferred);
                 throw concurrentPublish;
             }
             Path target = resolvedPathForTest(scope, reference);
             enforcePermissions(target, FILE_PERMISSIONS);
             forceFile(target);
             forceDirectory(target.getParent());
-            return new BlobReceipt(reference, actualDigest, content.length);
+            return new BlobReceipt(reference, actualDigest, transferred);
         } catch (ApiErrorException exception) {
             throw exception;
-        } catch (IOException | OpenDALException exception) {
+        } catch (IOException | OpenDALException | NoSuchAlgorithmException exception) {
             throw map(exception, "files-native-blob-write-failed");
+        } finally {
+            if (spool != null) {
+                try { Files.deleteIfExists(spool); } catch (IOException ignored) { }
+            }
         }
     }
 
     @Override
-    public byte[] read(BlobScope scope, BlobReference reference) {
+    public void readStream(BlobScope scope, BlobReference reference, OutputStream target) {
         String key = key(scope, reference);
         try {
             validateSandbox(scope, reference, false);
@@ -112,7 +131,7 @@ public final class FilesystemBlobStore implements BlobStorePort {
             requireWithinLimit(size, "files-native-blob-size-invalid");
             byte[] value = operator.read(key);
             requireWithinLimit(value.length, "files-native-blob-size-invalid");
-            return value;
+            BlobStorePort.transferBounded(new java.io.ByteArrayInputStream(value), target, maximumBlobBytes);
         } catch (ApiErrorException exception) {
             throw exception;
         } catch (IOException | OpenDALException exception) {
