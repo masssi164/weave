@@ -1,15 +1,17 @@
 package com.massimotter.weave.backend.matrix;
 
+import com.massimotter.weave.backend.config.MatrixFacadeRuntimeProperties;
+import java.util.List;
+import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
-import java.util.List;
-import java.util.Map;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 
 @Service
-public class MatrixProtocolCoreService {
+public class MatrixProtocolCoreService implements MatrixProtocolCodec {
 
     public static final String PROTOCOL_SURFACE = "matrix-client-server-facade";
     public static final String OIDC_GATEKEEPER = "spring-boot-resource-server";
@@ -24,26 +26,37 @@ public class MatrixProtocolCoreService {
 
     private final ObjectMapper objectMapper;
     private final String serverName;
+    private final boolean facadeEnabled;
 
+    @Autowired
     public MatrixProtocolCoreService(
             ObjectMapper objectMapper,
-            @Value("${weave.matrix.facade.server-name:api.weave.test}") String serverName) {
+            @Value("${weave.matrix.facade.server-name:api.weave.test}") String serverName,
+            MatrixFacadeRuntimeProperties runtimeProperties) {
+        this(objectMapper, serverName, runtimeProperties != null && runtimeProperties.enabled());
+    }
+
+    /** Test/fixture constructor: exercising the codec is an explicit enablement. */
+    public MatrixProtocolCoreService(ObjectMapper objectMapper, String serverName) {
+        this(objectMapper, serverName, true);
+    }
+
+    MatrixProtocolCoreService(ObjectMapper objectMapper, String serverName, boolean facadeEnabled) {
         this.objectMapper = objectMapper;
         this.serverName = requireText(serverName, "Matrix facade server name");
-        NativeMatrixCore.ensureLoaded();
-        descriptor();
+        this.facadeEnabled = facadeEnabled;
     }
 
     public Map<String, Object> versions() {
-        return project("versions", Map.of());
+        return project(MatrixProtocolOperation.VERSIONS, Map.of());
     }
 
     public Map<String, Object> descriptor() {
-        return project("descriptor", Map.of());
+        return project(MatrixProtocolOperation.DESCRIPTOR, Map.of());
     }
 
     public Map<String, Object> whoami(String subject, String deviceId) {
-        return project("whoami", Map.of(
+        return project(MatrixProtocolOperation.WHOAMI, Map.of(
                 "subject", subject == null ? "" : subject,
                 "deviceId", deviceId == null ? "" : deviceId));
     }
@@ -72,7 +85,7 @@ public class MatrixProtocolCoreService {
             List<CanonicalConversation> conversations,
             Map<String, Object> accountData,
             MatrixSyncCrypto crypto) {
-        return project("sync", new CanonicalProjection(
+        return project(MatrixProtocolOperation.SYNC, new CanonicalProjection(
                 subject,
                 cursor,
                 since,
@@ -86,32 +99,33 @@ public class MatrixProtocolCoreService {
     }
 
     public void validateSyncToken(String since) {
-        project("validate-sync-token", new CanonicalProjection("", "", since, List.of(), Map.of()));
+        project(MatrixProtocolOperation.VALIDATE_SYNC_TOKEN,
+                new CanonicalProjection("", "", since, List.of(), Map.of()));
     }
 
     public String decodeSyncCursor(String since) {
-        Object cursor = project("decode-sync-token", new CanonicalProjection("", "", since, List.of(), Map.of()))
-                .get("cursor");
+        Object cursor = project(MatrixProtocolOperation.DECODE_SYNC_TOKEN,
+                new CanonicalProjection("", "", since, List.of(), Map.of())).get("cursor");
         return cursor instanceof String value ? value : "";
     }
 
     public Map<String, Object> joinedRooms(List<CanonicalConversation> conversations) {
-        return project("joined-rooms", new CanonicalProjection("", "", null, conversations, Map.of()));
+        return project(MatrixProtocolOperation.JOINED_ROOMS,
+                new CanonicalProjection("", "", null, conversations, Map.of()));
     }
 
-    public Map<String, Object> messages(
-            String cursor,
-            String from,
-            CanonicalConversation conversation) {
-        return project("messages", new CanonicalProjection("", cursor, from, List.of(conversation), Map.of()));
+    public Map<String, Object> messages(String cursor, String from, CanonicalConversation conversation) {
+        return project(MatrixProtocolOperation.MESSAGES,
+                new CanonicalProjection("", cursor, from, List.of(conversation), Map.of()));
     }
 
     public Map<String, Object> members(CanonicalConversation conversation) {
-        return project("members", new CanonicalProjection("", "", null, List.of(conversation), Map.of()));
+        return project(MatrixProtocolOperation.MEMBERS,
+                new CanonicalProjection("", "", null, List.of(conversation), Map.of()));
     }
 
     public String parseSendBody(String requestJson) {
-        Object body = projectRaw("parse-send", requestJson).get("body");
+        Object body = project(MatrixProtocolOperation.PARSE_SEND, requestJson).get("body");
         if (!(body instanceof String value) || value.isBlank()) {
             throw new MatrixProtocolException("M_BAD_JSON", "Matrix message body must not be blank.");
         }
@@ -119,7 +133,7 @@ public class MatrixProtocolCoreService {
     }
 
     public Map<String, Object> parseObject(String requestJson) {
-        Object value = projectRaw("parse-object", requestJson).get("value");
+        Object value = project(MatrixProtocolOperation.PARSE_OBJECT, requestJson).get("value");
         if (!(value instanceof Map<?, ?> object)) {
             throw new MatrixProtocolException("M_BAD_JSON", "Matrix request body must be a JSON object.");
         }
@@ -136,7 +150,7 @@ public class MatrixProtocolCoreService {
     public ParsedEventContent parseEvent(String eventType, String requestJson) {
         try {
             Object content = objectMapper.readValue(requestJson, Object.class);
-            Map<String, Object> parsed = project("parse-event", Map.of(
+            Map<String, Object> parsed = project(MatrixProtocolOperation.PARSE_EVENT, Map.of(
                     "eventType", requireText(eventType, "Matrix event type"),
                     "content", content));
             return objectMapper.convertValue(parsed, ParsedEventContent.class);
@@ -146,12 +160,13 @@ public class MatrixProtocolCoreService {
     }
 
     public Map<String, Object> sendResponse(String messageId) {
-        return project("send-response", Map.of("messageId", requireText(messageId, "message id")));
+        return project(MatrixProtocolOperation.SEND_RESPONSE,
+                Map.of("messageId", requireText(messageId, "message id")));
     }
 
     public String decodeRoomId(String matrixRoomId) {
-        Object conversationId = project("decode-room", Map.of("roomId", matrixRoomId == null ? "" : matrixRoomId))
-                .get("conversationId");
+        Object conversationId = project(MatrixProtocolOperation.DECODE_ROOM,
+                Map.of("roomId", matrixRoomId == null ? "" : matrixRoomId)).get("conversationId");
         if (!(conversationId instanceof String value) || value.isBlank()) {
             throw new MatrixProtocolException("M_INVALID_PARAM", "Matrix room identifier is invalid.");
         }
@@ -159,8 +174,8 @@ public class MatrixProtocolCoreService {
     }
 
     public String decodeEventId(String matrixEventId) {
-        Object eventId = project("decode-event", Map.of("eventId", matrixEventId == null ? "" : matrixEventId))
-                .get("eventId");
+        Object eventId = project(MatrixProtocolOperation.DECODE_EVENT,
+                Map.of("eventId", matrixEventId == null ? "" : matrixEventId)).get("eventId");
         if (!(eventId instanceof String value) || value.isBlank()) {
             throw new MatrixProtocolException("M_INVALID_PARAM", "Matrix event identifier is invalid.");
         }
@@ -168,19 +183,21 @@ public class MatrixProtocolCoreService {
     }
 
     public String roomId(String conversationId) {
-        Object roomId = project("room-id", Map.of("conversationId", requireText(conversationId, "conversation id")))
-                .get("roomId");
+        Object roomId = project(MatrixProtocolOperation.ROOM_ID,
+                Map.of("conversationId", requireText(conversationId, "conversation id"))).get("roomId");
         if (!(roomId instanceof String value) || value.isBlank()) {
-            throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Matrix room identifier could not be projected.");
+            throw new MatrixProtocolException(
+                    "M_WEAVE_MATRIX_CORE_ERROR", "Matrix room identifier could not be projected.");
         }
         return value;
     }
 
     public String userId(String memberRef) {
-        Object userId = project("user-id", Map.of("memberRef", requireText(memberRef, "member reference")))
-                .get("userId");
+        Object userId = project(MatrixProtocolOperation.USER_ID,
+                Map.of("memberRef", requireText(memberRef, "member reference"))).get("userId");
         if (!(userId instanceof String value) || value.isBlank()) {
-            throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Matrix user identifier could not be projected.");
+            throw new MatrixProtocolException(
+                    "M_WEAVE_MATRIX_CORE_ERROR", "Matrix user identifier could not be projected.");
         }
         return value;
     }
@@ -190,9 +207,10 @@ public class MatrixProtocolCoreService {
             String input = objectMapper.writeValueAsString(Map.of(
                     "errcode", requireText(errcode, "Matrix error code"),
                     "error", requireText(message, "Matrix error message")));
-            return readOutput(NativeMatrixCore.projectJson("error", input, serverName), false);
+            return project(MatrixProtocolOperation.ERROR, input, false);
         } catch (JacksonException exception) {
-            throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Matrix error input could not be serialized.");
+            throw new MatrixProtocolException(
+                    "M_WEAVE_MATRIX_CORE_ERROR", "Matrix error input could not be serialized.");
         }
     }
 
@@ -200,17 +218,38 @@ public class MatrixProtocolCoreService {
         return serverName;
     }
 
-    private Map<String, Object> project(String operation, Object input) {
+    public boolean facadeEnabled() {
+        return facadeEnabled;
+    }
+
+    @Override
+    public Map<String, Object> project(MatrixProtocolOperation operation, String inputJson) {
+        return project(operation, inputJson, true);
+    }
+
+    private Map<String, Object> project(MatrixProtocolOperation operation, Object input) {
         try {
-            return projectRaw(operation, objectMapper.writeValueAsString(input));
+            return project(operation, objectMapper.writeValueAsString(input));
         } catch (JacksonException exception) {
-            throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Canonical Chat input could not be serialized.");
+            throw new MatrixProtocolException(
+                    "M_WEAVE_MATRIX_CORE_ERROR", "Canonical Chat input could not be serialized.");
         }
     }
 
-    private Map<String, Object> projectRaw(String operation, String inputJson) {
-        String output = NativeMatrixCore.projectJson(operation, inputJson, serverName);
-        return readOutput(output, true);
+    private Map<String, Object> project(
+            MatrixProtocolOperation operation,
+            String inputJson,
+            boolean rejectMatrixError) {
+        if (operation == null) {
+            throw new IllegalArgumentException("Matrix protocol operation is required.");
+        }
+        if (!facadeEnabled) {
+            throw new MatrixProtocolException(
+                    "M_UNRECOGNIZED", "The optional Weave Matrix Client-Server facade is disabled.");
+        }
+        NativeMatrixCore.ensureLoaded();
+        String output = NativeMatrixCore.projectJson(operation.wireName(), inputJson, serverName);
+        return readOutput(output, rejectMatrixError);
     }
 
     private Map<String, Object> readOutput(String output, boolean rejectMatrixError) {
@@ -230,7 +269,7 @@ public class MatrixProtocolCoreService {
         }
     }
 
-    private String requireText(String value, String field) {
+    private static String requireText(String value, String field) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(field + " must not be blank");
         }
@@ -255,7 +294,8 @@ public class MatrixProtocolCoreService {
                 String since,
                 List<CanonicalConversation> conversations,
                 Map<String, Object> accountData) {
-            this(subject, cursor, since, conversations, accountData, List.of(), List.of(), List.of(), Map.of(), List.of());
+            this(subject, cursor, since, conversations, accountData,
+                    List.of(), List.of(), List.of(), Map.of(), List.of());
         }
 
         public CanonicalProjection {
@@ -266,7 +306,9 @@ public class MatrixProtocolCoreService {
             toDeviceEvents = toDeviceEvents == null ? List.of() : List.copyOf(toDeviceEvents);
             deviceListsChanged = deviceListsChanged == null ? List.of() : List.copyOf(deviceListsChanged);
             deviceListsLeft = deviceListsLeft == null ? List.of() : List.copyOf(deviceListsLeft);
-            deviceOneTimeKeysCount = deviceOneTimeKeysCount == null ? Map.of() : Map.copyOf(deviceOneTimeKeysCount);
+            deviceOneTimeKeysCount = deviceOneTimeKeysCount == null
+                    ? Map.of()
+                    : Map.copyOf(deviceOneTimeKeysCount);
             deviceUnusedFallbackKeyTypes = deviceUnusedFallbackKeyTypes == null
                     ? List.of()
                     : List.copyOf(deviceUnusedFallbackKeyTypes);
@@ -321,14 +363,8 @@ public class MatrixProtocolCoreService {
                 long unreadCount,
                 List<CanonicalMembership> memberships,
                 List<CanonicalMessage> messages) {
-            this(
-                    conversationId,
-                    title,
-                    updatedAtEpochMillis,
-                    unreadCount,
-                    null,
-                    memberships,
-                    messages);
+            this(conversationId, title, updatedAtEpochMillis, unreadCount,
+                    null, memberships, messages);
         }
 
         public CanonicalConversation(
@@ -337,7 +373,8 @@ public class MatrixProtocolCoreService {
                 long updatedAtEpochMillis,
                 long unreadCount,
                 List<CanonicalMessage> messages) {
-            this(conversationId, title, updatedAtEpochMillis, unreadCount, null, List.of(), messages);
+            this(conversationId, title, updatedAtEpochMillis, unreadCount,
+                    null, List.of(), messages);
         }
     }
 
