@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.service.calendar;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
@@ -35,6 +36,19 @@ public final class Ical4jRecurrenceEngine implements RecurrenceEngine {
             int maximumResults) {
         if (seed == null || from == null || to == null || !from.isBefore(to)) {
             throw invalid("Recurrence expansion requires a valid bounded floating-time window.", null);
+        }
+        return expand(rrule, seed, from, to, maximumResults);
+    }
+
+    @Override
+    public List<Instant> utc(
+            String rrule,
+            Instant seed,
+            Instant from,
+            Instant to,
+            int maximumResults) {
+        if (seed == null || from == null || to == null || !from.isBefore(to)) {
+            throw invalid("Recurrence expansion requires a valid bounded UTC window.", null);
         }
         return expand(rrule, seed, from, to, maximumResults);
     }
