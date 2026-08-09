@@ -98,6 +98,10 @@ public interface MatrixE2eePersistence {
 
     void recordDeviceSyncProgress(String tenantId, String userId, String deviceId, long revision);
 
+    long deviceListProgress(String tenantId, String userId, String deviceId);
+
+    void recordDeviceListProgress(String tenantId, String userId, String deviceId, long revision);
+
     Map<String, DeviceListState> reconcileSharedUsers(
             String tenantId,
             String userId,
