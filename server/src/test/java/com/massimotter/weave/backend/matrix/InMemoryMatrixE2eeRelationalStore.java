@@ -148,11 +148,19 @@ final class InMemoryMatrixE2eeRelationalStore implements MatrixE2eePersistence {
     }
 
     @Override
-    public synchronized boolean appendToDevice(long revision, String tenantId, String targetUserId, String targetDeviceId, String senderUserId, String eventType, String transactionId, Map<String, Object> content) {
+    public synchronized long appendToDevice(String tenantId, String targetUserId, String targetDeviceId, String senderUserId, String eventType, String transactionId, Map<String, Object> content) {
         String transactionKey = String.join("\u0000", tenantId, senderUserId, transactionId, targetUserId, targetDeviceId, eventType);
-        if (!toDeviceTransactions.add(transactionKey)) return false;
-        toDevice.add(new ToDeviceState(revision, tenantId, targetUserId, targetDeviceId, senderUserId, eventType, Map.copyOf(content)));
-        return true;
+        ToDeviceState existing = toDevice.stream()
+                .filter(event -> event.transactionKey.equals(transactionKey))
+                .findFirst()
+                .orElse(null);
+        if (existing != null) return existing.revision;
+        if (!toDeviceTransactions.add(transactionKey)) {
+            return toDevice.stream().filter(event -> event.transactionKey.equals(transactionKey)).findFirst().orElseThrow().revision;
+        }
+        long revision = revisions.computeIfAbsent(tenantId, ignored -> new AtomicLong()).incrementAndGet();
+        toDevice.add(new ToDeviceState(revision, tenantId, targetUserId, targetDeviceId, senderUserId, eventType, transactionId, transactionKey, Map.copyOf(content)));
+        return revision;
     }
 
     @Override
@@ -396,7 +404,7 @@ final class InMemoryMatrixE2eeRelationalStore implements MatrixE2eePersistence {
     private record OidcKey(String tenantId, String userId, String sessionHash) {}
     private record SharedKey(String tenantId, String userId, String deviceId, String sharedUserId) {}
     private record BackupKey(String roomId, String sessionId) {}
-    private record ToDeviceState(long revision, String tenantId, String targetUserId, String targetDeviceId, String senderUserId, String eventType, Map<String, Object> content) {}
+    private record ToDeviceState(long revision, String tenantId, String targetUserId, String targetDeviceId, String senderUserId, String eventType, String transactionId, String transactionKey, Map<String, Object> content) {}
 
     private static final class DeviceState {
         private Map<String, Object> deviceKeys = Map.of();
