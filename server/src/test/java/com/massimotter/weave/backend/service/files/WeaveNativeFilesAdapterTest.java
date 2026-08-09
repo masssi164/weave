@@ -4,22 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
-import com.massimotter.weave.backend.exception.ApiErrorException;
-import com.massimotter.weave.backend.files.adapter.FilesAuthorityJpaTestFactory;
-import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
-import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
+import com.massimotter.weave.backend.files.domain.FilesDomain.CanonicalFileRecord;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileCopy;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileMove;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
-import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FilesRequestScope;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
-import com.massimotter.weave.backend.files.port.FilesProviderPort;
-import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
-import com.massimotter.weave.backend.testing.JpaTestDatabase;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
@@ -32,126 +25,85 @@ import org.junit.jupiter.api.io.TempDir;
 
 class WeaveNativeFilesAdapterTest {
 
-    private static final Instant NOW = Instant.parse("2026-08-08T12:00:00Z");
-    private static final FilesRequestScope ALPHA = new FilesRequestScope("org:alpha", "workspace-default", 4);
-    private static final FilesRequestScope BRAVO = new FilesRequestScope("org:bravo", "workspace-default", 2);
+    private static final Instant NOW = Instant.parse("2026-08-09T08:00:00Z");
+    private static final FilesRequestScope ALPHA = new FilesRequestScope("org:alpha", "space:home");
+    private static final FilesRequestScope BETA = new FilesRequestScope("org:beta", "space:home");
 
     @TempDir
     Path temporaryDirectory;
 
-    private javax.sql.DataSource dataSource;
-    private FilesAuthorityRepository authority;
+    private InMemoryFilesAuthorityRepository authority;
     private FilesystemBlobStore blobs;
 
     @BeforeEach
     void setUp() {
-        dataSource = JpaTestDatabase.entityFirstDataSource("weave_native_files");
-        authority = FilesAuthorityJpaTestFactory.create(dataSource);
+        authority = new InMemoryFilesAuthorityRepository();
         blobs = new FilesystemBlobStore(properties());
     }
 
     @Test
-    void retryAndRestartConvergeOnOneCanonicalIdAndOneBlob() {
-        FilesProviderPort first = adapter(authority).scoped(ALPHA);
-        byte[] content = "one visible payload".getBytes(StandardCharsets.UTF_8);
+    void writeReadAndRestartKeepCanonicalMetadataAndBlobContent() {
+        byte[] content = "native file".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        var first = adapter(authority).scoped(ALPHA);
 
-        var initial = first.write(new FileWrite(new FilePath("/plan.md"), content, "text/markdown"));
-        var afterAmbiguousResponseRetry = first.write(
-                new FileWrite(new FilePath("/plan.md"), content, "text/markdown"));
+        CanonicalFileRecord written = first.write(new FileWrite(new FilePath("/docs/readme.txt"), content, "text/plain"));
+        var restarted = new WeaveNativeFilesAdapter(authority, new FilesystemBlobStore(properties()), Clock.fixed(NOW, ZoneOffset.UTC), 100).scoped(ALPHA);
 
-        FilesProviderPort restarted = adapter(FilesAuthorityJpaTestFactory.create(dataSource)).scoped(ALPHA);
-        var afterRestart = restarted.find(new FilePath("/plan.md")).orElseThrow();
-
-        assertThat(afterAmbiguousResponseRetry.id()).isEqualTo(initial.id());
-        assertThat(afterRestart.item().id()).isEqualTo(initial.id());
-        assertThat(restarted.read(initial.id()).bytes()).isEqualTo(content);
-        assertThat(authority.activeFiles(ALPHA.organizationRef(), ALPHA.spaceRef())).hasSize(1);
+        assertThat(restarted.read(written.id()).bytes()).isEqualTo(content);
+        assertThat(restarted.find(new FilePath("/docs/readme.txt"))).contains(written.id());
         assertThat(blobs.inventory(blobScope(ALPHA), 10)).hasSize(1);
     }
 
     @Test
-    void blobPublishFailureWindowIsRetryableAndOrphanReconciliationIsTenantScoped() {
-        FilesAuthorityRepository failBeforeActivation = new FailNextSaveAuthority(authority);
-        byte[] content = "published before metadata".getBytes(StandardCharsets.UTF_8);
+    void tenantScopesCannotReadEachOthersCanonicalFileIds() {
+        var alpha = adapter(authority).scoped(ALPHA);
+        var beta = adapter(authority).scoped(BETA);
+        CanonicalFileRecord written = alpha.write(new FileWrite(new FilePath("/private.txt"), new byte[] {1, 2}, "text/plain"));
 
-        assertThatThrownBy(() -> adapter(failBeforeActivation).scoped(ALPHA).write(
-                new FileWrite(new FilePath("/retry.txt"), content, "text/plain")))
+        assertThatThrownBy(() -> beta.read(written.id()))
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    void metadataFailureDoesNotActivateAnUncommittedFile() {
+        byte[] content = "pending".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        var failing = new WeaveNativeFilesAdapter(
+                new FailNextSaveAuthority(authority),
+                blobs,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                100).scoped(ALPHA);
+
+        assertThatThrownBy(() -> failing.write(new FileWrite(new FilePath("/pending.txt"), content, "text/plain")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("injected metadata failure");
-        assertThat(authority.activeFiles(ALPHA.organizationRef(), ALPHA.spaceRef())).isEmpty();
-        assertThat(blobs.inventory(blobScope(ALPHA), 10)).hasSize(1);
-
-        var recovered = adapter(authority);
-        var stored = recovered.scoped(ALPHA).write(
-                new FileWrite(new FilePath("/retry.txt"), content, "text/plain"));
-        assertThat(recovered.scoped(ALPHA).read(stored.id()).bytes()).isEqualTo(content);
-        assertThat(blobs.inventory(blobScope(ALPHA), 10)).hasSize(1);
-
-        var orphan = new BlobReference("v1/orphan/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
-        byte[] orphanBytes = {7, 8, 9};
-        blobs.put(blobScope(ALPHA), orphan, orphanBytes, FilesystemBlobStore.digest(orphanBytes));
-        var otherTenant = new BlobReference("v1/orphan/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd");
-        blobs.put(blobScope(BRAVO), otherTenant, orphanBytes, FilesystemBlobStore.digest(orphanBytes));
-
-        var report = recovered.reconcile(ALPHA);
-        assertThat(report.orphanBlobsDeleted()).isEqualTo(1);
-        assertThat(blobs.inventory(blobScope(ALPHA), 10)).hasSize(1);
-        assertThat(blobs.inventory(blobScope(BRAVO), 10)).containsExactly(otherTenant);
+        assertThat(authority.findByPath(ALPHA, new FilePath("/pending.txt"))).isEmpty();
     }
 
     @Test
-    void metadataBlobMismatchAndCrossTenantIdsFailClosed() throws Exception {
-        var nativeAdapter = adapter(authority);
-        FilesProviderPort alpha = nativeAdapter.scoped(ALPHA);
-        var stored = alpha.write(new FileWrite(new FilePath("/private.txt"),
-                "alpha".getBytes(StandardCharsets.UTF_8), "text/plain"));
+    void moveAndCopyKeepCanonicalBlobReferences() {
+        byte[] content = "portable".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        var scoped = adapter(authority).scoped(ALPHA);
+        CanonicalFileRecord source = scoped.write(new FileWrite(new FilePath("/source.txt"), content, "text/plain"));
 
-        assertThatThrownBy(() -> nativeAdapter.scoped(BRAVO).read(stored.id()))
-                .isInstanceOf(ApiErrorException.class)
-                .extracting(error -> ((ApiErrorException) error).code())
-                .isEqualTo("file-not-found");
+        CanonicalFileRecord moved = scoped.move(new FileMove(source.id(), new FilePath("/moved.txt"), false));
+        CanonicalFileRecord copied = scoped.copy(new FileCopy(moved.id(), new FilePath("/copy.txt"), false));
 
-        CanonicalFileRecord metadata = authority
-                .findByPath(ALPHA.organizationRef(), ALPHA.spaceRef(), new FilePath("/private.txt"))
-                .orElseThrow();
-        Path blobPath = blobs.resolvedPathForTest(blobScope(ALPHA), new BlobReference(metadata.storageReference()));
-        Files.write(blobPath, "tampered".getBytes(StandardCharsets.UTF_8));
-
-        assertThatThrownBy(() -> alpha.read(stored.id()))
-                .isInstanceOf(ApiErrorException.class)
-                .extracting(error -> ((ApiErrorException) error).code())
-                .isEqualTo("files-native-metadata-blob-mismatch");
-        assertThat(nativeAdapter.reconcile(ALPHA).inconsistentMetadataRecords()).isEqualTo(1);
+        assertThat(scoped.read(moved.id()).bytes()).isEqualTo(content);
+        assertThat(scoped.read(copied.id()).bytes()).isEqualTo(content);
+        assertThat(blobs.inventory(blobScope(ALPHA), 10)).hasSize(1);
     }
 
     @Test
-    void movePreservesIdentityAndDeleteRejectsAStaleVersion() {
-        FilesProviderPort scoped = adapter(authority).scoped(ALPHA);
-        var created = scoped.write(new FileWrite(new FilePath("/draft.txt"),
-                "draft".getBytes(StandardCharsets.UTF_8), "text/plain"));
-        FileVersion originalVersion = scoped.find(new FilePath("/draft.txt")).orElseThrow().version();
-
-        var moved = scoped.move(new FilePath("/draft.txt"), new FilePath("/final.txt"), false);
-
-        assertThat(moved.id()).isEqualTo(created.id());
-        assertThat(scoped.find(new FilePath("/draft.txt"))).isEmpty();
-        assertThat(scoped.read(created.id()).bytes()).isEqualTo("draft".getBytes(StandardCharsets.UTF_8));
-        assertThatThrownBy(() -> scoped.delete(new FilePath("/final.txt"), originalVersion))
-                .isInstanceOf(ApiErrorException.class)
-                .extracting(error -> ((ApiErrorException) error).code())
-                .isEqualTo("files-precondition-failed");
-    }
-
-    @Test
-    void overwriteCopyDoesNotDeleteAnIdenticalRetainedBlob() {
-        FilesProviderPort scoped = adapter(authority).scoped(ALPHA);
-        byte[] content = "same content".getBytes(StandardCharsets.UTF_8);
-        scoped.write(new FileWrite(new FilePath("/source.txt"), content, "text/plain"));
-        scoped.write(new FileWrite(new FilePath("/destination.txt"), content, "text/plain"));
+    void replacingDestinationPublishesNewCanonicalVersionWithoutBlobCorruption() {
+        byte[] original = "source".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] destination = "destination".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        var scoped = adapter(authority).scoped(ALPHA);
+        scoped.write(new FileWrite(new FilePath("/source.txt"), original, "text/plain"));
+        scoped.write(new FileWrite(new FilePath("/destination.txt"), destination, "text/plain"));
 
         var copied = scoped.copy(new FilePath("/source.txt"), new FilePath("/destination.txt"), true);
 
-        assertThat(scoped.read(copied.id()).bytes()).isEqualTo(content);
+        assertThat(scoped.read(copied.id()).bytes()).isEqualTo(original);
         assertThat(blobs.inventory(blobScope(ALPHA), 10)).hasSize(2);
     }
 
@@ -167,8 +119,7 @@ class WeaveNativeFilesAdapterTest {
     }
 
     private WeaveNativeFilesProperties properties() {
-        return new WeaveNativeFilesProperties(
-                "filesystem", temporaryDirectory.resolve("private-blobs"), 1024 * 1024, 100);
+        return new WeaveNativeFilesProperties(temporaryDirectory.resolve("private-blobs"), 1024 * 1024, 100);
     }
 
     private BlobScope blobScope(FilesRequestScope scope) {
@@ -188,15 +139,10 @@ class WeaveNativeFilesAdapterTest {
             }
             return delegate.save(record);
         }
-        @Override public Optional<CanonicalFileRecord> findByPath(String organizationRef, String spaceRef, FilePath path) { return delegate.findByPath(organizationRef, spaceRef, path); }
-        @Override public Optional<CanonicalFileRecord> findById(String organizationRef, String spaceRef, FileId id) { return delegate.findById(organizationRef, spaceRef, id); }
-        @Override public List<CanonicalFileRecord> activeFiles(String organizationRef, String spaceRef) { return delegate.activeFiles(organizationRef, spaceRef); }
-        @Override public List<CanonicalFileRecord> replace(List<CanonicalFileRecord> tombstones, List<CanonicalFileRecord> activations) { return delegate.replace(tombstones, activations); }
-        @Override public CanonicalFileRecord move(String organizationRef, String spaceRef, FileId id, FilePath expectedPath, FilePath destination, Instant movedAt) { return delegate.move(organizationRef, spaceRef, id, expectedPath, destination, movedAt); }
-        @Override public FileLockRecord acquireLock(FileLockRecord requested, Instant now) { return delegate.acquireLock(requested, now); }
-        @Override public Optional<FileLockRecord> activeLock(String organizationRef, String spaceRef, FilePath path, Instant now) { return delegate.activeLock(organizationRef, spaceRef, path, now); }
-        @Override public List<FileLockRecord> activeLocks(String organizationRef, String spaceRef, Instant now) { return delegate.activeLocks(organizationRef, spaceRef, now); }
-        @Override public void releaseLock(String organizationRef, String spaceRef, FilePath path, String tokenDigest, String ownerRef, Instant now) { delegate.releaseLock(organizationRef, spaceRef, path, tokenDigest, ownerRef, now); }
-        @Override public void moveLock(String organizationRef, String spaceRef, FilePath source, FilePath destination, String tokenDigest, String ownerRef, Instant now) { delegate.moveLock(organizationRef, spaceRef, source, destination, tokenDigest, ownerRef, now); }
+
+        @Override public Optional<CanonicalFileRecord> findById(FilesRequestScope scope, FileId id) { return delegate.findById(scope, id); }
+        @Override public Optional<CanonicalFileRecord> findByPath(FilesRequestScope scope, FilePath path) { return delegate.findByPath(scope, path); }
+        @Override public List<CanonicalFileRecord> list(FilesRequestScope scope, FilePath parent) { return delegate.list(scope, parent); }
+        @Override public void delete(FilesRequestScope scope, FileId id) { delegate.delete(scope, id); }
     }
 }
