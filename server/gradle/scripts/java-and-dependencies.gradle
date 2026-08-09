@@ -30,6 +30,11 @@ dependencies {
     implementation libs.flyway.postgresql
     implementation libs.opendal
     runtimeOnly "org.apache.opendal:opendal:${libs.versions.opendal.get()}:${weaveOpenDalClassifier}"
+
+    // Separate southbound S3 provider / ARC object-store support. This is not part of weave-native Files.
+    implementation libs.aws.s3
+    implementation libs.aws.url.connection.client
+
     implementation project(':weave-application-core')
     implementation project(':weave-files-core')
     implementation project(':weave-persistence-jpa')
@@ -47,7 +52,6 @@ dependencies {
     testImplementation 'org.junit.platform:junit-platform-suite'
     testImplementation libs.testcontainers.junit
     testImplementation libs.testcontainers.postgresql
-    testImplementation libs.testcontainers.minio
     testRuntimeOnly libs.h2.test
     testRuntimeOnly libs.cucumber.junit.platform
 }
