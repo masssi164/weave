@@ -1,0 +1,174 @@
+name: Native Rust Matrix Split
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/native-rust-split.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  split:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Split server protocol and client crypto crates
+        run: |
+          set -euo pipefail
+          test -d rust/matrix-core
+          rm -rf rust/matrix-protocol rust/matrix-client
+          cp -R rust/matrix-core rust/matrix-protocol
+          cp -R rust/matrix-core rust/matrix-client
+
+          cat > Cargo.toml <<'EOF'
+          [workspace]
+          members = ["rust/matrix-protocol", "rust/matrix-client"]
+          exclude = ["rust/vendor/matrix-sdk-crypto"]
+          resolver = "2"
+
+          [patch.crates-io]
+          # Temporary client-only Matrix SDK crypto patch. It is not reachable from
+          # the server protocol crate and is governed by the provenance check.
+          matrix-sdk-crypto = { path = "rust/vendor/matrix-sdk-crypto" }
+          EOF
+
+          cat > rust/matrix-protocol/Cargo.toml <<'EOF'
+          [package]
+          name = "weave-matrix-protocol"
+          version = "0.1.0"
+          edition = "2021"
+          publish = false
+
+          [lib]
+          # Keep the server JNI library filename stable while the crate responsibility
+          # becomes explicitly protocol-only.
+          name = "weave_matrix_core"
+          crate-type = ["rlib", "cdylib", "staticlib"]
+
+          [features]
+          default = []
+          jni = ["dep:jni"]
+
+          [dependencies]
+          jni = { version = "0.22.4", optional = true }
+          ruma = { version = "0.16.0", features = ["client-api-c", "client-api-s"] }
+          serde = { version = "1.0", features = ["derive"] }
+          serde_json = "1.0"
+          thiserror = "2.0"
+          tracing = "0.1"
+          EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('rust/matrix-protocol/src/lib.rs')
+          text = path.read_text()
+          start = text.index('pub mod frb_api {')
+          end = text.index('#[cfg(feature = "jni")]', start)
+          text = text[:start] + text[end:]
+          path.write_text(text)
+          PY
+          rm -f rust/matrix-protocol/src/flutter_crypto.rs rust/matrix-protocol/src/frb_generated.rs
+
+          cat > rust/matrix-client/Cargo.toml <<'EOF'
+          [package]
+          name = "weave-matrix-client"
+          version = "0.1.0"
+          edition = "2021"
+          publish = false
+
+          [lib]
+          name = "weave_matrix_client"
+          crate-type = ["rlib", "cdylib", "staticlib"]
+
+          [features]
+          default = []
+          flutter = ["dep:flutter_rust_bridge"]
+
+          [dependencies]
+          flutter_rust_bridge = { version = "=2.13.0-beta.4", optional = true }
+          matrix-sdk = { version = "0.18.0", default-features = false, features = ["bundled-sqlite", "e2e-encryption", "sqlite"] }
+          reqwest = { version = "0.13.1", default-features = false, features = ["http2", "rustls"] }
+          serde_json = "1.0"
+          tokio = { version = "1.52.3", features = ["rt", "sync", "time"] }
+          weave-matrix-protocol = { path = "../matrix-protocol" }
+
+          [lints.rust]
+          unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
+          EOF
+
+          cat > rust/matrix-client/src/lib.rs <<'EOF'
+          #[cfg(feature = "flutter")]
+          mod flutter_crypto;
+          #[cfg(feature = "flutter")]
+          mod frb_generated;
+
+          pub mod frb_api {
+              pub fn project_matrix_json(operation: String, input_json: String, server_name: String) -> String {
+                  weave_matrix_core::project_json_or_error(operation, input_json, server_name)
+              }
+
+              #[cfg(feature = "flutter")]
+              pub async fn initialize_matrix_client(profile_key: String, homeserver_url: String, user_id: String, device_id: String, access_token: String, store_path: String, store_passphrase: String, extra_root_certificate_pem: String) -> String {
+                  crate::flutter_crypto::initialize(profile_key, homeserver_url, user_id, device_id, access_token, store_path, store_passphrase, extra_root_certificate_pem).await
+              }
+              #[cfg(feature = "flutter")]
+              pub async fn sync_matrix_client(profile_key: String) -> String { crate::flutter_crypto::sync(profile_key).await }
+              #[cfg(feature = "flutter")]
+              pub async fn matrix_rooms(profile_key: String) -> String { crate::flutter_crypto::rooms(profile_key).await }
+              #[cfg(feature = "flutter")]
+              pub async fn matrix_create_encrypted_room(profile_key: String, title: String) -> String { crate::flutter_crypto::create_encrypted_room(profile_key, title).await }
+              #[cfg(feature = "flutter")]
+              pub async fn matrix_room_messages(profile_key: String, room_id: String, limit: u32) -> String { crate::flutter_crypto::room_messages(profile_key, room_id, limit).await }
+              #[cfg(feature = "flutter")]
+              pub async fn matrix_send_text(profile_key: String, room_id: String, body: String) -> String { crate::flutter_crypto::send_text(profile_key, room_id, body).await }
+              #[cfg(feature = "flutter")]
+              pub async fn matrix_mark_read(profile_key: String, room_id: String, event_id: String) -> String { crate::flutter_crypto::mark_read(profile_key, room_id, event_id).await }
+              #[cfg(feature = "flutter")]
+              pub async fn matrix_security_state(profile_key: String) -> String { crate::flutter_crypto::security_state(profile_key).await }
+              #[cfg(feature = "flutter")]
+              pub async fn matrix_bootstrap_recovery(profile_key: String, passphrase: String) -> String { crate::flutter_crypto::bootstrap_recovery(profile_key, passphrase).await }
+              #[cfg(feature = "flutter")]
+              pub async fn matrix_recover(profile_key: String, recovery_key_or_passphrase: String) -> String { crate::flutter_crypto::recover(profile_key, recovery_key_or_passphrase).await }
+              #[cfg(feature = "flutter")]
+              pub async fn matrix_start_verification(profile_key: String) -> String { crate::flutter_crypto::start_verification(profile_key).await }
+              #[cfg(feature = "flutter")]
+              pub async fn matrix_accept_verification(profile_key: String) -> String { crate::flutter_crypto::accept_verification(profile_key).await }
+              #[cfg(feature = "flutter")]
+              pub async fn matrix_start_sas(profile_key: String) -> String { crate::flutter_crypto::start_sas(profile_key).await }
+              #[cfg(feature = "flutter")]
+              pub async fn matrix_confirm_sas(profile_key: String, matches: bool) -> String { crate::flutter_crypto::confirm_sas(profile_key, matches).await }
+              #[cfg(feature = "flutter")]
+              pub async fn matrix_cancel_verification(profile_key: String) -> String { crate::flutter_crypto::cancel_verification(profile_key).await }
+              #[cfg(feature = "flutter")]
+              pub fn matrix_dismiss_verification(profile_key: String) -> String { crate::flutter_crypto::dismiss_verification(profile_key) }
+              #[cfg(feature = "flutter")]
+              pub async fn dispose_matrix_client(profile_key: String) -> String { crate::flutter_crypto::dispose(profile_key).await }
+          }
+          EOF
+
+          rm -rf rust/matrix-core
+
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('gradle/tasks/verification.gradle')
+          text = path.read_text()
+          old = "registerRootCommandTask('matrixRustCoreTest', ['cargo', 'test', '-p', 'weave-matrix-core', '--all-features'], 'Run the shared Rust/Ruma Matrix core contract tests, including JNI and Flutter bridge features.')"
+          new = "registerRootCommandTask('matrixRustCoreTest', ['bash', '-lc', 'cargo test -p weave-matrix-protocol --all-features && cargo test -p weave-matrix-client --all-features'], 'Run isolated server Matrix protocol/JNI and client Matrix crypto/Flutter Rust tests.')"
+          if old not in text:
+              raise SystemExit('matrixRustCoreTest registration drifted')
+          path.write_text(text.replace(old, new))
+          PY
+
+          cargo check -p weave-matrix-protocol --all-features
+          cargo check -p weave-matrix-client --all-features
+          ! grep -R --line-number --exclude-dir=target 'matrix-sdk\|matrix_sdk' rust/matrix-protocol
+          git add Cargo.toml Cargo.lock rust gradle/tasks/verification.gradle
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'refactor(matrix): split server protocol from client crypto'
+          git push origin HEAD:${{ github.head_ref }}
