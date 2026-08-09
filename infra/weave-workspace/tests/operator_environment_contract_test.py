@@ -47,11 +47,25 @@ def main() -> int:
             ROOT,
             str(_materialize_example("dogfood", temporary_root / "dogfood.env")),
         )
-        e2e = load_context(
-            "e2e",
-            ROOT,
-            str(_materialize_example("e2e", temporary_root / "e2e.env")),
-        )
+        previous_e2e_scope = os.environ.get("WEAVE_E2E_STACK_SCOPE")
+        previous_e2e_run_id = os.environ.get("WEAVE_E2E_RUN_ID")
+        try:
+            os.environ["WEAVE_E2E_STACK_SCOPE"] = "isolated"
+            os.environ["WEAVE_E2E_RUN_ID"] = "operator-environment-contract"
+            e2e = load_context(
+                "e2e",
+                ROOT,
+                str(_materialize_example("e2e", temporary_root / "e2e.env")),
+            )
+        finally:
+            if previous_e2e_scope is None:
+                os.environ.pop("WEAVE_E2E_STACK_SCOPE", None)
+            else:
+                os.environ["WEAVE_E2E_STACK_SCOPE"] = previous_e2e_scope
+            if previous_e2e_run_id is None:
+                os.environ.pop("WEAVE_E2E_RUN_ID", None)
+            else:
+                os.environ["WEAVE_E2E_RUN_ID"] = previous_e2e_run_id
         dev = load_context(
             "dev",
             ROOT,
@@ -65,6 +79,7 @@ def main() -> int:
 
     assert dogfood.environment == "dogfood"
     assert e2e.environment == "e2e"
+    assert e2e.env["WEAVE_STACK_SCOPE"] == "isolated"
     assert dev.environment == "dev"
     assert prod.environment == "prod"
 
