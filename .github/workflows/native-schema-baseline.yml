@@ -9,10 +9,11 @@ on:
       - '.github/workflows/native-schema-baseline.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   generate:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
@@ -31,6 +32,8 @@ jobs:
           --health-retries 20
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.head_ref }}
       - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
         with:
           distribution: temurin
@@ -62,7 +65,21 @@ jobs:
           test -s build/native-schema-baseline/V1__native_schema_baseline.sql
           sha256sum build/native-schema-baseline/V1__native_schema_baseline.sql \
             > build/native-schema-baseline/V1__native_schema_baseline.sql.sha256
-      - name: Upload generated baseline
+      - name: Commit exact generated Flyway baseline
+        run: |
+          set -euo pipefail
+          mkdir -p server/src/main/resources/db/migration
+          cp build/native-schema-baseline/V1__native_schema_baseline.sql \
+            server/src/main/resources/db/migration/V1__native_schema_baseline.sql
+          if git diff --quiet -- server/src/main/resources/db/migration/V1__native_schema_baseline.sql; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add server/src/main/resources/db/migration/V1__native_schema_baseline.sql
+          git commit -m 'build(persistence): commit generated native schema baseline'
+          git push origin HEAD:${{ github.head_ref }}
+      - name: Upload generated baseline evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: native-schema-baseline
