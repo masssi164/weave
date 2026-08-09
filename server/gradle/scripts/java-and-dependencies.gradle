@@ -47,6 +47,7 @@ dependencies {
     testImplementation 'org.junit.platform:junit-platform-suite'
     testImplementation libs.testcontainers.junit
     testImplementation libs.testcontainers.postgresql
+    testImplementation libs.testcontainers.minio
     testRuntimeOnly libs.h2.test
     testRuntimeOnly libs.cucumber.junit.platform
 }
