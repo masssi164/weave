@@ -12,18 +12,19 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
+import org.flywaydb.core.Flyway;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.context.ConfigurableApplicationContext;
 import tools.jackson.databind.ObjectMapper;
 
-/** Fail-closed one-shot PostgreSQL schema convergence entrypoint. */
+/** Fail-closed one-shot PostgreSQL schema migration and validation entrypoint. */
 public final class SchemaAuthorityInitializer {
 
-  public static final String EPOCH = "weave-code-first-v1";
+  public static final String EPOCH = "weave-flyway-v1";
   public static final String MODEL_ID = "WEAVE-ARCH-RELATIONAL-CORE-MODEL";
-  private static final long ADVISORY_LOCK_ID = 0x5745415645434631L;
   private static final Pattern COMMIT = Pattern.compile("[0-9a-f]{40}");
+  private static final String MIGRATION_LOCATION = "classpath:db/migration";
 
   private SchemaAuthorityInitializer() {}
 
@@ -52,37 +53,46 @@ public final class SchemaAuthorityInitializer {
         .toAbsolutePath()
         .normalize();
 
-    try (Connection lockConnection = DriverManager.getConnection(url, username, password)) {
-      acquireLock(lockConnection);
-      preflight(lockConnection);
-      Map<String, Object> properties = new LinkedHashMap<>();
-      properties.put("spring.config.name", "schema-init");
-      properties.put("spring.main.web-application-type", "none");
-      properties.put("spring.datasource.url", url);
-      properties.put("spring.datasource.username", username);
-      properties.put("spring.datasource.password", password);
-      properties.put("spring.datasource.driver-class-name", "org.postgresql.Driver");
-      properties.put("spring.jpa.open-in-view", "false");
-      properties.put("spring.jpa.hibernate.ddl-auto", "update");
+    Flyway flyway = Flyway.configure()
+        .dataSource(url, username, password)
+        .locations(MIGRATION_LOCATION)
+        .baselineOnMigrate(false)
+        .cleanDisabled(true)
+        .load();
 
-      try (ConfigurableApplicationContext context = application(properties).run()) {
-        SchemaCatalogFingerprint.Snapshot converged = SchemaCatalogFingerprint.inspect(lockConnection);
-        if (!converged.tables().contains("weave_schema_authority")) {
-          throw new IllegalStateException("authority marker table is absent after convergence");
-        }
-        SchemaAuthorityJpaRepository markers = context.getBean(SchemaAuthorityJpaRepository.class);
-        if (markers.count() > 1) {
-          throw new IllegalStateException("authority marker cardinality is invalid");
-        }
-        markers.saveAndFlush(new SchemaAuthorityJpaEntity(
-            EPOCH, MODEL_ID, candidate, converged.sha256(), Instant.now()));
-      }
+    // Flyway owns DDL and its PostgreSQL lock/history. A non-empty schema without
+    // Flyway history intentionally fails here instead of being silently baselined.
+    flyway.validate();
+    var migration = flyway.migrate();
+    flyway.validate();
 
-      properties.put("spring.jpa.hibernate.ddl-auto", "validate");
-      try (ConfigurableApplicationContext ignored = application(properties).run()) {
-        SchemaCatalogFingerprint.Snapshot validated = SchemaCatalogFingerprint.inspect(lockConnection);
-        writeReceipt(receipt, candidate, validated);
+    Map<String, Object> properties = new LinkedHashMap<>();
+    properties.put("spring.config.name", "schema-init");
+    properties.put("spring.main.web-application-type", "none");
+    properties.put("spring.datasource.url", url);
+    properties.put("spring.datasource.username", username);
+    properties.put("spring.datasource.password", password);
+    properties.put("spring.datasource.driver-class-name", "org.postgresql.Driver");
+    properties.put("spring.jpa.open-in-view", "false");
+    properties.put("spring.jpa.hibernate.ddl-auto", "validate");
+    properties.put("spring.flyway.enabled", "false");
+
+    try (ConfigurableApplicationContext context = application(properties).run();
+         Connection connection = DriverManager.getConnection(url, username, password)) {
+      SchemaCatalogFingerprint.Snapshot validated = SchemaCatalogFingerprint.inspect(connection);
+      if (!validated.tables().contains("weave_schema_authority")) {
+        throw new IllegalStateException("authority marker table is absent after Flyway migration");
       }
+      SchemaAuthorityJpaRepository markers = context.getBean(SchemaAuthorityJpaRepository.class);
+      markers.deleteAllInBatch();
+      markers.saveAndFlush(new SchemaAuthorityJpaEntity(
+          EPOCH, MODEL_ID, candidate, validated.sha256(), Instant.now()));
+      writeReceipt(
+          receipt,
+          candidate,
+          migration.migrationsExecuted,
+          migration.targetSchemaVersion == null ? null : migration.targetSchemaVersion,
+          validated);
     }
   }
 
@@ -94,58 +104,25 @@ public final class SchemaAuthorityInitializer {
     return application;
   }
 
-  private static void acquireLock(Connection connection) throws Exception {
-    try (var statement = connection.prepareStatement("select pg_advisory_lock(?)")) {
-      statement.setLong(1, ADVISORY_LOCK_ID);
-      statement.execute();
-    }
-  }
-
-  private static void preflight(Connection connection) throws Exception {
-    SchemaCatalogFingerprint.Snapshot observed = SchemaCatalogFingerprint.inspect(connection);
-    if (observed.tables().isEmpty()) {
-      return;
-    }
-    if (!observed.tables().contains("weave_schema_authority")) {
-      throw new IllegalStateException("non-empty schema has no code-first authority marker");
-    }
-    String query =
-        """
-        select epoch, catalog_fingerprint
-        from weave_schema_authority
-        order by epoch
-        """;
-    int count = 0;
-    String epoch = null;
-    String fingerprint = null;
-    try (var statement = connection.prepareStatement(query);
-        var rows = statement.executeQuery()) {
-      while (rows.next()) {
-        count++;
-        epoch = rows.getString("epoch");
-        fingerprint = rows.getString("catalog_fingerprint");
-      }
-    }
-    if (count != 1 || !EPOCH.equals(epoch)) {
-      throw new IllegalStateException("schema authority marker is incomplete or belongs to another epoch");
-    }
-    if (!observed.sha256().equals(fingerprint)) {
-      throw new IllegalStateException("schema fingerprint does not match the completed marker");
-    }
-  }
-
   private static void writeReceipt(
-      Path receipt, String candidate, SchemaCatalogFingerprint.Snapshot snapshot) throws Exception {
+      Path receipt,
+      String candidate,
+      int migrationsExecuted,
+      String targetSchemaVersion,
+      SchemaCatalogFingerprint.Snapshot snapshot) throws Exception {
     Path parent = receipt.getParent();
     if (parent == null || !Files.isDirectory(parent)) {
       throw new IllegalStateException("schema receipt parent directory is unavailable");
     }
     Map<String, Object> value = new LinkedHashMap<>();
-    value.put("schemaVersion", "weave.schema-init-receipt/v2");
+    value.put("schemaVersion", "weave.schema-init-receipt/v3");
     value.put("supportSafe", true);
+    value.put("authority", "flyway");
     value.put("epoch", EPOCH);
     value.put("relationalModelId", MODEL_ID);
     value.put("candidateCommit", candidate);
+    value.put("migrationsExecuted", migrationsExecuted);
+    value.put("targetSchemaVersion", targetSchemaVersion);
     value.put("catalogFingerprint", snapshot.sha256());
     value.put("tableCount", snapshot.tables().size());
     value.put("tables", snapshot.tables());
