@@ -14,10 +14,11 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -32,15 +33,13 @@ class CalDavCalendarAdapterTest {
 
     @AfterEach
     void stopServer() {
-        if (server != null) {
-            server.stop(0);
-        }
+        if (server != null) server.stop(0);
     }
 
     @Test
     void failsClosedWhenBackendActorCredentialIsMissing() {
         CalDavCalendarAdapter adapter = new CalDavCalendarAdapter(new CalendarCalDavProperties(
-                "https://files.weave.test", null, null, null, null, 1));
+                "https://files.weave.test", null, null, null, null, 1, ZoneOffset.UTC));
 
         assertThatThrownBy(() -> adapter.query(calendarId(), CalendarScope.workspace(), null, null))
                 .isInstanceOfSatisfying(CalendarAdapterException.class, error ->
@@ -55,7 +54,8 @@ class CalDavCalendarAdapterTest {
                 CalendarCalDavProperties.AuthMode.BASIC,
                 "weave-backend",
                 "secret",
-                1));
+                1,
+                ZoneOffset.UTC));
 
         assertThatThrownBy(() -> adapter.query(calendarId(), CalendarScope.workspace(), null, null))
                 .isInstanceOfSatisfying(CalendarAdapterException.class, error -> {
@@ -130,8 +130,7 @@ class CalDavCalendarAdapterTest {
 
         CalDavCalendarAdapter adapter = adapter();
         adapter.query(calendarId(), new CalendarScope(ScopeType.TEAM, "Engineering", null), null, null);
-        adapter.query(calendarId(), new CalendarScope(
-                ScopeType.CHANNEL, "Engineering", "Engineering General"), null, null);
+        adapter.query(calendarId(), new CalendarScope(ScopeType.CHANNEL, "Engineering", "Engineering General"), null, null);
 
         assertThat(paths).containsExactly(
                 "/remote.php/dav/calendars/weave-backend/weave-team-engineering/",
@@ -147,27 +146,16 @@ class CalDavCalendarAdapterTest {
             methods.add(exchange.getRequestMethod());
             paths.add(exchange.getRequestURI().getRawPath());
             requestBodies.add(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-            if ("GET".equals(exchange.getRequestMethod())) {
-                respond(exchange, 200, calendar("event-1", "Planning"), "\"etag-existing\"");
-            } else if ("PUT".equals(exchange.getRequestMethod())) {
-                respond(exchange, 201, "", "\"etag-new\"");
-            } else if ("DELETE".equals(exchange.getRequestMethod())) {
-                respond(exchange, 204, "", null);
-            } else {
-                respond(exchange, 405, "", null);
-            }
+            if ("GET".equals(exchange.getRequestMethod())) respond(exchange, 200, calendar("event-1", "Planning"), "\"etag-existing\"");
+            else if ("PUT".equals(exchange.getRequestMethod())) respond(exchange, 201, "", "\"etag-new\"");
+            else if ("DELETE".equals(exchange.getRequestMethod())) respond(exchange, 204, "", null);
+            else respond(exchange, 405, "", null);
         });
 
         CalDavCalendarAdapter adapter = adapter();
-        CalendarEvent created = adapter.write(new CalendarWrite(
-                event("event-1", "Planning", CalendarScope.workspace(), EventVersion.unknown()),
-                WriteIntent.CREATE,
-                EventVersion.unknown()));
+        CalendarEvent created = adapter.write(new CalendarWrite(event("event-1", "Planning", CalendarScope.workspace(), EventVersion.unknown()), WriteIntent.CREATE, EventVersion.unknown()));
         CalendarEvent read = adapter.read(calendarId(), CalendarScope.workspace(), new EventId("event-1"));
-        CalendarEvent updated = adapter.write(new CalendarWrite(
-                event("event-1", "Updated", CalendarScope.workspace(), created.version()),
-                WriteIntent.UPDATE,
-                created.version()));
+        CalendarEvent updated = adapter.write(new CalendarWrite(event("event-1", "Updated", CalendarScope.workspace(), created.version()), WriteIntent.UPDATE, created.version()));
         adapter.delete(calendarId(), CalendarScope.workspace(), new EventId("event-1"), updated.version());
 
         assertThat(methods).containsExactly("PUT", "GET", "PUT", "DELETE");
@@ -195,10 +183,8 @@ class CalDavCalendarAdapterTest {
                         EventVersion.unknown())))
                 .isInstanceOfSatisfying(CalendarAdapterException.class, exception ->
                         assertThat(exception.type()).isEqualTo(CalendarAdapterException.Type.NOT_FOUND));
-
         assertThat(methods).containsExactly("PUT");
-        assertThat(paths).containsExactly(
-                "/remote.php/dav/calendars/weave-backend/personal/event-1.ics");
+        assertThat(paths).containsExactly("/remote.php/dav/calendars/weave-backend/personal/event-1.ics");
     }
 
     @Test
@@ -211,26 +197,17 @@ class CalDavCalendarAdapterTest {
             respond(exchange, 404, "", null);
         });
 
-        assertThatThrownBy(() -> adapter().query(
-                        calendarId(),
-                        CalendarScope.workspace(),
-                        null,
-                        null))
+        assertThatThrownBy(() -> adapter().query(calendarId(), CalendarScope.workspace(), null, null))
                 .isInstanceOfSatisfying(CalendarAdapterException.class, exception ->
                         assertThat(exception.type()).isEqualTo(CalendarAdapterException.Type.NOT_FOUND));
-
         assertThat(methods).containsExactly("REPORT");
-        assertThat(paths).containsExactly(
-                "/remote.php/dav/calendars/weave-backend/personal/");
+        assertThat(paths).containsExactly("/remote.php/dav/calendars/weave-backend/personal/");
     }
 
     @Test
     void mapsCalendarConflictsWithoutLeakingProviderPathsOrBodies() throws Exception {
-        server = server(exchange -> respond(
-                exchange,
-                412,
-                "conflict at /remote.php/dav/calendars/weave-backend/personal/event-1.ics for backend:secret",
-                null));
+        server = server(exchange -> respond(exchange, 412,
+                "conflict at /remote.php/dav/calendars/weave-backend/personal/event-1.ics for backend:secret", null));
 
         assertThatThrownBy(() -> adapter().write(new CalendarWrite(
                 event("event-1", "Updated", CalendarScope.workspace(), new EventVersion("\"stale\"")),
@@ -256,11 +233,14 @@ class CalDavCalendarAdapterTest {
                 """, "\"etag-recurring\""), null));
 
         var event = adapter().query(calendarId(), CalendarScope.workspace(), null, null).get(0);
+        var occurrenceEngine = new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine());
 
         assertThat(event.recurrence().count()).isEqualTo(3);
-        assertThat(event.occurrences(
+        assertThat(occurrenceEngine.occurrences(
+                        event,
                         Instant.parse("2026-03-20T00:00:00Z"),
-                        Instant.parse("2026-04-10T00:00:00Z")))
+                        Instant.parse("2026-04-10T00:00:00Z"),
+                        ZoneId.of("Europe/Berlin")))
                 .extracting(occurrence -> occurrence.start().toLocalDate().toString())
                 .containsExactly("2026-03-22", "2026-04-05");
     }
@@ -273,15 +253,8 @@ class CalDavCalendarAdapterTest {
             respond(exchange, 207, """
                     <?xml version="1.0" encoding="utf-8"?>
                     <d:multistatus xmlns:d="DAV:">
-                      <d:response>
-                        <d:href>/remote.php/dav/calendars/weave-backend/personal/planning%40weave.test.ics</d:href>
-                        <d:propstat><d:prop><d:getetag>"etag-2"</d:getetag></d:prop></d:propstat>
-                        <d:status>HTTP/1.1 200 OK</d:status>
-                      </d:response>
-                      <d:response>
-                        <d:href>/remote.php/dav/calendars/weave-backend/personal/cancelled.ics</d:href>
-                        <d:status>HTTP/1.1 404 Not Found</d:status>
-                      </d:response>
+                      <d:response><d:href>/remote.php/dav/calendars/weave-backend/personal/planning%40weave.test.ics</d:href><d:propstat><d:prop><d:getetag>"etag-2"</d:getetag></d:prop></d:propstat><d:status>HTTP/1.1 200 OK</d:status></d:response>
+                      <d:response><d:href>/remote.php/dav/calendars/weave-backend/personal/cancelled.ics</d:href><d:status>HTTP/1.1 404 Not Found</d:status></d:response>
                       <d:sync-token>https://provider.invalid/sync/2</d:sync-token>
                     </d:multistatus>
                     """, null);
@@ -299,52 +272,26 @@ class CalDavCalendarAdapterTest {
         assertThat(result.changes().get(1).deleted()).isTrue();
     }
 
-    private CalendarEvent event(
-            String id,
-            String title,
-            CalendarScope scope,
-            EventVersion version) {
+    private CalendarEvent event(String id, String title, CalendarScope scope, EventVersion version) {
         return new CalendarEvent(
-                calendarId(),
-                new EventId(id),
-                scope,
-                title,
-                null,
-                LocalDateTime.parse("2026-04-26T10:00:00"),
-                LocalDateTime.parse("2026-04-26T11:00:00"),
-                ZoneId.of("Europe/Berlin"),
-                false,
-                null,
-                List.of(),
-                null,
-                version,
-                null);
+                calendarId(), new EventId(id), scope, title, null,
+                LocalDateTime.parse("2026-04-26T10:00:00"), LocalDateTime.parse("2026-04-26T11:00:00"),
+                ZoneId.of("Europe/Berlin"), false, null, List.of(), null, version, null);
     }
 
     private String multistatus(String eventProperties, String etag) {
         return """
                 <?xml version="1.0" encoding="utf-8"?>
-                <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
-                  <d:response>
-                    <d:href>/remote.php/dav/calendars/weave-backend/personal/event.ics</d:href>
-                    <d:propstat><d:prop>
-                      <d:getetag>%s</d:getetag>
-                      <c:calendar-data>BEGIN:VCALENDAR&#13;
+                <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:response><d:href>/remote.php/dav/calendars/weave-backend/personal/event.ics</d:href><d:propstat><d:prop><d:getetag>%s</d:getetag><c:calendar-data>BEGIN:VCALENDAR&#13;
                 BEGIN:VEVENT&#13;
                 %sEND:VEVENT&#13;
                 END:VCALENDAR&#13;
-                </c:calendar-data>
-                    </d:prop></d:propstat>
-                  </d:response>
-                </d:multistatus>
+                </c:calendar-data></d:prop></d:propstat></d:response></d:multistatus>
                 """.formatted(etag, eventProperties);
     }
 
     private String emptyMultistatus() {
-        return """
-                <?xml version="1.0" encoding="utf-8"?>
-                <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" />
-                """;
+        return "<?xml version=\"1.0\" encoding=\"utf-8\"?><d:multistatus xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\" />";
     }
 
     private String calendar(String uid, String title) {
@@ -376,12 +323,11 @@ class CalDavCalendarAdapterTest {
                 CalendarCalDavProperties.AuthMode.BASIC,
                 "backend",
                 "secret",
-                5));
+                5,
+                ZoneId.of("Europe/Berlin")));
     }
 
-    private CalendarId calendarId() {
-        return new CalendarId("massimo");
-    }
+    private CalendarId calendarId() { return new CalendarId("massimo"); }
 
     private HttpServer server(ExchangeHandler handler) throws IOException {
         HttpServer httpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
@@ -395,16 +341,12 @@ class CalDavCalendarAdapterTest {
 
     private void respond(HttpExchange exchange, int status, String body, String etag) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-        if (etag != null) {
-            exchange.getResponseHeaders().add("ETag", etag);
-        }
+        if (etag != null) exchange.getResponseHeaders().add("ETag", etag);
         exchange.sendResponseHeaders(status, bytes.length);
         exchange.getResponseBody().write(bytes);
         exchange.close();
     }
 
     @FunctionalInterface
-    private interface ExchangeHandler {
-        void handle(HttpExchange exchange) throws IOException;
-    }
+    private interface ExchangeHandler { void handle(HttpExchange exchange) throws IOException; }
 }
