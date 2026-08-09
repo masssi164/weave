@@ -13,6 +13,7 @@ import com.massimotter.weave.backend.config.InteropGatewayProperties;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import com.massimotter.weave.backend.config.LiveKitSfuProviderProperties;
 import com.massimotter.weave.backend.config.MatrixChatProperties;
+import com.massimotter.weave.backend.config.MatrixFacadeRuntimeProperties;
 import com.massimotter.weave.backend.config.MigrationToolkitProperties;
 import com.massimotter.weave.backend.config.NextcloudFilesProperties;
 import com.massimotter.weave.backend.config.PlatformContractProperties;
@@ -44,6 +45,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         IdentityInvitationProperties.class,
         LiveKitSfuProviderProperties.class,
         MatrixChatProperties.class,
+        MatrixFacadeRuntimeProperties.class,
         MigrationToolkitProperties.class,
         NextcloudFilesProperties.class,
         PlatformContractProperties.class,
