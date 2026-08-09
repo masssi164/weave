@@ -83,7 +83,7 @@ reject "${RENDERER}" 'WEAVE_MCP_AUTHORIZATION_SERVER'
 reject "${RENDERER}" '"realmArtifacts": {'
 reject "${RENDERER}" '"schemaVersion": "weave.compose-render.v2"'
 
-contains "${COMPOSE}" 'SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT}'
+contains "${COMPOSE}" 'SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}'
 reject "${COMPOSE}" '/backend/public.env'
 reject "${COMPOSE}" '/mcp/public.env'
 
