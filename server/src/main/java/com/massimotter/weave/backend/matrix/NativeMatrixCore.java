@@ -1,15 +1,17 @@
 package com.massimotter.weave.backend.matrix;
 
 /**
- * Narrow JNI entry point for the optional server-side Matrix protocol codec.
+ * Required JNI entry point for the server-side Matrix Client-Server protocol codec.
  *
- * <p>The native library is intentionally loaded only when an enabled Matrix
- * facade actually invokes the protocol boundary. Native Weave Chat can therefore
- * start and operate without a platform-specific Matrix library.
+ * <p>The Matrix facade is a permanent northbound Weave Server contract. The
+ * platform-specific Ruma/JNI protocol library is therefore a required runtime
+ * artifact on every supported server platform. Missing or incompatible native
+ * code fails startup/invocation closed with an actionable diagnostic; there is
+ * no handwritten Java protocol fallback.</p>
  */
 public final class NativeMatrixCore {
 
-    public static final String LIBRARY_NAME = "weave_matrix_core";
+    public static final String LIBRARY_NAME = "weave_matrix_protocol";
     public static final String JNI_METHOD = "projectJson";
 
     private NativeMatrixCore() {
@@ -19,7 +21,7 @@ public final class NativeMatrixCore {
         Throwable failure = LoadState.FAILURE;
         if (failure != null) {
             throw new IllegalStateException(
-                    "The optional Rust/Ruma Matrix protocol core could not be loaded; the Matrix facade is unavailable.",
+                    "The required Rust/Ruma Matrix protocol library could not be loaded.",
                     failure);
         }
     }
@@ -35,9 +37,9 @@ public final class NativeMatrixCore {
 
         private static Throwable load() {
             try {
-                String configuredPath = System.getProperty("weave.matrix.core.library.path");
+                String configuredPath = System.getProperty("weave.matrix.protocol.library.path");
                 if (configuredPath == null || configuredPath.isBlank()) {
-                    configuredPath = System.getenv("WEAVE_MATRIX_CORE_LIBRARY_PATH");
+                    configuredPath = System.getenv("WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH");
                 }
                 if (configuredPath == null || configuredPath.isBlank()) {
                     System.loadLibrary(LIBRARY_NAME);
