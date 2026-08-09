@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from compose_env import ContractError, load_context  # noqa: E402
+from compose_env import load_context  # noqa: E402
 from compose_runtime import runtime_root_services  # noqa: E402
 
 
@@ -66,11 +66,7 @@ def main() -> int:
                 os.environ.pop("WEAVE_E2E_RUN_ID", None)
             else:
                 os.environ["WEAVE_E2E_RUN_ID"] = previous_e2e_run_id
-        dev = load_context(
-            "dev",
-            ROOT,
-            str(_materialize_example("dev", temporary_root / "dev.env")),
-        )
+        dev = load_context("dev", ROOT)
         prod = load_context(
             "prod",
             ROOT,
@@ -83,12 +79,7 @@ def main() -> int:
     assert dev.environment == "dev"
     assert prod.environment == "prod"
 
-    dev_tools = load_context(
-        "dev",
-        ROOT,
-        str(ROOT / "environments/dev.env.example"),
-        extra_profiles=("dev-tools",),
-    )
+    dev_tools = load_context("dev", ROOT, extra_profiles=("dev-tools",))
     assert dev_tools.active_profiles == ("dev", "dev-tools")
     assert runtime_root_services(dev_tools) == ("keycloak", "mailpit")
 
