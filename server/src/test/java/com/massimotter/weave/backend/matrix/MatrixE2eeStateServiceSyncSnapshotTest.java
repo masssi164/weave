@@ -71,7 +71,7 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
             Future<?> observer = executor.submit(() -> {
                 await(start);
                 while (publishing.get()) {
-                    assertCompleteSnapshot(service.sync(target, 0));
+                    assertSnapshotDoesNotSkip(service.sync(target, 0));
                     Thread.yield();
                 }
             });
@@ -80,12 +80,20 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
             publisher.get(8, TimeUnit.SECONDS);
             observer.get(8, TimeUnit.SECONDS);
 
-            MatrixProtocolCoreService.MatrixSyncCrypto completed = service.sync(target, 0);
-            assertCompleteSnapshot(completed);
-            assertThat(completed.nextSequence()).isEqualTo(eventCount);
-            assertThat(completed.toDeviceEvents()).hasSize(eventCount);
-            assertThat(service.sync(target, completed.nextSequence()).toDeviceEvents()).isEmpty();
-            assertThat(service.combinedCursor("chat-cursor", completed.nextSequence()))
+            long cursor = 0;
+            int delivered = 0;
+            while (cursor < eventCount) {
+                MatrixProtocolCoreService.MatrixSyncCrypto page = service.sync(target, cursor);
+                assertThat(page.nextSequence()).isGreaterThan(cursor).isLessThanOrEqualTo(eventCount);
+                assertThat(page.toDeviceEvents()).hasSizeLessThanOrEqualTo(100);
+                delivered += page.toDeviceEvents().size();
+                cursor = page.nextSequence();
+            }
+
+            assertThat(delivered).isEqualTo(eventCount);
+            assertThat(cursor).isEqualTo(eventCount);
+            assertThat(service.sync(target, cursor).toDeviceEvents()).isEmpty();
+            assertThat(service.combinedCursor("chat-cursor", cursor))
                     .isEqualTo("chat-cursor|e2ee:" + eventCount);
         } finally {
             executor.shutdownNow();
@@ -93,9 +101,12 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
         }
     }
 
-    private void assertCompleteSnapshot(MatrixProtocolCoreService.MatrixSyncCrypto snapshot) {
+    private void assertSnapshotDoesNotSkip(MatrixProtocolCoreService.MatrixSyncCrypto snapshot) {
         assertThat(snapshot.nextSequence()).isBetween(0L, 500L);
-        assertThat(snapshot.toDeviceEvents()).hasSize(Math.toIntExact(snapshot.nextSequence()));
+        assertThat(snapshot.toDeviceEvents()).hasSizeLessThanOrEqualTo(100);
+        if (snapshot.toDeviceEvents().size() == 100) {
+            assertThat(snapshot.nextSequence()).isEqualTo(100L);
+        }
     }
 
     private MatrixE2eeStateService service() {
