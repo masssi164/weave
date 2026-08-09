@@ -29,10 +29,10 @@ jobs:
       - name: Verify and commit the exact generated Flyway baseline
         run: |
           set -euo pipefail
-          cd build/native-schema-baseline
-          sha256sum --check V1__native_schema_baseline.sql.sha256
-          test "$(wc -l < V1__native_schema_baseline.sql)" -eq 1541
-          cd ../..
+          expected="$(cut -d' ' -f1 build/native-schema-baseline/V1__native_schema_baseline.sql.sha256)"
+          actual="$(sha256sum build/native-schema-baseline/V1__native_schema_baseline.sql | cut -d' ' -f1)"
+          test "$actual" = "$expected"
+          test "$(wc -l < build/native-schema-baseline/V1__native_schema_baseline.sql)" -eq 1541
           mkdir -p server/src/main/resources/db/migration
           cp build/native-schema-baseline/V1__native_schema_baseline.sql server/src/main/resources/db/migration/V1__native_schema_baseline.sql
           git config user.name github-actions[bot]
