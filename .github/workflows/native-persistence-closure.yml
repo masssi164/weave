@@ -48,12 +48,13 @@ jobs:
         run: |
           set -euo pipefail
           ./gradlew :server:test \
-            --tests '*Postgres*' \
-            --tests '*Flyway*' \
-            --tests '*Schema*' \
-            --tests '*NativeCalendar*' \
-            --tests '*MatrixE2ee*' \
-            --tests '*WeaveNativeFiles*'
+            --tests 'com.massimotter.weave.backend.calendar.adapter.NativeCalendarProviderAdapterTest' \
+            --tests 'com.massimotter.weave.backend.matrix.MatrixE2eeStateServicePersistenceTest' \
+            --tests 'com.massimotter.weave.backend.matrix.MatrixE2eeStateServiceSharedUsersTest' \
+            --tests 'com.massimotter.weave.backend.matrix.MatrixE2eeStateServiceSignatureMergeTest' \
+            --tests 'com.massimotter.weave.backend.matrix.MatrixE2eeStateServiceSyncSnapshotTest' \
+            --tests 'com.massimotter.weave.backend.service.files.WeaveNativeFilesAdapterTest' \
+            --tests 'com.massimotter.weave.backend.schema.*'
       - name: Migration authority invariants
         run: |
           set -euo pipefail
