@@ -16,6 +16,8 @@ dependencies {
     implementation libs.springdoc.webmvc.api
     implementation libs.jcs
     implementation libs.ical4j
+    implementation libs.flyway.core
+    implementation libs.flyway.postgresql
     implementation(libs.aws.s3) {
         exclude group: 'software.amazon.awssdk', module: 'apache-client'
     }
