@@ -1,0 +1,71 @@
+name: Native Schema Baseline
+
+on:
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'weave-*/**'
+      - 'gradle/**'
+      - '.github/workflows/native-schema-baseline.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.9-alpine
+        env:
+          POSTGRES_DB: weave_backend
+          POSTGRES_USER: weave_backend
+          POSTGRES_PASSWORD: weave_backend
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U weave_backend -d weave_backend"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Generate schema from the pre-Flyway JPA model
+        env:
+          WEAVE_PERSISTENCE_URL: jdbc:postgresql://127.0.0.1:5432/weave_backend
+          WEAVE_PERSISTENCE_USERNAME: weave_backend
+          WEAVE_PERSISTENCE_PASSWORD: weave_backend
+          WEAVE_CANDIDATE_COMMIT: ${{ github.event.pull_request.head.sha }}
+          WEAVE_SCHEMA_INIT_RECEIPT_FILE: ${{ runner.temp }}/schema-init-receipt.json
+        run: |
+          set -euo pipefail
+          ./gradlew :server:bootRun --args='schema-init'
+          mkdir -p build/native-schema-baseline
+          PGPASSWORD=weave_backend pg_dump \
+            --host=127.0.0.1 \
+            --port=5432 \
+            --username=weave_backend \
+            --dbname=weave_backend \
+            --schema-only \
+            --no-owner \
+            --no-privileges \
+            --no-comments \
+            > build/native-schema-baseline/V1__native_schema_baseline.raw.sql
+          sed -E '/^\\(restrict|unrestrict) /d' \
+            build/native-schema-baseline/V1__native_schema_baseline.raw.sql \
+            > build/native-schema-baseline/V1__native_schema_baseline.sql
+          test -s build/native-schema-baseline/V1__native_schema_baseline.sql
+          sha256sum build/native-schema-baseline/V1__native_schema_baseline.sql \
+            > build/native-schema-baseline/V1__native_schema_baseline.sql.sha256
+      - name: Upload generated baseline
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-schema-baseline
+          path: build/native-schema-baseline/
+          if-no-files-found: error
+          retention-days: 7
