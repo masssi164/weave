@@ -140,7 +140,11 @@ public class MatrixE2eeStateService {
                 .filter(value -> value != null && !value.isBlank() && !value.equals(identity.userId()))
                 .toList());
 
-        long deviceListAfter = persistence.deviceListProgress(identity.tenantId(), identity.userId(), identity.deviceId());
+        long persistedDeviceListProgress = persistence.deviceListProgress(identity.tenantId(), identity.userId(), identity.deviceId());
+        long deviceListAfter = Math.max(persistedDeviceListProgress, afterSequence);
+        if (deviceListAfter > persistedDeviceListProgress) {
+            persistence.recordDeviceListProgress(identity.tenantId(), identity.userId(), identity.deviceId(), deviceListAfter);
+        }
         if (shared != null) {
             persistence.reconcileSharedUsers(identity.tenantId(), identity.userId(), identity.deviceId(), shared);
         }
@@ -167,9 +171,6 @@ public class MatrixE2eeStateService {
 
         long nextSequence = Math.min(snapshotHighWater, toDeviceDeliveredHighWater);
         persistence.recordDeviceSyncProgress(identity.tenantId(), identity.userId(), identity.deviceId(), nextSequence);
-        if (shared != null) {
-            persistence.recordDeviceListProgress(identity.tenantId(), identity.userId(), identity.deviceId(), snapshotHighWater);
-        }
         return new MatrixProtocolCoreService.MatrixSyncCrypto(
                 events,
                 List.copyOf(changed),
