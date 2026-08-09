@@ -6,10 +6,10 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarScop
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion;
 
 /**
- * Standards boundary for RFC 5545/iCalendar syntax and recurrence metadata.
+ * Infrastructure Port for RFC 5545/iCalendar syntax and recurrence metadata.
  *
- * <p>iCal4j types stay inside the adapter implementation. Canonical Calendar
- * code sees only Weave domain and java.time values.</p>
+ * <p>Provider selection remains at the Calendar provider boundary. iCal4j types stay inside the
+ * concrete infrastructure adapter; canonical Calendar code sees only Weave domain and java.time values.</p>
  */
 public interface IcalendarCodec {
 
