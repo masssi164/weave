@@ -13,6 +13,7 @@ jcs = "1.1"
 playwright = "1.60.0"
 nimbus-jose-jwt = "10.9"
 aws-sdk = "2.46.8"
+ical4j = "4.2.5"
 
 [libraries]
 spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
@@ -33,6 +34,7 @@ playwright = { module = "com.microsoft.playwright:playwright", version.ref = "pl
 nimbus-jose-jwt = { module = "com.nimbusds:nimbus-jose-jwt", version.ref = "nimbus-jose-jwt" }
 aws-s3 = { module = "software.amazon.awssdk:s3", version.ref = "aws-sdk" }
 aws-url-connection-client = { module = "software.amazon.awssdk:url-connection-client", version.ref = "aws-sdk" }
+ical4j = { module = "org.mnode.ical4j:ical4j", version.ref = "ical4j" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
