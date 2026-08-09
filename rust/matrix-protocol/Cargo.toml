@@ -5,9 +5,7 @@ edition = "2021"
 publish = false
 
 [lib]
-# Keep the server JNI library filename stable while the crate responsibility
-# becomes explicitly protocol-only.
-name = "weave_matrix_core"
+name = "weave_matrix_protocol"
 crate-type = ["rlib", "cdylib", "staticlib"]
 
 [features]
