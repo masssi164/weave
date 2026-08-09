@@ -40,6 +40,10 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
     @Override
     @Transactional
     public long nextRevision(String tenantId) {
+        return nextRevisionLocked(tenantId);
+    }
+
+    private long nextRevisionLocked(String tenantId) {
         jdbc.update("insert into weave_matrix_sync_heads(tenant_id,revision,row_version,updated_at_utc) values (?,0,0,now()) on conflict (tenant_id) do nothing", tenantId);
         Long revision = jdbc.query("select revision from weave_matrix_sync_heads where tenant_id=? for update",
                 rs -> rs.next() ? rs.getLong(1) : 0L, tenantId);
@@ -186,12 +190,26 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
 
     @Override
     @Transactional
-    public boolean appendToDevice(long revision, String tenantId, String targetUserId, String targetDeviceId, String senderUserId, String eventType, String transactionId, Map<String, Object> content) {
-        return jdbc.update("""
+    public long appendToDevice(String tenantId, String targetUserId, String targetDeviceId, String senderUserId, String eventType, String transactionId, Map<String, Object> content) {
+        List<Long> existing = jdbc.query("""
+                select revision_id from weave_matrix_to_device_messages
+                where tenant_id=? and sender_user_id=? and transaction_id=? and target_user_id=? and target_device_id=? and event_type=?
+                """, (rs, ignored) -> rs.getLong(1), tenantId, senderUserId, transactionId, targetUserId, targetDeviceId, eventType);
+        if (!existing.isEmpty()) return existing.getFirst();
+
+        long revision = nextRevisionLocked(tenantId);
+        int inserted = jdbc.update("""
                 insert into weave_matrix_to_device_messages(revision_id,tenant_id,target_user_id,target_device_id,sender_user_id,event_type,transaction_id,content_json)
                 values (?,?,?,?,?,?,?,?)
                 on conflict (tenant_id,sender_user_id,transaction_id,target_user_id,target_device_id,event_type) do nothing
-                """, revision, tenantId, targetUserId, targetDeviceId, senderUserId, eventType, transactionId, writeJson(content)) == 1;
+                """, revision, tenantId, targetUserId, targetDeviceId, senderUserId, eventType, transactionId, writeJson(content));
+        if (inserted == 1) return revision;
+
+        return jdbc.query("""
+                select revision_id from weave_matrix_to_device_messages
+                where tenant_id=? and sender_user_id=? and transaction_id=? and target_user_id=? and target_device_id=? and event_type=?
+                """, rs -> rs.next() ? rs.getLong(1) : revision,
+                tenantId, senderUserId, transactionId, targetUserId, targetDeviceId, eventType);
     }
 
     @Override
@@ -228,7 +246,7 @@ public class MatrixE2eeRelationalStore implements MatrixE2eePersistence {
             boolean desired = currentlySharedUserIds.contains(sharedUserId);
             DeviceListState prior = existing.get(sharedUserId);
             if (prior == null || prior.shared() != desired) {
-                long revision = nextRevision(tenantId);
+                long revision = nextRevisionLocked(tenantId);
                 jdbc.update("""
                         insert into weave_matrix_shared_users(tenant_id,user_id,device_id,shared_user_id,shared,changed_revision)
                         values (?,?,?,?,?,?) on conflict (tenant_id,user_id,device_id,shared_user_id) do update
