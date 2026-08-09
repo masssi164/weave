@@ -345,89 +345,82 @@ def _render_desired(baseline: dict[str, object], overlay: dict[str, object]) -> 
     realm = desired["realm"]
     assert isinstance(realm, dict)
     realm["frontendUrl"] = public["auth"]
-    realm["smtp"] = copy.deepcopy(overlay["smtpEndpoints"])
-    organizations = desired["organizations"]
+    smtp = overlay["smtpEndpoints"]
+    assert isinstance(smtp, dict)
+    realm["smtpServer"] = {key: value for key, value in smtp.items() if key != "passwordVaultRef"}
+    if smtp.get("passwordVaultRef"):
+        realm["smtpServer"]["password"] = smtp["passwordVaultRef"]
+    organizations = desired.get("organizations")
     if not isinstance(organizations, list) or len(organizations) != 1:
-        raise ContractError("canonical baseline must contain exactly one managed organization")
+        raise ContractError("desired-state v3 must declare exactly one bootstrap organization")
     organization = organizations[0]
-    assert isinstance(organization, dict)
-    organization.update(copy.deepcopy(overlay["organizationMetadata"]))
+    if not isinstance(organization, dict) or organization.get("key") != "organization:weave-primary":
+        raise ContractError("desired-state v3 bootstrap organization is malformed")
+    metadata = overlay["organizationMetadata"]
+    assert isinstance(metadata, dict)
+    organization["name"] = metadata["name"]
+    organization["alias"] = metadata["alias"]
+    organization["description"] = metadata["description"]
+    organization["redirectUrl"] = metadata["redirectUri"]
     desired["revision"] = revision(desired)
     return desired
 
 
 def _caddy(context: ComposeContext) -> str:
     env = context.env
-    backend = f"host.docker.internal:{env['WEAVE_HOST_DEV_BACKEND_PORT']}" if context.profile == "dev" else "backend:8080"
-    mcp_handler = "respond \"MCP workload edge is not part of the host-dev dependency profile\" 503" if context.profile == "dev" else "reverse_proxy mcp:8091"
     public_site = _gateway_site(env["WEAVE_PUBLIC_URL"])
-    api_site = _gateway_site(env["WEAVE_API_ORIGIN"])
+    api_site = _gateway_site(env["WEAVE_API_URL"])
     auth_site = _gateway_site(env["WEAVE_AUTH_URL"])
+    mailpit_site = _gateway_site(env["WEAVE_MAILPIT_URL"])
     matrix_site = _gateway_site(env["WEAVE_MATRIX_URL"])
     files_site = _gateway_site(env["WEAVE_FILES_URL"])
-    mailpit_site = ""
-    if context.environment in {"dogfood", "e2e"}:
-        mailpit_site = f"""
-https://mail.{env['WEAVE_TENANT_DOMAIN']} {{
-  tls /certs/cert.pem /certs/key.pem
-  encode zstd gzip
-  @private_network remote_ip private_ranges
-  handle @private_network {{
-    reverse_proxy mailpit:8025 {{
-      header_up Host {{host}}
-    }}
+    backend = "host.docker.internal:8080" if context.profile == "dev" else "backend:8080"
+    mcp = "host.docker.internal:8091" if context.profile == "dev" else "mcp:8091"
+    mcp_handler = "reverse_proxy " + mcp
+    matrix_handler = "reverse_proxy synapse:8008"
+    mas_handler = "reverse_proxy mas:8080"
+    files_handler = "reverse_proxy nextcloud:80"
+    if env["WEAVE_CHAT_PROVIDER"] != "matrix-synapse":
+        matrix_handler = 'respond `{"error":"matrix provider disabled"}` 404'
+        mas_handler = matrix_handler
+    if env["WEAVE_FILES_PROVIDER"] != "nextcloud-webdav" and env["WEAVE_CALENDAR_PROVIDER"] != "nextcloud-caldav":
+        files_handler = 'respond `{"error":"nextcloud provider disabled"}` 404'
+    mailpit_block = ""
+    if "dev-tools" in context.active_profiles or context.profile in {"dogfood", "e2e"}:
+        mailpit_block = f"""{mailpit_site} {{
+  tls /certs/mailpit-cert.pem /certs/mailpit-key.pem
+  @private remote_ip private_ranges
+  handle @private {{
+    reverse_proxy mailpit:8025
   }}
-  respond "Forbidden" 403
+  respond 403
 }}
 """
-    matrix_handler = "reverse_proxy synapse:8008" if env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse" else 'respond "Optional Matrix provider is not selected" 404'
-    mas_handler = "reverse_proxy mas:8080" if env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse" else 'respond "Optional Matrix provider is not selected" 404'
-    files_handler = (
-        """reverse_proxy nextcloud:80 {
-    header_up X-Forwarded-For {http.request.remote.host}
-    header_up X-Forwarded-Host {host}
-    header_up X-Forwarded-Proto {scheme}
-  }"""
-        if (env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav" or env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav")
-        else 'respond "Optional Nextcloud provider is not selected" 404'
-    )
     return f"""{{
   admin off
-}}
-
-http:// {{
-  @ca path /weave-local-ca.pem
-  handle @ca {{
-    root * /certs
-    rewrite * /ca.pem
-    file_server
-  }}
-  respond \"HTTPS required\" 308
+  auto_https off
 }}
 
 {public_site} {{
   tls /certs/cert.pem /certs/key.pem
-  encode zstd gzip
-  @internal path /api/internal/* /actuator/*
-  respond @internal \"Not Found\" 404
-  @product_api path /api/*
-  reverse_proxy @product_api {backend}
-  @admin_console path /admin-console /admin-console/*
-  reverse_proxy @admin_console {backend}
-  @files path /files /files/*
-  respond @files \"Weave Files is exposed through the backend-owned WebDAV facade.\" 200
-  @calendar path /calendar /calendar/*
-  respond @calendar \"Weave Calendar is exposed through the backend-owned CalDAV facade.\" 200
-  respond \"Weave product gateway\" 200
+  handle_path /api/* {{
+    reverse_proxy {backend}
+  }}
+  handle_path /mcp* {{
+    {mcp_handler}
+  }}
+  reverse_proxy {backend}
 }}
 
 {api_site} {{
   tls /certs/cert.pem /certs/key.pem
-  encode zstd gzip
-  @internal path /api/internal/* /actuator/*
-  respond @internal \"Not Found\" 404
-  @mcp path /mcp /mcp/* /.well-known/oauth-protected-resource/mcp
-  handle @mcp {{
+  handle /actuator* {{
+    respond 404
+  }}
+  handle /.well-known/oauth-protected-resource* {{
+    {mcp_handler}
+  }}
+  handle /mcp* {{
     {mcp_handler}
   }}
   reverse_proxy {backend}
@@ -437,7 +430,7 @@ http:// {{
   tls /certs/cert.pem /certs/key.pem
   reverse_proxy keycloak:8080
 }}
-{mailpit_site}
+{mailpit_block}
 
 {matrix_site} {{
   tls /certs/cert.pem /certs/key.pem
@@ -902,7 +895,7 @@ def render(context: ComposeContext) -> None:
     }
     _write(generated / "keycloak/realm-render-evidence.json", pretty_json(render_evidence), private=False)
     manifest = {
-        "schemaVersion": "weave.compose-render.v2",
+        "schemaVersion": "weave.compose-render.v3",
         "profile": context.environment,
         "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
         "specificationCommit": specification_commit,
@@ -911,7 +904,7 @@ def render(context: ComposeContext) -> None:
         "desiredStateRevision": desired["revision"],
         "keycloakImageDigest": overlay["imageDigest"],
         "realmIdentity": realm_identity,
-        "realmArtifacts": {
+        "deploymentArtifacts": {
             "renderedRealmPath": "keycloak/import/weave-realm.json",
             "migrationBundleDigest": migration_digest,
             "migrationBundlePath": "keycloak/migrations/fresh-start-v1.json",
