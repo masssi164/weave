@@ -20,7 +20,9 @@ public final class Ical4jRecurrenceEngine implements RecurrenceEngine {
             LocalDate from,
             LocalDate to,
             int maximumResults) {
-        requireRange(seed, from, to);
+        if (seed == null || from == null || to == null || !from.isBefore(to)) {
+            throw invalid("Recurrence expansion requires a valid bounded date window.", null);
+        }
         return expand(rrule, seed, from, to, maximumResults);
     }
 
@@ -31,7 +33,9 @@ public final class Ical4jRecurrenceEngine implements RecurrenceEngine {
             LocalDateTime from,
             LocalDateTime to,
             int maximumResults) {
-        requireRange(seed, from, to);
+        if (seed == null || from == null || to == null || !from.isBefore(to)) {
+            throw invalid("Recurrence expansion requires a valid bounded floating-time window.", null);
+        }
         return expand(rrule, seed, from, to, maximumResults);
     }
 
@@ -42,7 +46,9 @@ public final class Ical4jRecurrenceEngine implements RecurrenceEngine {
             ZonedDateTime from,
             ZonedDateTime to,
             int maximumResults) {
-        requireRange(seed, from, to);
+        if (seed == null || from == null || to == null || !from.isBefore(to)) {
+            throw invalid("Recurrence expansion requires a valid bounded zoned-time window.", null);
+        }
         if (!seed.getZone().equals(from.getZone()) || !seed.getZone().equals(to.getZone())) {
             throw invalid("Zoned recurrence windows must retain the master event TZID.", null);
         }
@@ -65,9 +71,6 @@ public final class Ical4jRecurrenceEngine implements RecurrenceEngine {
             }
             return List.copyOf(result);
         } catch (IllegalArgumentException exception) {
-            if (exception instanceof CalendarAdapterException adapterException) {
-                throw adapterException;
-            }
             throw invalid("RRULE is invalid or outside the supported recurrence grammar.", exception);
         }
     }
@@ -88,12 +91,6 @@ public final class Ical4jRecurrenceEngine implements RecurrenceEngine {
             throw invalid("Recurrence result limit is outside the supported range.", null);
         }
         return value;
-    }
-
-    private static <T extends Comparable<? super T>> void requireRange(T seed, T from, T to) {
-        if (seed == null || from == null || to == null || from.compareTo(to) >= 0) {
-            throw invalid("Recurrence expansion requires a valid bounded time window.", null);
-        }
     }
 
     private static CalendarAdapterException invalid(String message, Throwable cause) {
