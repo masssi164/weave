@@ -121,7 +121,6 @@ class KeycloakRealmMigrationCliTest {
     String manifest =
         """
         {
-          "baselineArtifactDigest": "%s",
           "bundles": [
             {
               "digest": "%s",
@@ -129,10 +128,13 @@ class KeycloakRealmMigrationCliTest {
             }
           ],
           "containsSecretValues": false,
-          "schemaVersion": "weave.keycloak-realm-migration-manifest/v1"
+          "migrationDefinitionDigest": "sha256:%s",
+          "renderedRealmDigest": "%s",
+          "schemaVersion": "weave.keycloak-realm-migration-manifest/v2",
+          "semanticRealmSourceDigest": "sha256:%s"
         }
         """
-            .formatted(BASELINE_DIGEST, bundleDigest);
+            .formatted(bundleDigest, "d".repeat(64), BASELINE_DIGEST, "e".repeat(64));
     Files.writeString(
         temporary.resolve("keycloak/migrations/manifest.json"),
         manifest,
