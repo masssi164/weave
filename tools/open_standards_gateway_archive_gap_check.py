@@ -90,7 +90,15 @@ def require_current_evidence_boundaries() -> None:
     require("server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java", 'case "MKCALENDAR", "COPY", "MOVE", "LOCK", "UNLOCK" -> unsupportedMethod(method)')
     require("server/src/main/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionController.java", '"X-Weave-Matrix-Core", "rust-ruma-jni"', "chatDomainFacadeService.conversations(jwt)", "chatDomainFacadeService.sendEvent(")
     require("server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCodec.java", "Map<String, Object> project(MatrixProtocolOperation operation, String inputJson)")
-    require("server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCoreService.java", "implements MatrixProtocolCodec", "NativeMatrixCore.projectJson(operation.wireName(), inputJson, serverName)", 'public static final String FLUTTER_BRIDGE_BOUNDARY = "flutter-rust-bridge"')
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCoreService.java",
+        "implements MatrixProtocolCodec",
+        "NativeMatrixCore.projectJson(operation.wireName(), inputJson, serverName)",
+        'public static final String SERVER_JNI_BOUNDARY = "server-jni-wrapper"',
+        'public static final String RUST_PROTOCOL_CORE = "ruma-serde-serde_json-thiserror-tracing"',
+    )
+    require("rust/matrix-protocol/Cargo.toml", 'name = "weave-matrix-protocol"', "ruma", "jni")
+    require("rust/matrix-client/Cargo.toml", 'name = "weave-matrix-client"', "flutter_rust_bridge", "matrix-sdk")
     forbidden_calls_path = ROOT / "server/src/main/java/com/massimotter/weave/backend/controller/CallsController.java"
     if forbidden_calls_path.exists():
         fail("legacy member Calls controller must be removed")
