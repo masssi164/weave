@@ -5,7 +5,10 @@ edition = "2021"
 publish = false
 
 [lib]
-name = "weave_matrix_client"
+# Keep the shipped Flutter FFI library name stable across the protocol/client
+# crate split. Generated Dart bindings and existing native bundles load this
+# ABI as `weave_matrix_core`.
+name = "weave_matrix_core"
 crate-type = ["rlib", "cdylib", "staticlib"]
 
 [features]
