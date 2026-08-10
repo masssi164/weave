@@ -23,7 +23,7 @@ class KeycloakRealmMigrationOperationPolicyTest {
                 HttpMethod.GET, "/admin/realms/weave/users/service-account-id/role-mappings"),
             operation(
                 HttpMethod.GET,
-                "/admin/realms/weave/organizations?first=0&max=100&briefRepresentation=true"),
+                "/admin/realms/weave/organizations/8f771be4-f526-5bef-97dc-00c8e2fa383d"),
             operation(
                 HttpMethod.GET,
                 "/admin/realms/weave/clients/admin-id/authz/resource-server/policy/user?first=0&max=100"),

@@ -38,8 +38,7 @@ final class KeycloakRealmMigrationOperationPolicy {
           rule(
               "organization-readback",
               Set.of(HttpMethod.GET),
-              REALM
-                  + "/organizations\\?first=\\d+&max=\\d+&briefRepresentation=true"),
+              REALM + "/organizations/" + KeycloakFgapMigrationContract.ORGANIZATION_ID),
           rule(
               "fgap-policy-inventory",
               Set.of(HttpMethod.GET),
