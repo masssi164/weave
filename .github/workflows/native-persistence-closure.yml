@@ -70,6 +70,8 @@ jobs:
           test -s server/src/main/resources/db/migration/V4__relax_legacy_calendar_timezone_projection.sql
           test -s server/src/main/resources/db/migration/V5__matrix_shared_user_change_journal.sql
 
+          ! grep -R --line-number 'public\.' server/src/main/resources/db/migration
+
           # Production schema authority must remain Flyway-only and fail closed.
           ! grep -R --line-number -E 'baselineOnMigrate\(true\)|cleanDisabled\(false\)' server/src/main/java
           ! grep -R --line-number -E 'ddl-auto[=:][[:space:]]*(update|create|create-drop)' \

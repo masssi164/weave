@@ -2,7 +2,7 @@
 -- The current-state table weave_matrix_shared_users remains the latest projection;
 -- this journal is the replay/sync authority for changed/left transitions.
 
-CREATE TABLE public.weave_matrix_shared_user_changes (
+CREATE TABLE weave_matrix_shared_user_changes (
     tenant_id varchar(255) NOT NULL,
     user_id varchar(512) NOT NULL,
     device_id varchar(128) NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE public.weave_matrix_shared_user_changes (
 );
 
 CREATE INDEX weave_matrix_shared_user_changes_lookup_idx
-    ON public.weave_matrix_shared_user_changes (
+    ON weave_matrix_shared_user_changes (
         tenant_id,
         user_id,
         device_id,
