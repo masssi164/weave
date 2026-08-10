@@ -39,6 +39,19 @@ def _materialize_example(profile: str, destination: Path) -> Path:
     return destination
 
 
+def _materialize_dev_tools(destination: Path) -> Path:
+    value = (ROOT / "environments/dev.env").read_text(encoding="utf-8")
+    value = re.sub(
+        r"^COMPOSE_PROFILES=.*$",
+        "COMPOSE_PROFILES=dev,dev-tools",
+        value,
+        flags=re.MULTILINE,
+    )
+    destination.write_text(value, encoding="utf-8")
+    os.chmod(destination, 0o600)
+    return destination
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory() as temporary:
         temporary_root = Path(temporary)
@@ -67,6 +80,11 @@ def main() -> int:
             else:
                 os.environ["WEAVE_E2E_RUN_ID"] = previous_e2e_run_id
         dev = load_context("dev", ROOT)
+        dev_tools = load_context(
+            "dev",
+            ROOT,
+            str(_materialize_dev_tools(temporary_root / "dev-tools.env")),
+        )
         prod = load_context(
             "prod",
             ROOT,
@@ -78,9 +96,7 @@ def main() -> int:
     assert e2e.env["WEAVE_STACK_SCOPE"] == "isolated"
     assert dev.environment == "dev"
     assert prod.environment == "prod"
-
-    dev_tools = load_context("dev", ROOT)
-    dev_tools.active_profiles = ("dev", "dev-tools")
+    assert dev_tools.active_profiles == ("dev", "dev-tools")
     assert runtime_root_services(dev_tools) == ("keycloak", "mailpit")
 
     runtime_source = (ROOT / "scripts" / "compose_runtime.py").read_text(encoding="utf-8")
