@@ -107,6 +107,18 @@ class KeycloakFgapMigrationExecutorTest {
   }
 
   @Test
+  void rejectsAServiceAccountReturnedUnderTheWrongUsername() {
+    state.identityServiceAccountHasWrongUsername = true;
+
+    assertThatThrownBy(() -> executor().execute(bundle(), backupProof()))
+        .isInstanceOf(KeycloakRealmMigrationException.class)
+        .hasMessage("service-account-readback-mismatch");
+
+    assertThat(state.bootstrapPresent).isTrue();
+    assertThat(state.mutationCount).isZero();
+  }
+
+  @Test
   void rejectsAHiddenNonScopeDependentOfTheIdentityAdminPolicy() {
     state.seedPolicyAndUnexpectedResourcePermission();
 
@@ -183,6 +195,7 @@ class KeycloakFgapMigrationExecutorTest {
     private boolean bootstrapUsesUnexpectedAuthenticator;
     private boolean retainBootstrapInNegativeReadback;
     private boolean identityJwksContainsPrivateMaterial;
+    private boolean identityServiceAccountHasWrongUsername;
     private int mutationCount;
     private ObjectNode policy;
     private ObjectNode unexpectedDependent;
@@ -229,8 +242,8 @@ class KeycloakFgapMigrationExecutorTest {
                     BOOTSTRAP_USER,
                     "enabled",
                     true,
-                    "serviceAccountClientId",
-                    KeycloakFgapMigrationContract.MIGRATION_CLIENT_ID));
+                    "username",
+                    "service-account-" + KeycloakFgapMigrationContract.MIGRATION_CLIENT_ID));
           } else if (path.contains(IDENTITY_CLIENT)) {
             respond(
                 exchange,
@@ -240,8 +253,11 @@ class KeycloakFgapMigrationExecutorTest {
                     IDENTITY_USER,
                     "enabled",
                     true,
-                    "serviceAccountClientId",
-                    KeycloakFgapMigrationContract.IDENTITY_ADMIN_CLIENT_ID));
+                    "username",
+                    identityServiceAccountHasWrongUsername
+                        ? "service-account-wrong-client"
+                        : "service-account-"
+                            + KeycloakFgapMigrationContract.IDENTITY_ADMIN_CLIENT_ID));
           } else {
             respond(exchange, 404, object());
           }

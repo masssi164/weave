@@ -232,7 +232,7 @@ final class KeycloakFgapMigrationExecutor {
         transport.get(realmBase + "/clients/" + clientUuid + "/service-account-user");
     if (!account.isObject()
         || !account.path("enabled").asBoolean(false)
-        || !expectedClientId.equals(account.path("serviceAccountClientId").asString())) {
+        || !("service-account-" + expectedClientId).equals(account.path("username").asString())) {
       throw blocked("service-account-readback-mismatch");
     }
     requiredId(account, "service-account-readback-mismatch");
