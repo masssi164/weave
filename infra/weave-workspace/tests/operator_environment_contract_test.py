@@ -79,8 +79,8 @@ def main() -> int:
     assert dev.environment == "dev"
     assert prod.environment == "prod"
 
-    dev_tools = load_context("dev", ROOT, extra_profiles=("dev-tools",))
-    assert dev_tools.active_profiles == ("dev", "dev-tools")
+    dev_tools = load_context("dev", ROOT)
+    dev_tools.active_profiles = ("dev", "dev-tools")
     assert runtime_root_services(dev_tools) == ("keycloak", "mailpit")
 
     runtime_source = (ROOT / "scripts" / "compose_runtime.py").read_text(encoding="utf-8")
@@ -107,7 +107,6 @@ def main() -> int:
         assert "./operator-check.sh test" not in workflow
         assert "./install.sh test" not in workflow
 
-    # Backend owns persistence configuration; MCP intentionally does not.
     backend_resources = repository / "server/src/main/resources"
     mcp_resources = repository / "weave-mcp-server/src/main/resources"
     for environment in ("dogfood", "e2e"):
