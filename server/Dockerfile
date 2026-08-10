@@ -3,6 +3,8 @@ WORKDIR /source
 COPY Cargo.toml Cargo.lock ./
 COPY rust/matrix-protocol/Cargo.toml rust/matrix-protocol/Cargo.toml
 COPY rust/matrix-protocol/src rust/matrix-protocol/src
+COPY rust/matrix-client/Cargo.toml rust/matrix-client/Cargo.toml
+COPY rust/matrix-client/src rust/matrix-client/src
 COPY rust/vendor rust/vendor
 RUN cargo build --release -p weave-matrix-protocol --features jni
 

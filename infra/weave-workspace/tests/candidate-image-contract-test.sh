@@ -46,6 +46,15 @@ for image in "${SERVER_IMAGE}" "${MCP_IMAGE}" "${KEYCLOAK_RUNTIME_IMAGE}"; do
 done
 
 contains "${SERVER_IMAGE}" 'USER 10001:10001'
+contains "${SERVER_IMAGE}" 'COPY rust/matrix-protocol/Cargo.toml rust/matrix-protocol/Cargo.toml'
+contains "${SERVER_IMAGE}" 'COPY rust/matrix-protocol/src rust/matrix-protocol/src'
+contains "${SERVER_IMAGE}" 'COPY rust/matrix-client/Cargo.toml rust/matrix-client/Cargo.toml'
+contains "${SERVER_IMAGE}" 'COPY rust/matrix-client/src rust/matrix-client/src'
+contains "${SERVER_IMAGE}" 'cargo build --release -p weave-matrix-protocol --features jni'
+contains "${SERVER_IMAGE}" 'libweave_matrix_protocol.so'
+contains "${SERVER_IMAGE}" 'WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH'
+reject "${SERVER_IMAGE}" 'weave-matrix-core'
+reject "${SERVER_IMAGE}" 'libweave_matrix_core.so'
 contains "${MCP_IMAGE}" 'USER 10001:10001'
 contains "${KEYCLOAK_RUNTIME_IMAGE}" 'USER 1000:0'
 contains "${KEYCLOAK_RUNTIME_IMAGE}" 'keycloak-services-26.7.1.jar'
