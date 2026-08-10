@@ -149,7 +149,7 @@ def main() -> int:
         "workflow-level recovery must teardown and prove the exact isolated namespace absent",
     )
     for marker in (
-        '"weave.test-app-product-flow/v1"',
+        '"weave.test-app-product-flow/v2"',
         '"keycloak-required-actions-real-chromium"',
         '"authorization_code_pkce_s256"',
         '"client_credentials_private_key_jwt"',
@@ -158,7 +158,10 @@ def main() -> int:
         ".actionLinksIncluded == false",
         ".supportSafe == true",
         ".collaboration.repeatCount == 2",
-        ".directSynapseVerified == true",
+        '.selectedProviders == {"chat":"weave-native","files":"weave-native","calendar":"weave-native"}',
+        ".nativePersistenceVerified == true",
+        ".idempotencyVerified == true",
+        ".southboundProviderDependencyObserved == false",
         "human_testing_automated_evidence.py live",
         '--runtime-image-evidence "$WEAVE_LIVE_UPLOAD_ROOT/runtime-image-evidence.json"',
     ):

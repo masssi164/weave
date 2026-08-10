@@ -14,46 +14,31 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.files.port.ObjectStoragePort;
+import com.massimotter.weave.backend.files.port.ObjectStoragePort.ObjectEntry;
+import com.massimotter.weave.backend.files.port.ObjectStoragePort.ObjectMetadata;
+import com.massimotter.weave.backend.files.port.ObjectStoragePort.ObjectStorageException;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
-import java.net.URI;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.ResponseBytes;
-import software.amazon.awssdk.core.exception.SdkClientException;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3Configuration;
-import software.amazon.awssdk.services.s3.model.CommonPrefix;
-import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
-import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
-import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
-import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.S3Exception;
-import software.amazon.awssdk.services.s3.model.S3Object;
 
+/**
+ * Separate S3 Files Provider Adapter.
+ *
+ * <p>S3 remains a provider choice behind {@link FilesProviderPort}. Object-storage access is delegated
+ * to {@link ObjectStoragePort}; the default infrastructure implementation uses OpenDAL's S3 service.</p>
+ */
 @Component
 @Primary
 @ConditionalOnProperty(name = "weave.files.s3.enabled", havingValue = "true")
@@ -63,20 +48,16 @@ public class WeaveS3FilesAdapter implements FilesProviderPort {
     private static final String COLLECTION_MARKER = ".weave-collection";
 
     private final WeaveS3FilesProperties properties;
-    private final S3Client client;
+    private final ObjectStoragePort storage;
 
-    public WeaveS3FilesAdapter(WeaveS3FilesProperties properties) {
-        this(properties, client(properties));
-    }
-
-    WeaveS3FilesAdapter(WeaveS3FilesProperties properties, S3Client client) {
+    public WeaveS3FilesAdapter(WeaveS3FilesProperties properties, ObjectStoragePort storage) {
         this.properties = java.util.Objects.requireNonNull(properties, "properties must not be null");
-        this.client = java.util.Objects.requireNonNull(client, "client must not be null");
+        this.storage = java.util.Objects.requireNonNull(storage, "storage must not be null");
     }
 
     @Override
     public boolean configured() {
-        return properties.configured();
+        return properties.configured() && storage.configured();
     }
 
     @Override
@@ -85,9 +66,9 @@ public class WeaveS3FilesAdapter implements FilesProviderPort {
             return ProviderReadiness.degraded("files-s3-not-configured");
         }
         try {
-            client.headBucket(HeadBucketRequest.builder().bucket(properties.getBucket()).build());
+            storage.check();
             return ProviderReadiness.ready("files-s3-ready");
-        } catch (RuntimeException exception) {
+        } catch (ObjectStorageException exception) {
             return ProviderReadiness.degraded("files-s3-unavailable");
         }
     }
@@ -115,35 +96,39 @@ public class WeaveS3FilesAdapter implements FilesProviderPort {
         ensureConfigured();
         String prefix = prefix(path);
         try {
-            ListObjectsV2Response response = client.listObjectsV2(ListObjectsV2Request.builder()
-                    .bucket(properties.getBucket()).prefix(prefix).delimiter("/").build());
-            List<FileObject> children = new ArrayList<>();
+            Map<FilePath, FileObject> children = new LinkedHashMap<>();
             Map<FilePath, FileVersion> versions = new LinkedHashMap<>();
-            for (CommonPrefix child : response.commonPrefixes()) {
-                FilePath childPath = pathFromKey(trimTrailingSlash(child.prefix()));
-                FileObject object = object(childPath, Kind.COLLECTION, 0, null, null);
-                children.add(object);
-                versions.put(childPath, FileVersion.unknown());
-            }
-            for (S3Object stored : response.contents()) {
-                if (stored.key().equals(prefix) || stored.key().endsWith("/" + COLLECTION_MARKER)) {
+            for (ObjectEntry entry : storage.list(prefix)) {
+                if (!entry.key().startsWith(prefix)) {
                     continue;
                 }
-                FilePath childPath = pathFromKey(stored.key());
-                if (!parent(childPath).equals(path.value())) {
+                String relative = entry.key().substring(prefix.length());
+                if (relative.isBlank() || COLLECTION_MARKER.equals(relative)) {
                     continue;
                 }
-                FileObject object = object(childPath, Kind.FILE, stored.size(), null, stored.lastModified());
-                children.add(object);
-                versions.put(childPath, version(stored.eTag()));
+                int separator = relative.indexOf('/');
+                if (separator >= 0) {
+                    String segment = relative.substring(0, separator);
+                    if (segment.isBlank()) {
+                        continue;
+                    }
+                    FilePath childPath = child(path, segment);
+                    children.putIfAbsent(childPath, object(childPath, Kind.COLLECTION, 0, null, null));
+                    versions.putIfAbsent(childPath, FileVersion.unknown());
+                    continue;
+                }
+                FilePath childPath = pathFromKey(entry.key());
+                ObjectMetadata metadata = entry.metadata();
+                children.put(childPath, object(childPath, Kind.FILE,
+                        metadata.size(), metadata.contentType(), metadata.modifiedAt()));
+                versions.put(childPath, version(metadata.version()));
             }
-            FileObject collection = object(path, Kind.COLLECTION, 0, null, null);
             return new VersionedListing(
-                    new FileListing(path, children, FileQuota.unknown()), FileVersion.unknown(), versions);
-        } catch (S3Exception exception) {
+                    new FileListing(path, List.copyOf(children.values()), FileQuota.unknown()),
+                    FileVersion.unknown(),
+                    Map.copyOf(versions));
+        } catch (ObjectStorageException exception) {
             throw mapped(exception, "list-files");
-        } catch (SdkClientException exception) {
-            throw unavailable("list-files");
         }
     }
 
@@ -151,45 +136,29 @@ public class WeaveS3FilesAdapter implements FilesProviderPort {
     public Optional<VersionedFile> find(FilePath path) {
         ensureConfigured();
         if (path.root()) {
-            return Optional.of(new VersionedFile(object(path, Kind.COLLECTION, 0, null, null), FileVersion.unknown()));
+            return Optional.of(new VersionedFile(
+                    object(path, Kind.COLLECTION, 0, null, null), FileVersion.unknown()));
         }
         try {
-            HeadObjectResponse head = client.headObject(HeadObjectRequest.builder()
-                    .bucket(properties.getBucket()).key(key(path)).build());
-            return Optional.of(new VersionedFile(
-                    object(path, Kind.FILE, head.contentLength(), head.contentType(), head.lastModified()),
-                    version(head.eTag())));
-        } catch (NoSuchKeyException exception) {
-            return findCollection(path);
-        } catch (S3Exception exception) {
-            if (exception.statusCode() == 404) {
-                return findCollection(path);
+            Optional<ObjectMetadata> file = storage.stat(key(path));
+            if (file.isPresent()) {
+                ObjectMetadata metadata = file.get();
+                return Optional.of(new VersionedFile(
+                        object(path, Kind.FILE, metadata.size(), metadata.contentType(), metadata.modifiedAt()),
+                        version(metadata.version())));
             }
+            return findCollection(path);
+        } catch (ObjectStorageException exception) {
             throw mapped(exception, "find-file");
-        } catch (SdkClientException exception) {
-            throw unavailable("find-file");
         }
     }
 
     private Optional<VersionedFile> findCollection(FilePath path) {
-        try {
-            client.headObject(HeadObjectRequest.builder()
-                    .bucket(properties.getBucket()).key(collectionMarker(path)).build());
+        if (storage.stat(collectionMarker(path)).isPresent() || !storage.list(prefix(path)).isEmpty()) {
             return Optional.of(new VersionedFile(
                     object(path, Kind.COLLECTION, 0, null, null), FileVersion.unknown()));
-        } catch (S3Exception exception) {
-            if (exception.statusCode() == 404) {
-                ListObjectsV2Response listing = client.listObjectsV2(ListObjectsV2Request.builder()
-                        .bucket(properties.getBucket()).prefix(prefix(path)).maxKeys(1).build());
-                return listing.keyCount() > 0
-                        ? Optional.of(new VersionedFile(
-                                object(path, Kind.COLLECTION, 0, null, null), FileVersion.unknown()))
-                        : Optional.empty();
-            }
-            throw mapped(exception, "find-collection");
-        } catch (SdkClientException exception) {
-            throw unavailable("find-collection");
         }
+        return Optional.empty();
     }
 
     @Override
@@ -197,16 +166,13 @@ public class WeaveS3FilesAdapter implements FilesProviderPort {
         ensureConfigured();
         FilePath path = new FilePath(FilePathCodec.pathFromId(id.value()));
         try {
-            ResponseBytes<GetObjectResponse> bytes = client.getObjectAsBytes(GetObjectRequest.builder()
-                    .bucket(properties.getBucket()).key(key(path)).build());
-            GetObjectResponse response = bytes.response();
+            ObjectMetadata metadata = storage.stat(key(path)).orElseThrow(() -> notFound("read-file"));
+            byte[] bytes = storage.read(key(path));
             return new FileContent(
-                    object(path, Kind.FILE, bytes.asByteArray().length, response.contentType(), response.lastModified()),
-                    bytes.asByteArray());
-        } catch (S3Exception exception) {
+                    object(path, Kind.FILE, bytes.length, metadata.contentType(), metadata.modifiedAt()),
+                    bytes);
+        } catch (ObjectStorageException exception) {
             throw mapped(exception, "read-file");
-        } catch (SdkClientException exception) {
-            throw unavailable("read-file");
         }
     }
 
@@ -214,15 +180,11 @@ public class WeaveS3FilesAdapter implements FilesProviderPort {
     public FileObject write(FileWrite write) {
         ensureConfigured();
         try {
-            client.putObject(PutObjectRequest.builder()
-                            .bucket(properties.getBucket()).key(key(write.path())).contentType(write.mediaType()).build(),
-                    RequestBody.fromBytes(write.bytes()));
+            storage.write(key(write.path()), write.bytes(), write.mediaType());
             return find(write.path()).map(VersionedFile::item).orElseGet(() -> object(
                     write.path(), Kind.FILE, write.bytes().length, write.mediaType(), Instant.now()));
-        } catch (S3Exception exception) {
+        } catch (ObjectStorageException exception) {
             throw mapped(exception, "write-file");
-        } catch (SdkClientException exception) {
-            throw unavailable("write-file");
         }
     }
 
@@ -230,15 +192,10 @@ public class WeaveS3FilesAdapter implements FilesProviderPort {
     public FileObject createCollection(FilePath path) {
         ensureConfigured();
         try {
-            client.putObject(PutObjectRequest.builder()
-                            .bucket(properties.getBucket()).key(collectionMarker(path))
-                            .contentType("application/x-weave-collection").build(),
-                    RequestBody.empty());
+            storage.write(collectionMarker(path), new byte[0], "application/x-weave-collection");
             return object(path, Kind.COLLECTION, 0, null, Instant.now());
-        } catch (S3Exception exception) {
+        } catch (ObjectStorageException exception) {
             throw mapped(exception, "create-collection");
-        } catch (SdkClientException exception) {
-            throw unavailable("create-collection");
         }
     }
 
@@ -246,38 +203,34 @@ public class WeaveS3FilesAdapter implements FilesProviderPort {
     public FileObject copy(FilePath source, FilePath destination, boolean overwrite) {
         ensureConfigured();
         try {
-            return copyInternal(source, destination, overwrite);
-        } catch (S3Exception exception) {
+            VersionedFile sourceObject = find(source).orElseThrow(() -> notFound("copy-file"));
+            if (!overwrite && find(destination).isPresent()) {
+                throw conflict("copy-file");
+            }
+            if (sourceObject.item().kind() == Kind.COLLECTION) {
+                copyCollection(source, destination);
+                return object(destination, Kind.COLLECTION, 0, null, Instant.now());
+            }
+            storage.copy(key(source), key(destination));
+            return find(destination).map(VersionedFile::item).orElseGet(() -> object(
+                    destination, Kind.FILE, sourceObject.item().size(), sourceObject.item().mediaType(), Instant.now()));
+        } catch (ObjectStorageException exception) {
             throw mapped(exception, "copy-file");
-        } catch (SdkClientException exception) {
-            throw unavailable("copy-file");
         }
-    }
-
-    private FileObject copyInternal(FilePath source, FilePath destination, boolean overwrite) {
-        VersionedFile sourceObject = find(source).orElseThrow(() -> notFound("copy-file"));
-        if (!overwrite && find(destination).isPresent()) {
-            throw conflict("copy-file");
-        }
-        if (sourceObject.item().kind() == Kind.COLLECTION) {
-            copyCollection(source, destination);
-            return object(destination, Kind.COLLECTION, 0, null, Instant.now());
-        }
-        client.copyObject(CopyObjectRequest.builder()
-                .destinationBucket(properties.getBucket()).destinationKey(key(destination))
-                .sourceBucket(properties.getBucket()).sourceKey(key(source)).build());
-        return find(destination).map(VersionedFile::item).orElseGet(() -> object(
-                destination, Kind.FILE, sourceObject.item().size(), sourceObject.item().mediaType(), Instant.now()));
     }
 
     private void copyCollection(FilePath source, FilePath destination) {
         createCollection(destination);
         String sourcePrefix = prefix(source);
-        for (S3Object stored : all(sourcePrefix)) {
-            String suffix = stored.key().substring(sourcePrefix.length());
-            client.copyObject(CopyObjectRequest.builder()
-                    .destinationBucket(properties.getBucket()).destinationKey(prefix(destination) + suffix)
-                    .sourceBucket(properties.getBucket()).sourceKey(stored.key()).build());
+        for (ObjectEntry entry : storage.list(sourcePrefix)) {
+            if (!entry.key().startsWith(sourcePrefix)) {
+                continue;
+            }
+            String suffix = entry.key().substring(sourcePrefix.length());
+            if (suffix.isBlank() || COLLECTION_MARKER.equals(suffix)) {
+                continue;
+            }
+            storage.copy(entry.key(), prefix(destination) + suffix);
         }
     }
 
@@ -292,39 +245,18 @@ public class WeaveS3FilesAdapter implements FilesProviderPort {
     public void delete(FilePath path, FileVersion expectedVersion) {
         ensureConfigured();
         try {
-            deleteInternal(path);
-        } catch (S3Exception exception) {
-            throw mapped(exception, "delete-file");
-        } catch (SdkClientException exception) {
-            throw unavailable("delete-file");
-        }
-    }
-
-    private void deleteInternal(FilePath path) {
-        VersionedFile current = find(path).orElseThrow(() -> notFound("delete-file"));
-        if (current.item().kind() == Kind.COLLECTION) {
-            for (S3Object stored : all(prefix(path))) {
-                client.deleteObject(DeleteObjectRequest.builder()
-                        .bucket(properties.getBucket()).key(stored.key()).build());
+            VersionedFile current = find(path).orElseThrow(() -> notFound("delete-file"));
+            if (current.item().kind() == Kind.COLLECTION) {
+                for (ObjectEntry entry : storage.list(prefix(path))) {
+                    storage.delete(entry.key());
+                }
+                storage.delete(collectionMarker(path));
+                return;
             }
-            client.deleteObject(DeleteObjectRequest.builder()
-                    .bucket(properties.getBucket()).key(collectionMarker(path)).build());
-            return;
+            storage.delete(key(path));
+        } catch (ObjectStorageException exception) {
+            throw mapped(exception, "delete-file");
         }
-        client.deleteObject(DeleteObjectRequest.builder()
-                .bucket(properties.getBucket()).key(key(path)).build());
-    }
-
-    private List<S3Object> all(String prefix) {
-        List<S3Object> result = new ArrayList<>();
-        String continuation = null;
-        do {
-            ListObjectsV2Response page = client.listObjectsV2(ListObjectsV2Request.builder()
-                    .bucket(properties.getBucket()).prefix(prefix).continuationToken(continuation).build());
-            result.addAll(page.contents());
-            continuation = page.isTruncated() ? page.nextContinuationToken() : null;
-        } while (continuation != null);
-        return result;
     }
 
     private void ensureConfigured() {
@@ -334,16 +266,15 @@ public class WeaveS3FilesAdapter implements FilesProviderPort {
         }
     }
 
-    private ApiErrorException mapped(S3Exception exception, String operation) {
-        if (exception.statusCode() == 404) {
-            return notFound(operation);
-        }
-        if (exception.statusCode() == 409 || exception.statusCode() == 412) {
-            return conflict(operation);
-        }
-        return new ApiErrorException(HttpStatus.SERVICE_UNAVAILABLE, "files-s3-unavailable",
-                "The Weave S3 Files adapter is temporarily unavailable.",
-                Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+    private ApiErrorException mapped(ObjectStorageException exception, String operation) {
+        return switch (exception.code()) {
+            case NOT_FOUND -> notFound(operation);
+            case CONFLICT -> conflict(operation);
+            case FORBIDDEN -> new ApiErrorException(HttpStatus.FORBIDDEN, "files-s3-forbidden",
+                    "The Weave S3 Files provider denied the operation.",
+                    Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+            case UNAVAILABLE -> unavailable(operation);
+        };
     }
 
     private ApiErrorException unavailable(String operation) {
@@ -368,8 +299,8 @@ public class WeaveS3FilesAdapter implements FilesProviderPort {
                 kind == Kind.COLLECTION ? null : mediaType, modifiedAt, false);
     }
 
-    private FileVersion version(String etag) {
-        return etag == null || etag.isBlank() ? FileVersion.unknown() : new FileVersion(etag);
+    private FileVersion version(String value) {
+        return value == null || value.isBlank() ? FileVersion.unknown() : new FileVersion(value);
     }
 
     private String key(FilePath path) {
@@ -388,26 +319,7 @@ public class WeaveS3FilesAdapter implements FilesProviderPort {
         return new FilePath("/" + key);
     }
 
-    private String trimTrailingSlash(String value) {
-        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
-    }
-
-    private String parent(FilePath path) {
-        int separator = path.value().lastIndexOf('/');
-        return separator <= 0 ? "/" : path.value().substring(0, separator);
-    }
-
-    private static S3Client client(WeaveS3FilesProperties properties) {
-        URI endpoint = properties.getEndpoint() == null ? URI.create("http://127.0.0.1") : properties.getEndpoint();
-        return S3Client.builder()
-                .endpointOverride(endpoint)
-                .region(Region.of(properties.getRegion()))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(
-                                java.util.Objects.requireNonNullElse(properties.getAccessKey(), "not-configured"),
-                                java.util.Objects.requireNonNullElse(properties.getSecretKey(), "not-configured"))))
-                .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(properties.isPathStyle()).build())
-                .httpClientBuilder(UrlConnectionHttpClient.builder())
-                .build();
+    private FilePath child(FilePath parent, String segment) {
+        return parent.root() ? new FilePath("/" + segment) : new FilePath(parent.value() + "/" + segment);
     }
 }

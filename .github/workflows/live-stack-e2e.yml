@@ -378,7 +378,7 @@ jobs:
             --arg lane "$WEAVE_CANDIDATE_COMMIT" \
             --arg spec "${{ steps.spec.outputs.commit }}" \
             --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" '
-            .schemaVersion == "weave.test-app-product-flow/v1" and
+            .schemaVersion == "weave.test-app-product-flow/v2" and
             .candidateCommit == $lane and
             .sourceCandidateCommit == env.WEAVE_IMAGE_SOURCE_COMMIT and
             .specificationCommit == $spec and
@@ -397,6 +397,9 @@ jobs:
             .sameHumanSubjectAfterRegrant == true and
             .samePersonRefAfterRegrant == true and
             .collaboration.repeatCount == 2 and
+            .collaboration.selectedProviders == {"chat":"weave-native","files":"weave-native","calendar":"weave-native"} and
+            .collaboration.northboundFacades == {"matrix":true,"webdav":true,"caldav":true} and
+            .collaboration.southboundProviderDependencyObserved == false and
             (.collaboration.identityRefHashes | keys | sort) == ["author", "collaborator", "outsider"] and
             (.collaboration.passes | length) == 2 and
             .collaboration.passes[0].pass == 1 and
@@ -412,9 +415,9 @@ jobs:
               .profilePassed == true and
               .outsiderDenied == true and
               .canonicalJpaVerified == true and
-              .directSynapseVerified == true and
-              .providerOutageExactlyOnceVerified == true and
-              .callbackReplayVerified == true and
+              .nativePersistenceVerified == true and
+              .idempotencyVerified == true and
+              .southboundProviderDependencyObserved == false and
               .cleanupComplete == true) and
             .credentialsIncluded == false and
             .actionLinksIncluded == false and

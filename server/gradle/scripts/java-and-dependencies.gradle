@@ -1,3 +1,13 @@
+def weaveOpenDalClassifier = System.getenv('WEAVE_OPENDAL_CLASSIFIER') ?: {
+    def os = System.getProperty('os.name').toLowerCase(java.util.Locale.ROOT)
+    def arch = System.getProperty('os.arch').toLowerCase(java.util.Locale.ROOT)
+    def arm = arch in ['aarch64', 'arm64']
+    if (os.contains('mac') || os.contains('darwin')) return arm ? 'osx-aarch_64' : 'osx-x86_64'
+    if (os.contains('win')) return 'windows-x86_64'
+    if (os.contains('linux')) return arm ? 'linux-aarch_64' : 'linux-x86_64'
+    throw new GradleException("Unsupported OpenDAL native platform: ${os}/${arch}; set WEAVE_OPENDAL_CLASSIFIER explicitly")
+}.call()
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -15,10 +25,16 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation libs.springdoc.webmvc.api
     implementation libs.jcs
-    implementation(libs.aws.s3) {
-        exclude group: 'software.amazon.awssdk', module: 'apache-client'
-    }
+    implementation libs.ical4j
+    implementation libs.flyway.core
+    implementation libs.flyway.postgresql
+    implementation libs.opendal
+    runtimeOnly "org.apache.opendal:opendal:${libs.versions.opendal.get()}:${weaveOpenDalClassifier}"
+
+    // Separate southbound S3 provider / ARC object-store support. This is not part of weave-native Files.
+    implementation libs.aws.s3
     implementation libs.aws.url.connection.client
+
     implementation project(':weave-application-core')
     implementation project(':weave-files-core')
     implementation project(':weave-persistence-jpa')

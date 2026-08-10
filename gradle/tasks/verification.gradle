@@ -2,7 +2,7 @@ registerRootCommandTask('acceptanceContract', ['bash', '-lc', 'cd client && dart
 registerRootCommandTask('e2eStructureCheck', ['python3', 'tools/e2e_structure_check.py'], 'Validate the professional E2E suite catalog covers every mapped scenario by suite, persona, domain, and evidence lane.')
 registerRootCommandTask('filesWebDavFacadeAcceptanceCheck', ['python3', 'tools/files_webdav_facade_acceptance_check.py'], 'Verify the Files WebDAV facade Cucumber scenarios against deterministic implementation evidence.')
 registerRootCommandTask('enterpriseTargetArchitectureSpineCheck', ['python3', 'tools/enterprise_target_architecture_spine_check.py'], 'Validate the Enterprise Target Architecture E2E evidence spine.')
-registerRootCommandTask('matrixRustCoreTest', ['cargo', 'test', '-p', 'weave-matrix-core', '--all-features'], 'Run the shared Rust/Ruma Matrix core contract tests, including JNI and Flutter bridge features.')
+registerRootCommandTask('matrixRustCoreTest', ['bash', '-lc', 'cargo test -p weave-matrix-protocol --all-features && cargo test -p weave-matrix-client --all-features'], 'Run isolated server Matrix protocol/JNI and client Matrix crypto/Flutter Rust tests.')
 registerRootCommandTask('matrixSdkVendorProvenanceCheck', ['bash', '-lc', 'python3 tools/matrix_sdk_vendor_provenance_test.py && python3 tools/matrix_sdk_vendor_provenance.py'], 'Verify the vendored Matrix SDK crypto crate checksum and narrow Weave patch allowlist.')
 registerRootCommandTask('synapseCompatibilityProbeTest', ['python3', 'tools/synapse_compatibility_probe_test.py'], 'Validate support-safe pinned/candidate Synapse compatibility probe semantics without starting containers.')
 tasks.named('matrixRustCoreTest') {

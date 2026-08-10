@@ -42,7 +42,7 @@ tasks.named('test') {
     useJUnitPlatform {
         excludeTags 'postgres'
     }
-    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
+    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
 }
 
 tasks.register('openApiContractExport', Test) {
@@ -52,7 +52,7 @@ tasks.register('openApiContractExport', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     maxParallelForks = 1
-    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
+    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
     systemProperty 'weave.openapi.export.path', rootProject.layout.buildDirectory
             .file('openapi/weave-openapi.raw.json')
             .get()
@@ -72,7 +72,7 @@ tasks.register('postgresJpaTest', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     maxParallelForks = 1
-    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
+    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
     systemProperty 'weave.test.postgres', 'true'
     filter {
         includeTestsMatching '*PostgresJpaSchemaValidationTest'

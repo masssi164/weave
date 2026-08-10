@@ -55,12 +55,12 @@ def pass_proof(index: int) -> dict[str, object]:
         "profilePassed": True,
         "outsiderDenied": True,
         "canonicalJpaVerified": True,
-        "directSynapseVerified": True,
-        "providerOutageExactlyOnceVerified": True,
+        "nativePersistenceVerified": True,
+        "idempotencyVerified": True,
+        "southboundProviderDependencyObserved": False,
         "restartContinuityVerified": index == 2,
-        "callbackReplayVerified": True,
         "cleanupComplete": True,
-        "providerCorrelationHash": "sha256:" + str(index) * 64,
+        "nativeRevisionHash": "sha256:" + str(index) * 64,
     }
 
 
@@ -92,7 +92,7 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
             ).encode("utf-8")
         ).hexdigest()
         self.product = {
-            "schemaVersion": "weave.test-app-product-flow/v1",
+            "schemaVersion": "weave.test-app-product-flow/v2",
             "supportSafe": True,
             "candidateCommit": LANE,
             "sourceCandidateCommit": SOURCE,
@@ -115,6 +115,9 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
             "actionLinksIncluded": False,
             "collaboration": {
                 "repeatCount": 2,
+                "selectedProviders": {"chat": "weave-native", "files": "weave-native", "calendar": "weave-native"},
+                "northboundFacades": {"matrix": True, "webdav": True, "caldav": True},
+                "southboundProviderDependencyObserved": False,
                 "identityRefHashes": HASHES,
                 "passes": [pass_proof(1), pass_proof(2)],
             },
@@ -277,10 +280,10 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
 
     def test_rejects_a_failed_live_provider_fact(self) -> None:
         product = copy.deepcopy(self.product)
-        product["collaboration"]["passes"][1]["directSynapseVerified"] = False
+        product["collaboration"]["passes"][1]["nativePersistenceVerified"] = False
         completed = self.live(product)
         self.assertEqual(completed.returncode, 2)
-        self.assertIn("directSynapseVerified", completed.stderr)
+        self.assertIn("nativePersistenceVerified", completed.stderr)
 
     def test_rejects_unverified_or_mismatched_runtime_realm_evidence(self) -> None:
         runtime = copy.deepcopy(self.runtime)
@@ -342,10 +345,10 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
         self.assertIn("candidate manifest digest", completed.stderr)
 
         product = copy.deepcopy(self.product)
-        product["collaboration"]["passes"][0]["providerOutageExactlyOnceVerified"] = False
+        product["collaboration"]["passes"][0]["southboundProviderDependencyObserved"] = True
         completed = self.live(product)
         self.assertEqual(completed.returncode, 2)
-        self.assertIn("providerOutageExactlyOnceVerified", completed.stderr)
+        self.assertIn("southbound provider dependency", completed.stderr)
 
     def test_rejects_incomplete_or_unbounded_teardown_evidence(self) -> None:
         self.teardown["remainingContainerCount"] = 1

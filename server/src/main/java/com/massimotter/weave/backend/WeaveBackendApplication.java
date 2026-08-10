@@ -2,23 +2,23 @@ package com.massimotter.weave.backend;
 
 import com.massimotter.weave.backend.agentruntime.operator.RuntimeProfileSigningKeyCli;
 import com.massimotter.weave.backend.agentruntime.operator.RuntimeStateWrappingKeyCli;
-import com.massimotter.weave.backend.config.CalendarCalDavProperties;
 import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
+import com.massimotter.weave.backend.config.CalendarCalDavProperties;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import com.massimotter.weave.backend.config.ConnectorRuntimeProperties;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.FilesRuntimeProperties;
 import com.massimotter.weave.backend.config.GuestAccessProperties;
-import com.massimotter.weave.backend.config.InteropGatewayProperties;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
+import com.massimotter.weave.backend.config.InteropGatewayProperties;
 import com.massimotter.weave.backend.config.LiveKitSfuProviderProperties;
 import com.massimotter.weave.backend.config.MatrixChatProperties;
 import com.massimotter.weave.backend.config.MigrationToolkitProperties;
 import com.massimotter.weave.backend.config.NextcloudFilesProperties;
 import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.ProviderHealthProperties;
-import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
+import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.identity.migration.KeycloakRealmMigrationCli;
 import com.massimotter.weave.backend.identity.migration.KeycloakRealmMigrationReceiptVerifierCli;
@@ -30,6 +30,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+/** Product runtime. Flyway is the sole schema authority; Hibernate validates the migrated schema. */
 @SpringBootApplication
 @EnableScheduling
 @EnableConfigurationProperties({

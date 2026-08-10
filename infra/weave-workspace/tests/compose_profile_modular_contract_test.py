@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +16,7 @@ REPOSITORY_ROOT = ROOT.parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from compose_env import ContractError, load_context  # noqa: E402
+import compose_runtime as compose_runtime_module  # noqa: E402
 from render_config import _reset_provider_configtree  # noqa: E402
 from rendering.gateway import _site, render_caddy  # noqa: E402
 from rendering.keycloak import _desired, _image_digest, _overlay  # noqa: E402
@@ -58,6 +61,61 @@ def assert_spring_profile_contract(profile: str) -> None:
     assert "issuer-uri:" in mcp
     assert "datasource:" not in mcp
     assert "jpa:" not in mcp
+
+
+def assert_native_collaboration_restart_is_bounded(context) -> None:
+    original_snapshot = compose_runtime_module._service_snapshot
+    original_compose = compose_runtime_module._bounded_collaboration_compose
+    original_healthy = compose_runtime_module._await_healthy
+    deadlines: list[float] = []
+
+    def snapshot(_context, service, *, include_stopped=False, deadline=None):
+        del include_stopped
+        assert service in {"postgres", "backend"}
+        assert deadline is not None
+        deadlines.append(deadline)
+        return {
+            "containerId": "a" * 64 if service == "postgres" else "b" * 64,
+            "startedAt": "before",
+            "restartCount": 0,
+            "running": True,
+            "health": "healthy",
+        }
+
+    def bounded_compose(_context, deadline, *arguments, capture=False):
+        del capture
+        assert arguments[0] == "restart"
+        deadlines.append(deadline)
+        return subprocess.CompletedProcess(arguments, 0)
+
+    def healthy(_context, service, deadline=None):
+        assert deadline is not None
+        deadlines.append(deadline)
+        return {
+            "containerId": "a" * 64 if service == "postgres" else "b" * 64,
+            "startedAt": "after",
+            "restartCount": 1,
+            "running": True,
+            "health": "healthy",
+        }
+
+    compose_runtime_module._service_snapshot = snapshot
+    compose_runtime_module._bounded_collaboration_compose = bounded_compose
+    compose_runtime_module._await_healthy = healthy
+    try:
+        compose_runtime_module.isolated_collaboration_control(
+            context, "restart-collaboration"
+        )
+    finally:
+        compose_runtime_module._service_snapshot = original_snapshot
+        compose_runtime_module._bounded_collaboration_compose = original_compose
+        compose_runtime_module._await_healthy = original_healthy
+    assert len(deadlines) == 6
+    assert len(set(deadlines)) == 1
+    assert time.monotonic() < deadlines[0] <= (
+        time.monotonic()
+        + compose_runtime_module.COLLABORATION_CONTROL_BUDGET_SECONDS
+    )
 
 
 def main() -> int:
@@ -186,6 +244,7 @@ def main() -> int:
             )
             assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
             assert _image_digest(isolated) == "sha256:" + "b" * 64
+            assert_native_collaboration_restart_is_bounded(isolated)
         finally:
             for key, value in previous.items():
                 if value is None:

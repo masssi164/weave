@@ -26,8 +26,8 @@ public final class ProviderCapabilityContracts {
                     "chat replacement requires preflight, dry-run, membership/history/attachment loss report, and rollback/retention note")),
             Map.entry("files", new Definition(
                     List.of("files.read", "files.upload", "files.download", "files.delete"),
-                    List.of("nextcloud-files"),
-                    List.of("sharepoint", "onedrive", "s3-compatible", "smb"),
+                    List.of("weave-native"),
+                    List.of("nextcloud-files", "sharepoint", "onedrive", "s3-compatible", "smb"),
                     List.of("WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef"),
                     "selected storage provider owns file bytes and native permissions; Weave owns canonical references and member impact states",
                     List.of("public links", "provider-specific shares", "version history", "locks", "external users", "storage quotas"),

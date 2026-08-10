@@ -3,344 +3,286 @@ package com.massimotter.weave.backend.service.files;
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
+import jakarta.annotation.PreDestroy;
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.channels.FileChannel;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.apache.opendal.AsyncOperator;
+import org.apache.opendal.Entry;
+import org.apache.opendal.ListOptions;
+import org.apache.opendal.OpenDALException;
+import org.apache.opendal.Operator;
+import org.apache.opendal.layer.ConcurrentLimitLayer;
+import org.apache.opendal.layer.RetryLayer;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
-/** Private, atomic filesystem storage whose paths are derived only from digests and opaque refs. */
+/** OpenDAL-backed filesystem Infrastructure Adapter for weave-native immutable blobs. */
 @Component
 @Primary
-@ConditionalOnProperty(
-        name = "weave.files.native.blob-store",
-        havingValue = WeaveNativeFilesProperties.FILESYSTEM,
-        matchIfMissing = true)
 public final class FilesystemBlobStore implements BlobStorePort {
 
-    private static final Set<PosixFilePermission> DIRECTORY_PERMISSIONS =
-            PosixFilePermissions.fromString("rwx------");
-    private static final Set<PosixFilePermission> FILE_PERMISSIONS =
-            PosixFilePermissions.fromString("rw-------");
+    private static final Set<PosixFilePermission> DIRECTORY_PERMISSIONS = PosixFilePermissions.fromString("rwx------");
+    private static final Set<PosixFilePermission> FILE_PERMISSIONS = PosixFilePermissions.fromString("rw-------");
 
-    private final Path configuredRoot;
+    private final Path root;
     private final long maximumBlobBytes;
+    private final AsyncOperator asyncOperator;
+    private final Operator operator;
 
     public FilesystemBlobStore(WeaveNativeFilesProperties properties) {
-        this.configuredRoot = properties.filesystemRoot().toAbsolutePath().normalize();
-        this.maximumBlobBytes = properties.maximumBlobBytes();
-    }
-
-    @Override
-    public boolean configured() {
-        return true;
-    }
-
-    @Override
-    public BlobReceipt put(BlobScope scope, BlobReference reference, byte[] bytes, String expectedDigest) {
-        byte[] content = bytes == null ? new byte[0] : bytes.clone();
-        if (content.length > maximumBlobBytes) {
-            throw error(HttpStatus.PAYLOAD_TOO_LARGE, "files-native-blob-too-large",
-                    "The file exceeds the configured native Files limit.");
-        }
-        String actualDigest = digest(content);
-        if (!MessageDigest.isEqual(actualDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII),
-                requiredDigest(expectedDigest).getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
-            throw error(HttpStatus.CONFLICT, "files-native-blob-digest-mismatch",
-                    "The native Files blob digest did not match the requested digest.");
-        }
         try {
-            Path target = target(scope, reference, true);
-            if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
-                return verifyExisting(target, reference, actualDigest, content.length);
+            root = properties.filesystemRoot().toAbsolutePath().normalize();
+            Files.createDirectories(root);
+            if (Files.isSymbolicLink(root)) throw unsafePath();
+            enforcePermissions(root, DIRECTORY_PERMISSIONS);
+            maximumBlobBytes = properties.maximumBlobBytes();
+            asyncOperator = AsyncOperator.of("fs", Map.of("root", root.toString()))
+                    .layer(RetryLayer.builder().maxTimes(4).jitter(true).build())
+                    .layer(new ConcurrentLimitLayer(32));
+            operator = asyncOperator.blocking();
+            requireCapabilities();
+        } catch (ApiErrorException exception) {
+            throw exception;
+        } catch (IOException | OpenDALException exception) {
+            throw unavailable("files-native-opendal-init-failed");
+        }
+    }
+
+    @Override public boolean configured() { return true; }
+
+    @Override
+    public BlobReceipt putStream(
+            BlobScope scope,
+            BlobReference reference,
+            InputStream source,
+            long expectedSize,
+            String expectedDigest) {
+        requireWithinLimit(expectedSize, "files-native-blob-too-large");
+        String requiredDigest = requiredDigest(expectedDigest);
+        String key = key(scope, reference);
+        String temporary = parent(key) + ".pending-" + UUID.randomUUID();
+        Path spool = null;
+        try {
+            validateSandbox(scope, reference, true);
+            spool = Files.createTempFile(root, ".weave-upload-", ".spool");
+            enforcePermissions(spool, FILE_PERMISSIONS);
+
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            long transferred;
+            try (InputStream digesting = new DigestInputStream(source, digest);
+                 OutputStream target = Files.newOutputStream(spool, StandardOpenOption.TRUNCATE_EXISTING)) {
+                transferred = BlobStorePort.transferBounded(digesting, target, maximumBlobBytes);
             }
-            Path temporary = target.resolveSibling(".pending-" + UUID.randomUUID());
+            if (transferred != expectedSize) {
+                throw error(HttpStatus.CONFLICT, "files-native-blob-size-mismatch", "The native Files blob size did not match the requested size.");
+            }
+            String actualDigest = "sha256:" + HexFormat.of().formatHex(digest.digest());
+            if (!MessageDigest.isEqual(actualDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII), requiredDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+                throw error(HttpStatus.CONFLICT, "files-native-blob-digest-mismatch", "The native Files blob digest did not match the requested digest.");
+            }
+            if (exists(key)) return verifyExisting(key, reference, actualDigest, transferred);
+
+            byte[] verifiedPayload = Files.readAllBytes(spool);
+            requireWithinLimit(verifiedPayload.length, "files-native-blob-size-invalid");
+            operator.write(temporary, verifiedPayload);
             try {
-                createPrivateFile(temporary);
-                OpenOption[] options = {
-                        StandardOpenOption.WRITE,
-                        LinkOption.NOFOLLOW_LINKS
-                };
-                try (FileChannel channel = FileChannel.open(temporary, options)) {
-                    ByteBuffer buffer = ByteBuffer.wrap(content);
-                    while (buffer.hasRemaining()) {
-                        channel.write(buffer);
-                    }
-                    channel.force(true);
-                }
-                try {
-                    Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE);
-                } catch (AtomicMoveNotSupportedException exception) {
-                    Files.move(temporary, target);
-                } catch (FileAlreadyExistsException concurrentPublish) {
-                    Files.deleteIfExists(temporary);
-                    return verifyExisting(target, reference, actualDigest, content.length);
-                }
-                forceDirectory(target.getParent());
-            } finally {
-                Files.deleteIfExists(temporary);
+                operator.rename(temporary, key);
+            } catch (OpenDALException concurrentPublish) {
+                operator.delete(temporary);
+                if (exists(key)) return verifyExisting(key, reference, actualDigest, transferred);
+                throw concurrentPublish;
             }
-            return new BlobReceipt(reference, actualDigest, content.length);
+            Path target = resolvedPathForTest(scope, reference);
+            enforcePermissions(target, FILE_PERMISSIONS);
+            forceFile(target);
+            forceDirectory(target.getParent());
+            return new BlobReceipt(reference, actualDigest, transferred);
         } catch (ApiErrorException exception) {
             throw exception;
-        } catch (IOException exception) {
-            throw unavailable("files-native-blob-write-failed");
+        } catch (IOException | OpenDALException | NoSuchAlgorithmException exception) {
+            try { operator.delete(temporary); } catch (RuntimeException ignored) { }
+            throw map(exception, "files-native-blob-write-failed");
+        } finally {
+            if (spool != null) {
+                try { Files.deleteIfExists(spool); } catch (IOException ignored) { }
+            }
         }
     }
 
     @Override
-    public byte[] read(BlobScope scope, BlobReference reference) {
+    public void readStream(BlobScope scope, BlobReference reference, OutputStream target) {
+        String key = key(scope, reference);
         try {
-            Path target = target(scope, reference, false);
-            requireRegularFile(target);
-            long size = Files.size(target);
-            if (size > maximumBlobBytes) {
-                throw error(HttpStatus.CONFLICT, "files-native-blob-size-invalid",
-                        "The native Files blob exceeded its configured bound.");
+            validateSandbox(scope, reference, false);
+            if (!exists(key)) throw conflict("files-native-blob-missing");
+            long size = operator.stat(key).getContentLength();
+            requireWithinLimit(size, "files-native-blob-size-invalid");
+            byte[] value = operator.read(key);
+            requireWithinLimit(value.length, "files-native-blob-size-invalid");
+            long transferred = BlobStorePort.transferBounded(new java.io.ByteArrayInputStream(value), target, maximumBlobBytes);
+            if (transferred != size) {
+                throw error(HttpStatus.CONFLICT, "files-native-blob-size-mismatch", "The native Files blob size did not match its metadata.");
             }
-            return Files.readAllBytes(target);
         } catch (ApiErrorException exception) {
             throw exception;
-        } catch (IOException exception) {
-            throw unavailable("files-native-blob-read-failed");
+        } catch (IOException | OpenDALException exception) {
+            throw map(exception, "files-native-blob-read-failed");
         }
     }
 
     @Override
     public void delete(BlobScope scope, BlobReference reference) {
         try {
-            Path target = target(scope, reference, false);
-            if (Files.isSymbolicLink(target)) {
-                throw unsafePath();
-            }
-            Files.deleteIfExists(target);
+            validateSandbox(scope, reference, false);
+            operator.delete(key(scope, reference));
         } catch (ApiErrorException exception) {
             throw exception;
-        } catch (IOException exception) {
-            throw unavailable("files-native-blob-delete-failed");
+        } catch (IOException | OpenDALException exception) {
+            throw map(exception, "files-native-blob-delete-failed");
         }
     }
 
     @Override
     public List<BlobReference> inventory(BlobScope scope, int limit) {
-        if (limit < 1) {
-            throw new IllegalArgumentException("inventory limit must be positive");
-        }
+        if (limit < 1) throw new IllegalArgumentException("inventory limit must be positive");
+        String prefix = scopePrefix(scope);
         try {
-            Path scopeRoot = scopeRoot(scope, false);
-            if (!Files.exists(scopeRoot, LinkOption.NOFOLLOW_LINKS)) {
-                return List.of();
-            }
-            List<BlobReference> references = new ArrayList<>();
-            try (var paths = Files.walk(scopeRoot)) {
-                var iterator = paths.iterator();
-                while (iterator.hasNext()) {
-                    Path path = iterator.next();
-                    if (Files.isSymbolicLink(path)) {
-                        throw unsafePath();
-                    }
-                    if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
-                        if (references.size() >= limit) {
-                            throw error(HttpStatus.CONFLICT, "files-native-reconciliation-bound-exceeded",
-                                    "Native Files reconciliation exceeded its configured bound.");
-                        }
-                        references.add(new BlobReference(scopeRoot.relativize(path).toString().replace('\\', '/')));
-                    }
-                }
-            }
-            return List.copyOf(references);
+            Path scopePath = root.resolve(prefix).normalize();
+            if (Files.exists(scopePath, LinkOption.NOFOLLOW_LINKS) && Files.isSymbolicLink(scopePath)) throw unsafePath();
+            ListOptions options = ListOptions.builder().recursive(true).limit((long) limit + 1).build();
+            List<BlobReference> values = operator.list(prefix, options).stream()
+                    .filter(entry -> entry.getMetadata().isFile())
+                    .map(Entry::getPath)
+                    .map(path -> path.substring(prefix.length()))
+                    .map(BlobReference::new)
+                    .toList();
+            if (values.size() > limit) throw conflict("files-native-reconciliation-bound-exceeded");
+            return values;
         } catch (ApiErrorException exception) {
             throw exception;
-        } catch (IOException exception) {
-            throw unavailable("files-native-blob-inventory-failed");
+        } catch (OpenDALException exception) {
+            if (exception.getCode() == OpenDALException.Code.NotFound) return List.of();
+            throw map(exception, "files-native-blob-inventory-failed");
         }
     }
 
     Path resolvedPathForTest(BlobScope scope, BlobReference reference) {
-        try {
-            return target(scope, reference, true);
-        } catch (IOException exception) {
-            throw new IllegalStateException(exception);
-        }
+        Path value = root.resolve(key(scope, reference)).normalize();
+        if (!value.startsWith(root)) throw unsafePath();
+        return value;
     }
 
-    private BlobReceipt verifyExisting(
-            Path target, BlobReference reference, String expectedDigest, long expectedSize) throws IOException {
-        requireRegularFile(target);
-        byte[] existing = Files.readAllBytes(target);
-        if (existing.length != expectedSize || !MessageDigest.isEqual(
-                digest(existing).getBytes(java.nio.charset.StandardCharsets.US_ASCII),
-                expectedDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
-            throw error(HttpStatus.CONFLICT, "files-native-blob-key-collision",
-                    "An immutable native Files blob key already contains different content.");
+    private void validateSandbox(BlobScope scope, BlobReference reference, boolean createParents) throws IOException {
+        Path target = resolvedPathForTest(scope, reference);
+        Path parent = target.getParent();
+        if (createParents) {
+            Files.createDirectories(parent);
+            Path current = root;
+            for (Path segment : root.relativize(parent)) {
+                current = current.resolve(segment);
+                if (Files.isSymbolicLink(current) || !Files.isDirectory(current, LinkOption.NOFOLLOW_LINKS)) throw unsafePath();
+                enforcePermissions(current, DIRECTORY_PERMISSIONS);
+            }
+            return;
+        }
+        Path current = root;
+        for (Path segment : root.relativize(parent)) {
+            current = current.resolve(segment);
+            if (!Files.exists(current, LinkOption.NOFOLLOW_LINKS)) return;
+            if (Files.isSymbolicLink(current) || !Files.isDirectory(current, LinkOption.NOFOLLOW_LINKS)) throw unsafePath();
+        }
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS) && Files.isSymbolicLink(target)) throw unsafePath();
+    }
+
+    private BlobReceipt verifyExisting(String key, BlobReference reference, String expectedDigest, long expectedSize) {
+        byte[] existing = operator.read(key);
+        if (existing.length != expectedSize || !MessageDigest.isEqual(digest(existing).getBytes(java.nio.charset.StandardCharsets.US_ASCII), expectedDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+            throw conflict("files-native-blob-key-collision");
         }
         return new BlobReceipt(reference, expectedDigest, expectedSize);
     }
 
-    private Path target(BlobScope scope, BlobReference reference, boolean createParents) throws IOException {
-        Path root = realRoot();
-        Path scopeRoot = scopeRoot(root, scope, createParents);
-        Path target = scopeRoot.resolve(reference.value()).normalize();
-        if (!target.startsWith(scopeRoot)) {
-            throw unsafePath();
-        }
-        if (createParents) {
-            createPrivateDirectories(scopeRoot, target.getParent());
-        } else {
-            requireContainedParents(scopeRoot, target.getParent());
-        }
-        return target;
-    }
-
-    private Path scopeRoot(BlobScope scope, boolean create) throws IOException {
-        return scopeRoot(realRoot(), scope, create);
-    }
-
-    private Path scopeRoot(Path root, BlobScope scope, boolean create) throws IOException {
-        Path result = root.resolve(hash(scope.organizationRef())).resolve(hash(scope.spaceRef())).normalize();
-        if (!result.startsWith(root)) {
-            throw unsafePath();
-        }
-        if (create) {
-            createPrivateDirectories(root, result);
-        } else {
-            requireContainedParents(root, result);
-        }
-        return result;
-    }
-
-    private Path realRoot() throws IOException {
-        Files.createDirectories(configuredRoot);
-        if (Files.isSymbolicLink(configuredRoot)) {
-            throw unsafePath();
-        }
-        enforcePermissions(configuredRoot, DIRECTORY_PERMISSIONS);
-        return configuredRoot.toRealPath(LinkOption.NOFOLLOW_LINKS);
-    }
-
-    private void createPrivateDirectories(Path base, Path destination) throws IOException {
-        Path current = base;
-        for (Path segment : base.relativize(destination)) {
-            current = current.resolve(segment);
-            if (!Files.exists(current, LinkOption.NOFOLLOW_LINKS)) {
-                try {
-                    Files.createDirectory(current);
-                } catch (FileAlreadyExistsException ignored) {
-                    // A concurrent creator won; the no-follow validation below is still authoritative.
-                }
-            }
-            requireDirectory(current);
-            enforcePermissions(current, DIRECTORY_PERMISSIONS);
+    private boolean exists(String key) {
+        try { return operator.stat(key).isFile(); }
+        catch (OpenDALException exception) {
+            if (exception.getCode() == OpenDALException.Code.NotFound) return false;
+            throw exception;
         }
     }
 
-    private void requireContainedParents(Path base, Path destination) throws IOException {
-        if (destination == null || !destination.normalize().startsWith(base)) {
-            throw unsafePath();
-        }
-        Path current = base;
-        for (Path segment : base.relativize(destination)) {
-            current = current.resolve(segment);
-            if (!Files.exists(current, LinkOption.NOFOLLOW_LINKS)) {
-                return;
-            }
-            requireDirectory(current);
+    private void requireCapabilities() {
+        var capability = operator.info.capability;
+        if (!capability.read || !capability.write || !capability.delete || !capability.list || !capability.rename) {
+            throw unavailable("files-native-opendal-capability-missing");
         }
     }
 
-    private void requireDirectory(Path path) throws IOException {
-        if (Files.isSymbolicLink(path) || !Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
-            throw unsafePath();
+    private String key(BlobScope scope, BlobReference reference) { return scopePrefix(scope) + reference.value(); }
+    private String scopePrefix(BlobScope scope) { return "weave-native/v1/" + hash(scope.organizationRef()) + "/" + hash(scope.spaceRef()) + "/"; }
+    private String parent(String key) { int slash = key.lastIndexOf('/'); return slash < 0 ? "" : key.substring(0, slash + 1); }
+
+    private void requireWithinLimit(long size, String code) {
+        if (size < 0 || size > maximumBlobBytes) {
+            throw error("files-native-blob-too-large".equals(code) ? HttpStatus.PAYLOAD_TOO_LARGE : HttpStatus.CONFLICT, code, "The native Files blob exceeds its configured bound.");
         }
     }
 
-    private void requireRegularFile(Path path) throws IOException {
-        if (Files.isSymbolicLink(path)) {
-            throw unsafePath();
-        }
-        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
-            throw error(HttpStatus.CONFLICT, "files-native-blob-missing",
-                    "The native Files metadata does not have a readable blob.");
-        }
-        enforcePermissions(path, FILE_PERMISSIONS);
-    }
-
-    private void createPrivateFile(Path path) throws IOException {
-        try {
-            Files.createFile(path, PosixFilePermissions.asFileAttribute(FILE_PERMISSIONS));
-        } catch (UnsupportedOperationException exception) {
-            Files.createFile(path);
-        }
-        enforcePermissions(path, FILE_PERMISSIONS);
-    }
-
-    private void enforcePermissions(Path path, Set<PosixFilePermission> permissions) throws IOException {
-        try {
-            Files.setPosixFilePermissions(path, permissions);
-        } catch (UnsupportedOperationException ignored) {
-            // Non-POSIX filesystems rely on their platform ACLs; path containment still applies.
-        }
-    }
-
-    private void forceDirectory(Path directory) {
-        try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) {
-            channel.force(true);
-        } catch (IOException ignored) {
-            // The blob is already atomically visible. Some platforms cannot fsync directories.
-        }
-    }
-
-    private String requiredDigest(String digest) {
-        if (digest == null || !digest.matches("sha256:[a-f0-9]{64}")) {
-            throw new IllegalArgumentException("expected digest must be sha256");
-        }
-        return digest;
+    private String requiredDigest(String value) {
+        if (value == null || !value.matches("sha256:[a-f0-9]{64}")) throw new IllegalArgumentException("expected digest must be sha256");
+        return value;
     }
 
     static String digest(byte[] bytes) {
-        try {
-            return "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException(impossible);
+        try { return "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)); }
+        catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+    }
+
+    private String hash(String value) { return digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)).substring("sha256:".length()); }
+
+    private void enforcePermissions(Path path, Set<PosixFilePermission> permissions) throws IOException {
+        try { Files.setPosixFilePermissions(path, permissions); } catch (UnsupportedOperationException ignored) { }
+    }
+
+    private void forceFile(Path file) { try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ)) { channel.force(true); } catch (IOException ignored) { } }
+    private void forceDirectory(Path directory) { try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) { channel.force(true); } catch (IOException ignored) { } }
+
+    private ApiErrorException map(Throwable error, String fallback) {
+        if (error instanceof OpenDALException opendal) {
+            return switch (opendal.getCode()) {
+                case NotFound -> conflict("files-native-blob-missing");
+                case PermissionDenied -> error(HttpStatus.FORBIDDEN, "files-native-blob-permission-denied", "The native Files blob store denied the operation.");
+                case AlreadyExists, ConditionNotMatch -> conflict("files-native-blob-key-collision");
+                case RateLimited -> error(HttpStatus.SERVICE_UNAVAILABLE, "files-native-blob-rate-limited", "The native Files blob store is temporarily rate limited.");
+                default -> unavailable(fallback);
+            };
         }
+        return unavailable(fallback);
     }
 
-    private String hash(String value) {
-        return digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)).substring("sha256:".length());
-    }
+    private ApiErrorException unsafePath() { return error(HttpStatus.CONFLICT, "files-native-path-containment-failed", "The native Files storage path failed containment validation."); }
+    private ApiErrorException conflict(String code) { return error(HttpStatus.CONFLICT, code, "The native Files blob state is inconsistent."); }
+    private ApiErrorException unavailable(String code) { return error(HttpStatus.SERVICE_UNAVAILABLE, code, "The native Files blob store is temporarily unavailable."); }
+    private ApiErrorException error(HttpStatus status, String code, String message) { return new ApiErrorException(status, code, message, Map.of("module", "files", "adapter", "weave-native", "diagnosticsRedacted", true)); }
 
-    private ApiErrorException unsafePath() {
-        return error(HttpStatus.CONFLICT, "files-native-path-containment-failed",
-                "The native Files storage path failed containment validation.");
-    }
-
-    private ApiErrorException unavailable(String code) {
-        return error(HttpStatus.SERVICE_UNAVAILABLE, code,
-                "The native Files blob store is temporarily unavailable.");
-    }
-
-    private ApiErrorException error(HttpStatus status, String code, String message) {
-        return new ApiErrorException(status, code, message,
-                Map.of("module", "files", "adapter", "weave-native", "diagnosticsRedacted", true));
+    @PreDestroy
+    void closeOperator() {
+        try { operator.close(); } finally { asyncOperator.close(); }
     }
 }

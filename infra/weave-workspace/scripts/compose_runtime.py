@@ -1186,6 +1186,8 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
         )
     deadline = time.monotonic() + COLLABORATION_CONTROL_BUDGET_SECONDS
     if operation == "stop-provider":
+        if "provider-matrix" not in context.active_profiles:
+            raise ContractError("Synapse control requires the explicit provider-matrix profile")
         before = _service_snapshot(context, "synapse", deadline=deadline)
         _bounded_collaboration_compose(
             context, deadline, "stop", "--timeout", "20", "synapse"
@@ -1198,13 +1200,15 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
         print("WEAVE_CHAT_PROVIDER_CONTROL_RESULT state=stopped supportSafe=true")
         return
     if operation == "start-provider":
+        if "provider-matrix" not in context.active_profiles:
+            raise ContractError("Synapse control requires the explicit provider-matrix profile")
         _bounded_collaboration_compose(context, deadline, "start", "synapse")
         _await_healthy(context, "synapse", deadline)
         _await_healthy(context, "backend", deadline)
         print("WEAVE_CHAT_PROVIDER_CONTROL_RESULT state=healthy supportSafe=true")
         return
     if operation == "restart-collaboration":
-        synapse_before = _service_snapshot(context, "synapse", deadline=deadline)
+        postgres_before = _service_snapshot(context, "postgres", deadline=deadline)
         backend_before = _service_snapshot(context, "backend", deadline=deadline)
         _bounded_collaboration_compose(
             context,
@@ -1213,9 +1217,9 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
             "--no-deps",
             "--timeout",
             "20",
-            "synapse",
+            "postgres",
         )
-        synapse_after = _await_healthy(context, "synapse", deadline)
+        postgres_after = _await_healthy(context, "postgres", deadline)
         _bounded_collaboration_compose(
             context,
             deadline,
@@ -1227,8 +1231,8 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
         )
         backend_after = _await_healthy(context, "backend", deadline)
         if (
-            synapse_after["containerId"] != synapse_before["containerId"]
-            or synapse_after["startedAt"] == synapse_before["startedAt"]
+            postgres_after["containerId"] != postgres_before["containerId"]
+            or postgres_after["startedAt"] == postgres_before["startedAt"]
             or backend_after["containerId"] != backend_before["containerId"]
             or backend_after["startedAt"] == backend_before["startedAt"]
         ):
@@ -1237,7 +1241,7 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
             )
         print(
             "WEAVE_COLLABORATION_RESTART_RESULT backend=healthy "
-            "synapse=healthy supportSafe=true"
+            "postgres=healthy providerDependency=false supportSafe=true"
         )
         return
     raise ContractError("unsupported isolated collaboration control operation")

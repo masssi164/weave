@@ -343,8 +343,10 @@ class CalendarFacadeServiceTest {
                         """
                                 BEGIN:VCALENDAR
                                 VERSION:2.0
+                                PRODID:-//Weave Test//EN
                                 BEGIN:VEVENT
                                 UID:planning
+                                DTSTAMP:20260708T100000Z
                                 DTSTART;TZID=UTC:20260708T120000
                                 DTEND;TZID=UTC:20260708T120000
                                 SUMMARY:Invalid planning
@@ -609,8 +611,10 @@ class CalendarFacadeServiceTest {
         return """
                 BEGIN:VCALENDAR
                 VERSION:2.0
+                PRODID:-//Weave Test//EN
                 BEGIN:VEVENT
                 UID:%s
+                DTSTAMP:20260708T100000Z
                 DTSTART:20260708T120000Z
                 DTEND:20260708T130000Z
                 SUMMARY:%s
