@@ -185,6 +185,10 @@ class DomainAdapterRegistryMapperTest {
 
     @Test
     void providerCapabilityContractsUseCanonicalRegistryCandidateKeys() {
+        assertThat(ProviderCapabilityContracts.contract("files", Set.of(ProviderModule.FILES)).defaultAdapters())
+                .containsExactly("weave-native");
+        assertThat(ProviderCapabilityContracts.contract("files", Set.of(ProviderModule.FILES)).externalAdapters())
+                .contains("nextcloud-files");
         assertThat(ProviderCapabilityContracts.contract("calendar", Set.of(ProviderModule.CALENDAR)).defaultAdapters())
                 .containsExactly("weave-native");
         assertThat(ProviderCapabilityContracts.contract("calendar", Set.of(ProviderModule.CALENDAR)).externalAdapters())

@@ -4520,6 +4520,27 @@
       ]
     },
     {
+      "tag": "@human-ready-native-collaboration",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "chat",
+        "files",
+        "calendar",
+        "operator-release"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "weave-native provider selection",
+        "Matrix WebDAV and CalDAV northbound facades",
+        "PostgreSQL and backend restart continuity",
+        "no external provider runtime dependency"
+      ]
+    },
+    {
       "tag": "@human-ready-dogfood-deployment",
       "suiteId": "member-live-critical-path",
       "personas": [

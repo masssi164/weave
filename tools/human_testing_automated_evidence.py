@@ -40,9 +40,8 @@ REQUIRED_PASS_FACTS = (
     "profilePassed",
     "outsiderDenied",
     "canonicalJpaVerified",
-    "directSynapseVerified",
-    "providerOutageExactlyOnceVerified",
-    "callbackReplayVerified",
+    "nativePersistenceVerified",
+    "idempotencyVerified",
     "cleanupComplete",
 )
 SIMULATOR_SURFACES = ("home", "chat", "files", "calendar", "settings", "profile")
@@ -347,7 +346,7 @@ def build_live(
     run_url: str,
 ) -> dict[str, Any]:
     require_support_safe(product, "product evidence")
-    if product.get("schemaVersion") != "weave.test-app-product-flow/v1":
+    if product.get("schemaVersion") != "weave.test-app-product-flow/v2":
         raise EvidenceError("product evidence has the wrong schema")
     candidate = require_commit(product.get("candidateCommit"), "product.candidateCommit")
     source = require_commit(product.get("sourceCandidateCommit"), "product.sourceCandidateCommit")
@@ -391,6 +390,16 @@ def build_live(
     collaboration = product.get("collaboration")
     if not isinstance(collaboration, dict) or collaboration.get("repeatCount") != 2:
         raise EvidenceError("product evidence must contain exactly two collaboration passes")
+    if collaboration.get("selectedProviders") != {
+        "chat": "weave-native", "files": "weave-native", "calendar": "weave-native"
+    }:
+        raise EvidenceError("default collaboration providers must all be weave-native")
+    if collaboration.get("northboundFacades") != {
+        "matrix": True, "webdav": True, "caldav": True
+    }:
+        raise EvidenceError("native collaboration must prove all northbound facades")
+    if collaboration.get("southboundProviderDependencyObserved") is not False:
+        raise EvidenceError("native collaboration observed a southbound provider dependency")
     hashes = collaboration.get("identityRefHashes")
     if not isinstance(hashes, dict) or set(hashes) != {"author", "collaborator", "outsider"}:
         raise EvidenceError("collaboration identity hashes are incomplete")
@@ -407,9 +416,11 @@ def build_live(
         for fact in REQUIRED_PASS_FACTS:
             if proof.get(fact) is not True:
                 raise EvidenceError(f"collaboration pass {expected} does not prove {fact}")
-        correlation = proof.get("providerCorrelationHash")
-        if not isinstance(correlation, str) or HASH.fullmatch(correlation) is None:
-            raise EvidenceError(f"collaboration pass {expected} has no provider correlation hash")
+        if proof.get("southboundProviderDependencyObserved") is not False:
+            raise EvidenceError(f"collaboration pass {expected} observed a southbound provider dependency")
+        revision = proof.get("nativeRevisionHash")
+        if not isinstance(revision, str) or HASH.fullmatch(revision) is None:
+            raise EvidenceError(f"collaboration pass {expected} has no native revision hash")
     if passes[0].get("restartContinuityVerified") is not False:
         raise EvidenceError("first collaboration pass must precede the service restart")
     if passes[1].get("restartContinuityVerified") is not True:
@@ -462,9 +473,9 @@ def build_live(
             },
             "cleanupStatus": "passed",
             "repeatCount": 2,
-            "providerCorrelationHashes": [proof["providerCorrelationHash"] for proof in passes],
+            "nativeRevisionHashes": [proof["nativeRevisionHash"] for proof in passes],
             "restartContinuity": "passed",
-            "callbackReplay": "passed",
+            "southboundProviderDependencyObserved": False,
         },
         "evidenceRefs": [live_ref, f"artifact:teardown/{namespace}"],
         "blockers": [],

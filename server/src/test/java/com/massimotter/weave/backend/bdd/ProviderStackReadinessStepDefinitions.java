@@ -187,8 +187,8 @@ public class ProviderStackReadinessStepDefinitions {
         assertCategoryContract(
                 "files",
                 Set.of("files.read", "files.upload"),
-                Set.of("nextcloud-files"),
-                Set.of("sharepoint", "onedrive"));
+                Set.of("weave-native"),
+                Set.of("nextcloud-files", "sharepoint", "onedrive"));
         assertCategoryContract(
                 "documents-collaboration",
                 Set.of("documents.view", "documents.edit", "documents.collaborate"),

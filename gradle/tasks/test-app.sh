@@ -435,7 +435,7 @@ jq -e \
   --arg specification_commit "${specification_commit}" \
   --arg candidate_manifest_digest "${candidate_manifest_digest}" \
   --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
-  .schemaVersion == "weave.test-app-product-flow/v1" and
+  .schemaVersion == "weave.test-app-product-flow/v2" and
   .candidateCommit == $candidate_commit and
   .sourceCandidateCommit == $source_candidate_commit and
   .specificationCommit == $specification_commit and
@@ -458,6 +458,9 @@ jq -e \
   .sameHumanSubjectAfterRegrant == true and
   .samePersonRefAfterRegrant == true and
   .collaboration.repeatCount == 2 and
+  .collaboration.selectedProviders == {"chat":"weave-native","files":"weave-native","calendar":"weave-native"} and
+  .collaboration.northboundFacades == {"matrix":true,"webdav":true,"caldav":true} and
+  .collaboration.southboundProviderDependencyObserved == false and
   (.collaboration.identityRefHashes.author | test("^sha256:[0-9a-f]{64}$")) and
   (.collaboration.identityRefHashes.collaborator | test("^sha256:[0-9a-f]{64}$")) and
   (.collaboration.identityRefHashes.outsider | test("^sha256:[0-9a-f]{64}$")) and
@@ -472,10 +475,11 @@ jq -e \
     .profilePassed and
     .outsiderDenied and
     .canonicalJpaVerified and
-    .directSynapseVerified and
-    .callbackReplayVerified and
+    .nativePersistenceVerified and
+    .idempotencyVerified and
+    (.southboundProviderDependencyObserved == false) and
     .cleanupComplete and
-    (.providerCorrelationHash | test("^sha256:[0-9a-f]{64}$"))] | all) and
+    (.nativeRevisionHash | test("^sha256:[0-9a-f]{64}$"))] | all) and
   (.collaboration.passes[] | select(.pass == 1) |
     .restartContinuityVerified == false) and
   (.collaboration.passes[] | select(.pass == 2) |

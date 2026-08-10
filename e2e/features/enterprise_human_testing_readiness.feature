@@ -3,6 +3,14 @@ Feature: Enterprise dogfood readiness is proven across users and delivery gates
   owned by testApp. Interactive Flutter and accessibility evidence is captured
   only on a physical device through the production system-browser flow.
 
+  @human-ready-native-collaboration
+  Scenario: Isolated collaboration proves the native default without external providers
+    Given Chat Files and Calendar select weave-native in the isolated stack
+    When two members use Matrix WebDAV and CalDAV across a PostgreSQL and backend restart
+    Then encrypted Chat file revisions and calendar revisions remain available
+    And the outsider remains denied before and after restart
+    And no Synapse MAS or Nextcloud runtime dependency is observed
+
   @human-ready-dogfood-deployment
   Scenario: Persistent dogfood deployment is non-destructive and idempotent
     Given isolated collaboration evidence is green for the candidate

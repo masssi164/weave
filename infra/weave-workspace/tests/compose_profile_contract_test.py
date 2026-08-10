@@ -229,11 +229,11 @@ def assert_collaboration_control_is_bounded(context) -> None:
 
     def snapshot(_context, service, *, include_stopped=False, deadline=None):
         del include_stopped
-        assert service in {"synapse", "backend"}
+        assert service in {"postgres", "backend"}
         assert deadline is not None
         deadlines.append(deadline)
         return {
-            "containerId": "a" * 64 if service == "synapse" else "b" * 64,
+            "containerId": "a" * 64 if service == "postgres" else "b" * 64,
             "startedAt": "before",
             "restartCount": 0,
             "running": True,
@@ -250,7 +250,7 @@ def assert_collaboration_control_is_bounded(context) -> None:
         assert deadline is not None
         deadlines.append(deadline)
         return {
-            "containerId": "a" * 64 if service == "synapse" else "b" * 64,
+            "containerId": "a" * 64 if service == "postgres" else "b" * 64,
             "startedAt": "after",
             "restartCount": 1,
             "running": True,

@@ -207,6 +207,7 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.categories[?(@.category == 'chat')].contract.defaultAdapters[*]", hasItems("weave-native")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'chat')].contract.externalAdapters[*]", hasItems("microsoft-teams", "slack")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'files')].contract.externalAdapters[*]", hasItems("sharepoint", "onedrive", "smb")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'files')].contract.defaultAdapters[*]", hasItems("weave-native")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'boards-tasks')].contract.defaultAdapters[*]", hasItems("openproject-primary")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'boards-tasks')].contract.externalAdapters[*]", hasItems("microsoft-planner", "jira")))
                 .andExpect(jsonPath("$.categories[*].diagnostics.secretsReturned", hasItems(false)))
