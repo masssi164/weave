@@ -259,6 +259,12 @@ class KeycloakFgapMigrationExecutorTest {
           return;
         }
         if ("GET".equals(method) && path.endsWith("/clients") && query != null) {
+          if (path.startsWith("/admin/realms/master")
+              && !bootstrapPresent
+              && !retainBootstrapInNegativeReadback) {
+            respond(exchange, 401, object());
+            return;
+          }
           respond(exchange, 200, clients(path, query));
           return;
         }

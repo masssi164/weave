@@ -44,6 +44,33 @@ final class KeycloakRealmMigrationTransport {
     request(HttpMethod.DELETE, path, null, 204);
   }
 
+  boolean rejectsCurrentToken(String path) {
+    String operation = KeycloakRealmMigrationOperationPolicy.requireAllowed(HttpMethod.GET, path);
+    try {
+      ResponseEntity<Void> response =
+          restClient
+              .get()
+              .uri(path)
+              .retrieve()
+              .onStatus(status -> status.value() == 401, (ignored, providerResponse) -> {})
+              .onStatus(
+                  status -> status.value() != 200 && status.value() != 401,
+                  (ignored, providerResponse) -> {
+                    throw blocked(
+                        "admin-rest-"
+                            + operation
+                            + "-status-"
+                            + providerResponse.getStatusCode().value());
+                  })
+              .toBodilessEntity();
+      return response.getStatusCode().value() == 401;
+    } catch (KeycloakRealmMigrationException failure) {
+      throw failure;
+    } catch (RestClientException failure) {
+      throw blocked("admin-rest-" + operation + "-unavailable");
+    }
+  }
+
   private String request(HttpMethod method, String path, String body, int expectedStatus) {
     String operation = KeycloakRealmMigrationOperationPolicy.requireAllowed(method, path);
     RestClient.RequestBodySpec request = restClient.method(method).uri(path);
