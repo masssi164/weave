@@ -65,6 +65,7 @@ final class CollaborationJourney {
     boolean fileCreated = false;
     boolean calendarCreated = false;
     boolean restartContinuityVerified = false;
+    String nativeRevisionHash = null;
     try {
       MatrixIdentity collaboratorMatrix = matrixIdentity(collaboratorIdentity, pass);
       matrixIdentity(outsiderIdentity, pass);
@@ -90,7 +91,11 @@ final class CollaborationJourney {
       String initialEtag = createFile(authorIdentity, fileName, initialFile);
       fileCreated = true;
       requireBody(collaboratorIdentity, "/dav/files/" + encode(fileName), initialFile, "shared file");
-      updateFile(collaboratorIdentity, fileName, initialEtag, updatedFile);
+      String updatedFileEtag =
+          updateFile(collaboratorIdentity, fileName, initialEtag, updatedFile);
+      if (initialEtag.equals(updatedFileEtag)) {
+        throw new ProductFlowException("WebDAV revision did not advance after update");
+      }
       requireBody(authorIdentity, "/dav/files/" + encode(fileName), updatedFile, "updated shared file");
       requireWebDavDenied(outsiderIdentity, fileName, pass);
 
@@ -103,13 +108,26 @@ final class CollaborationJourney {
           "/caldav/workspace/" + encode(eventUid) + ".ics",
           initialCalendar,
           "shared calendar event");
-      updateCalendar(authorIdentity, eventUid, calendarEtag, updatedCalendar);
+      String updatedCalendarEtag =
+          updateCalendar(authorIdentity, eventUid, calendarEtag, updatedCalendar);
+      if (calendarEtag.equals(updatedCalendarEtag)) {
+        throw new ProductFlowException("CalDAV revision did not advance after update");
+      }
       requireCalendar(
           collaboratorIdentity,
           "/caldav/workspace/" + encode(eventUid) + ".ics",
           updatedCalendar,
           "updated shared calendar event");
       requireCalendarDenied(outsiderIdentity, eventUid, pass);
+      nativeRevisionHash =
+          Hashing.sha256(
+              authorEventId
+                  + "\u0000"
+                  + collaboratorEventId
+                  + "\u0000"
+                  + updatedFileEtag
+                  + "\u0000"
+                  + updatedCalendarEtag);
 
       proveProfileIsolation(pass, authorIdentity, collaboratorIdentity, outsiderIdentity);
       proveHomeProjection(authorIdentity, collaboratorIdentity, outsiderIdentity);
@@ -171,7 +189,7 @@ final class CollaborationJourney {
           false,
           restartContinuityVerified,
           true,
-          Hashing.sha256(roomId == null ? suffix : roomId));
+          nativeRevisionHash);
     } finally {
       if (roomId != null) {
         redactBestEffort(authorIdentity, roomId, authorEventId, "author", pass);
@@ -575,7 +593,7 @@ final class CollaborationJourney {
     return requireEtag(response, "created WebDAV file");
   }
 
-  private void updateFile(Identity collaborator, String fileName, String etag, String content) {
+  private String updateFile(Identity collaborator, String fileName, String etag, String content) {
     JsonHttpClient.Response response =
         http.send(
             "update shared WebDAV file",
@@ -585,7 +603,7 @@ final class CollaborationJourney {
             "text/plain; charset=utf-8",
             content.getBytes(StandardCharsets.UTF_8),
             Set.of(204));
-    requireEtag(response, "updated WebDAV file");
+    return requireEtag(response, "updated WebDAV file");
   }
 
   private void requireWebDavDenied(Identity outsider, String fileName, int pass) {
@@ -620,7 +638,7 @@ final class CollaborationJourney {
     return requireEtag(response, "created CalDAV event");
   }
 
-  private void updateCalendar(
+  private String updateCalendar(
       Identity collaborator, String uid, String etag, String content) {
     JsonHttpClient.Response response =
         http.send(
@@ -631,7 +649,7 @@ final class CollaborationJourney {
             "text/calendar; charset=utf-8",
             content.getBytes(StandardCharsets.UTF_8),
             Set.of(204));
-    requireEtag(response, "updated CalDAV event");
+    return requireEtag(response, "updated CalDAV event");
   }
 
   private void requireCalendarDenied(Identity outsider, String uid, int pass) {
