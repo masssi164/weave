@@ -74,6 +74,9 @@ tasks.register('postgresJpaTest', Test) {
     maxParallelForks = 1
     systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
     systemProperty 'weave.test.postgres', 'true'
+    testLogging {
+        exceptionFormat = 'full'
+    }
     filter {
         includeTestsMatching '*PostgresJpaSchemaValidationTest'
         includeTestsMatching '*SchemaAuthorityInitializerPostgresTest'
