@@ -43,6 +43,13 @@ Textual equivalent: clients authenticate through the Weave identity boundary and
 
 Provider switching happens below the canonical domain boundary. Adapters translate provider identifiers, errors, and capabilities into Weave values; durable mappings and conformance reports preserve continuity. A provider URL, token, SDK type, Matrix homeserver, storage backend, or Nextcloud endpoint is therefore an implementation detail, never the member contract.
 
+## Release notes
+
+<!-- WEAVE_RELEASE_NOTES_START -->
+- Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
+- Latest release index: [Release notes](docs/release-notes/index.md)
+<!-- WEAVE_RELEASE_NOTES_END -->
+
 ## Enterprise Workflow
 
 1. **Buyer and transformation lead** align the collaboration domains that matter: identity, chat, files, calendar, boards/tasks, meetings, decisions, and governed assistance.
