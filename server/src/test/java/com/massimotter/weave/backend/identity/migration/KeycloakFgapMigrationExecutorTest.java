@@ -157,7 +157,9 @@ class KeycloakFgapMigrationExecutorTest {
         SHA_B,
         SHA_C,
         SHA_D,
-        KeycloakFgapMigrationContract.OPERATION_ID);
+        KeycloakFgapMigrationContract.OPERATION_ID,
+        SHA_A,
+        SHA_B);
   }
 
   private static KeycloakRealmMigrationBackupProofReader.BackupProof backupProof() {

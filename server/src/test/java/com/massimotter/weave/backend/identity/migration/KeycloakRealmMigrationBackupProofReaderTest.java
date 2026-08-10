@@ -148,7 +148,9 @@ class KeycloakRealmMigrationBackupProofReaderTest {
         "sha256:" + "2".repeat(64),
         "sha256:" + "3".repeat(64),
         BASELINE_REVISION,
-        KeycloakFgapMigrationContract.OPERATION_ID);
+        KeycloakFgapMigrationContract.OPERATION_ID,
+        "sha256:" + "4".repeat(64),
+        "sha256:" + "5".repeat(64));
   }
 
   private ObjectNode validBackupProof() {
