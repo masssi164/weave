@@ -62,7 +62,6 @@ public final class SchemaAuthorityInitializer {
 
     // Flyway owns DDL and its PostgreSQL lock/history. A non-empty schema without
     // Flyway history intentionally fails here instead of being silently baselined.
-    flyway.validate();
     var migration = flyway.migrate();
     flyway.validate();
 

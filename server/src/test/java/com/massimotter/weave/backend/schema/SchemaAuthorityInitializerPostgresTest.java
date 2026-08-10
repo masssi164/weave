@@ -91,7 +91,7 @@ class SchemaAuthorityInitializerPostgresTest {
 
     assertThatThrownBy(() -> SchemaAuthorityInitializer.run(environment.values()))
         .isInstanceOf(RuntimeException.class)
-        .hasMessageContaining("non-empty schema");
+        .hasMessageContaining("non-empty schema(s)");
 
     try (var connection =
             DriverManager.getConnection(
