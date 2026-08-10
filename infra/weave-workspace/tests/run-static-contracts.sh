@@ -35,7 +35,6 @@ is_retired_monolith_contract() {
 modular_contract_ran=false
 while IFS= read -r -d '' test_file; do
   if [[ "${test_file}" == "${MODULAR_CONTRACT}" ]]; then
-    printf 'infra-static: running %s\n' "${test_file#${ROOT}/}"
     bash "${test_file}"
     modular_contract_ran=true
     continue
@@ -46,7 +45,6 @@ while IFS= read -r -d '' test_file; do
     continue
   fi
 
-  printf 'infra-static: running %s\n' "${test_file#${ROOT}/}"
   bash "${test_file}"
 done < <(find "${TEST_ROOT}" -maxdepth 1 -type f -name '*-test.sh' -print0 | sort -z)
 
