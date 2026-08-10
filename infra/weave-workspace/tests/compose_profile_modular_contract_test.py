@@ -19,7 +19,12 @@ from compose_env import ContractError, load_context  # noqa: E402
 import compose_runtime as compose_runtime_module  # noqa: E402
 from render_config import _reset_provider_configtree, _runtime_policy  # noqa: E402
 from rendering.gateway import _site, render_caddy  # noqa: E402
-from rendering.keycloak import _desired, _image_digest, _overlay  # noqa: E402
+from rendering.keycloak import (  # noqa: E402
+    _desired,
+    _image_digest,
+    _overlay,
+    _receipt_check_environment,
+)
 
 
 def materialize_example(profile: str, destination: Path) -> Path:
@@ -247,6 +252,22 @@ def main() -> int:
             assert _runtime_policy(isolated)["sandbox"]["allowedNetworkTargets"] == [
                 "api.weave.test"
             ]
+            receipt_environment = _receipt_check_environment(
+                isolated,
+                manifest_digest="sha256:" + "1" * 64,
+                baseline_digest="sha256:" + "2" * 64,
+                target_revision="sha256:" + "3" * 64,
+            )
+            assert set(receipt_environment.splitlines()) == {
+                "WEAVE_KEYCLOAK_MIGRATION_BASELINE_DIGEST=sha256:" + "2" * 64,
+                "WEAVE_KEYCLOAK_MIGRATION_CANDIDATE_COMMIT="
+                + isolated.env["WEAVE_CANDIDATE_COMMIT"],
+                "WEAVE_KEYCLOAK_MIGRATION_COMPOSE_PROJECT="
+                + isolated.env["WEAVE_COMPOSE_PROJECT"],
+                "WEAVE_KEYCLOAK_MIGRATION_ENVIRONMENT=e2e",
+                "WEAVE_KEYCLOAK_MIGRATION_MANIFEST_DIGEST=sha256:" + "1" * 64,
+                "WEAVE_KEYCLOAK_MIGRATION_TARGET_REVISION=sha256:" + "3" * 64,
+            }
             assert_native_collaboration_restart_is_bounded(isolated)
         finally:
             for key, value in previous.items():

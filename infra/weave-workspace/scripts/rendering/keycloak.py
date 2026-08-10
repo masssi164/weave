@@ -120,6 +120,24 @@ def _desired(baseline: dict[str, object], overlay: dict[str, object]) -> dict[st
     return desired
 
 
+def _receipt_check_environment(
+    context: ComposeContext,
+    *,
+    manifest_digest: str,
+    baseline_digest: str,
+    target_revision: str,
+) -> str:
+    values = {
+        "WEAVE_KEYCLOAK_MIGRATION_BASELINE_DIGEST": baseline_digest,
+        "WEAVE_KEYCLOAK_MIGRATION_CANDIDATE_COMMIT": context.env["WEAVE_CANDIDATE_COMMIT"],
+        "WEAVE_KEYCLOAK_MIGRATION_COMPOSE_PROJECT": context.env["WEAVE_COMPOSE_PROJECT"],
+        "WEAVE_KEYCLOAK_MIGRATION_ENVIRONMENT": context.environment,
+        "WEAVE_KEYCLOAK_MIGRATION_MANIFEST_DIGEST": manifest_digest,
+        "WEAVE_KEYCLOAK_MIGRATION_TARGET_REVISION": target_revision,
+    }
+    return "".join(f"{name}={values[name]}\n" for name in sorted(values))
+
+
 def render_keycloak(context: ComposeContext) -> dict[str, object]:
     corpus_root, specification_commit = specification_context(context)
     baseline_path = corpus_root / "contracts/examples/keycloak-desired-state.valid.json"
@@ -168,7 +186,19 @@ def render_keycloak(context: ComposeContext) -> dict[str, object]:
         "bundles": [{"digest": migration_digest, "path": "keycloak/migrations/fresh-start-v1.json"}],
         "containsSecretValues": False,
     }
-    write(generated / "keycloak/migrations/manifest.json", pretty_json(migration_manifest), private=False)
+    migration_manifest_payload = pretty_json(migration_manifest)
+    migration_manifest_digest = sha256_digest(migration_manifest_payload)
+    write(generated / "keycloak/migrations/manifest.json", migration_manifest_payload, private=False)
+    write(
+        generated / "keycloak/migrations/receipt-check.env",
+        _receipt_check_environment(
+            context,
+            manifest_digest=migration_manifest_digest,
+            baseline_digest=rendered_digest,
+            target_revision=str(desired["revision"]),
+        ),
+        private=False,
+    )
 
     realm_identity = {
         "semanticRealmSourceDigest": semantic_digest,
