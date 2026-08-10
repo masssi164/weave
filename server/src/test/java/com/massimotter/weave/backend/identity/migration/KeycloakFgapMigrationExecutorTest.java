@@ -131,6 +131,17 @@ class KeycloakFgapMigrationExecutorTest {
   }
 
   @Test
+  void acceptsTheDisposableE2eOrganizationAliasForAnE2eProof() {
+    state.organizationAlias = "weave-e2e";
+
+    KeycloakFgapMigrationExecutor.MigrationResult result =
+        executor().execute(bundle(), backupProof("e2e"));
+
+    assertThat(result.status()).isEqualTo("complete");
+    assertThat(state.bootstrapPresent).isFalse();
+  }
+
+  @Test
   void rejectsAHiddenNonScopeDependentOfTheIdentityAdminPolicy() {
     state.seedPolicyAndUnexpectedResourcePermission();
 
@@ -187,8 +198,13 @@ class KeycloakFgapMigrationExecutorTest {
   }
 
   private static KeycloakRealmMigrationBackupProofReader.BackupProof backupProof() {
+    return backupProof("dogfood");
+  }
+
+  private static KeycloakRealmMigrationBackupProofReader.BackupProof backupProof(
+      String environment) {
     return new KeycloakRealmMigrationBackupProofReader.BackupProof(
-        SHA_A, "dogfood", "a".repeat(40), "weave-dogfood");
+        SHA_A, environment, "a".repeat(40), "weave-" + environment);
   }
 
   private static final class KeycloakState {
@@ -209,6 +225,7 @@ class KeycloakFgapMigrationExecutorTest {
     private boolean identityJwksContainsPrivateMaterial;
     private boolean identityServiceAccountHasWrongUsername;
     private boolean organizationHasWrongAlias;
+    private String organizationAlias = "weave-dogfood";
     private int mutationCount;
     private ObjectNode policy;
     private ObjectNode unexpectedDependent;
@@ -293,7 +310,7 @@ class KeycloakFgapMigrationExecutorTest {
                   "alias",
                   organizationHasWrongAlias
                       ? "wrong-organization"
-                      : KeycloakFgapMigrationContract.ORGANIZATION_ALIAS,
+                      : organizationAlias,
                   "enabled",
                   true));
           return;
