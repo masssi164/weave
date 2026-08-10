@@ -1097,6 +1097,9 @@ volumes:
   runtime-state-data:
     external: true
     name: ${WEAVE_RUNTIME_STATE_DATA_VOLUME:-weave_runtime_state_data}
+  native-files-data:
+    external: true
+    name: ${WEAVE_NATIVE_FILES_DATA_VOLUME:-weave_native_files_data}
 
 networks:
   weave:
