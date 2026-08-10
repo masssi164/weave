@@ -426,11 +426,8 @@ final class KeycloakFgapMigrationExecutor {
 
   private void retireAndVerifyAuthority(String migrationClientId) {
     transport.delete(MASTER + "/clients/" + migrationClientId);
-    List<JsonNode> observed =
-        array(
-            transport.get(MASTER + "/clients?clientId=" + MIGRATION_CLIENT_ID),
-            "migration-authority-negative-readback-invalid");
-    if (!observed.isEmpty()) {
+    if (!transport.rejectsCurrentToken(
+        MASTER + "/clients?clientId=" + MIGRATION_CLIENT_ID)) {
       throw blocked("migration-authority-still-present");
     }
   }
