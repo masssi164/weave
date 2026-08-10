@@ -33,8 +33,13 @@ public class MatrixE2eeStateService {
             requireEquals(deviceKeys.get("device_id"), identity.deviceId(), "device key device");
             persistence.upsertDevice(identity.tenantId(), identity.userId(), identity.deviceId(), deviceKeys, persistence.nextRevision(identity.tenantId()));
         }
-        persistence.addOneTimeKeys(identity.tenantId(), identity.userId(), identity.deviceId(), immutableObject(objectMap(request.get("one_time_keys"))));
-        persistence.replaceFallbackKeys(identity.tenantId(), identity.userId(), identity.deviceId(), immutableObject(objectMap(request.get("fallback_keys"))), persistence.nextRevision(identity.tenantId()));
+        Map<String, Object> oneTimeKeys = immutableObject(objectMap(request.get("one_time_keys")));
+        if (!oneTimeKeys.isEmpty()) {
+            persistence.addOneTimeKeys(identity.tenantId(), identity.userId(), identity.deviceId(), oneTimeKeys);
+        }
+        if (request.containsKey("fallback_keys")) {
+            persistence.replaceFallbackKeys(identity.tenantId(), identity.userId(), identity.deviceId(), immutableObject(objectMap(request.get("fallback_keys"))), persistence.nextRevision(identity.tenantId()));
+        }
         return Map.of("one_time_key_counts", persistence.oneTimeKeyCounts(identity.tenantId(), identity.userId(), identity.deviceId()));
     }
 
@@ -123,8 +128,7 @@ public class MatrixE2eeStateService {
         if (toDeviceAfterSequence < 0 || deviceListAfterSequence < 0) throw new MatrixProtocolException("M_BAD_JSON", "The Matrix E2EE sync cursor is invalid.");
         Set<String> shared = currentlySharedUserIds == null ? null : Set.copyOf(currentlySharedUserIds.stream().filter(value -> value != null && !value.isBlank() && !value.equals(identity.userId())).toList());
 
-        long persistedDeviceListProgress = persistence.deviceListProgress(identity.tenantId(), identity.userId(), identity.deviceId());
-        long deviceListAfter = Math.max(persistedDeviceListProgress, deviceListAfterSequence);
+        long deviceListAfter = deviceListAfterSequence;
         if (shared != null) persistence.reconcileSharedUsers(identity.tenantId(), identity.userId(), identity.deviceId(), shared);
 
         long snapshotHighWater = persistence.currentRevision(identity.tenantId());
