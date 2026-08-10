@@ -15,7 +15,7 @@ final class KeycloakFgapMigrationContract {
   static final String ORGANIZATION_ALIAS = "weave";
   static final String ORGANIZATION_ID = "8f771be4-f526-5bef-97dc-00c8e2fa383d";
 
-  static final String MANIFEST_SCHEMA = "weave.keycloak-realm-migration-manifest/v1";
+  static final String MANIFEST_SCHEMA = "weave.keycloak-realm-migration-manifest/v2";
   static final String BUNDLE_SCHEMA = "weave.keycloak-realm-migration-bundle/v1";
   static final String RESULT_SCHEMA = "weave.keycloak-fgap-migration-receipt/v1";
   static final String RECEIPT_PATH =

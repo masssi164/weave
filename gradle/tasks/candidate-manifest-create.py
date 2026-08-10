@@ -7,9 +7,12 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
+
+SHA256 = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -19,8 +22,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--spec-digest", required=True)
     parser.add_argument("--build-evidence-ref", required=True)
     parser.add_argument("--keycloak-build-evidence-digest", required=True)
-    parser.add_argument("--realm-baseline-artifact", type=Path, required=True)
-    parser.add_argument("--realm-migration-bundle-artifact", type=Path, required=True)
+    parser.add_argument("--semantic-realm-source-digest", required=True)
+    parser.add_argument("--realm-migration-definition-digest", required=True)
     parser.add_argument(
         "--image",
         action="append",
@@ -32,19 +35,10 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def artifact_digest(path: Path, label: str) -> str:
-    if path.is_symlink() or not path.is_file():
-        raise ValueError(f"{label} must be a regular file")
-    raw = path.read_bytes()
-    if not raw:
-        raise ValueError(f"{label} must not be empty")
-    try:
-        value = json.loads(raw)
-    except json.JSONDecodeError as error:
-        raise ValueError(f"{label} must be valid JSON") from error
-    if not isinstance(value, dict):
-        raise ValueError(f"{label} must contain a JSON object")
-    return "sha256:" + hashlib.sha256(raw).hexdigest()
+def exact_digest(value: str, label: str) -> str:
+    if not SHA256.fullmatch(value):
+        raise ValueError(f"{label} must be an exact sha256 digest")
+    return value
 
 
 def main() -> int:
@@ -61,19 +55,19 @@ def main() -> int:
             image["buildEvidenceDigest"] = args.keycloak_build_evidence_digest
         images.append(image)
     payload = {
-        "schemaVersion": "weave.release.candidate-manifest.v3",
+        "schemaVersion": "weave.release.candidate-manifest.v4",
         "supportSafe": True,
         "commit": args.commit,
         "specificationCommit": args.specification_commit,
         "specDigest": args.spec_digest,
         "buildEvidenceRef": args.build_evidence_ref,
-        "realmArtifacts": {
-            "baselineDigest": artifact_digest(
-                args.realm_baseline_artifact, "realm baseline artifact"
+        "realmDefinition": {
+            "semanticRealmSourceDigest": exact_digest(
+                args.semantic_realm_source_digest, "semantic realm source digest"
             ),
-            "migrationBundleDigest": artifact_digest(
-                args.realm_migration_bundle_artifact,
-                "realm migration bundle artifact",
+            "migrationDefinitionDigest": exact_digest(
+                args.realm_migration_definition_digest,
+                "realm migration definition digest",
             ),
             "containsSecrets": False,
         },

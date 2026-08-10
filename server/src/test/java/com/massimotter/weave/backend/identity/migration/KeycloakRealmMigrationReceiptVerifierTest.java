@@ -246,7 +246,6 @@ class KeycloakRealmMigrationReceiptVerifierTest {
     String manifest =
         """
         {
-          "baselineArtifactDigest": "%s",
           "bundles": [
             {
               "digest": "%s",
@@ -254,10 +253,13 @@ class KeycloakRealmMigrationReceiptVerifierTest {
             }
           ],
           "containsSecretValues": false,
-          "schemaVersion": "weave.keycloak-realm-migration-manifest/v1"
+          "migrationDefinitionDigest": "sha256:%s",
+          "renderedRealmDigest": "%s",
+          "schemaVersion": "weave.keycloak-realm-migration-manifest/v2",
+          "semanticRealmSourceDigest": "sha256:%s"
         }
         """
-            .formatted(BASELINE_DIGEST, bundleDigest);
+            .formatted(bundleDigest, "f".repeat(64), BASELINE_DIGEST, "9".repeat(64));
     Files.writeString(
         temporary.resolve("keycloak/migrations/manifest.json"),
         manifest,

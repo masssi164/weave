@@ -15,14 +15,19 @@ case "${PROFILE}" in
     ;;
 esac
 
-if [[ "${PROFILE}" == "dev" || "${PROFILE}" == "e2e" ]]; then
-  printf 'WEAVE_INSTALL_ERROR the deferred Keycloak FGAP migration is currently qualified only for backup-gated dogfood/prod; %s remains fail-closed\n' "${PROFILE}" >&2
+if [[ "${PROFILE}" == "dev" ]]; then
+  printf 'WEAVE_INSTALL_ERROR the protected post-import Keycloak migration is not a dev lifecycle operation\n' >&2
   exit 1
 fi
 
-if [[ "${PROFILE}" != "dev" && -z "${WEAVE_ENV_FILE:-}" ]]; then
-  printf 'WEAVE_INSTALL_ERROR %s requires WEAVE_ENV_FILE pointing to reviewed public deployment inputs\n' "${PROFILE}" >&2
+if [[ -z "${WEAVE_ENV_FILE:-}" ]]; then
+  printf 'WEAVE_INSTALL_ERROR %s requires WEAVE_ENV_FILE pointing to its reviewed or generated deployment inputs\n' "${PROFILE}" >&2
   exit 2
+fi
+
+if [[ "${PROFILE}" == "e2e" && -z "${WEAVE_E2E_EMPTY_NAMESPACE_PROOF:-}" ]]; then
+  printf 'WEAVE_INSTALL_ERROR e2e requires WEAVE_E2E_EMPTY_NAMESPACE_PROOF from the pre-resource namespace check\n' >&2
+  exit 1
 fi
 
 "${ROOT_DIR}/compose.sh" "${PROFILE}" keycloak-migration-apply

@@ -19,10 +19,28 @@ COMPONENTS = {
     "keycloak": "keycloak-runtime",
     "mcp": "mcp-server",
 }
-REALM_ARTIFACT_FIELDS = {
-    "baselineDigest",
-    "migrationBundleDigest",
+REALM_DEFINITION_FIELDS = {
+    "semanticRealmSourceDigest",
+    "migrationDefinitionDigest",
     "containsSecrets",
+}
+REALM_EVIDENCE_FIELDS = {
+    "semanticRealmSourceDigest",
+    "migrationDefinitionDigest",
+    "overlayDigest",
+    "renderedRealmDigest",
+    "semanticReadbackDigest",
+    "candidateRealmDefinitionMatched",
+    "environmentRealmRenderStable",
+    "semanticReadbackVerified",
+    "containsSecrets",
+}
+REALM_EVIDENCE_DIGEST_FIELDS = {
+    "semanticRealmSourceDigest",
+    "migrationDefinitionDigest",
+    "overlayDigest",
+    "renderedRealmDigest",
+    "semanticReadbackDigest",
 }
 
 
@@ -54,10 +72,26 @@ def safe_url(value: str) -> str:
     return value.rstrip("/")
 
 
+def validate_realm_evidence(value: dict[str, Any], candidate_definition: dict[str, Any]) -> dict[str, Any]:
+    if (
+        set(value) != REALM_EVIDENCE_FIELDS
+        or any(DIGEST.fullmatch(str(value.get(field, ""))) is None for field in REALM_EVIDENCE_DIGEST_FIELDS)
+        or value.get("semanticRealmSourceDigest") != candidate_definition.get("semanticRealmSourceDigest")
+        or value.get("migrationDefinitionDigest") != candidate_definition.get("migrationDefinitionDigest")
+        or value.get("candidateRealmDefinitionMatched") is not True
+        or value.get("environmentRealmRenderStable") is not True
+        or value.get("semanticReadbackVerified") is not True
+        or value.get("containsSecrets") is not False
+    ):
+        raise ManifestError("realm evidence is incomplete, unverified, or not candidate-bound")
+    return dict(value)
+
+
 def assemble(
     *,
     mapping: dict[str, Any],
     candidate: dict[str, Any],
+    realm_evidence: dict[str, Any],
     runtime: dict[str, Any],
     cut: dict[str, Any] | None,
     comparison: dict[str, Any] | None = None,
@@ -88,27 +122,24 @@ def assemble(
     manifest_raw = json.dumps(candidate, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
     manifest_digest = "sha256:" + hashlib.sha256(manifest_raw).hexdigest()
     candidate_images = candidate.get("images")
-    realm_artifacts = candidate.get("realmArtifacts")
+    realm_definition = candidate.get("realmDefinition")
     if (
-        candidate.get("schemaVersion") != "weave.release.candidate-manifest.v3"
+        candidate.get("schemaVersion") != "weave.release.candidate-manifest.v4"
         or candidate.get("supportSafe") is not True
         or candidate.get("commit") != source
         or not COMMIT.fullmatch(str(candidate.get("specificationCommit", "")))
         or not isinstance(candidate_images, list)
         or len(candidate_images) != len(COMPONENTS)
         or any(not isinstance(item, dict) for item in candidate_images)
-        or not isinstance(realm_artifacts, dict)
-        or set(realm_artifacts) != REALM_ARTIFACT_FIELDS
-        or not DIGEST.fullmatch(str(realm_artifacts.get("baselineDigest", "")))
-        or not DIGEST.fullmatch(str(realm_artifacts.get("migrationBundleDigest", "")))
-        or realm_artifacts.get("containsSecrets") is not False
+        or not isinstance(realm_definition, dict)
+        or set(realm_definition) != REALM_DEFINITION_FIELDS
+        or not DIGEST.fullmatch(str(realm_definition.get("semanticRealmSourceDigest", "")))
+        or not DIGEST.fullmatch(str(realm_definition.get("migrationDefinitionDigest", "")))
+        or realm_definition.get("containsSecrets") is not False
     ):
         raise ManifestError("candidate manifest is unsafe or belongs to another source")
-    by_component = {
-        item.get("component"): item
-        for item in candidate_images
-        if isinstance(item, dict)
-    }
+    normalized_realm_evidence = validate_realm_evidence(realm_evidence, realm_definition)
+    by_component = {item.get("component"): item for item in candidate_images}
     if set(by_component) != set(COMPONENTS.values()):
         raise ManifestError("candidate manifest does not contain the exact three runtime images")
     observed = runtime.get("images")
@@ -147,13 +178,13 @@ def assemble(
     if (cut is None) == (comparison is None):
         raise ManifestError("exactly one Fresh Start or routine continuity baseline is required")
     if cut is not None and (
-        cut.get("schemaVersion") != "weave.fresh-start-cut-report.v2"
+        cut.get("schemaVersion") != "weave.fresh-start-cut-report.v3"
         or cut.get("laneCandidateCommit") != lane
         or cut.get("sourceCandidateCommit") != source
         or cut.get("candidateManifestDigest") != manifest_digest
         or cut.get("status") != "passed"
         or cut.get("schemaConverged") is not True
-        or cut.get("realmArtifactsVerified") is not True
+        or cut.get("realmEvidenceVerified") is not True
         or cut.get("imagesVerified") is not True
         or cut.get("firstOwnerBootstrapRequired") is not True
         or cut.get("ownerInvitationCreated") is not False
@@ -179,12 +210,14 @@ def assemble(
     ):
         raise ManifestError("routine dogfood continuity evidence is unsafe or incomplete")
     if (
-        idempotence.get("schemaVersion") != "weave.persistent-test-idempotence.v3"
+        idempotence.get("schemaVersion") != "weave.persistent-test-idempotence.v4"
         or idempotence.get("runtimeProfile") != "dogfood"
         or idempotence.get("deploymentContext") != "persistent-dogfood"
         or idempotence.get("noChanges") is not True
         or idempotence.get("composeModelStable") is not True
-        or idempotence.get("realmArtifactsUnchanged") is not True
+        or idempotence.get("candidateRealmDefinitionMatched") is not True
+        or idempotence.get("environmentRealmRenderStable") is not True
+        or idempotence.get("semanticReadbackVerified") is not True
         or idempotence.get("supportSafe") is not True
         or idempotence.get("containsSecretValues") is not False
     ):
@@ -202,7 +235,7 @@ def assemble(
     if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,63}", generation):
         raise ManifestError("resource generation is malformed")
     return {
-        "schemaVersion": "weave.test-stack-manifest.v3",
+        "schemaVersion": "weave.test-stack-manifest.v4",
         "supportSafe": True,
         "containsSecretValues": False,
         "branch": "dogfood",
@@ -210,7 +243,7 @@ def assemble(
         "sourceCandidateCommit": source,
         "specificationCommit": candidate["specificationCommit"],
         "candidateManifestDigest": manifest_digest,
-        "realmArtifacts": dict(realm_artifacts),
+        "realmEvidence": normalized_realm_evidence,
         "images": images,
         "runtime": {
             "environment": "persistent-dogfood",
@@ -222,7 +255,9 @@ def assemble(
             "freshStartStatus": "passed" if cut is not None else "not-required",
             "persistentContinuityStatus": "not-required" if cut is not None else "passed",
             "composeModelStable": True,
-            "realmArtifactsUnchanged": True,
+            "candidateRealmDefinitionMatched": True,
+            "environmentRealmRenderStable": True,
+            "semanticReadbackVerified": True,
             "providerHealth": "available",
             "legacyStateMigrated": False,
             "adoptionAuthorized": False,
@@ -243,6 +278,7 @@ def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--candidate-source-mapping", type=Path, required=True)
     result.add_argument("--candidate-manifest", type=Path, required=True)
+    result.add_argument("--realm-evidence", type=Path, required=True)
     result.add_argument("--runtime-image-evidence", type=Path, required=True)
     baseline = result.add_mutually_exclusive_group(required=True)
     baseline.add_argument("--fresh-start-cut-report", type=Path)
@@ -263,6 +299,7 @@ def main() -> int:
         value = assemble(
             mapping=load(args.candidate_source_mapping, "candidate source mapping"),
             candidate=load(args.candidate_manifest, "candidate manifest"),
+            realm_evidence=load(args.realm_evidence, "realm evidence"),
             runtime=load(args.runtime_image_evidence, "runtime image evidence"),
             cut=(load(args.fresh_start_cut_report, "Fresh Start cut report") if args.fresh_start_cut_report else None),
             comparison=(load(args.persistent_comparison, "persistent comparison") if args.persistent_comparison else None),

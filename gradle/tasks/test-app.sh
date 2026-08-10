@@ -8,10 +8,12 @@ readonly REPOSITORY_ROOT
 readonly WORKSPACE_ROOT="${REPOSITORY_ROOT}/infra/weave-workspace"
 readonly CONTEXT_HELPER="${REPOSITORY_ROOT}/gradle/scripts/prepare_test_app_context.py"
 readonly RUNTIME_CLEANUP="${REPOSITORY_ROOT}/gradle/scripts/cleanup_test_app_runtime.py"
+readonly EMPTY_NAMESPACE_WRITER="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_empty_namespace_evidence.py"
 readonly COMPOSE="${WORKSPACE_ROOT}/compose.sh"
 readonly TEARDOWN="${WORKSPACE_ROOT}/teardown.sh"
 readonly FAILURE_DIAGNOSTICS="${WORKSPACE_ROOT}/live-stack-failure-diagnostics.sh"
 readonly DCR_CONTRACT_PROBE="${WORKSPACE_ROOT}/scripts/verify_keycloak_dcr_contract.py"
+readonly REALM_EVIDENCE_WRITER="${WORKSPACE_ROOT}/scripts/keycloak_realm_evidence.py"
 readonly RUNTIME_IMAGE_EVIDENCE_WRITER="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_runtime_image_evidence.py"
 readonly CANDIDATE_MANIFEST_CHECK="${REPOSITORY_ROOT}/gradle/tasks/candidate-manifest-check.py"
 
@@ -128,6 +130,7 @@ docker info >/dev/null 2>&1 || fail "Docker daemon is not reachable"
 [[ -x "${REPOSITORY_ROOT}/gradlew" ]] || fail "Gradle wrapper is unavailable"
 [[ "${OUTPUT_ROOT}" == /* ]] || fail "WEAVE_TEST_APP_OUTPUT_ROOT must be absolute"
 [[ -f "${CONTEXT_HELPER}" ]] || fail "Fresh testApp context helper is unavailable"
+[[ -f "${EMPTY_NAMESPACE_WRITER}" ]] || fail "Fresh namespace proof helper is unavailable"
 require_free_disk_space
 
 candidate_commit="${WEAVE_CANDIDATE_COMMIT:-$(git -C "${REPOSITORY_ROOT}" rev-parse HEAD)}"
@@ -276,7 +279,7 @@ if [[ -n "${candidate_manifest_path}" ]]; then
     --arg server "${SERVER_IMAGE}" \
     --arg mcp "${MCP_IMAGE}" \
     --arg keycloak "${KEYCLOAK_IMAGE}" '
-      .schemaVersion == "weave.release.candidate-manifest.v3" and
+      .schemaVersion == "weave.release.candidate-manifest.v4" and
       .commit == $source_candidate_commit and
       .specificationCommit == $specification_commit and
       .specDigest == $spec_digest and
@@ -286,9 +289,9 @@ if [[ -n "${candidate_manifest_path}" ]]; then
         "mcp-server": $mcp,
         "keycloak-runtime": $keycloak
       } and
-      .realmArtifacts.containsSecrets == false and
-      (.realmArtifacts.baselineDigest | test("^sha256:[0-9a-f]{64}$")) and
-      (.realmArtifacts.migrationBundleDigest | test("^sha256:[0-9a-f]{64}$"))
+      .realmDefinition.containsSecrets == false and
+      (.realmDefinition.semanticRealmSourceDigest | test("^sha256:[0-9a-f]{64}$")) and
+      (.realmDefinition.migrationDefinitionDigest | test("^sha256:[0-9a-f]{64}$"))
     ' "${candidate_manifest_path}" >/dev/null ||
     fail "runtime image inputs do not match the exact candidate manifest"
 fi
@@ -300,10 +303,36 @@ WEAVE_MCP_IMAGE="$(docker image inspect "${MCP_IMAGE}" --format '{{.Id}}')"
 export WEAVE_KEYCLOAK_IMAGE
 WEAVE_KEYCLOAK_IMAGE="$(docker image inspect "${KEYCLOAK_IMAGE}" --format '{{.Id}}')"
 
-log "Starting one exact, disposable Compose test stack."
+empty_namespace_proof="${WEAVE_TEST_APP_RUN_ROOT}/empty-namespace-proof.json"
+python3 "${EMPTY_NAMESPACE_WRITER}" \
+  --repository-root "${REPOSITORY_ROOT}" \
+  --env-file "${WEAVE_ENV_FILE}" \
+  --run-id "${RUN_ID}" \
+  --candidate-commit "${candidate_commit}" \
+  --candidate-manifest-digest "${candidate_manifest_digest}" \
+  --output "${empty_namespace_proof}"
+export WEAVE_E2E_EMPTY_NAMESPACE_PROOF="${empty_namespace_proof}"
+
+log "Applying one bounded migration to the proven-empty E2E namespace."
 STACK_PREPARED=true
+bash "${COMPOSE}" e2e keycloak-migration-apply
+first_render_manifest="${WEAVE_TEST_APP_RUN_ROOT}/render-manifest-first.json"
+cp "${WEAVE_TEST_APP_GENERATED_ROOT}/render-manifest.json" "${first_render_manifest}"
+
+log "Starting one exact, disposable Compose test stack."
 bash "${COMPOSE}" e2e up
 bash "${WORKSPACE_ROOT}/operator-check.sh" e2e
+
+realm_evidence_path="${WEAVE_TEST_APP_RUN_ROOT}/realm-evidence.json"
+if [[ -n "${candidate_manifest_path}" ]]; then
+  python3 "${REALM_EVIDENCE_WRITER}" \
+    --candidate-manifest "${candidate_manifest_path}" \
+    --first-render-manifest "${first_render_manifest}" \
+    --current-render-manifest "${WEAVE_TEST_APP_GENERATED_ROOT}/render-manifest.json" \
+    --render-evidence "${WEAVE_TEST_APP_GENERATED_ROOT}/keycloak/realm-render-evidence.json" \
+    --migration-receipt "${WEAVE_TEST_APP_GENERATED_ROOT}/keycloak/migrations/fgap-v2-primary-organization-post-import.receipt.json" \
+    --output "${realm_evidence_path}"
+fi
 
 runtime_image_evidence_arguments=(
   --candidate-commit "${candidate_commit}"
@@ -320,10 +349,7 @@ runtime_image_evidence_arguments=(
 if [[ -n "${candidate_manifest_path}" ]]; then
   runtime_image_evidence_arguments+=(
     --manifest "${candidate_manifest_path}"
-    --realm-baseline-artifact \
-      "${WEAVE_TEST_APP_GENERATED_ROOT}/keycloak/import/weave-realm.json"
-    --realm-migration-bundle-artifact \
-      "${WEAVE_TEST_APP_GENERATED_ROOT}/keycloak/migrations/manifest.json"
+    --realm-evidence "${realm_evidence_path}"
   )
 fi
 python3 "${RUNTIME_IMAGE_EVIDENCE_WRITER}" \
@@ -520,7 +546,7 @@ jq -e \
   --arg specification_commit "${specification_commit}" \
   --arg candidate_manifest_digest "${candidate_manifest_digest}" \
   --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
-  .schemaVersion == "weave.test-app-runtime-images/v1" and
+  .schemaVersion == "weave.test-app-runtime-images/v2" and
   .candidateCommit == $candidate_commit and
   .sourceCandidateCommit == $source_candidate_commit and
   .specificationCommit == $specification_commit and
@@ -529,12 +555,18 @@ jq -e \
   (.images | length) == 3 and
   ([.images[].component] | sort) ==
     ["keycloak-runtime", "mcp-server", "server"] and
-  ((.manifestBound == false and .realmArtifacts == null) or
+  ((.manifestBound == false and .realmEvidence == null and .realmEvidenceVerified == false) or
     (.manifestBound == true and
-      .realmArtifactsVerified == true and
-      .realmArtifacts.containsSecrets == false and
-      (.realmArtifacts.baselineDigest | test("^sha256:[0-9a-f]{64}$")) and
-      (.realmArtifacts.migrationBundleDigest | test("^sha256:[0-9a-f]{64}$")))) and
+      .realmEvidenceVerified == true and
+      .realmEvidence.candidateRealmDefinitionMatched == true and
+      .realmEvidence.environmentRealmRenderStable == true and
+      .realmEvidence.semanticReadbackVerified == true and
+      .realmEvidence.containsSecrets == false and
+      (.realmEvidence.semanticRealmSourceDigest | test("^sha256:[0-9a-f]{64}$")) and
+      (.realmEvidence.migrationDefinitionDigest | test("^sha256:[0-9a-f]{64}$")) and
+      (.realmEvidence.overlayDigest | test("^sha256:[0-9a-f]{64}$")) and
+      (.realmEvidence.renderedRealmDigest | test("^sha256:[0-9a-f]{64}$")) and
+      (.realmEvidence.semanticReadbackDigest | test("^sha256:[0-9a-f]{64}$")))) and
   (.images[] | select(.component == "keycloak-runtime") |
     .buildEvidenceDigest | test("^sha256:[0-9a-f]{64}$")) and
   ([.images[].matchesCandidate] | all) and
