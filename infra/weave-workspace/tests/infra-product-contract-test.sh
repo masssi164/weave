@@ -83,8 +83,6 @@ require "${ROOT_DIR}/compose.prod.yaml" 'target: /opt/keycloak/vault/weave_smtp-
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'ordinary reconciliation refuses an implicit rotation'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'
 
-# Spring application behavior is versioned in application.yml + application-{profile}.yml,
-# not synthesized by the infrastructure renderer.
 for profile in dev dogfood e2e prod; do
   require "${REPO_ROOT}/server/src/main/resources/application-${profile}.yml" "on-profile: ${profile}"
   require "${REPO_ROOT}/weave-mcp-server/src/main/resources/application-${profile}.yml" "on-profile: ${profile}"
@@ -96,11 +94,9 @@ reject "${ROOT_DIR}/scripts/render_config.py" '_mcp_env'
 reject "${ROOT_DIR}/scripts/render_config.py" 'backend/public.env'
 reject "${ROOT_DIR}/scripts/render_config.py" 'mcp/public.env'
 
-# Runtime policy remains an infrastructure-owned deployment artifact.
 require "${ROOT_DIR}/scripts/render_config.py" '"requiredScopes": ["files.read", "mcp.tools"]'
 require "${ROOT_DIR}/scripts/render_config.py" '"credentialRefTemplate": "credentialref://weave/runtime/{cellRef}/{workloadClientId}/mcp"'
 
-# Dynamic human identity administration remains Server-only and secret references stay configtree-backed.
 require "${ROOT_DIR}/compose.yaml" \
   'file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/identity-reference-hmac-key'
 require "${ROOT_DIR}/compose.yaml" 'target: identity-reference-hmac-key'
@@ -122,9 +118,13 @@ require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" "'keycloak
 require "${REPO_ROOT}/server/build.gradle" 'apply from: "${projectDir}/gradle/tasks/development.gradle"'
 require "${REPO_ROOT}/server/gradle/tasks/development.gradle" "'serverDevH2Test'"
 require "${REPO_ROOT}/server/gradle/tasks/development.gradle" "'serverPostgresIntegrationTest'"
-require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'freshStartPlan'
-require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'freshStartApply'
-reject "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'WEAVE_ADOPTION_RECEIPT'
+readonly TEST_STACK_WORKFLOW="${REPO_ROOT}/.github/workflows/test-stack-deploy.yml"
+require "${TEST_STACK_WORKFLOW}" 'deployment_mode:'
+require "${TEST_STACK_WORKFLOW}" '- fresh-start'
+require "${TEST_STACK_WORKFLOW}" 'Create or reuse the exact private backup, restore proof, and Fresh Start plan'
+require "${TEST_STACK_WORKFLOW}" 'FreshStartBackupRehearsal.json'
+require "${TEST_STACK_WORKFLOW}" 'plan.json'
+reject "${TEST_STACK_WORKFLOW}" 'WEAVE_ADOPTION_RECEIPT'
 reject "${REPO_ROOT}/build.gradle" 'gradle/tasks/environment-profiles.gradle'
 
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_CREATE_TEST_USER'
