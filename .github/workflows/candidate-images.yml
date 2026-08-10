@@ -59,10 +59,8 @@ jobs:
             echo "::error::Checked-out source does not match candidate_sha." >&2
             exit 1
           }
-          git fetch --no-tags origin \
-            '+refs/heads/dev:refs/remotes/origin/dev'
-          git merge-base --is-ancestor \
-            "$WEAVE_CANDIDATE_COMMIT" refs/remotes/origin/dev || {
+          git fetch --no-tags origin '+refs/heads/dev:refs/remotes/origin/dev'
+          git merge-base --is-ancestor "$WEAVE_CANDIDATE_COMMIT" refs/remotes/origin/dev || {
             echo "::error::candidate_sha is not contained in protected dev." >&2
             exit 1
           }
@@ -103,10 +101,7 @@ jobs:
         id: spec
         run: |
           set -euo pipefail
-          spec_commit="$(
-            jq -er '.specCorpus.gitCommit | select(type == "string" and test("^[0-9a-f]{40}$"))' \
-              specs/weave-specs.lock.json
-          )"
+          spec_commit="$(jq -er '.specCorpus.gitCommit | select(type == "string" and test("^[0-9a-f]{40}$"))' specs/weave-specs.lock.json)"
           printf 'commit=%s\n' "$spec_commit" >> "$GITHUB_OUTPUT"
 
       - name: Check out pinned Weave Specification Corpus
@@ -159,8 +154,7 @@ jobs:
       - name: Verify JVM and PostgreSQL candidate gates
         run: |
           ./gradlew --no-daemon --max-workers=2 \
-            serverCi \
-            mcpCi \
+            serverCi mcpCi \
             :weave-application-core:test \
             :weave-files-core:test \
             :weave-persistence-jpa:test \
@@ -231,11 +225,7 @@ jobs:
             --evidence "$GITHUB_WORKSPACE/build/candidate/keycloak-runtime-build.json" \
             --candidate-commit "$WEAVE_CANDIDATE_COMMIT" \
             --specification-commit "${{ steps.spec.outputs.commit }}"
-          build_evidence_digest="$(
-            jq -er '.canonicalBuildEvidenceDigest |
-              select(test("^sha256:[0-9a-f]{64}$"))' \
-              build/candidate/keycloak-runtime-build.json
-          )"
+          build_evidence_digest="$(jq -er '.canonicalBuildEvidenceDigest | select(test("^sha256:[0-9a-f]{64}$"))' build/candidate/keycloak-runtime-build.json)"
           {
             echo "upstream_commit=$(jq -er .upstreamCommit build/candidate/keycloak-runtime-build.json)"
             echo "archive_sha256=$(jq -er .upstreamArchiveSha256 build/candidate/keycloak-runtime-build.json)"
@@ -288,9 +278,7 @@ jobs:
         run: |
           set -euo pipefail
           image_label() {
-            docker image inspect \
-              --format "{{ index .Config.Labels \"$2\" }}" \
-              "$1"
+            docker image inspect --format "{{ index .Config.Labels \"$2\" }}" "$1"
           }
           validate_published_image() {
             local image="$1"
@@ -307,59 +295,43 @@ jobs:
             [[ "$(image_label "$image" com.massimotter.weave.runtime-user)" == "$runtime_user" ]]
             [[ "$(image_label "$image" com.massimotter.weave.dependency-platform)" == "$dependency_platform" ]]
           }
-          validate_published_image \
-            "${SERVER_IMAGE}@${{ steps.server.outputs.digest }}" \
-            "Weave Server" \
-            "server" \
-            "10001:10001" \
-            "java21-spring-boot-4.1"
-          validate_published_image \
-            "${MCP_IMAGE}@${{ steps.mcp.outputs.digest }}" \
-            "Weave MCP Server" \
-            "weave-mcp-server" \
-            "10001:10001" \
-            "java21-spring-boot-4.1-spring-ai-2.0"
-          validate_published_image \
-            "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
-            "Weave Keycloak Runtime" \
-            "keycloak-runtime" \
-            "1000:0" \
-            "keycloak-26.7.1-downstream-built-in-policy"
-          [[ "$(image_label \
-            "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
-            com.massimotter.weave.provider-id)" == \
-            "weave-workload-client-registration-enforcer" ]]
-          [[ "$(image_label \
-            "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
-            com.massimotter.weave.keycloak-build-evidence-digest)" == \
-            "${{ steps.keycloak_runtime_prepare.outputs.build_evidence_digest }}" ]]
-          [[ "$(image_label \
-            "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
-            com.massimotter.weave.keycloak-stock-index-digest)" == \
-            "${{ steps.keycloak_runtime_prepare.outputs.stock_index_digest }}" ]]
-          [[ "$(image_label \
-            "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
-            com.massimotter.weave.keycloak-stock-platform)" == \
-            "${{ steps.keycloak_runtime_prepare.outputs.stock_platform }}" ]]
-          [[ "$(image_label \
-            "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
-            com.massimotter.weave.keycloak-stock-platform-manifest-digest)" == \
-            "${{ steps.keycloak_runtime_prepare.outputs.stock_platform_manifest_digest }}" ]]
+          validate_published_image "${SERVER_IMAGE}@${{ steps.server.outputs.digest }}" "Weave Server" "server" "10001:10001" "java21-spring-boot-4.1"
+          validate_published_image "${MCP_IMAGE}@${{ steps.mcp.outputs.digest }}" "Weave MCP Server" "weave-mcp-server" "10001:10001" "java21-spring-boot-4.1-spring-ai-2.0"
+          validate_published_image "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" "Weave Keycloak Runtime" "keycloak-runtime" "1000:0" "keycloak-26.7.1-downstream-built-in-policy"
+          [[ "$(image_label "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" com.massimotter.weave.provider-id)" == "weave-workload-client-registration-enforcer" ]]
+          [[ "$(image_label "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" com.massimotter.weave.keycloak-build-evidence-digest)" == "${{ steps.keycloak_runtime_prepare.outputs.build_evidence_digest }}" ]]
+          [[ "$(image_label "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" com.massimotter.weave.keycloak-stock-index-digest)" == "${{ steps.keycloak_runtime_prepare.outputs.stock_index_digest }}" ]]
+          [[ "$(image_label "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" com.massimotter.weave.keycloak-stock-platform)" == "${{ steps.keycloak_runtime_prepare.outputs.stock_platform }}" ]]
+          [[ "$(image_label "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" com.massimotter.weave.keycloak-stock-platform-manifest-digest)" == "${{ steps.keycloak_runtime_prepare.outputs.stock_platform_manifest_digest }}" ]]
 
       - name: Resolve exact OCI attestation digests
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build/candidate
-          python3 gradle/tasks/oci-attestation-digests.py \
-            --image "${SERVER_IMAGE}@${{ steps.server.outputs.digest }}" \
-            --output build/candidate/server-attestations.json
-          python3 gradle/tasks/oci-attestation-digests.py \
-            --image "${MCP_IMAGE}@${{ steps.mcp.outputs.digest }}" \
-            --output build/candidate/mcp-attestations.json
-          python3 gradle/tasks/oci-attestation-digests.py \
-            --image "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" \
-            --output build/candidate/keycloak-runtime-attestations.json
+          python3 gradle/tasks/oci-attestation-digests.py --image "${SERVER_IMAGE}@${{ steps.server.outputs.digest }}" --output build/candidate/server-attestations.json
+          python3 gradle/tasks/oci-attestation-digests.py --image "${MCP_IMAGE}@${{ steps.mcp.outputs.digest }}" --output build/candidate/mcp-attestations.json
+          python3 gradle/tasks/oci-attestation-digests.py --image "${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}" --output build/candidate/keycloak-runtime-attestations.json
+
+      - name: Resolve canonical realm definition identities
+        id: realm_definition
+        shell: bash
+        run: |
+          set -euo pipefail
+          semantic="$(jq -er '.provenance.baselineRevision | select(test("^sha256:[0-9a-f]{64}$"))' "$WEAVE_SPEC_CORPUS_ROOT/contracts/examples/keycloak-desired-state.valid.json")"
+          migration="$(python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          path = Path('infra/weave-workspace/keycloak/migration-definition.json')
+          value = json.loads(path.read_text(encoding='utf-8'))
+          payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
+          print('sha256:' + hashlib.sha256(payload).hexdigest())
+          PY
+          )"
+          {
+            echo "semantic_digest=$semantic"
+            echo "migration_digest=$migration"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create immutable candidate manifest
         id: manifest
@@ -367,21 +339,14 @@ jobs:
         run: |
           set -euo pipefail
           evidence_ref="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}"
-          realm_baseline="$GITHUB_WORKSPACE/build/candidate/keycloak/import/weave-realm.json"
-          realm_migrations="$GITHUB_WORKSPACE/build/candidate/keycloak/migrations/manifest.json"
-          [[ -f "$realm_baseline" && ! -L "$realm_baseline" && \
-             -f "$realm_migrations" && ! -L "$realm_migrations" ]] || {
-            echo "::error::Canonical rendered realm baseline or migration bundle is missing." >&2
-            exit 1
-          }
           ./gradlew createCandidateManifest \
             "-PcandidateCommit=$WEAVE_CANDIDATE_COMMIT" \
             "-PspecificationCommit=${{ steps.spec.outputs.commit }}" \
             "-PspecDigest=${{ steps.identity.outputs.spec_digest }}" \
             "-PbuildEvidenceRef=$evidence_ref" \
             "-PkeycloakRuntimeBuildEvidenceDigest=${{ steps.keycloak_runtime_prepare.outputs.build_evidence_digest }}" \
-            "-PrealmBaselineArtifact=$realm_baseline" \
-            "-PrealmMigrationBundleArtifact=$realm_migrations" \
+            "-PsemanticRealmSourceDigest=${{ steps.realm_definition.outputs.semantic_digest }}" \
+            "-PrealmMigrationDefinitionDigest=${{ steps.realm_definition.outputs.migration_digest }}" \
             "-PserverImage=${SERVER_IMAGE}@${{ steps.server.outputs.digest }}" \
             "-PserverSbomDigest=$(jq -r .sbomDigest build/candidate/server-attestations.json)" \
             "-PserverProvenanceDigest=$(jq -r .provenanceDigest build/candidate/server-attestations.json)" \
@@ -392,8 +357,7 @@ jobs:
             "-PkeycloakRuntimeSbomDigest=$(jq -r .sbomDigest build/candidate/keycloak-runtime-attestations.json)" \
             "-PkeycloakRuntimeProvenanceDigest=$(jq -r .provenanceDigest build/candidate/keycloak-runtime-attestations.json)" \
             "-PcandidateManifest=$GITHUB_WORKSPACE/build/candidate/candidate-manifest.json"
-          echo "digest=sha256:$(awk 'NR == 1 {print $1}' build/candidate/candidate-manifest.json.sha256)" \
-            >> "$GITHUB_OUTPUT"
+          echo "digest=sha256:$(awk 'NR == 1 {print $1}' build/candidate/candidate-manifest.json.sha256)" >> "$GITHUB_OUTPUT"
 
       - name: Upload candidate evidence
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -402,8 +366,7 @@ jobs:
           path: |
             build/candidate/candidate-manifest.json
             build/candidate/candidate-manifest.json.sha256
-            build/candidate/keycloak/import/weave-realm.json
-            build/candidate/keycloak/migrations/manifest.json
+            infra/weave-workspace/keycloak/migration-definition.json
             build/candidate/keycloak-runtime-build.json
             build/candidate/server-attestations.json
             build/candidate/mcp-attestations.json
@@ -421,8 +384,9 @@ jobs:
             echo "- Server: \`${SERVER_IMAGE}@${{ steps.server.outputs.digest }}\`"
             echo "- MCP: \`${MCP_IMAGE}@${{ steps.mcp.outputs.digest }}\`"
             echo "- Keycloak Runtime: \`${KEYCLOAK_RUNTIME_IMAGE}@${{ steps.keycloak_runtime.outputs.digest }}\`"
-            echo "- Realm baseline: \`$(jq -r .realmArtifacts.baselineDigest build/candidate/candidate-manifest.json)\`"
-            echo "- Realm migrations: \`$(jq -r .realmArtifacts.migrationBundleDigest build/candidate/candidate-manifest.json)\`"
+            echo "- Semantic realm source: \`$(jq -r .realmDefinition.semanticRealmSourceDigest build/candidate/candidate-manifest.json)\`"
+            echo "- Migration definition: \`$(jq -r .realmDefinition.migrationDefinitionDigest build/candidate/candidate-manifest.json)\`"
+            echo "- Environment realm renders are derived and evidenced separately"
             echo "- Deployment proof: candidate manifest digest, never a tag"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -458,10 +422,7 @@ jobs:
         working-directory: weave
         run: |
           set -euo pipefail
-          spec_commit="$(
-            jq -er '.specCorpus.gitCommit | select(type == "string" and test("^[0-9a-f]{40}$"))' \
-              specs/weave-specs.lock.json
-          )"
+          spec_commit="$(jq -er '.specCorpus.gitCommit | select(type == "string" and test("^[0-9a-f]{40}$"))' specs/weave-specs.lock.json)"
           printf 'commit=%s\n' "$spec_commit" >> "$GITHUB_OUTPUT"
 
       - name: Check out pinned Weave Specification Corpus

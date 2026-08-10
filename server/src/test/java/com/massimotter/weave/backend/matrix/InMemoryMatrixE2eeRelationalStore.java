@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Fast service-test implementation of the same operation-level E2EE persistence port. */
-final class InMemoryMatrixE2eeRelationalStore implements MatrixE2eePersistence {
+public final class InMemoryMatrixE2eeRelationalStore implements MatrixE2eePersistence {
 
     private final Map<String, AtomicLong> revisions = new ConcurrentHashMap<>();
     private final Map<DeviceKey, DeviceState> devices = new ConcurrentHashMap<>();

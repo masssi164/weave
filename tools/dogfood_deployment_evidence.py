@@ -23,8 +23,30 @@ BUILD_IDENTITY_PATTERN = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$")
 CAPABILITIES = ("chat", "files", "calendar")
 IMAGE_COMPONENTS = frozenset(("backend", "keycloak", "mcp"))
 MANIFEST_IMAGE_COMPONENTS = frozenset(("server", "keycloak-runtime", "mcp-server"))
-REALM_ARTIFACT_FIELDS = frozenset(
-    ("baselineDigest", "migrationBundleDigest", "containsSecrets")
+REALM_DEFINITION_FIELDS = frozenset(
+    ("semanticRealmSourceDigest", "migrationDefinitionDigest", "containsSecrets")
+)
+REALM_EVIDENCE_FIELDS = frozenset(
+    (
+        "semanticRealmSourceDigest",
+        "migrationDefinitionDigest",
+        "overlayDigest",
+        "renderedRealmDigest",
+        "semanticReadbackDigest",
+        "candidateRealmDefinitionMatched",
+        "environmentRealmRenderStable",
+        "semanticReadbackVerified",
+        "containsSecrets",
+    )
+)
+REALM_EVIDENCE_DIGEST_FIELDS = frozenset(
+    (
+        "semanticRealmSourceDigest",
+        "migrationDefinitionDigest",
+        "overlayDigest",
+        "renderedRealmDigest",
+        "semanticReadbackDigest",
+    )
 )
 STATE_BY_VALUE = {0: "unavailable", 1: "degraded", 2: "available"}
 PROVIDER_STATES = frozenset(STATE_BY_VALUE.values())
@@ -156,12 +178,14 @@ def collect_provider_health(base_url: str) -> dict[str, Any]:
 def idempotence_passed(path: Path) -> bool:
     evidence = load_object(path, "deployment idempotence evidence")
     if (
-        evidence.get("schemaVersion") != "weave.persistent-test-idempotence.v3"
+        evidence.get("schemaVersion") != "weave.persistent-test-idempotence.v4"
         or evidence.get("runtimeProfile") != "dogfood"
         or evidence.get("deploymentContext") != "persistent-dogfood"
         or not isinstance(evidence.get("noChanges"), bool)
         or evidence.get("composeModelStable") is not True
-        or evidence.get("realmArtifactsUnchanged") is not True
+        or evidence.get("candidateRealmDefinitionMatched") is not True
+        or evidence.get("environmentRealmRenderStable") is not True
+        or evidence.get("semanticReadbackVerified") is not True
         or evidence.get("supportSafe") is not True
         or evidence.get("containsSecretValues") is not False
     ):
@@ -190,7 +214,7 @@ def candidate_source_mapping(path: Path, lane_candidate: str) -> tuple[str, dict
     return source, dict(sorted(images.items()))
 
 
-def candidate_manifest_realm_artifacts(
+def candidate_manifest_realm_definition(
     path: Path,
     source_candidate: str,
     expected_digest: str,
@@ -201,35 +225,46 @@ def candidate_manifest_realm_artifacts(
     actual_digest = "sha256:" + hashlib.sha256(raw).hexdigest()
     manifest = load_object(path, "candidate manifest")
     images = manifest.get("images")
-    realm_artifacts = manifest.get("realmArtifacts")
+    realm_definition = manifest.get("realmDefinition")
     if (
         actual_digest != expected_digest
-        or manifest.get("schemaVersion") != "weave.release.candidate-manifest.v3"
+        or manifest.get("schemaVersion") != "weave.release.candidate-manifest.v4"
         or manifest.get("supportSafe") is not True
         or manifest.get("commit") != source_candidate
         or not isinstance(images, list)
         or len(images) != len(MANIFEST_IMAGE_COMPONENTS)
         or any(not isinstance(item, dict) for item in images)
-        or {
-            item.get("component")
-            for item in images
-            if isinstance(item, dict)
-        }
-        != MANIFEST_IMAGE_COMPONENTS
-        or not isinstance(realm_artifacts, dict)
-        or set(realm_artifacts) != REALM_ARTIFACT_FIELDS
-        or not DIGEST_PATTERN.fullmatch(
-            str(realm_artifacts.get("baselineDigest", ""))
-        )
-        or not DIGEST_PATTERN.fullmatch(
-            str(realm_artifacts.get("migrationBundleDigest", ""))
-        )
-        or realm_artifacts.get("containsSecrets") is not False
+        or {item.get("component") for item in images} != MANIFEST_IMAGE_COMPONENTS
+        or not isinstance(realm_definition, dict)
+        or set(realm_definition) != REALM_DEFINITION_FIELDS
+        or not DIGEST_PATTERN.fullmatch(str(realm_definition.get("semanticRealmSourceDigest", "")))
+        or not DIGEST_PATTERN.fullmatch(str(realm_definition.get("migrationDefinitionDigest", "")))
+        or realm_definition.get("containsSecrets") is not False
     ):
-        raise EvidenceError(
-            "candidate manifest realm artifact evidence is unsafe, incomplete, or stale"
+        raise EvidenceError("candidate manifest realm definition is unsafe, incomplete, or stale")
+    return dict(realm_definition)
+
+
+def validate_realm_evidence(
+    value: dict[str, Any], candidate_definition: dict[str, Any]
+) -> dict[str, Any]:
+    if (
+        set(value) != REALM_EVIDENCE_FIELDS
+        or any(
+            DIGEST_PATTERN.fullmatch(str(value.get(field, ""))) is None
+            for field in REALM_EVIDENCE_DIGEST_FIELDS
         )
-    return dict(realm_artifacts)
+        or value.get("semanticRealmSourceDigest")
+        != candidate_definition.get("semanticRealmSourceDigest")
+        or value.get("migrationDefinitionDigest")
+        != candidate_definition.get("migrationDefinitionDigest")
+        or value.get("candidateRealmDefinitionMatched") is not True
+        or value.get("environmentRealmRenderStable") is not True
+        or value.get("semanticReadbackVerified") is not True
+        or value.get("containsSecrets") is not False
+    ):
+        raise EvidenceError("realm evidence is unsafe, incomplete, stale, or not candidate-bound")
+    return dict(value)
 
 
 def validate_provider_health(value: dict[str, Any]) -> None:
@@ -241,7 +276,7 @@ def validate_provider_health(value: dict[str, Any]) -> None:
         or value.get("rawMetricPayloadIncluded") is not False
         or value.get("overall") not in PROVIDER_STATES
         or not isinstance(capabilities, dict)
-        or any(capabilities.get(name) not in PROVIDER_STATES for name in ("chat", "files", "calendar"))
+        or any(capabilities.get(name) not in PROVIDER_STATES for name in CAPABILITIES)
         or not isinstance(value.get("cachedResultAgeSeconds"), int)
         or isinstance(value.get("cachedResultAgeSeconds"), bool)
         or value["cachedResultAgeSeconds"] < 0
@@ -255,13 +290,13 @@ def validate_fresh_start_cut(
     value: dict[str, Any], lane: str, source: str, manifest_digest: str
 ) -> None:
     if (
-        value.get("schemaVersion") != "weave.fresh-start-cut-report.v2"
+        value.get("schemaVersion") != "weave.fresh-start-cut-report.v3"
         or value.get("laneCandidateCommit") != lane
         or value.get("sourceCandidateCommit") != source
         or value.get("candidateManifestDigest") != manifest_digest
         or value.get("status") != "passed"
         or value.get("schemaConverged") is not True
-        or value.get("realmArtifactsVerified") is not True
+        or value.get("realmEvidenceVerified") is not True
         or value.get("imagesVerified") is not True
         or value.get("firstOwnerBootstrapRequired") is not True
         or value.get("ownerInvitationCreated") is not False
@@ -301,7 +336,7 @@ def assemble_deployment(
     run_url: str,
     provider_health: dict[str, Any],
     candidate_images: dict[str, str],
-    realm_artifacts: dict[str, Any],
+    realm_evidence: dict[str, Any],
     idempotency_passed: bool,
     fresh_start_cut: dict[str, Any] | None = None,
     persistent_comparison: dict[str, Any] | None = None,
@@ -312,18 +347,8 @@ def assemble_deployment(
         raise EvidenceError("candidate manifest digest must be exact")
     if set(candidate_images) != IMAGE_COMPONENTS:
         raise EvidenceError("candidate image mapping is incomplete")
-    if (
-        not isinstance(realm_artifacts, dict)
-        or set(realm_artifacts) != REALM_ARTIFACT_FIELDS
-        or not DIGEST_PATTERN.fullmatch(
-            str(realm_artifacts.get("baselineDigest", ""))
-        )
-        or not DIGEST_PATTERN.fullmatch(
-            str(realm_artifacts.get("migrationBundleDigest", ""))
-        )
-        or realm_artifacts.get("containsSecrets") is not False
-    ):
-        raise EvidenceError("realm artifact evidence is incomplete or unsafe")
+    if set(realm_evidence) != REALM_EVIDENCE_FIELDS:
+        raise EvidenceError("realm evidence is incomplete")
     if not BUILD_IDENTITY_PATTERN.fullmatch(backend_version) or not BUILD_IDENTITY_PATTERN.fullmatch(backend_build_number):
         raise EvidenceError("backend build identity is malformed")
     if (fresh_start_cut is None) == (persistent_comparison is None):
@@ -353,12 +378,12 @@ def assemble_deployment(
         blockers.append({"code": "first-owner-bootstrap-required", "summary": "The bounded first-owner invitation bootstrap must run before human activation.", "candidateCommit": candidate})
     normalized_url = validate_run_url(run_url)
     return {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "supportSafe": True,
         "candidateCommit": candidate,
         "sourceCandidateCommit": source_candidate,
         "candidateManifestDigest": candidate_manifest_digest,
-        "realmArtifacts": dict(realm_artifacts),
+        "realmEvidence": dict(realm_evidence),
         "candidateImages": dict(sorted(candidate_images.items())),
         "backendBuild": {"commit": source_candidate, "version": backend_version, "buildNumber": backend_build_number},
         "deployment": {
@@ -370,7 +395,7 @@ def assemble_deployment(
             "persistentHumanUnchanged": identity_storage_preserved,
             "legacyStateMigrated": False,
             "adoptionAuthorized": False,
-            "realmArtifactsVerified": True,
+            "realmEvidenceVerified": True,
         },
         "providerHealth": {
             "overall": provider_health["overall"],
@@ -383,6 +408,7 @@ def assemble_deployment(
             f"{normalized_url}#dogfood-deployment",
             "artifact:candidate-source-mapping.json",
             "artifact:candidate-manifest.json",
+            "artifact:realm-evidence.json",
             "artifact:provider-health-summary.json",
             "artifact:persistent-test-idempotence.json",
             "artifact:fresh-start-cut-report.json" if fresh_start_cut is not None else "artifact:persistent-dogfood-comparison.json",
@@ -406,6 +432,7 @@ def parser() -> argparse.ArgumentParser:
     assemble.add_argument("--candidate-commit", required=True)
     assemble.add_argument("--candidate-manifest-digest", required=True)
     assemble.add_argument("--candidate-manifest", type=Path, required=True)
+    assemble.add_argument("--realm-evidence", type=Path, required=True)
     assemble.add_argument("--backend-version", required=True)
     assemble.add_argument("--backend-build-number", required=True)
     assemble.add_argument("--run-url", required=True)
@@ -431,10 +458,13 @@ def main(argv: list[str] | None = None) -> int:
         lane = args.candidate_commit.lower()
         source, images = candidate_source_mapping(args.candidate_source_mapping, lane)
         manifest_digest = args.candidate_manifest_digest.lower()
-        realm_artifacts = candidate_manifest_realm_artifacts(
+        realm_definition = candidate_manifest_realm_definition(
             args.candidate_manifest,
             source,
             manifest_digest,
+        )
+        realm_evidence = validate_realm_evidence(
+            load_object(args.realm_evidence, "realm evidence"), realm_definition
         )
         evidence = assemble_deployment(
             candidate=lane,
@@ -445,7 +475,7 @@ def main(argv: list[str] | None = None) -> int:
             run_url=args.run_url,
             provider_health=load_object(args.provider_health, "provider health summary"),
             candidate_images=images,
-            realm_artifacts=realm_artifacts,
+            realm_evidence=realm_evidence,
             idempotency_passed=all(idempotence_passed(path) for path in args.deployment_idempotence),
             fresh_start_cut=(load_object(args.fresh_start_cut_report, "Fresh Start cut report") if args.fresh_start_cut_report else None),
             persistent_comparison=(load_object(args.persistent_comparison, "persistent dogfood comparison") if args.persistent_comparison else None),

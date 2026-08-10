@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for manifest-bound runtime image and rendered realm evidence."""
+"""Tests for manifest-bound runtime image and finalized realm evidence."""
 
 from __future__ import annotations
 
@@ -32,6 +32,8 @@ class RuntimeImageEvidenceTest(unittest.TestCase):
         self.specification = "3" * 40
         self.spec_digest = "sha256:" + "4" * 64
         self.build_evidence = "sha256:" + "5" * 64
+        self.semantic_digest = "sha256:" + "c" * 64
+        self.migration_digest = "sha256:" + "d" * 64
         self.references = {
             "server": "ghcr.io/example/server@sha256:" + "6" * 64,
             "mcp-server": "ghcr.io/example/mcp@sha256:" + "7" * 64,
@@ -42,25 +44,17 @@ class RuntimeImageEvidenceTest(unittest.TestCase):
             "mcp-server": "sha256:" + "a" * 64,
             "keycloak-runtime": "sha256:" + "b" * 64,
         }
-        self.baseline = self.root / "weave-realm.json"
-        self.migrations = self.root / "manifest.json"
-        self.baseline.write_text('{"realm":"weave"}\n', encoding="utf-8")
-        self.migrations.write_text(
-            '{"migrations":[],"schemaVersion":"weave.realm-migrations.v1"}\n',
-            encoding="utf-8",
-        )
-        realm_artifacts = {
-            "baselineDigest": self.digest(self.baseline),
-            "migrationBundleDigest": self.digest(self.migrations),
-            "containsSecrets": False,
-        }
         manifest = {
-            "schemaVersion": "weave.release.candidate-manifest.v3",
+            "schemaVersion": "weave.release.candidate-manifest.v4",
             "supportSafe": True,
             "commit": self.source,
             "specificationCommit": self.specification,
             "specDigest": self.spec_digest,
-            "realmArtifacts": realm_artifacts,
+            "realmDefinition": {
+                "semanticRealmSourceDigest": self.semantic_digest,
+                "migrationDefinitionDigest": self.migration_digest,
+                "containsSecrets": False,
+            },
             "images": [
                 {
                     "component": component,
@@ -83,6 +77,25 @@ class RuntimeImageEvidenceTest(unittest.TestCase):
                 sort_keys=True,
             ).encode("utf-8")
         )
+        self.realm_evidence = self.root / "realm-evidence.json"
+        self.realm_evidence.write_text(
+            json.dumps(
+                {
+                    "semanticRealmSourceDigest": self.semantic_digest,
+                    "migrationDefinitionDigest": self.migration_digest,
+                    "overlayDigest": "sha256:" + "e" * 64,
+                    "renderedRealmDigest": "sha256:" + "f" * 64,
+                    "semanticReadbackDigest": "sha256:" + "0" * 64,
+                    "candidateRealmDefinitionMatched": True,
+                    "environmentRealmRenderStable": True,
+                    "semanticReadbackVerified": True,
+                    "containsSecrets": False,
+                },
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         self.output = self.root / "runtime-image-evidence.json"
 
     def tearDown(self) -> None:
@@ -102,8 +115,7 @@ class RuntimeImageEvidenceTest(unittest.TestCase):
             compose_project="weave-e2e-0123456789abcdef",
             output=self.output,
             manifest=self.manifest,
-            realm_baseline_artifact=self.baseline,
-            realm_migration_bundle_artifact=self.migrations,
+            realm_evidence=self.realm_evidence,
             image=[
                 [component, self.references[component], self.image_ids[component]]
                 for component in sorted(self.references)
@@ -127,24 +139,26 @@ class RuntimeImageEvidenceTest(unittest.TestCase):
         ):
             return module.main()
 
-    def test_hashes_exact_rendered_artifacts_into_verified_evidence(self) -> None:
+    def test_binds_finalized_realm_evidence_to_candidate_definition(self) -> None:
         self.assertEqual(self.run_writer(), 0)
         evidence = json.loads(self.output.read_text(encoding="utf-8"))
         self.assertTrue(evidence["manifestBound"])
-        self.assertTrue(evidence["realmArtifactsVerified"])
+        self.assertTrue(evidence["realmEvidenceVerified"])
         self.assertEqual(
-            evidence["realmArtifacts"]["baselineDigest"],
-            self.digest(self.baseline),
+            evidence["realmEvidence"]["semanticRealmSourceDigest"],
+            self.semantic_digest,
         )
         self.assertEqual(
             {item["component"] for item in evidence["images"]},
             set(module.COMPONENTS),
         )
 
-    def test_rejects_rendered_artifact_drift(self) -> None:
-        self.baseline.write_text('{"realm":"other"}\n', encoding="utf-8")
+    def test_rejects_realm_evidence_from_another_candidate_definition(self) -> None:
+        evidence = json.loads(self.realm_evidence.read_text(encoding="utf-8"))
+        evidence["semanticRealmSourceDigest"] = "sha256:" + "1" * 64
+        self.realm_evidence.write_text(json.dumps(evidence) + "\n", encoding="utf-8")
         with self.assertRaisesRegex(
-            SystemExit, "rendered realm baseline differs from the candidate manifest"
+            SystemExit, "finalized realm evidence is invalid or not candidate-bound"
         ):
             self.run_writer()
 

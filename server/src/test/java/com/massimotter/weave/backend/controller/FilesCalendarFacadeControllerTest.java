@@ -793,8 +793,10 @@ class FilesCalendarFacadeControllerTest {
                         .content("""
                                 BEGIN:VCALENDAR
                                 VERSION:2.0
+                                PRODID:-//Weave Test//EN
                                 BEGIN:VEVENT
                                 UID:planning
+                                DTSTAMP:20260708T090000Z
                                 DTSTART:20260708T100000Z
                                 DTEND:20260708T110000Z
                                 SUMMARY:Planning
@@ -819,8 +821,10 @@ class FilesCalendarFacadeControllerTest {
                         .content("""
                                 BEGIN:VCALENDAR
                                 VERSION:2.0
+                                PRODID:-//Weave Test//EN
                                 BEGIN:VEVENT
                                 UID:missing-capability
+                                DTSTAMP:20260708T090000Z
                                 DTSTART:20260708T100000Z
                                 DTEND:20260708T110000Z
                                 SUMMARY:Capability gate
@@ -901,8 +905,10 @@ class FilesCalendarFacadeControllerTest {
                         .content("""
                                 BEGIN:VCALENDAR
                                 VERSION:2.0
+                                PRODID:-//Weave Test//EN
                                 BEGIN:VEVENT
                                 UID:planning-new
+                                DTSTAMP:20260708T090000Z
                                 DTSTART:20260708T100000Z
                                 DTEND:20260708T110000Z
                                 SUMMARY:Planning
@@ -920,8 +926,10 @@ class FilesCalendarFacadeControllerTest {
                         .content("""
                                 BEGIN:VCALENDAR
                                 VERSION:2.0
+                                PRODID:-//Weave Test//EN
                                 BEGIN:VEVENT
                                 UID:planning
+                                DTSTAMP:20260708T110000Z
                                 DTSTART:20260708T120000Z
                                 DTEND:20260708T130000Z
                                 SUMMARY:Updated planning

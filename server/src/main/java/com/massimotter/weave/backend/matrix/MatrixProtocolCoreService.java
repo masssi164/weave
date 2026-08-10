@@ -17,6 +17,7 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
     public static final String OIDC_GATEKEEPER = "spring-boot-resource-server";
     public static final String RUST_PROTOCOL_CORE = "ruma-serde-serde_json-thiserror-tracing";
     public static final String SERVER_JNI_BOUNDARY = "server-jni-wrapper";
+    public static final String FLUTTER_BRIDGE_TARGET = "flutter-rust-bridge";
     public static final String NATIVE_LIBRARY = NativeMatrixCore.LIBRARY_NAME;
     public static final String NATIVE_METHOD = NativeMatrixCore.JNI_METHOD;
 
@@ -238,8 +239,8 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             List<Map<String, Object>> toDeviceEvents,
             List<String> deviceListsChanged,
             List<String> deviceListsLeft,
-            Map<String, Long> oneTimeKeyCounts,
-            List<String> unusedFallbackKeyTypes) {
+            Map<String, Long> deviceOneTimeKeysCount,
+            List<String> deviceUnusedFallbackKeyTypes) {
         public CanonicalProjection(
                 String subject,
                 String cursor,
@@ -259,13 +260,12 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             List<CanonicalMembership> memberships,
             List<CanonicalMessage> messages) {}
 
-    public record CanonicalMembership(String memberRef, String membership) {}
+    public record CanonicalMembership(String memberRef, String state) {}
 
     public record CanonicalMessage(
-            String eventId,
+            String messageId,
             String senderRef,
-            long timestampEpochMillis,
-            String eventType,
+            long sentAtEpochMillis,
             String kind,
             String messageType,
             String body,
@@ -278,7 +278,14 @@ public class MatrixProtocolCoreService implements MatrixProtocolCodec {
             Map<String, Object> presentationExtensions,
             String deliveryState,
             Map<String, Object> encryptedContent,
-            boolean redacted) {}
+            boolean redacted) {
+        public CanonicalMessage {
+            presentationExtensions = presentationExtensions == null
+                    ? Map.of()
+                    : Map.copyOf(presentationExtensions);
+            encryptedContent = encryptedContent == null ? null : Map.copyOf(encryptedContent);
+        }
+    }
 
     public record ParsedEventContent(
             String kind,

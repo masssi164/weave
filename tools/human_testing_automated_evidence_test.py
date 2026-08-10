@@ -23,10 +23,19 @@ IMAGE_DIGESTS = {
     "mcp-server": "5" * 64,
     "keycloak-runtime": "7" * 64,
 }
-REALM_ARTIFACTS = {
-    "baselineDigest": "sha256:" + "6" * 64,
-    "migrationBundleDigest": "sha256:" + "7" * 64,
+REALM_DEFINITION = {
+    "semanticRealmSourceDigest": "sha256:" + "6" * 64,
+    "migrationDefinitionDigest": "sha256:" + "7" * 64,
     "containsSecrets": False,
+}
+REALM_EVIDENCE = {
+    **REALM_DEFINITION,
+    "overlayDigest": "sha256:" + "8" * 64,
+    "renderedRealmDigest": "sha256:" + "9" * 64,
+    "semanticReadbackDigest": "sha256:" + "a" * 64,
+    "candidateRealmDefinitionMatched": True,
+    "environmentRealmRenderStable": True,
+    "semanticReadbackVerified": True,
 }
 HASHES = {
     "author": "sha256:" + "a" * 64,
@@ -60,13 +69,13 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.manifest = {
-            "schemaVersion": "weave.release.candidate-manifest.v3",
+            "schemaVersion": "weave.release.candidate-manifest.v4",
             "supportSafe": True,
             "commit": SOURCE,
             "specificationCommit": SPEC,
             "specDigest": "sha256:" + "8" * 64,
             "buildEvidenceRef": "https://github.com/example/weave/actions/runs/9",
-            "realmArtifacts": copy.deepcopy(REALM_ARTIFACTS),
+            "realmDefinition": copy.deepcopy(REALM_DEFINITION),
             "images": [
                 {
                     "component": component,
@@ -114,7 +123,7 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
             },
         }
         self.runtime = {
-            "schemaVersion": "weave.test-app-runtime-images/v1",
+            "schemaVersion": "weave.test-app-runtime-images/v2",
             "supportSafe": True,
             "candidateCommit": LANE,
             "sourceCandidateCommit": SOURCE,
@@ -123,8 +132,8 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
             "candidateManifestDigest": manifest_digest,
             "composeProject": "weave-e2e-0123456789abcdef",
             "manifestBound": True,
-            "realmArtifacts": copy.deepcopy(REALM_ARTIFACTS),
-            "realmArtifactsVerified": True,
+            "realmEvidence": copy.deepcopy(REALM_EVIDENCE),
+            "realmEvidenceVerified": True,
             "images": [
                 {
                     "component": component,
@@ -267,7 +276,7 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
         self.assertEqual(result["collaboration"]["scenarioResults"]["settingsProfile"], "passed")
         self.assertEqual(result["candidateManifestDigest"], self.product["candidateManifestDigest"])
         self.assertEqual(set(result["images"]), set(IMAGE_DIGESTS))
-        self.assertEqual(result["realmArtifacts"], REALM_ARTIFACTS)
+        self.assertEqual(result["realmEvidence"], REALM_EVIDENCE)
 
     def test_rejects_a_failed_live_provider_fact(self) -> None:
         product = copy.deepcopy(self.product)
@@ -276,12 +285,12 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         self.assertIn("nativePersistenceVerified", completed.stderr)
 
-    def test_rejects_unverified_or_mismatched_runtime_realm_artifacts(self) -> None:
+    def test_rejects_unverified_or_mismatched_runtime_realm_evidence(self) -> None:
         runtime = copy.deepcopy(self.runtime)
-        runtime["realmArtifactsVerified"] = False
+        runtime["realmEvidenceVerified"] = False
         completed = self.live(runtime=runtime)
         self.assertEqual(completed.returncode, 2)
-        self.assertIn("rendered realm artifacts", completed.stderr)
+        self.assertIn("realm evidence", completed.stderr)
 
         runtime = copy.deepcopy(self.runtime)
         runtime["composeProject"] = "weave-e2e-fedcfedcfedcfedc"
@@ -290,10 +299,10 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
         self.assertIn("exact candidate", completed.stderr)
 
         runtime = copy.deepcopy(self.runtime)
-        runtime["realmArtifacts"]["baselineDigest"] = "sha256:" + "f" * 64
+        runtime["realmEvidence"]["semanticRealmSourceDigest"] = "sha256:" + "f" * 64
         completed = self.live(runtime=runtime)
         self.assertEqual(completed.returncode, 2)
-        self.assertIn("rendered realm artifacts", completed.stderr)
+        self.assertIn("realm evidence", completed.stderr)
 
     def test_rejects_fixture_ui_as_live_or_cross_candidate_evidence(self) -> None:
         completed = self.live()
@@ -400,19 +409,19 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         self.assertRegex(completed.stderr, r"credential-bearing URL|secret-like")
 
-    def test_rejects_malformed_or_secret_bearing_realm_artifacts(self) -> None:
+    def test_rejects_malformed_or_secret_bearing_realm_definition(self) -> None:
         for mutation in (
-            lambda artifacts: artifacts.__setitem__("containsSecrets", True),
-            lambda artifacts: artifacts.__setitem__(
-                "baselineDigest", "sha256:not-a-digest"
+            lambda definition: definition.__setitem__("containsSecrets", True),
+            lambda definition: definition.__setitem__(
+                "semanticRealmSourceDigest", "sha256:not-a-digest"
             ),
-            lambda artifacts: artifacts.__setitem__(
+            lambda definition: definition.__setitem__(
                 "unreviewedDigest", "sha256:" + "f" * 64
             ),
         ):
             with self.subTest(mutation=mutation):
                 manifest = copy.deepcopy(self.manifest)
-                mutation(manifest["realmArtifacts"])
+                mutation(manifest["realmDefinition"])
                 original = self.manifest
                 try:
                     self.manifest = manifest
@@ -420,7 +429,7 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
                 finally:
                     self.manifest = original
                 self.assertEqual(completed.returncode, 2)
-                self.assertIn("realm artifact evidence", completed.stderr)
+                self.assertIn("candidate manifest", completed.stderr)
 
 
 if __name__ == "__main__":

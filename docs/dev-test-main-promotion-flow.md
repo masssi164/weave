@@ -5,12 +5,8 @@ Status: active delivery policy.
 Weave uses three promotion lanes:
 
 - `dev`: normal integration branch and the base for feature branches. Feature PRs are cut from `dev` and return to `dev` after the review/refactor loop, feature-specific tests, acceptance/Gherkin/Cucumber mappings, docs/evidence, and PR-safe CI/contracts/unit/acceptance/docs gates.
-- `dogfood`: persistent LAN dogfood branch and candidate/test-stack promotion lane. Promotion PRs from `dev` to `dogfood` run the feature-relevant E2E/live/dogfood validation for that candidate; missing feature-relevant Gherkin/Cucumber scenarios or deterministic mappings must be added by this stage at the latest. Advancing this branch deploys or updates the local test stack on the dedicated Mac runner. This branch is named `dogfood` because legacy `test/...` branches already occupy Git's `refs/heads/test/` namespace.
-- `main`: stable/release-capable branch after dogfood validation. A commit may
-  reach `main` only after it has passed the credential-free exact-candidate
-  `testApp` product flow, deployed idempotently to dogfood, produced the
-  verified iOS candidate, and has a ready physical-iPhone human-testing
-  manifest.
+- `dogfood`: persistent LAN dogfood branch and candidate/test-stack promotion lane. Promotion PRs from `dev` to `dogfood` run the feature-relevant E2E/live/dogfood validation for that candidate; missing feature-relevant Gherkin/Cucumber scenarios or deterministic mappings must be added by this stage at the latest. Advancing this branch deploys or updates the local test stack on the dedicated Mac runner.
+- `main`: stable/release-capable branch after dogfood validation. A commit may reach `main` only after it has passed the credential-free exact-candidate `testApp` product flow, deployed idempotently to dogfood, produced the verified iOS candidate, and has a ready physical-iPhone human-testing manifest.
 
 ## Why this exists
 
@@ -22,9 +18,7 @@ Weave uses three promotion lanes:
 
 ## Explicit Candidate Cut
 
-An ordinary merge to `dev` runs merge CI only. It does not publish release images or start the
-Fresh product proof. A release owner cuts a candidate explicitly from the protected `dev`
-workflow definition and names one exact lowercase commit already contained in `origin/dev`:
+An ordinary merge to `dev` runs merge CI only. It does not publish release images or start the Fresh product proof. A release owner cuts a candidate explicitly from the protected `dev` workflow definition and names one exact lowercase commit already contained in `origin/dev`:
 
 ```bash
 git fetch origin dev
@@ -32,80 +26,74 @@ candidate_sha="$(git rev-parse origin/dev)"
 gh workflow run candidate-images.yml --ref dev -f "candidate_sha=$candidate_sha"
 ```
 
-The read-only source gate rejects a non-`dev` workflow ref, malformed SHA, checkout mismatch, or
-commit outside protected `dev` before package-write authority is available. The publish job uses
-the protected `candidate-cut` GitHub environment and derives every tag, OCI revision, Keycloak
-build record, manifest field, artifact name, and Linux/AMD64 Fresh proof from the verified SHA.
-Repository configuration must restrict that environment to `dev` and require release-owner
-approval; workflow code does not treat an automatically created, unprotected environment as a
-release approval.
+The read-only source gate rejects a non-`dev` workflow ref, malformed SHA, checkout mismatch, or commit outside protected `dev` before package-write authority is available. The publish job uses the protected `candidate-cut` GitHub environment and derives every tag, OCI revision, Keycloak build record, manifest field, artifact name, and Linux/AMD64 Fresh proof from the verified SHA. Repository configuration must restrict that environment to `dev` and require release-owner approval.
 
-If one candidate was cut more than once, dogfood deliberately refuses to guess. Supply the exact
-successful run ID through `candidate_images_run_id`; the consumer still verifies the workflow
-path, dispatch event, protected branch, run title, manifest bytes/digest, source/spec commits,
-four image digests, attestations, and local OCI identities before use. No downstream lane rebuilds
-or relabels a candidate image.
+If one candidate was cut more than once, dogfood deliberately refuses to guess. Supply the exact successful run ID through `candidate_images_run_id`; the consumer still verifies the workflow path, dispatch event, protected branch, run title, manifest bytes/digest, source/spec commits, three image digests, attestations, semantic realm definition, and local OCI identities before use. No downstream lane rebuilds or relabels a candidate image.
+
+Candidate Cut binds only environment-neutral Keycloak identity:
+
+- `realmDefinition.semanticRealmSourceDigest`
+- `realmDefinition.migrationDefinitionDigest`
+
+It never publishes one environment's rendered `realm.json` as candidate authority.
 
 ## Persistent LAN dogfood stack
 
-The test stack is deployed by the `Test Stack Deploy` GitHub Actions workflow. Candidate evidence keeps two immutable identities: the protected `dev` source commit used to build all artifacts and the `dogfood` lane merge commit being validated and deployed. Neither may be inferred from the other or omitted:
+The test stack is deployed by the `Test Stack Deploy` GitHub Actions workflow. Candidate evidence keeps two immutable identities: the protected `dev` source commit used to build all artifacts and the `dogfood` lane merge commit being validated and deployed. Neither may be inferred from the other or omitted.
 
 - workflow file: `.github/workflows/test-stack-deploy.yml`
-- trigger: successful exact-candidate `Live Stack Product Flow` `workflow_run`
-  from a `dogfood` push, or a manual recovery dispatch that names a commit with
-  existing successful isolated evidence
+- trigger: successful exact-candidate `Live Stack Product Flow` `workflow_run` from a `dogfood` push, or a manual recovery dispatch that names a commit with existing successful isolated evidence
 - candidate E2E workflow: `.github/workflows/live-stack-e2e.yml` on promotion PRs targeting `dogfood` and manual dispatch
 - runner: dedicated self-hosted macOS ARM64 runner `weave-live-mac-mini`
 - public local entrypoint: `https://weave.test:44443/`
 - platform config: `https://api.weave.test:44443/api/platform/config`
 - local CA bootstrap: `http://weave.test:44080/weave-local-ca.pem`
 
-The workflow and developers use the module-owned Gradle interface:
-
-- `./gradlew :infra:composeDogfoodUp`
-- `./gradlew :infra:identityDogfoodVerify`
-- `./gradlew :infra:composeDogfoodReady`
-
-The task implementations call the same closed scripts used by CI. Humans do not paste or
-reconstruct the underlying commands for normal test-stack use. The visible entrypoint is the
-`dogfood` delivery result and the iPhone app pointed at the persistent `dogfood` environment.
+Normal operator entrypoints are profile-driven infra commands. The stack renders environment-specific Keycloak configuration from the shared semantic realm source plus the reviewed dogfood overlay and dogfood-owned public JWKS. Generated realm bytes are deployment artifacts, not maintained sources.
 
 ## Fresh generation vs later update
 
-The standards-first dogfood cutover is a Fresh Start. It has no legacy database, Keycloak realm, provider object, runtime credential, or volume adoption/migration path. Before the first persistent mutation, the governed workflow must produce the exact manifest-bound deletion plan, private backup, isolated restore probe, and typed `DELETE_OLD_WEAVE:<plan-sha256>` approval. Normal promotion cannot substitute for that approval.
+The standards-first dogfood cutover is a Fresh Start. It has no legacy database, Keycloak realm, provider object, runtime credential, or volume adoption/migration path. Before the first persistent mutation, the governed workflow must produce the exact manifest-bound deletion plan, private recovery evidence for the retired generation, isolated restore probe, and typed `DELETE_OLD_WEAVE:<plan-sha256>` approval. Normal promotion cannot substitute for that approval.
+
+For the newly empty realm, Keycloak startup import establishes the static baseline. A bounded post-import migration applies only FGAP state that Keycloak import cannot express. That Fresh-Start operation does not fabricate a backup requirement for the new empty realm; it is authorized by machine-verifiable Fresh-Start plan/apply evidence.
 
 After the new generation has been established, later candidates default to update mode within that generation:
 
-- consume the exact backend, MCP, and custom Keycloak Runtime image digests proven by the
-  isolated candidate run;
-- apply the `dogfood` environment idempotently;
+- consume the exact backend, MCP, and custom Keycloak Runtime image digests proven by the isolated candidate run;
+- verify that the candidate semantic realm definition matches the environment render source;
+- render the dogfood-specific overlay and public JWKS deterministically;
+- for an existing non-empty realm, require the versioned migration path with private backup and isolated restore rehearsal before static IAM mutation;
 - keep only state created under the current generation;
 - reject pre-generation, unowned, or undeclared resources instead of adopting them;
 - run operator checks;
-- upload a support-safe `weave-test-stack-evidence` artifact.
+- produce final support-safe `realmEvidence` after semantic readback and convergence;
+- upload the support-safe `weave-test-stack-evidence` artifact.
 
-Persistent dogfood contains only configured human identities. Run-scoped
-`testApp` owners, members, files, cells, and workload clients belong only to the
-isolated namespace and are removed with it.
+Persistent dogfood contains only configured human identities. Run-scoped `testApp` owners, members, files, cells, and workload clients belong only to the isolated namespace and are removed with it.
 
 There is no persistent reset input. The one-time generation cut and any later persistent state deletion are separate protected operations and are never part of normal promotion.
 
-The protected `dogfood` GitHub environment configures two absolute runner paths:
+## Environment-specific realm evidence
 
-- `WEAVE_DOGFOOD_REVIEWED_ENV_FILE`: runner-owned mode `0600`, containing reviewed dogfood
-  coordinates but no secret values;
-- `WEAVE_DOGFOOD_BACKUP_ROOT`: operator-owned mode `0700`, outside the checkout.
+Each environment renders its own Keycloak deployment artifacts from the same candidate semantic definition. Environment-specific values may legitimately differ:
 
-The deployment fails before mutation if either path is absent, weakly permissioned, or symlinked.
-For the generation cut it also fails unless the current plan, private backup, restore probe, exact
-typed approval, and candidate manifest agree. Undeclared existing resources are drift, not an
-adoption opportunity.
+- public URLs and redirect origins;
+- SMTP coordinates and SecretRefs;
+- organization presentation metadata;
+- public JWKS derived from environment-owned private keys;
+- `overlayDigest`;
+- `renderedRealmDigest`;
+- `semanticReadbackDigest`.
+
+Cross-environment comparison therefore requires identical `semanticRealmSourceDigest` and `migrationDefinitionDigest`, not byte-identical realm JSON. Same-environment convergence requires stable overlay/render identity plus successful semantic readback.
+
+Private JWKs, passwords, tokens, cookies, client secrets, and SecretRef payloads are forbidden in generated realm and support-safe evidence artifacts.
 
 ## Dogfood candidate validation
 
-A promotion PR from `dev` to `dogfood` consumes an existing explicit Candidate Cut and binds its manifest to the exact lane candidate. The comprehensive `./gradlew testApp` Fresh proof first runs natively on Linux/AMD64 during the cut. The current `Live Stack Product Flow` conservatively repeats that manifest-bound product journey on Apple Silicon/OrbStack while re-verifying the exact image IDs and without rebuilding artifacts; reducing it to a narrower target-compatibility smoke remains gated on equivalent lane/source evidence. It creates an owner, collaborator, and outsider through real invitations and Keycloak required actions in Chromium, uses fresh Authorization Code + PKCE sessions, proves two complete Chat/Files/Calendar/Home/Profile collaboration passes, direct Synapse readback, JPA/PostgreSQL durability, provider outage/retry idempotency, callback replay, workload OAuth and MCP revoke/regrant, then destroys only its isolated namespace. Only that successful artifact chain can trigger persistent `Test Stack Deploy`. Flutter system-browser authentication and VoiceOver remain physical-device gates; the separate fresh Simulator gate is explicitly fixture UI evidence.
+A promotion PR from `dev` to `dogfood` consumes an existing explicit Candidate Cut and binds its manifest to the exact lane candidate. The comprehensive `./gradlew testApp` Fresh proof first runs natively on Linux/AMD64 during the cut. The `Live Stack Product Flow` repeats the manifest-bound product journey on Apple Silicon/OrbStack while re-verifying the exact image IDs without rebuilding artifacts. Disposable E2E must prove the exact run-owned namespace is absent before creating resources; profile name alone is never sufficient evidence of a Fresh realm.
 
-The old pattern of a scheduled destructive full-E2E run from `main` is not the target model. `main` may keep lightweight smoke, release, or tag checks, but it must not be the primary noisy/destructive full-stack reset lane.
+The journey creates an owner, collaborator, and outsider through real invitations and Keycloak required actions in Chromium, uses fresh Authorization Code + PKCE sessions, proves two complete Chat/Files/Calendar/Home/Profile collaboration passes, direct provider readback, JPA/PostgreSQL durability, provider outage/retry idempotency, callback replay, workload OAuth and MCP revoke/regrant, then destroys only its isolated namespace. Only that successful artifact chain can trigger persistent `Test Stack Deploy`.
 
 ## Main promotion gate
 
@@ -115,30 +103,29 @@ The `Main Promotion Gate` workflow enforces the branch order:
 2. the evaluated lane candidate is contained in `origin/dogfood`, and its tree is byte-identical to the protected source candidate without rebuilding artifacts;
 3. successful manifest-bound dogfood E2E/live evidence exists for the lane candidate and exact protected source;
 4. a successful `Test Stack Deploy` workflow run exists for that lane/source pair on branch `dogfood`;
-5. a successful `iOS Dogfood` distribution run exists for the same deployment, candidate manifest, and four image digests;
-6. a separate successful `Physical iPhone Human Test` run contains the tester-confirmed twenty-step protocol for the installed build;
-7. a support-safe schema-v3 `human-testing-readiness.json` artifact evaluates to `ready` for the same lane, source, specification, manifest, images, runs, physical protocol, and a fresh persistent-runtime provider-health observation collected after that protocol;
-8. the root contract-authority architecture check still passes.
+5. deployment evidence proves the dogfood environment render is derived from the candidate semantic realm definition and has a verified semantic Keycloak readback;
+6. a successful `iOS Dogfood` distribution run exists for the same deployment, candidate manifest, and three image digests;
+7. a separate successful `Physical iPhone Human Test` run contains the tester-confirmed twenty-step protocol for the installed build;
+8. a support-safe schema-v5 `human-testing-readiness.json` artifact evaluates to `ready` for the same lane, source, specification, manifest, images, realm evidence, runs, physical protocol, and a fresh persistent-runtime provider-health observation collected after that protocol;
+9. the root contract-authority architecture check still passes.
 
 If any of these checks fail, the candidate is not eligible for `main`.
 
-Bootstrap note: GitHub only treats new workflow files as branch-protection candidates after they exist on the protected/default branch. The first rollout of this policy therefore requires one explicitly reviewed bootstrap promotion that installs the workflows on `main`; after that, normal `main` PRs are expected to be guarded by this workflow and repository branch protection.
-
 ## Provider model
 
-The persistent `dogfood` stack is a Weave-owned durable validation environment. It should not attach to Massimo's `~/server` services by default.
+The persistent `dogfood` stack is a Weave-owned durable validation environment. It does not attach to unrelated household services by default. External providers remain explicit opt-in adapters behind canonical Weave domains.
 
-Default local providers:
+Default native platform posture:
 
 - Identity/Auth: Keycloak
-- Chat: Matrix/Synapse + MAS
-- Files/Calendar: Nextcloud
+- Files: `weave-native` + BlobStore
+- Calendar: `weave-native`
+- Chat: `weave-native`
 - Reverse proxy/TLS/CA: Caddy
-- Database: Postgres
-- Weave backend and Weave MCP runtime
-- Boards: `local-workspace` by default, with OpenProject gated separately
+- Database: PostgreSQL
+- Weave Server and workload-only Weave MCP runtime
 
-Attaching to existing home services such as Authentik or Nextcloud under `~/server` is a later `attach-existing-home` profile. It must start read-only/preflight, must not copy secrets into the repo, and must not mutate household services without explicit approval. Repository delivery remains GitHub-only.
+Optional external interoperability/provider adapters such as Matrix/Synapse, Nextcloud, OpenProject, Authentik, Slack, or Teams must be selected explicitly and must not become implicit deployment dependencies.
 
 ## iPhone dogfood expectation
 
@@ -149,20 +136,16 @@ The desired tester experience is:
 3. sign in once;
 4. later open Weave and return to the same test-stack organization without re-running setup scripts.
 
-Invite/QR handoff remains useful for first enrollment and reset cases, but should not be required every time the app opens. Wording must be precise: the current join/handoff link is a non-secret enrollment handoff, not bearer access. Actual access control is the provisioned account, organization/workspace membership, and identity-provider session.
-
-The workflow never converts checkboxes into human evidence. After the real tester completes the
-physical protocol, `.github/workflows/physical-iphone-human-test.yml` validates the submitted
-support-safe twenty-step record against the exact deployment and iOS distribution artifacts. Only
-its successful artifact may feed `.github/workflows/human-testing-readiness.yml`.
+Invite/QR handoff remains useful for first enrollment and reset cases, but should not be required every time the app opens. Actual access control is the provisioned account, organization membership, and identity-provider session.
 
 ## Release discipline
 
-A change that affects sign-in, backend facade contracts, OpenAPI consumers, MCP/tool exposure, provider boundaries, local stack topology, or onboarding must normally prove:
+A change that affects sign-in, backend facade contracts, OpenAPI consumers, MCP/tool exposure, provider boundaries, realm semantics, local stack topology, or onboarding must normally prove:
 
 - ordinary PR CI on `dev`;
 - generated OpenAPI/admin/client freshness where relevant;
 - MCP/root architecture gates where relevant;
+- candidate semantic realm definition and migration-definition integrity when IAM changes;
 - promotion PR evidence from `dev` to `dogfood`, including feature-relevant Gherkin/Cucumber scenarios or deterministic mappings;
-- persistent `dogfood` stack deployment;
+- persistent `dogfood` deployment and semantic realm readback;
 - targeted human or automated dogfood evidence before promotion to `main`.

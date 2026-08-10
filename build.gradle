@@ -5,6 +5,7 @@ plugins {
 apply from: 'gradle/scripts/task-registration.gradle'
 apply from: 'gradle/tasks/architecture-lifecycle.gradle'
 apply from: 'gradle/tasks/verification.gradle'
+apply from: 'gradle/tasks/infra-static-lifecycle.gradle'
 apply from: 'gradle/tasks/release-readiness.gradle'
 apply from: 'gradle/tasks/ci-evidence.gradle'
 apply from: 'gradle/tasks/ci-lifecycle.gradle'

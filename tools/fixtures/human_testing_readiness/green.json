@@ -1,17 +1,23 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "candidateCommit": "1111111111111111111111111111111111111111",
   "sourceCandidateCommit": "2222222222222222222222222222222222222222",
-  "specCorpusCommit": "d3d2acc2cd13570c3031eb76053d10fe254df0c0",
+  "specCorpusCommit": "edf9e9c7a095aac96da4a4acb070268ef0628487",
   "candidateManifestDigest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
   "images": {
     "server": "ghcr.io/example/weave-server@sha256:5555555555555555555555555555555555555555555555555555555555555555",
     "mcp-server": "ghcr.io/example/weave-mcp@sha256:6666666666666666666666666666666666666666666666666666666666666666",
     "keycloak-runtime": "ghcr.io/example/weave-keycloak@sha256:8888888888888888888888888888888888888888888888888888888888888888"
   },
-  "realmArtifacts": {
-    "baselineDigest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-    "migrationBundleDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "realmEvidence": {
+    "semanticRealmSourceDigest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+    "migrationDefinitionDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "overlayDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "renderedRealmDigest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "semanticReadbackDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "candidateRealmDefinitionMatched": true,
+    "environmentRealmRenderStable": true,
+    "semanticReadbackVerified": true,
     "containsSecrets": false
   },
   "evidenceModes": ["live-provider-backed", "fixture-ui"],
@@ -86,12 +92,12 @@
     "voiceOver": "passed",
     "sessionUpgrade": "passed",
     "navigation": "passed",
-    "testerRefHash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "testerRefHash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
     "protocol": {
       "schemaVersion": 1,
       "candidateCommit": "1111111111111111111111111111111111111111",
       "sourceCandidateCommit": "2222222222222222222222222222222222222222",
-      "specCorpusCommit": "d3d2acc2cd13570c3031eb76053d10fe254df0c0",
+      "specCorpusCommit": "edf9e9c7a095aac96da4a4acb070268ef0628487",
       "candidateManifestDigest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
       "build": {"commit": "2222222222222222222222222222222222222222", "version": "0.1.0-rc.1", "buildNumber": "101", "bundleId": "com.massimotter.weave"},
       "startedAtUtc": "2026-07-12T12:10:00Z",

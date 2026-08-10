@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +36,7 @@ public class NativeCalendarRelationalStore {
     private final JdbcTemplate jdbc;
     private final RecurrenceEngine recurrenceEngine;
 
+    @Autowired
     NativeCalendarRelationalStore(JdbcTemplate jdbc) {
         this(jdbc, new com.massimotter.weave.backend.service.calendar.Ical4jRecurrenceEngine());
     }
