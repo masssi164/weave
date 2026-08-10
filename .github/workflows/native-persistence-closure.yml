@@ -56,6 +56,11 @@ jobs:
             --tests 'com.massimotter.weave.backend.matrix.MatrixE2eeStateServiceSyncSnapshotTest' \
             --tests 'com.massimotter.weave.backend.service.files.WeaveNativeFilesAdapterTest' \
             --tests 'com.massimotter.weave.backend.schema.*'
+      - name: PostgreSQL schema-authority qualification
+        run: |
+          set -euo pipefail
+          ./gradlew :server:postgresJpaTest \
+            --tests 'com.massimotter.weave.backend.schema.SchemaAuthorityInitializerPostgresTest'
       - name: Migration authority invariants
         run: |
           set -euo pipefail
