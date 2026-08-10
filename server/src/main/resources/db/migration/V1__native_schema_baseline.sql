@@ -11,7 +11,6 @@ SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
 SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
@@ -25,7 +24,7 @@ SET default_table_access_method = heap;
 -- Name: weave_agent_runtime_audit_correlations; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_agent_runtime_audit_correlations (
+CREATE TABLE weave_agent_runtime_audit_correlations (
     record_id uuid NOT NULL,
     correlation_ref character varying(255) NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
@@ -45,7 +44,7 @@ CREATE TABLE public.weave_agent_runtime_audit_correlations (
 -- Name: weave_agent_runtime_cells; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_agent_runtime_cells (
+CREATE TABLE weave_agent_runtime_cells (
     record_id uuid NOT NULL,
     audit_ref character varying(255) NOT NULL,
     cell_ref character varying(255) NOT NULL,
@@ -84,7 +83,7 @@ CREATE TABLE public.weave_agent_runtime_cells (
 -- Name: weave_agent_runtime_commands; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_agent_runtime_commands (
+CREATE TABLE weave_agent_runtime_commands (
     idempotency_key character varying(128) NOT NULL,
     organization_ref character varying(255) NOT NULL,
     person_ref character varying(255) NOT NULL,
@@ -105,7 +104,7 @@ CREATE TABLE public.weave_agent_runtime_commands (
 -- Name: weave_agent_runtime_entitlements; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_agent_runtime_entitlements (
+CREATE TABLE weave_agent_runtime_entitlements (
     record_id uuid NOT NULL,
     audit_ref character varying(255) NOT NULL,
     capability_revision character varying(71) NOT NULL,
@@ -134,7 +133,7 @@ CREATE TABLE public.weave_agent_runtime_entitlements (
 -- Name: weave_agent_runtime_profile_signatures; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_agent_runtime_profile_signatures (
+CREATE TABLE weave_agent_runtime_profile_signatures (
     key_id character varying(255) NOT NULL,
     profile_hash character varying(71) NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
@@ -147,7 +146,7 @@ CREATE TABLE public.weave_agent_runtime_profile_signatures (
 -- Name: weave_agent_runtime_profiles; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_agent_runtime_profiles (
+CREATE TABLE weave_agent_runtime_profiles (
     profile_hash character varying(71) NOT NULL,
     cell_ref character varying(255) NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
@@ -168,7 +167,7 @@ CREATE TABLE public.weave_agent_runtime_profiles (
 -- Name: weave_agent_runtime_revocations; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_agent_runtime_revocations (
+CREATE TABLE weave_agent_runtime_revocations (
     record_id uuid NOT NULL,
     actor_ref_hash character varying(71) NOT NULL,
     audit_correlation_ref character varying(255) NOT NULL,
@@ -191,7 +190,7 @@ CREATE TABLE public.weave_agent_runtime_revocations (
 -- Name: weave_agent_runtime_state_deletions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_agent_runtime_state_deletions (
+CREATE TABLE weave_agent_runtime_state_deletions (
     idempotency_key character varying(128) NOT NULL,
     organization_ref character varying(255) NOT NULL,
     person_ref character varying(255) NOT NULL,
@@ -207,7 +206,7 @@ CREATE TABLE public.weave_agent_runtime_state_deletions (
 -- Name: weave_agent_runtime_state_generations; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_agent_runtime_state_generations (
+CREATE TABLE weave_agent_runtime_state_generations (
     generation_ref character varying(81) NOT NULL,
     audit_ref character varying(255) NOT NULL,
     chunk_count integer NOT NULL,
@@ -230,7 +229,7 @@ CREATE TABLE public.weave_agent_runtime_state_generations (
 -- Name: weave_agent_runtime_state_heads; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_agent_runtime_state_heads (
+CREATE TABLE weave_agent_runtime_state_heads (
     runtime_state_store_ref character varying(1000) NOT NULL,
     audit_ref character varying(255) NOT NULL,
     cell_ref character varying(255) NOT NULL,
@@ -248,7 +247,7 @@ CREATE TABLE public.weave_agent_runtime_state_heads (
 -- Name: weave_audit_events; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_audit_events (
+CREATE TABLE weave_audit_events (
     sequence_id bigint NOT NULL,
     action character varying(120) NOT NULL,
     actor_ref character varying(255) NOT NULL,
@@ -266,8 +265,8 @@ CREATE TABLE public.weave_audit_events (
 -- Name: weave_audit_events_sequence_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-ALTER TABLE public.weave_audit_events ALTER COLUMN sequence_id ADD GENERATED BY DEFAULT AS IDENTITY (
-    SEQUENCE NAME public.weave_audit_events_sequence_id_seq
+ALTER TABLE weave_audit_events ALTER COLUMN sequence_id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME weave_audit_events_sequence_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -280,7 +279,7 @@ ALTER TABLE public.weave_audit_events ALTER COLUMN sequence_id ADD GENERATED BY 
 -- Name: weave_calendar_changes; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_calendar_changes (
+CREATE TABLE weave_calendar_changes (
     calendar_id character varying(96) NOT NULL,
     change_sequence bigint NOT NULL,
     scope_key character varying(768) NOT NULL,
@@ -295,7 +294,7 @@ CREATE TABLE public.weave_calendar_changes (
 -- Name: weave_calendar_collections; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_calendar_collections (
+CREATE TABLE weave_calendar_collections (
     calendar_id character varying(96) NOT NULL,
     scope_key character varying(768) NOT NULL,
     channel_id character varying(255),
@@ -312,7 +311,7 @@ CREATE TABLE public.weave_calendar_collections (
 -- Name: weave_calendar_events; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_calendar_events (
+CREATE TABLE weave_calendar_events (
     calendar_id character varying(96) NOT NULL,
     event_id character varying(512) NOT NULL,
     scope_key character varying(768) NOT NULL,
@@ -348,7 +347,7 @@ CREATE TABLE public.weave_calendar_events (
 -- Name: weave_chat_appservice_transactions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_chat_appservice_transactions (
+CREATE TABLE weave_chat_appservice_transactions (
     provider_key character varying(64) NOT NULL,
     homeserver_transaction_id character varying(255) NOT NULL,
     completed_at_utc timestamp(6) with time zone,
@@ -368,7 +367,7 @@ CREATE TABLE public.weave_chat_appservice_transactions (
 -- Name: weave_chat_bridge_ledger; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_chat_bridge_ledger (
+CREATE TABLE weave_chat_bridge_ledger (
     tenant_id character varying(160) NOT NULL,
     ledger_id character varying(96) NOT NULL,
     canonical_object_id character varying(255),
@@ -387,7 +386,7 @@ CREATE TABLE public.weave_chat_bridge_ledger (
 -- Name: weave_chat_changes; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_chat_changes (
+CREATE TABLE weave_chat_changes (
     sequence_value bigint NOT NULL,
     callback_deduplication_key character varying(96),
     canonical_object_id character varying(255),
@@ -402,8 +401,8 @@ CREATE TABLE public.weave_chat_changes (
 -- Name: weave_chat_changes_sequence_value_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-ALTER TABLE public.weave_chat_changes ALTER COLUMN sequence_value ADD GENERATED BY DEFAULT AS IDENTITY (
-    SEQUENCE NAME public.weave_chat_changes_sequence_value_seq
+ALTER TABLE weave_chat_changes ALTER COLUMN sequence_value ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME weave_chat_changes_sequence_value_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -416,7 +415,7 @@ ALTER TABLE public.weave_chat_changes ALTER COLUMN sequence_value ADD GENERATED 
 -- Name: weave_chat_conversations; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_chat_conversations (
+CREATE TABLE weave_chat_conversations (
     tenant_id character varying(160) NOT NULL,
     conversation_id character varying(160) NOT NULL,
     context_id character varying(160) NOT NULL,
@@ -436,7 +435,7 @@ CREATE TABLE public.weave_chat_conversations (
 -- Name: weave_chat_events; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_chat_events (
+CREATE TABLE weave_chat_events (
     tenant_id character varying(160) NOT NULL,
     conversation_id character varying(160) NOT NULL,
     event_id character varying(255) NOT NULL,
@@ -456,7 +455,7 @@ CREATE TABLE public.weave_chat_events (
 -- Name: weave_chat_memberships; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_chat_memberships (
+CREATE TABLE weave_chat_memberships (
     tenant_id character varying(160) NOT NULL,
     conversation_id character varying(160) NOT NULL,
     identity_issuer character varying(512) NOT NULL,
@@ -474,7 +473,7 @@ CREATE TABLE public.weave_chat_memberships (
 -- Name: weave_chat_operations; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_chat_operations (
+CREATE TABLE weave_chat_operations (
     tenant_id character varying(160) NOT NULL,
     operation_id character varying(96) NOT NULL,
     actor_ref character varying(255) NOT NULL,
@@ -500,7 +499,7 @@ CREATE TABLE public.weave_chat_operations (
 -- Name: weave_chat_outbox; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_chat_outbox (
+CREATE TABLE weave_chat_outbox (
     tenant_id character varying(160) NOT NULL,
     operation_id character varying(96) NOT NULL,
     attempt_count integer NOT NULL,
@@ -520,7 +519,7 @@ CREATE TABLE public.weave_chat_outbox (
 -- Name: weave_chat_provider_mappings; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_chat_provider_mappings (
+CREATE TABLE weave_chat_provider_mappings (
     tenant_id character varying(160) NOT NULL,
     provider_key character varying(64) NOT NULL,
     object_type character varying(32) NOT NULL,
@@ -538,7 +537,7 @@ CREATE TABLE public.weave_chat_provider_mappings (
 -- Name: weave_chat_quarantine; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_chat_quarantine (
+CREATE TABLE weave_chat_quarantine (
     tenant_id character varying(160) NOT NULL,
     quarantine_id character varying(96) NOT NULL,
     attempt_count integer NOT NULL,
@@ -567,7 +566,7 @@ CREATE TABLE public.weave_chat_quarantine (
 -- Name: weave_chat_read_receipts; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_chat_read_receipts (
+CREATE TABLE weave_chat_read_receipts (
     tenant_id character varying(160) NOT NULL,
     conversation_id character varying(160) NOT NULL,
     identity_issuer character varying(512) NOT NULL,
@@ -582,7 +581,7 @@ CREATE TABLE public.weave_chat_read_receipts (
 -- Name: weave_device_credentials; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_device_credentials (
+CREATE TABLE weave_device_credentials (
     credential_id character varying(160) NOT NULL,
     capabilities_json text NOT NULL,
     client_type character varying(80) NOT NULL,
@@ -604,7 +603,7 @@ CREATE TABLE public.weave_device_credentials (
 -- Name: weave_file_locks; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_file_locks (
+CREATE TABLE weave_file_locks (
     canonical_path character varying(2048) NOT NULL,
     organization_ref character varying(255) NOT NULL,
     space_ref character varying(255) NOT NULL,
@@ -622,7 +621,7 @@ CREATE TABLE public.weave_file_locks (
 -- Name: weave_files_objects; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_files_objects (
+CREATE TABLE weave_files_objects (
     file_id character varying(255) NOT NULL,
     organization_ref character varying(255) NOT NULL,
     space_ref character varying(255) NOT NULL,
@@ -649,7 +648,7 @@ CREATE TABLE public.weave_files_objects (
 -- Name: weave_identity_admin_operations; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_identity_admin_operations (
+CREATE TABLE weave_identity_admin_operations (
     idempotency_key character varying(128) NOT NULL,
     organization_id character varying(255) NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
@@ -665,7 +664,7 @@ CREATE TABLE public.weave_identity_admin_operations (
 -- Name: weave_identity_provisioning_intents; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_identity_provisioning_intents (
+CREATE TABLE weave_identity_provisioning_intents (
     intent_id uuid NOT NULL,
     applied_subject character varying(255),
     audit_correlation character varying(255) NOT NULL,
@@ -690,7 +689,7 @@ CREATE TABLE public.weave_identity_provisioning_intents (
 -- Name: weave_matrix_e2ee_snapshots; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_matrix_e2ee_snapshots (
+CREATE TABLE weave_matrix_e2ee_snapshots (
     tenant_id character varying(160) NOT NULL,
     payload_json text NOT NULL,
     sequence_value bigint NOT NULL,
@@ -703,7 +702,7 @@ CREATE TABLE public.weave_matrix_e2ee_snapshots (
 -- Name: weave_matrix_identity_projection; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_matrix_identity_projection (
+CREATE TABLE weave_matrix_identity_projection (
     identity_issuer character varying(512) NOT NULL,
     matrix_user_id character varying(255) NOT NULL,
     tenant_id character varying(160) NOT NULL,
@@ -718,7 +717,7 @@ CREATE TABLE public.weave_matrix_identity_projection (
 -- Name: weave_matrix_revoked_sessions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_matrix_revoked_sessions (
+CREATE TABLE weave_matrix_revoked_sessions (
     session_hash character varying(64) NOT NULL,
     expires_at_utc timestamp(6) with time zone NOT NULL,
     revoked_at_utc timestamp(6) with time zone NOT NULL
@@ -729,7 +728,7 @@ CREATE TABLE public.weave_matrix_revoked_sessions (
 -- Name: weave_migration_run_evidence; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_migration_run_evidence (
+CREATE TABLE weave_migration_run_evidence (
     domain_key character varying(120) NOT NULL,
     run_id character varying(180) NOT NULL,
     admin_approved boolean NOT NULL,
@@ -751,7 +750,7 @@ CREATE TABLE public.weave_migration_run_evidence (
 -- Name: weave_operation_intents; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_operation_intents (
+CREATE TABLE weave_operation_intents (
     operation_ref character varying(255) NOT NULL,
     action_digest character varying(71) NOT NULL,
     actor_kind character varying(32) NOT NULL,
@@ -795,7 +794,7 @@ CREATE TABLE public.weave_operation_intents (
 -- Name: weave_operation_outbox; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_operation_outbox (
+CREATE TABLE weave_operation_outbox (
     sequence_id bigint NOT NULL,
     attempt_count integer NOT NULL,
     created_at_utc timestamp(6) with time zone NOT NULL,
@@ -814,8 +813,8 @@ CREATE TABLE public.weave_operation_outbox (
 -- Name: weave_operation_outbox_sequence_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-ALTER TABLE public.weave_operation_outbox ALTER COLUMN sequence_id ADD GENERATED BY DEFAULT AS IDENTITY (
-    SEQUENCE NAME public.weave_operation_outbox_sequence_id_seq
+ALTER TABLE weave_operation_outbox ALTER COLUMN sequence_id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME weave_operation_outbox_sequence_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -828,7 +827,7 @@ ALTER TABLE public.weave_operation_outbox ALTER COLUMN sequence_id ADD GENERATED
 -- Name: weave_organization_bootstrap; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_organization_bootstrap (
+CREATE TABLE weave_organization_bootstrap (
     organization_id character varying(255) NOT NULL,
     actor_primary_identity_key character varying(512) NOT NULL,
     bootstrap_mode character varying(64) NOT NULL,
@@ -842,7 +841,7 @@ CREATE TABLE public.weave_organization_bootstrap (
 -- Name: weave_person_bindings; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_person_bindings (
+CREATE TABLE weave_person_bindings (
     issuer character varying(500) NOT NULL,
     organization_ref character varying(255) NOT NULL,
     subject character varying(255) NOT NULL,
@@ -856,7 +855,7 @@ CREATE TABLE public.weave_person_bindings (
 -- Name: weave_portability_fidelity_items; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_portability_fidelity_items (
+CREATE TABLE weave_portability_fidelity_items (
     canonical_object_id character varying(255) NOT NULL,
     plan_ref character varying(255) NOT NULL,
     disposition character varying(32) NOT NULL,
@@ -871,7 +870,7 @@ CREATE TABLE public.weave_portability_fidelity_items (
 -- Name: weave_portability_plans; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_portability_plans (
+CREATE TABLE weave_portability_plans (
     plan_ref character varying(255) NOT NULL,
     created_at_utc timestamp(6) with time zone NOT NULL,
     domain_key character varying(80) NOT NULL,
@@ -889,7 +888,7 @@ CREATE TABLE public.weave_portability_plans (
 -- Name: weave_product_profile_overrides; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_product_profile_overrides (
+CREATE TABLE weave_product_profile_overrides (
     primary_identity_key character varying(528) NOT NULL,
     accessibility_preferences_json text NOT NULL,
     avatar character varying(512),
@@ -905,7 +904,7 @@ CREATE TABLE public.weave_product_profile_overrides (
 -- Name: weave_provider_bindings; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_provider_bindings (
+CREATE TABLE weave_provider_bindings (
     binding_revision bigint NOT NULL,
     domain_key character varying(80) NOT NULL,
     organization_ref character varying(255) NOT NULL,
@@ -923,7 +922,7 @@ CREATE TABLE public.weave_provider_bindings (
 -- Name: weave_provider_object_mappings; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_provider_object_mappings (
+CREATE TABLE weave_provider_object_mappings (
     binding_revision bigint NOT NULL,
     canonical_object_id character varying(255) NOT NULL,
     domain_key character varying(80) NOT NULL,
@@ -940,7 +939,7 @@ CREATE TABLE public.weave_provider_object_mappings (
 -- Name: weave_provider_selection_notes; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_provider_selection_notes (
+CREATE TABLE weave_provider_selection_notes (
     category character varying(80) NOT NULL,
     note_order integer NOT NULL,
     note_text character varying(1024) NOT NULL
@@ -951,7 +950,7 @@ CREATE TABLE public.weave_provider_selection_notes (
 -- Name: weave_provider_selections; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_provider_selections (
+CREATE TABLE weave_provider_selections (
     category character varying(80) NOT NULL,
     applied boolean NOT NULL,
     choice_model character varying(80) NOT NULL,
@@ -969,7 +968,7 @@ CREATE TABLE public.weave_provider_selections (
 -- Name: weave_schema_authority; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_schema_authority (
+CREATE TABLE weave_schema_authority (
     epoch character varying(80) NOT NULL,
     candidate_commit character varying(40) NOT NULL,
     catalog_fingerprint character varying(64) NOT NULL,
@@ -982,7 +981,7 @@ CREATE TABLE public.weave_schema_authority (
 -- Name: weave_space_memberships; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_space_memberships (
+CREATE TABLE weave_space_memberships (
     organization_ref character varying(255) NOT NULL,
     person_ref character varying(255) NOT NULL,
     space_ref character varying(255) NOT NULL,
@@ -998,7 +997,7 @@ CREATE TABLE public.weave_space_memberships (
 -- Name: weave_spaces; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_spaces (
+CREATE TABLE weave_spaces (
     organization_ref character varying(255) NOT NULL,
     space_ref character varying(255) NOT NULL,
     created_at_utc timestamp(6) with time zone NOT NULL,
@@ -1012,7 +1011,7 @@ CREATE TABLE public.weave_spaces (
 -- Name: weave_wake_envelopes; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_wake_envelopes (
+CREATE TABLE weave_wake_envelopes (
     cell_ref character varying(255) NOT NULL,
     organization_ref character varying(255) NOT NULL,
     wake_ref character varying(255) NOT NULL,
@@ -1032,7 +1031,7 @@ CREATE TABLE public.weave_wake_envelopes (
 -- Name: weave_workspace_revisions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.weave_workspace_revisions (
+CREATE TABLE weave_workspace_revisions (
     organization_ref character varying(255) NOT NULL,
     person_ref character varying(255) NOT NULL,
     revision bigint NOT NULL,
@@ -1053,7 +1052,7 @@ CREATE TABLE public.weave_workspace_revisions (
 -- Name: weave_chat_events uk_weave_chat_events_conversation_sequence; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_chat_events
+ALTER TABLE ONLY weave_chat_events
     ADD CONSTRAINT uk_weave_chat_events_conversation_sequence UNIQUE (tenant_id, conversation_id, sequence_value);
 
 
@@ -1061,7 +1060,7 @@ ALTER TABLE ONLY public.weave_chat_events
 -- Name: weave_files_objects uk_weave_files_active_path; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_files_objects
+ALTER TABLE ONLY weave_files_objects
     ADD CONSTRAINT uk_weave_files_active_path UNIQUE (organization_ref, space_ref, active_path_key);
 
 
@@ -1069,7 +1068,7 @@ ALTER TABLE ONLY public.weave_files_objects
 -- Name: weave_identity_provisioning_intents ukqi0q5p045hxv0b6rda2c0x9u3; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_identity_provisioning_intents
+ALTER TABLE ONLY weave_identity_provisioning_intents
     ADD CONSTRAINT ukqi0q5p045hxv0b6rda2c0x9u3 UNIQUE (provider_invitation_id);
 
 
@@ -1077,7 +1076,7 @@ ALTER TABLE ONLY public.weave_identity_provisioning_intents
 -- Name: weave_audit_events uq_weave_audit_events_idempotency; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_audit_events
+ALTER TABLE ONLY weave_audit_events
     ADD CONSTRAINT uq_weave_audit_events_idempotency UNIQUE (tenant_id, idempotency_key);
 
 
@@ -1085,7 +1084,7 @@ ALTER TABLE ONLY public.weave_audit_events
 -- Name: weave_agent_runtime_audit_correlations weave_agent_runtime_audit_correlations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_agent_runtime_audit_correlations
+ALTER TABLE ONLY weave_agent_runtime_audit_correlations
     ADD CONSTRAINT weave_agent_runtime_audit_correlations_pkey PRIMARY KEY (record_id);
 
 
@@ -1093,7 +1092,7 @@ ALTER TABLE ONLY public.weave_agent_runtime_audit_correlations
 -- Name: weave_agent_runtime_cells weave_agent_runtime_cells_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_agent_runtime_cells
+ALTER TABLE ONLY weave_agent_runtime_cells
     ADD CONSTRAINT weave_agent_runtime_cells_pkey PRIMARY KEY (record_id);
 
 
@@ -1101,7 +1100,7 @@ ALTER TABLE ONLY public.weave_agent_runtime_cells
 -- Name: weave_agent_runtime_commands weave_agent_runtime_commands_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_agent_runtime_commands
+ALTER TABLE ONLY weave_agent_runtime_commands
     ADD CONSTRAINT weave_agent_runtime_commands_pkey PRIMARY KEY (idempotency_key, organization_ref, person_ref);
 
 
@@ -1109,7 +1108,7 @@ ALTER TABLE ONLY public.weave_agent_runtime_commands
 -- Name: weave_agent_runtime_entitlements weave_agent_runtime_entitlements_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_agent_runtime_entitlements
+ALTER TABLE ONLY weave_agent_runtime_entitlements
     ADD CONSTRAINT weave_agent_runtime_entitlements_pkey PRIMARY KEY (record_id);
 
 
@@ -1117,7 +1116,7 @@ ALTER TABLE ONLY public.weave_agent_runtime_entitlements
 -- Name: weave_agent_runtime_cells weave_agent_runtime_person_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_agent_runtime_cells
+ALTER TABLE ONLY weave_agent_runtime_cells
     ADD CONSTRAINT weave_agent_runtime_person_unique UNIQUE (organization_ref, person_ref);
 
 
@@ -1125,7 +1124,7 @@ ALTER TABLE ONLY public.weave_agent_runtime_cells
 -- Name: weave_agent_runtime_profile_signatures weave_agent_runtime_profile_signatures_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_agent_runtime_profile_signatures
+ALTER TABLE ONLY weave_agent_runtime_profile_signatures
     ADD CONSTRAINT weave_agent_runtime_profile_signatures_pkey PRIMARY KEY (key_id, profile_hash);
 
 
@@ -1133,7 +1132,7 @@ ALTER TABLE ONLY public.weave_agent_runtime_profile_signatures
 -- Name: weave_agent_runtime_profiles weave_agent_runtime_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_agent_runtime_profiles
+ALTER TABLE ONLY weave_agent_runtime_profiles
     ADD CONSTRAINT weave_agent_runtime_profiles_pkey PRIMARY KEY (profile_hash);
 
 
@@ -1141,7 +1140,7 @@ ALTER TABLE ONLY public.weave_agent_runtime_profiles
 -- Name: weave_agent_runtime_revocations weave_agent_runtime_revocations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_agent_runtime_revocations
+ALTER TABLE ONLY weave_agent_runtime_revocations
     ADD CONSTRAINT weave_agent_runtime_revocations_pkey PRIMARY KEY (record_id);
 
 
@@ -1149,7 +1148,7 @@ ALTER TABLE ONLY public.weave_agent_runtime_revocations
 -- Name: weave_agent_runtime_state_deletions weave_agent_runtime_state_deletions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_agent_runtime_state_deletions
+ALTER TABLE ONLY weave_agent_runtime_state_deletions
     ADD CONSTRAINT weave_agent_runtime_state_deletions_pkey PRIMARY KEY (idempotency_key, organization_ref, person_ref);
 
 
@@ -1157,7 +1156,7 @@ ALTER TABLE ONLY public.weave_agent_runtime_state_deletions
 -- Name: weave_agent_runtime_state_generations weave_agent_runtime_state_generations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_agent_runtime_state_generations
+ALTER TABLE ONLY weave_agent_runtime_state_generations
     ADD CONSTRAINT weave_agent_runtime_state_generations_pkey PRIMARY KEY (generation_ref);
 
 
@@ -1165,7 +1164,7 @@ ALTER TABLE ONLY public.weave_agent_runtime_state_generations
 -- Name: weave_agent_runtime_state_heads weave_agent_runtime_state_heads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_agent_runtime_state_heads
+ALTER TABLE ONLY weave_agent_runtime_state_heads
     ADD CONSTRAINT weave_agent_runtime_state_heads_pkey PRIMARY KEY (runtime_state_store_ref);
 
 
@@ -1173,7 +1172,7 @@ ALTER TABLE ONLY public.weave_agent_runtime_state_heads
 -- Name: weave_agent_runtime_cells weave_agent_runtime_workload_client_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_agent_runtime_cells
+ALTER TABLE ONLY weave_agent_runtime_cells
     ADD CONSTRAINT weave_agent_runtime_workload_client_unique UNIQUE (workload_issuer, workload_client_id);
 
 
@@ -1181,7 +1180,7 @@ ALTER TABLE ONLY public.weave_agent_runtime_cells
 -- Name: weave_agent_runtime_cells weave_agent_runtime_workload_subject_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_agent_runtime_cells
+ALTER TABLE ONLY weave_agent_runtime_cells
     ADD CONSTRAINT weave_agent_runtime_workload_subject_unique UNIQUE (workload_issuer, workload_subject);
 
 
@@ -1189,7 +1188,7 @@ ALTER TABLE ONLY public.weave_agent_runtime_cells
 -- Name: weave_audit_events weave_audit_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_audit_events
+ALTER TABLE ONLY weave_audit_events
     ADD CONSTRAINT weave_audit_events_pkey PRIMARY KEY (sequence_id);
 
 
@@ -1197,7 +1196,7 @@ ALTER TABLE ONLY public.weave_audit_events
 -- Name: weave_calendar_changes weave_calendar_changes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_calendar_changes
+ALTER TABLE ONLY weave_calendar_changes
     ADD CONSTRAINT weave_calendar_changes_pkey PRIMARY KEY (calendar_id, change_sequence, scope_key);
 
 
@@ -1205,7 +1204,7 @@ ALTER TABLE ONLY public.weave_calendar_changes
 -- Name: weave_calendar_collections weave_calendar_collections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_calendar_collections
+ALTER TABLE ONLY weave_calendar_collections
     ADD CONSTRAINT weave_calendar_collections_pkey PRIMARY KEY (calendar_id, scope_key);
 
 
@@ -1213,7 +1212,7 @@ ALTER TABLE ONLY public.weave_calendar_collections
 -- Name: weave_calendar_events weave_calendar_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_calendar_events
+ALTER TABLE ONLY weave_calendar_events
     ADD CONSTRAINT weave_calendar_events_pkey PRIMARY KEY (calendar_id, event_id, scope_key);
 
 
@@ -1221,7 +1220,7 @@ ALTER TABLE ONLY public.weave_calendar_events
 -- Name: weave_chat_appservice_transactions weave_chat_appservice_transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_chat_appservice_transactions
+ALTER TABLE ONLY weave_chat_appservice_transactions
     ADD CONSTRAINT weave_chat_appservice_transactions_pkey PRIMARY KEY (provider_key, homeserver_transaction_id);
 
 
@@ -1229,7 +1228,7 @@ ALTER TABLE ONLY public.weave_chat_appservice_transactions
 -- Name: weave_chat_bridge_ledger weave_chat_bridge_ledger_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_chat_bridge_ledger
+ALTER TABLE ONLY weave_chat_bridge_ledger
     ADD CONSTRAINT weave_chat_bridge_ledger_pkey PRIMARY KEY (tenant_id, ledger_id);
 
 
@@ -1237,7 +1236,7 @@ ALTER TABLE ONLY public.weave_chat_bridge_ledger
 -- Name: weave_chat_changes weave_chat_changes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_chat_changes
+ALTER TABLE ONLY weave_chat_changes
     ADD CONSTRAINT weave_chat_changes_pkey PRIMARY KEY (sequence_value);
 
 
@@ -1245,7 +1244,7 @@ ALTER TABLE ONLY public.weave_chat_changes
 -- Name: weave_chat_conversations weave_chat_conversations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_chat_conversations
+ALTER TABLE ONLY weave_chat_conversations
     ADD CONSTRAINT weave_chat_conversations_pkey PRIMARY KEY (tenant_id, conversation_id);
 
 
@@ -1253,7 +1252,7 @@ ALTER TABLE ONLY public.weave_chat_conversations
 -- Name: weave_chat_events weave_chat_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_chat_events
+ALTER TABLE ONLY weave_chat_events
     ADD CONSTRAINT weave_chat_events_pkey PRIMARY KEY (tenant_id, conversation_id, event_id);
 
 
@@ -1261,7 +1260,7 @@ ALTER TABLE ONLY public.weave_chat_events
 -- Name: weave_chat_memberships weave_chat_memberships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_chat_memberships
+ALTER TABLE ONLY weave_chat_memberships
     ADD CONSTRAINT weave_chat_memberships_pkey PRIMARY KEY (tenant_id, conversation_id, identity_issuer, actor_ref);
 
 
@@ -1269,7 +1268,7 @@ ALTER TABLE ONLY public.weave_chat_memberships
 -- Name: weave_chat_operations weave_chat_operations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_chat_operations
+ALTER TABLE ONLY weave_chat_operations
     ADD CONSTRAINT weave_chat_operations_pkey PRIMARY KEY (tenant_id, operation_id);
 
 
@@ -1277,7 +1276,7 @@ ALTER TABLE ONLY public.weave_chat_operations
 -- Name: weave_chat_outbox weave_chat_outbox_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_chat_outbox
+ALTER TABLE ONLY weave_chat_outbox
     ADD CONSTRAINT weave_chat_outbox_pkey PRIMARY KEY (tenant_id, operation_id);
 
 
@@ -1285,7 +1284,7 @@ ALTER TABLE ONLY public.weave_chat_outbox
 -- Name: weave_chat_provider_mappings weave_chat_provider_mappings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_chat_provider_mappings
+ALTER TABLE ONLY weave_chat_provider_mappings
     ADD CONSTRAINT weave_chat_provider_mappings_pkey PRIMARY KEY (tenant_id, provider_key, object_type, canonical_object_id);
 
 
@@ -1293,7 +1292,7 @@ ALTER TABLE ONLY public.weave_chat_provider_mappings
 -- Name: weave_chat_quarantine weave_chat_quarantine_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_chat_quarantine
+ALTER TABLE ONLY weave_chat_quarantine
     ADD CONSTRAINT weave_chat_quarantine_pkey PRIMARY KEY (tenant_id, quarantine_id);
 
 
@@ -1301,7 +1300,7 @@ ALTER TABLE ONLY public.weave_chat_quarantine
 -- Name: weave_chat_read_receipts weave_chat_read_receipts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_chat_read_receipts
+ALTER TABLE ONLY weave_chat_read_receipts
     ADD CONSTRAINT weave_chat_read_receipts_pkey PRIMARY KEY (tenant_id, conversation_id, identity_issuer, actor_ref);
 
 
@@ -1309,7 +1308,7 @@ ALTER TABLE ONLY public.weave_chat_read_receipts
 -- Name: weave_device_credentials weave_device_credentials_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_device_credentials
+ALTER TABLE ONLY weave_device_credentials
     ADD CONSTRAINT weave_device_credentials_pkey PRIMARY KEY (credential_id);
 
 
@@ -1317,7 +1316,7 @@ ALTER TABLE ONLY public.weave_device_credentials
 -- Name: weave_file_locks weave_file_locks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_file_locks
+ALTER TABLE ONLY weave_file_locks
     ADD CONSTRAINT weave_file_locks_pkey PRIMARY KEY (canonical_path, organization_ref, space_ref);
 
 
@@ -1325,7 +1324,7 @@ ALTER TABLE ONLY public.weave_file_locks
 -- Name: weave_files_objects weave_files_objects_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_files_objects
+ALTER TABLE ONLY weave_files_objects
     ADD CONSTRAINT weave_files_objects_pkey PRIMARY KEY (file_id, organization_ref, space_ref);
 
 
@@ -1333,7 +1332,7 @@ ALTER TABLE ONLY public.weave_files_objects
 -- Name: weave_identity_admin_operations weave_identity_admin_operations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_identity_admin_operations
+ALTER TABLE ONLY weave_identity_admin_operations
     ADD CONSTRAINT weave_identity_admin_operations_pkey PRIMARY KEY (idempotency_key, organization_id);
 
 
@@ -1341,7 +1340,7 @@ ALTER TABLE ONLY public.weave_identity_admin_operations
 -- Name: weave_identity_provisioning_intents weave_identity_provisioning_intents_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_identity_provisioning_intents
+ALTER TABLE ONLY weave_identity_provisioning_intents
     ADD CONSTRAINT weave_identity_provisioning_intents_pkey PRIMARY KEY (intent_id);
 
 
@@ -1349,7 +1348,7 @@ ALTER TABLE ONLY public.weave_identity_provisioning_intents
 -- Name: weave_matrix_e2ee_snapshots weave_matrix_e2ee_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_matrix_e2ee_snapshots
+ALTER TABLE ONLY weave_matrix_e2ee_snapshots
     ADD CONSTRAINT weave_matrix_e2ee_snapshots_pkey PRIMARY KEY (tenant_id);
 
 
@@ -1357,7 +1356,7 @@ ALTER TABLE ONLY public.weave_matrix_e2ee_snapshots
 -- Name: weave_matrix_identity_projection weave_matrix_identity_projection_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_matrix_identity_projection
+ALTER TABLE ONLY weave_matrix_identity_projection
     ADD CONSTRAINT weave_matrix_identity_projection_pkey PRIMARY KEY (identity_issuer, matrix_user_id, tenant_id);
 
 
@@ -1365,7 +1364,7 @@ ALTER TABLE ONLY public.weave_matrix_identity_projection
 -- Name: weave_matrix_revoked_sessions weave_matrix_revoked_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_matrix_revoked_sessions
+ALTER TABLE ONLY weave_matrix_revoked_sessions
     ADD CONSTRAINT weave_matrix_revoked_sessions_pkey PRIMARY KEY (session_hash);
 
 
@@ -1373,7 +1372,7 @@ ALTER TABLE ONLY public.weave_matrix_revoked_sessions
 -- Name: weave_migration_run_evidence weave_migration_run_evidence_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_migration_run_evidence
+ALTER TABLE ONLY weave_migration_run_evidence
     ADD CONSTRAINT weave_migration_run_evidence_pkey PRIMARY KEY (domain_key, run_id);
 
 
@@ -1381,7 +1380,7 @@ ALTER TABLE ONLY public.weave_migration_run_evidence
 -- Name: weave_operation_intents weave_operation_intents_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_operation_intents
+ALTER TABLE ONLY weave_operation_intents
     ADD CONSTRAINT weave_operation_intents_pkey PRIMARY KEY (operation_ref);
 
 
@@ -1389,7 +1388,7 @@ ALTER TABLE ONLY public.weave_operation_intents
 -- Name: weave_operation_outbox weave_operation_outbox_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_operation_outbox
+ALTER TABLE ONLY weave_operation_outbox
     ADD CONSTRAINT weave_operation_outbox_pkey PRIMARY KEY (sequence_id);
 
 
@@ -1397,7 +1396,7 @@ ALTER TABLE ONLY public.weave_operation_outbox
 -- Name: weave_organization_bootstrap weave_organization_bootstrap_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_organization_bootstrap
+ALTER TABLE ONLY weave_organization_bootstrap
     ADD CONSTRAINT weave_organization_bootstrap_pkey PRIMARY KEY (organization_id);
 
 
@@ -1405,7 +1404,7 @@ ALTER TABLE ONLY public.weave_organization_bootstrap
 -- Name: weave_person_bindings weave_person_bindings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_person_bindings
+ALTER TABLE ONLY weave_person_bindings
     ADD CONSTRAINT weave_person_bindings_pkey PRIMARY KEY (issuer, organization_ref, subject);
 
 
@@ -1413,7 +1412,7 @@ ALTER TABLE ONLY public.weave_person_bindings
 -- Name: weave_portability_fidelity_items weave_portability_fidelity_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_portability_fidelity_items
+ALTER TABLE ONLY weave_portability_fidelity_items
     ADD CONSTRAINT weave_portability_fidelity_items_pkey PRIMARY KEY (canonical_object_id, plan_ref);
 
 
@@ -1421,7 +1420,7 @@ ALTER TABLE ONLY public.weave_portability_fidelity_items
 -- Name: weave_portability_plans weave_portability_plans_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_portability_plans
+ALTER TABLE ONLY weave_portability_plans
     ADD CONSTRAINT weave_portability_plans_pkey PRIMARY KEY (plan_ref);
 
 
@@ -1429,7 +1428,7 @@ ALTER TABLE ONLY public.weave_portability_plans
 -- Name: weave_product_profile_overrides weave_product_profile_overrides_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_product_profile_overrides
+ALTER TABLE ONLY weave_product_profile_overrides
     ADD CONSTRAINT weave_product_profile_overrides_pkey PRIMARY KEY (primary_identity_key);
 
 
@@ -1437,7 +1436,7 @@ ALTER TABLE ONLY public.weave_product_profile_overrides
 -- Name: weave_provider_bindings weave_provider_bindings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_provider_bindings
+ALTER TABLE ONLY weave_provider_bindings
     ADD CONSTRAINT weave_provider_bindings_pkey PRIMARY KEY (binding_revision, domain_key, organization_ref);
 
 
@@ -1445,7 +1444,7 @@ ALTER TABLE ONLY public.weave_provider_bindings
 -- Name: weave_provider_object_mappings weave_provider_object_mappings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_provider_object_mappings
+ALTER TABLE ONLY weave_provider_object_mappings
     ADD CONSTRAINT weave_provider_object_mappings_pkey PRIMARY KEY (binding_revision, canonical_object_id, domain_key, organization_ref);
 
 
@@ -1453,7 +1452,7 @@ ALTER TABLE ONLY public.weave_provider_object_mappings
 -- Name: weave_provider_selection_notes weave_provider_selection_notes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_provider_selection_notes
+ALTER TABLE ONLY weave_provider_selection_notes
     ADD CONSTRAINT weave_provider_selection_notes_pkey PRIMARY KEY (category, note_order);
 
 
@@ -1461,7 +1460,7 @@ ALTER TABLE ONLY public.weave_provider_selection_notes
 -- Name: weave_provider_selections weave_provider_selections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_provider_selections
+ALTER TABLE ONLY weave_provider_selections
     ADD CONSTRAINT weave_provider_selections_pkey PRIMARY KEY (category);
 
 
@@ -1469,7 +1468,7 @@ ALTER TABLE ONLY public.weave_provider_selections
 -- Name: weave_schema_authority weave_schema_authority_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_schema_authority
+ALTER TABLE ONLY weave_schema_authority
     ADD CONSTRAINT weave_schema_authority_pkey PRIMARY KEY (epoch);
 
 
@@ -1477,7 +1476,7 @@ ALTER TABLE ONLY public.weave_schema_authority
 -- Name: weave_space_memberships weave_space_memberships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_space_memberships
+ALTER TABLE ONLY weave_space_memberships
     ADD CONSTRAINT weave_space_memberships_pkey PRIMARY KEY (organization_ref, person_ref, space_ref);
 
 
@@ -1485,7 +1484,7 @@ ALTER TABLE ONLY public.weave_space_memberships
 -- Name: weave_spaces weave_spaces_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_spaces
+ALTER TABLE ONLY weave_spaces
     ADD CONSTRAINT weave_spaces_pkey PRIMARY KEY (organization_ref, space_ref);
 
 
@@ -1493,7 +1492,7 @@ ALTER TABLE ONLY public.weave_spaces
 -- Name: weave_wake_envelopes weave_wake_envelopes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_wake_envelopes
+ALTER TABLE ONLY weave_wake_envelopes
     ADD CONSTRAINT weave_wake_envelopes_pkey PRIMARY KEY (cell_ref, organization_ref, wake_ref);
 
 
@@ -1501,7 +1500,7 @@ ALTER TABLE ONLY public.weave_wake_envelopes
 -- Name: weave_workspace_revisions weave_workspace_revisions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_workspace_revisions
+ALTER TABLE ONLY weave_workspace_revisions
     ADD CONSTRAINT weave_workspace_revisions_pkey PRIMARY KEY (organization_ref, person_ref, revision);
 
 
@@ -1509,33 +1508,32 @@ ALTER TABLE ONLY public.weave_workspace_revisions
 -- Name: idx_weave_device_credentials_principal; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_weave_device_credentials_principal ON public.weave_device_credentials USING btree (domain, principal_ref, issued_at_utc);
+CREATE INDEX idx_weave_device_credentials_principal ON weave_device_credentials USING btree (domain, principal_ref, issued_at_utc);
 
 
 --
 -- Name: weave_agent_runtime_reconcile; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX weave_agent_runtime_reconcile ON public.weave_agent_runtime_cells USING btree (desired_state, observed_state, lease_expires_at);
+CREATE INDEX weave_agent_runtime_reconcile ON weave_agent_runtime_cells USING btree (desired_state, observed_state, lease_expires_at);
 
 
 --
 -- Name: weave_identity_provisioning_pending_email; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX weave_identity_provisioning_pending_email ON public.weave_identity_provisioning_intents USING btree (tenant_id, organization_id, invited_email_sha256, status);
+CREATE INDEX weave_identity_provisioning_pending_email ON weave_identity_provisioning_intents USING btree (tenant_id, organization_id, invited_email_sha256, status);
 
 
 --
 -- Name: weave_provider_selection_notes fki0v2vb9srqtvrxthxgbl5cxr0; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.weave_provider_selection_notes
-    ADD CONSTRAINT fki0v2vb9srqtvrxthxgbl5cxr0 FOREIGN KEY (category) REFERENCES public.weave_provider_selections(category);
+ALTER TABLE ONLY weave_provider_selection_notes
+    ADD CONSTRAINT fki0v2vb9srqtvrxthxgbl5cxr0 FOREIGN KEY (category) REFERENCES weave_provider_selections(category);
 
 
 --
 -- PostgreSQL database dump complete
 --
-
 

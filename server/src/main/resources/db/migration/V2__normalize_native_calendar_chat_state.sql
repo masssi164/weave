@@ -2,13 +2,13 @@
 -- Forward-only migration. No external-provider content is imported.
 
 -- Calendar recurrence profile widened from the pre-Flyway DAILY/WEEKLY shape.
-ALTER TABLE public.weave_calendar_events
+ALTER TABLE weave_calendar_events
     DROP CONSTRAINT IF EXISTS weave_calendar_events_recurrence_frequency_check;
-ALTER TABLE public.weave_calendar_events
+ALTER TABLE weave_calendar_events
     ADD CONSTRAINT weave_calendar_events_recurrence_frequency_check
     CHECK (recurrence_frequency IS NULL OR recurrence_frequency IN ('DAILY','WEEKLY','MONTHLY','YEARLY'));
 
-CREATE TABLE public.weave_calendar_sync_heads (
+CREATE TABLE weave_calendar_sync_heads (
     calendar_id varchar(96) NOT NULL,
     scope_key varchar(768) NOT NULL,
     revision bigint NOT NULL DEFAULT 0,
@@ -18,12 +18,12 @@ CREATE TABLE public.weave_calendar_sync_heads (
     CHECK (revision >= 0)
 );
 
-INSERT INTO public.weave_calendar_sync_heads(calendar_id, scope_key, revision, row_version, updated_at_utc)
+INSERT INTO weave_calendar_sync_heads(calendar_id, scope_key, revision, row_version, updated_at_utc)
 SELECT calendar_id, scope_key, latest_change_sequence, 0, updated_at_utc
-FROM public.weave_calendar_collections
+FROM weave_calendar_collections
 ON CONFLICT (calendar_id, scope_key) DO NOTHING;
 
-CREATE TABLE public.weave_calendar_event_temporals (
+CREATE TABLE weave_calendar_event_temporals (
     calendar_id varchar(96) NOT NULL,
     scope_key varchar(768) NOT NULL,
     event_id varchar(512) NOT NULL,
@@ -56,7 +56,7 @@ CREATE TABLE public.weave_calendar_event_temporals (
 );
 
 -- Existing pre-normalization Calendar rows are ZONED or DATE by construction.
-INSERT INTO public.weave_calendar_event_temporals(
+INSERT INTO weave_calendar_event_temporals(
     calendar_id, scope_key, event_id, temporal_kind,
     start_date, end_date, start_local, end_local, start_instant, end_instant, timezone_id)
 SELECT calendar_id, scope_key, event_id,
@@ -67,20 +67,20 @@ SELECT calendar_id, scope_key, event_id,
        CASE WHEN NOT all_day THEN local_end END,
        NULL, NULL,
        CASE WHEN NOT all_day THEN timezone_id END
-FROM public.weave_calendar_events
+FROM weave_calendar_events
 ON CONFLICT DO NOTHING;
 
 CREATE INDEX weave_calendar_event_temporals_date_window_idx
-    ON public.weave_calendar_event_temporals(calendar_id, scope_key, start_date, end_date)
+    ON weave_calendar_event_temporals(calendar_id, scope_key, start_date, end_date)
     WHERE temporal_kind = 'DATE';
 CREATE INDEX weave_calendar_event_temporals_local_window_idx
-    ON public.weave_calendar_event_temporals(calendar_id, scope_key, start_local, end_local)
+    ON weave_calendar_event_temporals(calendar_id, scope_key, start_local, end_local)
     WHERE temporal_kind IN ('FLOATING','ZONED');
 CREATE INDEX weave_calendar_event_temporals_instant_window_idx
-    ON public.weave_calendar_event_temporals(calendar_id, scope_key, start_instant, end_instant)
+    ON weave_calendar_event_temporals(calendar_id, scope_key, start_instant, end_instant)
     WHERE temporal_kind = 'UTC';
 
-CREATE TABLE public.weave_calendar_attendees (
+CREATE TABLE weave_calendar_attendees (
     calendar_id varchar(96) NOT NULL,
     scope_key varchar(768) NOT NULL,
     event_id varchar(512) NOT NULL,
@@ -95,7 +95,7 @@ CREATE TABLE public.weave_calendar_attendees (
     CHECK (member_ref IS NOT NULL OR address IS NOT NULL)
 );
 
-CREATE TABLE public.weave_calendar_recurrence_rules (
+CREATE TABLE weave_calendar_recurrence_rules (
     calendar_id varchar(96) NOT NULL,
     scope_key varchar(768) NOT NULL,
     event_id varchar(512) NOT NULL,
@@ -117,7 +117,7 @@ CREATE TABLE public.weave_calendar_recurrence_rules (
     CHECK (NOT (count_value IS NOT NULL AND (until_local IS NOT NULL OR until_instant IS NOT NULL)))
 );
 
-CREATE TABLE public.weave_calendar_recurrence_dates (
+CREATE TABLE weave_calendar_recurrence_dates (
     calendar_id varchar(96) NOT NULL,
     scope_key varchar(768) NOT NULL,
     event_id varchar(512) NOT NULL,
@@ -140,7 +140,7 @@ CREATE TABLE public.weave_calendar_recurrence_dates (
     )
 );
 
-CREATE TABLE public.weave_calendar_event_overrides (
+CREATE TABLE weave_calendar_event_overrides (
     calendar_id varchar(96) NOT NULL,
     scope_key varchar(768) NOT NULL,
     event_id varchar(512) NOT NULL,
@@ -165,7 +165,7 @@ CREATE TABLE public.weave_calendar_event_overrides (
     CHECK (temporal_kind IN ('DATE','FLOATING','UTC','ZONED'))
 );
 
-CREATE TABLE public.weave_calendar_timezone_definitions (
+CREATE TABLE weave_calendar_timezone_definitions (
     timezone_id varchar(255) NOT NULL,
     definition_hash varchar(64) NOT NULL,
     icalendar_definition text NOT NULL,
@@ -173,7 +173,7 @@ CREATE TABLE public.weave_calendar_timezone_definitions (
     PRIMARY KEY (timezone_id, definition_hash)
 );
 
-CREATE TABLE public.weave_calendar_extension_properties (
+CREATE TABLE weave_calendar_extension_properties (
     calendar_id varchar(96) NOT NULL,
     scope_key varchar(768) NOT NULL,
     event_id varchar(512) NOT NULL,
@@ -186,7 +186,7 @@ CREATE TABLE public.weave_calendar_extension_properties (
 );
 
 -- Chat commit-ordered synchronization and exact idempotency authority.
-CREATE TABLE public.weave_chat_sync_heads (
+CREATE TABLE weave_chat_sync_heads (
     tenant_id varchar(160) PRIMARY KEY,
     revision bigint NOT NULL DEFAULT 0,
     row_version bigint NOT NULL DEFAULT 0,
@@ -194,7 +194,7 @@ CREATE TABLE public.weave_chat_sync_heads (
     CHECK (revision >= 0)
 );
 
-CREATE TABLE public.weave_chat_idempotency (
+CREATE TABLE weave_chat_idempotency (
     tenant_id varchar(160) NOT NULL,
     user_id varchar(512) NOT NULL,
     device_id varchar(128) NOT NULL,
@@ -213,10 +213,10 @@ CREATE TABLE public.weave_chat_idempotency (
     CHECK (request_digest ~ '^[0-9a-f]{64}$')
 );
 CREATE INDEX weave_chat_idempotency_retention_idx
-    ON public.weave_chat_idempotency(created_at_utc, lifecycle_state);
+    ON weave_chat_idempotency(created_at_utc, lifecycle_state);
 
 -- Matrix facade routing metadata. These are protocol-edge tables, not a second Chat authority.
-CREATE TABLE public.weave_matrix_devices (
+CREATE TABLE weave_matrix_devices (
     tenant_id varchar(160) NOT NULL,
     user_id varchar(512) NOT NULL,
     device_id varchar(128) NOT NULL,
@@ -229,7 +229,7 @@ CREATE TABLE public.weave_matrix_devices (
     CHECK (changed_revision >= 0)
 );
 
-CREATE TABLE public.weave_matrix_one_time_keys (
+CREATE TABLE weave_matrix_one_time_keys (
     tenant_id varchar(160) NOT NULL,
     user_id varchar(512) NOT NULL,
     device_id varchar(128) NOT NULL,
@@ -242,10 +242,10 @@ CREATE TABLE public.weave_matrix_one_time_keys (
     PRIMARY KEY (tenant_id, user_id, device_id, key_id)
 );
 CREATE INDEX weave_matrix_otk_claim_idx
-    ON public.weave_matrix_one_time_keys(tenant_id, user_id, device_id, algorithm, key_id)
+    ON weave_matrix_one_time_keys(tenant_id, user_id, device_id, algorithm, key_id)
     WHERE claimed_at_utc IS NULL;
 
-CREATE TABLE public.weave_matrix_fallback_keys (
+CREATE TABLE weave_matrix_fallback_keys (
     tenant_id varchar(160) NOT NULL,
     user_id varchar(512) NOT NULL,
     device_id varchar(128) NOT NULL,
@@ -257,7 +257,7 @@ CREATE TABLE public.weave_matrix_fallback_keys (
     PRIMARY KEY (tenant_id, user_id, device_id, key_id)
 );
 
-CREATE TABLE public.weave_matrix_cross_signing_keys (
+CREATE TABLE weave_matrix_cross_signing_keys (
     tenant_id varchar(160) NOT NULL,
     user_id varchar(512) NOT NULL,
     usage varchar(32) NOT NULL,
@@ -268,7 +268,7 @@ CREATE TABLE public.weave_matrix_cross_signing_keys (
     CHECK (usage IN ('master','self_signing','user_signing'))
 );
 
-CREATE TABLE public.weave_matrix_to_device_messages (
+CREATE TABLE weave_matrix_to_device_messages (
     sequence_id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     tenant_id varchar(160) NOT NULL,
     target_user_id varchar(512) NOT NULL,
@@ -281,9 +281,9 @@ CREATE TABLE public.weave_matrix_to_device_messages (
     UNIQUE (tenant_id, sender_user_id, transaction_id, target_user_id, target_device_id, event_type)
 );
 CREATE INDEX weave_matrix_to_device_sync_idx
-    ON public.weave_matrix_to_device_messages(tenant_id, target_user_id, target_device_id, sequence_id);
+    ON weave_matrix_to_device_messages(tenant_id, target_user_id, target_device_id, sequence_id);
 
-CREATE TABLE public.weave_matrix_device_sync_progress (
+CREATE TABLE weave_matrix_device_sync_progress (
     tenant_id varchar(160) NOT NULL,
     user_id varchar(512) NOT NULL,
     device_id varchar(128) NOT NULL,
@@ -296,7 +296,7 @@ CREATE TABLE public.weave_matrix_device_sync_progress (
     CHECK (device_list_revision >= 0)
 );
 
-CREATE TABLE public.weave_matrix_account_data (
+CREATE TABLE weave_matrix_account_data (
     tenant_id varchar(160) NOT NULL,
     user_id varchar(512) NOT NULL,
     event_type varchar(255) NOT NULL,
@@ -305,7 +305,7 @@ CREATE TABLE public.weave_matrix_account_data (
     PRIMARY KEY (tenant_id, user_id, event_type)
 );
 
-CREATE TABLE public.weave_matrix_key_backup_versions (
+CREATE TABLE weave_matrix_key_backup_versions (
     tenant_id varchar(160) NOT NULL,
     user_id varchar(512) NOT NULL,
     version_id bigint NOT NULL,
@@ -316,10 +316,10 @@ CREATE TABLE public.weave_matrix_key_backup_versions (
     PRIMARY KEY (tenant_id, user_id, version_id)
 );
 CREATE UNIQUE INDEX weave_matrix_key_backup_current_idx
-    ON public.weave_matrix_key_backup_versions(tenant_id, user_id)
+    ON weave_matrix_key_backup_versions(tenant_id, user_id)
     WHERE current_version;
 
-CREATE TABLE public.weave_matrix_key_backup_sessions (
+CREATE TABLE weave_matrix_key_backup_sessions (
     tenant_id varchar(160) NOT NULL,
     user_id varchar(512) NOT NULL,
     version_id bigint NOT NULL,
@@ -329,7 +329,7 @@ CREATE TABLE public.weave_matrix_key_backup_sessions (
     PRIMARY KEY (tenant_id, user_id, version_id, room_id, session_id)
 );
 
-CREATE TABLE public.weave_matrix_device_list_revisions (
+CREATE TABLE weave_matrix_device_list_revisions (
     tenant_id varchar(160) NOT NULL,
     observing_user_id varchar(512) NOT NULL,
     observing_device_id varchar(128) NOT NULL,
@@ -339,7 +339,7 @@ CREATE TABLE public.weave_matrix_device_list_revisions (
     PRIMARY KEY (tenant_id, observing_user_id, observing_device_id, subject_user_id)
 );
 
-CREATE TABLE public.weave_matrix_oidc_device_bindings (
+CREATE TABLE weave_matrix_oidc_device_bindings (
     tenant_id varchar(160) NOT NULL,
     user_id varchar(512) NOT NULL,
     oidc_session_hash varchar(64) NOT NULL,
