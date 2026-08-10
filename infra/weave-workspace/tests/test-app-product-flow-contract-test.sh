@@ -25,6 +25,7 @@ readonly ACTIVATION_INBOX="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/co
 readonly MCP_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/WorkloadMcpJourney.java"
 readonly RESTART_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/PersistenceRestartJourney.java"
 readonly CANDIDATE_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/candidate-images.yml"
+readonly COMPOSE_FILE="${REPOSITORY_ROOT}/infra/weave-workspace/compose.yaml"
 
 fail() { printf 'testApp product-flow contract failed: %s\n' "$*" >&2; exit 1; }
 contains() {
@@ -73,6 +74,11 @@ context_assignments="$(
 )"
 eval "${context_assignments}"
 CONTEXT_TEST_NAMESPACE="${WEAVE_E2E_RUN_NAMESPACE}"
+grep -Fxq -- \
+  "WEAVE_MAILPIT_URL=https://mail.weave.test:${WEAVE_PROXY_HTTPS_HOST_PORT}" \
+  "${WEAVE_ENV_FILE}" || fail "isolated context omitted the Mailpit gateway URL"
+grep -Fq -- "mail.weave.test" "${WEAVE_TEST_APP_HOSTS_FILE}" ||
+  fail "isolated context omitted the Mailpit gateway host mapping"
 python3 - "${WEAVE_TEST_APP_CONTEXT_MEMBERSHIPS}" "${WEAVE_TEST_APP_TENANT_ID}" <<'PY'
 import json
 import sys
@@ -146,6 +152,8 @@ contains "${CONTEXT_HELPER}" 'weave.context-authorization-seed/v1'
 contains "${CONTEXT_HELPER}" 'weave-test-app-evidence.json'
 contains "${CONTEXT_HELPER}" 'persistence-restart-evidence.json'
 contains "${CONTEXT_HELPER}" 'runtime-image-evidence.json'
+contains "${COMPOSE_FILE}" 'native-files-data:'
+contains "${COMPOSE_FILE}" 'name: ${WEAVE_NATIVE_FILES_DATA_VOLUME:-weave_native_files_data}'
 contains "${RUNTIME_CLEANUP}" 'invalid isolated namespace'
 contains "${RUNTIME_CLEANUP}" 'for generated_input in ("e2e.env", "hosts")'
 absent "${LIFECYCLE}" 'reset-password'

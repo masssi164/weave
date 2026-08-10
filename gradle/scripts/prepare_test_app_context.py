@@ -124,6 +124,7 @@ def main() -> int:
         "WEAVE_AUTH_URL": f"https://auth.weave.test:{https_port}",
         "WEAVE_MATRIX_URL": f"https://matrix.weave.test:{https_port}",
         "WEAVE_FILES_URL": f"https://files.weave.test:{https_port}",
+        "WEAVE_MAILPIT_URL": f"https://mail.weave.test:{https_port}",
         "WEAVE_FILES_PUBLIC_AUTHORITY": f"files.weave.test:{https_port}",
         "WEAVE_KEYCLOAK_IMAGE": placeholder,
         "WEAVE_BACKEND_IMAGE": placeholder,
@@ -136,7 +137,7 @@ def main() -> int:
     atomic_private_write(env_file, update_environment(template, values))
     atomic_private_write(
         hosts_file,
-        "127.0.0.1 weave.test api.weave.test auth.weave.test\n",
+        "127.0.0.1 weave.test api.weave.test auth.weave.test mail.weave.test\n",
     )
 
     generated_root = (
