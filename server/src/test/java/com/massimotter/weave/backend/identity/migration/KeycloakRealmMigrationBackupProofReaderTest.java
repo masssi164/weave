@@ -50,6 +50,44 @@ class KeycloakRealmMigrationBackupProofReaderTest {
   }
 
   @Test
+  void acceptsAProvenEmptyDisposableE2eNamespace() throws Exception {
+    Path proof = writeProof(validDisposableE2eProof());
+
+    KeycloakRealmMigrationBackupProofReader.BackupProof result =
+        reader().read(proof, bundle(), "e2e", CANDIDATE, "weave-e2e-0123456789abcdef");
+
+    assertThat(result.digest()).isEqualTo(digest(proof));
+    assertThat(result.environment()).isEqualTo("e2e");
+  }
+
+  @Test
+  void rejectsDisposableE2eProofOutsideItsExactNamespaceOrEnvironment() throws Exception {
+    Path proof = writeProof(validDisposableE2eProof());
+
+    assertThatThrownBy(
+            () -> reader().read(proof, bundle(), "dogfood", CANDIDATE, "weave-dogfood"))
+        .isInstanceOf(KeycloakRealmMigrationException.class)
+        .hasMessage("disposable-e2e-proof-contract-mismatch");
+    assertThatThrownBy(
+            () -> reader().read(proof, bundle(), "e2e", CANDIDATE, "weave-e2e-fedcba9876543210"))
+        .isInstanceOf(KeycloakRealmMigrationException.class)
+        .hasMessage("disposable-e2e-proof-contract-mismatch");
+  }
+
+  @Test
+  void rejectsPersistentBackupProofAsDisposableE2eAuthority() throws Exception {
+    ObjectNode proof = validBackupProof();
+    proof.put("environment", "e2e");
+    proof.put("composeProject", "weave-e2e-0123456789abcdef");
+    Path path = writeProof(proof);
+
+    assertThatThrownBy(
+            () -> reader().read(path, bundle(), "e2e", CANDIDATE, "weave-e2e-0123456789abcdef"))
+        .isInstanceOf(KeycloakRealmMigrationException.class)
+        .hasMessage("backup-proof-contract-mismatch");
+  }
+
+  @Test
   void rejectsFreshStartProofForProductionOrWrongCandidate() throws Exception {
     Path proof = writeProof(validFreshStartProof());
 
@@ -186,6 +224,24 @@ class KeycloakRealmMigrationBackupProofReaderTest {
     proof.put("candidateCommit", CANDIDATE);
     proof.put("candidateManifestDigest", "sha256:" + "f".repeat(64));
     proof.put("composeProject", "weave-dogfood");
+    return proof;
+  }
+
+  private ObjectNode validDisposableE2eProof() {
+    ObjectNode proof = mapper.createObjectNode();
+    proof.put("schemaVersion", "weave.keycloak-realm-migration-disposable-e2e-proof/v1");
+    proof.put("supportSafe", true);
+    proof.put("containsSecretValues", false);
+    proof.put("status", "verified");
+    proof.put("environment", "e2e");
+    proof.put("realm", "weave");
+    proof.put("sourceBaselineRevision", BASELINE_REVISION);
+    proof.put("emptyNamespaceProofSha256", "sha256:" + "d".repeat(64));
+    proof.put("runId", "live-31426561871-1");
+    proof.put("namespace", "weave-e2e-0123456789abcdef");
+    proof.put("candidateCommit", CANDIDATE);
+    proof.put("candidateManifestDigest", "sha256:" + "f".repeat(64));
+    proof.put("composeProject", "weave-e2e-0123456789abcdef");
     return proof;
   }
 

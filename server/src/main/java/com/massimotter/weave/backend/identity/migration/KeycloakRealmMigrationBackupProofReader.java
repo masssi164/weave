@@ -29,10 +29,13 @@ final class KeycloakRealmMigrationBackupProofReader {
   private static final String BACKUP_SCHEMA = "weave.keycloak-realm-migration-backup-proof/v1";
   private static final String FRESH_START_SCHEMA =
       "weave.keycloak-realm-migration-fresh-start-proof/v1";
+  private static final String DISPOSABLE_E2E_SCHEMA =
+      "weave.keycloak-realm-migration-disposable-e2e-proof/v1";
   private static final long MAXIMUM_PROOF_BYTES = 32 * 1024;
   private static final Pattern DIGEST = Pattern.compile("sha256:[0-9a-f]{64}");
   private static final Pattern COMMIT = Pattern.compile("[0-9a-f]{40}");
   private static final Pattern COMPOSE_PROJECT = Pattern.compile("[a-z0-9][a-z0-9_-]{1,62}");
+  private static final Pattern E2E_RUN_ID = Pattern.compile("[a-z0-9][a-z0-9-]{5,39}");
   private static final Pattern OPERATION_NONCE = Pattern.compile("[a-z0-9][a-z0-9-]{15,63}");
   private static final Pattern GENERATION = Pattern.compile("[a-z0-9][a-z0-9._-]{2,63}");
   private static final Pattern RFC3339 =
@@ -69,6 +72,21 @@ final class KeycloakRealmMigrationBackupProofReader {
           "candidateCommit",
           "candidateManifestDigest",
           "composeProject");
+  private static final Set<String> DISPOSABLE_E2E_FIELDS =
+      Set.of(
+          "schemaVersion",
+          "supportSafe",
+          "containsSecretValues",
+          "status",
+          "environment",
+          "realm",
+          "sourceBaselineRevision",
+          "emptyNamespaceProofSha256",
+          "runId",
+          "namespace",
+          "candidateCommit",
+          "candidateManifestDigest",
+          "composeProject");
 
   private final ObjectMapper mapper;
 
@@ -92,6 +110,9 @@ final class KeycloakRealmMigrationBackupProofReader {
     } else if (FRESH_START_SCHEMA.equals(schema)) {
       requireFreshStartProof(
           proof, bundle, expectedEnvironment, expectedCandidateCommit, expectedComposeProject);
+    } else if (DISPOSABLE_E2E_SCHEMA.equals(schema)) {
+      requireDisposableE2eProof(
+          proof, bundle, expectedEnvironment, expectedCandidateCommit, expectedComposeProject);
     } else {
       throw blocked("migration-precondition-proof-schema-unsupported");
     }
@@ -107,7 +128,8 @@ final class KeycloakRealmMigrationBackupProofReader {
       String composeProject) {
     requireExactShape(proof, BACKUP_FIELDS, Set.of("supportSafe"));
     String createdAt = proof.path("createdAt").asString();
-    if (!proof.path("supportSafe").asBoolean(false)
+    if (!("dogfood".equals(environment) || "prod".equals(environment))
+        || !proof.path("supportSafe").asBoolean(false)
         || !"verified".equals(proof.path("status").asString())
         || !validRfc3339(createdAt)
         || !environment.equals(proof.path("environment").asString())
@@ -118,6 +140,31 @@ final class KeycloakRealmMigrationBackupProofReader {
         || !candidateCommit.equals(proof.path("candidateCommit").asString())
         || !composeProject.equals(proof.path("composeProject").asString())) {
       throw blocked("backup-proof-contract-mismatch");
+    }
+  }
+
+  private static void requireDisposableE2eProof(
+      JsonNode proof,
+      KeycloakRealmMigrationManifestReader.MigrationBundle bundle,
+      String environment,
+      String candidateCommit,
+      String composeProject) {
+    requireExactShape(
+        proof, DISPOSABLE_E2E_FIELDS, Set.of("supportSafe", "containsSecretValues"));
+    if (!"e2e".equals(environment)
+        || !proof.path("supportSafe").asBoolean(false)
+        || proof.path("containsSecretValues").asBoolean(true)
+        || !"verified".equals(proof.path("status").asString())
+        || !environment.equals(proof.path("environment").asString())
+        || !KeycloakFgapMigrationContract.REALM.equals(proof.path("realm").asString())
+        || !bundle.currentBaselineRevision().equals(proof.path("sourceBaselineRevision").asString())
+        || !DIGEST.matcher(proof.path("emptyNamespaceProofSha256").asString()).matches()
+        || !E2E_RUN_ID.matcher(proof.path("runId").asString()).matches()
+        || !composeProject.equals(proof.path("namespace").asString())
+        || !candidateCommit.equals(proof.path("candidateCommit").asString())
+        || !DIGEST.matcher(proof.path("candidateManifestDigest").asString()).matches()
+        || !composeProject.equals(proof.path("composeProject").asString())) {
+      throw blocked("disposable-e2e-proof-contract-mismatch");
     }
   }
 
@@ -149,7 +196,9 @@ final class KeycloakRealmMigrationBackupProofReader {
 
   private static void requireExpectedScope(
       String environment, String candidateCommit, String composeProject) {
-    if (!("dogfood".equals(environment) || "prod".equals(environment))
+    if (!("dogfood".equals(environment)
+            || "prod".equals(environment)
+            || "e2e".equals(environment))
         || candidateCommit == null
         || !COMMIT.matcher(candidateCommit).matches()
         || composeProject == null
