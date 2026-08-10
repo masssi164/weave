@@ -295,6 +295,7 @@ services:
     command:
       - bootstrap-admin
       - service
+      - --optimized
       - --client-id
       - weave-realm-migration-bootstrap
       - --client-secret:env=KC_BOOTSTRAP_ADMIN_CLIENT_SECRET
