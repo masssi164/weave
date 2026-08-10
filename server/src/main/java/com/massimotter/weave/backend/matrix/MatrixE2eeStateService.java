@@ -34,9 +34,7 @@ public class MatrixE2eeStateService {
             persistence.upsertDevice(identity.tenantId(), identity.userId(), identity.deviceId(), deviceKeys, persistence.nextRevision(identity.tenantId()));
         }
         Map<String, Object> oneTimeKeys = immutableObject(objectMap(request.get("one_time_keys")));
-        if (!oneTimeKeys.isEmpty()) {
-            persistence.addOneTimeKeys(identity.tenantId(), identity.userId(), identity.deviceId(), oneTimeKeys);
-        }
+        if (!oneTimeKeys.isEmpty()) persistence.addOneTimeKeys(identity.tenantId(), identity.userId(), identity.deviceId(), oneTimeKeys);
         if (request.containsKey("fallback_keys")) {
             persistence.replaceFallbackKeys(identity.tenantId(), identity.userId(), identity.deviceId(), immutableObject(objectMap(request.get("fallback_keys"))), persistence.nextRevision(identity.tenantId()));
         }
@@ -128,8 +126,9 @@ public class MatrixE2eeStateService {
         if (toDeviceAfterSequence < 0 || deviceListAfterSequence < 0) throw new MatrixProtocolException("M_BAD_JSON", "The Matrix E2EE sync cursor is invalid.");
         Set<String> shared = currentlySharedUserIds == null ? null : Set.copyOf(currentlySharedUserIds.stream().filter(value -> value != null && !value.isBlank() && !value.equals(identity.userId())).toList());
 
-        long deviceListAfter = deviceListAfterSequence;
-        if (shared != null) persistence.reconcileSharedUsers(identity.tenantId(), identity.userId(), identity.deviceId(), shared);
+        Map<String, MatrixE2eePersistence.DeviceListState> transitions = shared == null
+                ? Map.of()
+                : persistence.reconcileSharedUsers(identity.tenantId(), identity.userId(), identity.deviceId(), shared);
 
         long snapshotHighWater = persistence.currentRevision(identity.tenantId());
         List<MatrixE2eePersistence.ToDeviceRecord> queue = persistence.toDeviceEvents(identity.tenantId(), identity.userId(), identity.deviceId(), toDeviceAfterSequence, snapshotHighWater, MAX_TO_DEVICE_EVENTS_PER_SYNC);
@@ -137,14 +136,25 @@ public class MatrixE2eeStateService {
         if (!events.isEmpty()) { projectedToDeviceEventCount.addAndGet(events.size()); syncResponsesWithToDeviceEvents.incrementAndGet(); }
 
         long toDeviceDeliveredHighWater = queue.size() == MAX_TO_DEVICE_EVENTS_PER_SYNC ? queue.getLast().revision() : snapshotHighWater;
-        Set<String> changed = new java.util.TreeSet<>(persistence.deviceUsersChanged(identity.tenantId(), deviceListAfter, snapshotHighWater));
-        Map<String, MatrixE2eePersistence.DeviceListState> sharedChanges = shared == null ? Map.of() : persistence.sharedUserChanges(identity.tenantId(), identity.userId(), identity.deviceId(), deviceListAfter, snapshotHighWater);
+        Map<String, MatrixE2eePersistence.DeviceListState> sharedChanges = new LinkedHashMap<>();
+        if (shared != null) {
+            sharedChanges.putAll(persistence.sharedUserChanges(identity.tenantId(), identity.userId(), identity.deviceId(), deviceListAfterSequence, snapshotHighWater));
+            transitions.forEach(sharedChanges::put);
+        }
+
+        Set<String> changed = new java.util.TreeSet<>();
         List<String> left = new ArrayList<>();
         sharedChanges.forEach((user, state) -> { if (state.shared()) changed.add(user); else left.add(user); });
+        if (shared != null) {
+            Set<String> relevantUsers = new LinkedHashSet<>(shared);
+            relevantUsers.addAll(sharedChanges.keySet());
+            persistence.deviceUsersChanged(identity.tenantId(), deviceListAfterSequence, snapshotHighWater).stream()
+                    .filter(relevantUsers::contains)
+                    .forEach(changed::add);
+        }
 
-        long deviceListDeliveredHighWater = deviceListAfter;
+        long deviceListDeliveredHighWater = deviceListAfterSequence;
         for (MatrixE2eePersistence.DeviceListState state : sharedChanges.values()) deviceListDeliveredHighWater = Math.max(deviceListDeliveredHighWater, state.changedRevision());
-        if (!changed.isEmpty() && deviceListDeliveredHighWater == deviceListAfter) deviceListDeliveredHighWater = snapshotHighWater;
 
         long nextSequence = Math.min(snapshotHighWater, toDeviceDeliveredHighWater);
         persistence.recordDeviceSyncProgress(identity.tenantId(), identity.userId(), identity.deviceId(), nextSequence);
