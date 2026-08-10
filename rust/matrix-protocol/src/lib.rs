@@ -970,12 +970,41 @@ fn parse_messages_value(
 }
 
 fn parse_versions_value(input_json: &str) -> Result<Value, MatrixCoreError> {
-    let root: Value = parse(input_json)?;
-    let versions = root
-        .get("versions")
-        .and_then(Value::as_array)
-        .ok_or(MatrixCoreError::InvalidRequest)?;
-    Ok(json!({"versions":versions}))
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct CoreDescriptor {
+        protocol_surface: String,
+        oidc_gatekeeper: String,
+        northbound_homeserver_dependency: bool,
+        native_linked: bool,
+        server_name: String,
+    }
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Response {
+        #[serde(default)]
+        versions: Vec<String>,
+        matrix_core: CoreDescriptor,
+    }
+    let response: Response =
+        serde_json::from_str(input_json).map_err(|_| MatrixCoreError::InvalidRequest)?;
+    let supported = response
+        .versions
+        .iter()
+        .any(|version| SUPPORTED_MATRIX_VERSIONS.contains(&version.as_str()));
+    if !supported
+        || response.matrix_core.protocol_surface != MATRIX_PROTOCOL_SURFACE
+        || response.matrix_core.oidc_gatekeeper != OIDC_GATEKEEPER
+        || response.matrix_core.northbound_homeserver_dependency
+        || !response.matrix_core.native_linked
+    {
+        return Err(MatrixCoreError::InvalidRequest);
+    }
+    Ok(json!({
+        "compatible": true,
+        "serverName": response.matrix_core.server_name,
+        "versions": response.versions,
+    }))
 }
 
 fn validate_server_name(value: &str) -> Result<OwnedServerName, MatrixCoreError> {

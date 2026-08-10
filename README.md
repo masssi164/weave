@@ -1,6 +1,6 @@
 # Weave
 
-Provider-neutral collaboration for organizations that need control, portability, and governed assistance.
+Provider-neutral collaboration suite for organizations that need control, portability, and governed assistance.
 
 Weave is an open-standards gateway and product surface, not a branded skin over one provider. The northbound side exposes stable Weave-owned protocols and product APIs to clients. The southbound side adapts replaceable providers behind canonical Weave domains.
 
