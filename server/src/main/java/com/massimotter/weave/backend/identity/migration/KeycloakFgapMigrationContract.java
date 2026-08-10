@@ -13,7 +13,6 @@ final class KeycloakFgapMigrationContract {
   static final String ADMIN_PERMISSIONS_CLIENT_ID = "admin-permissions";
   static final String REALM_MANAGEMENT_CLIENT_ID = "realm-management";
   static final Set<String> BOOTSTRAP_REALM_ROLES = Set.of("admin", "default-roles-master");
-  static final String ORGANIZATION_ALIAS = "weave";
   static final String ORGANIZATION_ID = "8f771be4-f526-5bef-97dc-00c8e2fa383d";
 
   static final String MANIFEST_SCHEMA = "weave.keycloak-realm-migration-manifest/v2";

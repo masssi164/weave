@@ -5,7 +5,6 @@ import static com.massimotter.weave.backend.identity.migration.KeycloakFgapMigra
 import static com.massimotter.weave.backend.identity.migration.KeycloakFgapMigrationContract.EXPECTED_PERMISSION_NAMES;
 import static com.massimotter.weave.backend.identity.migration.KeycloakFgapMigrationContract.IDENTITY_ADMIN_CLIENT_ID;
 import static com.massimotter.weave.backend.identity.migration.KeycloakFgapMigrationContract.MIGRATION_CLIENT_ID;
-import static com.massimotter.weave.backend.identity.migration.KeycloakFgapMigrationContract.ORGANIZATION_ALIAS;
 import static com.massimotter.weave.backend.identity.migration.KeycloakFgapMigrationContract.ORGANIZATION_ID;
 import static com.massimotter.weave.backend.identity.migration.KeycloakFgapMigrationContract.ORGANIZATION_PERMISSION_NAME;
 import static com.massimotter.weave.backend.identity.migration.KeycloakFgapMigrationContract.ORGANIZATION_SCOPES;
@@ -47,7 +46,7 @@ final class KeycloakFgapMigrationExecutor {
   MigrationResult execute(
       KeycloakRealmMigrationManifestReader.MigrationBundle bundle,
       KeycloakRealmMigrationBackupProofReader.BackupProof backupProof) {
-    Anchors anchors = requireQualifiedAuthority();
+    Anchors anchors = requireQualifiedAuthority(backupProof.environment());
 
     List<Mutation> firstRun = new ArrayList<>();
     Mutation policyMutation = planPolicy(anchors);
@@ -91,7 +90,7 @@ final class KeycloakFgapMigrationExecutor {
         false);
   }
 
-  private Anchors requireQualifiedAuthority() {
+  private Anchors requireQualifiedAuthority(String environment) {
     JsonNode realm = transport.get(ADMIN);
     if (!realm.isObject()
         || !REALM.equals(realm.path("realm").asString())
@@ -117,7 +116,7 @@ final class KeycloakFgapMigrationExecutor {
         "identity-admin-role-mismatch");
 
     JsonNode adminPermissions = requireClient(ADMIN_PERMISSIONS_CLIENT_ID);
-    String organizationId = requirePrimaryOrganization();
+    String organizationId = requirePrimaryOrganization(expectedOrganizationAlias(environment));
     if (!ORGANIZATION_ID.equals(organizationId)) {
       throw blocked("organization-identity-mismatch");
     }
@@ -268,15 +267,24 @@ final class KeycloakFgapMigrationExecutor {
     }
   }
 
-  private String requirePrimaryOrganization() {
+  private String requirePrimaryOrganization(String expectedAlias) {
     JsonNode organization = transport.get(ADMIN + "/organizations/" + ORGANIZATION_ID);
     if (!organization.isObject()
         || !ORGANIZATION_ID.equals(organization.path("id").asString())
-        || !ORGANIZATION_ALIAS.equals(organization.path("alias").asString())
+        || !expectedAlias.equals(organization.path("alias").asString())
         || !organization.path("enabled").asBoolean(false)) {
       throw blocked("organization-readback-invalid");
     }
     return ORGANIZATION_ID;
+  }
+
+  private static String expectedOrganizationAlias(String environment) {
+    return switch (environment) {
+      case "dogfood" -> "weave-dogfood";
+      case "e2e" -> "weave-e2e";
+      case "prod" -> "weave";
+      default -> throw blocked("organization-environment-invalid");
+    };
   }
 
   private Mutation planPolicy(Anchors anchors) {
