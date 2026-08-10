@@ -2,14 +2,20 @@ spring:
   config:
     activate:
       on-profile: e2e
-  datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
-    driver-class-name: org.postgresql.Driver
-  jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://auth.weave.test/realms/weave
+          jwk-set-uri: http://keycloak:8080/realms/weave/protocol/openid-connect/certs
 
 weave:
   deployment:
     profile: e2e
+  mcp:
+    resource-uri: https://api.weave.test/mcp
+    resource-metadata-uri: https://api.weave.test/.well-known/oauth-protected-resource/mcp
+    authorization-server: https://auth.weave.test/realms/weave
+    token-uri: http://keycloak:8080/realms/weave/protocol/openid-connect/token
+    backend-resource-uri: https://api.weave.test/api
+    backend-files-uri: http://backend:8080/dav/files

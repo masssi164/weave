@@ -16,17 +16,24 @@ import tarfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from compose_env import ComposeContext, ContractError, compose_environment, load_context
+from compose_env import (
+    ComposeContext,
+    ContractError,
+    compose_environment,
+    load_context,
+)
 from recovery_receipt import database_inventory_digest
 
 
 VOLUME_ARTIFACTS = (
+    ("WEAVE_NATIVE_FILES_DATA_VOLUME", "native-files-data.tgz", "native-files-payload-data"),
     ("WEAVE_NEXTCLOUD_DATA_VOLUME", "nextcloud-data.tgz", "files-calendar-provider-data"),
     ("WEAVE_SYNAPSE_DATA_VOLUME", "synapse-data.tgz", "matrix-media-and-local-state"),
     ("WEAVE_CADDY_DATA_VOLUME", "caddy-data.tgz", "gateway-runtime-state"),
     ("WEAVE_CADDY_CONFIG_VOLUME", "caddy-config.tgz", "gateway-config-state"),
     ("WEAVE_KEYCLOAK_DATA_VOLUME", "keycloak-data.tgz", "keycloak-runtime-state"),
     ("WEAVE_MATRIX_APPSERVICE_VOLUME", "matrix-appservice.tgz", "matrix-appservice-runtime"),
+    ("WEAVE_RUNTIME_STATE_VOLUME", "runtime-state-data.tgz", "runtime-state-sensitive"),
 )
 BACKUP_HELPER_CAPABILITIES = ("DAC_READ_SEARCH",)
 QUIESCED_SERVICES = ("caddy", "mcp", "backend", "synapse", "mas", "nextcloud", "keycloak")
@@ -40,11 +47,29 @@ SERVICE_SUFFIXES = {
     "keycloak": "keycloak",
 }
 SERVICE_VOLUMES = {
+    "backend": ("WEAVE_NATIVE_FILES_DATA_VOLUME",),
     "caddy": ("WEAVE_CADDY_DATA_VOLUME", "WEAVE_CADDY_CONFIG_VOLUME"),
     "synapse": ("WEAVE_SYNAPSE_DATA_VOLUME", "WEAVE_MATRIX_APPSERVICE_VOLUME"),
     "nextcloud": ("WEAVE_NEXTCLOUD_DATA_VOLUME",),
     "keycloak": ("WEAVE_KEYCLOAK_DATA_VOLUME",),
 }
+
+
+def active_volume_artifacts(context: ComposeContext) -> tuple[tuple[str, str, str], ...]:
+    profiles = set(context.active_profiles)
+    selected = {
+        "WEAVE_NATIVE_FILES_DATA_VOLUME",
+        "WEAVE_CADDY_DATA_VOLUME",
+        "WEAVE_CADDY_CONFIG_VOLUME",
+        "WEAVE_KEYCLOAK_DATA_VOLUME",
+    }
+    if "provider-nextcloud" in profiles:
+        selected.add("WEAVE_NEXTCLOUD_DATA_VOLUME")
+    if "provider-matrix" in profiles:
+        selected.update(("WEAVE_SYNAPSE_DATA_VOLUME", "WEAVE_MATRIX_APPSERVICE_VOLUME"))
+    if "storage-s3" in profiles:
+        selected.add("WEAVE_RUNTIME_STATE_VOLUME")
+    return tuple(item for item in VOLUME_ARTIFACTS if item[0] in selected)
 
 
 def _sha256(path: Path) -> tuple[str, int]:
@@ -402,7 +427,7 @@ def backup(context: ComposeContext) -> Path:
                 postgres_dump_client_image,
                 postgres_databases,
             ) = _postgres_dump(context, dump)
-            for variable, archive, kind in VOLUME_ARTIFACTS:
+            for variable, archive, kind in active_volume_artifacts(context):
                 target = staging / archive
                 _archive_volume(context, context.env[variable], target)
                 digest, size = _sha256(target)

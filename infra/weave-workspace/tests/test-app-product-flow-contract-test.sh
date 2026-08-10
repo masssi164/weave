@@ -15,6 +15,7 @@ readonly DCR_CONTRACT_PROBE_TEST="${REPOSITORY_ROOT}/infra/weave-workspace/tests
 readonly COMPOSE_RUNTIME="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/compose_runtime.py"
 readonly BOUNDED_PROCESS="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/bounded_process.py"
 readonly RUNTIME_IMAGE_EVIDENCE="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_runtime_image_evidence.py"
+readonly RUNTIME_IMAGE_EVIDENCE_TEST="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_runtime_image_evidence_test.py"
 readonly GRADLE_TASKS="${REPOSITORY_ROOT}/gradle/tasks/architecture-lifecycle.gradle"
 readonly MODULE_BUILD="${REPOSITORY_ROOT}/weave-product-e2e/build.gradle"
 readonly MODULE_TASKS="${REPOSITORY_ROOT}/weave-product-e2e/gradle/tasks/product-flow.gradle"
@@ -44,6 +45,7 @@ python3 -m py_compile \
   "${BOUNDED_PROCESS}" \
   "${RUNTIME_IMAGE_EVIDENCE}"
 python3 -m unittest "${DCR_CONTRACT_PROBE_TEST}"
+python3 -m unittest "${RUNTIME_IMAGE_EVIDENCE_TEST}"
 
 CONTEXT_TEST_OUTPUT_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/weave-testapp-context-contract.XXXXXX")"
 CONTEXT_TEST_NAMESPACE=""
@@ -176,9 +178,12 @@ contains "${FLOW}" '/api/v1/identity/session/reconcile'
 contains "${FLOW}" '"access_updated"'
 contains "${FLOW}" 'organizationGroups(claims)'
 contains "${FLOW}" '/api/admin/providers/selections'
-contains "${FLOW}" 'new ProviderSelection("chat", "synapse-homeserver")'
-contains "${FLOW}" 'new ProviderSelection("files", "nextcloud-files")'
-contains "${FLOW}" 'new ProviderSelection("calendar", "nextcloud-caldav")'
+contains "${FLOW}" 'new ProviderSelection("chat", "weave-native")'
+contains "${FLOW}" 'new ProviderSelection("files", "weave-native")'
+contains "${FLOW}" 'new ProviderSelection("calendar", "weave-native")'
+contains "${FLOW}" 'weave.test-app-product-flow/v2'
+contains "${FLOW}" 'southboundProviderDependencyObserved'
+contains "${FLOW}" 'nativePersistenceVerified'
 contains "${FLOW}" '"recommended_self_hosted_default"'
 contains "${FLOW}" '/api/chat/readiness'
 contains "${FLOW}" '"available".equals(observedState)'
@@ -200,10 +205,17 @@ contains "${COMPOSE_RUNTIME}" 'compose(context, "restart", "--no-deps"'
 contains "${COMPOSE_RUNTIME}" '"dependentKeycloakRestartObserved": True'
 contains "${COMPOSE_RUNTIME}" '"fixtureRestoredExactly": True'
 contains "${COMPOSE_RUNTIME}" '"live-integration-fixture"'
-contains "${RUNTIME_IMAGE_EVIDENCE}" '"weave.test-app-runtime-images/v1"'
+contains "${RUNTIME_IMAGE_EVIDENCE}" '"weave.test-app-runtime-images/v2"'
 contains "${RUNTIME_IMAGE_EVIDENCE}" 'manifest_references.get(component) != reference'
 contains "${RUNTIME_IMAGE_EVIDENCE}" 'KEYCLOAK_BUILD_EVIDENCE_LABEL'
 contains "${RUNTIME_IMAGE_EVIDENCE}" 'buildEvidenceDigest'
+contains "${RUNTIME_IMAGE_EVIDENCE}" '--realm-evidence'
+contains "${RUNTIME_IMAGE_EVIDENCE}" 'candidateRealmDefinitionMatched'
+contains "${RUNTIME_IMAGE_EVIDENCE}" 'realmEvidenceVerified'
+contains "${LIFECYCLE}" 'keycloak_realm_evidence.py'
+contains "${LIFECYCLE}" '--realm-evidence "${realm_evidence_path}"'
+contains "${LIFECYCLE}" 'keycloak/realm-render-evidence.json'
+contains "${LIFECYCLE}" 'fgap-v2-primary-organization-post-import.receipt.json'
 contains "${BROWSER_FLOW}" '--ignore-certificate-errors-spki-list='
 contains "${BROWSER_FLOW}" '--host-resolver-rules='
 contains "${BROWSER_FLOW}" 'isEmailVerificationRequiredAction'

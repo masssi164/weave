@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import tempfile
 import unittest
@@ -22,6 +23,20 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
     lane = "1" * 40
     source = "2" * 40
     manifest = "sha256:" + "3" * 64
+    realm_definition = {
+        "semanticRealmSourceDigest": "sha256:" + "a" * 64,
+        "migrationDefinitionDigest": "sha256:" + "b" * 64,
+        "containsSecrets": False,
+    }
+    realm_evidence = {
+        **realm_definition,
+        "overlayDigest": "sha256:" + "c" * 64,
+        "renderedRealmDigest": "sha256:" + "d" * 64,
+        "semanticReadbackDigest": "sha256:" + "e" * 64,
+        "candidateRealmDefinitionMatched": True,
+        "environmentRealmRenderStable": True,
+        "semanticReadbackVerified": True,
+    }
 
     def images(self) -> dict[str, str]:
         return {name: "sha256:" + str(index + 4) * 64 for index, name in enumerate(sorted(module.IMAGE_COMPONENTS))}
@@ -40,15 +55,16 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
 
     def cut(self) -> dict[str, object]:
         return {
-            "schemaVersion": "weave.fresh-start-cut-report.v1",
+            "schemaVersion": "weave.fresh-start-cut-report.v3",
             "laneCandidateCommit": self.lane,
             "sourceCandidateCommit": self.source,
             "candidateManifestDigest": self.manifest,
             "status": "passed",
             "schemaConverged": True,
-            "identitySecondPlanEmpty": True,
+            "realmEvidenceVerified": True,
             "imagesVerified": True,
-            "newInvitationPending": True,
+            "firstOwnerBootstrapRequired": True,
+            "ownerInvitationCreated": False,
             "legacyStateMigrated": False,
             "adoptionAuthorized": False,
             "supportSafe": True,
@@ -57,12 +73,18 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
 
     def comparison(self) -> dict[str, object]:
         return {
-            "schemaVersion": "weave.persistent-dogfood-comparison.v2",
+            "schemaVersion": "weave.persistent-dogfood-comparison.v3",
             "status": "passed",
             "baselineSource": "pre-deploy",
             "preExistingRuntimeObserved": True,
             "twoNonDestructiveInstallsPreservedState": True,
+            "identityStoreVolumePreserved": True,
+            "mailpitVolumePreserved": True,
+            "tlsIdentityPreserved": True,
+            "humanWriterAbsent": True,
+            "baselineSha256": "sha256:" + "f" * 64,
             "supportSafe": True,
+            "containsSecretValues": False,
         }
 
     def assemble(self, *, cut=None, comparison=None, health=None, idempotent=True):
@@ -75,6 +97,7 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
             run_url="https://example.invalid/runs/42",
             provider_health=health or self.health(),
             candidate_images=self.images(),
+            realm_evidence=self.realm_evidence,
             idempotency_passed=idempotent,
             fresh_start_cut=cut,
             persistent_comparison=comparison,
@@ -84,12 +107,13 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
         evidence = self.assemble(cut=self.cut())
         self.assertEqual(evidence["deployment"]["stackStatus"], "passed")
         self.assertEqual(evidence["deployment"]["baselineSource"], "fresh-start")
-        self.assertEqual(evidence["deployment"]["ownerActivationStatus"], "pending")
+        self.assertEqual(evidence["deployment"]["ownerActivationStatus"], "not-started")
         self.assertFalse(evidence["deployment"]["persistentHumanUnchanged"])
         self.assertFalse(evidence["deployment"]["legacyStateMigrated"])
         self.assertFalse(evidence["deployment"]["adoptionAuthorized"])
         self.assertEqual(evidence["backendBuild"]["commit"], self.source)
-        self.assertEqual(evidence["blockers"][0]["code"], "fresh-owner-activation-pending")
+        self.assertEqual(evidence["realmEvidence"], self.realm_evidence)
+        self.assertEqual(evidence["blockers"][0]["code"], "first-owner-bootstrap-required")
 
     def test_routine_deployment_proves_new_generation_continuity(self):
         evidence = self.assemble(comparison=self.comparison())
@@ -109,6 +133,28 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
         self.assertEqual(degraded["deployment"]["stackStatus"], "blocked")
         drifted = self.assemble(cut=self.cut(), idempotent=False)
         self.assertEqual(drifted["deployment"]["idempotencyStatus"], "failed")
+
+    def test_idempotence_evidence_requires_dogfood_realm_convergence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "idempotence.json"
+            evidence = {
+                "schemaVersion": "weave.persistent-test-idempotence.v4",
+                "runtimeProfile": "dogfood",
+                "deploymentContext": "persistent-dogfood",
+                "noChanges": True,
+                "composeModelStable": True,
+                "candidateRealmDefinitionMatched": True,
+                "environmentRealmRenderStable": True,
+                "semanticReadbackVerified": True,
+                "supportSafe": True,
+                "containsSecretValues": False,
+            }
+            path.write_text(json.dumps(evidence), encoding="utf-8")
+            self.assertTrue(module.idempotence_passed(path))
+            evidence["runtimeProfile"] = "test"
+            path.write_text(json.dumps(evidence), encoding="utf-8")
+            with self.assertRaises(module.EvidenceError):
+                module.idempotence_passed(path)
 
     def test_exactly_one_baseline_is_required(self):
         with self.assertRaises(module.EvidenceError):
@@ -136,6 +182,45 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
             path.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaises(module.EvidenceError):
                 module.candidate_source_mapping(path, self.lane)
+
+    def test_candidate_manifest_realm_definition_is_digest_bound_and_secret_free(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "candidate-manifest.json"
+            value = {
+                "schemaVersion": "weave.release.candidate-manifest.v4",
+                "supportSafe": True,
+                "commit": self.source,
+                "images": [
+                    {"component": component}
+                    for component in sorted(module.MANIFEST_IMAGE_COMPONENTS)
+                ],
+                "realmDefinition": self.realm_definition,
+            }
+            raw = json.dumps(value).encode("utf-8")
+            path.write_bytes(raw)
+            digest = "sha256:" + hashlib.sha256(raw).hexdigest()
+            self.assertEqual(
+                module.candidate_manifest_realm_definition(path, self.source, digest),
+                self.realm_definition,
+            )
+            for mutate in (
+                lambda manifest: manifest["realmDefinition"].__setitem__(
+                    "containsSecrets", True
+                ),
+                lambda manifest: manifest["realmDefinition"].__setitem__(
+                    "semanticRealmSourceDigest", "sha256:not-a-digest"
+                ),
+            ):
+                with self.subTest(mutation=mutate):
+                    changed = json.loads(raw)
+                    mutate(changed)
+                    changed_raw = json.dumps(changed).encode("utf-8")
+                    path.write_bytes(changed_raw)
+                    changed_digest = "sha256:" + hashlib.sha256(changed_raw).hexdigest()
+                    with self.assertRaises(module.EvidenceError):
+                        module.candidate_manifest_realm_definition(
+                            path, self.source, changed_digest
+                        )
 
     def test_metrics_endpoint_must_be_loopback_and_uncredentialed(self):
         for value in ("https://127.0.0.1:48084/actuator/metrics", "http://api.weave.test/actuator/metrics", "http://user:secret@127.0.0.1:48084/actuator/metrics"):

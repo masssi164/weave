@@ -3,6 +3,7 @@ services:
     command:
       - start
       - --optimized
+      - --import-realm
     environment:
       KC_VAULT_DIR: /opt/keycloak/vault
     secrets:

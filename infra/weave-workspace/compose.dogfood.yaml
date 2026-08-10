@@ -1,13 +1,10 @@
-# Persistent dogfood overlay. The current application tier still depends on
-# the transitional Matrix/Nextcloud/Identity Ops services in compose.yaml;
-# those dependencies stay explicit until their provider-bound server paths
-# are removed in their owning tranche.
+# Persistent dogfood overlay. Weave-native Files, Calendar, and Chat are the
+# default data plane; optional external providers are selected explicitly.
 services:
   keycloak:
-    # The pinned upstream image is the standard distribution, not a
-    # PostgreSQL-augmented image produced by `kc.sh build`.
     command:
       - start
+      - --import-realm
 
   mailpit:
     environment:
@@ -16,22 +13,3 @@ services:
   backend:
     environment:
       WEAVE_RELEASE_POSTURE: dogfood
-    depends_on:
-      runtime-state-init:
-        condition: service_completed_successfully
-    secrets:
-      - source: runtime-state-s3-access-key
-        target: weave/runtime-state-s3-access-key
-        uid: "${WEAVE_RUNTIME_UID:-1000}"
-        gid: "${WEAVE_RUNTIME_GID:-1000}"
-        mode: 0400
-      - source: runtime-state-s3-secret-key
-        target: weave/runtime-state-s3-secret-key
-        uid: "${WEAVE_RUNTIME_UID:-1000}"
-        gid: "${WEAVE_RUNTIME_GID:-1000}"
-        mode: 0400
-    volumes:
-      - type: bind
-        source: ${WEAVE_SECRET_ROOT:-./.generated/dogfood/secrets}/identity-bootstrap-owner-token
-        target: /run/secrets/weave/bootstrap-owner-token
-        read_only: true

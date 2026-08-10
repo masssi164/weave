@@ -48,6 +48,7 @@ class BackupRuntimeContractTest(unittest.TestCase):
         self.context = SimpleNamespace(
             profile="dogfood",
             environment="dogfood",
+            active_profiles=("dogfood",),
             repository_root=self.repository,
             root=ROOT,
             generated_root=self.generated,
@@ -124,7 +125,10 @@ class BackupRuntimeContractTest(unittest.TestCase):
         self.assertEqual(manifest["runtimeInventory"], inventory)
         self.assertFalse(manifest["supportSafe"])
         self.assertTrue(manifest["containsSecretsOrMemberData"])
-        self.assertEqual(len(manifest["artifacts"]), len(backup_runtime.VOLUME_ARTIFACTS) + 2)
+        self.assertEqual(
+            len(manifest["artifacts"]),
+            len(backup_runtime.active_volume_artifacts(self.context)) + 2,
+        )
         for artifact in manifest["artifacts"]:
             path = destination / artifact["path"]
             self.assertTrue(path.is_file())

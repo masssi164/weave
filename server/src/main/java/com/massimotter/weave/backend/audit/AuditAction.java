@@ -18,6 +18,7 @@ public enum AuditAction {
     FILES_OPERATION_INTENT_RECORDED("files.operation_intent.recorded"),
     FILES_DEVICE_CREDENTIAL_ISSUED("files.device_credential.issued"),
     FILES_DEVICE_CREDENTIAL_REVOKED("files.device_credential.revoked"),
+    CALENDAR_EVENT_WRITE_ATTEMPTED("calendar.event_write.attempted"),
     CONSENT_GRANTED("consent.granted"),
     CONSENT_REVOKED("consent.revoked"),
     EFFECTIVE_POLICY_SIMULATED("effective_policy.simulated"),

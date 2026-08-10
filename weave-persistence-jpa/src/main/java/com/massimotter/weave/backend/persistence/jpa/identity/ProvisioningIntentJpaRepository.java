@@ -12,4 +12,12 @@ public interface ProvisioningIntentJpaRepository
   List<ProvisioningIntentJpaEntity>
       findByTenantIdAndOrganizationIdAndInvitedEmailIgnoreCaseAndStatusOrderByCreatedAtDesc(
           String tenantId, String organizationId, String invitedEmail, String status);
+
+  List<ProvisioningIntentJpaEntity>
+      findByTenantIdAndOrganizationIdAndInvitedByIssuerAndInvitedBySubjectAndStatusOrderByCreatedAtDesc(
+          String tenantId,
+          String organizationId,
+          String invitedByIssuer,
+          String invitedBySubject,
+          String status);
 }

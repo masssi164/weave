@@ -31,12 +31,17 @@ class TestStackManifestTest(unittest.TestCase):
                 **({"buildEvidenceDigest": "sha256:" + "c" * 64} if manifest_name == "keycloak-runtime" else {}),
             })
         candidate = {
-            "schemaVersion": "weave.release.candidate-manifest.v2",
+            "schemaVersion": "weave.release.candidate-manifest.v3",
             "supportSafe": True,
             "commit": self.source,
             "specificationCommit": self.spec,
             "specDigest": "sha256:" + "d" * 64,
             "buildEvidenceRef": "https://example.invalid/build/1",
+            "realmArtifacts": {
+                "baselineDigest": "sha256:" + "8" * 64,
+                "migrationBundleDigest": "sha256:" + "9" * 64,
+                "containsSecrets": False,
+            },
             "images": sorted(candidate_images, key=lambda item: item["component"]),
         }
         import hashlib, json
@@ -56,15 +61,17 @@ class TestStackManifestTest(unittest.TestCase):
                 "supportSafe": True, "containsSecretValues": False,
             },
             {
-                "schemaVersion": "weave.fresh-start-cut-report.v1", "laneCandidateCommit": self.lane,
+                "schemaVersion": "weave.fresh-start-cut-report.v2", "laneCandidateCommit": self.lane,
                 "sourceCandidateCommit": self.source, "candidateManifestDigest": digest, "status": "passed",
+                "schemaConverged": True, "realmArtifactsVerified": True, "imagesVerified": True,
+                "firstOwnerBootstrapRequired": True, "ownerInvitationCreated": False,
                 "legacyStateMigrated": False, "adoptionAuthorized": False, "supportSafe": True,
                 "containsSecretValues": False,
             },
             {
-                "schemaVersion": "weave.persistent-test-idempotence.v2", "runtimeProfile": "dogfood",
+                "schemaVersion": "weave.persistent-test-idempotence.v3", "runtimeProfile": "dogfood",
                 "deploymentContext": "persistent-dogfood",
-                "noChanges": True, "composeModelStable": True, "identitySecondPlanEmpty": True,
+                "noChanges": True, "composeModelStable": True, "realmArtifactsUnchanged": True,
                 "supportSafe": True, "containsSecretValues": False,
             },
             {
@@ -76,14 +83,45 @@ class TestStackManifestTest(unittest.TestCase):
     def assemble(self, documents):
         mapping, candidate, runtime, cut, idempotence, health = documents
         return module.assemble(mapping=mapping, candidate=candidate, runtime=runtime, cut=cut,
+            comparison=None,
             idempotence=idempotence, health=health, compose_project="weave-dogfood", generation="fresh-v2",
+            live_run_url="https://example.invalid/runs/1", deployment_run_url="https://example.invalid/runs/2")
+
+    def assemble_routine(self, documents):
+        mapping, candidate, runtime, _cut, idempotence, health = documents
+        comparison = {
+            "schemaVersion": "weave.persistent-dogfood-comparison.v3",
+            "status": "passed",
+            "baselineSource": "pre-deploy",
+            "preExistingRuntimeObserved": True,
+            "twoNonDestructiveInstallsPreservedState": True,
+            "identityStoreVolumePreserved": True,
+            "mailpitVolumePreserved": True,
+            "tlsIdentityPreserved": True,
+            "humanWriterAbsent": True,
+            "baselineSha256": "sha256:" + "f" * 64,
+            "supportSafe": True,
+            "containsSecretValues": False,
+        }
+        return module.assemble(mapping=mapping, candidate=candidate, runtime=runtime, cut=None,
+            comparison=comparison, idempotence=idempotence, health=health,
+            compose_project="weave-dogfood", generation="fresh-v2",
             live_run_url="https://example.invalid/runs/1", deployment_run_url="https://example.invalid/runs/2")
 
     def test_exact_source_lane_runtime_manifest_is_accepted(self):
         result = self.assemble(self.documents())
         self.assertEqual(result["laneCandidateCommit"], self.lane)
         self.assertEqual(result["sourceCandidateCommit"], self.source)
+        self.assertEqual(
+            result["realmArtifacts"],
+            self.documents()[1]["realmArtifacts"],
+        )
         self.assertEqual(result["deployment"]["freshStartStatus"], "passed")
+
+    def test_routine_deployment_requires_exact_resource_continuity(self):
+        result = self.assemble_routine(self.documents())
+        self.assertEqual(result["deployment"]["freshStartStatus"], "not-required")
+        self.assertEqual(result["deployment"]["persistentContinuityStatus"], "passed")
 
     def test_runtime_image_drift_is_rejected(self):
         documents = self.documents()
@@ -96,6 +134,28 @@ class TestStackManifestTest(unittest.TestCase):
         documents[3]["adoptionAuthorized"] = True
         with self.assertRaises(module.ManifestError):
             self.assemble(documents)
+
+    def test_unverified_realm_artifacts_are_rejected(self):
+        documents = self.documents()
+        documents[3]["realmArtifactsVerified"] = False
+        with self.assertRaises(module.ManifestError):
+            self.assemble(documents)
+
+    def test_secret_bearing_or_malformed_realm_artifacts_are_rejected(self):
+        for mutation in (
+            lambda artifacts: artifacts.__setitem__("containsSecrets", True),
+            lambda artifacts: artifacts.__setitem__(
+                "migrationBundleDigest", "sha256:not-a-digest"
+            ),
+            lambda artifacts: artifacts.__setitem__(
+                "unreviewedDigest", "sha256:" + "f" * 64
+            ),
+        ):
+            with self.subTest(mutation=mutation):
+                documents = self.documents()
+                mutation(documents[1]["realmArtifacts"])
+                with self.assertRaises(module.ManifestError):
+                    self.assemble(documents)
 
 
 if __name__ == "__main__":

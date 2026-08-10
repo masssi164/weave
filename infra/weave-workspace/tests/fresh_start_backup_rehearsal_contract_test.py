@@ -54,6 +54,7 @@ class FreshStartBackupRehearsalContractTest(unittest.TestCase):
         self.context = SimpleNamespace(
             profile="dogfood",
             environment="dogfood",
+            active_profiles=("dogfood",),
             generated_root=self.generated,
             env=env,
         )
@@ -268,7 +269,9 @@ class FreshStartBackupRehearsalContractTest(unittest.TestCase):
             "private-config-secrets.tgz",
             *[
                 archive
-                for _variable, archive, _kind in adoption_rehearsal.VOLUME_ARTIFACTS
+                for _variable, archive, _kind in adoption_rehearsal.active_volume_artifacts(
+                    self.context
+                )
             ],
         ]
         artifacts = []
@@ -395,7 +398,10 @@ class FreshStartBackupRehearsalContractTest(unittest.TestCase):
             "private-backup-only-no-adoption",
         )
         self.assertNotIn("resources", receipt)
-        self.assertEqual(receipt["restoredProviderVolumeCount"], 6)
+        self.assertEqual(
+            receipt["restoredProviderVolumeCount"],
+            len(adoption_rehearsal.active_volume_artifacts(self.context)),
+        )
         self.assertEqual(receipt["verifiedDatabaseCount"], len(databases))
         self.assertEqual(
             receipt["verifiedServiceDatabaseCount"], len(databases) - 1

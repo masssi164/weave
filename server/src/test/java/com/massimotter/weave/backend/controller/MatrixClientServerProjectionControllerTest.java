@@ -27,6 +27,7 @@ import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateStore;
 import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
+import com.massimotter.weave.backend.matrix.InMemoryMatrixE2eeRelationalStore;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.testing.InMemoryMatrixFacadeClientStateStore;
@@ -82,6 +83,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         MatrixFacadeClientStateService.class,
         OrganizationIdentityContextResolver.class,
         InMemoryMatrixFacadeClientStateStore.class,
+        InMemoryMatrixE2eeRelationalStore.class,
         MatrixE2eeStateService.class
 })
 @TestPropertySource(properties = {
@@ -201,7 +203,7 @@ class MatrixClientServerProjectionControllerTest {
         mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.next_batch")
-                        .value("weave.s1.636861742d7265766973696f6e2d377c653265653a30"))
+                        .value("weave.s1.636861742d7265766973696f6e2d377c653265653a76323a303a30"))
                 .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].state.events[0].content.name")
                         .value("General"))
                 .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.events[0].content.body")

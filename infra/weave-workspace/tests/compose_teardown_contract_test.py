@@ -332,7 +332,7 @@ class ComposeTeardownContractTest(unittest.TestCase):
         inventory_line = json.dumps(
             [
                 self.CONTAINER_ID,
-                "weave-e2e-run-123456-identity-ops-run-1",
+                "weave-e2e-run-123456-keycloak-migration-run-1",
                 *expected.values(),
             ]
         )
@@ -355,7 +355,7 @@ class ComposeTeardownContractTest(unittest.TestCase):
             [
                 (
                     self.CONTAINER_ID,
-                    "weave-e2e-run-123456-identity-ops-run-1",
+                    "weave-e2e-run-123456-keycloak-migration-run-1",
                 )
             ],
         )

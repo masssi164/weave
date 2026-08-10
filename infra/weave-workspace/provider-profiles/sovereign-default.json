@@ -28,22 +28,22 @@
       "externalAlternatives": ["entra-id", "authentik", "auth0", "generic-oidc", "generic-saml"]
     },
     "chat": {
-      "selectedAdapter": "synapse-homeserver",
-      "providerKey": "synapse-homeserver",
-      "secretRefs": ["secretref://weave/provider/synapse-homeserver/signing-key"],
-      "externalAlternatives": ["microsoft-teams", "slack", "nextcloud-talk"]
+      "selectedAdapter": "weave-native",
+      "providerKey": "weave-native",
+      "secretRefs": [],
+      "externalAlternatives": ["synapse-homeserver", "microsoft-teams", "slack", "nextcloud-talk"]
     },
     "files": {
-      "selectedAdapter": "nextcloud-files",
-      "providerKey": "nextcloud-files",
-      "secretRefs": ["secretref://weave/provider/nextcloud-files/backend-token"],
-      "externalAlternatives": ["sharepoint", "onedrive", "s3-compatible", "smb"]
+      "selectedAdapter": "weave-native",
+      "providerKey": "weave-native",
+      "secretRefs": [],
+      "externalAlternatives": ["nextcloud-files", "sharepoint", "onedrive", "s3-compatible", "smb"]
     },
     "calendar": {
-      "selectedAdapter": "nextcloud-caldav",
-      "providerKey": "nextcloud-caldav",
-      "secretRefs": ["secretref://weave/provider/nextcloud-caldav/backend-token"],
-      "externalAlternatives": ["microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"]
+      "selectedAdapter": "weave-native",
+      "providerKey": "weave-native",
+      "secretRefs": [],
+      "externalAlternatives": ["nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"]
     },
     "meetings-calls": {
       "selectedAdapter": "livekit",

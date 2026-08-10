@@ -12,7 +12,7 @@ import org.erdtman.jcs.JsonCanonicalizer;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-/** Support-safe Compose gate for the exact schema initializer receipt. */
+/** Support-safe Compose gate for the exact Flyway schema initializer receipt. */
 public final class SchemaReceiptVerifier {
 
   private static final Pattern COMMIT = Pattern.compile("[0-9a-f]{40}");
@@ -74,11 +74,14 @@ public final class SchemaReceiptVerifier {
             && tables.stream().allMatch(name -> TABLE.matcher(name).matches())
             && tables.contains("weave_schema_authority")
             && tables.equals(projectionTables);
-    if (!"weave.schema-init-receipt/v2".equals(value.path("schemaVersion").asText())
+    if (!"weave.schema-init-receipt/v3".equals(value.path("schemaVersion").asText())
         || !value.path("supportSafe").asBoolean(false)
+        || !"flyway".equals(value.path("authority").asText())
         || !SchemaAuthorityInitializer.EPOCH.equals(value.path("epoch").asText())
         || !SchemaAuthorityInitializer.MODEL_ID.equals(value.path("relationalModelId").asText())
         || !candidate.equals(value.path("candidateCommit").asText())
+        || value.path("migrationsExecuted").asInt(-1) < 0
+        || value.path("targetSchemaVersion").asText().isBlank()
         || !value.path("catalogFingerprint").asText().matches("[0-9a-f]{64}")
         || !value.path("catalogFingerprint").asText().equals(observedFingerprint)
         || value.path("tableCount").asInt() != tables.size()

@@ -30,8 +30,8 @@ Owns server-side product APIs and orchestration:
 Owns the runnable environment and operator contract:
 
 - hostnames, TLS, ingress, and service discovery
-- Docker Compose profiles own topology and generated runtime config; a protected, idempotent `kcadm` reconciler owns the Keycloak baseline
-- local and single-host stack bootstrap for Keycloak, MAS, Synapse, Nextcloud, backend, Caddy, PostgreSQL, and optional providers
+- Docker Compose profiles own topology and generated runtime config; the canonical realm import owns static Keycloak state and a bounded post-import migration owns only the FGAP state import cannot express
+- local and single-host stack bootstrap for Keycloak, backend, MCP, Caddy, PostgreSQL, persistent dogfood Mailpit, and optional providers
 - backup, restore smoke, operator checks, support-bundle redaction, and manual live-stack evidence
 
 ### `e2e/`
@@ -50,7 +50,7 @@ Owns product-language acceptance contracts:
 - Boards/Tasks is an active v0.1 workspace surface behind backend facade, runtime, authorization, and audit gates.
 - OpenProject is the first provider-backed workspace-sync validation path, not the visible product UX and not a direct client dependency.
 - Provider writes remain disabled/fail-closed unless a later promotion proves authorization, user consent, audit publication, support-bundle redaction, and rollback behavior.
-- Infrastructure docs and workflows must describe `dev`, `dogfood`, `prod`, and `e2e` as the explicit operator/application environments, independently from the `dev`, `dogfood`, and `main` Git delivery lanes. Keycloak baseline changes currently run only through the infra-owned transitional one-shot authority; dynamic product identity lifecycle remains server-owned.
+- Infrastructure docs and workflows must describe `dev`, `dogfood`, `prod`, and `e2e` as the explicit operator/application environments, independently from the `dev`, `dogfood`, and `main` Git delivery lanes. Static Keycloak state is imported from one canonical baseline, the bounded migration is temporary and receipt-gated, and dynamic product identity lifecycle remains Server-owned.
 
 ## Historical gaps that this model closes
 
@@ -76,4 +76,4 @@ Examples of obsolete assumptions:
 ## Issue drafts
 
 Archived issue-ready drafts live under `server/docs/issues/`. They are preserved for implementation history and must be checked against the current README, runtime configuration, and Boards workspace contract before reuse.
-Any OpenTofu/Terraform language in historical revisions is superseded by the Compose-profile and protected-`kcadm` contract above.
+Any OpenTofu/Terraform or permanent `kcadm` language in historical revisions is superseded by the Compose profile, realm import, and bounded migration contract above.

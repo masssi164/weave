@@ -64,7 +64,25 @@ REQUIRED_PHYSICAL_STEPS = {
     "postRegrantAccess",
     "identityContinuity",
 }
-REQUIRED_IMAGE_COMPONENTS = {"server", "mcp-server", "identity-ops", "keycloak-runtime"}
+REQUIRED_IMAGE_COMPONENTS = {"server", "mcp-server", "keycloak-runtime"}
+REQUIRED_REALM_EVIDENCE_FIELDS = {
+    "semanticRealmSourceDigest",
+    "migrationDefinitionDigest",
+    "overlayDigest",
+    "renderedRealmDigest",
+    "semanticReadbackDigest",
+    "candidateRealmDefinitionMatched",
+    "environmentRealmRenderStable",
+    "semanticReadbackVerified",
+    "containsSecrets",
+}
+REALM_EVIDENCE_DIGEST_FIELDS = {
+    "semanticRealmSourceDigest",
+    "migrationDefinitionDigest",
+    "overlayDigest",
+    "renderedRealmDigest",
+    "semanticReadbackDigest",
+}
 IMMUTABLE_IMAGE_PATTERN = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
 REQUIRED_COLLABORATION_SCENARIOS = {
     "authenticationShell",
@@ -231,7 +249,7 @@ def _validate_canonical_schema(
     root_schema: dict[str, Any],
     path: str = "manifest",
 ) -> None:
-    """Execute the canonical schema subset used by the pinned v3 contract.
+    """Execute the canonical schema subset used by the pinned readiness contract.
 
     The release runner intentionally has no ambient Python package dependency.
     Unsupported JSON Schema keywords that affect validation fail closed so a
@@ -433,10 +451,26 @@ def evaluate_manifest(
         raise ManifestError("candidateManifestDigest must be a sha256 reference")
     images = _require_object(manifest.get("images"), "images")
     if set(images) != REQUIRED_IMAGE_COMPONENTS:
-        raise ManifestError("images must contain the exact four runtime components")
+        raise ManifestError("images must contain the exact three runtime components")
     for component, reference in images.items():
         if not isinstance(reference, str) or not IMMUTABLE_IMAGE_PATTERN.fullmatch(reference):
             raise ManifestError(f"images.{component} must be an immutable digest reference")
+    realm_evidence = _require_object(manifest.get("realmEvidence"), "realmEvidence")
+    if set(realm_evidence) != REQUIRED_REALM_EVIDENCE_FIELDS:
+        raise ManifestError("realmEvidence must contain the exact candidate, render, and readback evidence")
+    for field in REALM_EVIDENCE_DIGEST_FIELDS:
+        digest = _require_string(realm_evidence.get(field), f"realmEvidence.{field}")
+        if not HASH_PATTERN.fullmatch(digest):
+            raise ManifestError(f"realmEvidence.{field} must be a sha256 reference")
+    for field in (
+        "candidateRealmDefinitionMatched",
+        "environmentRealmRenderStable",
+        "semanticReadbackVerified",
+    ):
+        if realm_evidence.get(field) is not True:
+            raise ManifestError(f"realmEvidence.{field} must be true")
+    if realm_evidence.get("containsSecrets") is not False:
+        raise ManifestError("realmEvidence.containsSecrets must be false")
     evidence_modes = manifest.get("evidenceModes")
     if evidence_modes != ["live-provider-backed", "fixture-ui"]:
         raise ManifestError("evidenceModes must contain the ordered mandatory live and fixture modes")

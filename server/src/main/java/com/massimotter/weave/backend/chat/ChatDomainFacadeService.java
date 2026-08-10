@@ -628,8 +628,8 @@ public class ChatDomainFacadeService {
         diagnostics.put("configured", maybeProvider.map(ProviderStatusResponse::configured).orElse(false));
         diagnostics.put("supportedCapabilities", maybeProvider.map(provider -> List.copyOf(provider.supportedCapabilities())).orElse(List.of()));
         diagnostics.put("unsupportedOperations", maybeProvider.map(provider -> List.copyOf(provider.unsupportedOperations())).orElse(List.of()));
-        diagnostics.put("currentRealProviderPath", "matrix-chat");
-        diagnostics.put("currentRealProviderAliases", List.of("synapse-homeserver"));
+        diagnostics.put("currentRealProviderPath", chatProviderPort.providerKey());
+        diagnostics.put("currentRealProviderAliases", chatProviderPort.providerSelectionKeys().stream().sorted().toList());
         diagnostics.put("contractOnlyChatProviders", List.of("microsoft-teams", "slack", "nextcloud-talk"));
         diagnostics.put("canonicalAdapterKey", chatProviderPort.conformanceProfile().adapterKey());
         diagnostics.put("canonicalAdapterReadiness", chatProviderPort.readiness().supportSafeCode());

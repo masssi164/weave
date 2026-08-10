@@ -6,9 +6,9 @@ Future<ExternalLibrary?> loadRustMatrixCoreDevelopmentLibrary() async {
   final environmentDirectory =
       Platform.environment['FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR'];
   final libraryName = switch (Platform.operatingSystem) {
-    'macos' => 'libweave_matrix_core.dylib',
-    'linux' || 'android' => 'libweave_matrix_core.so',
-    'windows' => 'weave_matrix_core.dll',
+    'macos' => 'libweave_matrix_client.dylib',
+    'linux' || 'android' => 'libweave_matrix_client.so',
+    'windows' => 'weave_matrix_client.dll',
     _ => '',
   };
   if (libraryName.isEmpty) {

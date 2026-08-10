@@ -5,7 +5,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.security.MessageDigest;
 import java.util.Set;
@@ -44,6 +46,23 @@ public final class BootstrapOwnerCredential {
     } finally {
       java.util.Arrays.fill(expected, (byte) 0);
       java.util.Arrays.fill(supplied, (byte) 0);
+    }
+  }
+
+  /** Permanently removes the one-shot bootstrap credential after an invitation succeeds. */
+  public void deleteAfterSuccess() {
+    try {
+      BasicFileAttributes attributes =
+          Files.readAttributes(
+              tokenFile, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+      if (attributes.isSymbolicLink() || !attributes.isRegularFile()) {
+        throw unavailable();
+      }
+      Files.delete(tokenFile);
+    } catch (NoSuchFileException alreadyDeleted) {
+      // Concurrent successful calls converge on the credential being absent.
+    } catch (IOException | SecurityException failure) {
+      throw unavailable();
     }
   }
 

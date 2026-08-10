@@ -12,7 +12,7 @@ void main(List<String> args) async {
     await FlutterRustBridgeNativeAssetsBuilder(
       assetName:
           'integrations/rust_matrix_core/generated/frb_generated.io.dart',
-      cratePath: '../rust/matrix-core',
+      cratePath: '../rust/matrix-client',
       features: ['flutter'],
       extraCargoEnvironmentVariables: cargoEnvironment,
     ).run(input: input, output: output);

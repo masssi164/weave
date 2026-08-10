@@ -63,7 +63,7 @@ class SupportBundleContractTest(unittest.TestCase):
             {"schemaVersion": "nextcloud.v1", "containsSecretValues": False, "supportSafe": True},
         )
         self._evidence(
-            "identity-ops/private-response.json",
+            "keycloak/private-response.json",
             {"authorization": "Bearer eyJfixture.fixture.fixture", "secret": "must-never-appear"},
         )
         (self.generated / "raw.log").write_text("person@example.com must-never-appear", encoding="utf-8")

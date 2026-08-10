@@ -4,10 +4,10 @@ Separate React + MUI admin surface for organization owners, admins, and operator
 
 ## Contract
 
-- Deploys with Weave Server as the Control Plane: `Weave Server + Admin Console` is the reproducible bootstrap deployment target.
-- Vite is development-only; `npm exec vite` is not the bootstrap/Admin Console deployment target.
+- Deploys as an immutable Vite production bundle inside the Weave Server `bootJar`: `Weave Server + Admin Console` remains the reproducible Control Plane deployment target without a second production process.
+- Vite is development-only; `npm run dev` remains the unchanged host-development entrypoint and is not the bootstrap/Admin Console deployment target.
 - Talks only to Weave backend admin APIs (`/api/admin/...`).
-- Uses OIDC/Keycloak as the default self-hosted identity broker contract through `weave-admin-console`.
+- Uses browser OIDC Authorization Code + PKCE S256 through the public `weave-admin-console` client. Browser code may use the issuer authorization/token/session endpoints, but never Keycloak Admin REST.
 - Shows organization overview, effective policy explanation, provider category readiness, replacement dry-run results, provider detail/readiness actions, deny-by-default whitelist policy, and redacted audit events.
 - Renders owner/admin, operator, and member boundaries distinctly: owners/admins configure, operators inspect support-safe readiness, and members see only usable/disabled/degraded/policy-blocked capability states.
 - Never calls raw providers directly and never renders raw provider secrets.
@@ -19,7 +19,7 @@ Separate React + MUI admin surface for organization owners, admins, and operator
 
 ```bash
 cd admin-console
-npm install
+npm ci
 npm run ci
 npm run generate:openapi
 npm run check:openapi
@@ -38,3 +38,5 @@ VITE_WEAVE_API_BASE_URL=https://api.weave.test:44443/api
 VITE_WEAVE_OIDC_ISSUER_URL=https://auth.weave.test:44443/realms/weave
 VITE_WEAVE_ADMIN_OIDC_CLIENT_ID=weave-admin-console
 ```
+
+The packaged bundle is served only below `/admin-console/`. It first reads the Server's public `/api/platform/config` to obtain the runtime issuer and uses same-origin `/api` calls; the PKCE callback is `/admin-console/`. The Vite environment values remain explicit host-development fallbacks. Production packaging is performed by `./gradlew :server:bootJar`; that task runs the exact locked npm install/build, rejects inline scripts, secrets, and `/admin/realms/**` markers, and embeds `dist/` under the Server's Admin Console static resource root.

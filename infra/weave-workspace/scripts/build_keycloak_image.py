@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the provenance-bound downstream Keycloak 26.7 runtime exactly once."""
+"""Build the provenance-bound downstream Keycloak 26.7.1 runtime exactly once."""
 
 from __future__ import annotations
 
@@ -21,14 +21,24 @@ from pathlib import Path
 
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
-UPSTREAM_TAG = "26.7.0"
-UPSTREAM_COMMIT = "6c73e3027811d9c7b22683edd825e839272e9547"
+UPSTREAM_TAG = "26.7.1"
+UPSTREAM_COMMIT = "73f08b397f193712b26d317210dce99898129709"
 UPSTREAM_REPOSITORY = "https://github.com/keycloak/keycloak.git"
-ARCHIVE_SHA256 = "32267c4f45db91874c46a097415c336d137ee184d25c3481a513905a92669186"
-STOCK_SERVICES_SHA256 = "052169f7907a21f4e26679bca5c7365627db91b071a7a2fcaeee00230e6b1419"
+ARCHIVE_SHA256 = "4ef57bbe2d97acf658b0347885a8239543af9cc27337c1bfa6ece50bfb6f9b90"
+STOCK_SERVICES_SHA256 = "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
+PATCH_SHA256 = "b60209ca34191dee83b6941d82aa603b00b9b35a7140f52035c4f378ca6cf97a"
+PATCHED_SERVICES_SHA256 = (
+    "87b51629c7c8f101606449a21a74f6b390adb093b8e47b347c0439ed645db900"
+)
+STOCK_KEYCLOAK_INDEX_DIGEST = (
+    "sha256:f1f1f01e472c8a78df40d8f2a49a925274eda4d3d80d5f6edbb5c880ee3c01c6"
+)
 STOCK_KEYCLOAK_REFERENCE = (
-    "quay.io/keycloak/keycloak@"
-    "sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13"
+    f"quay.io/keycloak/keycloak@{STOCK_KEYCLOAK_INDEX_DIGEST}"
+)
+STOCK_KEYCLOAK_PLATFORM = "linux/amd64"
+STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST = (
+    "sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2"
 )
 ARCHIVE_URL = f"https://github.com/keycloak/keycloak/archive/{UPSTREAM_COMMIT}.tar.gz"
 PATCH_RELATIVE = Path(
@@ -62,9 +72,9 @@ DOWNSTREAM_TEST_CLASSES = (
     "WeaveRegistrationHandoffTest",
 )
 DOCKERFILE_RELATIVE = Path("infra/weave-workspace/keycloak/Dockerfile.runtime")
-SERVICES_JAR = Path("services/target/keycloak-services-26.7.0.jar")
+SERVICES_JAR = Path("services/target/keycloak-services-26.7.1.jar")
 STOCK_SERVICES_PATH = (
-    "/opt/keycloak/lib/lib/main/org.keycloak.keycloak-services-26.7.0.jar"
+    "/opt/keycloak/lib/lib/main/org.keycloak.keycloak-services-26.7.1.jar"
 )
 
 
@@ -220,12 +230,65 @@ def extract_archive(archive: Path, target: Path) -> Path:
     return source
 
 
+def parse_stock_platform_manifest(raw_index: str) -> str:
+    try:
+        document = json.loads(raw_index)
+    except json.JSONDecodeError as failure:
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR stock image index is malformed"
+        ) from failure
+    if not isinstance(document, dict):
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR stock image index is malformed"
+        )
+    manifests = document.get("manifests")
+    if not isinstance(manifests, list):
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR stock image reference is not an image index"
+        )
+    matches = []
+    for manifest in manifests:
+        if not isinstance(manifest, dict):
+            continue
+        platform = manifest.get("platform")
+        if not isinstance(platform, dict):
+            continue
+        if (
+            platform.get("os") == "linux"
+            and platform.get("architecture") == "amd64"
+        ):
+            matches.append(manifest.get("digest"))
+    if matches != [STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST]:
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR stock Linux/AMD64 manifest digest mismatch"
+        )
+    return STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST
+
+
 def verify_stock_services() -> None:
-    run("docker", "pull", STOCK_KEYCLOAK_REFERENCE)
+    raw_index = run(
+        "docker",
+        "buildx",
+        "imagetools",
+        "inspect",
+        "--raw",
+        STOCK_KEYCLOAK_REFERENCE,
+        capture=True,
+    )
+    parse_stock_platform_manifest(raw_index)
+    run(
+        "docker",
+        "pull",
+        "--platform",
+        STOCK_KEYCLOAK_PLATFORM,
+        STOCK_KEYCLOAK_REFERENCE,
+    )
     observed = run(
         "docker",
         "run",
         "--rm",
+        "--platform",
+        STOCK_KEYCLOAK_PLATFORM,
         "--entrypoint",
         "/usr/bin/sha256sum",
         STOCK_KEYCLOAK_REFERENCE,
@@ -341,6 +404,10 @@ def build_services(
     if not patch.is_file():
         raise SystemExit("WEAVE_KEYCLOAK_BUILD_ERROR canonical patch is unavailable")
     patch_digest = sha256(patch)
+    if patch_digest != PATCH_SHA256:
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR canonical patch digest mismatch"
+        )
     changed_paths = patch_paths(patch)
     archive = temporary / "keycloak.tar.gz"
     download_archive(archive)
@@ -386,8 +453,10 @@ def build_services(
     if not services.is_file():
         raise SystemExit("WEAVE_KEYCLOAK_BUILD_ERROR patched services JAR is absent")
     patched_digest = sha256(services)
-    if patched_digest == STOCK_SERVICES_SHA256:
-        raise SystemExit("WEAVE_KEYCLOAK_BUILD_ERROR downstream services JAR is unchanged")
+    if patched_digest != PATCHED_SERVICES_SHA256:
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR patched services JAR digest mismatch"
+        )
     listing = run("jar", "tf", str(services), capture=True)
     required_entries = (
         "org/keycloak/services/clientpolicy/executor/"
@@ -424,11 +493,16 @@ def build_image(
         "WEAVE_KEYCLOAK_BASE": STOCK_KEYCLOAK_REFERENCE,
         "WEAVE_IMAGE_CREATED": created,
         "WEAVE_IMAGE_REVISION": candidate,
-        "WEAVE_IMAGE_VERSION": f"26.7.0-weave.{candidate[:12]}",
+        "WEAVE_IMAGE_VERSION": f"{UPSTREAM_TAG}-weave.{candidate[:12]}",
         "WEAVE_SPEC_COMMIT": specification_commit,
         "WEAVE_SPEC_DIGEST": specification_lock_digest,
         "WEAVE_KEYCLOAK_UPSTREAM_COMMIT": UPSTREAM_COMMIT,
         "WEAVE_KEYCLOAK_ARCHIVE_SHA256": ARCHIVE_SHA256,
+        "WEAVE_KEYCLOAK_STOCK_INDEX_DIGEST": STOCK_KEYCLOAK_INDEX_DIGEST,
+        "WEAVE_KEYCLOAK_STOCK_PLATFORM": STOCK_KEYCLOAK_PLATFORM,
+        "WEAVE_KEYCLOAK_STOCK_PLATFORM_MANIFEST_DIGEST": (
+            STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST
+        ),
         "WEAVE_KEYCLOAK_STOCK_SERVICES_SHA256": STOCK_SERVICES_SHA256,
         "WEAVE_KEYCLOAK_PATCH_SHA256": patch_digest,
         "WEAVE_PATCHED_SERVICES_SHA256": patched_digest,
@@ -438,6 +512,8 @@ def build_image(
         "docker",
         "build",
         "--pull=false",
+        "--platform",
+        STOCK_KEYCLOAK_PLATFORM,
         "--tag",
         tag,
         "--file",
@@ -498,10 +574,14 @@ def main() -> int:
             "candidateCommit": candidate,
             "specificationCommit": specification_commit,
             "specificationLockDigest": spec_digest,
-            "keycloakVersion": "26.7.0",
+            "keycloakVersion": UPSTREAM_TAG,
             "upstreamCommit": UPSTREAM_COMMIT,
             "upstreamArchiveSha256": ARCHIVE_SHA256,
             "stockReference": STOCK_KEYCLOAK_REFERENCE,
+            "stockPlatform": STOCK_KEYCLOAK_PLATFORM,
+            "stockPlatformManifestDigest": (
+                STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST
+            ),
             "stockServicesJarSha256": STOCK_SERVICES_SHA256,
             "patchSha256": patch_digest,
             "patchedPaths": list(changed_paths),
@@ -544,12 +624,14 @@ def main() -> int:
         "schemaVersion": "weave.downstream-keycloak-image.v1",
         "evidenceForCandidateCommit": candidate,
         "specificationCommit": specification_commit,
-        "keycloakVersion": "26.7.0",
+        "keycloakVersion": UPSTREAM_TAG,
         "upstreamTag": UPSTREAM_TAG,
         "upstreamTagCommit": tag_commit,
         "upstreamCommit": UPSTREAM_COMMIT,
         "upstreamArchiveSha256": ARCHIVE_SHA256,
         "stockReference": STOCK_KEYCLOAK_REFERENCE,
+        "stockPlatform": STOCK_KEYCLOAK_PLATFORM,
+        "stockPlatformManifestDigest": STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST,
         "stockServicesJarSha256": STOCK_SERVICES_SHA256,
         "patchSha256": patch_digest,
         "patchedPaths": list(changed_paths),

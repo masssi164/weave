@@ -25,9 +25,9 @@ assert len(values) == 8
 assert all(len(value) == 64 for value in values)
 assert all(set(value) <= set("0123456789abcdef") for value in values)
 
-renderer = (root / "scripts/render_config.py").read_text(encoding="utf-8")
-assert "  encryption: {_read_secret(context, 'mas-encryption-secret')}" in renderer
-assert "    - id: 01J0000000WEAVEKEYC10AKMAS" in renderer
+providers = (root / "scripts/rendering/providers.py").read_text(encoding="utf-8")
+assert "  encryption: {read_secret(context, 'mas-encryption-secret')}" in providers
+assert "    - id: 01J0000000WEAVEKEYC10AKMAS" in providers
 PY
 
 printf '%s\n' "MAS secret contract test passed."

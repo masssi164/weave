@@ -12,6 +12,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import java.net.URI;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -101,12 +103,12 @@ class KeycloakIdentityAdminClientTest {
   }
 
   @Test
-  void checksBootstrapEmptinessThroughTheAuthorizedOrganizationProjection() {
+  void treatsARealmContainingOnlyUnambiguousServiceAccountsAsHumanEmpty() {
     provider
         .expect(
             requestTo(
                 "https://identity.internal/admin/realms/weave"
-                    + "/organizations/organization-1/members"
+                    + "/users"
                     + "?first=0&max=100&briefRepresentation=true"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(
@@ -120,7 +122,8 @@ class KeycloakIdentityAdminClientTest {
                   },
                   {
                     "id":"service-account-2",
-                    "username":"service-account-weave-mcp-server"
+                    "username":"service-account-weave-mcp-server",
+                    "serviceAccountClientId":"weave-mcp-server"
                   }
                 ]
                 """,
@@ -131,12 +134,12 @@ class KeycloakIdentityAdminClientTest {
   }
 
   @Test
-  void detectsAHumanInTheOrganizationProjection() {
+  void detectsAHumanOutsideTheConfiguredOrganization() {
     provider
         .expect(
             requestTo(
                 "https://identity.internal/admin/realms/weave"
-                    + "/organizations/organization-1/members"
+                    + "/users"
                     + "?first=0&max=100&briefRepresentation=true"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(
@@ -157,6 +160,115 @@ class KeycloakIdentityAdminClientTest {
                 MediaType.APPLICATION_JSON));
 
     assertThat(client.hasHumanUsers()).isTrue();
+    provider.verify();
+  }
+
+  @Test
+  void followsBoundedRealmPagesBeforeDetectingAHuman() {
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/users?first=0&max=100&briefRepresentation=true"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess(serviceAccounts(0, 100), MediaType.APPLICATION_JSON));
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/users?first=100&max=100&briefRepresentation=true"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(
+            withSuccess(
+                """
+                [{"id":"unorganized-person","username":"person@example.org"}]
+                """,
+                MediaType.APPLICATION_JSON));
+
+    assertThat(client.hasHumanUsers()).isTrue();
+    provider.verify();
+  }
+
+  @Test
+  void failsClosedWhenPaginationRepeatsAUser() {
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/users?first=0&max=100&briefRepresentation=true"))
+        .andRespond(withSuccess(serviceAccounts(0, 100), MediaType.APPLICATION_JSON));
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/users?first=100&max=100&briefRepresentation=true"))
+        .andRespond(withSuccess(serviceAccounts(0, 1), MediaType.APPLICATION_JSON));
+
+    assertThatThrownBy(client::hasHumanUsers)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Keycloak human-user inventory is unavailable or ambiguous");
+    provider.verify();
+  }
+
+  @Test
+  void failsClosedWhenTheBoundedRealmInventoryNeverTerminates() {
+    for (int first = 0; first < 1_000; first += 100) {
+      provider
+          .expect(
+              requestTo(
+                  "https://identity.internal/admin/realms/weave"
+                      + "/users?first="
+                      + first
+                      + "&max=100&briefRepresentation=true"))
+          .andRespond(withSuccess(serviceAccounts(first, 100), MediaType.APPLICATION_JSON));
+    }
+
+    assertThatThrownBy(client::hasHumanUsers)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Keycloak human-user inventory exceeded the protected bootstrap bound");
+    provider.verify();
+  }
+
+  @Test
+  void failsClosedWhenAServiceAccountProjectionIsAmbiguous() {
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/users?first=0&max=100&briefRepresentation=true"))
+        .andRespond(
+            withSuccess(
+                """
+                [{"id":"ambiguous","username":"service-account-unverified"}]
+                """,
+                MediaType.APPLICATION_JSON));
+
+    assertThatThrownBy(client::hasHumanUsers)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Keycloak human-user inventory is unavailable or ambiguous");
+    provider.verify();
+  }
+
+  @Test
+  void mapsRealmInventoryProviderFailureToASanitizedReadOperation() {
+    provider
+        .expect(
+            requestTo(
+                "https://identity.internal/admin/realms/weave"
+                    + "/users?first=0&max=100&briefRepresentation=true"))
+        .andRespond(
+            withStatus(HttpStatus.SERVICE_UNAVAILABLE).body("provider-secret-must-not-leak"));
+
+    assertThatThrownBy(client::hasHumanUsers)
+        .isInstanceOf(KeycloakIdentityAdminClient.KeycloakAdminException.class)
+        .hasMessageContaining("sanitized status 503")
+        .hasMessageNotContaining("provider-secret")
+        .satisfies(
+            failure ->
+                assertThat(
+                        ((KeycloakIdentityAdminClient.KeycloakAdminException) failure)
+                            .operation())
+                    .isEqualTo("human-user-inventory"));
     provider.verify();
   }
 
@@ -229,5 +341,17 @@ class KeycloakIdentityAdminClientTest {
         .hasMessageContaining("sanitized status 503")
         .hasMessageNotContaining("provider-secret");
     provider.verify();
+  }
+
+  private static String serviceAccounts(int first, int count) {
+    return IntStream.range(first, first + count)
+        .mapToObj(
+            index ->
+                """
+                {"id":"service-%1$d","username":"service-account-client-%1$d",\
+                "serviceAccountClientId":"client-%1$d"}
+                """
+                    .formatted(index))
+        .collect(Collectors.joining(",", "[", "]"));
   }
 }

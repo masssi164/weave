@@ -1,53 +1,31 @@
 package com.massimotter.weave.backend.service.files;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import com.massimotter.weave.backend.config.WeaveS3FilesProperties;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
+import com.massimotter.weave.backend.files.port.ObjectStoragePort;
 import java.net.URI;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.CommonPrefix;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
-import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
-import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectResponse;
-import software.amazon.awssdk.services.s3.model.S3Object;
 
 class WeaveS3FilesAdapterTest {
 
     @Test
-    void writesCanonicalPathToPrivateBucketAndReturnsProviderNeutralObject() {
-        S3Client client = mock(S3Client.class);
-        when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
-                .thenReturn(PutObjectResponse.builder().eTag("etag-write").build());
-        when(client.headObject(any(HeadObjectRequest.class))).thenReturn(HeadObjectResponse.builder()
-                .eTag("etag-write")
-                .contentLength(4L)
-                .contentType("text/plain")
-                .lastModified(Instant.parse("2026-07-22T03:00:00Z"))
-                .build());
-        WeaveS3FilesAdapter adapter = new WeaveS3FilesAdapter(properties(), client);
+    void writesCanonicalPathThroughInfrastructurePortAndReturnsProviderNeutralObject() {
+        InMemoryObjectStorage storage = new InMemoryObjectStorage();
+        WeaveS3FilesAdapter adapter = new WeaveS3FilesAdapter(properties(), storage);
 
         var stored = adapter.write(new FileWrite(
                 new FilePath("/Team/notes.txt"), "core".getBytes(), "text/plain"));
 
-        ArgumentCaptor<PutObjectRequest> request = ArgumentCaptor.forClass(PutObjectRequest.class);
-        verify(client).putObject(request.capture(), any(RequestBody.class));
-        assertThat(request.getValue().bucket()).isEqualTo("weave-files");
-        assertThat(request.getValue().key()).isEqualTo("Team/notes.txt");
+        assertThat(storage.bytes.get("Team/notes.txt")).isEqualTo("core".getBytes());
         assertThat(stored.path().value()).isEqualTo("/Team/notes.txt");
         assertThat(stored.kind()).isEqualTo(Kind.FILE);
         assertThat(stored.id().value()).startsWith("files:").doesNotContain("weave-files", "minio");
@@ -55,15 +33,10 @@ class WeaveS3FilesAdapterTest {
 
     @Test
     void listsOnlyDirectChildrenAndDeclaresExplicitPortabilityLimits() {
-        S3Client client = mock(S3Client.class);
-        when(client.listObjectsV2(any(ListObjectsV2Request.class))).thenReturn(ListObjectsV2Response.builder()
-                .commonPrefixes(CommonPrefix.builder().prefix("Team/Design/").build())
-                .contents(List.of(
-                        S3Object.builder().key("Team/readme.md").size(12L).eTag("etag-readme")
-                                .lastModified(Instant.parse("2026-07-22T03:00:00Z")).build(),
-                        S3Object.builder().key("Team/Design/.weave-collection").size(0L).build()))
-                .build());
-        WeaveS3FilesAdapter adapter = new WeaveS3FilesAdapter(properties(), client);
+        InMemoryObjectStorage storage = new InMemoryObjectStorage();
+        storage.write("Team/readme.md", "hello world!".getBytes(), "text/markdown");
+        storage.write("Team/Design/.weave-collection", new byte[0], "application/x-weave-collection");
+        WeaveS3FilesAdapter adapter = new WeaveS3FilesAdapter(properties(), storage);
 
         var listing = adapter.list(new FilePath("/Team"));
 
@@ -85,5 +58,68 @@ class WeaveS3FilesAdapterTest {
         properties.setSecretKey("test-secret-key");
         properties.setPathStyle(true);
         return properties;
+    }
+
+    private static final class InMemoryObjectStorage implements ObjectStoragePort {
+        private final Map<String, byte[]> bytes = new LinkedHashMap<>();
+        private final Map<String, ObjectMetadata> metadata = new LinkedHashMap<>();
+        private long version;
+
+        @Override
+        public boolean configured() {
+            return true;
+        }
+
+        @Override
+        public void check() {
+        }
+
+        @Override
+        public Optional<ObjectMetadata> stat(String key) {
+            return Optional.ofNullable(metadata.get(key));
+        }
+
+        @Override
+        public List<ObjectEntry> list(String prefix) {
+            return metadata.entrySet().stream()
+                    .filter(entry -> entry.getKey().startsWith(prefix))
+                    .map(entry -> new ObjectEntry(entry.getKey(), entry.getValue()))
+                    .toList();
+        }
+
+        @Override
+        public byte[] read(String key) {
+            byte[] value = bytes.get(key);
+            if (value == null) {
+                throw new ObjectStorageException(FailureCode.NOT_FOUND, "missing object", null);
+            }
+            return value.clone();
+        }
+
+        @Override
+        public void write(String key, byte[] value, String contentType) {
+            byte[] content = value == null ? new byte[0] : value.clone();
+            bytes.put(key, content);
+            metadata.put(key, new ObjectMetadata(
+                    content.length,
+                    contentType,
+                    "v" + (++version),
+                    Instant.parse("2026-07-22T03:00:00Z")));
+        }
+
+        @Override
+        public void copy(String sourceKey, String targetKey) {
+            ObjectMetadata source = metadata.get(sourceKey);
+            if (source == null) {
+                throw new ObjectStorageException(FailureCode.NOT_FOUND, "missing object", null);
+            }
+            write(targetKey, bytes.get(sourceKey), source.contentType());
+        }
+
+        @Override
+        public void delete(String key) {
+            bytes.remove(key);
+            metadata.remove(key);
+        }
     }
 }

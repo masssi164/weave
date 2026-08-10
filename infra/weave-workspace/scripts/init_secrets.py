@@ -20,30 +20,46 @@ sys.path.insert(0, str(KEYCLOAK_MODULE_ROOT))
 
 from compose_env import ComposeContext, ContractError, canonical_json, load_context
 from crypto_runtime import OPENSSL  # noqa: E402
+from realm_renderer import (  # noqa: E402
+    MACHINE_KEY_PROJECTIONS,
+    RealmProjectionError,
+    pretty_json,
+    public_jwks,
+)
 
 
-TEXT_SECRETS = (
-    "keycloak-bootstrap-admin-password",
+CORE_TEXT_SECRETS = (
     "postgres-admin-password",
     "backend-db-password",
     "identity-reference-hmac-key",
     "keycloak-db-password",
+    "control-db-password",
+)
+MATRIX_TEXT_SECRETS = (
     "mas-db-password",
     "synapse-db-password",
-    "nextcloud-db-password",
-    "control-db-password",
-    "nextcloud-admin-password",
-    "nextcloud-actor-token",
-    "keycloak-weave-identity-admin",
-    "keycloak-nextcloud",
-    "keycloak-matrix-mas",
     "mas-matrix-secret",
     "synapse-registration-shared-secret",
     "synapse-macaroon-secret-key",
     "synapse-form-secret",
     "matrix-appservice-as-token",
     "matrix-appservice-hs-token",
+)
+NEXTCLOUD_TEXT_SECRETS = (
+    "nextcloud-db-password",
+    "nextcloud-admin-password",
+    "nextcloud-actor-token",
+)
+S3_TEXT_SECRETS = (
     "runtime-state-s3-secret-key",
+)
+# Complete shared-secret inventory retained for contract scanners. Runtime
+# generation uses the narrower provider-selected sets above.
+TEXT_SECRETS = (
+    CORE_TEXT_SECRETS
+    + MATRIX_TEXT_SECRETS
+    + NEXTCLOUD_TEXT_SECRETS
+    + S3_TEXT_SECRETS
 )
 CLI_ARGUMENT_SECRETS = (
     # Nextcloud's entrypoint expands both values as option arguments during
@@ -65,6 +81,7 @@ TEST_ONLY_SECRETS = (
 SMTP_SECRETS = ("smtp-password",)
 RSA_JWKS = (
     ("keycloak-weave-backend-jwk.json", "weave-backend-current"),
+    ("keycloak-weave-identity-admin-jwk.json", "weave-identity-admin-current"),
     ("keycloak-weave-mcp-server-jwk.json", "weave-mcp-server-current"),
 )
 RUNTIME_RSA_JWKS = (
@@ -105,6 +122,38 @@ def _atomic_write(path: Path, payload: bytes) -> None:
     finally:
         if temporary.exists():
             temporary.unlink()
+
+
+def _write_public_projection(path: Path, payload: bytes) -> None:
+    """Atomically replace a non-secret projection when its private owner rotates."""
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    if path.is_symlink():
+        raise ContractError(f"refusing generated public-JWKS symlink target: {path}")
+    temporary = path.with_name(f".{path.name}.{secrets.token_hex(8)}.tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        os.chmod(path, 0o644)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def _project_machine_public_jwks(context: ComposeContext) -> None:
+    output_root = context.generated_root / "keycloak/public-jwks"
+    for secret_ref, (private_name, public_name) in MACHINE_KEY_PROJECTIONS.items():
+        private_path = context.secret_root / private_name
+        _assert_private_file(private_path)
+        try:
+            private_value = json.loads(private_path.read_text(encoding="utf-8"))
+            projection = public_jwks(private_value, owner=secret_ref)
+        except (json.JSONDecodeError, RealmProjectionError) as error:
+            raise ContractError(f"cannot derive {secret_ref} public JWKS") from error
+        _write_public_projection(output_root / public_name, pretty_json(projection))
 
 
 def _random_secret() -> bytes:
@@ -353,42 +402,69 @@ def _generate_tls(context: ComposeContext) -> None:
 
 
 def _validate_existing(context: ComposeContext) -> None:
+    retired_identity_admin_secret = context.secret_root / "keycloak-weave-identity-admin"
+    if retired_identity_admin_secret.exists() or retired_identity_admin_secret.is_symlink():
+        raise ContractError(
+            "retired identity-admin shared secret exists; Fresh Start or explicit secure removal is required"
+        )
+    for retired in (
+        "keycloak-bootstrap-admin-password",
+        "keycloak-realm-migration-bootstrap-secret",
+    ):
+        path = context.secret_root / retired
+        if path.exists() or path.is_symlink():
+            raise ContractError(
+                f"retired or temporary Keycloak bootstrap SecretRef is present outside an explicit migration: {retired}"
+            )
+    matrix_selected = context.env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse"
+    nextcloud_selected = (
+        context.env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav"
+        or context.env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav"
+    )
+    storage_s3_selected = "storage-s3" in context.active_profiles
     required = (
-        list(TEXT_SECRETS)
-        + list(MINIO_ACCESS_KEY_SECRETS)
-        + list(HEX_SECRETS)
+        list(CORE_TEXT_SECRETS)
         + [name for name, _ in RSA_JWKS]
         + [name for name, _ in RUNTIME_RSA_JWKS]
-        + [name for name, _ in PEM_KEYS]
     )
-    if context.environment in {"dogfood", "e2e"}:
+    if matrix_selected:
+        required.extend(MATRIX_TEXT_SECRETS)
+        required.extend(HEX_SECRETS)
+        required.extend(name for name, _ in PEM_KEYS)
+    if nextcloud_selected:
+        required.extend(NEXTCLOUD_TEXT_SECRETS)
+    if storage_s3_selected:
+        required.extend(S3_TEXT_SECRETS)
+        required.extend(MINIO_ACCESS_KEY_SECRETS)
+    if context.environment == "e2e":
         required.extend(TEST_ONLY_SECRETS)
-    if context.profile == "prod":
+    if context.environment == "prod":
         required.extend(SMTP_SECRETS)
     for name in required:
         _assert_private_file(context.secret_root / name)
-    for name in HEX_SECRETS:
+    for name in (HEX_SECRETS if matrix_selected else ()):
         value = (context.secret_root / name).read_text(encoding="ascii").strip()
         if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
             raise ContractError(f"secret must be a 32-byte lowercase hex value: {name}")
-    for name in MINIO_ACCESS_KEY_SECRETS:
+    for name in (MINIO_ACCESS_KEY_SECRETS if storage_s3_selected else ()):
         value = (context.secret_root / name).read_text(encoding="ascii").strip()
         if not 3 <= len(value) <= 20 or any(
             character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" for character in value
         ):
             raise ContractError(f"MinIO access key must be 3-20 uppercase alphanumeric characters: {name}")
-    for name in CLI_ARGUMENT_SECRETS:
+    for name in (CLI_ARGUMENT_SECRETS if nextcloud_selected else ()):
         value = (context.secret_root / name).read_bytes()
         if not _valid_cli_argument_secret(value):
             raise ContractError(
                 f"CLI-bound SecretRef is empty, multiline, or option-shaped: {name}"
             )
-    appservice_tokens = tuple(
-        (context.secret_root / name).read_bytes().strip()
-        for name in ("matrix-appservice-as-token", "matrix-appservice-hs-token")
-    )
-    if not all(len(value) >= 64 for value in appservice_tokens) or len(set(appservice_tokens)) != 2:
-        raise ContractError("Matrix Application Service tokens must be distinct high-entropy SecretRefs")
+    if matrix_selected:
+        appservice_tokens = tuple(
+            (context.secret_root / name).read_bytes().strip()
+            for name in ("matrix-appservice-as-token", "matrix-appservice-hs-token")
+        )
+        if not all(len(value) >= 64 for value in appservice_tokens) or len(set(appservice_tokens)) != 2:
+            raise ContractError("Matrix Application Service tokens must be distinct high-entropy SecretRefs")
     for name, _ in RSA_JWKS + RUNTIME_RSA_JWKS:
         value = json.loads((context.secret_root / name).read_text(encoding="utf-8"))
         required_fields = {"kty", "kid", "n", "e", "d", "p", "q", "dp", "dq", "qi"}
@@ -411,7 +487,7 @@ def _validate_existing(context: ComposeContext) -> None:
         raise ContractError(
             "runtime-admin private JWK owner does not match the configured runtime uid"
         )
-    if context.profile == "prod":
+    if context.environment == "prod":
         for name in ("ca.pem", "cert.pem", "key.pem"):
             _assert_private_file(context.tls_root / name)
 
@@ -419,8 +495,23 @@ def _validate_existing(context: ComposeContext) -> None:
 def initialize(context: ComposeContext) -> None:
     context.secret_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(context.secret_root, 0o700)
-    if context.profile == "prod":
+    retired_identity_admin_secret = context.secret_root / "keycloak-weave-identity-admin"
+    if retired_identity_admin_secret.exists() or retired_identity_admin_secret.is_symlink():
+        raise ContractError(
+            "retired identity-admin shared secret exists; Fresh Start or explicit secure removal is required"
+        )
+    for retired in (
+        "keycloak-bootstrap-admin-password",
+        "keycloak-realm-migration-bootstrap-secret",
+    ):
+        path = context.secret_root / retired
+        if path.exists() or path.is_symlink():
+            raise ContractError(
+                f"retired or temporary Keycloak bootstrap SecretRef is present outside an explicit migration: {retired}"
+            )
+    if context.environment == "prod":
         _validate_existing(context)
+        _project_machine_public_jwks(context)
         return
     runtime_key_root = (
         context.secret_root / "agent-runtime/workloads/weave/keycloak"
@@ -443,13 +534,29 @@ def initialize(context: ComposeContext) -> None:
                 raise ContractError(
                     "runtime-admin SecretRef directory ownership is invalid"
                 ) from error
-    for name in TEXT_SECRETS:
+    for name in CORE_TEXT_SECRETS:
         _atomic_write(context.secret_root / name, _random_secret())
-    for name in MINIO_ACCESS_KEY_SECRETS:
-        _atomic_write(context.secret_root / name, _random_minio_access_key())
-    for name in HEX_SECRETS:
-        _atomic_write(context.secret_root / name, _random_hex_secret())
-    if context.environment in {"dogfood", "e2e"}:
+    if context.env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse":
+        for name in MATRIX_TEXT_SECRETS:
+            _atomic_write(context.secret_root / name, _random_secret())
+        for name in HEX_SECRETS:
+            _atomic_write(context.secret_root / name, _random_hex_secret())
+        for name, algorithm in PEM_KEYS:
+            path = context.secret_root / name
+            if not path.exists():
+                _atomic_write(path, _pem(algorithm))
+    if (
+        context.env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav"
+        or context.env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav"
+    ):
+        for name in NEXTCLOUD_TEXT_SECRETS:
+            _atomic_write(context.secret_root / name, _random_secret())
+    if "storage-s3" in context.active_profiles:
+        for name in S3_TEXT_SECRETS:
+            _atomic_write(context.secret_root / name, _random_secret())
+        for name in MINIO_ACCESS_KEY_SECRETS:
+            _atomic_write(context.secret_root / name, _random_minio_access_key())
+    if context.environment == "e2e":
         for name in TEST_ONLY_SECRETS:
             _atomic_write(context.secret_root / name, _random_secret())
     for name, kid in RSA_JWKS:
@@ -467,12 +574,9 @@ def initialize(context: ComposeContext) -> None:
                 raise ContractError(
                     "runtime-admin private JWK ownership is invalid"
                 ) from error
-    for name, algorithm in PEM_KEYS:
-        path = context.secret_root / name
-        if not path.exists():
-            _atomic_write(path, _pem(algorithm))
     _generate_tls(context)
     _validate_existing(context)
+    _project_machine_public_jwks(context)
     manifest = {
         "schemaVersion": "weave.compose-secret-generation.v1",
         "environment": context.environment,

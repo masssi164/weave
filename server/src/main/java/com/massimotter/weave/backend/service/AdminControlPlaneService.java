@@ -997,13 +997,13 @@ public class AdminControlPlaneService {
         List<PlatformIdentityReadinessCardResponse> cards = List.of(
                 readinessCard(
                         "realm-import",
-                        "Identity Ops desired-state readiness",
+                        "Keycloak realm baseline readiness",
                         configured ? "ready" : "admin-action-required",
-                        "Keycloak desired state is owned by Identity Ops and cannot be changed through the Weave control plane.",
+                        "Static Keycloak state comes from the canonical realm import; dynamic human identity lifecycle remains owned by Weave Server.",
                         configured ? "ready" : "degraded",
-                        "Reconcile and verify Keycloak through the deployment-owned Identity Ops process.",
-                        List.of("Run the Identity Ops plan and verification gates"),
-                        List.of("identity-ops-desired-state"),
+                        "Render and verify the canonical realm baseline, then apply only the bounded post-import migration through the deployment gate.",
+                        List.of("Verify the realm import and bounded migration receipts"),
+                        List.of("keycloak-realm-baseline", "keycloak-post-import-migration"),
                         Map.of(
                                 "configured", configured,
                                 "enabled", enabled,
@@ -1015,7 +1015,7 @@ public class AdminControlPlaneService {
                         configured ? "ready" : "admin-action-required",
                         "OIDC and SAML posture is summarized by backend contract evidence; issuer, entity, client, redirect, certificate, and secret details are redacted.",
                         configured ? "ready" : "degraded",
-                        "Confirm OIDC scopes and SAML attribute/nameID mappings through Identity Ops, not frontend or Server mutation APIs.",
+                        "Confirm OIDC scopes and SAML attribute/nameID mappings through the canonical realm baseline and bounded migration, never through browser JavaScript.",
                         List.of("Validate OIDC scope mappings", "Validate SAML immutable subject and signed assertion requirements", "Keep federation secrets as SecretRef handles only"),
                         List.of("identity-federation-contract", "secretref-boundary"),
                         Map.of(
@@ -1145,7 +1145,7 @@ public class AdminControlPlaneService {
                 Map.of(
                         "overview", "/api/admin/control-plane",
                         "readiness", "/api/admin/platform/identity/readiness",
-                        "identityOps", "operator://identity-ops",
+                        "realmBaseline", "operator://keycloak-realm-baseline",
                         "effectivePolicySimulation", "/api/admin/policies/effective/simulations"),
                 Map.ofEntries(
                         Map.entry("contractOptional", false),
@@ -1200,7 +1200,7 @@ public class AdminControlPlaneService {
             case "policy-blocked" -> List.of("Resolve policy blockers, unknown mappings, or last-owner guard failures before member lifecycle changes.");
             case "disabled" -> List.of("Restore the fixed Keycloak platform-security runtime before allowing member sign-in.");
             default -> List.of(
-                    "Run the Identity Ops desired-state plan and verification.",
+                    "Verify the canonical realm import and bounded post-import migration receipts.",
                     "Resolve admin-action-required cards before treating sign-in as ready.",
                     "Verify member clients expose only product-level states.");
         };

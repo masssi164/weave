@@ -104,6 +104,30 @@ class PrivateBackupIntegrityTest(unittest.TestCase):
             self.assertEqual(CANDIDATE, result["candidateCommit"])
             self.assertTrue(result["allRequiredArtifactsVerified"])
 
+    def test_unmanifested_optional_artifact_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            backup = self.create_backup(Path(temporary))
+            optional = backup / "nextcloud-data.tgz"
+            with tarfile.open(optional, "w:gz") as archive:
+                root = tarfile.TarInfo(".")
+                root.type = tarfile.DIRTYPE
+                root.mode = 0o700
+                archive.addfile(root)
+            with self.assertRaisesRegex(IntegrityError, "exactly match"):
+                validate_backup(backup)
+
+    def test_selected_profile_artifact_omission_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            backup = self.create_backup(Path(temporary))
+            with self.assertRaisesRegex(IntegrityError, "selected deployment profile"):
+                validate_backup(
+                    backup,
+                    expected_artifacts={
+                        *REQUIRED_ARTIFACTS,
+                        "nextcloud-data.tgz",
+                    },
+                )
+
     def test_corrupted_artifact_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             backup = self.create_backup(Path(temporary))
@@ -123,7 +147,7 @@ class PrivateBackupIntegrityTest(unittest.TestCase):
     def test_archive_traversal_is_rejected_even_when_hash_matches(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             backup = self.create_backup(Path(temporary))
-            archive_path = backup / "nextcloud-data.tgz"
+            archive_path = backup / "native-files-data.tgz"
             with tarfile.open(archive_path, "w:gz") as archive:
                 payload = b"unsafe"
                 member = tarfile.TarInfo("../outside")
@@ -136,7 +160,7 @@ class PrivateBackupIntegrityTest(unittest.TestCase):
     def test_provider_archive_without_exact_root_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             backup = self.create_backup(Path(temporary))
-            archive_path = backup / "nextcloud-data.tgz"
+            archive_path = backup / "native-files-data.tgz"
             with tarfile.open(archive_path, "w:gz") as archive:
                 member = tarfile.TarInfo("fixture")
                 member.size = 1
@@ -150,7 +174,7 @@ class PrivateBackupIntegrityTest(unittest.TestCase):
     def test_duplicate_normalized_member_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             backup = self.create_backup(Path(temporary))
-            archive_path = backup / "nextcloud-data.tgz"
+            archive_path = backup / "native-files-data.tgz"
             with tarfile.open(archive_path, "w:gz") as archive:
                 root = tarfile.TarInfo(".")
                 root.type = tarfile.DIRTYPE
@@ -166,7 +190,7 @@ class PrivateBackupIntegrityTest(unittest.TestCase):
     def test_privileged_regular_file_mode_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             backup = self.create_backup(Path(temporary))
-            archive_path = backup / "nextcloud-data.tgz"
+            archive_path = backup / "native-files-data.tgz"
             with tarfile.open(archive_path, "w:gz") as archive:
                 root = tarfile.TarInfo(".")
                 root.type = tarfile.DIRTYPE

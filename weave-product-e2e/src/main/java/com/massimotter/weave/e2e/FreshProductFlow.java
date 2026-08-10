@@ -538,9 +538,9 @@ public final class FreshProductFlow {
   private void configureRequiredProviders(String ownerToken) {
     List<ProviderSelection> requiredProviders =
         List.of(
-            new ProviderSelection("chat", "synapse-homeserver"),
-            new ProviderSelection("files", "nextcloud-files"),
-            new ProviderSelection("calendar", "nextcloud-caldav"));
+            new ProviderSelection("chat", "weave-native"),
+            new ProviderSelection("files", "weave-native"),
+            new ProviderSelection("calendar", "weave-native"));
     for (ProviderSelection selection : requiredProviders) {
       ObjectNode request = http.mapper().createObjectNode();
       request.put("category", selection.category());
@@ -857,7 +857,7 @@ public final class FreshProductFlow {
       boolean samePersonRefAfterRegrant,
       List<CollaborationJourney.PassProof> collaborationPasses) {
     ObjectNode evidence = http.mapper().createObjectNode();
-    evidence.put("schemaVersion", "weave.test-app-product-flow/v1");
+    evidence.put("schemaVersion", "weave.test-app-product-flow/v2");
     evidence.put("startedAt", startedAt.toString());
     evidence.put("completedAt", Instant.now().toString());
     evidence.put("candidateCommit", environment.candidateCommit());
@@ -903,6 +903,15 @@ public final class FreshProductFlow {
     }
     ObjectNode collaboration = evidence.putObject("collaboration");
     collaboration.put("repeatCount", 2);
+    ObjectNode selectedProviders = collaboration.putObject("selectedProviders");
+    selectedProviders.put("chat", "weave-native");
+    selectedProviders.put("files", "weave-native");
+    selectedProviders.put("calendar", "weave-native");
+    ObjectNode northboundFacades = collaboration.putObject("northboundFacades");
+    northboundFacades.put("matrix", true);
+    northboundFacades.put("webdav", true);
+    northboundFacades.put("caldav", true);
+    collaboration.put("southboundProviderDependencyObserved", false);
     ObjectNode identityHashes = collaboration.putObject("identityRefHashes");
     identityHashes.put("author", collaborationPasses.get(0).authorIdentityRefHash());
     identityHashes.put(
@@ -920,15 +929,15 @@ public final class FreshProductFlow {
       item.put("profilePassed", pass.profilePassed());
       item.put("outsiderDenied", pass.outsiderDenied());
       item.put("canonicalJpaVerified", pass.canonicalJpaVerified());
-      item.put("directSynapseVerified", pass.directSynapseVerified());
+      item.put("nativePersistenceVerified", pass.nativePersistenceVerified());
+      item.put("idempotencyVerified", pass.idempotencyVerified());
       item.put(
-          "providerOutageExactlyOnceVerified",
-          pass.providerOutageExactlyOnceVerified());
+          "southboundProviderDependencyObserved",
+          pass.southboundProviderDependencyObserved());
       item.put("restartContinuityVerified", pass.restartContinuityVerified());
-      item.put("callbackReplayVerified", pass.callbackReplayVerified());
       item.put("cleanupComplete", pass.cleanupComplete());
       item.put(
-          "providerCorrelationHash", "sha256:" + pass.providerCorrelationHash());
+          "nativeRevisionHash", "sha256:" + pass.nativeRevisionHash());
     }
     evidence.put("credentialsIncluded", false);
     evidence.put("actionLinksIncluded", false);
