@@ -446,7 +446,10 @@ class KeycloakFgapMigrationExecutorTest {
 
     private ObjectNode roleMappings(String path) {
       if (path.contains(BOOTSTRAP_USER)) {
-        ArrayNode realmMappings = array(object("id", "admin-role", "name", "admin"));
+        ArrayNode realmMappings =
+            array(
+                object("id", "admin-role", "name", "admin"),
+                object("id", "default-roles-master", "name", "default-roles-master"));
         if (bootstrapHasAdditionalRole) {
           realmMappings.add(object("id", "other-role", "name", "create-realm"));
         }

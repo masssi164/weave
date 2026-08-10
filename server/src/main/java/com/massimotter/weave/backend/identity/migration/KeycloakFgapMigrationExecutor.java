@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.identity.migration;
 
 import static com.massimotter.weave.backend.identity.migration.KeycloakFgapMigrationContract.ADMIN_PERMISSIONS_CLIENT_ID;
+import static com.massimotter.weave.backend.identity.migration.KeycloakFgapMigrationContract.BOOTSTRAP_REALM_ROLES;
 import static com.massimotter.weave.backend.identity.migration.KeycloakFgapMigrationContract.EXPECTED_PERMISSION_NAMES;
 import static com.massimotter.weave.backend.identity.migration.KeycloakFgapMigrationContract.IDENTITY_ADMIN_CLIENT_ID;
 import static com.massimotter.weave.backend.identity.migration.KeycloakFgapMigrationContract.MIGRATION_CLIENT_ID;
@@ -152,7 +153,7 @@ final class KeycloakFgapMigrationExecutor {
             || clientMappings.isNull()
             || (clientMappings.isObject() && clientMappings.isEmpty());
     if (!mappings.isObject()
-        || !Set.of("admin").equals(roleNames(mappings.path("realmMappings")))
+        || !BOOTSTRAP_REALM_ROLES.equals(roleNames(mappings.path("realmMappings")))
         || !hasNoClientMappings) {
       throw blocked("migration-authority-role-mismatch");
     }
