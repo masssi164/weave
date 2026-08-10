@@ -83,6 +83,16 @@ public final class SchemaAuthorityInitializer {
         throw new IllegalStateException("authority marker table is absent after Flyway migration");
       }
       SchemaAuthorityJpaRepository markers = context.getBean(SchemaAuthorityJpaRepository.class);
+      var existingMarkers = markers.findAll();
+      if (!existingMarkers.isEmpty()) {
+        if (existingMarkers.size() != 1
+            || !EPOCH.equals(existingMarkers.getFirst().epoch())
+            || !MODEL_ID.equals(existingMarkers.getFirst().relationalModelId())
+            || !validated.sha256().equals(existingMarkers.getFirst().catalogFingerprint())) {
+          throw new IllegalStateException(
+              "schema catalog fingerprint does not match the completed authority marker");
+        }
+      }
       markers.deleteAllInBatch();
       markers.saveAndFlush(new SchemaAuthorityJpaEntity(
           EPOCH, MODEL_ID, candidate, validated.sha256(), Instant.now()));
