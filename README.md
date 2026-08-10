@@ -1,5 +1,7 @@
 # Weave
 
+Provider-neutral collaboration for organizations that need control, portability, and governed assistance.
+
 Weave is an open-standards gateway and product surface, not a branded skin over one provider. The northbound side exposes stable Weave-owned protocols and product APIs to clients. The southbound side adapts replaceable providers behind canonical Weave domains.
 
 ## Bootstrap foundation
@@ -43,12 +45,46 @@ Textual equivalent: clients authenticate through the Weave identity boundary and
 
 Provider switching happens below the canonical domain boundary. Adapters translate provider identifiers, errors, and capabilities into Weave values; durable mappings and conformance reports preserve continuity. A provider URL, token, SDK type, Matrix homeserver, storage backend, or Nextcloud endpoint is therefore an implementation detail, never the member contract.
 
-## Release notes
+## Product Screenshots
+
+The reviewed product captures and their evidence status are indexed in [the screenshot catalog](docs/product-screenshots.md).
+
+## What Works Today
+
+The native Files, Calendar, and Chat paths expose Weave-owned WebDAV, CalDAV, and Matrix facades over canonical persistence. The checked-in release gates distinguish compiled and contract-tested behavior from live dogfood and physical-device evidence.
+
+## What Is Guarded
+
+The active dogfood stream is evidence-driven and does not claim public production readiness, perfect lossless migration, or unrestricted autonomous agents. Optional external providers, production promotion, physical accessibility acceptance, and broad E2EE completeness claims remain guarded until their dedicated evidence gates pass.
+
+Provider neutrality does not imply universal provider interchangeability, and perfect lossless migration is not claimed. The portability promise is no unaccounted data loss: every preserved, lossy, blocked, or provider-retained field must be explicit before a switch is approved. See the [product trust claim matrix](docs/product-trust-provider-choice-claim-matrix.md).
+
+## For Members
+
+Members use the Flutter product surfaces and stable Weave protocol endpoints; they never configure raw provider URLs or credentials.
+
+## For Admins And Operators
+
+Administrators select provider categories through the control plane. Operators use the documented candidate, backup, deployment, readiness, and support-bundle workflows.
+
+## For Developers
+
+Start with [AGENTS.md](AGENTS.md), the pinned specification corpus, and the repository-specific validation tasks before changing a product or deployment contract.
+
+## Release Notes
 
 <!-- WEAVE_RELEASE_NOTES_START -->
 - Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
 - Latest release index: [Release notes](docs/release-notes/index.md)
 <!-- WEAVE_RELEASE_NOTES_END -->
+
+## Release Evidence
+
+<!-- WEAVE_RELEASE_NOTES:START -->
+- Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
+- Offline release-note fixture review artifact: `build/release-notes/unreleased.md`
+- Release evidence check: deterministic CI/local gate for README markers, release-note structure, label policy, and release evidence fixtures.
+<!-- WEAVE_RELEASE_NOTES:END -->
 
 ## Enterprise Workflow
 
