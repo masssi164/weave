@@ -359,18 +359,28 @@ jobs:
             "-PcandidateManifest=$GITHUB_WORKSPACE/build/candidate/candidate-manifest.json"
           echo "digest=sha256:$(awk 'NR == 1 {print $1}' build/candidate/candidate-manifest.json.sha256)" >> "$GITHUB_OUTPUT"
 
+      - name: Stage flat candidate evidence artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact_root=build/candidate/upload
+          install -d -m 0755 "$artifact_root"
+          for source in \
+            build/candidate/candidate-manifest.json \
+            build/candidate/candidate-manifest.json.sha256 \
+            infra/weave-workspace/keycloak/migration-definition.json \
+            build/candidate/keycloak-runtime-build.json \
+            build/candidate/server-attestations.json \
+            build/candidate/mcp-attestations.json \
+            build/candidate/keycloak-runtime-attestations.json; do
+            install -m 0644 "$source" "$artifact_root/${source##*/}"
+          done
+
       - name: Upload candidate evidence
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: candidate-manifest-${{ needs.verify-source.outputs.candidate_sha }}
-          path: |
-            build/candidate/candidate-manifest.json
-            build/candidate/candidate-manifest.json.sha256
-            infra/weave-workspace/keycloak/migration-definition.json
-            build/candidate/keycloak-runtime-build.json
-            build/candidate/server-attestations.json
-            build/candidate/mcp-attestations.json
-            build/candidate/keycloak-runtime-attestations.json
+          path: build/candidate/upload
           if-no-files-found: error
           retention-days: 90
 
