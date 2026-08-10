@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from compose_env import ContractError, load_context  # noqa: E402
 import compose_runtime as compose_runtime_module  # noqa: E402
-from render_config import _reset_provider_configtree  # noqa: E402
+from render_config import _reset_provider_configtree, _runtime_policy  # noqa: E402
 from rendering.gateway import _site, render_caddy  # noqa: E402
 from rendering.keycloak import _desired, _image_digest, _overlay  # noqa: E402
 
@@ -244,6 +244,9 @@ def main() -> int:
             )
             assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
             assert _image_digest(isolated) == "sha256:" + "b" * 64
+            assert _runtime_policy(isolated)["sandbox"]["allowedNetworkTargets"] == [
+                "api.weave.test"
+            ]
             assert_native_collaboration_restart_is_bounded(isolated)
         finally:
             for key, value in previous.items():

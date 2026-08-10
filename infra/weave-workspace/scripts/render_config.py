@@ -8,6 +8,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 KEYCLOAK_MODULE_ROOT = Path(__file__).resolve().parents[1] / "keycloak"
 if str(KEYCLOAK_MODULE_ROOT) not in sys.path:
@@ -102,6 +103,9 @@ def _render_provider_secrets(context: ComposeContext, runtime_owner: tuple[int, 
 
 
 def _runtime_policy(context: ComposeContext) -> dict[str, object]:
+    api_host = urlsplit(context.env["WEAVE_API_URL"]).hostname
+    if api_host is None:
+        raise ContractError("WEAVE_API_URL must contain a DNS host")
     return {
         "schemaVersion": "weave.runtime-policy/v1",
         "profileTtlSeconds": 120,
@@ -145,7 +149,7 @@ def _runtime_policy(context: ComposeContext) -> dict[str, object]:
         "sandbox": {
             "mode": "required",
             "networkPolicy": "allowlist",
-            "allowedNetworkTargets": [context.env["WEAVE_API_HOST"]],
+            "allowedNetworkTargets": [api_host],
             "filesystemPolicy": "workspace-only",
             "approvedMountRefs": [],
         },
