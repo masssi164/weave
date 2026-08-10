@@ -269,31 +269,14 @@ final class KeycloakFgapMigrationExecutor {
   }
 
   private String requirePrimaryOrganization() {
-    List<JsonNode> matches = new ArrayList<>();
-    boolean complete = false;
-    for (int first = 0; first < MAXIMUM_RESULTS; first += PAGE_SIZE) {
-      List<JsonNode> page =
-          array(
-              transport.get(
-                  ADMIN
-                      + "/organizations?first="
-                      + first
-                      + "&max="
-                      + PAGE_SIZE
-                      + "&briefRepresentation=true"),
-              "organization-inventory-invalid");
-      page.stream()
-          .filter(value -> ORGANIZATION_ALIAS.equals(value.path("alias").asString()))
-          .forEach(matches::add);
-      if (page.size() < PAGE_SIZE) {
-        complete = true;
-        break;
-      }
+    JsonNode organization = transport.get(ADMIN + "/organizations/" + ORGANIZATION_ID);
+    if (!organization.isObject()
+        || !ORGANIZATION_ID.equals(organization.path("id").asString())
+        || !ORGANIZATION_ALIAS.equals(organization.path("alias").asString())
+        || !organization.path("enabled").asBoolean(false)) {
+      throw blocked("organization-readback-invalid");
     }
-    if (!complete || matches.size() != 1) {
-      throw blocked("organization-readback-ambiguous");
-    }
-    return requiredId(matches.getFirst(), "organization-readback-invalid");
+    return ORGANIZATION_ID;
   }
 
   private Mutation planPolicy(Anchors anchors) {

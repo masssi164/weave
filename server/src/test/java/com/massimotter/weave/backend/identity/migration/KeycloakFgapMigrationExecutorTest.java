@@ -119,6 +119,18 @@ class KeycloakFgapMigrationExecutorTest {
   }
 
   @Test
+  void rejectsTheCanonicalOrganizationIdUnderTheWrongAlias() {
+    state.organizationHasWrongAlias = true;
+
+    assertThatThrownBy(() -> executor().execute(bundle(), backupProof()))
+        .isInstanceOf(KeycloakRealmMigrationException.class)
+        .hasMessage("organization-readback-invalid");
+
+    assertThat(state.bootstrapPresent).isTrue();
+    assertThat(state.mutationCount).isZero();
+  }
+
+  @Test
   void rejectsAHiddenNonScopeDependentOfTheIdentityAdminPolicy() {
     state.seedPolicyAndUnexpectedResourcePermission();
 
@@ -196,6 +208,7 @@ class KeycloakFgapMigrationExecutorTest {
     private boolean retainBootstrapInNegativeReadback;
     private boolean identityJwksContainsPrivateMaterial;
     private boolean identityServiceAccountHasWrongUsername;
+    private boolean organizationHasWrongAlias;
     private int mutationCount;
     private ObjectNode policy;
     private ObjectNode unexpectedDependent;
@@ -267,16 +280,22 @@ class KeycloakFgapMigrationExecutorTest {
           respond(exchange, 200, roleMappings(path));
           return;
         }
-        if ("GET".equals(method) && path.endsWith("/organizations")) {
+        if ("GET".equals(method)
+            && path.equals(
+                "/admin/realms/weave/organizations/"
+                    + KeycloakFgapMigrationContract.ORGANIZATION_ID)) {
           respond(
               exchange,
               200,
-              array(
-                  object(
-                      "id",
-                      KeycloakFgapMigrationContract.ORGANIZATION_ID,
-                      "alias",
-                      KeycloakFgapMigrationContract.ORGANIZATION_ALIAS)));
+              object(
+                  "id",
+                  KeycloakFgapMigrationContract.ORGANIZATION_ID,
+                  "alias",
+                  organizationHasWrongAlias
+                      ? "wrong-organization"
+                      : KeycloakFgapMigrationContract.ORGANIZATION_ALIAS,
+                  "enabled",
+                  true));
           return;
         }
         if (path.endsWith("/policy/user")) {
