@@ -1,20 +1,18 @@
 package com.massimotter.weave.backend.matrix;
 
+import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Service;
 
-/** Matrix server-side routing/E2EE orchestration over operation-level persistence. */
 @Service
 public class MatrixE2eeStateService {
-
-    private static final int MAX_ONE_TIME_KEYS_PER_UPLOAD = 256;
-    private static final int MAX_TO_DEVICE_TARGETS = 1_000;
     private static final int MAX_TO_DEVICE_EVENTS_PER_SYNC = 100;
     private static final String E2EE_CURSOR_MARKER = "|e2ee:";
     private static final String E2EE_CURSOR_V2_PREFIX = "v2:";
@@ -24,7 +22,7 @@ public class MatrixE2eeStateService {
     private final AtomicLong syncResponsesWithToDeviceEvents = new AtomicLong();
 
     public MatrixE2eeStateService(MatrixE2eePersistence persistence) {
-        this.persistence = java.util.Objects.requireNonNull(persistence, "persistence");
+        this.persistence = persistence;
     }
 
     public Map<String, Object> uploadKeys(MatrixFacadeClientStateService.MatrixIdentity identity, Map<String, Object> request) {
@@ -33,94 +31,92 @@ public class MatrixE2eeStateService {
         if (!deviceKeys.isEmpty()) {
             requireEquals(deviceKeys.get("user_id"), identity.userId(), "device key user");
             requireEquals(deviceKeys.get("device_id"), identity.deviceId(), "device key device");
+            persistence.upsertDevice(identity.tenantId(), identity.userId(), identity.deviceId(), deviceKeys, persistence.nextRevision(identity.tenantId()));
         }
-        Map<String, Object> oneTimeKeys = objectMap(request.get("one_time_keys"));
-        if (oneTimeKeys.size() > MAX_ONE_TIME_KEYS_PER_UPLOAD) throw new MatrixProtocolException("M_LIMIT_EXCEEDED", "The Matrix one-time key upload limit was reached.");
-        Map<String, Object> validatedOneTimeKeys = new LinkedHashMap<>();
-        oneTimeKeys.forEach((keyId, value) -> validatedOneTimeKeys.put(requireKeyId(keyId), immutableValue(value)));
-        Map<String, Object> fallbackKeys = immutableObject(objectMap(request.get("fallback_keys")));
-        if (!deviceKeys.isEmpty() || !validatedOneTimeKeys.isEmpty() || !fallbackKeys.isEmpty()) {
-            long revision = persistence.nextRevision(identity.tenantId());
-            persistence.upsertDevice(identity.tenantId(), identity.userId(), identity.deviceId(), deviceKeys, revision);
-            if (!validatedOneTimeKeys.isEmpty()) persistence.addOneTimeKeys(identity.tenantId(), identity.userId(), identity.deviceId(), validatedOneTimeKeys);
-            if (!fallbackKeys.isEmpty()) persistence.replaceFallbackKeys(identity.tenantId(), identity.userId(), identity.deviceId(), fallbackKeys, revision);
-        }
+        persistence.addOneTimeKeys(identity.tenantId(), identity.userId(), identity.deviceId(), immutableObject(objectMap(request.get("one_time_keys"))));
+        persistence.replaceFallbackKeys(identity.tenantId(), identity.userId(), identity.deviceId(), immutableObject(objectMap(request.get("fallback_keys"))), persistence.nextRevision(identity.tenantId()));
         return Map.of("one_time_key_counts", persistence.oneTimeKeyCounts(identity.tenantId(), identity.userId(), identity.deviceId()));
     }
 
     public Map<String, Object> queryKeys(MatrixFacadeClientStateService.MatrixIdentity identity, Map<String, Object> request) {
         requireActive(identity);
-        Map<String, Object> requestedUsers = objectMap(request.get("device_keys"));
-        Map<String, Object> deviceKeys = new LinkedHashMap<>();
-        Map<String, Object> masterKeys = new LinkedHashMap<>();
-        Map<String, Object> selfSigningKeys = new LinkedHashMap<>();
-        Map<String, Object> userSigningKeys = new LinkedHashMap<>();
-        for (Map.Entry<String, Object> requestedUser : requestedUsers.entrySet()) {
-            Set<String> requestedDevices = stringSet(requestedUser.getValue());
-            Map<String, Object> projectedDevices = new LinkedHashMap<>();
-            persistence.devices(identity.tenantId(), requestedUser.getKey(), requestedDevices).stream().filter(device -> !device.revoked()).filter(device -> !device.deviceKeys().isEmpty()).forEach(device -> projectedDevices.put(device.deviceId(), device.deviceKeys()));
-            deviceKeys.put(requestedUser.getKey(), Map.copyOf(projectedDevices));
-            persistence.crossSigning(identity.tenantId(), requestedUser.getKey()).ifPresent(signing -> {
-                putIfPresent(masterKeys, requestedUser.getKey(), signing.masterKey());
-                putIfPresent(selfSigningKeys, requestedUser.getKey(), signing.selfSigningKey());
-                putIfPresent(userSigningKeys, requestedUser.getKey(), signing.userSigningKey());
+        Map<String, Object> requested = immutableObject(objectMap(request.get("device_keys")));
+        Map<String, Object> responseDevices = new LinkedHashMap<>();
+        Map<String, Object> master = new LinkedHashMap<>();
+        Map<String, Object> selfSigning = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> userEntry : requested.entrySet()) {
+            String userId = userEntry.getKey();
+            Set<String> requestedDevices = stringSet(userEntry.getValue());
+            Map<String, Object> userDevices = new LinkedHashMap<>();
+            for (MatrixE2eePersistence.DeviceRecord device : persistence.devices(identity.tenantId(), userId, requestedDevices)) {
+                if (!device.revoked() && !device.deviceKeys().isEmpty()) userDevices.put(device.deviceId(), device.deviceKeys());
+            }
+            if (!userDevices.isEmpty()) responseDevices.put(userId, Map.copyOf(userDevices));
+            persistence.crossSigning(identity.tenantId(), userId).ifPresent(cross -> {
+                putIfPresent(master, userId, cross.masterKey());
+                putIfPresent(selfSigning, userId, cross.selfSigningKey());
             });
         }
-        return Map.of("device_keys", Map.copyOf(deviceKeys), "master_keys", Map.copyOf(masterKeys), "self_signing_keys", Map.copyOf(selfSigningKeys), "user_signing_keys", Map.copyOf(userSigningKeys), "failures", Map.of());
+        return Map.of("device_keys", Map.copyOf(responseDevices), "master_keys", Map.copyOf(master), "self_signing_keys", Map.copyOf(selfSigning), "failures", Map.of());
     }
 
     public Map<String, Object> claimKeys(MatrixFacadeClientStateService.MatrixIdentity identity, Map<String, Object> request) {
         requireActive(identity);
-        Map<String, Object> requestedUsers = objectMap(request.get("one_time_keys"));
-        Map<String, Object> claimedUsers = new LinkedHashMap<>();
-        for (Map.Entry<String, Object> userEntry : requestedUsers.entrySet()) {
-            Map<String, Object> claimedDevices = new LinkedHashMap<>();
-            for (Map.Entry<String, Object> deviceEntry : objectMap(userEntry.getValue()).entrySet()) {
-                if (!(deviceEntry.getValue() instanceof String algorithm)) continue;
-                persistence.claimOneTimeKey(identity.tenantId(), userEntry.getKey(), deviceEntry.getKey(), algorithm).ifPresent(claimed -> claimedDevices.put(deviceEntry.getKey(), Map.of(claimed.keyId(), claimed.value())));
+        Map<String, Object> requested = immutableObject(objectMap(request.get("one_time_keys")));
+        Map<String, Object> claims = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> userEntry : requested.entrySet()) {
+            Map<String, Object> devices = immutableObject(objectMap(userEntry.getValue()));
+            Map<String, Object> userClaims = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> deviceEntry : devices.entrySet()) {
+                String algorithm = requiredText(deviceEntry.getValue(), "one-time key algorithm", 128);
+                persistence.claimOneTimeKey(identity.tenantId(), userEntry.getKey(), deviceEntry.getKey(), algorithm)
+                        .ifPresent(claimed -> userClaims.put(deviceEntry.getKey(), Map.of(claimed.keyId(), claimed.value())));
             }
-            if (!claimedDevices.isEmpty()) claimedUsers.put(userEntry.getKey(), Map.copyOf(claimedDevices));
+            if (!userClaims.isEmpty()) claims.put(userEntry.getKey(), Map.copyOf(userClaims));
         }
-        return Map.of("one_time_keys", Map.copyOf(claimedUsers), "failures", Map.of());
+        return Map.of("one_time_keys", Map.copyOf(claims), "failures", Map.of());
     }
 
     public void uploadCrossSigning(MatrixFacadeClientStateService.MatrixIdentity identity, Map<String, Object> request) {
         requireActive(identity);
-        Map<String, Object> master = validatedSigningKey(request.get("master_key"), identity.userId(), "master");
-        Map<String, Object> self = validatedSigningKey(request.get("self_signing_key"), identity.userId(), "self_signing");
-        Map<String, Object> user = validatedSigningKey(request.get("user_signing_key"), identity.userId(), "user_signing");
-        persistence.upsertCrossSigning(identity.tenantId(), identity.userId(), master, self, user, persistence.nextRevision(identity.tenantId()));
+        persistence.upsertCrossSigning(identity.tenantId(), identity.userId(), validatedSigningKey(request.get("master_key"), identity.userId(), "master"), validatedSigningKey(request.get("self_signing_key"), identity.userId(), "self_signing"), validatedSigningKey(request.get("user_signing_key"), identity.userId(), "user_signing"), persistence.nextRevision(identity.tenantId()));
     }
 
     public Map<String, Object> uploadSignatures(MatrixFacadeClientStateService.MatrixIdentity identity, Map<String, Object> request) {
         requireActive(identity);
-        request.forEach((userId, rawSignedObjects) -> objectMap(rawSignedObjects).forEach((keyId, rawSignedObject) -> {
-            Map<String, Object> signatures = immutableObject(objectMap(objectMap(rawSignedObject).get("signatures")));
-            if (signatures.isEmpty()) return;
-            var device = persistence.device(identity.tenantId(), userId, keyId);
-            long revision = persistence.nextRevision(identity.tenantId());
-            if (device.isPresent() && !device.get().deviceKeys().isEmpty()) persistence.mergeDeviceSignatures(identity.tenantId(), userId, keyId, signatures, revision);
-            else persistence.mergeCrossSigningSignatures(identity.tenantId(), userId, keyId, signatures, revision);
-        }));
-        return Map.of("failures", Map.of());
+        int count = 0;
+        for (Map.Entry<String, Object> userEntry : request.entrySet()) {
+            Map<String, Object> targets = immutableObject(objectMap(userEntry.getValue()));
+            for (Map.Entry<String, Object> targetEntry : targets.entrySet()) {
+                Map<String, Object> target = immutableObject(objectMap(targetEntry.getValue()));
+                Map<String, Object> signatures = immutableObject(objectMap(target.get("signatures")));
+                if (signatures.isEmpty()) continue;
+                if (persistence.device(identity.tenantId(), userEntry.getKey(), targetEntry.getKey()).isPresent()) persistence.mergeDeviceSignatures(identity.tenantId(), userEntry.getKey(), targetEntry.getKey(), signatures, persistence.nextRevision(identity.tenantId()));
+                else persistence.mergeCrossSigningSignatures(identity.tenantId(), userEntry.getKey(), targetEntry.getKey(), signatures, persistence.nextRevision(identity.tenantId()));
+                count++;
+            }
+        }
+        return Map.of("failures", Map.of(), "signed", count);
     }
 
     public void sendToDevice(MatrixFacadeClientStateService.MatrixIdentity identity, String eventType, String transactionId, Map<String, Object> request) {
         requireActive(identity);
-        int targets = 0;
-        for (Map.Entry<String, Object> userEntry : objectMap(request.get("messages")).entrySet()) {
-            for (Map.Entry<String, Object> deviceEntry : objectMap(userEntry.getValue()).entrySet()) {
-                Collection<String> targetDevices = "*".equals(deviceEntry.getKey()) ? persistence.activeDeviceIds(identity.tenantId(), userEntry.getKey()) : List.of(deviceEntry.getKey());
-                for (String targetDevice : targetDevices) {
-                    if (++targets > MAX_TO_DEVICE_TARGETS) throw new MatrixProtocolException("M_LIMIT_EXCEEDED", "The Matrix to-device target limit was reached.");
-                    persistence.appendToDevice(identity.tenantId(), userEntry.getKey(), targetDevice, identity.userId(), requiredText(eventType, "to-device event type", 255), requiredText(transactionId, "transaction id", 255), immutableObject(objectMap(deviceEntry.getValue())));
-                }
+        Map<String, Object> messages = immutableObject(objectMap(request.get("messages")));
+        for (Map.Entry<String, Object> userEntry : messages.entrySet()) {
+            Map<String, Object> devices = immutableObject(objectMap(userEntry.getValue()));
+            for (Map.Entry<String, Object> deviceEntry : devices.entrySet()) {
+                persistence.appendToDevice(identity.tenantId(), userEntry.getKey(), deviceEntry.getKey(), identity.userId(), requiredText(eventType, "to-device event type", 255), requiredText(transactionId, "to-device transaction id", 255), immutableObject(objectMap(deviceEntry.getValue())));
             }
         }
     }
 
-    public MatrixProtocolCoreService.MatrixSyncCrypto sync(MatrixFacadeClientStateService.MatrixIdentity identity, long afterSequence) { return sync(identity, afterSequence, afterSequence, null); }
-    public MatrixProtocolCoreService.MatrixSyncCrypto sync(MatrixFacadeClientStateService.MatrixIdentity identity, long afterSequence, Collection<String> currentlySharedUserIds) { return sync(identity, afterSequence, afterSequence, currentlySharedUserIds); }
+    public MatrixProtocolCoreService.MatrixSyncCrypto sync(MatrixFacadeClientStateService.MatrixIdentity identity, long afterSequence) {
+        return sync(identity, afterSequence, afterSequence, null);
+    }
+
+    public MatrixProtocolCoreService.MatrixSyncCrypto sync(MatrixFacadeClientStateService.MatrixIdentity identity, long afterSequence, Collection<String> currentlySharedUserIds) {
+        return sync(identity, afterSequence, afterSequence, currentlySharedUserIds);
+    }
 
     public MatrixProtocolCoreService.MatrixSyncCrypto sync(MatrixFacadeClientStateService.MatrixIdentity identity, long toDeviceAfterSequence, long deviceListAfterSequence, Collection<String> currentlySharedUserIds) {
         requireActive(identity);
@@ -129,7 +125,6 @@ public class MatrixE2eeStateService {
 
         long persistedDeviceListProgress = persistence.deviceListProgress(identity.tenantId(), identity.userId(), identity.deviceId());
         long deviceListAfter = Math.max(persistedDeviceListProgress, deviceListAfterSequence);
-        if (deviceListAfter > persistedDeviceListProgress) persistence.recordDeviceListProgress(identity.tenantId(), identity.userId(), identity.deviceId(), deviceListAfter);
         if (shared != null) persistence.reconcileSharedUsers(identity.tenantId(), identity.userId(), identity.deviceId(), shared);
 
         long snapshotHighWater = persistence.currentRevision(identity.tenantId());
