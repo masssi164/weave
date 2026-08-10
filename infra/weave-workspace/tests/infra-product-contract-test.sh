@@ -15,6 +15,7 @@ for file in \
   compose.yaml compose.dev.yaml compose.dogfood.yaml compose.e2e.yaml compose.prod.yaml compose.sh \
   environments/dogfood.env.example environments/e2e.env.example \
   scripts/compose_env.py scripts/compose_runtime.py scripts/render_config.py \
+  scripts/rendering/gateway.py scripts/rendering/providers.py \
   scripts/nextcloud_reconcile.py scripts/keycloak_migration.py keycloak/Dockerfile.runtime; do
   [[ -f "${ROOT_DIR}/${file}" ]] || fail "Missing Compose authority file: ${file}"
 done
@@ -81,27 +82,33 @@ require "${ROOT_DIR}/keycloak/Dockerfile.runtime" 'kc.sh build --db=postgres --v
 require "${ROOT_DIR}/compose.prod.yaml" 'target: /opt/keycloak/vault/weave_smtp-password'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'ordinary reconciliation refuses an implicit rotation'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'
-require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE'
-require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_MATRIX_FEDERATION_ENABLED'
-require "${ROOT_DIR}/scripts/render_config.py" '"WEAVE_IDENTITY_KEYCLOAK_PRIVATE_JWK_FILE"'
-require "${ROOT_DIR}/scripts/render_config.py" \
-  '"WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE"'
-reject "${ROOT_DIR}/scripts/render_config.py" \
-  'spring.security.oauth2.client.registration.weave-identity-admin.client-secret'
-require "${ROOT_DIR}/scripts/render_config.py" \
-  '"WEAVE_IDENTITY_REFERENCE_HMAC_SECRET_FILE"'
-require "${ROOT_DIR}/scripts/render_config.py" \
-  '"WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES": "weaver-runtime-workload"'
-require "${ROOT_DIR}/scripts/render_config.py" \
-  '"WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES":'
-require "${ROOT_DIR}/scripts/render_config.py" \
-  '"requiredScopes": ["files.read", "mcp.tools"]'
+
+# Spring application behavior is versioned in application.yml + application-{profile}.yml,
+# not synthesized by the infrastructure renderer.
+for profile in dev dogfood e2e prod; do
+  require "${REPO_ROOT}/server/src/main/resources/application-${profile}.yml" "on-profile: ${profile}"
+  require "${REPO_ROOT}/weave-mcp-server/src/main/resources/application-${profile}.yml" "on-profile: ${profile}"
+done
+require "${REPO_ROOT}/server/src/main/resources/application-dogfood.yml" 'issuer-uri: https://auth.weave.test/realms/weave'
+require "${REPO_ROOT}/weave-mcp-server/src/main/resources/application-dogfood.yml" 'authorization-server: https://auth.weave.test/realms/weave'
+reject "${ROOT_DIR}/scripts/render_config.py" '_backend_env'
+reject "${ROOT_DIR}/scripts/render_config.py" '_mcp_env'
+reject "${ROOT_DIR}/scripts/render_config.py" 'backend/public.env'
+reject "${ROOT_DIR}/scripts/render_config.py" 'mcp/public.env'
+
+# Runtime policy remains an infrastructure-owned deployment artifact.
+require "${ROOT_DIR}/scripts/render_config.py" '"requiredScopes": ["files.read", "mcp.tools"]'
+require "${ROOT_DIR}/scripts/render_config.py" '"credentialRefTemplate": "credentialref://weave/runtime/{cellRef}/{workloadClientId}/mcp"'
+
+# Dynamic human identity administration remains Server-only and secret references stay configtree-backed.
 require "${ROOT_DIR}/compose.yaml" \
   'file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/identity-reference-hmac-key'
-require "${ROOT_DIR}/compose.yaml" \
-  'target: identity-reference-hmac-key'
+require "${ROOT_DIR}/compose.yaml" 'target: identity-reference-hmac-key'
 [[ "$(grep -Fc 'source: identity-reference-hmac-key' "${ROOT_DIR}/compose.yaml")" == "1" ]] ||
   fail "identity-reference-hmac-key must be mounted into Weave Server exactly once"
+reject "${REPO_ROOT}/server/src/main/resources/application.yml" \
+  'spring.security.oauth2.client.registration.weave-identity-admin.client-secret'
+
 require "${REPO_ROOT}/settings.gradle" "include 'weave-application-core',"
 require "${REPO_ROOT}/settings.gradle" "'weave-persistence-jpa',"
 require "${REPO_ROOT}/settings.gradle" "'weave-runtime-security-adapters',"
@@ -115,7 +122,6 @@ require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" "'keycloak
 require "${REPO_ROOT}/server/build.gradle" 'apply from: "${projectDir}/gradle/tasks/development.gradle"'
 require "${REPO_ROOT}/server/gradle/tasks/development.gradle" "'serverDevH2Test'"
 require "${REPO_ROOT}/server/gradle/tasks/development.gradle" "'serverPostgresIntegrationTest'"
-require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'freshStartBackupRehearsal'
 require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'freshStartPlan'
 require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'freshStartApply'
 reject "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'WEAVE_ADOPTION_RECEIPT'
@@ -127,8 +133,6 @@ reject "${ROOT_DIR}/compose.yaml" '/var/run/docker.sock'
 reject "${ROOT_DIR}/compose.yaml" 'OpenProject'
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_IDENTITY_EVENTS_HMAC_SECRET'
 reject "${ROOT_DIR}/compose.yaml" 'weave/weave.identity.invitations.keycloak.client-secret'
-reject "${ROOT_DIR}/scripts/render_config.py" \
-  '"weave.identity.invitations.keycloak.client-secret": "keycloak-weave-identity-admin"'
 reject "${ROOT_DIR}/scripts/init_secrets.py" '"keycloak-weave-identity-admin",'
 require "${ROOT_DIR}/scripts/init_secrets.py" \
   '("keycloak-weave-identity-admin-jwk.json", "weave-identity-admin-current")'
