@@ -55,7 +55,7 @@ The native Files, Calendar, and Chat paths expose Weave-owned WebDAV, CalDAV, an
 
 ## What Is Guarded
 
-The active dogfood stream is evidence-driven and does not claim public production readiness, perfect lossless migration, or unrestricted autonomous agents. Optional external providers, production promotion, physical accessibility acceptance, and broad E2EE completeness claims remain guarded until their dedicated evidence gates pass.
+Weave is in active dogfood, and that stream is evidence-driven; it does not claim public production readiness, perfect lossless migration, or unrestricted autonomous agents. Optional external providers, production promotion, physical accessibility acceptance, and broad E2EE completeness claims remain guarded until their dedicated evidence gates pass. The reviewed member journey is defined in [`docs/v0.1-golden-path.md`](docs/v0.1-golden-path.md).
 
 Provider neutrality does not imply universal provider interchangeability, and perfect lossless migration is not claimed. The portability promise is no unaccounted data loss: every preserved, lossy, blocked, or provider-retained field must be explicit before a switch is approved. See the [product trust claim matrix](docs/product-trust-provider-choice-claim-matrix.md).
 
