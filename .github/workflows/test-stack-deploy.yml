@@ -316,7 +316,16 @@ jobs:
           fi
           jq -e \
             --arg source "$WEAVE_CANDIDATE_COMMIT" \
-            '.schemaVersion == "weave.fresh-start-backup-rehearsal.v1" and .candidateCommit == $source and .backupVerified == true and .isolatedRestoreVerified == true and .cleanupVerified == true and .supportSafe == true and .containsSecretValues == false' \
+            --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" '
+              .schemaVersion == "weave.fresh-start-private-backup-rehearsal.v1" and
+              .candidateCommit == $source and
+              .candidateManifestDigest == $manifest and
+              .backupVerified == true and
+              .isolatedRestoreVerified == true and
+              .cleanupVerified == true and
+              .supportSafe == true and
+              .containsSecretValues == false
+            ' \
             "$receipt" >/dev/null
           if [[ ! -s "$plan" ]]; then
             nonce="fresh-start-$(openssl rand -hex 12)"
@@ -333,7 +342,7 @@ jobs:
               --candidate-commit "$WEAVE_CANDIDATE_COMMIT" \
               --candidate-manifest-digest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
               --operation-nonce "$nonce" \
-              --recovery-decision recoverable-private-backup \
+              --recovery-decision verified-backup \
               --recovery-evidence-ref "FreshStartBackupRehearsal.json" \
               --recovery-receipt "$receipt" \
               --output "$plan"
@@ -349,7 +358,7 @@ jobs:
             echo "sha=$plan_sha"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Require reviewed Fresh Start approval
+      - name: Resolve exact destructive approval from delivery issue
         if: env.DEPLOYMENT_MODE == 'fresh-start'
         id: approval
         env:
@@ -358,15 +367,55 @@ jobs:
           set -euo pipefail
           plan="${{ steps.fresh-plan.outputs.path }}"
           plan_sha="${{ steps.fresh-plan.outputs.sha }}"
-          issue_body="$(gh api "/repos/${GITHUB_REPOSITORY}/issues/${{ github.event.issue.number || 0 }}" --jq .body 2>/dev/null || true)"
-          token="DELETE_OLD_WEAVE:sha256:${plan_sha}"
-          [[ "$issue_body" == *"$token"* ]] || {
+          comments="$RUNNER_TEMP/weave-fresh-start-comments.json"
+          token="DELETE_OLD_WEAVE:${plan_sha}"
+          umask 077
+          gh api --paginate "/repos/${GITHUB_REPOSITORY}/issues/1266/comments?per_page=100" > "$comments"
+          approval_id="$(jq -r \
+            --arg owner "$GITHUB_REPOSITORY_OWNER" \
+            --arg confirmation "$token" '
+              [ .[]
+                | select(.user.login == $owner)
+                | select((.body | split("\n") | map(gsub("^\\s+|\\s+$"; "")) | any(. == $confirmation)))
+              ][-1].id // empty
+            ' "$comments")"
+          [[ -n "$approval_id" ]] || {
             echo "::error::Fresh Start requires exact reviewed approval token $token." >&2
             exit 1
           }
-          echo "approved=true" >> "$GITHUB_OUTPUT"
+          approval="$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-approval.json"
+          APPROVAL_PATH="$approval" \
+          APPROVAL_EVIDENCE_REF="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/issues/1266#issuecomment-$approval_id" \
+          PLAN_PATH="$plan" \
+          PLAN_SHA="$plan_sha" \
+          python3 - <<'PY'
+          import importlib.util
+          import json
+          import os
+          from pathlib import Path
 
-      - name: Apply approved Fresh Start generation cut
+          source = Path("infra/weave-workspace/fresh-start.py")
+          spec = importlib.util.spec_from_file_location("fresh_start", source)
+          assert spec and spec.loader
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          plan = json.loads(Path(os.environ["PLAN_PATH"]).read_text(encoding="utf-8"))
+          payload = {
+              "schemaVersion": "weave.infra.fresh-start-approval.v1",
+              "supportSafe": True,
+              "decision": "approved",
+              "environment": plan["environment"],
+              "planSha256": os.environ["PLAN_SHA"],
+              "operationNonce": plan["operationNonce"],
+              "approverRole": "release-owner",
+              "evidenceRef": os.environ["APPROVAL_EVIDENCE_REF"],
+          }
+          Path(os.environ["APPROVAL_PATH"]).write_bytes(module.canonical_json_bytes(payload))
+          PY
+          echo "approved=true" >> "$GITHUB_OUTPUT"
+          echo "path=$approval" >> "$GITHUB_OUTPUT"
+
+      - name: Apply only the exact approved Fresh Start plan
         if: env.DEPLOYMENT_MODE == 'fresh-start' && steps.approval.outputs.approved == 'true'
         working-directory: infra/weave-workspace
         run: |
@@ -374,10 +423,10 @@ jobs:
           plan="${{ steps.fresh-plan.outputs.path }}"
           apply="$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-apply.json"
           approval="$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-approval.json"
-          jq -n --arg token "DELETE_OLD_WEAVE:sha256:${{ steps.fresh-plan.outputs.sha }}" '{schemaVersion:"weave.fresh-start-approval.v1",approved:true,token:$token,supportSafe:true,containsSecretValues:false}' > "$approval"
+          cp "${{ steps.approval.outputs.path }}" "$approval"
           ./fresh-start.py apply \
             --manifest "$plan" \
-            --confirm "DELETE_OLD_WEAVE:sha256:${{ steps.fresh-plan.outputs.sha }}" \
+            --confirm "DELETE_OLD_WEAVE:${{ steps.fresh-plan.outputs.sha }}" \
             --approval-evidence "$approval" \
             --evidence "$apply"
           export WEAVE_FRESH_START_PLAN="$plan"
@@ -385,12 +434,12 @@ jobs:
           export WEAVE_RESOURCE_GENERATION="$WEAVE_FRESH_START_TARGET_GENERATION"
           echo "WEAVE_RESOURCE_GENERATION=$WEAVE_RESOURCE_GENERATION" >> "$GITHUB_ENV"
 
-      - name: Prepare persistent resource baseline
+      - name: Capture routine persistent resource identity
         if: env.DEPLOYMENT_MODE == 'routine' || steps.approval.outputs.approved == 'true'
         working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          python3 ../../tools/dogfood_resource_continuity.py baseline \
+          python3 ../../tools/dogfood_resource_continuity.py capture \
             --compose-project "$WEAVE_COMPOSE_PROJECT" \
             --generation "$WEAVE_RESOURCE_GENERATION" \
             --database "$WEAVE_DB_DATA_VOLUME" \
@@ -404,7 +453,7 @@ jobs:
             --mailpit-certificate "$WEAVE_TLS_ROOT/mailpit-cert.pem" \
             --baseline "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-resource-baseline.json"
 
-      - name: Prove semantic candidate identity and stable dogfood realm render
+      - name: Prove canonical lifecycle convergence and stable realm artifacts
         if: env.DEPLOYMENT_MODE == 'routine' || steps.approval.outputs.approved == 'true'
         working-directory: infra/weave-workspace
         run: |

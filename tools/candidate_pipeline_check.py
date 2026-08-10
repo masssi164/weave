@@ -214,12 +214,12 @@ def main() -> int:
     ):
         require(obsolete not in deployment, f"obsolete adoption authority remains in persistent deployment: {obsolete}")
     for required in (
-        "freshStartBackupRehearsal",
-        "freshStartPlan",
+        "fresh-start-backup-rehearsal.sh",
+        "fresh-start.py plan",
         "FreshStartBackupRehearsal.json",
-        "DELETE_OLD_WEAVE:$plan_sha",
+        "DELETE_OLD_WEAVE:${plan_sha}",
         "issues/1266/comments",
-        "freshStartApply",
+        "fresh-start.py apply",
         "weave-test-stack-evidence",
         "dogfood-deployment-evidence.json",
         "test-stack-manifest.json",

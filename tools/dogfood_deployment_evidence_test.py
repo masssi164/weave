@@ -23,10 +23,19 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
     lane = "1" * 40
     source = "2" * 40
     manifest = "sha256:" + "3" * 64
-    realm_artifacts = {
-        "baselineDigest": "sha256:" + "a" * 64,
-        "migrationBundleDigest": "sha256:" + "b" * 64,
+    realm_definition = {
+        "semanticRealmSourceDigest": "sha256:" + "a" * 64,
+        "migrationDefinitionDigest": "sha256:" + "b" * 64,
         "containsSecrets": False,
+    }
+    realm_evidence = {
+        **realm_definition,
+        "overlayDigest": "sha256:" + "c" * 64,
+        "renderedRealmDigest": "sha256:" + "d" * 64,
+        "semanticReadbackDigest": "sha256:" + "e" * 64,
+        "candidateRealmDefinitionMatched": True,
+        "environmentRealmRenderStable": True,
+        "semanticReadbackVerified": True,
     }
 
     def images(self) -> dict[str, str]:
@@ -46,13 +55,13 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
 
     def cut(self) -> dict[str, object]:
         return {
-            "schemaVersion": "weave.fresh-start-cut-report.v2",
+            "schemaVersion": "weave.fresh-start-cut-report.v3",
             "laneCandidateCommit": self.lane,
             "sourceCandidateCommit": self.source,
             "candidateManifestDigest": self.manifest,
             "status": "passed",
             "schemaConverged": True,
-            "realmArtifactsVerified": True,
+            "realmEvidenceVerified": True,
             "imagesVerified": True,
             "firstOwnerBootstrapRequired": True,
             "ownerInvitationCreated": False,
@@ -88,7 +97,7 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
             run_url="https://example.invalid/runs/42",
             provider_health=health or self.health(),
             candidate_images=self.images(),
-            realm_artifacts=self.realm_artifacts,
+            realm_evidence=self.realm_evidence,
             idempotency_passed=idempotent,
             fresh_start_cut=cut,
             persistent_comparison=comparison,
@@ -103,7 +112,7 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
         self.assertFalse(evidence["deployment"]["legacyStateMigrated"])
         self.assertFalse(evidence["deployment"]["adoptionAuthorized"])
         self.assertEqual(evidence["backendBuild"]["commit"], self.source)
-        self.assertEqual(evidence["realmArtifacts"], self.realm_artifacts)
+        self.assertEqual(evidence["realmEvidence"], self.realm_evidence)
         self.assertEqual(evidence["blockers"][0]["code"], "first-owner-bootstrap-required")
 
     def test_routine_deployment_proves_new_generation_continuity(self):
@@ -129,12 +138,14 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "idempotence.json"
             evidence = {
-                "schemaVersion": "weave.persistent-test-idempotence.v3",
+                "schemaVersion": "weave.persistent-test-idempotence.v4",
                 "runtimeProfile": "dogfood",
                 "deploymentContext": "persistent-dogfood",
                 "noChanges": True,
                 "composeModelStable": True,
-                "realmArtifactsUnchanged": True,
+                "candidateRealmDefinitionMatched": True,
+                "environmentRealmRenderStable": True,
+                "semanticReadbackVerified": True,
                 "supportSafe": True,
                 "containsSecretValues": False,
             }
@@ -172,32 +183,32 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
             with self.assertRaises(module.EvidenceError):
                 module.candidate_source_mapping(path, self.lane)
 
-    def test_candidate_manifest_realm_artifacts_are_digest_bound_and_secret_free(self):
+    def test_candidate_manifest_realm_definition_is_digest_bound_and_secret_free(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "candidate-manifest.json"
             value = {
-                "schemaVersion": "weave.release.candidate-manifest.v3",
+                "schemaVersion": "weave.release.candidate-manifest.v4",
                 "supportSafe": True,
                 "commit": self.source,
                 "images": [
                     {"component": component}
                     for component in sorted(module.MANIFEST_IMAGE_COMPONENTS)
                 ],
-                "realmArtifacts": self.realm_artifacts,
+                "realmDefinition": self.realm_definition,
             }
             raw = json.dumps(value).encode("utf-8")
             path.write_bytes(raw)
             digest = "sha256:" + hashlib.sha256(raw).hexdigest()
             self.assertEqual(
-                module.candidate_manifest_realm_artifacts(path, self.source, digest),
-                self.realm_artifacts,
+                module.candidate_manifest_realm_definition(path, self.source, digest),
+                self.realm_definition,
             )
             for mutate in (
-                lambda manifest: manifest["realmArtifacts"].__setitem__(
+                lambda manifest: manifest["realmDefinition"].__setitem__(
                     "containsSecrets", True
                 ),
-                lambda manifest: manifest["realmArtifacts"].__setitem__(
-                    "baselineDigest", "sha256:not-a-digest"
+                lambda manifest: manifest["realmDefinition"].__setitem__(
+                    "semanticRealmSourceDigest", "sha256:not-a-digest"
                 ),
             ):
                 with self.subTest(mutation=mutate):
@@ -207,7 +218,7 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
                     path.write_bytes(changed_raw)
                     changed_digest = "sha256:" + hashlib.sha256(changed_raw).hexdigest()
                     with self.assertRaises(module.EvidenceError):
-                        module.candidate_manifest_realm_artifacts(
+                        module.candidate_manifest_realm_definition(
                             path, self.source, changed_digest
                         )
 
