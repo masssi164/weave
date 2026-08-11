@@ -1,6 +1,18 @@
 # Persistent dogfood overlay. Weave-native Files, Calendar, and Chat are the
 # default data plane; optional external providers are selected explicitly.
 services:
+  runtime-state-volume-init:
+    profiles: !override
+      - dogfood
+
+  runtime-state:
+    profiles: !override
+      - dogfood
+
+  runtime-state-init:
+    profiles: !override
+      - dogfood
+
   keycloak:
     command:
       - start
@@ -17,3 +29,17 @@ services:
       weave.provider-bindings.bootstrap.files.organization-ref: ${WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID:-tenant-default}
       weave.provider-bindings.bootstrap.files.adapter-key: ${WEAVE_FILES_PROVIDER:-weave-native}
       weave.provider-bindings.bootstrap.files.configuration-ref: profile:${WEAVE_FILES_PROVIDER:-weave-native}
+    depends_on:
+      runtime-state-init:
+        condition: service_completed_successfully
+    secrets:
+      - source: runtime-state-s3-access-key
+        target: weave/runtime-state-s3-access-key
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0400
+      - source: runtime-state-s3-secret-key
+        target: weave/runtime-state-s3-secret-key
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0400

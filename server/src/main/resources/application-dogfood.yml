@@ -56,6 +56,16 @@ weave:
         private-key-jwt-audience: https://auth.weave.test/realms/weave
         reference-hmac-secret-file: /run/secrets/identity-reference-hmac-key
   agent-runtime:
+    state-store:
+      enabled: true
+      wrapping-key-root: /run/secrets/agent-runtime/state-wrapping
+      endpoint: http://runtime-state:9000
+      region: us-east-1
+      bucket: weave-runtime-state
+      credential-ref: secretref://weave/runtime-state-s3
+      access-key-file: /run/secrets/weave/runtime-state-s3-access-key
+      secret-key-file: /run/secrets/weave/runtime-state-s3-secret-key
+      path-style-access: true
     profile-signing:
       enabled: true
       secret-root: /run/secrets/agent-runtime/profile-signing
