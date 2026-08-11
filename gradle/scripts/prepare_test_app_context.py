@@ -204,6 +204,7 @@ def main() -> int:
         "WEAVE_TEST_APP_PRODUCT_ORIGIN": values["WEAVE_PUBLIC_URL"],
         "WEAVE_TEST_APP_API_ORIGIN": values["WEAVE_API_ORIGIN"],
         "WEAVE_TEST_APP_ISSUER": values["WEAVE_AUTH_URL"] + "/realms/weave",
+        "WEAVE_TEST_APP_MAILPIT_ORIGIN": values["WEAVE_MAILPIT_URL"],
         "WEAVE_TEST_APP_MCP_ENDPOINT": values["WEAVE_API_ORIGIN"] + "/mcp",
         "WEAVE_TEST_APP_MAILPIT_API": (
             "http://127.0.0.1:"
