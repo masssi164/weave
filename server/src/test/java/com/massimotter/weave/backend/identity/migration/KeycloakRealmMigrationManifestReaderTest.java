@@ -21,6 +21,8 @@ class KeycloakRealmMigrationManifestReaderTest {
       "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
   private static final String MIGRATION_DEFINITION_DIGEST =
       "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+  private static final String DESIRED_STATE_DIGEST =
+      "sha256:4c08fafc5467fe2f8f521cfd31e09a40bd3fef034b93bbff43098d363f9ac57a";
 
   @TempDir Path temporary;
 
@@ -99,6 +101,33 @@ class KeycloakRealmMigrationManifestReaderTest {
   }
 
   @Test
+  void acceptsTheCurrentManifestBoundDesiredStateDigest() throws Exception {
+    Artifact artifact = writeArtifacts(validBundle("sha256:" + "e".repeat(64)));
+
+    KeycloakRealmMigrationManifestReader.MigrationBundle result =
+        new KeycloakRealmMigrationManifestReader(mapper)
+            .read(temporary, artifact.manifestDigest(), BASELINE_DIGEST, TARGET_REVISION);
+
+    assertThat(result.bundleDigest()).isEqualTo(artifact.bundleDigest());
+  }
+
+  @Test
+  void rejectsMalformedDesiredStateDigestEvenWhenFileDigestsAreRecomputed() throws Exception {
+    Artifact artifact = writeArtifacts(validBundle("not-a-digest"));
+
+    assertThatThrownBy(
+            () ->
+                new KeycloakRealmMigrationManifestReader(mapper)
+                    .read(
+                        temporary,
+                        artifact.manifestDigest(),
+                        BASELINE_DIGEST,
+                        TARGET_REVISION))
+        .isInstanceOf(KeycloakRealmMigrationException.class)
+        .hasMessage("bundle-operation-desired-state-digest-invalid");
+  }
+
+  @Test
   void rejectsSymlinkedMigrationArtifacts() throws Exception {
     Artifact artifact = writeArtifacts(validBundle());
     Path bundle = temporary.resolve(KeycloakFgapMigrationContract.BUNDLE_PATH);
@@ -154,6 +183,10 @@ class KeycloakRealmMigrationManifestReaderTest {
   }
 
   private static String validBundle() {
+    return validBundle(DESIRED_STATE_DIGEST);
+  }
+
+  private static String validBundle(String desiredStateDigest) {
     return """
         {
           "apiVersion": "weave.keycloak-realm-migration-bundle/v1",
@@ -180,7 +213,7 @@ class KeycloakRealmMigrationManifestReaderTest {
         """
         .formatted(
             BASELINE_DIGEST,
-            KeycloakFgapMigrationContract.DESIRED_STATE_DIGEST,
+            desiredStateDigest,
             TARGET_REVISION);
   }
 

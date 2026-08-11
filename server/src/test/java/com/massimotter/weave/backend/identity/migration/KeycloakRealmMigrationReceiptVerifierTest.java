@@ -22,6 +22,8 @@ class KeycloakRealmMigrationReceiptVerifierTest {
       "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   private static final String TARGET_REVISION =
       "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  private static final String DESIRED_STATE_DIGEST =
+      "sha256:4c08fafc5467fe2f8f521cfd31e09a40bd3fef034b93bbff43098d363f9ac57a";
   private static final String CANDIDATE = "c".repeat(40);
   private static final String ENVIRONMENT = "dogfood";
   private static final String COMPOSE_PROJECT = "weave-dogfood";
@@ -237,7 +239,7 @@ class KeycloakRealmMigrationReceiptVerifierTest {
         """
             .formatted(
                 BASELINE_DIGEST,
-                KeycloakFgapMigrationContract.DESIRED_STATE_DIGEST,
+                DESIRED_STATE_DIGEST,
                 TARGET_REVISION);
     Path bundlePath = temporary.resolve(KeycloakFgapMigrationContract.BUNDLE_PATH);
     Files.createDirectories(bundlePath.getParent());
