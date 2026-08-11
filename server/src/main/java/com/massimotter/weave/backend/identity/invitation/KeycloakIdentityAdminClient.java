@@ -105,7 +105,7 @@ public class KeycloakIdentityAdminClient {
                                   + first
                                   + "&max="
                                   + BOOTSTRAP_USER_PAGE_SIZE
-                                  + "&briefRepresentation=true"),
+                                  + "&briefRepresentation=false"),
                           null,
                           null,
                           200)))

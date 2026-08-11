@@ -109,7 +109,7 @@ class KeycloakIdentityAdminClientTest {
             requestTo(
                 "https://identity.internal/admin/realms/weave"
                     + "/users"
-                    + "?first=0&max=100&briefRepresentation=true"))
+                    + "?first=0&max=100&briefRepresentation=false"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(
             withSuccess(
@@ -140,7 +140,7 @@ class KeycloakIdentityAdminClientTest {
             requestTo(
                 "https://identity.internal/admin/realms/weave"
                     + "/users"
-                    + "?first=0&max=100&briefRepresentation=true"))
+                    + "?first=0&max=100&briefRepresentation=false"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(
             withSuccess(
@@ -169,14 +169,14 @@ class KeycloakIdentityAdminClientTest {
         .expect(
             requestTo(
                 "https://identity.internal/admin/realms/weave"
-                    + "/users?first=0&max=100&briefRepresentation=true"))
+                    + "/users?first=0&max=100&briefRepresentation=false"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(withSuccess(serviceAccounts(0, 100), MediaType.APPLICATION_JSON));
     provider
         .expect(
             requestTo(
                 "https://identity.internal/admin/realms/weave"
-                    + "/users?first=100&max=100&briefRepresentation=true"))
+                    + "/users?first=100&max=100&briefRepresentation=false"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(
             withSuccess(
@@ -195,13 +195,13 @@ class KeycloakIdentityAdminClientTest {
         .expect(
             requestTo(
                 "https://identity.internal/admin/realms/weave"
-                    + "/users?first=0&max=100&briefRepresentation=true"))
+                    + "/users?first=0&max=100&briefRepresentation=false"))
         .andRespond(withSuccess(serviceAccounts(0, 100), MediaType.APPLICATION_JSON));
     provider
         .expect(
             requestTo(
                 "https://identity.internal/admin/realms/weave"
-                    + "/users?first=100&max=100&briefRepresentation=true"))
+                    + "/users?first=100&max=100&briefRepresentation=false"))
         .andRespond(withSuccess(serviceAccounts(0, 1), MediaType.APPLICATION_JSON));
 
     assertThatThrownBy(client::hasHumanUsers)
@@ -219,7 +219,7 @@ class KeycloakIdentityAdminClientTest {
                   "https://identity.internal/admin/realms/weave"
                       + "/users?first="
                       + first
-                      + "&max=100&briefRepresentation=true"))
+                      + "&max=100&briefRepresentation=false"))
           .andRespond(withSuccess(serviceAccounts(first, 100), MediaType.APPLICATION_JSON));
     }
 
@@ -235,7 +235,7 @@ class KeycloakIdentityAdminClientTest {
         .expect(
             requestTo(
                 "https://identity.internal/admin/realms/weave"
-                    + "/users?first=0&max=100&briefRepresentation=true"))
+                    + "/users?first=0&max=100&briefRepresentation=false"))
         .andRespond(
             withSuccess(
                 """
@@ -255,7 +255,7 @@ class KeycloakIdentityAdminClientTest {
         .expect(
             requestTo(
                 "https://identity.internal/admin/realms/weave"
-                    + "/users?first=0&max=100&briefRepresentation=true"))
+                    + "/users?first=0&max=100&briefRepresentation=false"))
         .andRespond(
             withStatus(HttpStatus.SERVICE_UNAVAILABLE).body("provider-secret-must-not-leak"));
 
