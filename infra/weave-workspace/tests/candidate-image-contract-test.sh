@@ -99,6 +99,8 @@ reject "${RENDERER}" '"schemaVersion": "weave.compose-render.v2"'
 
 contains "${COMPOSE}" 'SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}'
 contains "${COMPOSE}" 'weave.identity.invitations.keycloak.private-key-jwt-audience: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
+contains "${COMPOSE}" 'weave.identity.invitations.keycloak.organization-id: 8f771be4-f526-5bef-97dc-00c8e2fa383d'
+contains "${COMPOSE}" 'weave.agent-runtime.workload-identity.keycloak-organization-id: 8f771be4-f526-5bef-97dc-00c8e2fa383d'
 contains "${COMPOSE}" 'weave.agent-runtime.workload-identity.issuer: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
 contains "${COMPOSE}" 'weave.security.required-audience: ${WEAVE_API_URL:?API URL required}'
 contains "${COMPOSE}" 'weave.mcp.resource-uri: ${WEAVE_API_ORIGIN:?API origin required}/mcp'
