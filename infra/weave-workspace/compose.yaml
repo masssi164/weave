@@ -1097,7 +1097,7 @@ volumes:
     name: ${WEAVE_NEXTCLOUD_DATA_VOLUME:-weave_nextcloud_data}
   runtime-state-data:
     external: true
-    name: ${WEAVE_RUNTIME_STATE_DATA_VOLUME:-weave_runtime_state_data}
+    name: ${WEAVE_RUNTIME_STATE_VOLUME:-weave_runtime_state_data}
   native-files-data:
     external: true
     name: ${WEAVE_NATIVE_FILES_DATA_VOLUME:-weave_native_files_data}
