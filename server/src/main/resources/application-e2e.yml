@@ -68,7 +68,7 @@ weave:
       endpoint: http://runtime-state:9000
       region: us-east-1
       bucket: weave-runtime-state
-      credential-ref: secretref://weave/runtime-state-s3
+      credential-ref: secretref:weave/runtime-state-s3
       access-key-file: /run/secrets/weave/runtime-state-s3-access-key
       secret-key-file: /run/secrets/weave/runtime-state-s3-secret-key
       path-style-access: true
