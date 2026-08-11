@@ -335,6 +335,25 @@ public class FilesFacadeService {
         }
     }
 
+    public DownloadedFile downloadWebDavPath(String path) {
+        String operation = "webdav-get";
+        PrincipalContext principal = requireContextPermission(ContextPermission.VIEW, operation);
+        String normalizedPath = FilePathCodec.normalizeProductPath(path);
+        try {
+            FilesProviderPort adapter = configuredAdapter(operation, principal);
+            VersionedFile item = adapter.find(new FilePath(normalizedPath))
+                    .orElseThrow(() -> new ApiErrorException(
+                            HttpStatus.NOT_FOUND,
+                            "file-not-found",
+                            "The requested file or folder was not found.",
+                            Map.of("module", "files", "operation", operation)));
+            FileContent content = adapter.read(item.item().id());
+            return new DownloadedFile(content.item().name(), content.item().mediaType(), content.bytes());
+        } catch (ApiErrorException exception) {
+            throw supportSafeStorageError(exception, operation);
+        }
+    }
+
     public void delete(String id) {
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, "delete-file");
         throw webDavWritePolicyRequired("delete-file", principal, FilePathCodec.pathFromId(id), null);
