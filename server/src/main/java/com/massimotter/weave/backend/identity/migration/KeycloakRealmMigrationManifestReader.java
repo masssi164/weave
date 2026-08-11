@@ -137,10 +137,11 @@ final class KeycloakRealmMigrationManifestReader {
     }
     JsonNode operation = operations.get(0);
     requireExactFields(operation, OPERATION_FIELDS, "bundle-operation-shape-invalid");
+    requireDigest(
+        operation.path("desiredStateDigest").asString(),
+        "bundle-operation-desired-state-digest-invalid");
     if (!"keycloak-26.7-imports-client-authorization-before-organizations"
             .equals(operation.path("blockedBy").asString())
-        || !KeycloakFgapMigrationContract.DESIRED_STATE_DIGEST.equals(
-            operation.path("desiredStateDigest").asString())
         || !"/fineGrainedAdminPermissions".equals(operation.path("desiredStatePointer").asString())
         || !KeycloakFgapMigrationContract.OPERATION_ID.equals(operation.path("id").asString())
         || !"post-realm-import".equals(operation.path("phase").asString())

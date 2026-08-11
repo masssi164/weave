@@ -18,6 +18,7 @@ import org.junit.jupiter.api.io.TempDir;
 class KeycloakRealmMigrationCliTest {
   private static final String BASELINE_DIGEST = "sha256:" + "a".repeat(64);
   private static final String TARGET_REVISION = "sha256:" + "b".repeat(64);
+  private static final String DESIRED_STATE_DIGEST = "sha256:" + "d".repeat(64);
 
   @TempDir Path temporary;
 
@@ -112,7 +113,7 @@ class KeycloakRealmMigrationCliTest {
         """
             .formatted(
                 BASELINE_DIGEST,
-                KeycloakFgapMigrationContract.DESIRED_STATE_DIGEST,
+                DESIRED_STATE_DIGEST,
                 TARGET_REVISION);
     Path bundlePath = temporary.resolve(KeycloakFgapMigrationContract.BUNDLE_PATH);
     Files.createDirectories(bundlePath.getParent());

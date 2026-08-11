@@ -22,9 +22,6 @@ final class KeycloakFgapMigrationContract {
       "keycloak/migrations/fgap-v2-primary-organization-post-import.receipt.json";
   static final String BUNDLE_PATH = "keycloak/migrations/fresh-start-v1.json";
   static final String OPERATION_ID = "fgap-v2-primary-organization-post-import";
-  static final String DESIRED_STATE_DIGEST =
-      "sha256:4c08fafc5467fe2f8f521cfd31e09a40bd3fef034b93bbff43098d363f9ac57a";
-
   static final String POLICY_NAME = "weave-identity-admin user policy";
   static final String ORGANIZATION_PERMISSION_NAME =
       "weave-identity-admin primary organization";
