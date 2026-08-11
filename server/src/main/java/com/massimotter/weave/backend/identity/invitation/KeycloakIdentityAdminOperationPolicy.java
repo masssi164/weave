@@ -31,9 +31,7 @@ final class KeycloakIdentityAdminOperationPolicy {
           rule(
               "human-user-inventory",
               Set.of(HttpMethod.GET),
-              REALM
-                  + "/users\\?first=(?:0|100|200|300|400|500|600|700|800|900)"
-                  + "&max=100&briefRepresentation=false"),
+              REALM + "/users\\?first=0&max=1&briefRepresentation=true"),
           rule(
               "member-inventory",
               Set.of(HttpMethod.GET),
