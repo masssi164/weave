@@ -429,12 +429,20 @@ def registration(
     expected_uri = (
         f"{issuer}/clients-registrations/openid-connect/{client_id}"
     )
-    if (
-        status not in {200, 201}
-        or response.get("registration_client_uri") != expected_uri
-        or not expected_uri.startswith(issuer + "/clients-registrations/openid-connect/")
+    violations: list[str] = []
+    if status not in {200, 201}:
+        violations.append(f"status-{status}")
+    if response.get("registration_client_uri") != expected_uri:
+        violations.append("registration-uri")
+    if not expected_uri.startswith(
+        issuer + "/clients-registrations/openid-connect/"
     ):
-        raise ContractError("valid DCR response did not preserve the exact workload contract")
+        violations.append("expected-uri-coordinate")
+    if violations:
+        raise ContractError(
+            "valid DCR response did not preserve the exact workload contract "
+            f"[constraints={','.join(violations)}]"
+        )
     initial_rat = exact_client_state(response, client_id, private_jwk)
     recover_endpoint = (
         f"{endpoint}/{client_id}/weave-registration-handoff/recover"
