@@ -56,7 +56,7 @@ public class BootstrapOwnerInvitationController {
     }
     MemberInvitationResponse invitation = invitations.bootstrapOwner(request, idempotencyKey);
     try {
-      credential.deleteAfterSuccess();
+      credential.consumeAfterSuccess();
     } catch (IllegalStateException unavailable) {
       throw unavailable();
     }
