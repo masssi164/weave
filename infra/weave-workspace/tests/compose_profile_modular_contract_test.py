@@ -256,7 +256,13 @@ def main() -> int:
                 isolated,
                 manifest_digest="sha256:" + "1" * 64,
                 baseline_digest="sha256:" + "2" * 64,
-                target_revision="sha256:" + "3" * 64,
+                migration_bundle={
+                    "toBaselineRevision": "sha256:" + "3" * 64,
+                    # This deliberately differs from the migration target. A
+                    # desired-state document revision is not the semantic
+                    # baseline revision bound by the receipt contract.
+                    "desiredStateRevision": "sha256:" + "4" * 64,
+                },
             )
             assert set(receipt_environment.splitlines()) == {
                 "WEAVE_KEYCLOAK_MIGRATION_BASELINE_DIGEST=sha256:" + "2" * 64,
