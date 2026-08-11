@@ -32,12 +32,31 @@ assert spec is not None and spec.loader is not None
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
-assert module.UPSTREAM_COMMIT == "6c73e3027811d9c7b22683edd825e839272e9547"
-assert module.UPSTREAM_TAG == "26.7.0"
-assert module.ARCHIVE_SHA256 == "32267c4f45db91874c46a097415c336d137ee184d25c3481a513905a92669186"
-assert module.STOCK_SERVICES_SHA256 == "052169f7907a21f4e26679bca5c7365627db91b071a7a2fcaeee00230e6b1419"
+assert module.UPSTREAM_COMMIT == "73f08b397f193712b26d317210dce99898129709"
+assert module.UPSTREAM_TAG == "26.7.1"
+assert module.ARCHIVE_SHA256 == "4ef57bbe2d97acf658b0347885a8239543af9cc27337c1bfa6ece50bfb6f9b90"
+assert module.STOCK_KEYCLOAK_INDEX_DIGEST == (
+    "sha256:f1f1f01e472c8a78df40d8f2a49a925274eda4d3d80d5f6edbb5c880ee3c01c6"
+)
+assert module.STOCK_KEYCLOAK_REFERENCE == (
+    "quay.io/keycloak/keycloak@"
+    "sha256:f1f1f01e472c8a78df40d8f2a49a925274eda4d3d80d5f6edbb5c880ee3c01c6"
+)
+assert module.STOCK_KEYCLOAK_PLATFORM == "linux/amd64"
+assert module.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST == (
+    "sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2"
+)
+assert module.STOCK_SERVICES_SHA256 == (
+    "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
+)
+assert module.PATCH_SHA256 == (
+    "4409bbf51d352179afec7668475947f3e3446dbaceb324ce282a7e1a5ce0df27"
+)
+assert module.PATCHED_SERVICES_SHA256 == (
+    "3788d01bc4a97e8c82d0ed27ccd67ff340af80e8492874678eb3bd6887b2f7e9"
+)
 specification_commit, specification_digest = module.specification_pin(repository)
-assert specification_commit == "6bbfb0ec1d85bdd9e24a9ce7785cb5c506c9edf0"
+assert specification_commit == "edf9e9c7a095aac96da4a4acb070268ef0628487"
 assert specification_digest == "sha256:" + hashlib.sha256(
     (repository / "specs/weave-specs.lock.json").read_bytes()
 ).hexdigest()
@@ -60,6 +79,60 @@ for invalid_resolution in (
         pass
     else:
         raise AssertionError("Keycloak builder accepted an invalid upstream tag resolution")
+
+valid_index = json.dumps(
+    {
+        "schemaVersion": 2,
+        "manifests": [
+            {
+                "digest": "sha256:" + "8" * 64,
+                "platform": {"os": "linux", "architecture": "arm64"},
+            },
+            {
+                "digest": module.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST,
+                "platform": {"os": "linux", "architecture": "amd64"},
+            },
+        ],
+    }
+)
+assert module.parse_stock_platform_manifest(valid_index) == (
+    module.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST
+)
+for invalid_index in (
+    "not-json",
+    "[]",
+    json.dumps({"schemaVersion": 2}),
+    json.dumps(
+        {
+            "manifests": [
+                {
+                    "digest": "sha256:" + "9" * 64,
+                    "platform": {"os": "linux", "architecture": "amd64"},
+                }
+            ]
+        }
+    ),
+    json.dumps(
+        {
+            "manifests": [
+                {
+                    "digest": module.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST,
+                    "platform": {"os": "linux", "architecture": "amd64"},
+                },
+                {
+                    "digest": module.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST,
+                    "platform": {"os": "linux", "architecture": "amd64"},
+                },
+            ]
+        }
+    ),
+):
+    try:
+        module.parse_stock_platform_manifest(invalid_index)
+    except SystemExit:
+        pass
+    else:
+        raise AssertionError("Keycloak builder accepted an invalid platform manifest")
 try:
     module.resolve_candidate(repository, "1" * 40)
 except SystemExit as failure:
@@ -81,10 +154,12 @@ projection = {
     "upstreamCommit": module.UPSTREAM_COMMIT,
     "upstreamArchiveSha256": module.ARCHIVE_SHA256,
     "stockReference": module.STOCK_KEYCLOAK_REFERENCE,
+    "stockPlatform": module.STOCK_KEYCLOAK_PLATFORM,
+    "stockPlatformManifestDigest": module.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST,
     "stockServicesJarSha256": module.STOCK_SERVICES_SHA256,
-    "patchSha256": "2" * 64,
+    "patchSha256": module.PATCH_SHA256,
     "patchedPaths": list(module.PATCHED_PATHS),
-    "patchedServicesJarSha256": "3" * 64,
+    "patchedServicesJarSha256": module.PATCHED_SERVICES_SHA256,
     "downstreamTestClasses": list(module.DOWNSTREAM_TEST_CLASSES),
     "downstreamTestCount": 12,
     "buildToolchain": {
@@ -104,9 +179,14 @@ module.atomic_write(
         "schemaVersion": "weave.downstream-keycloak-image.v1",
         "evidenceForCandidateCommit": candidate,
         "specificationCommit": specification_commit,
+        "keycloakVersion": module.UPSTREAM_TAG,
+        "upstreamTag": module.UPSTREAM_TAG,
+        "upstreamTagCommit": module.UPSTREAM_COMMIT,
         "upstreamCommit": projection["upstreamCommit"],
         "upstreamArchiveSha256": projection["upstreamArchiveSha256"],
         "stockReference": projection["stockReference"],
+        "stockPlatform": projection["stockPlatform"],
+        "stockPlatformManifestDigest": projection["stockPlatformManifestDigest"],
         "stockServicesJarSha256": projection["stockServicesJarSha256"],
         "patchSha256": projection["patchSha256"],
         "patchedPaths": projection["patchedPaths"],
@@ -167,6 +247,42 @@ assert "canonical projection digest does not match" in (
     rejected.stdout + rejected.stderr
 )
 
+platform_tampered = json.loads(json.dumps(tampered))
+platform_tampered["canonicalBuildEvidence"]["specificationLockDigest"] = (
+    projection["specificationLockDigest"]
+)
+platform_tampered["canonicalBuildEvidence"]["stockPlatformManifestDigest"] = (
+    "sha256:" + "6" * 64
+)
+platform_tampered["stockPlatformManifestDigest"] = "sha256:" + "6" * 64
+tampered_canonical = json.dumps(
+    platform_tampered["canonicalBuildEvidence"],
+    ensure_ascii=False,
+    separators=(",", ":"),
+    sort_keys=True,
+).encode("utf-8")
+platform_tampered["canonicalBuildEvidenceDigest"] = (
+    "sha256:" + hashlib.sha256(tampered_canonical).hexdigest()
+)
+module.atomic_write(evidence, platform_tampered)
+rejected = subprocess.run(
+    [
+        sys.executable,
+        str(verifier),
+        "--evidence",
+        str(evidence),
+        "--candidate-commit",
+        candidate,
+        "--specification-commit",
+        specification_commit,
+    ],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+)
+assert rejected.returncode != 0
+assert "evidence identity is inconsistent" in (rejected.stdout + rejected.stderr)
+
 patch = repository / module.PATCH_RELATIVE
 dockerfile = repository / module.DOCKERFILE_RELATIVE
 assert patch.is_file() and dockerfile.is_file()
@@ -191,9 +307,15 @@ assert "keycloak-server-spi-private" not in patch_text
 assert "rejectsUnapprovedScopesBeforeDescriptionConversion" in patch_text
 assert "rejectsAnInjectedExtraEffectiveServiceAccountRole" in patch_text
 assert "FROM ${WEAVE_KEYCLOAK_BASE} AS builder" in dockerfile_text
-assert "kc.sh build --db=postgres" in dockerfile_text
+assert "kc.sh build --db=postgres --vault=file" in dockerfile_text
 assert "com.massimotter.weave.keycloak-patch-sha256" in dockerfile_text
 assert "com.massimotter.weave.keycloak-build-evidence-digest" in dockerfile_text
+assert module.STOCK_KEYCLOAK_INDEX_DIGEST in dockerfile_text
+assert "keycloak-services-26.7.1.jar" in dockerfile_text
+assert "keycloak-26.7.1-downstream-built-in-policy" in dockerfile_text
+assert "com.massimotter.weave.keycloak-stock-index-digest" in dockerfile_text
+assert "com.massimotter.weave.keycloak-stock-platform" in dockerfile_text
+assert "com.massimotter.weave.keycloak-stock-platform-manifest-digest" in dockerfile_text
 first_from = dockerfile_text.index("FROM ${WEAVE_KEYCLOAK_BASE}")
 second_from = dockerfile_text.index("FROM ${WEAVE_KEYCLOAK_BASE}", first_from + 1)
 assert second_from < dockerfile_text.index(
@@ -201,7 +323,7 @@ assert second_from < dockerfile_text.index(
 )
 assert "com.massimotter.weave.spec-digest" in dockerfile_text
 
-services = temporary / "keycloak-services-26.7.0.jar"
+services = temporary / "keycloak-services-26.7.1.jar"
 services.write_bytes(b"fixture")
 context = temporary / "prepared-context"
 module.prepare_build_context(context, services, dockerfile)

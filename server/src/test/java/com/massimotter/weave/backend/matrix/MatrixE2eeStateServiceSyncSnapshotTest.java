@@ -2,10 +2,11 @@ package com.massimotter.weave.backend.matrix;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -14,7 +15,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
 class MatrixE2eeStateServiceSyncSnapshotTest {
 
@@ -27,13 +27,8 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
         Map<String, Object> encryptedContent = Map.of(
                 "algorithm", "m.olm.v1.curve25519-aes-sha2",
                 "ciphertext", Map.of("opaque-recipient-key", olmEnvelope));
-        Map<String, Object> request = Map.of(
-                "messages", Map.of(target.userId(), Map.of(target.deviceId(), encryptedContent)));
-        service.sendToDevice(
-                sender,
-                "m.room.encrypted",
-                "txn-room-key",
-                request);
+        service.sendToDevice(sender, "m.room.encrypted", "txn-room-key",
+                Map.of("messages", Map.of(target.userId(), Map.of(target.deviceId(), encryptedContent))));
 
         var queued = service.supportSafeToDeviceEvidence();
         assertThat(queued.contractVersion()).isEqualTo("matrix-to-device-proof-v1");
@@ -43,13 +38,13 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
         assertThat(queued.olmPreKeyEnvelopeCount()).isEqualTo(1);
         assertThat(queued.olmExistingSessionEnvelopeCount()).isZero();
         assertThat(queued.targetedDeviceCount()).isEqualTo(1);
-        assertThat(queued.projectedEventCount()).isZero();
+        assertThat(queued.projectedToDeviceEventCount()).isZero();
         assertThat(queued.supportSafe()).isTrue();
 
         assertThat(service.sync(target, 0).toDeviceEvents()).hasSize(1);
         var projected = service.supportSafeToDeviceEvidence();
-        assertThat(projected.projectedEventCount()).isEqualTo(1);
-        assertThat(projected.syncResponseCount()).isEqualTo(1);
+        assertThat(projected.projectedToDeviceEventCount()).isEqualTo(1);
+        assertThat(projected.syncResponsesWithToDeviceEvents()).isEqualTo(1);
     }
 
     @Test
@@ -71,16 +66,14 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
                             sender,
                             "m.room_key",
                             "txn-" + index,
-                            Map.of("messages", Map.of(
-                                    target.userId(),
-                                    Map.of(target.deviceId(), Map.of("index", index)))));
+                            Map.of("messages", Map.of(target.userId(), Map.of(target.deviceId(), Map.of("index", index)))));
                 }
                 publishing.set(false);
             });
             Future<?> observer = executor.submit(() -> {
                 await(start);
                 while (publishing.get()) {
-                    assertCompleteSnapshot(service.sync(target, 0));
+                    assertSnapshotDoesNotSkip(service.sync(target, 0));
                     Thread.yield();
                 }
             });
@@ -89,30 +82,47 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
             publisher.get(8, TimeUnit.SECONDS);
             observer.get(8, TimeUnit.SECONDS);
 
-            MatrixProtocolCoreService.MatrixSyncCrypto completed = service.sync(target, 0);
-            assertCompleteSnapshot(completed);
-            assertThat(completed.nextSequence()).isEqualTo(eventCount);
-            assertThat(completed.toDeviceEvents()).hasSize(eventCount);
-            assertThat(service.sync(target, completed.nextSequence()).toDeviceEvents()).isEmpty();
-            assertThat(service.combinedCursor("chat-cursor", completed.nextSequence()))
-                    .isEqualTo("chat-cursor|e2ee:" + eventCount);
+            MatrixE2eeStateService.E2eeSyncCursor cursor = new MatrixE2eeStateService.E2eeSyncCursor(0, 0);
+            Set<Integer> deliveredIndexes = new HashSet<>();
+            while (deliveredIndexes.size() < eventCount) {
+                MatrixProtocolCoreService.MatrixSyncCrypto page = service.sync(
+                        target,
+                        cursor.toDeviceSequence(),
+                        cursor.deviceListSequence(),
+                        null);
+                assertThat(page.toDeviceEvents()).hasSizeLessThanOrEqualTo(100);
+                assertThat(page.nextSequence()).isGreaterThanOrEqualTo(cursor.toDeviceSequence()).isLessThanOrEqualTo(eventCount);
+                for (Map<String, Object> event : page.toDeviceEvents()) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> content = (Map<String, Object>) event.get("content");
+                    deliveredIndexes.add((Integer) content.get("index"));
+                }
+                String encoded = service.combinedCursor("chat-cursor", page);
+                cursor = service.cryptoCursor(encoded);
+                if (page.toDeviceEvents().isEmpty()) break;
+            }
+
+            assertThat(deliveredIndexes).containsExactlyInAnyOrderElementsOf(java.util.stream.IntStream.range(0, eventCount).boxed().toList());
+            assertThat(cursor.toDeviceSequence()).isEqualTo(eventCount);
+            assertThat(service.sync(target, cursor.toDeviceSequence(), cursor.deviceListSequence(), null).toDeviceEvents()).isEmpty();
+            assertThat(service.combinedCursor("chat-cursor", new MatrixE2eeStateService.E2eeSyncCursor(eventCount, eventCount)))
+                    .isEqualTo("chat-cursor|e2ee:v2:" + eventCount + ":" + eventCount);
         } finally {
             executor.shutdownNow();
-            assertThat(executor.awaitTermination(Duration.ofSeconds(2).toMillis(), TimeUnit.MILLISECONDS))
-                    .isTrue();
+            assertThat(executor.awaitTermination(Duration.ofSeconds(2).toMillis(), TimeUnit.MILLISECONDS)).isTrue();
         }
     }
 
-    private void assertCompleteSnapshot(MatrixProtocolCoreService.MatrixSyncCrypto snapshot) {
+    private void assertSnapshotDoesNotSkip(MatrixProtocolCoreService.MatrixSyncCrypto snapshot) {
         assertThat(snapshot.nextSequence()).isBetween(0L, 500L);
-        assertThat(snapshot.toDeviceEvents()).hasSize(Math.toIntExact(snapshot.nextSequence()));
+        assertThat(snapshot.toDeviceEvents()).hasSizeLessThanOrEqualTo(100);
+        if (!snapshot.toDeviceEvents().isEmpty()) {
+            assertThat(snapshot.nextSequence()).isPositive();
+        }
     }
 
     private MatrixE2eeStateService service() {
-        StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        return new MatrixE2eeStateService(
-                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
-                beans.getBeanProvider(MatrixE2eeSnapshotStore.class));
+        return new MatrixE2eeStateService(new InMemoryMatrixE2eeRelationalStore());
     }
 
     private MatrixFacadeClientStateService.MatrixIdentity identity(String userId, String deviceId) {
@@ -126,9 +136,7 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
 
     private void await(CountDownLatch latch) {
         try {
-            if (!latch.await(2, TimeUnit.SECONDS)) {
-                throw new AssertionError("The concurrent Matrix E2EE test did not start.");
-            }
+            if (!latch.await(2, TimeUnit.SECONDS)) throw new AssertionError("The concurrent Matrix E2EE test did not start.");
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new AssertionError("The concurrent Matrix E2EE test was interrupted.", exception);

@@ -42,12 +42,12 @@ for name in sorted(REQUIRED_ARTIFACTS):
     artifacts.append({"path": name, "kind": EXPECTED_ARTIFACT_KINDS[name], "sha256": checksum, "bytes": size})
 manifest = {
     "schemaVersion": "weave.compose-private-backup.v3",
-    "backupId": f"weave-test-20260722T120000Z-{candidate[:12]}",
+    "backupId": f"weave-dogfood-20260722T120000Z-{candidate[:12]}",
     "createdAt": "2026-07-22T12:00:00Z",
     "candidateCommit": candidate,
     "candidateManifestDigest": "sha256:" + "d" * 64,
-    "profile": "test",
-    "composeProject": "weave-test",
+    "profile": "dogfood",
+    "composeProject": "weave-dogfood",
     "databaseFingerprint": "sha256:" + "b" * 64,
     "postgresDumpClientImage": "postgres@sha256:" + "c" * 64,
     "postgresDatabases": ["postgres", "weave_backend", "weave_keycloak"],
@@ -106,7 +106,7 @@ if WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true bash "${SCRIPT}" "${backup_dir}" >/tm
   echo "restore-smoke accepted a backup directory with a missing postgres.sql" >&2
   exit 1
 fi
-grep -Fq "required private backup artifact is missing or unsafe" /tmp/restore-smoke-missing.out || {
+grep -Fq "backup artifact inventory does not exactly match the private artifact files" /tmp/restore-smoke-missing.out || {
   echo "restore-smoke missing-artifact failure was not actionable" >&2
   cat /tmp/restore-smoke-missing.out >&2
   exit 1

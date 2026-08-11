@@ -20,17 +20,17 @@ Feature: Weave v0.1 dogfood production release
     And provider diagnostics stay in admin/operator health surfaces
     And removed Calendar and Deck member routes are absent instead of hidden behind redirects
 
-  @weave-v01-dogfood-member-invite-activation
-  Scenario: Dogfood member invite activation reaches the workspace
-    Given an admin has provisioned a dogfood member invite without passwords, bearer tokens, provider payloads, or raw secrets
-    And the persistent human dogfood member is separate from the disposable automation user
+  @weave-v01-dogfood-owner-invite-activation
+  Scenario: Dogfood first-owner invite activation reaches the workspace
+    Given the bounded Weave Server bootstrap has provisioned a first-owner Organizations invitation without passwords, bearer tokens, provider payloads, or raw secrets
+    And the persistent human dogfood owner is separate from the disposable automation user
     And the identity provider sends the initial credential setup mail into the local dogfood Mailpit inbox
     When the member completes Keycloak activation in the system browser
     And opens the same secret-free organization access through the email completion link, QR code, or server URI
     And the Organisation access screen offers Sign In
     And the member taps Sign In, completes OIDC Authorization Code with PKCE, and returns to Weave
     Then Weave records support-safe handoff_ready, ready_for_sso, sso_in_progress, authenticated, workspace_bootstrap_loading, and workspace_ready evidence
-    And the same dogfood member evidence proves Chat and Files are usable after login
+    And the same dogfood owner evidence proves Chat and Files are usable after login
     And the authenticated session is restored after force-quit and reopen
     And trust-preserving app-state reset plus manual sign-in from the saved organization configuration reaches the workspace
     And Mailpit is reachable on the iPhone through the private HTTPS dogfood URL and captures identity mail without external delivery
@@ -39,19 +39,6 @@ Feature: Weave v0.1 dogfood production release
     And disposable live-stack E2E cannot remove the persistent dogfood identity or inbox
     And dogfood trust evidence proves stable local TLS certificates, stable iOS signing/provisioning, and no repeated Developer App trust prompt after normal update or app-state reset
     And no member-visible state leaks raw provider errors, setup internals, tokens, credentials, or secret references
-
-  @weave-v01-lost-pending-identity-retirement
-  Scenario: Lost never-activated dogfood identity requires protected retirement
-    Given no integrity-checked database backup is identity-restorable for the recorded human subject
-    And any restored disposable bootstrap identity is uniquely proven and removed through Keycloak
-    And the recorded human dogfood subject has accepted evidence only in the pending activation state
-    And the current realm contains no matching or ambiguous identity
-    When an operator explicitly approves retiring that lost pending identity
-    Then the previous raw subject is archived only in private operator recovery state
-    And one new pending identity is created through the Keycloak administration boundary
-    And shared evidence contains only the previous and replacement subject hashes and approval reference
-    And readiness remains blocked until backup restore smoke repeated deployment activation and member verification pass
-    But an active disabled ambiguous or insufficiently evidenced subject is never replaced
 
   @weave-v01-admin-provider-categories
   Scenario: Admin sees provider categories before member use

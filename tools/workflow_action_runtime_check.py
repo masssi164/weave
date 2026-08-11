@@ -64,7 +64,8 @@ def load_manifest(path: Path) -> dict[str, ActionPin]:
             raise PolicyError(f"{pin.action} release is not an exact semantic version tag")
         if pin.runtime not in SUPPORTED_RUNTIMES:
             raise PolicyError(f"{pin.action} uses unsupported runtime {pin.runtime!r}")
-        if pin.source != f"https://github.com/{pin.action}":
+        repository = "/".join(pin.action.split("/")[:2])
+        if pin.source != f"https://github.com/{repository}":
             raise PolicyError(f"{pin.action} source must identify its canonical GitHub repository")
         pins[pin.action] = pin
     if not pins:

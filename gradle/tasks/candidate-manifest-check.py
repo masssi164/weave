@@ -13,8 +13,12 @@ from urllib.parse import urlsplit
 REQUIRED_COMPONENTS = {
     "server",
     "mcp-server",
-    "identity-ops",
     "keycloak-runtime",
+}
+REALM_DEFINITION_FIELDS = {
+    "semanticRealmSourceDigest",
+    "migrationDefinitionDigest",
+    "containsSecrets",
 }
 SHA256 = re.compile(r"sha256:[0-9a-f]{64}")
 IMAGE = re.compile(r"[^\s@:]+(?:/[^\s@:]+)+@sha256:[0-9a-f]{64}")
@@ -52,7 +56,7 @@ def main() -> None:
 
     raw = args.manifest.read_bytes()
     payload = json.loads(raw)
-    if payload.get("schemaVersion") != "weave.release.candidate-manifest.v2":
+    if payload.get("schemaVersion") != "weave.release.candidate-manifest.v4":
         fail("unsupported schemaVersion")
     if payload.get("supportSafe") is not True:
         fail("manifest must declare supportSafe=true")
@@ -66,6 +70,19 @@ def main() -> None:
         fail("specDigest must be exact")
     if not support_safe_https(payload.get("buildEvidenceRef")):
         fail("buildEvidenceRef must be a support-safe HTTPS URL")
+    realm_definition = payload.get("realmDefinition")
+    if (
+        not isinstance(realm_definition, dict)
+        or set(realm_definition) != REALM_DEFINITION_FIELDS
+        or not SHA256.fullmatch(
+            str(realm_definition.get("semanticRealmSourceDigest", ""))
+        )
+        or not SHA256.fullmatch(
+            str(realm_definition.get("migrationDefinitionDigest", ""))
+        )
+        or realm_definition.get("containsSecrets") is not False
+    ):
+        fail("realmDefinition must bind exact secret-free semantic source and migration definition digests")
 
     images = payload.get("images")
     if not isinstance(images, list):

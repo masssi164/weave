@@ -16,20 +16,25 @@ CHECK = ROOT / "tools" / "dogfood_activation_mail_check.py"
 
 
 class DogfoodActivationMailCheckTest(unittest.TestCase):
-    def test_accepts_persistent_member_activation_evidence(self) -> None:
+    def test_accepts_bounded_first_owner_activation_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             email = "human@example.test"
             evidence = self._write_json(
-                tmp_path / "persistent-member.json",
+                tmp_path / "first-owner.json",
                 {
-                    "schemaVersion": "weave.dogfood.persistent-member.v1",
-                    "state": "pending",
-                    "action": "activation_resent",
+                    "schemaVersion": "weave-owner-bootstrap-evidence-v2",
+                    "requestedRole": "owner",
+                    "lifecycleStatus": "pending",
+                    "mailMessageMatched": True,
+                    "bootstrapAuthorityAbsent": True,
+                    "bootstrapMountAbsent": True,
+                    "requestAnchorPresent": True,
+                    "tokenAbsent": True,
                     "emailSha256": hashlib.sha256(email.encode("utf-8")).hexdigest(),
                     "activation": {
-                        "mode": "keycloak-required-actions-email",
-                        "requiredActions": ["VERIFY_EMAIL", "UPDATE_PASSWORD"],
+                        "mode": "keycloak-organizations-invitation",
+                        "requiredActions": [],
                         "mailSent": True,
                     },
                     "qrOrDeeplinkCarriesSecret": False,

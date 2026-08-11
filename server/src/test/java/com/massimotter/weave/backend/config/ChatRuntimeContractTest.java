@@ -7,18 +7,19 @@ import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ChatRuntimeContractTest {
 
     @Test
-    void applicationConfigurationUsesOnlyTheStableSynapseApplicationServiceContract() throws IOException {
+    void applicationConfigurationDefaultsToNativeAndKeepsMatrixSecretsOptional() throws IOException {
         Path resource = Files.isRegularFile(Path.of("src/main/resources/application-base.yml"))
                 ? Path.of("src/main/resources/application-base.yml")
                 : Path.of("server/src/main/resources/application-base.yml");
         String configuration = Files.readString(resource);
 
         assertThat(configuration)
-                .contains("${WEAVE_CHAT_PROVIDER:matrix-synapse}")
+                .contains("${WEAVE_CHAT_PROVIDER:weave-native}")
                 .doesNotContain("WEAVE_CHAT_STORAGE_MODE")
                 .contains("${WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL:}")
                 .contains("${WEAVE_CHAT_MATRIX_SERVER_NAME:}")
@@ -28,6 +29,17 @@ class ChatRuntimeContractTest {
                 .contains("${WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE:}")
                 .doesNotContain("WEAVE_CHAT_MATRIX_AS_TOKEN:")
                 .doesNotContain("WEAVE_CHAT_MATRIX_HS_TOKEN:");
+    }
+
+    @Test
+    void runtimePropertiesDefaultToNativeAndRejectUnknownProviders() {
+        ChatRuntimeProperties defaults = new ChatRuntimeProperties(null, null);
+
+        assertThat(defaults.provider()).isEqualTo(ChatRuntimeProperties.WEAVE_NATIVE_PROVIDER);
+        assertThat(defaults.weaveNativeSelected()).isTrue();
+        assertThatThrownBy(() -> new ChatRuntimeProperties("unknown-provider", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported Chat provider");
     }
 
     @Test

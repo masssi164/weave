@@ -2,12 +2,10 @@ package com.massimotter.weave.backend.matrix;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
 class MatrixE2eeStateServiceSignatureMergeTest {
 
@@ -73,8 +71,7 @@ class MatrixE2eeStateServiceSignatureMergeTest {
         Map<String, Object> response = service.queryKeys(owner, Map.of(
                 "device_keys", Map.of(owner.userId(), List.of())));
         Map<String, Object> queriedMaster = objectMap(objectMap(response.get("master_keys")).get(owner.userId()));
-        Map<String, Object> ownerSignatures = objectMap(
-                objectMap(queriedMaster.get("signatures")).get(owner.userId()));
+        Map<String, Object> ownerSignatures = objectMap(objectMap(queriedMaster.get("signatures")).get(owner.userId()));
 
         assertThat(queriedMaster)
                 .containsEntry("usage", masterKey.get("usage"))
@@ -85,9 +82,7 @@ class MatrixE2eeStateServiceSignatureMergeTest {
     }
 
     private MatrixE2eeStateService service() {
-        return new MatrixE2eeStateService(
-                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
-                new StaticListableBeanFactory().getBeanProvider(MatrixE2eeSnapshotStore.class));
+        return new MatrixE2eeStateService(new InMemoryMatrixE2eeRelationalStore());
     }
 
     private MatrixFacadeClientStateService.MatrixIdentity identity(String userId, String deviceId) {
@@ -103,9 +98,7 @@ class MatrixE2eeStateServiceSignatureMergeTest {
         return Map.of(
                 "user_id", identity.userId(),
                 "device_id", identity.deviceId(),
-                "algorithms", List.of(
-                        "m.olm.v1.curve25519-aes-sha2",
-                        "m.megolm.v1.aes-sha2"),
+                "algorithms", List.of("m.olm.v1.curve25519-aes-sha2", "m.megolm.v1.aes-sha2"),
                 "keys", Map.of(
                         "curve25519:" + identity.deviceId(), "curve25519-public-key",
                         "ed25519:" + identity.deviceId(), "ed25519-public-key"),
@@ -120,8 +113,7 @@ class MatrixE2eeStateServiceSignatureMergeTest {
             MatrixFacadeClientStateService.MatrixIdentity owner) {
         Map<String, Object> response = service.queryKeys(observer, Map.of(
                 "device_keys", Map.of(owner.userId(), List.of())));
-        return objectMap(objectMap(objectMap(response.get("device_keys")).get(owner.userId()))
-                .get(owner.deviceId()));
+        return objectMap(objectMap(objectMap(response.get("device_keys")).get(owner.userId())).get(owner.deviceId()));
     }
 
     @SuppressWarnings("unchecked")

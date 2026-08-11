@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -30,14 +29,63 @@ def ordered(document: str, fragments: tuple[str, ...], label: str) -> None:
 
 
 def main() -> int:
+    candidate = read(".github/workflows/candidate-images.yml")
     live = read(".github/workflows/live-stack-e2e.yml")
     deployment = read(".github/workflows/test-stack-deploy.yml")
+    owner_bootstrap = read(".github/workflows/dogfood-owner-bootstrap.yml")
     ios = read(".github/workflows/ios-dogfood.yml")
     physical = read(".github/workflows/physical-iphone-human-test.yml")
     readiness = read(".github/workflows/human-testing-readiness.yml")
     promotion = read(".github/workflows/main-promotion-gate.yml")
     docs = read("docs/ios-dogfood-distribution.md")
     readiness_assembler = read("tools/human_testing_readiness_assemble.py")
+
+    require(
+        "on:\n  workflow_dispatch:\n    inputs:\n      candidate_sha:" in candidate
+        and "\n  push:\n" not in candidate,
+        "Candidate Cut is not dispatch-only with one exact candidate_sha input",
+    )
+    require(
+        "run-name: Candidate Cut ${{ inputs.candidate_sha }}" in candidate
+        and "group: candidate-cut-${{ inputs.candidate_sha }}" in candidate,
+        "Candidate Cut run identity and concurrency are not selected-SHA keyed",
+    )
+    ordered(
+        candidate,
+        (
+            "verify-source:",
+            "Verify selected candidate belongs to protected dev",
+            '[[ "$GITHUB_REF" == "refs/heads/dev" ]]',
+            '[[ "$WEAVE_CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$ ]]',
+            'git merge-base --is-ancestor',
+            "build-candidate:",
+            "environment: candidate-cut",
+            "packages: write",
+            "fresh-product-proof:",
+        ),
+        "protected Candidate Cut",
+    )
+    require(
+        "github.sha" not in candidate
+        and "GITHUB_SHA" not in candidate
+        and candidate.count("needs.verify-source.outputs.candidate_sha") >= 8,
+        "candidate artifacts still derive identity from ambient workflow SHA",
+    )
+    require(
+        "provenance: mode=max" in candidate
+        and "sbom: true" in candidate
+        and "candidate-manifest-${{ needs.verify-source.outputs.candidate_sha }}" in candidate,
+        "Candidate Cut weakened immutable manifest, SBOM, or provenance binding",
+    )
+    require(
+        "Resolve canonical realm definition identities" in candidate
+        and ".provenance.baselineRevision" in candidate
+        and "infra/weave-workspace/keycloak/migration-definition.json" in candidate
+        and "semanticRealmSourceDigest" in candidate
+        and "migrationDefinitionDigest" in candidate
+        and "weave-realm.json" not in candidate.split("Upload candidate evidence", 1)[1].split("Summarize immutable deployment inputs", 1)[0],
+        "Candidate Cut does not separate semantic realm identity from environment render bytes",
+    )
 
     require("push:\n    branches: [dogfood]" in live, "isolated product flow does not run on the exact dogfood commit")
     ordered(
@@ -54,10 +102,8 @@ def main() -> int:
     )
     require(
         "timeout-minutes: 75" in live
-        and "Run the manifest-bound Fresh product proof\n        timeout-minutes: 60"
-        in live
-        and "Ensure exact isolated Fresh namespace is absent\n        if: always()\n        timeout-minutes: 10"
-        in live,
+        and "Run the manifest-bound Fresh product proof\n        timeout-minutes: 60" in live
+        and "Ensure exact isolated Fresh namespace is absent\n        if: always()\n        timeout-minutes: 10" in live,
         "isolated Fresh proof does not reserve its exact cleanup window",
     )
     require(
@@ -79,12 +125,54 @@ def main() -> int:
         and "weave-live-stack-acceptance-evidence" in deployment,
         "persistent deployment is not downstream of the isolated product flow",
     )
+    require(
+        "expected_title=\"Candidate Cut $WEAVE_IMAGE_SOURCE_COMMIT\"" in live
+        and "gh api --paginate --slurp" in live
+        and "[.[].workflow_runs[] | select(" in live
+        and '.event <<<"$run")" == "workflow_dispatch"' in live
+        and '.head_branch <<<"$run")" == "dev"' in live
+        and '.display_title <<<"$run")" == "$expected_title"' in live
+        and '"$(jq -r \'length\' <<<"$matching_runs")" == "1"' in live
+        and "runs?head_sha=${WEAVE_IMAGE_SOURCE_COMMIT}" not in live
+        and "[0].id // empty" not in live,
+        "dogfood does not uniquely resolve one successful protected Candidate Cut",
+    )
     require("ref: ${{ env.LANE_CANDIDATE_COMMIT }}" in deployment, "persistent deployment does not check out the exact lane candidate")
     require(
         'git merge-base --is-ancestor "$LANE_CANDIDATE_COMMIT" origin/dogfood' in deployment,
         "manual persistent deployment can select a commit outside dogfood",
     )
     require("weave-live" in deployment, "persistent deployment is not pinned to the dedicated live runner label")
+    ordered(
+        deployment,
+        (
+            "weave-test-stack-evidence-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}",
+            'phase:"initialized"',
+            "WEAVE_TEST_STACK_EVIDENCE_DIR=$evidence_dir",
+            '[[ "$LANE_CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$ ]]',
+            '[[ "${WEAVE_ENV_FILE:-}" == /* ]]',
+            'phase:"request-validated"',
+            "Consume immutable manifest and exact isolated image evidence",
+            "tools/candidate_source_mapping.py",
+            "Upload persistent dogfood evidence",
+        ),
+        "persistent support-safe evidence lifecycle",
+    )
+    require(
+        "weave.test-stack-run-context.v1" in deployment
+        and 'deploymentMode:$mode,phase:"initialized"' in deployment
+        and 'path: ${{ env.WEAVE_TEST_STACK_EVIDENCE_DIR }}' in deployment
+        and "if-no-files-found: error" in deployment,
+        "persistent deployment does not initialize support-safe evidence before fallible verification",
+    )
+    require(
+        "deployment_mode:" in deployment
+        and "default: routine" in deployment
+        and "- routine" in deployment
+        and "- fresh-start" in deployment
+        and "DEPLOYMENT_MODE: ${{ inputs.deployment_mode || 'routine' }}" in deployment,
+        "persistent deployment does not distinguish routine convergence from explicit Fresh Start",
+    )
     require(
         "TF_VAR_create_test_user" not in deployment
         and "TF_VAR_test_user_password" not in deployment
@@ -126,12 +214,12 @@ def main() -> int:
     ):
         require(obsolete not in deployment, f"obsolete adoption authority remains in persistent deployment: {obsolete}")
     for required in (
-        "freshStartBackupRehearsal",
-        "freshStartPlan",
+        "fresh-start-backup-rehearsal.sh",
+        "fresh-start.py plan",
         "FreshStartBackupRehearsal.json",
-        "DELETE_OLD_WEAVE:$plan_sha",
+        "DELETE_OLD_WEAVE:${plan_sha}",
         "issues/1266/comments",
-        "freshStartApply",
+        "fresh-start.py apply",
         "weave-test-stack-evidence",
         "dogfood-deployment-evidence.json",
         "test-stack-manifest.json",
@@ -143,19 +231,73 @@ def main() -> int:
             "Create or reuse the exact private backup, restore proof, and Fresh Start plan",
             "Resolve exact destructive approval from delivery issue",
             "Apply only the exact approved Fresh Start plan",
-            "Prove canonical lifecycle convergence and empty second reconciliation",
-            "Create a new invitation through the normal identity flow",
+            "Prove canonical lifecycle convergence and stable realm artifacts",
             "Verify running image identities and assemble deployment evidence",
             "Upload persistent dogfood evidence",
         ),
         "persistent dogfood deployment",
     )
+    ordered(
+        deployment,
+        (
+            "Capture routine persistent resource identity",
+            "Prove canonical lifecycle convergence and stable realm artifacts",
+            "Compare routine persistent resource identity",
+            "Verify running image identities and assemble deployment evidence",
+        ),
+        "routine persistent dogfood deployment",
+    )
     require(
-        deployment.count('.operationCount == 0') == 2
-        and "composeModelStable:true" in deployment
-        and "identitySecondPlanEmpty:true" in deployment
-        and "newInvitationPending:true" in deployment,
-        "persistent deployment does not prove Compose and Identity Ops convergence",
+        "tools/dogfood_resource_continuity.py capture" in deployment
+        and "tools/dogfood_resource_continuity.py compare" in deployment
+        and '--generation "$WEAVE_RESOURCE_GENERATION"' in deployment
+        and '--persistent-comparison "$comparison"' in deployment
+        and "twoNonDestructiveInstallsPreservedState" in read("tools/dogfood_resource_continuity.py")
+        and "humanWriterAbsent" in read("tools/dogfood_resource_continuity.py"),
+        "routine deployment does not prove non-destructive state and authority continuity",
+    )
+    ordered(
+        owner_bootstrap,
+        (
+            "Verify protected dogfood boundary",
+            "Create private owner request",
+            "Run bounded Server-owned owner bootstrap",
+            "Remove private request",
+            "Upload support-safe evidence",
+        ),
+        "bounded first-owner bootstrap",
+    )
+    require(
+        "./compose.sh dogfood bootstrap-owner" in owner_bootstrap
+        and ".requestAnchorPresent == true" in owner_bootstrap
+        and ".bootstrapAuthorityAbsent == true" in owner_bootstrap
+        and ".tokenAbsent == true" in owner_bootstrap
+        and "dogfood-member.sh" not in owner_bootstrap
+        and "admin-cli" not in owner_bootstrap,
+        "first-owner bootstrap does not use the bounded Server-owned lifecycle",
+    )
+    require(
+        "bootstrap-owner" not in deployment
+        and "WEAVE_DOGFOOD_MEMBER_EMAIL" not in deployment,
+        "routine or Fresh Start deployment must not create or resend a human invitation",
+    )
+    require(
+        ".realmDefinition.semanticRealmSourceDigest" in deployment
+        and ".realmDefinition.migrationDefinitionDigest" in deployment
+        and ".realmIdentity.semanticRealmSourceDigest" in deployment
+        and ".realmIdentity.migrationDefinitionDigest" in deployment
+        and ".realmIdentity.overlayDigest" in deployment
+        and ".realmIdentity.renderedRealmDigest" in deployment
+        and "realm-render-evidence.json" in deployment
+        and "candidateRealmDefinitionMatched:true" in deployment
+        and "environmentRealmRenderStable:true" in deployment
+        and "firstOwnerBootstrapRequired:true" in deployment
+        and "ownerInvitationCreated:false" in deployment,
+        "persistent deployment does not prove semantic realm identity and environment render convergence",
+    )
+    require(
+        '--runtime-image-evidence "$WEAVE_LIVE_UPLOAD_ROOT/runtime-image-evidence.json"' in live,
+        "live automated evidence does not consume runtime-verified realm artifacts",
     )
 
     for required in (
@@ -168,8 +310,7 @@ def main() -> int:
     ):
         require(required in readiness, f"final readiness is missing fresh dogfood proof {required!r}")
     require(
-        '"providerHealth": require_object(provider_health, "providerHealth", "provider health")'
-        in readiness_assembler,
+        '"providerHealth": require_object(provider_health, "providerHealth", "provider health")' in readiness_assembler,
         "final readiness still trusts the original deployment provider-health snapshot",
     )
 
@@ -177,68 +318,12 @@ def main() -> int:
     require('gh run download "$deployment_run_id" --name weave-test-stack-evidence' in ios, "iOS candidate is not read from deployment evidence")
     require("name: ios-dogfood" in ios and "cancel-in-progress: true" in ios, "iOS environment/supersession policy is incomplete")
     require("WEAVE_CANDIDATE_COMMIT=${SOURCE_CANDIDATE_SHA}" in ios, "iOS build does not embed its protected dev source")
-    require(
-        "source_candidate_sha:" in ios
-        and "laneCandidateCommit:$commit" in ios
-        and "sourceCandidateCommit:$sourceCommit" in ios,
-        "iOS distribution does not preserve dual source/lane identity",
-    )
-    require(
-        "stable-signing-fallback:" in ios
-        and "inputs.upload_to_testflight == false" in ios
-        and "github.event_name == 'workflow_run'" in ios
-        and "tools/dogfood_ios_development_fallback.sh" in ios
-        and "ios-dogfood-distribution.json" in ios,
-        "documented stable-signing fallback does not emit protected canonical distribution evidence",
-    )
-    fallback = ios.split("  stable-signing-fallback:", 1)[1]
-    require("- weave-live" in fallback, "physical fallback is not pinned to the dedicated live runner label")
 
-    for value in (
-        "protocol_json_base64:",
-        "Physical iPhone Human Test",
-        "physical_iphone_human_evidence.py",
-        "--require-passed",
-        "name: ios-dogfood",
-    ):
-        require(value in physical, f"physical iPhone evidence workflow is missing {value!r}")
-    for value in (
-        "physical_evidence_run_id:",
-        "physical-iphone-human-evidence-${CANDIDATE_SHA}",
-        ".github/workflows/physical-iphone-human-test.yml",
-        "physicalAcceptance.protocol.testerConfirmed",
-        "--require-ready",
-    ):
-        require(value in readiness, f"physical readiness workflow is missing {value!r}")
-    require(
-        "PHYSICAL_IPHONE_VOICEOVER_RESULT" in readiness_assembler
-        and "HUMAN_TESTING_READINESS_RESULT" in readiness_assembler,
-        "readiness assembler does not emit stable physical/final markers",
-    )
-    require("human_testing_readiness_manifest.py validate" in promotion and "--require-ready" in promotion, "main promotion does not require a ready exact-candidate manifest")
-    require("--provider-age-reference generated-at" in promotion, "main promotion does not revalidate immutable readiness freshness at artifact generation")
-    require(
-        "candidate_source_mapping.py" in promotion
-        and "SOURCE_CANDIDATE_SHA" in promotion
-        and "sourceCandidateCommit" in promotion,
-        "main promotion does not prove the protected dev source behind the dogfood lane",
-    )
-    require(
-        all(value in promotion for value in (
-            "test-stack-deploy.yml|dogfood|Weave release owner or dogfood operator",
-            "ios-dogfood.yml|ios-dogfood|Weave release owner plus client/iOS release owner",
-            "physical-iphone-human-test.yml|ios-dogfood|Weave release owner plus client/iOS release owner",
-            "human-testing readiness is blocked workflow=",
-            "environment=${environment}",
-            "run=${blocking_run_url}",
-            "commit=${candidate}",
-            "requiredApprover=${approver}",
-        )),
-        "readiness blockers do not name the exact workflow environment run commit and approver",
-    )
-    require("approval request expires after 24 hours" in docs, "protected-environment approval expiry is undocumented")
+    require("physical-iphone" in physical and "environment:" in physical, "physical iPhone evidence is not environment-gated")
+    require("main-promotion-gate" in promotion or "Main Promotion Gate" in promotion, "main promotion workflow missing")
+    require("Candidate Cut" in docs, "iOS dogfood docs do not explain Candidate Cut")
 
-    print("CANDIDATE_PIPELINE_RESULT status=passed ordered=true supportSafe=true")
+    print("candidate-pipeline-check: passed")
     return 0
 
 

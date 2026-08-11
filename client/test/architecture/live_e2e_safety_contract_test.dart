@@ -70,7 +70,7 @@ void main() {
 
   test('Matrix crypto still has one explicit sync and store owner', () {
     final source = File(
-      '../rust/matrix-core/src/flutter_crypto.rs',
+      '../rust/matrix-client/src/flutter_crypto.rs',
     ).readAsStringSync();
     final syncCycle = source.substring(
       source.indexOf('async fn complete_sync_cycle('),

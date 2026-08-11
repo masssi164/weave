@@ -27,8 +27,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
-import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({
@@ -51,15 +49,6 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
       @Qualifier("fileRuntimeWorkloadCredentialStore") SecretRefAccess secrets) {
     return new SpringSecurityKeycloakAdminAccessTokenProvider(
         properties.workloadAdminTokenSettings(), secrets);
-  }
-
-  @Bean
-  KeycloakAdminAccessTokenProvider keycloakAgentRuntimeEntitlementAccessTokenProvider(
-      AgentRuntimeWorkloadIdentityProperties properties,
-      OAuth2AuthorizedClientManager authorizedClients,
-      OAuth2AuthorizedClientService authorizedClientService) {
-    return new SpringAuthorizedClientKeycloakAccessTokenProvider(
-        properties.entitlementClientId(), authorizedClients, authorizedClientService);
   }
 
   @Bean
@@ -93,7 +82,7 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
   KeycloakRuntimeIdentityAuthority runtimeIdentityAuthority(
       AgentRuntimeWorkloadIdentityProperties properties,
       AgentRuntimeEntitlementProperties entitlement,
-      @Qualifier("keycloakAgentRuntimeEntitlementAccessTokenProvider")
+      @Qualifier(KeycloakAdminClientConfiguration.KEYCLOAK_ADMIN_ACCESS_TOKENS)
           KeycloakAdminAccessTokenProvider accessTokens,
       ObjectMapper objectMapper) {
     return new KeycloakRuntimeIdentityAuthority(

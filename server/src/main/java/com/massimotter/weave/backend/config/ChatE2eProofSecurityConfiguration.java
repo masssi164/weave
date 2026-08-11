@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.config;
 import com.massimotter.weave.backend.chat.e2e.ChatE2eProofAuthenticationFilter;
 import com.massimotter.weave.backend.chat.e2e.ChatE2eProofSecrets;
 import com.massimotter.weave.backend.chat.provider.synapse.MatrixApplicationServiceSecrets;
+import java.util.Optional;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -25,10 +26,11 @@ public class ChatE2eProofSecurityConfiguration {
     @Bean
     ChatE2eProofSecrets chatE2eProofSecrets(
             ChatE2eProofProperties properties,
-            MatrixApplicationServiceSecrets applicationServiceSecrets) {
+            Optional<MatrixApplicationServiceSecrets> applicationServiceSecrets) {
         properties.requiredRunId();
         ChatE2eProofSecrets secrets = new ChatE2eProofSecrets(properties);
-        if (secrets.conflictsWith(applicationServiceSecrets)) {
+        if (applicationServiceSecrets.isPresent()
+                && secrets.conflictsWith(applicationServiceSecrets.orElseThrow())) {
             throw new IllegalStateException("The Chat E2E proof token must be distinct from Application Service tokens.");
         }
         return secrets;

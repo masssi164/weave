@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/live-stack-e2e.yml"
 CANDIDATE_WORKFLOW = ROOT / ".github/workflows/candidate-images.yml"
 DOGFOOD_DEPLOY_WORKFLOW = ROOT / ".github/workflows/test-stack-deploy.yml"
-DOGFOOD_MEMBER_WORKFLOW = ROOT / ".github/workflows/dogfood-member.yml"
+DOGFOOD_OWNER_WORKFLOW = ROOT / ".github/workflows/dogfood-owner-bootstrap.yml"
 IOS_DOGFOOD_WORKFLOW = ROOT / ".github/workflows/ios-dogfood.yml"
 PERSISTENT_RESOURCE_GUARD = ROOT / "tools/persistent_dogfood_resource_guard.sh"
 TEST_APP = ROOT / "gradle/tasks/test-app.sh"
@@ -25,7 +25,7 @@ def main() -> int:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     candidate_workflow = CANDIDATE_WORKFLOW.read_text(encoding="utf-8")
     deployment = DOGFOOD_DEPLOY_WORKFLOW.read_text(encoding="utf-8")
-    member = DOGFOOD_MEMBER_WORKFLOW.read_text(encoding="utf-8")
+    owner = DOGFOOD_OWNER_WORKFLOW.read_text(encoding="utf-8")
     ios = IOS_DOGFOOD_WORKFLOW.read_text(encoding="utf-8")
     guard = PERSISTENT_RESOURCE_GUARD.read_text(encoding="utf-8")
     test_app = TEST_APP.read_text(encoding="utf-8")
@@ -49,11 +49,27 @@ def main() -> int:
     positions = [workflow.index(step) for step in ordered_steps]
     require(positions == sorted(positions), "product-flow stages are misordered")
 
-    for document in (workflow, deployment, member, ios):
+    for document in (workflow, deployment, owner, ios):
         require(
             "group: weave-live-mac-mini-exclusive" in document,
             "all Mac runner mutators must share the exclusive lock",
         )
+    for marker in (
+        "./compose.sh dogfood bootstrap-owner",
+        "--request-file",
+        ".bootstrapAuthorityAbsent == true",
+        ".bootstrapMountAbsent == true",
+        ".requestAnchorPresent == true",
+        ".tokenAbsent == true",
+        "Remove private request",
+    ):
+        require(marker in owner, f"bounded owner bootstrap is missing {marker!r}")
+    require(
+        "dogfood-member.sh" not in owner
+        and "admin-cli" not in owner
+        and "WEAVE_KEYCLOAK_ADMIN_PASSWORD" not in owner,
+        "owner bootstrap must not restore the retired direct Keycloak writer",
+    )
     require(
         "cancel-in-progress: false" in workflow,
         "the destructive live workflow must not be cancelled mid-cleanup",
@@ -123,7 +139,7 @@ def main() -> int:
     )
     require(
         "WEAVE_EXPECTED_E2E_NAMESPACE" in workflow
-        and "infra/weave-workspace/teardown.sh test" in workflow
+        and "infra/weave-workspace/teardown.sh e2e" in workflow
         and "cleanup_test_app_runtime.py" in workflow
         and 'label=com.docker.compose.project=$namespace' in workflow
         and workflow.count('label=com.massimotter.weave.namespace=$namespace') == 2
@@ -133,7 +149,7 @@ def main() -> int:
         "workflow-level recovery must teardown and prove the exact isolated namespace absent",
     )
     for marker in (
-        '"weave.test-app-product-flow/v1"',
+        '"weave.test-app-product-flow/v2"',
         '"keycloak-required-actions-real-chromium"',
         '"authorization_code_pkce_s256"',
         '"client_credentials_private_key_jwt"',
@@ -142,27 +158,31 @@ def main() -> int:
         ".actionLinksIncluded == false",
         ".supportSafe == true",
         ".collaboration.repeatCount == 2",
-        ".directSynapseVerified == true",
+        '.selectedProviders == {"chat":"weave-native","files":"weave-native","calendar":"weave-native"}',
+        ".nativePersistenceVerified == true",
+        ".idempotencyVerified == true",
+        ".southboundProviderDependencyObserved == false",
         "human_testing_automated_evidence.py live",
+        '--runtime-image-evidence "$WEAVE_LIVE_UPLOAD_ROOT/runtime-image-evidence.json"',
     ):
         require(marker in workflow, f"support-safe evidence gate is missing {marker!r}")
     require(
         'component_ref server' in workflow
         and 'component_ref mcp-server' in workflow
-        and 'component_ref identity-ops' in workflow
         and 'component_ref keycloak-runtime' in workflow
+        and 'component_ref identity-ops' not in workflow
         and '[[ "$image" == *@sha256:* ]]' in workflow,
         "all runtime images must come from the immutable candidate manifest",
     )
     require(
-        candidate_workflow.count("platforms: linux/amd64") == 4
+        candidate_workflow.count("platforms: linux/amd64") == 3
         and "DOCKER_DEFAULT_PLATFORM: linux/amd64" in workflow
         and "DOCKER_DEFAULT_PLATFORM: linux/amd64" in deployment
         and 'docker pull --platform "$DOCKER_DEFAULT_PLATFORM" "$image"'
         in workflow
         and "{{.Os}}/{{.Architecture}}" in workflow
         and '"$DOCKER_DEFAULT_PLATFORM" ]]' in workflow,
-        "the ARM64 Live runner must pull and run the four AMD64 candidate images explicitly",
+        "the ARM64 Live runner must pull and run the three AMD64 candidate images explicitly",
     )
     require(
         workflow.count("persistent_dogfood_resource_guard.sh") == 2

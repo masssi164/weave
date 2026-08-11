@@ -163,7 +163,7 @@ jobs:
             ([.images | to_entries[] | {key:.key, value:.value.expectedImageId}] | from_entries)
               == $deployment[0].candidateImages
           ' "$source_manifest" >/dev/null || {
-            echo "::error::Deployment documents disagree on the four candidate images." >&2
+            echo "::error::Deployment documents disagree on the three candidate images." >&2
             exit 1
           }
 
@@ -248,12 +248,12 @@ jobs:
             ' build/evidence/live/human-testing-live-automated-evidence.json >/dev/null
           jq -e --slurpfile deployment build/evidence/deployment/test-stack-manifest.json '
             .candidateManifestDigest == $deployment[0].candidateManifestDigest and
+            .realmArtifacts == $deployment[0].realmArtifacts and
             .images.server == $deployment[0].images.backend.reference and
             .images["mcp-server"] == $deployment[0].images.mcp.reference and
-            .images["identity-ops"] == $deployment[0].images["identity-ops"].reference and
             .images["keycloak-runtime"] == $deployment[0].images.keycloak.reference
           ' build/evidence/live/human-testing-live-automated-evidence.json >/dev/null || {
-            echo "::error::Live automation evidence is not bound to the deployed manifest and four images." >&2
+            echo "::error::Live automation evidence is not bound to the deployed manifest, realm artifacts, and three images." >&2
             exit 1
           }
           echo "SPEC_CORPUS_COMMIT=$spec_commit" >> "$GITHUB_ENV"
