@@ -122,6 +122,19 @@ class FilesFacadeServiceTest {
     }
 
     @Test
+    void webDavDownloadResolvesThePathToItsCanonicalFileId() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        StubAdapter adapter = new StubAdapter(true);
+        FilesFacadeService service = service(adapter);
+
+        var downloaded = service.downloadWebDavPath("/Team/readme.md");
+
+        assertThat(downloaded.filename()).isEqualTo("readme.md");
+        assertThat(downloaded.content()).isEqualTo("aaaaaaaaaaaa".getBytes(StandardCharsets.UTF_8));
+        assertThat(adapter.lastReadId).isEqualTo("files:/Team/readme.md");
+    }
+
+    @Test
     void webDavPropfindReturnsWeaveMetadataWithoutPerChildVersionLookups() {
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
         StubAdapter adapter = new StubAdapter(true);
@@ -839,6 +852,7 @@ class FilesFacadeServiceTest {
         private String deletedPath;
         private String copiedPath;
         private String movedPath;
+        private String lastReadId;
         private int listWithVersionTokenCalls;
         private int versionTokenCalls;
 
@@ -909,7 +923,16 @@ class FilesFacadeServiceTest {
 
         @Override
         public FileContent read(FileId id) {
-            throw new UnsupportedOperationException("not needed");
+            lastReadId = id.value();
+            if (!lastReadId.startsWith("files:")) {
+                throw new IllegalArgumentException("canonical file id is required");
+            }
+            String path = lastReadId.substring("files:".length());
+            byte[] content = contentByPath.get(path);
+            if (content == null) {
+                throw new IllegalArgumentException("file content is missing");
+            }
+            return new FileContent(file(path, content), content);
         }
 
         @Override
