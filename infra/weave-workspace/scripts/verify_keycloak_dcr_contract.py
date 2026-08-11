@@ -576,8 +576,12 @@ def run(args: argparse.Namespace) -> None:
         issuer,
     )
     admin_token = token_response.get("access_token")
-    if status != 200 or not isinstance(admin_token, str):
-        raise ContractError("runtime administration authority is not exact")
+    if status != 200:
+        raise ContractError(
+            f"runtime administration private-key authentication was rejected with HTTP {status}"
+        )
+    if not isinstance(admin_token, str):
+        raise ContractError("runtime administration token response is malformed")
     try:
         admin_realm_roles, admin_client_roles = (
             oauth_probe.access_token_role_projection(admin_token)
@@ -591,7 +595,15 @@ def run(args: argparse.Namespace) -> None:
         or admin_client_roles
         != {"realm-management": {"create-client"}}
     ):
-        raise ContractError("runtime administration authority is not exact")
+        realm_projection = ",".join(sorted(admin_realm_roles)) or "none"
+        client_projection = ",".join(
+            f"{client_id}:[{','.join(sorted(roles))}]"
+            for client_id, roles in sorted(admin_client_roles.items())
+        ) or "none"
+        raise ContractError(
+            "runtime administration authority is not exact "
+            f"(realm={realm_projection}; clients={client_projection})"
+        )
     if (
         oauth_probe.administration_read_probe_status(
             base, args.realm, "clients", admin_token
