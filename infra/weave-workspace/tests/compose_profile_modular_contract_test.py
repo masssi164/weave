@@ -218,6 +218,8 @@ def main() -> int:
     }
     rendered = _desired(canonical, overlay)
     assert "groups" not in rendered
+    assert rendered["realm"]["smtp"] == {"host": "mailpit", "port": 1025}
+    assert "smtpServer" not in rendered["realm"]
     try:
         _desired({**canonical, "groups": []}, overlay)
     except ContractError:
