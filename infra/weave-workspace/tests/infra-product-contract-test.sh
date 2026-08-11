@@ -38,15 +38,15 @@ require "${ROOT_DIR}/compose.yaml" 'profiles: *application-profiles'
 require "${ROOT_DIR}/compose.yaml" 'POSTGRES_PASSWORD_FILE: /run/secrets/postgres-admin-password'
 require "${ROOT_DIR}/compose.yaml" 'SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/'
 require "${ROOT_DIR}/compose.yaml" \
-  'WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
+  'weave.identity.invitations.keycloak.private-key-jwt-audience: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
 require "${ROOT_DIR}/compose.yaml" \
-  'WEAVE_AGENT_RUNTIME_ISSUER: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
+  'weave.agent-runtime.workload-identity.issuer: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
 require "${ROOT_DIR}/compose.yaml" \
-  'WEAVE_OIDC_REQUIRED_AUDIENCE: ${WEAVE_API_URL:?API URL required}'
+  'weave.security.required-audience: ${WEAVE_API_URL:?API URL required}'
 require "${ROOT_DIR}/compose.yaml" \
-  'WEAVE_MCP_RESOURCE_URI: ${WEAVE_API_ORIGIN:?API origin required}/mcp'
+  'weave.mcp.resource-uri: ${WEAVE_API_ORIGIN:?API origin required}/mcp'
 require "${ROOT_DIR}/compose.yaml" \
-  'WEAVE_MCP_AUTHORIZATION_SERVER: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
+  'weave.mcp.authorization-server: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
 python3 - "${ROOT_DIR}/compose.yaml" <<'PY'
 import re
 import sys
@@ -66,13 +66,13 @@ def service(name: str) -> str:
 schema = service("schema-init")
 backend = service("backend")
 mcp = service("mcp")
-assert "WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE:" in backend
-assert "WEAVE_AGENT_RUNTIME_ISSUER:" in backend
-assert "WEAVE_OIDC_REQUIRED_AUDIENCE:" in backend
-assert "WEAVE_MCP_RESOURCE_URI:" in mcp
-assert "WEAVE_MCP_AUTHORIZATION_SERVER:" in mcp
-assert "WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE:" not in schema
-assert "WEAVE_MCP_RESOURCE_URI:" not in backend
+assert "weave.identity.invitations.keycloak.private-key-jwt-audience:" in backend
+assert "weave.agent-runtime.workload-identity.issuer:" in backend
+assert "weave.security.required-audience:" in backend
+assert "weave.mcp.resource-uri:" in mcp
+assert "weave.mcp.authorization-server:" in mcp
+assert "weave.identity.invitations.keycloak.private-key-jwt-audience:" not in schema
+assert "weave.mcp.resource-uri:" not in backend
 PY
 require "${ROOT_DIR}/compose.yaml" \
   'target: /run/secrets/identity-admin/weave-identity-admin-private-jwk.json'

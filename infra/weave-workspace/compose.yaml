@@ -893,17 +893,17 @@ services:
         condition: service_completed_successfully
     environment:
       SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}
-      WEAVE_OIDC_REQUIRED_AUDIENCE: ${WEAVE_API_URL:?API URL required}
-      WEAVE_PUBLIC_BASE_URL: ${WEAVE_PUBLIC_URL:?public URL required}
-      WEAVE_API_BASE_URL: ${WEAVE_API_URL:?API URL required}
-      WEAVE_AUTH_BASE_URL: ${WEAVE_AUTH_URL:?auth URL required}
-      WEAVE_MATRIX_HOMESERVER_URL: ${WEAVE_MATRIX_URL:?Matrix URL required}
-      WEAVE_FILES_PRODUCT_URL: ${WEAVE_PUBLIC_URL:?public URL required}/files
-      WEAVE_CALENDAR_PRODUCT_URL: ${WEAVE_PUBLIC_URL:?public URL required}/calendar
-      WEAVE_NEXTCLOUD_PUBLIC_BASE_URL: ${WEAVE_FILES_URL:?files URL required}
-      WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
-      WEAVE_AGENT_RUNTIME_ISSUER: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
-      WEAVE_OIDC_ISSUER_URI: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
+      spring.security.oauth2.resourceserver.jwt.issuer-uri: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
+      weave.security.required-audience: ${WEAVE_API_URL:?API URL required}
+      weave.platform.public-base-url: ${WEAVE_PUBLIC_URL:?public URL required}
+      weave.platform.api-base-url: ${WEAVE_API_URL:?API URL required}
+      weave.platform.auth-base-url: ${WEAVE_AUTH_URL:?auth URL required}
+      weave.platform.matrix-homeserver-url: ${WEAVE_MATRIX_URL:?Matrix URL required}
+      weave.platform.files-product-url: ${WEAVE_PUBLIC_URL:?public URL required}/files
+      weave.platform.calendar-product-url: ${WEAVE_PUBLIC_URL:?public URL required}/calendar
+      weave.platform.nextcloud-base-url: ${WEAVE_FILES_URL:?files URL required}
+      weave.identity.invitations.keycloak.private-key-jwt-audience: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
+      weave.agent-runtime.workload-identity.issuer: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${WEAVE_BACKEND_DB_NAME:-weave_backend}
       SPRING_DATASOURCE_USERNAME: ${WEAVE_BACKEND_DB_USERNAME:-weave_backend}
       SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/,optional:configtree:/run/secrets/providers/
@@ -1025,11 +1025,11 @@ services:
         condition: service_completed_successfully
     environment:
       SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}
-      WEAVE_OIDC_ISSUER_URI: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
-      WEAVE_MCP_RESOURCE_URI: ${WEAVE_API_ORIGIN:?API origin required}/mcp
-      WEAVE_MCP_RESOURCE_METADATA_URI: ${WEAVE_API_ORIGIN:?API origin required}/.well-known/oauth-protected-resource/mcp
-      WEAVE_MCP_AUTHORIZATION_SERVER: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
-      WEAVE_MCP_BACKEND_RESOURCE_URI: ${WEAVE_API_URL:?API URL required}
+      spring.security.oauth2.resourceserver.jwt.issuer-uri: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
+      weave.mcp.resource-uri: ${WEAVE_API_ORIGIN:?API origin required}/mcp
+      weave.mcp.resource-metadata-uri: ${WEAVE_API_ORIGIN:?API origin required}/.well-known/oauth-protected-resource/mcp
+      weave.mcp.authorization-server: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
+      weave.mcp.backend-resource-uri: ${WEAVE_API_URL:?API URL required}
     volumes:
       - type: bind
         source: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-mcp-server-jwk.json
