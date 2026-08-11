@@ -98,6 +98,11 @@ reject "${RENDERER}" '"realmArtifacts": {'
 reject "${RENDERER}" '"schemaVersion": "weave.compose-render.v2"'
 
 contains "${COMPOSE}" 'SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}'
+contains "${COMPOSE}" 'WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
+contains "${COMPOSE}" 'WEAVE_AGENT_RUNTIME_ISSUER: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
+contains "${COMPOSE}" 'WEAVE_OIDC_REQUIRED_AUDIENCE: ${WEAVE_API_URL:?API URL required}'
+contains "${COMPOSE}" 'WEAVE_MCP_RESOURCE_URI: ${WEAVE_API_ORIGIN:?API origin required}/mcp'
+contains "${COMPOSE}" 'WEAVE_MCP_AUTHORIZATION_SERVER: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
 reject "${COMPOSE}" '/backend/public.env'
 reject "${COMPOSE}" '/mcp/public.env'
 
