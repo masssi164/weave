@@ -568,6 +568,7 @@ def project_realm(
     # permission to every organization.
     _validate_deferred_fgap(desired, organization_ids, client_ids)
     users: list[dict[str, object]] = []
+    client_scope_mappings: dict[str, list[dict[str, object]]] = {}
     for grant in desired.get("serviceAccountRoleGrants", []):
         if not isinstance(grant, dict):
             raise RealmProjectionError("service-account role grant is malformed")
@@ -587,6 +588,17 @@ def project_realm(
                 "enabled": True,
                 "serviceAccountClientId": client_id,
                 "username": f"service-account-{client_id}",
+            }
+        )
+        # fullScopeAllowed=false is mandatory. Keycloak therefore intersects
+        # the service-account assignment above with this client's allowed role
+        # scope before issuing tokens or evaluating Admin REST authority. In
+        # Keycloak's realm-import shape the map key owns the role, while the
+        # nested `client` identifies the scope container receiving it.
+        client_scope_mappings.setdefault("realm-management", []).append(
+            {
+                "client": client_id,
+                "roles": sorted(realm_management_roles),
             }
         )
     actions = desired.get("requiredActions")
@@ -619,6 +631,13 @@ def project_realm(
         },
         "clientPolicies": policies,
         "clientProfiles": profiles,
+        "clientScopeMappings": {
+            role_client: sorted(
+                mappings,
+                key=lambda mapping: str(mapping["client"]),
+            )
+            for role_client, mappings in sorted(client_scope_mappings.items())
+        },
         "clientScopes": projected_scopes,
         "clients": projected_clients,
         "duplicateEmailsAllowed": bool(realm.get("duplicateEmailsAllowed", False)),

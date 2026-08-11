@@ -312,6 +312,18 @@ def run() -> None:
     assert first["organizations"][0]["id"] == deterministic_organization_id(
         "organization:weave-primary"
     )
+    assert first["clientScopeMappings"] == {
+        "realm-management": [
+            {
+                "client": "weave-agent-runtime-admin",
+                "roles": ["create-client"],
+            },
+            {
+                "client": "weave-identity-admin",
+                "roles": ["query-organizations", "query-users"],
+            },
+        ]
+    }
     assert "admin-permissions" not in {
         client["clientId"] for client in first["clients"]
     }, "blocked organization FGAP must not be projected as a misleading client import"
