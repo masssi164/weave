@@ -90,14 +90,20 @@ def assert_native_collaboration_restart_is_bounded(context) -> None:
     original_compose = compose_runtime_module._bounded_collaboration_compose
     original_healthy = compose_runtime_module._await_healthy
     deadlines: list[float] = []
+    restarted_services: list[str] = []
 
     def snapshot(_context, service, *, include_stopped=False, deadline=None):
         del include_stopped
-        assert service in {"postgres", "backend"}
+        assert service in {"postgres", "keycloak", "backend"}
         assert deadline is not None
         deadlines.append(deadline)
+        container_ids = {
+            "postgres": "a" * 64,
+            "keycloak": "c" * 64,
+            "backend": "b" * 64,
+        }
         return {
-            "containerId": "a" * 64 if service == "postgres" else "b" * 64,
+            "containerId": container_ids[service],
             "startedAt": "before",
             "restartCount": 0,
             "running": True,
@@ -108,13 +114,19 @@ def assert_native_collaboration_restart_is_bounded(context) -> None:
         del capture
         assert arguments[0] == "restart"
         deadlines.append(deadline)
+        restarted_services.append(arguments[-1])
         return subprocess.CompletedProcess(arguments, 0)
 
     def healthy(_context, service, deadline=None):
         assert deadline is not None
         deadlines.append(deadline)
+        container_ids = {
+            "postgres": "a" * 64,
+            "keycloak": "c" * 64,
+            "backend": "b" * 64,
+        }
         return {
-            "containerId": "a" * 64 if service == "postgres" else "b" * 64,
+            "containerId": container_ids[service],
             "startedAt": "after",
             "restartCount": 1,
             "running": True,
@@ -132,7 +144,8 @@ def assert_native_collaboration_restart_is_bounded(context) -> None:
         compose_runtime_module._service_snapshot = original_snapshot
         compose_runtime_module._bounded_collaboration_compose = original_compose
         compose_runtime_module._await_healthy = original_healthy
-    assert len(deadlines) == 6
+    assert len(deadlines) == 9
+    assert restarted_services == ["postgres", "keycloak", "backend"]
     assert len(set(deadlines)) == 1
     assert time.monotonic() < deadlines[0] <= (
         time.monotonic()

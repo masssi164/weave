@@ -1209,6 +1209,7 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
         return
     if operation == "restart-collaboration":
         postgres_before = _service_snapshot(context, "postgres", deadline=deadline)
+        keycloak_before = _service_snapshot(context, "keycloak", deadline=deadline)
         backend_before = _service_snapshot(context, "backend", deadline=deadline)
         _bounded_collaboration_compose(
             context,
@@ -1220,6 +1221,20 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
             "postgres",
         )
         postgres_after = _await_healthy(context, "postgres", deadline)
+        # Keycloak retains a JDBC pool to PostgreSQL. A green management
+        # endpoint alone does not prove those pre-restart connections are
+        # usable, so restart the dependent identity process before exercising
+        # the post-restart browser login.
+        _bounded_collaboration_compose(
+            context,
+            deadline,
+            "restart",
+            "--no-deps",
+            "--timeout",
+            "20",
+            "keycloak",
+        )
+        keycloak_after = _await_healthy(context, "keycloak", deadline)
         _bounded_collaboration_compose(
             context,
             deadline,
@@ -1233,6 +1248,8 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
         if (
             postgres_after["containerId"] != postgres_before["containerId"]
             or postgres_after["startedAt"] == postgres_before["startedAt"]
+            or keycloak_after["containerId"] != keycloak_before["containerId"]
+            or keycloak_after["startedAt"] == keycloak_before["startedAt"]
             or backend_after["containerId"] != backend_before["containerId"]
             or backend_after["startedAt"] == backend_before["startedAt"]
         ):
@@ -1241,7 +1258,7 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
             )
         print(
             "WEAVE_COLLABORATION_RESTART_RESULT backend=healthy "
-            "postgres=healthy providerDependency=false supportSafe=true"
+            "keycloak=healthy postgres=healthy providerDependency=false supportSafe=true"
         )
         return
     raise ContractError("unsupported isolated collaboration control operation")
