@@ -213,6 +213,8 @@ services:
       - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/certs/ca.pem:ro
       - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/cert.pem:/certs/cert.pem:ro
       - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/key.pem:/certs/key.pem:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/mailpit-cert.pem:/certs/mailpit-cert.pem:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/mailpit-key.pem:/certs/mailpit-key.pem:ro
       - caddy-data:/data
       - caddy-config:/config
     healthcheck:

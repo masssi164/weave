@@ -12,6 +12,13 @@ grep -Fq \
 grep -Fq \
   '${WEAVE_TLS_ROOT:-./.generated/dev/tls}/mailpit-key.pem:/run/mailpit/tls/key.pem:ro' \
   "${ROOT_DIR}/compose.yaml"
+caddy_service="$(sed -n '/^  caddy:/,/^  keycloak:/p' "${ROOT_DIR}/compose.yaml")"
+grep -Fq \
+  '${WEAVE_TLS_ROOT:-./.generated/dev/tls}/mailpit-cert.pem:/certs/mailpit-cert.pem:ro' \
+  <<<"${caddy_service}"
+grep -Fq \
+  '${WEAVE_TLS_ROOT:-./.generated/dev/tls}/mailpit-key.pem:/certs/mailpit-key.pem:ro' \
+  <<<"${caddy_service}"
 grep -Fq \
   '${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/opt/weave/trust/ca.pem:ro' \
   "${ROOT_DIR}/compose.yaml"
