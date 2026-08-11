@@ -245,6 +245,8 @@ main() {
   local failed_markers="${OUTPUT_DIR}/failed-markers.json"
   local private_status="${OUTPUT_DIR}/private-raw-logs-status.txt"
   local schema_init_diagnostic="${OUTPUT_DIR}/one-shot/schema-init.log"
+  local native_files_volume_init_diagnostic="${OUTPUT_DIR}/one-shot/native-files-volume-init.log"
+  local keycloak_migration_receipt_diagnostic="${OUTPUT_DIR}/one-shot/keycloak-realm-migration-receipt-check.log"
   local runtime_state_diagnostic="${OUTPUT_DIR}/runtime/runtime-state.log"
   local runtime_state_volume_init_diagnostic="${OUTPUT_DIR}/one-shot/runtime-state-volume-init.log"
   local runtime_state_init_diagnostic="${OUTPUT_DIR}/one-shot/runtime-state-init.log"
@@ -256,6 +258,10 @@ main() {
   write_failed_markers "${failed_markers}"
   write_redacted_container_diagnostic \
     "${RESOURCE_PREFIX}-schema-init" "${schema_init_diagnostic}"
+  write_redacted_container_diagnostic \
+    "${RESOURCE_PREFIX}-native-files-volume-init" "${native_files_volume_init_diagnostic}"
+  write_redacted_container_diagnostic \
+    "${RESOURCE_PREFIX}-keycloak-realm-migration-receipt-check" "${keycloak_migration_receipt_diagnostic}"
   write_redacted_container_diagnostic \
     "${RESOURCE_PREFIX}-runtime-state" "${runtime_state_diagnostic}"
   write_redacted_container_diagnostic \
@@ -296,6 +302,8 @@ This directory is support-safe by default. It intentionally does not dump raw co
 - Support-safe backend readiness state: \`health-checks/backend-readiness.json\`
 - Failed or missing acceptance markers: \`failed-markers.json\`
 - Redacted schema initializer diagnostic: \`one-shot/schema-init.log\`
+- Redacted native Files volume initializer diagnostic: \`one-shot/native-files-volume-init.log\`
+- Redacted Keycloak migration receipt diagnostic: \`one-shot/keycloak-realm-migration-receipt-check.log\`
 - Redacted RuntimeState process diagnostic: \`runtime/runtime-state.log\`
 - Redacted RuntimeState volume initializer diagnostic: \`one-shot/runtime-state-volume-init.log\`
 - Redacted RuntimeState initializer diagnostic: \`one-shot/runtime-state-init.log\`
@@ -320,6 +328,8 @@ MD
     printf '  "backendReadiness": "health-checks/backend-readiness.json",\n'
     printf '  "failedMarkers": "failed-markers.json",\n'
     printf '  "schemaInitDiagnostic": "one-shot/schema-init.log",\n'
+    printf '  "nativeFilesVolumeInitDiagnostic": "one-shot/native-files-volume-init.log",\n'
+    printf '  "keycloakMigrationReceiptDiagnostic": "one-shot/keycloak-realm-migration-receipt-check.log",\n'
     printf '  "runtimeStateDiagnostic": "runtime/runtime-state.log",\n'
     printf '  "runtimeStateVolumeInitDiagnostic": "one-shot/runtime-state-volume-init.log",\n'
     printf '  "runtimeStateInitDiagnostic": "one-shot/runtime-state-init.log",\n'
