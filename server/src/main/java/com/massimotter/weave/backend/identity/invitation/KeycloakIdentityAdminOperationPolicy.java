@@ -33,7 +33,7 @@ final class KeycloakIdentityAdminOperationPolicy {
               Set.of(HttpMethod.GET),
               REALM
                   + "/users\\?first=(?:0|100|200|300|400|500|600|700|800|900)"
-                  + "&max=100&briefRepresentation=true"),
+                  + "&max=100&briefRepresentation=false"),
           rule(
               "member-inventory",
               Set.of(HttpMethod.GET),
