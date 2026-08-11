@@ -26,6 +26,7 @@ readonly MCP_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massim
 readonly RESTART_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/PersistenceRestartJourney.java"
 readonly CANDIDATE_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/candidate-images.yml"
 readonly COMPOSE_FILE="${REPOSITORY_ROOT}/infra/weave-workspace/compose.yaml"
+readonly E2E_COMPOSE_FILE="${REPOSITORY_ROOT}/infra/weave-workspace/compose.e2e.yaml"
 
 fail() { printf 'testApp product-flow contract failed: %s\n' "$*" >&2; exit 1; }
 contains() {
@@ -155,6 +156,7 @@ contains "${CONTEXT_HELPER}" 'weave-test-app-evidence.json'
 contains "${CONTEXT_HELPER}" 'persistence-restart-evidence.json'
 contains "${CONTEXT_HELPER}" 'runtime-image-evidence.json'
 contains "${COMPOSE_FILE}" 'native-files-data:'
+contains "${E2E_COMPOSE_FILE}" 'WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM: preferred_username'
 contains "${COMPOSE_FILE}" 'name: ${WEAVE_NATIVE_FILES_DATA_VOLUME:-weave_native_files_data}'
 contains "${COMPOSE_FILE}" '      - DAC_OVERRIDE'
 contains "${COMPOSE_FILE}" '      - FOWNER'
