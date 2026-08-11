@@ -34,8 +34,7 @@ import org.springframework.web.util.UriUtils;
  */
 @Component
 public class KeycloakIdentityAdminClient {
-  private static final int BOOTSTRAP_USER_PAGE_SIZE = 100;
-  private static final int BOOTSTRAP_USER_INVENTORY_LIMIT = 1_000;
+  private static final int HUMAN_USER_PROBE_LIMIT = 1;
   private static final Map<String, String> ROLE_GROUP_PATHS =
       Map.of(
           "owner", "/owners",
@@ -88,46 +87,37 @@ public class KeycloakIdentityAdminClient {
     return list(organizationId, email);
   }
 
-  /** Returns whether the realm contains any human identity, including one outside Weave's org. */
+  /**
+   * Returns whether the realm contains any human identity, including one outside Weave's org.
+   *
+   * <p>Keycloak's unfiltered user search deliberately excludes service-account users. Adding a
+   * user filter changes that provider behavior, so this guarded request admits only pagination
+   * and representation-shape parameters and treats every returned identity as human. The bounded
+   * one-row projection is sufficient for this bootstrap-presence check and fails closed if the
+   * provider ignores the requested bound or omits the stable user identifier.
+   */
   public boolean hasHumanUsers() {
-    Set<String> observedUserIds = new HashSet<>();
-    for (
-        int first = 0;
-        first < BOOTSTRAP_USER_INVENTORY_LIMIT;
-        first += BOOTSTRAP_USER_PAGE_SIZE) {
-      List<JsonNode> users =
-          values(
-                  json(
-                      request(
-                          HttpMethod.GET,
-                          adminPath(
-                              "/users?first="
-                                  + first
-                                  + "&max="
-                                  + BOOTSTRAP_USER_PAGE_SIZE
-                                  + "&briefRepresentation=false"),
-                          null,
-                          null,
-                          200)))
-              .toList();
-      if (users.size() > BOOTSTRAP_USER_PAGE_SIZE) {
-        throw ambiguousHumanUserInventory();
-      }
-      for (JsonNode user : users) {
-        String userId = requiredBootstrapUserField(user, "id");
-        if (!observedUserIds.add(userId)) {
-          throw ambiguousHumanUserInventory();
-        }
-        if (!isUnambiguousServiceAccount(user)) {
-          return true;
-        }
-      }
-      if (users.size() < BOOTSTRAP_USER_PAGE_SIZE) {
-        return false;
-      }
+    List<JsonNode> users =
+        values(
+                json(
+                    request(
+                        HttpMethod.GET,
+                        adminPath(
+                            "/users?first=0&max="
+                                + HUMAN_USER_PROBE_LIMIT
+                                + "&briefRepresentation=true"),
+                        null,
+                        null,
+                        200)))
+            .toList();
+    if (users.size() > HUMAN_USER_PROBE_LIMIT) {
+      throw ambiguousHumanUserInventory();
     }
-    throw new IllegalStateException(
-        "Keycloak human-user inventory exceeded the protected bootstrap bound");
+    if (users.isEmpty()) {
+      return false;
+    }
+    requiredBootstrapUserField(users.getFirst(), "id");
+    return true;
   }
 
   public String configuredOrganizationId() {
@@ -461,18 +451,6 @@ public class KeycloakIdentityAdminClient {
     return !user.path("serviceAccountClientId").asString("").isBlank()
         || !user.path("serviceAccountClientLink").asString("").isBlank()
         || username.startsWith("service-account-");
-  }
-
-  private boolean isUnambiguousServiceAccount(JsonNode user) {
-    String username = requiredBootstrapUserField(user, "username");
-    boolean serviceAccountUsername = username.startsWith("service-account-");
-    boolean serviceAccountReference =
-        !user.path("serviceAccountClientId").asString("").isBlank()
-            || !user.path("serviceAccountClientLink").asString("").isBlank();
-    if (serviceAccountUsername != serviceAccountReference) {
-      throw ambiguousHumanUserInventory();
-    }
-    return serviceAccountUsername;
   }
 
   private ProviderInvitation toInvitation(JsonNode node) {
