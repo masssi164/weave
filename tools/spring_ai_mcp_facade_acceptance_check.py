@@ -79,6 +79,7 @@ def main() -> int:
         "mcp-endpoint: /mcp",
         "issuer-uri:",
         "resource-uri:",
+        "exchange-client-jwk-file: ${WEAVE_MCP_EXCHANGE_CLIENT_JWK_FILE:/run/secrets/weave/mcp-private-jwk.json}",
     )
     for profile in ("dogfood", "e2e"):
         require(
