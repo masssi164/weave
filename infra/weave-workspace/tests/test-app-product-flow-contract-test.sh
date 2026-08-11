@@ -24,6 +24,7 @@ readonly BROWSER_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/ma
 readonly ACTIVATION_INBOX="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/MailpitActivationInbox.java"
 readonly MCP_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/WorkloadMcpJourney.java"
 readonly RESTART_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/PersistenceRestartJourney.java"
+readonly COLLABORATION_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/CollaborationJourney.java"
 readonly CANDIDATE_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/candidate-images.yml"
 readonly COMPOSE_FILE="${REPOSITORY_ROOT}/infra/weave-workspace/compose.yaml"
 readonly E2E_COMPOSE_FILE="${REPOSITORY_ROOT}/infra/weave-workspace/compose.e2e.yaml"
@@ -218,6 +219,10 @@ contains "${FLOW}" 'sameJpaCellAfterRestart'
 contains "${FLOW}" 'sameMcpCellAfterRestart'
 contains "${RESTART_FLOW}" 'persistence-restart-proof'
 contains "${RESTART_FLOW}" 'weave.test-app-persistence-restart/v1'
+contains "${RESTART_FLOW}" '"e2e"'
+absent "${RESTART_FLOW}" '"test"'
+contains "${COLLABORATION_FLOW}" '"e2e"'
+absent "${COLLABORATION_FLOW}" '"test"'
 contains "${COMPOSE_RUNTIME}" 'compose(context, "restart", "--no-deps"'
 contains "${COMPOSE_RUNTIME}" '"dependentKeycloakRestartObserved": True'
 contains "${COMPOSE_RUNTIME}" '"fixtureRestoredExactly": True'

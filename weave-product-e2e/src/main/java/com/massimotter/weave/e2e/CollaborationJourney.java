@@ -970,7 +970,7 @@ final class CollaborationJourney {
           new ProcessBuilder(
                   "bash",
                   environment.persistenceRestartCommand().toString(),
-                  "test",
+                  "e2e",
                   command)
               .redirectErrorStream(true)
               .redirectOutput(output.toFile())

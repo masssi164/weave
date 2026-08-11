@@ -42,7 +42,7 @@ final class PersistenceRestartJourney {
           new ProcessBuilder(
                   "bash",
                   command.toString(),
-                  "test",
+                  "e2e",
                   "persistence-restart-proof")
               .redirectErrorStream(true)
               .redirectOutput(processOutput.toFile())
