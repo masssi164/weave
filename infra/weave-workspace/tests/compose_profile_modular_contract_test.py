@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from compose_env import ContractError, load_context  # noqa: E402
 import compose_runtime as compose_runtime_module  # noqa: E402
+from compose_runtime import active_volume_keys  # noqa: E402
 from render_config import _reset_provider_configtree, _runtime_policy  # noqa: E402
 from rendering.gateway import _site, render_caddy  # noqa: E402
 from rendering.keycloak import (  # noqa: E402
@@ -260,6 +261,7 @@ def main() -> int:
             "prod", ROOT, str(materialize_example("prod", root / "prod.env"))
         )
         assert _image_digest(dogfood) == "sha256:" + "a" * 64
+        assert "WEAVE_RUNTIME_STATE_VOLUME" in active_volume_keys(dogfood)
         assert _image_digest(prod) == "sha256:" + "a" * 64
         assert _overlay(dogfood, "sha256:" + "b" * 64)["smtpEndpoints"]["host"] == "mailpit"
         dogfood_caddy = render_caddy(dogfood)

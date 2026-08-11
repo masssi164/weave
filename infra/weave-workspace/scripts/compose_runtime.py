@@ -110,7 +110,7 @@ def active_volume_keys(context: ComposeContext) -> tuple[str, ...]:
         keys.append("WEAVE_NEXTCLOUD_DATA_VOLUME")
     if "provider-matrix" in profiles:
         keys.extend(("WEAVE_SYNAPSE_DATA_VOLUME", "WEAVE_MATRIX_APPSERVICE_VOLUME"))
-    if "storage-s3" in profiles:
+    if context.environment == "dogfood" or "storage-s3" in profiles:
         keys.append("WEAVE_RUNTIME_STATE_VOLUME")
     return tuple(keys)
 RESOURCE_PROVENANCE_LABEL_PATTERNS = {
