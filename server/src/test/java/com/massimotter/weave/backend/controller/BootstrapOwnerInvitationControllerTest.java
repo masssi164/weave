@@ -51,7 +51,7 @@ class BootstrapOwnerInvitationControllerTest {
 
     assertThat(controller.create(TOKEN, IDEMPOTENCY_KEY, request)).isEqualTo(expected);
     verify(invitations).bootstrapOwner(request, IDEMPOTENCY_KEY);
-    verify(credential).deleteAfterSuccess();
+    verify(credential).consumeAfterSuccess();
   }
 
   @Test
@@ -72,7 +72,7 @@ class BootstrapOwnerInvitationControllerTest {
               assertThat(error.code()).isEqualTo("owner-bootstrap-unauthorized");
               assertThat(error.getMessage()).doesNotContain(TOKEN);
             });
-    verify(credential, never()).deleteAfterSuccess();
+    verify(credential, never()).consumeAfterSuccess();
   }
 
   @Test
@@ -93,6 +93,6 @@ class BootstrapOwnerInvitationControllerTest {
               assertThat(error.code()).isEqualTo("owner-bootstrap-unavailable");
               assertThat(error.getMessage()).doesNotContain("private detail");
             });
-    verify(credential, never()).deleteAfterSuccess();
+    verify(credential, never()).consumeAfterSuccess();
   }
 }
