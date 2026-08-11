@@ -261,7 +261,7 @@ public final class FreshProductFlow {
       adminSession =
           browser.authorize(
               "weave-admin-console",
-              environment.productOrigin().resolve("/admin/oauth/callback"),
+              environment.productOrigin().resolve("/admin-console/"),
               List.of("openid", "profile", "email", "agent-runtime.admin"),
               ownerEmail,
               ownerPassword,
