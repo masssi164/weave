@@ -902,8 +902,11 @@ services:
       weave.platform.files-product-url: ${WEAVE_PUBLIC_URL:?public URL required}/files
       weave.platform.calendar-product-url: ${WEAVE_PUBLIC_URL:?public URL required}/calendar
       weave.platform.nextcloud-base-url: ${WEAVE_FILES_URL:?files URL required}
+      # UUIDv5 projection of the canonical organization:weave-primary realm coordinate.
+      weave.identity.invitations.keycloak.organization-id: 8f771be4-f526-5bef-97dc-00c8e2fa383d
       weave.identity.invitations.keycloak.private-key-jwt-audience: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
       weave.agent-runtime.workload-identity.issuer: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
+      weave.agent-runtime.workload-identity.keycloak-organization-id: 8f771be4-f526-5bef-97dc-00c8e2fa383d
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${WEAVE_BACKEND_DB_NAME:-weave_backend}
       SPRING_DATASOURCE_USERNAME: ${WEAVE_BACKEND_DB_USERNAME:-weave_backend}
       SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/,optional:configtree:/run/secrets/providers/

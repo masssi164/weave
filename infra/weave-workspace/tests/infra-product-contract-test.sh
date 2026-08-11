@@ -40,6 +40,10 @@ require "${ROOT_DIR}/compose.yaml" 'SPRING_CONFIG_IMPORT: configtree:/run/secret
 require "${ROOT_DIR}/compose.yaml" \
   'weave.identity.invitations.keycloak.private-key-jwt-audience: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
 require "${ROOT_DIR}/compose.yaml" \
+  'weave.identity.invitations.keycloak.organization-id: 8f771be4-f526-5bef-97dc-00c8e2fa383d'
+require "${ROOT_DIR}/compose.yaml" \
+  'weave.agent-runtime.workload-identity.keycloak-organization-id: 8f771be4-f526-5bef-97dc-00c8e2fa383d'
+require "${ROOT_DIR}/compose.yaml" \
   'weave.agent-runtime.workload-identity.issuer: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
 require "${ROOT_DIR}/compose.yaml" \
   'weave.security.required-audience: ${WEAVE_API_URL:?API URL required}'
