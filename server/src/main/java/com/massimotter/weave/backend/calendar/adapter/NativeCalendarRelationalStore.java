@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -74,9 +75,9 @@ public class NativeCalendarRelationalStore {
                 """,
                 (rs, ignored) -> new TemporalPair(
                         temporal(rs.getString("temporal_kind"), rs.getObject("start_date", LocalDate.class),
-                                rs.getObject("start_local", LocalDateTime.class), rs.getObject("start_instant", Instant.class), rs.getString("timezone_id")),
+                                rs.getObject("start_local", LocalDateTime.class), instant(rs.getObject("start_instant", OffsetDateTime.class)), rs.getString("timezone_id")),
                         temporal(rs.getString("temporal_kind"), rs.getObject("end_date", LocalDate.class),
-                                rs.getObject("end_local", LocalDateTime.class), rs.getObject("end_instant", Instant.class), rs.getString("timezone_id"))),
+                                rs.getObject("end_local", LocalDateTime.class), instant(rs.getObject("end_instant", OffsetDateTime.class)), rs.getString("timezone_id"))),
                 calendar, scopeKey, eventId);
         if (temporal.isEmpty()) return fallback;
         List<Attendee> attendees = jdbc.query(
@@ -131,10 +132,10 @@ public class NativeCalendarRelationalStore {
                 """,
                 (rs, ignored) -> rs.getString(1),
                 calendarId, scopeKey,
-                to, from,
+                offset(to), offset(from),
                 toDate, fromDate,
                 toLocal, fromLocal,
-                to, from,
+                offset(to), offset(from),
                 toDate, fromDate,
                 toLocal, fromLocal);
     }
@@ -275,7 +276,7 @@ public class NativeCalendarRelationalStore {
                     end_instant=excluded.end_instant,timezone_id=excluded.timezone_id
                 """,
                 event.calendarId().value(), scopeKey, event.id().value(), start.kind().name(),
-                start.date(), end.date(), start.localDateTime(), end.localDateTime(), start.instant(), end.instant(), zone(start));
+                start.date(), end.date(), start.localDateTime(), end.localDateTime(), offset(start.instant()), offset(end.instant()), zone(start));
     }
 
     private void replaceAttendees(CalendarEvent event, String scopeKey) {
@@ -310,7 +311,7 @@ public class NativeCalendarRelationalStore {
                 """,
                 calendar, scopeKey, id, recurrence.frequency().name(), recurrence.interval(), recurrence.count(),
                 recurrence.until() == null ? null : recurrence.until().toLocalDateTime(),
-                recurrence.until() == null ? null : recurrence.until().toInstant(),
+                recurrence.until() == null ? null : offset(recurrence.until().toInstant()),
                 recurrence.until() == null ? null : recurrence.until().getZone().getId(),
                 csv(recurrence.byDay()), csv(recurrence.byMonthDay()), csv(recurrence.byMonth()), csv(recurrence.bySetPos()), recurrence.weekStart());
         int ordinal = 0;
@@ -332,7 +333,7 @@ public class NativeCalendarRelationalStore {
                     calendar_id,scope_key,event_id,recurrence_type,ordinal,temporal_kind,date_value,local_value,instant_value,timezone_id)
                 values (?,?,?,?,?,?,?,?,?,?)
                 """,
-                calendar, scopeKey, id, type, ordinal, value.kind().name(), value.date(), value.localDateTime(), value.instant(), zone(value));
+                calendar, scopeKey, id, type, ordinal, value.kind().name(), value.date(), value.localDateTime(), offset(value.instant()), zone(value));
     }
 
     private void replaceOverrides(CalendarEvent event, String scopeKey) {
@@ -352,11 +353,11 @@ public class NativeCalendarRelationalStore {
                     values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                     """,
                     calendar, scopeKey, id, recurrenceKey(recurrenceId), recurrenceId.kind().name(),
-                    recurrenceId.date(), recurrenceId.localDateTime(), recurrenceId.instant(), zone(recurrenceId),
+                    recurrenceId.date(), recurrenceId.localDateTime(), offset(recurrenceId.instant()), zone(recurrenceId),
                     override.cancelled(),
                     start == null ? null : start.date(), end == null ? null : end.date(),
                     start == null ? null : start.localDateTime(), end == null ? null : end.localDateTime(),
-                    start == null ? null : start.instant(), end == null ? null : end.instant(),
+                    start == null ? null : offset(start.instant()), end == null ? null : offset(end.instant()),
                     start == null ? null : zone(start), override.title(), override.description(), override.location());
         }
     }
@@ -371,7 +372,7 @@ public class NativeCalendarRelationalStore {
                 """,
                 (rs, ignored) -> new RuleRow(
                         rs.getString(1), rs.getInt(2), (Integer) rs.getObject(3),
-                        rs.getObject(4, LocalDateTime.class), rs.getObject(5, Instant.class), rs.getString(6),
+                        rs.getObject(4, LocalDateTime.class), instant(rs.getObject(5, OffsetDateTime.class)), rs.getString(6),
                         rs.getString(7), rs.getString(8), rs.getString(9), rs.getString(10), rs.getString(11)),
                 calendar, scopeKey, eventId);
         if (rows.isEmpty()) return fallback;
@@ -397,7 +398,7 @@ public class NativeCalendarRelationalStore {
                 """,
                 (rs, ignored) -> temporal(
                         rs.getString(1), rs.getObject(2, LocalDate.class), rs.getObject(3, LocalDateTime.class),
-                        rs.getObject(4, Instant.class), rs.getString(5)),
+                        instant(rs.getObject(4, OffsetDateTime.class)), rs.getString(5)),
                 calendar, scopeKey, eventId, type);
     }
 
@@ -411,10 +412,10 @@ public class NativeCalendarRelationalStore {
                 """,
                 (rs, ignored) -> {
                     TemporalKind kind = TemporalKind.valueOf(rs.getString(1));
-                    TemporalValue recurrenceId = temporal(kind.name(), rs.getObject(2, LocalDate.class), rs.getObject(3, LocalDateTime.class), rs.getObject(4, Instant.class), rs.getString(5));
+                    TemporalValue recurrenceId = temporal(kind.name(), rs.getObject(2, LocalDate.class), rs.getObject(3, LocalDateTime.class), instant(rs.getObject(4, OffsetDateTime.class)), rs.getString(5));
                     boolean cancelled = rs.getBoolean(6);
-                    TemporalValue start = cancelled ? null : temporal(kind.name(), rs.getObject(7, LocalDate.class), rs.getObject(9, LocalDateTime.class), rs.getObject(11, Instant.class), rs.getString(13));
-                    TemporalValue end = cancelled ? null : temporal(kind.name(), rs.getObject(8, LocalDate.class), rs.getObject(10, LocalDateTime.class), rs.getObject(12, Instant.class), rs.getString(13));
+                    TemporalValue start = cancelled ? null : temporal(kind.name(), rs.getObject(7, LocalDate.class), rs.getObject(9, LocalDateTime.class), instant(rs.getObject(11, OffsetDateTime.class)), rs.getString(13));
+                    TemporalValue end = cancelled ? null : temporal(kind.name(), rs.getObject(8, LocalDate.class), rs.getObject(10, LocalDateTime.class), instant(rs.getObject(12, OffsetDateTime.class)), rs.getString(13));
                     return new RecurrenceOverride(recurrenceId, start, end, cancelled, rs.getString(14), rs.getString(15), rs.getString(16));
                 },
                 calendar, scopeKey, eventId);
@@ -440,6 +441,14 @@ public class NativeCalendarRelationalStore {
 
     private String zone(TemporalValue value) {
         return value == null || value.zoneId() == null ? null : value.zoneId().getId();
+    }
+
+    static OffsetDateTime offset(Instant value) {
+        return value == null ? null : value.atOffset(ZoneOffset.UTC);
+    }
+
+    static Instant instant(OffsetDateTime value) {
+        return value == null ? null : value.toInstant();
     }
 
     private String csv(List<?> values) {
