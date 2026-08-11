@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 from compose_env import ComposeContext, ContractError, compose_environment, load_context
 
 
-CORE_SERVICES = ("postgres", "keycloak", "mas", "synapse", "nextcloud", "caddy")
+CORE_SERVICES = ("postgres", "keycloak", "caddy")
 APPLICATION_SERVICES = ("backend", "mcp")
 ACTIVATION_SERVICES = ("mailpit",)
 
@@ -98,17 +98,44 @@ def _member_token(path: Path) -> str:
     return value
 
 
+def _runtime_services(
+    context: ComposeContext, *, require_application: bool
+) -> list[str]:
+    services = list(CORE_SERVICES)
+    if "provider-matrix" in context.active_profiles:
+        services.extend(("mas", "synapse"))
+    if "provider-nextcloud" in context.active_profiles:
+        services.append("nextcloud")
+    if "storage-s3" in context.active_profiles:
+        services.append("runtime-state")
+    if context.environment in {"dogfood", "e2e"} or "dev-tools" in context.active_profiles:
+        services.extend(ACTIVATION_SERVICES)
+    if require_application:
+        services.extend(APPLICATION_SERVICES)
+    return services
+
+
+def _provider_probes(context: ComposeContext) -> dict[str, str]:
+    probes: dict[str, str] = {}
+    if "provider-matrix" in context.active_profiles:
+        probes["matrixVersions"] = (
+            context.env["WEAVE_MATRIX_URL"].rstrip("/")
+            + "/_matrix/client/versions"
+        )
+    if "provider-nextcloud" in context.active_profiles:
+        probes["nextcloudStatus"] = (
+            context.env["WEAVE_FILES_URL"].rstrip("/") + "/status.php"
+        )
+    return probes
+
+
 def check(
     context: ComposeContext,
     *,
     require_application: bool,
     member_access_token_file: Path | None = None,
 ) -> dict[str, object]:
-    services = list(CORE_SERVICES)
-    if context.environment in {"dogfood", "e2e"} or "dev-tools" in context.active_profiles:
-        services.extend(ACTIVATION_SERVICES)
-    if require_application:
-        services.extend(APPLICATION_SERVICES)
+    services = _runtime_services(context, require_application=require_application)
     runtime = [_container(context, service) for service in services]
 
     endpoints: dict[str, dict[str, object]] = {}
@@ -121,10 +148,7 @@ def check(
         raise ContractError("OIDC discovery issuer differs from the declared public authority")
     endpoints["oidcDiscovery"] = {"status": status, "issuerExact": True}
 
-    probes = {
-        "matrixVersions": context.env["WEAVE_MATRIX_URL"].rstrip("/") + "/_matrix/client/versions",
-        "nextcloudStatus": context.env["WEAVE_FILES_URL"].rstrip("/") + "/status.php",
-    }
+    probes = _provider_probes(context)
     if require_application:
         probes["backendReadiness"] = context.env["WEAVE_API_URL"].rstrip("/") + "/health/ready"
     for name, url in probes.items():
@@ -145,12 +169,18 @@ def check(
             raise ContractError(f"member token did not receive HTTP 403 from admin control plane (HTTP {status})")
         endpoints["adminControlPlaneMemberDenial"] = {"status": 403, "tokenClass": "member"}
 
-    provider_evidence = context.generated_root / "nextcloud/readiness.json"
-    if provider_evidence.is_symlink() or not provider_evidence.is_file():
-        raise ContractError("Nextcloud authenticated DAV readiness evidence is missing")
-    provider = json.loads(provider_evidence.read_text(encoding="utf-8"))
-    if provider.get("ready") is not True or provider.get("supportSafe") is not True:
-        raise ContractError("Nextcloud authenticated DAV provider evidence is unsuccessful")
+    provider_evidence_ref: str | None = None
+    if "provider-nextcloud" in context.active_profiles:
+        provider_evidence = context.generated_root / "nextcloud/readiness.json"
+        if provider_evidence.is_symlink() or not provider_evidence.is_file():
+            raise ContractError("Nextcloud authenticated DAV readiness evidence is missing")
+        provider = json.loads(provider_evidence.read_text(encoding="utf-8"))
+        if provider.get("ready") is not True or provider.get("supportSafe") is not True:
+            raise ContractError("Nextcloud authenticated DAV provider evidence is unsuccessful")
+        provider_evidence_ref = (
+            "evidence:nextcloud-provider-readiness:"
+            + context.env["WEAVE_COMPOSE_PROJECT"]
+        )
 
     return {
         "schemaVersion": "weave.compose-operator-readiness.v1",
@@ -159,7 +189,7 @@ def check(
         "checkedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "services": runtime,
         "endpoints": endpoints,
-        "providerEvidenceRef": "evidence:nextcloud-provider-readiness:" + context.env["WEAVE_COMPOSE_PROJECT"],
+        "providerEvidenceRef": provider_evidence_ref,
         "containsSecretValues": False,
         "supportSafe": True,
         "ready": True,
