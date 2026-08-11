@@ -38,6 +38,43 @@ require "${ROOT_DIR}/compose.yaml" 'profiles: *application-profiles'
 require "${ROOT_DIR}/compose.yaml" 'POSTGRES_PASSWORD_FILE: /run/secrets/postgres-admin-password'
 require "${ROOT_DIR}/compose.yaml" 'SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/'
 require "${ROOT_DIR}/compose.yaml" \
+  'WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
+require "${ROOT_DIR}/compose.yaml" \
+  'WEAVE_AGENT_RUNTIME_ISSUER: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
+require "${ROOT_DIR}/compose.yaml" \
+  'WEAVE_OIDC_REQUIRED_AUDIENCE: ${WEAVE_API_URL:?API URL required}'
+require "${ROOT_DIR}/compose.yaml" \
+  'WEAVE_MCP_RESOURCE_URI: ${WEAVE_API_ORIGIN:?API origin required}/mcp'
+require "${ROOT_DIR}/compose.yaml" \
+  'WEAVE_MCP_AUTHORIZATION_SERVER: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave'
+python3 - "${ROOT_DIR}/compose.yaml" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+
+
+def service(name: str) -> str:
+    marker = f"\n  {name}:\n"
+    start = source.index(marker) + len(marker)
+    remainder = source[start:]
+    boundary = re.search(r"\n  [a-z0-9-]+:\n", remainder)
+    return remainder if boundary is None else remainder[: boundary.start()]
+
+
+schema = service("schema-init")
+backend = service("backend")
+mcp = service("mcp")
+assert "WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE:" in backend
+assert "WEAVE_AGENT_RUNTIME_ISSUER:" in backend
+assert "WEAVE_OIDC_REQUIRED_AUDIENCE:" in backend
+assert "WEAVE_MCP_RESOURCE_URI:" in mcp
+assert "WEAVE_MCP_AUTHORIZATION_SERVER:" in mcp
+assert "WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE:" not in schema
+assert "WEAVE_MCP_RESOURCE_URI:" not in backend
+PY
+require "${ROOT_DIR}/compose.yaml" \
   'target: /run/secrets/identity-admin/weave-identity-admin-private-jwk.json'
 [[ "$(grep -Fc 'source: identity-admin-private-jwk' "${ROOT_DIR}/compose.yaml")" == "1" ]] ||
   fail "identity-admin private JWK must be mounted only by Weave Server"
