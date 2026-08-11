@@ -125,8 +125,13 @@ def _receipt_check_environment(
     *,
     manifest_digest: str,
     baseline_digest: str,
-    target_revision: str,
+    migration_bundle: dict[str, object],
 ) -> str:
+    target_revision = migration_bundle.get("toBaselineRevision")
+    if not isinstance(target_revision, str) or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", target_revision
+    ):
+        raise ContractError("Keycloak migration target revision is malformed")
     values = {
         "WEAVE_KEYCLOAK_MIGRATION_BASELINE_DIGEST": baseline_digest,
         "WEAVE_KEYCLOAK_MIGRATION_CANDIDATE_COMMIT": context.env["WEAVE_CANDIDATE_COMMIT"],
@@ -157,7 +162,8 @@ def render_keycloak(context: ComposeContext) -> dict[str, object]:
 
     realm_payload = pretty_json(project_realm(desired, public_keys))
     rendered_digest = sha256_digest(realm_payload)
-    migration_payload = pretty_json(fresh_start_migration_bundle(desired, rendered_digest))
+    migration_bundle = fresh_start_migration_bundle(desired, rendered_digest)
+    migration_payload = pretty_json(migration_bundle)
     migration_digest = sha256_digest(migration_payload)
     semantic_payload = baseline_path.read_bytes()
     migration_definition_payload = migration_definition_source.read_bytes()
@@ -195,7 +201,7 @@ def render_keycloak(context: ComposeContext) -> dict[str, object]:
             context,
             manifest_digest=migration_manifest_digest,
             baseline_digest=rendered_digest,
-            target_revision=str(desired["revision"]),
+            migration_bundle=migration_bundle,
         ),
         private=False,
     )
