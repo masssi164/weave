@@ -107,9 +107,10 @@ def _desired(baseline: dict[str, object], overlay: dict[str, object]) -> dict[st
     realm["frontendUrl"] = public["auth"]
     smtp = overlay["smtpEndpoints"]
     assert isinstance(smtp, dict)
-    realm["smtpServer"] = {k:v for k,v in smtp.items() if k != "passwordVaultRef"}
+    realm["smtp"] = {k:v for k,v in smtp.items() if k != "passwordVaultRef"}
     if smtp.get("passwordVaultRef"):
-        realm["smtpServer"]["password"] = smtp["passwordVaultRef"]
+        realm["smtp"]["password"] = smtp["passwordVaultRef"]
+    realm.pop("smtpServer", None)
     organizations = desired.get("organizations")
     if not isinstance(organizations, list) or len(organizations) != 1 or not isinstance(organizations[0], dict):
         raise ContractError("exactly one bootstrap organization required")
