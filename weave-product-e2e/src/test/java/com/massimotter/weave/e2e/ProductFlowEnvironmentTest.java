@@ -94,6 +94,7 @@ class ProductFlowEnvironmentTest {
                     URI.create("https://weave.test:44443"),
                     URI.create("https://api.weave.test:44443"),
                     URI.create("https://auth.weave.test:44443/realms/weave"),
+                    URI.create("https://mail.weave.test:44443"),
                     URI.create("http://127.0.0.1:38025/api/v1"),
                     URI.create("https://api.weave.test:44443/mcp"),
                     URI.create("http://127.0.0.1:39025"),
@@ -143,6 +144,7 @@ class ProductFlowEnvironmentTest {
         URI.create("https://weave.test:44443"),
         apiOrigin,
         issuer,
+        URI.create("https://mail.weave.test:44443"),
         mailpit,
         URI.create("https://api.weave.test:44443/mcp"),
         URI.create("http://127.0.0.1:39025"),
@@ -168,6 +170,6 @@ class ProductFlowEnvironmentTest {
   private Path hosts(String name) throws Exception {
     return Files.writeString(
         temporaryDirectory.resolve(name),
-        "127.0.0.1 weave.test api.weave.test auth.weave.test\n");
+        "127.0.0.1 weave.test api.weave.test auth.weave.test mail.weave.test\n");
   }
 }

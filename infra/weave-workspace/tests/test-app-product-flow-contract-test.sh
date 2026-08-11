@@ -79,6 +79,8 @@ grep -Fxq -- \
   "${WEAVE_ENV_FILE}" || fail "isolated context omitted the Mailpit gateway URL"
 grep -Fq -- "mail.weave.test" "${WEAVE_TEST_APP_HOSTS_FILE}" ||
   fail "isolated context omitted the Mailpit gateway host mapping"
+[[ "${WEAVE_TEST_APP_MAILPIT_ORIGIN}" == "https://mail.weave.test:${WEAVE_PROXY_HTTPS_HOST_PORT}" ]] ||
+  fail "isolated context omitted the exact Mailpit gateway origin"
 python3 - "${WEAVE_TEST_APP_CONTEXT_MEMBERSHIPS}" "${WEAVE_TEST_APP_TENANT_ID}" <<'PY'
 import json
 import sys

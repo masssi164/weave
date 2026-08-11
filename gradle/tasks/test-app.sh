@@ -439,6 +439,7 @@ log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
   "-Dweave.e2e.product-origin=${WEAVE_TEST_APP_PRODUCT_ORIGIN}" \
   "-Dweave.e2e.api-origin=${WEAVE_TEST_APP_API_ORIGIN}" \
   "-Dweave.e2e.issuer=${WEAVE_TEST_APP_ISSUER}" \
+  "-Dweave.e2e.mailpit-origin=${WEAVE_TEST_APP_MAILPIT_ORIGIN}" \
   "-Dweave.e2e.mailpit-api=${WEAVE_TEST_APP_MAILPIT_API}" \
   "-Dweave.e2e.mcp-endpoint=${WEAVE_TEST_APP_MCP_ENDPOINT}" \
   "-Dweave.e2e.chat-proof-origin=${WEAVE_TEST_APP_CHAT_PROOF_ORIGIN}" \

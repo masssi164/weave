@@ -23,6 +23,7 @@ record ProductFlowEnvironment(
     URI productOrigin,
     URI apiOrigin,
     URI issuer,
+    URI mailpitOrigin,
     URI mailpitApi,
     URI mcpEndpoint,
     URI chatProofOrigin,
@@ -67,6 +68,7 @@ record ProductFlowEnvironment(
     productOrigin = requireHttpsOrigin(productOrigin, "weave.e2e.product-origin");
     apiOrigin = requireHttpsOrigin(apiOrigin, "weave.e2e.api-origin");
     issuer = requireHttps(issuer, "weave.e2e.issuer");
+    mailpitOrigin = requireHttpsOrigin(mailpitOrigin, "weave.e2e.mailpit-origin");
     mailpitApi = requireLoopbackHttp(mailpitApi, "weave.e2e.mailpit-api");
     mcpEndpoint = requireHttps(mcpEndpoint, "weave.e2e.mcp-endpoint");
     chatProofOrigin = requireLoopbackHttp(chatProofOrigin, "weave.e2e.chat-proof-origin");
@@ -81,6 +83,7 @@ record ProductFlowEnvironment(
                 productOrigin.getHost(),
                 apiOrigin.getHost(),
                 issuer.getHost(),
+                mailpitOrigin.getHost(),
                 mcpEndpoint.getHost())));
     bootstrapOwnerToken =
         requirePrivateInput(bootstrapOwnerToken, "weave.e2e.bootstrap-owner-token");
@@ -133,6 +136,7 @@ record ProductFlowEnvironment(
         URI.create(required("product-origin")),
         URI.create(required("api-origin")),
         URI.create(required("issuer")),
+        URI.create(required("mailpit-origin")),
         URI.create(required("mailpit-api")),
         URI.create(required("mcp-endpoint")),
         URI.create(required("chat-proof-origin")),
