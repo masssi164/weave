@@ -12,6 +12,7 @@ import com.massimotter.weave.backend.chat.provider.synapse.MatrixSynapseChatSout
 import com.massimotter.weave.backend.chat.provider.synapse.SynapseBackedCanonicalChatAdapter;
 import com.massimotter.weave.backend.config.ChatE2eProofProperties;
 import com.massimotter.weave.backend.config.ChatE2eProofSecurityConfiguration;
+import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -36,6 +37,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Hidden
 @ConditionalOnProperty(name = "weave.chat.e2e-proof.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "weave.chat.provider", havingValue = ChatRuntimeProperties.MATRIX_SYNAPSE_PROVIDER)
 public final class ChatE2eProviderProofController {
 
     private static final int MAX_BODY_BYTES = 32_768;
