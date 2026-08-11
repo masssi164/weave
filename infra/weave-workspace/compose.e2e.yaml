@@ -21,6 +21,7 @@ services:
       WEAVE_CHAT_E2E_PROOF_TOKEN_FILE: /run/secrets/weave/chat-e2e-proof-token
       WEAVE_CHAT_E2E_PROOF_RUN_ID: ${WEAVE_E2E_RUN_ID:?isolated run ID is required}
       WEAVE_CHAT_E2E_PROOF_STACK_SCOPE: isolated
+      WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM: preferred_username
       WEAVE_CONTEXT_AUTHORIZATION_SEED_MEMBERSHIPS_FILE: /run/weave-e2e/context-authorization-memberships.json
     depends_on:
       runtime-state-init:
