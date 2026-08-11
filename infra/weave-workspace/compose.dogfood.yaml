@@ -13,3 +13,7 @@ services:
   backend:
     environment:
       WEAVE_RELEASE_POSTURE: dogfood
+      weave.provider-bindings.bootstrap.files.enabled: "true"
+      weave.provider-bindings.bootstrap.files.organization-ref: ${WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID:-tenant-default}
+      weave.provider-bindings.bootstrap.files.adapter-key: ${WEAVE_FILES_PROVIDER:-weave-native}
+      weave.provider-bindings.bootstrap.files.configuration-ref: profile:${WEAVE_FILES_PROVIDER:-weave-native}
