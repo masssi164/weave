@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from compose_env import ComposeContext, ContractError, assert_revision, revision, specification_context
-from realm_renderer import MACHINE_KEY_PROJECTIONS, fresh_start_migration_bundle, pretty_json, project_realm, sha256_digest, validate_public_jwks
+from realm_renderer import MACHINE_KEY_PROJECTIONS, canonical_json, fresh_start_migration_bundle, pretty_json, project_realm, sha256_digest, validate_public_jwks
 from rendering.io import json_object, runtime_directory, write
 
 SECRET_REF_PATHS = {
@@ -143,6 +143,20 @@ def _receipt_check_environment(
     return "".join(f"{name}={values[name]}\n" for name in sorted(values))
 
 
+def _realm_definition_identity(
+    baseline: dict[str, object], migration_definition: dict[str, object]
+) -> tuple[str, str]:
+    provenance = baseline.get("provenance")
+    if not isinstance(provenance, dict):
+        raise ContractError("canonical Keycloak baseline provenance is required")
+    semantic_digest = provenance.get("baselineRevision")
+    if not isinstance(semantic_digest, str) or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", semantic_digest
+    ):
+        raise ContractError("canonical Keycloak baseline revision is malformed")
+    return semantic_digest, sha256_digest(canonical_json(migration_definition))
+
+
 def render_keycloak(context: ComposeContext) -> dict[str, object]:
     corpus_root, specification_commit = specification_context(context)
     baseline_path = corpus_root / "contracts/examples/keycloak-desired-state.valid.json"
@@ -167,8 +181,9 @@ def render_keycloak(context: ComposeContext) -> dict[str, object]:
     migration_digest = sha256_digest(migration_payload)
     semantic_payload = baseline_path.read_bytes()
     migration_definition_payload = migration_definition_source.read_bytes()
-    semantic_digest = sha256_digest(semantic_payload)
-    migration_definition_digest = sha256_digest(migration_definition_payload)
+    semantic_digest, migration_definition_digest = _realm_definition_identity(
+        baseline, json_object(migration_definition_source)
+    )
     overlay_payload = json.dumps(overlay, indent=2, sort_keys=True).encode("utf-8") + b"\n"
     overlay_digest = sha256_digest(overlay_payload)
 

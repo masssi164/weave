@@ -23,6 +23,7 @@ from rendering.keycloak import (  # noqa: E402
     _desired,
     _image_digest,
     _overlay,
+    _realm_definition_identity,
     _receipt_check_environment,
 )
 
@@ -66,6 +67,22 @@ def assert_spring_profile_contract(profile: str) -> None:
     assert "issuer-uri:" in mcp
     assert "datasource:" not in mcp
     assert "jpa:" not in mcp
+
+
+def assert_realm_definition_identity_contract() -> None:
+    revision = "sha256:" + "1" * 64
+    baseline = {"provenance": {"baselineRevision": revision}}
+    compact = {"schemaVersion": "v1", "operations": [{"id": "one"}]}
+    reordered = {"operations": [{"id": "one"}], "schemaVersion": "v1"}
+
+    semantic_digest, migration_digest = _realm_definition_identity(baseline, compact)
+    reordered_semantic, reordered_migration = _realm_definition_identity(
+        baseline, reordered
+    )
+
+    assert semantic_digest == revision
+    assert reordered_semantic == revision
+    assert migration_digest == reordered_migration
 
 
 def assert_native_collaboration_restart_is_bounded(context) -> None:
@@ -124,6 +141,7 @@ def assert_native_collaboration_restart_is_bounded(context) -> None:
 
 
 def main() -> int:
+    assert_realm_definition_identity_contract()
     compose_source = (ROOT / "compose.yaml").read_text(encoding="utf-8")
     assert compose_source.count(
         "SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}"
