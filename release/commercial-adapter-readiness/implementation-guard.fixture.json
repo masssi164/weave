@@ -49,7 +49,6 @@
     "client/lib/features/connectors/presentation/providers/connector_preview_provider.dart",
     "client/test/architecture/member_client_provider_boundary_contract_test.dart",
     "client/test/features/connectors/connector_settings_preview_test.dart",
-    "infra/README.md",
     "infra/docs/connector-runtime-guardrails.md",
     "infra/weave-workspace/provider-profiles/microsoft-hybrid-placeholder.json",
     "infra/weave-workspace/provider-profiles/sovereign-default.json",

@@ -33,6 +33,7 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
         self.temp.cleanup()
 
     def documents(self) -> dict[str, dict]:
+        realm_evidence = copy.deepcopy(self.green["realmEvidence"])
         return {
             "automated": {
                 "schemaVersion": 1,
@@ -42,6 +43,7 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
                 "specCorpusCommit": self.green["specCorpusCommit"],
                 "candidateManifestDigest": self.green["candidateManifestDigest"],
                 "images": copy.deepcopy(self.green["images"]),
+                "realmEvidence": copy.deepcopy(realm_evidence),
                 "evidenceModes": self.green["evidenceModes"],
                 "liveE2eRunUrl": "https://github.com/example/weave/actions/runs/1",
                 "surfaces": copy.deepcopy(self.green["surfaces"]),
@@ -50,26 +52,29 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
                 "blockers": [],
             },
             "deployment": {
-                "schemaVersion": 1,
+                "schemaVersion": 4,
                 "supportSafe": True,
                 "candidateCommit": self.candidate,
                 "sourceCandidateCommit": self.source_candidate,
                 "candidateManifestDigest": self.green["candidateManifestDigest"],
+                "realmEvidence": copy.deepcopy(realm_evidence),
                 "candidateImages": {
                     "backend": "sha256:" + "5" * 64,
                     "mcp": "sha256:" + "6" * 64,
-                    "identity-ops": "sha256:" + "7" * 64,
                     "keycloak": "sha256:" + "8" * 64,
                 },
                 "backendBuild": self.green["builds"]["backend"],
-                "deployment": self.green["deployment"],
+                "deployment": {
+                    **self.green["deployment"],
+                    "realmEvidenceVerified": True,
+                },
                 "providerHealth": copy.deepcopy(self.green["providerHealth"]),
                 "runUrl": "https://github.com/example/weave/actions/runs/2",
                 "evidenceRefs": ["artifact:deployment"],
                 "blockers": [],
             },
             "health": {
-                "schemaVersion": "weave.dogfood-provider-health-evidence.v1",
+                "schemaVersion": "weave.dogfood-provider-health-evidence.v3",
                 "supportSafe": True,
                 "containsSecretValues": False,
                 "candidateCommit": self.candidate,
@@ -77,6 +82,7 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
                 "specCorpusCommit": self.green["specCorpusCommit"],
                 "candidateManifestDigest": self.green["candidateManifestDigest"],
                 "images": copy.deepcopy(self.green["images"]),
+                "realmEvidence": copy.deepcopy(realm_evidence),
                 "deploymentRunUrl": "https://github.com/example/weave/actions/runs/2",
                 "runUrl": "https://github.com/example/weave/actions/runs/4",
                 "providerHealth": copy.deepcopy(self.green["providerHealth"]),
@@ -151,7 +157,32 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
         result = json.loads((self.root / "result.json").read_text(encoding="utf-8"))
         self.assertTrue(result["humanTestingReady"])
         self.assertEqual(result["state"], "ready")
+        self.assertEqual(result["realmEvidence"], self.green["realmEvidence"])
         self.assertIn("PHYSICAL_IPHONE_VOICEOVER_RESULT", completed.stdout)
+
+    def test_e2e_render_may_differ_from_dogfood_for_same_candidate_definition(self) -> None:
+        documents = self.documents()
+        automated_realm = documents["automated"]["realmEvidence"]
+        automated_realm["overlayDigest"] = "sha256:" + "1" * 64
+        automated_realm["renderedRealmDigest"] = "sha256:" + "2" * 64
+        automated_realm["semanticReadbackDigest"] = "sha256:" + "3" * 64
+        completed = self.run_assemble(documents)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        result = json.loads((self.root / "result.json").read_text(encoding="utf-8"))
+        self.assertEqual(result["realmEvidence"], documents["deployment"]["realmEvidence"])
+        self.assertNotEqual(
+            documents["automated"]["realmEvidence"]["renderedRealmDigest"],
+            documents["deployment"]["realmEvidence"]["renderedRealmDigest"],
+        )
+
+    def test_e2e_and_dogfood_must_share_candidate_realm_definition(self) -> None:
+        documents = self.documents()
+        documents["automated"]["realmEvidence"]["semanticRealmSourceDigest"] = (
+            "sha256:" + "1" * 64
+        )
+        completed = self.run_assemble(documents)
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("candidate realm definition", completed.stderr)
 
     def test_mismatched_distribution_candidate_fails(self) -> None:
         documents = self.documents()
@@ -216,6 +247,45 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
         completed = self.run_assemble(documents)
         self.assertEqual(completed.returncode, 2)
         self.assertIn("image evidence", completed.stderr)
+
+        documents = self.documents()
+        documents["health"]["realmEvidence"]["overlayDigest"] = "sha256:" + "9" * 64
+        completed = self.run_assemble(documents)
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("dogfood deployment evidence", completed.stderr)
+
+    def test_realm_evidence_must_be_exact_secret_free_candidate_evidence(self) -> None:
+        mutations = (
+            lambda documents: documents["automated"]["realmEvidence"].__setitem__(
+                "semanticRealmSourceDigest", "sha256:not-a-digest"
+            ),
+            lambda documents: documents["automated"]["realmEvidence"].__setitem__(
+                "containsSecrets", True
+            ),
+            lambda documents: documents["deployment"]["realmEvidence"].__setitem__(
+                "migrationDefinitionDigest", "sha256:" + "f" * 64
+            ),
+            lambda documents: documents["health"]["realmEvidence"].__setitem__(
+                "semanticReadbackDigest", "sha256:" + "e" * 64
+            ),
+            lambda documents: documents["automated"]["realmEvidence"].__setitem__(
+                "semanticReadbackVerified", False
+            ),
+        )
+        for mutate in mutations:
+            with self.subTest(mutation=mutate):
+                documents = self.documents()
+                mutate(documents)
+                completed = self.run_assemble(documents)
+                self.assertEqual(completed.returncode, 2, completed.stdout + completed.stderr)
+                self.assertIn("realm evidence", completed.stderr)
+
+    def test_deployment_must_verify_semantic_realm_evidence(self) -> None:
+        documents = self.documents()
+        documents["deployment"]["deployment"]["realmEvidenceVerified"] = False
+        completed = self.run_assemble(documents)
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("did not verify semantic realm", completed.stderr)
 
 
 if __name__ == "__main__":

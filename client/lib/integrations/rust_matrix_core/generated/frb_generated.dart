@@ -68,8 +68,8 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
-        stem: 'weave_matrix_core',
-        ioDirectory: '../rust/matrix-core/target/release/',
+        stem: 'weave_matrix_client',
+        ioDirectory: '../rust/matrix-client/target/release/',
         webPrefix: 'pkg/',
         wasmBindgenName: 'wasm_bindgen',
       );

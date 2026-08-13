@@ -182,13 +182,13 @@ public class ProviderStackReadinessStepDefinitions {
         assertCategoryContract(
                 "chat",
                 Set.of("chat.read", "chat.send"),
-                Set.of("synapse-homeserver"),
+                Set.of("weave-native"),
                 Set.of("microsoft-teams"));
         assertCategoryContract(
                 "files",
                 Set.of("files.read", "files.upload"),
-                Set.of("nextcloud-files"),
-                Set.of("sharepoint", "onedrive"));
+                Set.of("weave-native"),
+                Set.of("nextcloud-files", "sharepoint", "onedrive"));
         assertCategoryContract(
                 "documents-collaboration",
                 Set.of("documents.view", "documents.edit", "documents.collaborate"),

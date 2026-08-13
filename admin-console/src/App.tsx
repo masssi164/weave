@@ -173,6 +173,9 @@ function linesFromText(value: string): string[] {
 
 interface AppProps {
   api?: AdminControlPlaneApi;
+  adminConfig?: typeof adminConsoleConfig;
+  authenticationError?: string | null;
+  onSignIn?: () => void | Promise<void>;
   viewerRole?: ViewerRole;
   locale?: AdminConsoleLocale;
 }
@@ -211,6 +214,9 @@ function dryRunEvidenceFailureLabel(
 
 export default function App({
   api = new AdminControlPlaneApi(),
+  adminConfig = adminConsoleConfig,
+  authenticationError = null,
+  onSignIn,
   viewerRole = "owner",
   locale = "en",
 }: AppProps) {
@@ -256,7 +262,6 @@ export default function App({
   const [invitationDisplayName, setInvitationDisplayName] = useState("");
   const [invitationRole, setInvitationRole] =
     useState<OrganizationRole>("member");
-  const [invitationCapabilities, setInvitationCapabilities] = useState("");
   const [invitationBusy, setInvitationBusy] = useState(false);
   const [invitationError, setInvitationError] = useState<string | null>(null);
 
@@ -506,15 +511,10 @@ export default function App({
         email: invitationEmail.trim(),
         displayName: invitationDisplayName.trim() || undefined,
         role: invitationRole,
-        capabilities: invitationCapabilities
-          .split(",")
-          .map((capability) => capability.trim())
-          .filter(Boolean),
       });
       await refreshInvitations();
       setInvitationEmail("");
       setInvitationDisplayName("");
-      setInvitationCapabilities("");
       setStatusMessage(
         "Invitation created. Keycloak owns delivery, activation, expiry, and membership.",
       );
@@ -527,13 +527,13 @@ export default function App({
     }
   }
 
-  async function resendInvitation(providerInvitationId: string) {
+  async function resendInvitation(invitationHandle: string) {
     setInvitationBusy(true);
     setInvitationError(null);
     try {
       await api.resendOrganizationInvitation(
         controlPlane.organization.id,
-        providerInvitationId,
+        invitationHandle,
       );
       await refreshInvitations();
       setStatusMessage("Keycloak invitation resent.");
@@ -546,13 +546,13 @@ export default function App({
     }
   }
 
-  async function revokeInvitation(providerInvitationId: string) {
+  async function revokeInvitation(invitationHandle: string) {
     setInvitationBusy(true);
     setInvitationError(null);
     try {
       await api.revokeOrganizationInvitation(
         controlPlane.organization.id,
-        providerInvitationId,
+        invitationHandle,
       );
       await refreshInvitations();
       setStatusMessage("Keycloak invitation revoked.");
@@ -714,17 +714,23 @@ export default function App({
                   </Typography>
                   <Typography>
                     {copy.adminSignInDescriptionStart}{" "}
-                    <strong>{adminConsoleConfig.oidcClientId}</strong>. This
+                    <strong>{adminConfig.oidcClientId}</strong>. This
                     {" "}{copy.adminSignInDescriptionEnd}
                   </Typography>
                   <Typography sx={{ mt: 1 }}>
                     {copy.adminSignInIssuerLabel}:{" "}
-                    <code>{adminConsoleConfig.oidcIssuerUrl}</code>
+                    <code>{adminConfig.oidcIssuerUrl}</code>
                   </Typography>
+                  {authenticationError ? (
+                    <Alert severity="error" sx={{ mt: 2 }}>
+                      {authenticationError}
+                    </Alert>
+                  ) : null}
                   <Button
                     variant="outlined"
                     sx={{ mt: 2 }}
-                    href={`${adminConsoleConfig.oidcIssuerUrl}/protocol/openid-connect/auth`}
+                    onClick={() => void onSignIn?.()}
+                    disabled={!onSignIn}
                   >
                     {copy.adminSignInOpenBrokerButton}
                   </Button>
@@ -782,7 +788,7 @@ export default function App({
                     <Alert severity="info" sx={{ mb: 2 }}>
                       Keycloak owns email delivery, activation, expiry, and
                       organization membership. Weave records only temporary
-                      role and product-capability provisioning intent.
+                      role provisioning intent.
                     </Alert>
                     {invitationError ? (
                       <Alert severity="error" sx={{ mb: 2 }}>
@@ -826,14 +832,6 @@ export default function App({
                           )}
                         </Select>
                       </FormControl>
-                      <TextField
-                        label="Additional product capabilities (optional)"
-                        helperText="Comma-separated stable Weave capability identifiers; provider group names are never accepted."
-                        value={invitationCapabilities}
-                        onChange={(event) =>
-                          setInvitationCapabilities(event.target.value)
-                        }
-                      />
                       <Box>
                         <Button
                           type="submit"
@@ -856,7 +854,7 @@ export default function App({
                       <List aria-label="Current Keycloak invitations">
                         {invitations.map((invitation) => (
                           <ListItem
-                            key={invitation.providerInvitationId}
+                            key={invitation.invitationHandle}
                             alignItems="flex-start"
                             disableGutters
                             secondaryAction={
@@ -865,7 +863,7 @@ export default function App({
                                   disabled={invitationBusy}
                                   onClick={() =>
                                     void resendInvitation(
-                                      invitation.providerInvitationId,
+                                      invitation.invitationHandle,
                                     )
                                   }
                                 >
@@ -876,7 +874,7 @@ export default function App({
                                   disabled={invitationBusy}
                                   onClick={() =>
                                     void revokeInvitation(
-                                      invitation.providerInvitationId,
+                                      invitation.invitationHandle,
                                     )
                                   }
                                 >
@@ -889,7 +887,7 @@ export default function App({
                               primary={invitation.displayName
                                 ? `${invitation.displayName} — ${invitation.email}`
                                 : invitation.email}
-                              secondary={`Invitation: ${readableState(invitation.lifecycleStatus)} · Provisioning: ${readableState(invitation.provisioningStatus)} · Role: ${invitation.requestedRole}${invitation.capabilities.length ? ` · Capabilities: ${invitation.capabilities.join(", ")}` : ""}`}
+                              secondary={`Invitation: ${readableState(invitation.lifecycleStatus)} · Provisioning: ${readableState(invitation.provisioningStatus)} · Role: ${invitation.requestedRole ?? "not requested"}`}
                             />
                           </ListItem>
                         ))}

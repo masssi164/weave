@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class ServerArchitectureBoundaryTest {
@@ -317,9 +318,13 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
-    void synapseApplicationServiceRemainsASouthboundPrivateAdapter() throws IOException {
+    void nativeChatOwnsCanonicalDefaultAndSynapseRemainsAPrivateSouthboundAdapter() throws IOException {
+        JavaSource persistenceConfiguration = sourceEndingWith(
+                Path.of("config", "CanonicalChatPersistenceConfiguration.java"));
         JavaSource runtimeConfiguration = sourceEndingWith(
                 Path.of("config", "ChatRuntimeConfiguration.java"));
+        JavaSource nativeAdapter = sourceEndingWith(
+                Path.of("chat", "provider", "weave", "NativeChatProviderAdapter.java"));
         JavaSource canonicalAdapter = sourceEndingWith(
                 Path.of("chat", "provider", "synapse", "SynapseBackedCanonicalChatAdapter.java"));
         JavaSource southboundAdapter = sourceEndingWith(
@@ -331,15 +336,26 @@ class ServerArchitectureBoundaryTest {
         JavaSource secrets = sourceEndingWith(
                 Path.of("chat", "provider", "synapse", "MatrixApplicationServiceSecrets.java"));
 
-        assertThat(runtimeConfiguration.text())
+        assertThat(persistenceConfiguration.text())
                 .contains("CanonicalChatStore")
                 .contains("JpaCanonicalChatStore")
                 .contains("CanonicalChatJpaAuthority")
+                .doesNotContain("MatrixSynapseChatSouthboundAdapter")
+                .doesNotContain("MatrixApplicationServiceSecrets");
+        assertThat(runtimeConfiguration.text())
+                .contains("NativeChatProviderAdapter")
                 .contains("MatrixSynapseChatSouthboundAdapter")
                 .contains("SynapseBackedCanonicalChatAdapter")
                 .doesNotContain("WEAVE_CHAT_STORAGE_MODE")
                 .doesNotContain("JdbcTemplate")
                 .doesNotContain("JdbcCanonicalChatStore");
+        assertThat(nativeAdapter.text())
+                .contains("implements ChatProviderPort")
+                .contains("store.commitConversation(")
+                .contains("store.commitEvent(")
+                .doesNotContain("ChatSouthboundProvider")
+                .doesNotContain("acknowledgeMapping(")
+                .doesNotContain("providerEventRef");
         assertThat(canonicalAdapter.text())
                 .contains("CanonicalChatStore")
                 .contains("MatrixSynapseChatSouthboundAdapter")
@@ -431,8 +447,21 @@ class ServerArchitectureBoundaryTest {
                         productionSources().stream(),
                         persistence.stream())
                 .toList();
+        Set<String> nativeCollaborationSqlExceptions = Set.of(
+                "MatrixE2eeRelationalStore.java",
+                "NativeCalendarRelationalStore.java");
+        assertThat(dataAccessSources.stream()
+                        .filter(source -> source.text().contains("JdbcTemplate")
+                                || source.text().contains("org.springframework.jdbc.core"))
+                        .map(source -> source.path().getFileName().toString())
+                        .collect(java.util.stream.Collectors.toSet()))
+                .as("the pre-release native collaboration SQL exception stays exact")
+                .isEqualTo(nativeCollaborationSqlExceptions);
 
-        assertThat(dataAccessSources)
+        assertThat(dataAccessSources.stream()
+                        .filter(source -> !nativeCollaborationSqlExceptions.contains(
+                                source.path().getFileName().toString()))
+                        .toList())
                 .allSatisfy(source -> assertThat(source.text())
                         .as(source.path().toString())
                         .doesNotContain("createNativeQuery(")
@@ -442,6 +471,8 @@ class ServerArchitectureBoundaryTest {
                         .doesNotContain("NamedParameterJdbcTemplate")
                         .doesNotContain("org.springframework.jdbc.core"));
         assertThat(dataAccessSources.stream()
+                        .filter(source -> !nativeCollaborationSqlExceptions.contains(
+                                source.path().getFileName().toString()))
                         .filter(source -> !source.packageName().equals(BACKEND_PACKAGE + "schema"))
                         .toList())
                 .allSatisfy(source -> assertThat(source.text())
@@ -540,7 +571,7 @@ class ServerArchitectureBoundaryTest {
                 .doesNotContain("RestClient");
         assertThat(nativeCore.text())
                 .contains("public static native String projectJson")
-                .contains("weave_matrix_core");
+                .contains("weave_matrix_protocol");
     }
 
     private static List<JavaSource> productionSources() throws IOException {

@@ -50,6 +50,25 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProvisioningIntent> findPendingByActor(
+            String tenant,
+            String org,
+            String invitedByIssuer,
+            String invitedBySubject) {
+        return intents
+                .findByTenantIdAndOrganizationIdAndInvitedByIssuerAndInvitedBySubjectAndStatusOrderByCreatedAtDesc(
+                        tenant,
+                        org,
+                        invitedByIssuer,
+                        invitedBySubject,
+                        ProvisioningIntentStatus.PENDING.name())
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
     private ProvisioningIntentJpaEntity toEntity(ProvisioningIntent value) {
         return new ProvisioningIntentJpaEntity(
                 value.intentId(),

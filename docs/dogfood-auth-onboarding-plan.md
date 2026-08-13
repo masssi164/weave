@@ -23,11 +23,18 @@ Destructive live-stack E2E is not allowed to share the persistent dogfood runner
 
 This replaces ambiguous "mail catcher/mailkit-style" wording with one concrete local stack component.
 
-## Persistent human dogfood member
+## Persistent human dogfood owner
 
-The iPhone tester uses one persistent Keycloak organization member in exactly `/members` and `/capabilities/weaver`. The role group maps the `weave-app` `member` role; the Weaver capability group maps no role. This identity is distinct from disposable automation principals and is not part of the fixed Keycloak desired-state baseline. Protected dogfood automation may create it once, report its support-safe state, or resend activation while it is pending. Once active, deployment only verifies its immutable subject and native organization-group memberships; it never re-invites, recreates, rewrites the account, reads realm user groups, or assigns direct user roles.
+The initial iPhone tester is established as the first Keycloak organization owner by the bounded
+Server-owned bootstrap. The identity is distinct from disposable automation principals and is not
+part of the static realm baseline. The bootstrap may create the invitation once or exactly resend
+the same correlated pending invitation; it cannot create a second human and is unavailable after a
+human exists. Routine deployment never receives a human writer or realm-admin credential.
 
-The tester does not need Admin Console access. The supported remote path is the protected GitHub dogfood-member workflow for initial ensure/status/pending activation resend, Safari at `https://mail.weave.test:44443`, and normal OIDC sign-in in Weave. Active-account password or passkey recovery stays in Keycloak.
+The supported initial path is the protected GitHub **Dogfood Owner Bootstrap** workflow, Safari at
+`https://mail.weave.test:44443`, and normal OIDC sign-in in Weave. After activation, the owner uses
+the Admin Console or authenticated Server invitation API for later members. Active-account password
+or passkey recovery stays in Keycloak.
 
 ## Activation invite lifecycle
 

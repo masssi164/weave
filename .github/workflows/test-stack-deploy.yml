@@ -13,6 +13,14 @@ on:
         description: "Exact dogfood lane commit with successful manifest-bound live evidence"
         required: true
         type: string
+      deployment_mode:
+        description: "Routine convergence or explicitly approved whole-generation Fresh Start"
+        required: true
+        default: routine
+        type: choice
+        options:
+          - routine
+          - fresh-start
 
 permissions:
   actions: read
@@ -26,7 +34,7 @@ concurrency:
 
 jobs:
   deploy-test-stack:
-    name: Fresh Start and verify persistent dogfood
+    name: Converge and verify persistent dogfood
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.head_branch == 'dogfood' &&
@@ -38,13 +46,11 @@ jobs:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
       DOCKER_DEFAULT_PLATFORM: linux/amd64
       LANE_CANDIDATE_COMMIT: ${{ github.event.workflow_run.head_sha || inputs.candidate_sha }}
+      DEPLOYMENT_MODE: ${{ inputs.deployment_mode || 'routine' }}
       ISOLATED_E2E_RUN_ID: ${{ github.event.workflow_run.id || '' }}
-      WEAVE_ENV_FILE: ${{ vars.WEAVE_TEST_REVIEWED_ENV_FILE || vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
-      WEAVE_TEST_BACKUP_ROOT: ${{ vars.WEAVE_TEST_BACKUP_ROOT }}
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE || vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
+      WEAVE_DOGFOOD_BACKUP_ROOT: ${{ vars.WEAVE_DOGFOOD_BACKUP_ROOT }}
       WEAVE_E2E_STACK_SCOPE: persistent
-      WEAVE_DOGFOOD_MEMBER_USERNAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_USERNAME }}
-      WEAVE_DOGFOOD_MEMBER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
-      WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME }}
       WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/canonical-weave-specs
     defaults:
       run:
@@ -54,8 +60,24 @@ jobs:
       - name: Verify protected persistent deployment request
         run: |
           set -euo pipefail
+          umask 077
+          evidence_dir="$RUNNER_TEMP/weave-test-stack-evidence-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          [[ ! -e "$evidence_dir" && ! -L "$evidence_dir" ]] || {
+            echo "::error::The run-scoped persistent evidence root already exists." >&2
+            exit 1
+          }
+          install -d -m 700 "$evidence_dir"
+          jq -n \
+            --arg mode "$DEPLOYMENT_MODE" \
+            '{schemaVersion:"weave.test-stack-run-context.v1",deploymentMode:$mode,phase:"initialized",supportSafe:true,containsSecretValues:false}' \
+            > "$evidence_dir/run-context.json"
+          echo "WEAVE_TEST_STACK_EVIDENCE_DIR=$evidence_dir" >> "$GITHUB_ENV"
           [[ "$LANE_CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
             echo "::error::Persistent deployment requires an exact lowercase dogfood lane SHA." >&2
+            exit 1
+          }
+          [[ "$DEPLOYMENT_MODE" == routine || "$DEPLOYMENT_MODE" == fresh-start ]] || {
+            echo "::error::Deployment mode must be routine or fresh-start." >&2
             exit 1
           }
           [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER_NAME" ]] || {
@@ -63,15 +85,29 @@ jobs:
             exit 1
           }
           [[ "${WEAVE_ENV_FILE:-}" == /* ]] || {
-            echo "::error::Persistent deployment requires one absolute reviewed test-profile environment path." >&2
+            echo "::error::Persistent deployment requires one absolute reviewed dogfood environment path." >&2
             exit 1
           }
+          receipt="$evidence_dir/.run-context.json.tmp"
+          jq -n \
+            --arg lane "$LANE_CANDIDATE_COMMIT" \
+            --arg mode "$DEPLOYMENT_MODE" \
+            '{schemaVersion:"weave.test-stack-run-context.v1",laneCandidateCommit:$lane,deploymentMode:$mode,phase:"request-validated",supportSafe:true,containsSecretValues:false}' \
+            > "$receipt"
+          mv "$receipt" "$evidence_dir/run-context.json"
 
       - name: Check out exact dogfood lane candidate
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ env.LANE_CANDIDATE_COMMIT }}
           fetch-depth: 0
+
+      - name: Verify runner capacity before persistent deployment work
+        run: >-
+          python3 tools/runner_capacity_preflight.py
+          --path .
+          --minimum-free-gib 20
+          --require-docker
 
       - name: Resolve pinned specification corpus
         id: spec-corpus
@@ -128,10 +164,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          evidence_dir="$RUNNER_TEMP/weave-test-stack-evidence"
-          source_dir="$RUNNER_TEMP/weave-live-source-evidence"
-          rm -rf -- "$evidence_dir" "$source_dir"
-          mkdir -p "$evidence_dir" "$source_dir"
+          evidence_dir="${WEAVE_TEST_STACK_EVIDENCE_DIR:?}"
+          source_dir="$RUNNER_TEMP/weave-live-source-evidence-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          [[ -d "$evidence_dir" && ! -L "$evidence_dir" ]] || {
+            echo "::error::The run-scoped persistent evidence root is unsafe." >&2
+            exit 1
+          }
+          [[ ! -e "$source_dir" && ! -L "$source_dir" ]] || {
+            echo "::error::The run-scoped live-source evidence root already exists." >&2
+            exit 1
+          }
+          install -d -m 700 "$source_dir"
           gh run download "$ISOLATED_E2E_RUN_ID" \
             --name weave-live-stack-acceptance-evidence \
             --dir "$source_dir"
@@ -158,17 +201,15 @@ jobs:
             jq -er --arg component "$1" '.images[] | select(.component == $component) | .reference' \
               "$evidence_dir/candidate-manifest.json"
           }
-          generation="fresh-${source_candidate:0:12}"
+          target_generation="fresh-${source_candidate:0:12}"
           {
-            echo "WEAVE_TEST_STACK_EVIDENCE_DIR=$evidence_dir"
             echo "WEAVE_CANDIDATE_COMMIT=$source_candidate"
             echo "WEAVE_IMAGE_SOURCE_COMMIT=$source_candidate"
             echo "WEAVE_CANDIDATE_MANIFEST_DIGEST=sha256:$manifest_sha"
             echo "WEAVE_CANDIDATE_MANIFEST=$evidence_dir/candidate-manifest.json"
-            echo "WEAVE_RESOURCE_GENERATION=$generation"
+            echo "WEAVE_FRESH_START_TARGET_GENERATION=$target_generation"
             echo "WEAVE_BACKEND_IMAGE=$(component_ref server)"
             echo "WEAVE_MCP_IMAGE=$(component_ref mcp-server)"
-            echo "WEAVE_IDENTITY_OPS_IMAGE=$(component_ref identity-ops)"
             echo "WEAVE_KEYCLOAK_IMAGE=$(component_ref keycloak-runtime)"
           } >> "$GITHUB_ENV"
           rm -rf -- "$source_dir"
@@ -178,8 +219,11 @@ jobs:
         run: |
           set -euo pipefail
           coordinates="$(PYTHONPATH=./scripts python3 - <<'PY'
+          import json
           import os
+          import re
           import stat
+          import subprocess
           from pathlib import Path
           from compose_env import load_context
 
@@ -188,14 +232,50 @@ jobs:
           if (not reviewed.is_absolute() or reviewed.is_symlink() or not reviewed.is_file()
                   or metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o600):
               raise SystemExit("reviewed dogfood environment must be a runner-owned regular mode-0600 file")
-          context = load_context("test", Path("."), str(reviewed))
+          context = load_context("dogfood", Path("."), str(reviewed))
           if context.env["WEAVE_DEPLOYMENT_CONTEXT"] != "persistent-dogfood":
-              raise SystemExit("persistent dogfood requires test + persistent-dogfood")
+              raise SystemExit("persistent dogfood requires the dogfood environment and persistent-dogfood context")
+          if os.environ["DEPLOYMENT_MODE"] == "fresh-start":
+              generation = os.environ["WEAVE_FRESH_START_TARGET_GENERATION"]
+          else:
+              inspected = subprocess.run(
+                  ["docker", "volume", "inspect", context.env["WEAVE_DB_DATA_VOLUME"], "--format", "{{json .Labels}}"],
+                  check=True,
+                  text=True,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.DEVNULL,
+              )
+              labels = json.loads(inspected.stdout)
+              if not isinstance(labels, dict) or any(
+                  labels.get(key) != value
+                  for key, value in {
+                      "com.massimotter.weave.managed": "true",
+                      "com.massimotter.weave.environment": "dogfood",
+                      "com.massimotter.weave.scope": "persistent",
+                      "com.massimotter.weave.stack": "weave",
+                  }.items()
+              ):
+                  raise SystemExit("routine dogfood database volume is outside the owned persistent boundary")
+              generation = str(labels.get("com.massimotter.weave.generation", ""))
+          if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,63}", generation):
+              raise SystemExit("persistent dogfood resource generation is malformed")
+          os.environ["WEAVE_RESOURCE_GENERATION"] = generation
+          context = load_context("dogfood", Path("."), str(reviewed))
           print(context.generated_root)
           print(context.secret_root)
           print(context.tls_root)
           print(context.env["WEAVE_COMPOSE_PROJECT"])
           print(context.env["WEAVE_BACKEND_HOST_PORT"])
+          print(generation)
+          for key in (
+              "WEAVE_DB_DATA_VOLUME",
+              "WEAVE_KEYCLOAK_DATA_VOLUME",
+              "WEAVE_MAILPIT_DATA_VOLUME",
+              "WEAVE_CADDY_DATA_VOLUME",
+              "WEAVE_CADDY_CONFIG_VOLUME",
+              "WEAVE_NATIVE_FILES_DATA_VOLUME",
+          ):
+              print(context.env[key])
           PY
           )"
           generated_root="$(sed -n '1p' <<<"$coordinates")"
@@ -203,6 +283,7 @@ jobs:
           tls_root="$(sed -n '3p' <<<"$coordinates")"
           compose_project="$(sed -n '4p' <<<"$coordinates")"
           backend_port="$(sed -n '5p' <<<"$coordinates")"
+          generation="$(sed -n '6p' <<<"$coordinates")"
           [[ "$generated_root" == /* && "$secret_root" == /* && "$tls_root" == /* ]]
           mkdir -p "$generated_root" "$secret_root" "$tls_root"
           chmod 700 "$generated_root" "$secret_root" "$tls_root"
@@ -212,13 +293,21 @@ jobs:
             echo "WEAVE_TLS_ROOT=$tls_root"
             echo "WEAVE_COMPOSE_PROJECT=$compose_project"
             echo "WEAVE_BACKEND_HOST_PORT=$backend_port"
+            echo "WEAVE_RESOURCE_GENERATION=$generation"
+            echo "WEAVE_DB_DATA_VOLUME=$(sed -n '7p' <<<"$coordinates")"
+            echo "WEAVE_KEYCLOAK_DATA_VOLUME=$(sed -n '8p' <<<"$coordinates")"
+            echo "WEAVE_MAILPIT_DATA_VOLUME=$(sed -n '9p' <<<"$coordinates")"
+            echo "WEAVE_CADDY_DATA_VOLUME=$(sed -n '10p' <<<"$coordinates")"
+            echo "WEAVE_CADDY_CONFIG_VOLUME=$(sed -n '11p' <<<"$coordinates")"
+            echo "WEAVE_NATIVE_FILES_DATA_VOLUME=$(sed -n '12p' <<<"$coordinates")"
           } >> "$GITHUB_ENV"
 
       - name: Create or reuse the exact private backup, restore proof, and Fresh Start plan
+        if: env.DEPLOYMENT_MODE == 'fresh-start'
         id: fresh-plan
         run: |
           set -euo pipefail
-          backup_root="${WEAVE_TEST_BACKUP_ROOT:-$HOME/.weave/dogfood/backups}"
+          backup_root="${WEAVE_DOGFOOD_BACKUP_ROOT:-$HOME/.weave/dogfood/backups}"
           [[ "$backup_root" == /* ]]
           pending_root="$backup_root/fresh-start/pending/$LANE_CANDIDATE_COMMIT"
           private_root="$pending_root/private"
@@ -228,9 +317,9 @@ jobs:
           chmod 700 "$backup_root" "$backup_root/fresh-start" "$backup_root/fresh-start/pending" "$pending_root" "$private_root"
           if [[ ! -s "$receipt" ]]; then
             WEAVE_BACKUP_ROOT="$private_root" \
-              ./gradlew --no-daemon freshStartBackupRehearsal \
-                -PfreshStartBackupProfile=test \
-                "-PfreshStartBackupReceipt=$receipt"
+            WEAVE_CANDIDATE_COMMIT="$WEAVE_CANDIDATE_COMMIT" \
+            WEAVE_BACKUP_REHEARSAL_RECEIPT="$receipt" \
+              ./fresh-start-backup-rehearsal.sh dogfood
           fi
           jq -e \
             --arg source "$WEAVE_CANDIDATE_COMMIT" \
@@ -240,98 +329,72 @@ jobs:
               .candidateManifestDigest == $manifest and
               .backupVerified == true and
               .isolatedRestoreVerified == true and
-              .recoveryBoundary == "private-backup-only-no-adoption" and
-              .legacyStateMigrated == false and
-              .adoptionAuthorized == false and
               .cleanupVerified == true and
               .supportSafe == true and
               .containsSecretValues == false
-            ' "$receipt" >/dev/null
-          operation_nonce="dogfood-fresh-${WEAVE_CANDIDATE_COMMIT:0:12}-${WEAVE_CANDIDATE_MANIFEST_DIGEST:7:12}"
+            ' \
+            "$receipt" >/dev/null
           if [[ ! -s "$plan" ]]; then
-            ./gradlew --no-daemon freshStartPlan \
-              -PfreshStartEnvironment=persistent-dogfood \
-              -PfreshStartScope=persistent \
-              -PfreshStartStack=weave \
-              -PfreshStartNamespace=weave \
-              -PretiredGeneration=legacy-pre-fresh \
-              "-PtargetGeneration=$WEAVE_RESOURCE_GENERATION" \
-              "-PspecCommit=${{ steps.spec-corpus.outputs.commit }}" \
-              "-PspecDigest=${{ steps.spec-corpus.outputs.digest }}" \
-              "-PcandidateCommit=$WEAVE_CANDIDATE_COMMIT" \
-              "-PcandidateManifestDigest=$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
-              "-PoperationNonce=$operation_nonce" \
-              -PrecoveryDecision=verified-backup \
-              "-PrecoveryEvidenceRef=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-              "-PrecoveryReceipt=$receipt" \
-              "-PfreshStartManifest=$plan"
+            nonce="fresh-start-$(openssl rand -hex 12)"
+            WEAVE_FRESH_START_TARGET_GENERATION="$WEAVE_FRESH_START_TARGET_GENERATION" \
+            ./fresh-start.py plan \
+              --environment persistent-dogfood \
+              --scope persistent \
+              --stack weave \
+              --namespace "$WEAVE_COMPOSE_PROJECT" \
+              --retired-generation "$WEAVE_RESOURCE_GENERATION" \
+              --target-generation "$WEAVE_FRESH_START_TARGET_GENERATION" \
+              --spec-commit "${{ steps.spec-corpus.outputs.commit }}" \
+              --spec-digest "${{ steps.spec-corpus.outputs.digest }}" \
+              --candidate-commit "$WEAVE_CANDIDATE_COMMIT" \
+              --candidate-manifest-digest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
+              --operation-nonce "$nonce" \
+              --recovery-decision verified-backup \
+              --recovery-evidence-ref "FreshStartBackupRehearsal.json" \
+              --recovery-receipt "$receipt" \
+              --output "$plan"
           fi
-          plan_sha="$(shasum -a 256 "$plan" | awk '{print $1}')"
-          [[ "$(awk 'NR == 1 {print $1}' "$plan.sha256")" == "$plan_sha" ]]
           jq -e \
             --arg source "$WEAVE_CANDIDATE_COMMIT" \
-            --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
-            --arg generation "$WEAVE_RESOURCE_GENERATION" \
-            --arg nonce "$operation_nonce" '
-              .schemaVersion == "weave.infra.fresh-start-plan.v1" and
-              .environment == "persistent-dogfood" and
-              .scope == "persistent" and
-              .candidateCommit == $source and
-              .candidateManifestDigest == $manifest and
-              .targetGeneration == $generation and
-              .operationNonce == $nonce and
-              .recoveryDecision.decision == "verified-backup" and
-              (.targets | length) > 0 and
-              .supportSafe == true
-            ' "$plan" >/dev/null
-          cp "$plan" "$plan.sha256" "$receipt" "$WEAVE_TEST_STACK_EVIDENCE_DIR/"
-          jq -n \
-            --arg lane "$LANE_CANDIDATE_COMMIT" \
-            --arg source "$WEAVE_CANDIDATE_COMMIT" \
-            --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
-            --arg planSha "sha256:$plan_sha" \
-            --arg confirmation "DELETE_OLD_WEAVE:$plan_sha" \
-            '{schemaVersion:"weave.fresh-start-plan-status.v1",laneCandidateCommit:$lane,sourceCandidateCommit:$source,candidateManifestDigest:$manifest,planSha256:$planSha,requiredConfirmation:$confirmation,backupVerified:true,isolatedRestoreVerified:true,mutationPerformed:false,legacyStateMigrated:false,adoptionAuthorized:false,supportSafe:true,containsSecretValues:false}' \
-            > "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-plan-status.json"
+            --arg target "$WEAVE_FRESH_START_TARGET_GENERATION" \
+            '.schemaVersion == "weave.infra.fresh-start-plan.v1" and .candidateCommit == $source and .targetGeneration == $target and .supportSafe == true' \
+            "$plan" >/dev/null
+          plan_sha="$(shasum -a 256 "$plan" | awk '{print $1}')"
           {
-            echo "plan=$plan"
-            echo "plan_sha=$plan_sha"
-            echo "confirmation=DELETE_OLD_WEAVE:$plan_sha"
-            echo "receipt=$receipt"
-            echo "pending_root=$pending_root"
+            echo "path=$plan"
+            echo "sha=$plan_sha"
           } >> "$GITHUB_OUTPUT"
-          {
-            echo "WEAVE_FRESH_START_PLAN=$plan"
-            echo "WEAVE_FRESH_START_PLAN_SHA=$plan_sha"
-            echo "WEAVE_FRESH_START_CONFIRMATION=DELETE_OLD_WEAVE:$plan_sha"
-            echo "WEAVE_FRESH_START_PENDING_ROOT=$pending_root"
-          } >> "$GITHUB_ENV"
 
       - name: Resolve exact destructive approval from delivery issue
+        if: env.DEPLOYMENT_MODE == 'fresh-start'
         id: approval
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          echo "approved=false" >> "$GITHUB_OUTPUT"
+          plan="${{ steps.fresh-plan.outputs.path }}"
+          plan_sha="${{ steps.fresh-plan.outputs.sha }}"
           comments="$RUNNER_TEMP/weave-fresh-start-comments.json"
+          token="DELETE_OLD_WEAVE:${plan_sha}"
           umask 077
           gh api --paginate "/repos/${GITHUB_REPOSITORY}/issues/1266/comments?per_page=100" > "$comments"
           approval_id="$(jq -r \
             --arg owner "$GITHUB_REPOSITORY_OWNER" \
-            --arg confirmation "$WEAVE_FRESH_START_CONFIRMATION" '
+            --arg confirmation "$token" '
               [ .[]
                 | select(.user.login == $owner)
                 | select((.body | split("\n") | map(gsub("^\\s+|\\s+$"; "")) | any(. == $confirmation)))
               ][-1].id // empty
             ' "$comments")"
-          if [[ -z "$approval_id" ]]; then
-            echo "Fresh Start remains plan-only; exact repository-owner confirmation is absent."
-            exit 0
-          fi
-          approval="$WEAVE_FRESH_START_PENDING_ROOT/approval.json"
+          [[ -n "$approval_id" ]] || {
+            echo "::error::Fresh Start requires exact reviewed approval token $token." >&2
+            exit 1
+          }
+          approval="$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-approval.json"
           APPROVAL_PATH="$approval" \
-          APPROVAL_EVIDENCE_REF="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/issues/1266" \
+          APPROVAL_EVIDENCE_REF="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/issues/1266#issuecomment-$approval_id" \
+          PLAN_PATH="$plan" \
+          PLAN_SHA="$plan_sha" \
           python3 - <<'PY'
           import importlib.util
           import json
@@ -343,114 +406,166 @@ jobs:
           assert spec and spec.loader
           module = importlib.util.module_from_spec(spec)
           spec.loader.exec_module(module)
-          plan = json.loads(Path(os.environ["WEAVE_FRESH_START_PLAN"]).read_text(encoding="utf-8"))
+          plan = json.loads(Path(os.environ["PLAN_PATH"]).read_text(encoding="utf-8"))
           payload = {
               "schemaVersion": "weave.infra.fresh-start-approval.v1",
               "supportSafe": True,
               "decision": "approved",
               "environment": plan["environment"],
-              "planSha256": os.environ["WEAVE_FRESH_START_PLAN_SHA"],
+              "planSha256": os.environ["PLAN_SHA"],
               "operationNonce": plan["operationNonce"],
               "approverRole": "release-owner",
               "evidenceRef": os.environ["APPROVAL_EVIDENCE_REF"],
           }
-          path = Path(os.environ["APPROVAL_PATH"])
-          path.write_bytes(module.canonical_json_bytes(payload))
-          path.chmod(0o600)
+          Path(os.environ["APPROVAL_PATH"]).write_bytes(module.canonical_json_bytes(payload))
           PY
-          cp "$approval" "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-approval.json"
-          {
-            echo "approved=true"
-            echo "approval=$approval"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Stop before mutation without exact Fresh Start approval
-        if: steps.approval.outputs.approved != 'true'
-        run: |
-          echo "::error::AWAITING_DESTRUCTIVE_APPROVAL ${WEAVE_FRESH_START_CONFIRMATION}" >&2
-          exit 1
+          echo "approved=true" >> "$GITHUB_OUTPUT"
+          echo "path=$approval" >> "$GITHUB_OUTPUT"
 
       - name: Apply only the exact approved Fresh Start plan
-        if: steps.approval.outputs.approved == 'true'
+        if: env.DEPLOYMENT_MODE == 'fresh-start' && steps.approval.outputs.approved == 'true'
+        working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          apply_evidence="$WEAVE_FRESH_START_PENDING_ROOT/apply-evidence.json"
-          recreation_evidence="$WEAVE_FRESH_START_PENDING_ROOT/recreation-evidence.json"
-          archive_root="$WEAVE_FRESH_START_PENDING_ROOT/archive"
-          ./gradlew --no-daemon freshStartApply \
-            "-PfreshStartManifest=$WEAVE_FRESH_START_PLAN" \
-            "-Pconfirm=$WEAVE_FRESH_START_CONFIRMATION" \
-            "-PapprovalEvidence=${{ steps.approval.outputs.approval }}" \
-            "-PfreshStartEvidence=$apply_evidence" \
-            "-PfreshStartApplyEvidence=$apply_evidence" \
-            "-PcandidateManifest=$WEAVE_CANDIDATE_MANIFEST" \
-            "-PfreshStartArchiveRoot=$archive_root" \
-            "-PfreshStartRecreationEvidence=$recreation_evidence"
-          cp "$apply_evidence" "$apply_evidence.sha256" "$recreation_evidence" "$recreation_evidence.sha256" \
-            "$WEAVE_TEST_STACK_EVIDENCE_DIR/"
+          plan="${{ steps.fresh-plan.outputs.path }}"
+          apply="$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-apply.json"
+          approval="$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-approval.json"
+          cp "${{ steps.approval.outputs.path }}" "$approval"
+          ./fresh-start.py apply \
+            --manifest "$plan" \
+            --confirm "DELETE_OLD_WEAVE:${{ steps.fresh-plan.outputs.sha }}" \
+            --approval-evidence "$approval" \
+            --evidence "$apply"
+          export WEAVE_FRESH_START_PLAN="$plan"
+          export WEAVE_FRESH_START_APPLY_EVIDENCE="$apply"
+          export WEAVE_RESOURCE_GENERATION="$WEAVE_FRESH_START_TARGET_GENERATION"
+          echo "WEAVE_RESOURCE_GENERATION=$WEAVE_RESOURCE_GENERATION" >> "$GITHUB_ENV"
 
-      - name: Ensure local Weave hostnames resolve
-        if: steps.approval.outputs.approved == 'true'
+      - name: Capture routine persistent resource identity
+        if: env.DEPLOYMENT_MODE == 'routine' || steps.approval.outputs.approved == 'true'
+        working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          hosts=(weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test admin.weave.test mail.weave.test)
-          missing=()
-          for host in "${hosts[@]}"; do
-            dscacheutil -q host -a name "$host" | grep -q 'ip_address:' || missing+=("$host")
-          done
-          if (( ${#missing[@]} > 0 )); then
-            line="127.0.0.1 ${missing[*]}"
-            sudo -n true 2>/dev/null || {
-              echo "::error::Configure runner DNS or passwordless sudo for: $line" >&2
+          python3 ../../tools/dogfood_resource_continuity.py capture \
+            --compose-project "$WEAVE_COMPOSE_PROJECT" \
+            --generation "$WEAVE_RESOURCE_GENERATION" \
+            --database "$WEAVE_DB_DATA_VOLUME" \
+            --keycloak-runtime "$WEAVE_KEYCLOAK_DATA_VOLUME" \
+            --mailpit "$WEAVE_MAILPIT_DATA_VOLUME" \
+            --caddy-data "$WEAVE_CADDY_DATA_VOLUME" \
+            --caddy-config "$WEAVE_CADDY_CONFIG_VOLUME" \
+            --native-files "$WEAVE_NATIVE_FILES_DATA_VOLUME" \
+            --ca-file "$WEAVE_TLS_ROOT/ca.pem" \
+            --gateway-certificate "$WEAVE_TLS_ROOT/cert.pem" \
+            --mailpit-certificate "$WEAVE_TLS_ROOT/mailpit-cert.pem" \
+            --baseline "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-resource-baseline.json"
+
+      - name: Prove canonical lifecycle convergence and stable realm artifacts
+        if: env.DEPLOYMENT_MODE == 'routine' || steps.approval.outputs.approved == 'true'
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          ./compose.sh dogfood configure
+          render_manifest="$WEAVE_GENERATED_ROOT/render-manifest.json"
+          render_evidence="$WEAVE_GENERATED_ROOT/keycloak/realm-render-evidence.json"
+          rendered_realm="$WEAVE_GENERATED_ROOT/keycloak/import/weave-realm.json"
+          receipt="$WEAVE_GENERATED_ROOT/keycloak/migrations/fgap-v2-primary-organization-post-import.receipt.json"
+          for required in "$render_manifest" "$render_evidence" "$rendered_realm"; do
+            [[ -f "$required" && ! -L "$required" ]] || {
+              echo "::error::Persistent realm render input is missing or unsafe: $required" >&2
               exit 1
             }
-            printf '%s\n' "$line" | sudo tee -a /etc/hosts >/dev/null
-            sudo dscacheutil -flushcache || true
-          fi
-
-      - name: Prove canonical lifecycle convergence and empty second reconciliation
-        if: steps.approval.outputs.approved == 'true'
-        working-directory: infra/weave-workspace
-        run: |
-          set -euo pipefail
-          ./compose.sh test config > "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-first.json"
-          ./compose.sh test identity-plan
-          cp "$WEAVE_GENERATED_ROOT/identity-ops/identity-ops.json" "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-first-plan.json"
-          jq -e '.command == "plan" and .operationCount == 0' "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-first-plan.json" >/dev/null
-          ./operator-check.sh test
-          ./install.sh test
-          ./compose.sh test config > "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-second.json"
+          done
+          candidate_semantic="$(jq -er .realmDefinition.semanticRealmSourceDigest "$WEAVE_CANDIDATE_MANIFEST")"
+          candidate_migration="$(jq -er .realmDefinition.migrationDefinitionDigest "$WEAVE_CANDIDATE_MANIFEST")"
+          jq -e \
+            --arg semantic "$candidate_semantic" \
+            --arg migration "$candidate_migration" '
+              .schemaVersion == "weave.compose-render.v3" and
+              (has("realmArtifacts") | not) and
+              (.deploymentArtifacts | type == "object") and
+              .deploymentArtifacts.renderedRealmPath == "keycloak/import/weave-realm.json" and
+              .deploymentArtifacts.migrationBundlePath == "keycloak/migrations/fresh-start-v1.json" and
+              .deploymentArtifacts.environmentRenderEvidencePath == "keycloak/realm-render-evidence.json" and
+              .deploymentArtifacts.containsSecretValues == false and
+              .realmIdentity.semanticRealmSourceDigest == $semantic and
+              .realmIdentity.migrationDefinitionDigest == $migration and
+              (.realmIdentity.overlayDigest | test("^sha256:[0-9a-f]{64}$")) and
+              (.realmIdentity.renderedRealmDigest | test("^sha256:[0-9a-f]{64}$")) and
+              .containsSecretValues == false
+            ' "$render_manifest" >/dev/null
+          expected_rendered="$(jq -er .realmIdentity.renderedRealmDigest "$render_manifest")"
+          actual_rendered="sha256:$(shasum -a 256 "$rendered_realm" | awk '{print $1}')"
+          [[ "$actual_rendered" == "$expected_rendered" ]] || {
+            echo "::error::Dogfood realm bytes do not match their environment render digest." >&2
+            exit 1
+          }
+          jq -e \
+            --arg source "$WEAVE_CANDIDATE_COMMIT" \
+            --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
+            --arg semantic "$candidate_semantic" \
+            --arg migration "$candidate_migration" '
+              .schemaVersion == "weave.keycloak-environment-render-evidence/v1" and
+              .environment == "dogfood" and
+              .candidateCommit == $source and
+              .candidateManifestDigest == $manifest and
+              .realmIdentity.semanticRealmSourceDigest == $semantic and
+              .realmIdentity.migrationDefinitionDigest == $migration and
+              .semanticReadbackDigest == null and
+              .semanticReadbackVerified == false and
+              .supportSafe == true and
+              .containsSecretValues == false
+            ' "$render_evidence" >/dev/null
+          cp "$render_manifest" "$WEAVE_TEST_STACK_EVIDENCE_DIR/render-manifest-first.json"
+          ./install.sh dogfood
+          ./compose.sh dogfood config > "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-first.json"
+          ./operator-check.sh dogfood
+          ./install.sh dogfood
+          ./compose.sh dogfood config > "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-second.json"
           cmp -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-first.json" "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-second.json"
-          ./compose.sh test identity-plan
-          cp "$WEAVE_GENERATED_ROOT/identity-ops/identity-ops.json" "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-second-plan.json"
-          jq -e '.command == "plan" and .operationCount == 0' "$WEAVE_TEST_STACK_EVIDENCE_DIR/identity-second-plan.json" >/dev/null
-          ./operator-check.sh test
-          jq -n '{schemaVersion:"weave.persistent-test-idempotence.v2",runtimeProfile:"test",deploymentContext:"persistent-dogfood",noChanges:true,composeModelStable:true,identityFirstPlanEmpty:true,identitySecondPlanEmpty:true,supportSafe:true,containsSecretValues:false}' \
+          [[ -f "$receipt" && ! -L "$receipt" ]] || {
+            echo "::error::Qualified Keycloak migration receipt is missing after install." >&2
+            exit 1
+          }
+          python3 scripts/keycloak_realm_evidence.py \
+            --candidate-manifest "$WEAVE_CANDIDATE_MANIFEST" \
+            --first-render-manifest "$WEAVE_TEST_STACK_EVIDENCE_DIR/render-manifest-first.json" \
+            --current-render-manifest "$render_manifest" \
+            --render-evidence "$render_evidence" \
+            --migration-receipt "$receipt" \
+            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/realm-evidence.json"
+          ./operator-check.sh dogfood
+          jq -n \
+            '{schemaVersion:"weave.persistent-test-idempotence.v4",runtimeProfile:"dogfood",deploymentContext:"persistent-dogfood",noChanges:true,composeModelStable:true,candidateRealmDefinitionMatched:true,environmentRealmRenderStable:true,semanticReadbackVerified:true,supportSafe:true,containsSecretValues:false}' \
             > "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-test-idempotence.json"
 
-      - name: Create a new invitation through the normal identity flow
-        if: steps.approval.outputs.approved == 'true'
-        working-directory: infra/weave-workspace
+      - name: Compare routine persistent resource identity
+        if: env.DEPLOYMENT_MODE == 'routine'
         run: |
           set -euo pipefail
-          ./dogfood-member.sh ensure \
-            --subject-file "$WEAVE_GENERATED_ROOT/dogfood-member.subject" \
-            --evidence-file "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-invitation.json"
-          jq -e '
-            .schemaVersion == "weave.dogfood.persistent-member.v1" and
-            .state == "pending" and
-            .action == "created_and_activation_sent" and
-            .activation.mailSent == true and
-            .activation.mailVisible == true and
-            .supportSafe == true
-          ' "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-invitation.json" >/dev/null
+          python3 tools/dogfood_resource_continuity.py compare \
+            --compose-project "$WEAVE_COMPOSE_PROJECT" \
+            --generation "$WEAVE_RESOURCE_GENERATION" \
+            --database "$WEAVE_DB_DATA_VOLUME" \
+            --keycloak-runtime "$WEAVE_KEYCLOAK_DATA_VOLUME" \
+            --mailpit "$WEAVE_MAILPIT_DATA_VOLUME" \
+            --caddy-data "$WEAVE_CADDY_DATA_VOLUME" \
+            --caddy-config "$WEAVE_CADDY_CONFIG_VOLUME" \
+            --native-files "$WEAVE_NATIVE_FILES_DATA_VOLUME" \
+            --ca-file "$WEAVE_TLS_ROOT/ca.pem" \
+            --gateway-certificate "$WEAVE_TLS_ROOT/cert.pem" \
+            --mailpit-certificate "$WEAVE_TLS_ROOT/mailpit-cert.pem" \
+            --baseline "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-resource-baseline.json" \
+            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-comparison.json"
 
       - name: Verify running image identities and assemble deployment evidence
-        if: steps.approval.outputs.approved == 'true'
+        if: env.DEPLOYMENT_MODE == 'routine' || steps.approval.outputs.approved == 'true'
         run: |
           set -euo pipefail
           mapping="$WEAVE_TEST_STACK_EVIDENCE_DIR/candidate-source-mapping.json"
           runtime="$WEAVE_TEST_STACK_EVIDENCE_DIR/runtime-image-observation.json"
+          realm_evidence="$WEAVE_TEST_STACK_EVIDENCE_DIR/realm-evidence.json"
+          test -s "$realm_evidence"
           observe() {
             local runtime_name="$1" container="$2" component="$3" expected observed reference source
             expected="$(jq -er --arg name "$runtime_name" '.images[$name]' "$mapping")"
@@ -468,29 +583,41 @@ jobs:
           jq -n \
             --arg source "$WEAVE_CANDIDATE_COMMIT" \
             --argjson backend "$(observe backend weave-backend server)" \
-            --argjson identity "$(observe identity-ops '' identity-ops)" \
             --argjson keycloak "$(observe keycloak weave-keycloak keycloak-runtime)" \
             --argjson mcp "$(observe mcp weave-mcp-server mcp-server)" \
-            '{schemaVersion:"weave.runtime-image-observation.v1",sourceCandidateCommit:$source,images:{backend:$backend,"identity-ops":$identity,keycloak:$keycloak,mcp:$mcp},supportSafe:true,containsSecretValues:false}' \
+            '{schemaVersion:"weave.runtime-image-observation.v1",sourceCandidateCommit:$source,images:{backend:$backend,keycloak:$keycloak,mcp:$mcp},supportSafe:true,containsSecretValues:false}' \
             > "$runtime"
           python3 tools/dogfood_deployment_evidence.py collect-provider-health \
             --actuator-metrics-url "http://127.0.0.1:${WEAVE_BACKEND_HOST_PORT}/actuator/metrics" \
             --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/provider-health-summary.json"
-          jq -n \
-            --arg lane "$LANE_CANDIDATE_COMMIT" \
-            --arg source "$WEAVE_CANDIDATE_COMMIT" \
-            --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
-            --arg planSha "sha256:$WEAVE_FRESH_START_PLAN_SHA" '
-              {schemaVersion:"weave.fresh-start-cut-report.v1",laneCandidateCommit:$lane,sourceCandidateCommit:$source,candidateManifestDigest:$manifest,planSha256:$planSha,status:"passed",schemaConverged:true,identitySecondPlanEmpty:true,imagesVerified:true,newInvitationPending:true,backupVerified:true,isolatedRestoreVerified:true,legacyStateMigrated:false,adoptionAuthorized:false,supportSafe:true,containsSecretValues:false}
-            ' > "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-cut-report.json"
+          baseline_arguments=()
+          manifest_baseline_arguments=()
+          if [[ "$DEPLOYMENT_MODE" == fresh-start ]]; then
+            jq -n \
+              --arg lane "$LANE_CANDIDATE_COMMIT" \
+              --arg source "$WEAVE_CANDIDATE_COMMIT" \
+              --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
+              --arg planSha "sha256:$WEAVE_FRESH_START_PLAN_SHA" '
+                {schemaVersion:"weave.fresh-start-cut-report.v3",laneCandidateCommit:$lane,sourceCandidateCommit:$source,candidateManifestDigest:$manifest,planSha256:$planSha,status:"passed",schemaConverged:true,realmEvidenceVerified:true,imagesVerified:true,firstOwnerBootstrapRequired:true,ownerInvitationCreated:false,backupVerified:true,isolatedRestoreVerified:true,legacyStateMigrated:false,adoptionAuthorized:false,supportSafe:true,containsSecretValues:false}
+              ' > "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-cut-report.json"
+            baseline_arguments=(--fresh-start-cut-report "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-cut-report.json")
+            manifest_baseline_arguments=(--fresh-start-cut-report "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-cut-report.json")
+          else
+            comparison="$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-comparison.json"
+            test -s "$comparison"
+            baseline_arguments=(--persistent-comparison "$comparison")
+            manifest_baseline_arguments=(--persistent-comparison "$comparison")
+          fi
           backend_version="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$WEAVE_BACKEND_IMAGE")"
           python3 tools/dogfood_deployment_evidence.py assemble \
             --candidate-commit "$LANE_CANDIDATE_COMMIT" \
             --candidate-manifest-digest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
+            --candidate-manifest "$WEAVE_CANDIDATE_MANIFEST" \
+            --realm-evidence "$realm_evidence" \
             --backend-version "$backend_version" \
             --backend-build-number "${WEAVE_CANDIDATE_COMMIT:0:12}" \
             --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-            --fresh-start-cut-report "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-cut-report.json" \
+            "${baseline_arguments[@]}" \
             --provider-health "$WEAVE_TEST_STACK_EVIDENCE_DIR/provider-health-summary.json" \
             --deployment-idempotence "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-test-idempotence.json" \
             --candidate-source-mapping "$mapping" \
@@ -499,8 +626,9 @@ jobs:
           python3 tools/test_stack_manifest.py \
             --candidate-source-mapping "$mapping" \
             --candidate-manifest "$WEAVE_CANDIDATE_MANIFEST" \
+            --realm-evidence "$realm_evidence" \
             --runtime-image-evidence "$runtime" \
-            --fresh-start-cut-report "$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-cut-report.json" \
+            "${manifest_baseline_arguments[@]}" \
             --deployment-idempotence "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-test-idempotence.json" \
             --provider-health "$WEAVE_TEST_STACK_EVIDENCE_DIR/provider-health-summary.json" \
             --compose-project "$WEAVE_COMPOSE_PROJECT" \
@@ -516,7 +644,7 @@ jobs:
           set -euo pipefail
           if [[ -n "${WEAVE_TEST_STACK_EVIDENCE_DIR:-}" ]]; then
             WEAVE_SUPPORT_BUNDLE_RUN_CHECKS=false \
-              ./support-bundle.sh test "$WEAVE_TEST_STACK_EVIDENCE_DIR/support-bundle" || true
+              ./support-bundle.sh dogfood "$WEAVE_TEST_STACK_EVIDENCE_DIR/support-bundle" || true
           fi
 
       - name: Upload persistent dogfood evidence

@@ -1,0 +1,56 @@
+# Disposable E2E-only overlay. It owns the application settings previously
+# shared through the persistent dogfood overlay. The run namespace, resources,
+# ports, SecretRefs, and generated root are computed from WEAVE_E2E_RUN_ID.
+services:
+  keycloak:
+    command:
+      - start
+      - --import-realm
+    # E2E must never inherit the production SMTP credential mount.
+    secrets: !override
+      - keycloak-db-password
+
+  mailpit:
+    environment:
+      MP_SMTP_REQUIRE_TLS: "true"
+
+  backend:
+    environment:
+      WEAVE_RELEASE_POSTURE: dogfood
+      WEAVE_CHAT_E2E_PROOF_ENABLED: "true"
+      WEAVE_CHAT_E2E_PROOF_TOKEN_FILE: /run/secrets/weave/chat-e2e-proof-token
+      WEAVE_CHAT_E2E_PROOF_RUN_ID: ${WEAVE_E2E_RUN_ID:?isolated run ID is required}
+      WEAVE_CHAT_E2E_PROOF_STACK_SCOPE: isolated
+      WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM: preferred_username
+      WEAVE_CONTEXT_AUTHORIZATION_SEED_MEMBERSHIPS_FILE: /run/weave-e2e/context-authorization-memberships.json
+      weave.provider-bindings.bootstrap.files.enabled: "true"
+      weave.provider-bindings.bootstrap.files.organization-ref: ${WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID:-tenant-default}
+      weave.provider-bindings.bootstrap.files.adapter-key: ${WEAVE_FILES_PROVIDER:-weave-native}
+      weave.provider-bindings.bootstrap.files.configuration-ref: profile:${WEAVE_FILES_PROVIDER:-weave-native}
+    depends_on:
+      runtime-state-init:
+        condition: service_completed_successfully
+    secrets:
+      - source: runtime-state-s3-access-key
+        target: weave/runtime-state-s3-access-key
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0400
+      - source: runtime-state-s3-secret-key
+        target: weave/runtime-state-s3-secret-key
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0400
+    volumes:
+      - type: bind
+        source: ${WEAVE_SECRET_ROOT:-./.generated/e2e/secrets}/identity-bootstrap-owner-token
+        target: /run/secrets/weave/bootstrap-owner-token
+        read_only: true
+      - type: bind
+        source: ${WEAVE_SECRET_ROOT:?isolated SecretRef root is required}/chat-e2e-proof-token
+        target: /run/secrets/weave/chat-e2e-proof-token
+        read_only: true
+      - type: bind
+        source: ${WEAVE_GENERATED_ROOT:?isolated generated root is required}/context-authorization-memberships.json
+        target: /run/weave-e2e/context-authorization-memberships.json
+        read_only: true

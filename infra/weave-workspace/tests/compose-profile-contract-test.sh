@@ -15,7 +15,8 @@ if grep -Eq 'install\.sh|stop_host_replaced_container|container stop' "${DEV_UP}
   printf '%s\n' "compose profile contract failed: devUp must use the closed provider preparation path" >&2
   exit 1
 fi
-grep -Fq '[str(root / "install.sh"), "dev"]' "${PREPARE_DEV}"
+grep -Fq 'WEAVE_DEV_PREPARE_ERROR' "${PREPARE_DEV}"
+grep -Fq 'no receipt or production backup proof' "${PREPARE_DEV}"
 
 grep -Fq 'bash "${WORKSPACE}/compose.sh" dev down --remove-orphans' "${DEV_DOWN}"
 if grep -Eq 'teardown\.sh|WEAVE_REMOVE_VOLUMES|--volumes|(^|[[:space:]])-v([[:space:]]|$)' "${DEV_DOWN}"; then

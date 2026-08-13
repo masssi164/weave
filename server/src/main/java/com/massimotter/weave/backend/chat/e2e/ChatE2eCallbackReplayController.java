@@ -5,6 +5,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.provider.synapse.MatrixApplicationServiceController;
 import com.massimotter.weave.backend.config.ChatE2eProofProperties;
 import com.massimotter.weave.backend.config.ChatE2eProofSecurityConfiguration;
+import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Hidden
 @ConditionalOnProperty(name = "weave.chat.e2e-proof.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "weave.chat.provider", havingValue = ChatRuntimeProperties.MATRIX_SYNAPSE_PROVIDER)
 public final class ChatE2eCallbackReplayController {
 
     public static final String PATH = ChatE2eProofSecurityConfiguration.PATH + "/callback-replay";

@@ -8,7 +8,7 @@ Feature: Product-ready sovereign collaboration setup
   Scenario: Admin bootstraps organization, validates domains, controls an entitled runtime cell, and members work provider-neutrally
     Given an organization owner signs in through Keycloak
     When the owner reviews the domain registry
-    And the owner reviews protected Keycloak Identity Ops plan and verify evidence
+    And the owner reviews protected Keycloak realm import and bounded migration evidence
     And the owner configures Spaces and domain bindings
     And the owner reviews provider readiness for chat, files, documents, calendar, boards, and calls
     And the owner attempts provider apply before migration reports exist

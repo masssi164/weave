@@ -135,6 +135,7 @@ volumes = {
     "caddy_config": (f"{volume_prefix}_caddy_config", "caddy-config.tgz", "Caddy config fixture data"),
     "keycloak": (f"{volume_prefix}_keycloak", "keycloak-data.tgz", "Identity fixture data"),
     "matrix_appservice": (f"{volume_prefix}_matrix_appservice", "matrix-appservice.tgz", "Matrix application-service fixture data"),
+    "native_files": (f"{volume_prefix}_native_files", "native-files-data.tgz", "Native Files payload fixture data"),
 }
 
 fixture_files = {
@@ -146,6 +147,7 @@ fixture_files = {
     "caddy_data/acme-marker.txt": "disposable acme continuity marker\n",
     "caddy_config/caddy-config-marker.txt": "disposable caddy config continuity marker\n",
     "matrix_appservice/registration.yaml": "id: weave-chat-appservice\nrate_limited: true\n",
+    "native_files/blobs/restore-proof.txt": "native Files payload survives restore\n",
 }
 for relative, content in fixture_files.items():
     target = seed_dir / relative
@@ -275,7 +277,7 @@ with tarfile.open(backup_dir / "private-config-secrets.tgz", "w:gz") as tar:
 
 now = datetime.now(timezone.utc)
 created_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-backup_id = f"weave-test-{now.strftime('%Y%m%dT%H%M%SZ')}-{candidate[:12]}"
+backup_id = f"weave-dogfood-{now.strftime('%Y%m%dT%H%M%SZ')}-{candidate[:12]}"
 artifact_entries = []
 for name, kind in [
     ("postgres.sql", "postgres-consistency-dump"),
@@ -285,6 +287,7 @@ for name, kind in [
     ("caddy-config.tgz", "gateway-config-state"),
     ("keycloak-data.tgz", "keycloak-runtime-state"),
     ("matrix-appservice.tgz", "matrix-appservice-runtime"),
+    ("native-files-data.tgz", "native-files-payload-data"),
     ("private-config-secrets.tgz", "private-config-secretrefs"),
 ]:
     digest, size = sha256_file(backup_dir / name)
@@ -301,7 +304,7 @@ backup_manifest = {
     "createdAt": created_at,
     "candidateCommit": candidate,
     "candidateManifestDigest": "sha256:" + "d" * 64,
-    "profile": "test",
+    "profile": "dogfood",
     "composeProject": "weave-disposable-proof",
     "databaseFingerprint": "sha256:" + hashlib.sha256(postgres.read_bytes()).hexdigest(),
     "postgresDumpClientImage": "postgres@sha256:" + "c" * 64,
@@ -352,7 +355,7 @@ receipt = {
         "manifestSha256": sha256_file(manifest_path)[0],
         "backupIdSha256": hashlib.sha256(backup_id.encode("utf-8")).hexdigest(),
         "candidateCommit": candidate,
-        "profile": "test",
+        "profile": "dogfood",
         "composeProject": "weave-disposable-proof",
     },
     "restoreRunId": f"disposable-restore-proof-{run_id}",

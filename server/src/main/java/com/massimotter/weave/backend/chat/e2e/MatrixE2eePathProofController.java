@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.chat.e2e;
 
 import com.massimotter.weave.backend.config.ChatE2eProofSecurityConfiguration;
+import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
 import io.swagger.v3.oas.annotations.Hidden;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Hidden
 @ConditionalOnProperty(name = "weave.chat.e2e-proof.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "weave.chat.provider", havingValue = ChatRuntimeProperties.MATRIX_SYNAPSE_PROVIDER)
 public final class MatrixE2eePathProofController {
 
     public static final String PATH = ChatE2eProofSecurityConfiguration.PATH + "/matrix-e2ee";

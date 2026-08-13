@@ -2,7 +2,8 @@
 
 This guide describes the release-capable single-host Weave path: one Linux host, public DNS,
 trusted HTTPS, Docker Engine with Compose v2, explicit operator-managed SecretRefs, persistent
-named volumes, stock Keycloak, rootless one-shot Identity Ops, and a verification workflow.
+named volumes, a provenance-bound Keycloak runtime, a bounded Server-owned identity migration,
+and a verification workflow.
 
 It is intentionally narrower than a later high-availability, Kubernetes, or managed-SaaS story.
 
@@ -48,15 +49,15 @@ variables.
 
 Credentials are individual mode-0600 files under `WEAVE_SECRET_ROOT`; TLS material lives under
 `WEAVE_TLS_ROOT`. Supply `WEAVE_ENV_FILE` and `WEAVE_CANDIDATE_COMMIT` to lifecycle commands.
-Identity Ops is part of the exact source-built candidate mapping; Keycloak is the approved stock
-OCI digest. Never source the reviewed environment into the shell as a secret bag and never commit
-a filled copy.
+No general identity reconciler image exists. Keycloak and the Server/MCP images are immutable
+candidate inputs. Never source the reviewed environment into the shell as a secret bag and never
+commit a filled copy.
 
 For protected dogfood promotions, `WEAVE_CANDIDATE_COMMIT` is the checked-out lane commit.
 `WEAVE_IMAGE_SOURCE_COMMIT` is derived from protected `origin/dev`, must be its ancestor and have
 the identical Git tree, and is used only for image revision provenance. The workflow—not a
 dispatch input—creates the support-safe mapping between both commits and the closed backend, MCP,
-Identity Ops, and stock Keycloak image set. The persistent dogfood workflow consumes those exact image IDs
+and Keycloak image set. The persistent dogfood workflow consumes those exact image IDs
 from the successful isolated run; an unavailable, relabelled, or substituted image blocks deploy.
 
 ## Calendar boundary
@@ -82,8 +83,7 @@ Recommended pattern:
 Pin runtime images instead of relying on floating local defaults:
 
 - Pin every image in the reviewed prod environment to an immutable digest.
-- Keep stock Keycloak pinned to the approved upstream OCI index digest; do not rebuild or relabel it.
-- Pin the source-built Identity Ops image to the exact candidate mapping.
+- Keep the provenance-bound Keycloak 26.7 runtime pinned to the approved candidate digest.
 - Change MAS, Synapse, Nextcloud, PostgreSQL, or Caddy only after the scheduled compatibility/conformance lane passes.
 - Verify deployed container image IDs/digests against the reviewed model before readiness is accepted.
 - Record the chosen image set in the deployment change or release note.
@@ -113,12 +113,13 @@ An operator may activate the adapter only through the portability cutover flow a
 1. Provision DNS for the public hostnames.
 2. Copy a filled-in release env file onto the host.
 3. Stage TLS material on disk.
-4. Resolve the approved stock Keycloak OCI digest and verify the exact source-built Identity Ops image.
+4. Resolve the approved Keycloak and Weave application image digests.
 5. Set `WEAVE_ENV_FILE` and `WEAVE_CANDIDATE_COMMIT` for the unprivileged operator process.
 6. Run `bash weave-workspace/install.sh prod`.
 7. Run `bash weave-workspace/release-verify.sh`.
 8. Run `bash weave-workspace/operator-check.sh prod`.
-9. Rerun `compose.sh prod identity-plan` and require `operationCount == 0`.
+9. Rerun `compose.sh prod keycloak-migration-apply` and require the existing receipt to verify
+   without mutation.
 
 ## Verify after install
 

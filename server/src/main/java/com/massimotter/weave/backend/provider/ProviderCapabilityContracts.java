@@ -17,17 +17,17 @@ public final class ProviderCapabilityContracts {
     private static final Map<String, Definition> DEFINITIONS = Map.ofEntries(
             Map.entry("chat", new Definition(
                     List.of("chat.read", "chat.send", "chat.channels"),
-                    List.of("matrix-chat", "synapse-homeserver"),
-                    List.of("microsoft-teams", "slack", "nextcloud-talk"),
+                    List.of("weave-native"),
+                    List.of("matrix-synapse", "synapse-homeserver", "microsoft-teams", "slack", "nextcloud-talk"),
                     List.of("WeaveSpace", "WeaveConversation", "WeaveMessage", "WeaveThread", "WeaveReaction", "WeaveAttachment", "WeaveMembership", "WeaveHistoryPolicy", "ProviderRef", "MigrationReceipt", "RollbackReceipt", "LossyFieldReport"),
-                    "selected chat provider owns message history; Matrix Chat is the current real release provider path and non-Matrix chat providers remain contract-only until promoted by adapter evidence",
+                    "Weave owns canonical Chat history; optional southbound providers remain private adapters and require their own conformance evidence",
                     List.of("Slack broadcast/thread semantics", "Teams channel permissions", "Matrix E2EE recovery", "rich cards/adaptive blocks", "attachment retention"),
                     "export conversation/message/attachment provenance or document provider export boundary; delete/deprovision follows provider and retention policy",
                     "chat replacement requires preflight, dry-run, membership/history/attachment loss report, and rollback/retention note")),
             Map.entry("files", new Definition(
                     List.of("files.read", "files.upload", "files.download", "files.delete"),
-                    List.of("nextcloud-files"),
-                    List.of("sharepoint", "onedrive", "s3-compatible", "smb"),
+                    List.of("weave-native"),
+                    List.of("nextcloud-files", "sharepoint", "onedrive", "s3-compatible", "smb"),
                     List.of("WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef"),
                     "selected storage provider owns file bytes and native permissions; Weave owns canonical references and member impact states",
                     List.of("public links", "provider-specific shares", "version history", "locks", "external users", "storage quotas"),
@@ -35,8 +35,8 @@ public final class ProviderCapabilityContracts {
                     "files replacement requires dry-run for permissions, versions, links, storage quota, and binary transfer feasibility")),
             Map.entry("calendar", new Definition(
                     List.of("calendar.read", "calendar.manage_events", "calendar.thread_refs"),
-                    List.of("nextcloud-caldav"),
-                    List.of("microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav", "weave-calendar"),
+                    List.of("weave-native"),
+                    List.of("nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"),
                     List.of("WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef"),
                     "workspace/team/channel calendar source is selected by admin; private personal calendars are not the default product source",
                     List.of("RRULE fidelity", "time zones", "resource booking", "attendee response semantics", "online meeting links"),
@@ -149,7 +149,8 @@ public final class ProviderCapabilityContracts {
 
     public static ProviderRealityLevel defaultRealityLevel(String category) {
         return switch (category) {
-            case "chat", "files", "calendar", "boards-tasks", "admin-control-plane", "release-evidence", "manuals-help", "decisions-evidence" -> ProviderRealityLevel.RELEASE_READY;
+            case "files", "calendar", "boards-tasks", "admin-control-plane", "release-evidence", "manuals-help", "decisions-evidence" -> ProviderRealityLevel.RELEASE_READY;
+            case "chat" -> ProviderRealityLevel.LIVE_WRITE;
             case "meetings-calls", "model" -> ProviderRealityLevel.CONFIGURED;
             case "documents-collaboration", "agent-runtime-control" -> ProviderRealityLevel.CONTRACT_ONLY;
             default -> ProviderRealityLevel.CONTRACT_ONLY;

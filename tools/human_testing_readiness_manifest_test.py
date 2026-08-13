@@ -164,6 +164,54 @@ class HumanTestingReadinessManifestTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         self.assertIn("proofKinds", completed.stderr)
 
+    def test_realm_evidence_requires_candidate_render_and_readback_proof(self) -> None:
+        mutations = (
+            (
+                lambda data: data["realmEvidence"].pop("semanticRealmSourceDigest"),
+                "semanticRealmSourceDigest",
+            ),
+            (
+                lambda data: data["realmEvidence"].__setitem__(
+                    "migrationDefinitionDigest", "sha256:not-a-digest"
+                ),
+                "migrationDefinitionDigest",
+            ),
+            (
+                lambda data: data["realmEvidence"].__setitem__(
+                    "semanticReadbackVerified", False
+                ),
+                "semanticReadbackVerified",
+            ),
+            (
+                lambda data: data["realmEvidence"].__setitem__("containsSecrets", True),
+                "containsSecrets",
+            ),
+            (
+                lambda data: data["realmEvidence"].__setitem__(
+                    "unreviewedArtifact", "sha256:" + "f" * 64
+                ),
+                "unreviewedArtifact",
+            ),
+        )
+        for mutate, expected in mutations:
+            with self.subTest(expected=expected):
+                data = copy.deepcopy(self.data)
+                mutate(data)
+                completed = self.run_validate(data)
+                self.assertEqual(completed.returncode, 2, completed.stdout + completed.stderr)
+                self.assertIn(expected, completed.stderr)
+
+    def test_legacy_realm_artifacts_are_rejected(self) -> None:
+        data = copy.deepcopy(self.data)
+        data["realmArtifacts"] = {
+            "baselineDigest": "sha256:" + "1" * 64,
+            "migrationBundleDigest": "sha256:" + "2" * 64,
+            "containsSecrets": False,
+        }
+        completed = self.run_validate(data)
+        self.assertEqual(completed.returncode, 2, completed.stdout + completed.stderr)
+        self.assertIn("realmArtifacts", completed.stderr)
+
     def test_physical_protocol_must_bind_candidate_and_all_steps(self) -> None:
         data = copy.deepcopy(self.data)
         data["physicalAcceptance"]["protocol"]["candidateManifestDigest"] = "sha256:" + "f" * 64

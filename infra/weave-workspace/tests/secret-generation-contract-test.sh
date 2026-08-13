@@ -22,6 +22,10 @@ assert set(init_secrets.CLI_ARGUMENT_SECRETS) == {
     "nextcloud-admin-password",
     "nextcloud-db-password",
 }
+assert set(init_secrets.SMTP_SECRETS) == {"smtp-password"}
+assert 'f"mail.{context.env[\'WEAVE_TENANT_DOMAIN\']}"' in (
+    root / "scripts/init_secrets.py"
+).read_text(encoding="utf-8")
 
 values = {init_secrets._random_secret().decode("ascii").strip() for _ in range(512)}
 assert len(values) == 512

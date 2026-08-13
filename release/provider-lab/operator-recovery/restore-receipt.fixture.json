@@ -3,11 +3,11 @@
   "supportSafe": true,
   "generatedAt": "2026-06-04T02:05:00Z",
   "backupBinding": {
-    "manifestSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-    "backupIdSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "manifestSha256": "00be81d6f5e9f063821c60ecadc9c5bb6676cadb9ff7ba2fbd5aab03490ac33f",
+    "backupIdSha256": "ae60127f9eca27cf720a0a5421c7d5ee953fd154edd2976db45e159919d07dc0",
     "candidateCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "profile": "test",
-    "composeProject": "weave-test"
+    "profile": "dogfood",
+    "composeProject": "weave-dogfood"
   },
   "restoreRunId": "fixture-artifact-preflight-20260604T020500Z",
   "validationMode": "artifacts_only",

@@ -1,43 +1,40 @@
-# Persistent Dogfood Member
+# Dogfood owner and member invitations
 
-The protected dogfood path maintains one human client-testing member without Admin Console access, manual Keycloak editing, or an initial password. It is separate from the disposable CI `test` account and receives exactly the native Keycloak Organization groups `/members` and `/capabilities/weaver`. The first group maps the `weave-app` member role; the capability group is deliberately role-free.
+Dogfood keeps invitation delivery inside the private deployment through persistent Mailpit. Keycloak
+Organizations owns invitation acceptance and browser activation; Weave Server owns every dynamic
+human-lifecycle mutation.
 
-The member is Keycloak runtime data, not Compose desired state. The immutable subject reference is stored on the dedicated runner outside the Git checkout so routine checkout cleanup and deployment cannot erase the persistence invariant.
+## Initial owner
 
-## Protected GitHub workflow
-
-Run **Dogfood Member** from GitHub Actions on a phone or desktop. The workflow uses only protected `dogfood` environment configuration and offers:
-
-- `status`: report `missing`, `pending`, or `active` with support-safe hashes;
-- `ensure`: create and mail an absent member once; pending and active members are unchanged;
-- `resend-activation`: resend only for a pending member; an active member returns `account_already_active`.
-
-The workflow does not accept arbitrary usernames or email addresses, cannot grant owner/admin authority, and never writes an activation URL to logs or artifacts. Open the resulting message from Safari at `https://mail.weave.test:44443` on the allowed private LAN.
-
-## Runner helper
-
-The workflow invokes:
+After a Fresh Start has created the empty realm and the normal Server is healthy, run the protected
+**Dogfood Owner Bootstrap** workflow once. It invokes:
 
 ```bash
 cd infra/weave-workspace
-./dogfood-member.sh status
-./dogfood-member.sh ensure
-./dogfood-member.sh resend-activation
+./compose.sh dogfood bootstrap-owner \
+  --request-file /absolute/private/owner-request.json \
+  --evidence-file /absolute/private/support-safe-evidence.json
 ```
 
-Required protected configuration:
+The request is a mode-0600 JSON file containing exactly `displayName`, `email`, and
+`idempotencyKey`. The command temporarily recreates only Weave Server with a fresh file-mounted
+credential, creates or exactly replays the first owner Organizations invitation, observes only the
+Mailpit recipient summary, and unconditionally restores the canonical Server. Success evidence must
+prove the request anchor exists and the credential, mount, environment value, and bootstrap route
+are absent.
 
-- environment variable `WEAVE_DOGFOOD_MEMBER_USERNAME`;
-- environment secret `WEAVE_DOGFOOD_MEMBER_EMAIL`;
-- environment variable `WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME`;
-The helper also loads the generated Keycloak bootstrap environment on the dedicated runner. Active-member verification requires the same immutable subject and the exact native organization-group memberships. It never reads realm user groups or writes direct user-role mappings. A missing or changed recorded subject fails closed rather than creating a replacement.
+Open the resulting activation message only through the private Mailpit UI at
+`https://mail.weave.test:44443`. Never copy its action URL into logs, artifacts, QR codes, app
+storage, support bundles, or GitHub comments.
 
-Password and passkey recovery for an active account stays in Keycloak. It is never implemented as another invitation.
+## Later members
 
-## Deployment behavior
+Once the owner is active, create, list, resend, or revoke invitations through the Admin Console or
+the authenticated Weave Server `/api/admin/organizations/{organizationId}/invitations` API. Browser
+JavaScript never calls the Keycloak Admin API. Infrastructure has no member writer, no persistent
+realm-admin credential, and no direct subject replacement path.
 
-Ordinary dogfood deployment checks the member before and after apply, reruns the protected Keycloak
-plan, and requires zero diff. It preserves persistent volumes and SecretRefs, contains no reset
-input or pre-authorized destructive confirmation, and fails when the subject/session changes or
-the repeated Compose/Keycloak reconciliation differs. Identity-data reset remains a separately
-approved backup/restore operation.
+Expired or pending invitations use the same Server-owned resend/revoke lifecycle. An active account
+uses Keycloak password, passkey, and session recovery. If persistent identity state is lost, restore
+the Keycloak database from an integrity-checked backup or approve a whole-generation Fresh Start;
+do not recreate an individual subject.

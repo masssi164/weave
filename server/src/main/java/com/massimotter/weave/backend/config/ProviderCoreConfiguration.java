@@ -24,25 +24,29 @@ import org.springframework.context.annotation.Configuration;
 public class ProviderCoreConfiguration {
 
     @Bean
-    ProviderPort matrixProviderRegistrySeam(ObjectProvider<ChatProviderPort> chatProviderPort) {
+    ProviderPort chatProviderRegistrySeam(ObjectProvider<ChatProviderPort> chatProviderPort) {
         ChatProviderPort runtime = chatProviderPort.getIfAvailable();
         if (runtime != null) {
-            return RuntimeProviderStatus.fromConformancePort(
-                    ProviderModule.MATRIX,
-                    runtime.providerKey(),
-                    runtime.configured(),
-                    runtime.conformanceProfile(),
-                    "The selected Chat adapter is bound behind the canonical Chat port; runtime reachability is reported by cached capability health.",
-                    List.of("synapse-homeserver", "slack", "microsoft-teams"));
+            return chatProviderRegistrySeamFor(runtime);
         }
         return StaticProviderPort.pending(
                 ProviderModule.MATRIX,
-                "synapse-homeserver",
-                "Matrix/Synapse is the chat and room substrate; provider status stays support-safe and does not expose room keys or raw homeserver errors.",
+                "weave-native",
+                "No Chat runtime adapter is bound; the canonical Chat and Matrix protocol facades remain fail-closed.",
                 Set.of("workspace-room-readiness", "message-sync-readiness", "e2ee-status-readiness", "homeserver-discovery"),
                 Set.of("room-key-export", "raw-homeserver-errors", "direct-flutter-admin-api", "credential-exposure"),
-                List.of("synapse-homeserver", "matrix", "synapse", "slack", "microsoft-teams"),
-                Map.of("substrate", "matrix", "chatE2eeBoundary", "matrix-chat-only", "mediaCallsCovered", false));
+                List.of("weave-native", "matrix-synapse", "synapse-homeserver", "slack", "microsoft-teams"),
+                Map.of("canonicalDomain", "chat", "facade", "/_matrix/client", "mediaCallsCovered", false));
+    }
+
+    ProviderPort chatProviderRegistrySeamFor(ChatProviderPort runtime) {
+        return RuntimeProviderStatus.fromConformancePort(
+                ProviderModule.MATRIX,
+                runtime.providerKey(),
+                runtime.configured(),
+                runtime.conformanceProfile(),
+                "The selected Chat adapter is bound behind the canonical Chat port; runtime reachability is reported by cached capability health.",
+                List.of("weave-native", "matrix-synapse", "synapse-homeserver", "slack", "microsoft-teams"));
     }
 
     @Bean
@@ -51,11 +55,11 @@ public class ProviderCoreConfiguration {
         if (runtime == null) {
             return StaticProviderPort.pending(
                     ProviderModule.FILES,
-                    "nextcloud-files",
+                    "weave-native",
                     "No Files runtime adapter is bound; the canonical Files facade remains fail-closed.",
                     Set.of("list", "read", "write", "create-collection", "delete", "copy", "move"),
                     Set.of("direct-member-provider-api", "credential-exposure", "raw-provider-errors"),
-                    List.of("nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"),
+                    List.of("weave-native", "nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"),
                     Map.of("runtimeBindingObserved", false, "facade", "/dav/files"));
         }
         return RuntimeProviderStatus.fromConformancePort(
@@ -64,7 +68,7 @@ public class ProviderCoreConfiguration {
                 runtime.configured(),
                 runtime.conformanceProfile(),
                 "The selected Files adapter is bound behind the canonical Files port and the /dav/files projection.",
-                List.of("nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"));
+                List.of("weave-native", "nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"));
     }
 
     @Bean
@@ -73,11 +77,11 @@ public class ProviderCoreConfiguration {
         if (runtime == null) {
             return StaticProviderPort.pending(
                     ProviderModule.CALENDAR,
-                    "nextcloud-caldav",
+                    "weave-native",
                     "No Calendar runtime adapter is bound; the canonical Calendar facade remains fail-closed.",
                     Set.of("query", "read", "create", "update", "delete", "free-busy"),
                     Set.of("direct-member-provider-api", "credential-exposure", "raw-provider-errors"),
-                    List.of("nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav", "weave-calendar"),
+                    List.of("weave-native", "nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"),
                     Map.of("runtimeBindingObserved", false, "facade", "/caldav"));
         }
         return RuntimeProviderStatus.fromConformancePort(
@@ -86,7 +90,7 @@ public class ProviderCoreConfiguration {
                 runtime.configured(),
                 runtime.conformanceProfile(),
                 "The selected Calendar adapter is bound behind the canonical Calendar port and the /caldav projection.",
-                List.of("nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav", "weave-calendar"));
+                List.of("weave-native", "nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"));
     }
 
     @Bean
