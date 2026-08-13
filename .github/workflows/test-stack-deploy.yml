@@ -226,6 +226,7 @@ jobs:
           import subprocess
           from pathlib import Path
           from compose_env import load_context
+          from fresh_start_retired_inventory import load_retired_inventory
 
           reviewed = Path(os.environ["WEAVE_ENV_FILE"])
           metadata = reviewed.stat()
@@ -276,6 +277,9 @@ jobs:
               "WEAVE_NATIVE_FILES_DATA_VOLUME",
           ):
               print(context.env[key])
+          retired = load_retired_inventory(Path("fresh-start-targets.json"))
+          print(retired.generation)
+          print(retired.namespace)
           PY
           )"
           generated_root="$(sed -n '1p' <<<"$coordinates")"
@@ -300,11 +304,14 @@ jobs:
             echo "WEAVE_CADDY_DATA_VOLUME=$(sed -n '10p' <<<"$coordinates")"
             echo "WEAVE_CADDY_CONFIG_VOLUME=$(sed -n '11p' <<<"$coordinates")"
             echo "WEAVE_NATIVE_FILES_DATA_VOLUME=$(sed -n '12p' <<<"$coordinates")"
+            echo "WEAVE_RETIRED_RESOURCE_GENERATION=$(sed -n '13p' <<<"$coordinates")"
+            echo "WEAVE_RETIRED_NAMESPACE=$(sed -n '14p' <<<"$coordinates")"
           } >> "$GITHUB_ENV"
 
       - name: Create or reuse the exact private backup, restore proof, and Fresh Start plan
         if: env.DEPLOYMENT_MODE == 'fresh-start'
         id: fresh-plan
+        working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
           backup_root="${WEAVE_DOGFOOD_BACKUP_ROOT:-$HOME/.weave/dogfood/backups}"
@@ -318,8 +325,9 @@ jobs:
           if [[ ! -s "$receipt" ]]; then
             WEAVE_BACKUP_ROOT="$private_root" \
             WEAVE_CANDIDATE_COMMIT="$WEAVE_CANDIDATE_COMMIT" \
-            WEAVE_BACKUP_REHEARSAL_RECEIPT="$receipt" \
-              ./fresh-start-backup-rehearsal.sh dogfood
+              ./fresh-start-backup-rehearsal.sh dogfood \
+                --retired-inventory fresh-start-targets.json \
+                --receipt-output "$receipt"
           fi
           jq -e \
             --arg source "$WEAVE_CANDIDATE_COMMIT" \
@@ -341,8 +349,8 @@ jobs:
               --environment persistent-dogfood \
               --scope persistent \
               --stack weave \
-              --namespace "$WEAVE_COMPOSE_PROJECT" \
-              --retired-generation "$WEAVE_RESOURCE_GENERATION" \
+              --namespace "$WEAVE_RETIRED_NAMESPACE" \
+              --retired-generation "$WEAVE_RETIRED_RESOURCE_GENERATION" \
               --target-generation "$WEAVE_FRESH_START_TARGET_GENERATION" \
               --spec-commit "${{ steps.spec-corpus.outputs.commit }}" \
               --spec-digest "${{ steps.spec-corpus.outputs.digest }}" \

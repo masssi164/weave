@@ -23,6 +23,7 @@ from compose_env import (
     load_context,
 )
 from recovery_receipt import database_inventory_digest
+from fresh_start_retired_inventory import RetiredInventory
 
 
 VOLUME_ARTIFACTS = (
@@ -72,6 +73,20 @@ def active_volume_artifacts(context: ComposeContext) -> tuple[tuple[str, str, st
     return tuple(item for item in VOLUME_ARTIFACTS if item[0] in selected)
 
 
+def backup_volume_artifacts(
+    context: ComposeContext, retired_inventory: RetiredInventory | None = None
+) -> tuple[tuple[str, str, str], ...]:
+    if retired_inventory is None:
+        return tuple(
+            (context.env[variable], archive, kind)
+            for variable, archive, kind in active_volume_artifacts(context)
+        )
+    return tuple(
+        (item.name, item.archive, item.kind)
+        for item in retired_inventory.backup_volumes
+    )
+
+
 def _sha256(path: Path) -> tuple[str, int]:
     digest = hashlib.sha256()
     size = 0
@@ -103,7 +118,11 @@ def _container(context: ComposeContext, suffix: str) -> str:
     return f"{context.env['WEAVE_RESOURCE_PREFIX']}-{suffix}"
 
 
-def _running_services(context: ComposeContext) -> tuple[list[str], list[dict[str, str]]]:
+def _running_services(
+    context: ComposeContext, retired_inventory: RetiredInventory | None = None
+) -> tuple[list[str], list[dict[str, str]]]:
+    if retired_inventory is not None:
+        return _running_retired_services(retired_inventory)
     result = _compose(context, "ps", "--status", "running", "--services", capture=True)
     compose_services = [line for line in result.stdout.decode("utf-8").splitlines() if line]
     inventory = [
@@ -159,6 +178,65 @@ def _running_services(context: ComposeContext) -> tuple[list[str], list[dict[str
             }
         )
     return legacy, inventory
+
+
+def _running_retired_services(
+    retired_inventory: RetiredInventory,
+) -> tuple[list[str], list[dict[str, str]]]:
+    running: list[str] = []
+    inventory: list[dict[str, str]] = []
+    mounted_volumes: set[str] = set()
+    allowed_volumes = set(retired_inventory.volumes)
+    for service, name in sorted(retired_inventory.containers.items()):
+        inspected = subprocess.run(
+            ["docker", "container", "inspect", name],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        if inspected.returncode != 0:
+            raise ContractError(f"retired exact container is absent: {name}")
+        rows = json.loads(inspected.stdout)
+        if len(rows) != 1 or rows[0].get("Name") != "/" + name:
+            raise ContractError(f"retired container identity is ambiguous: {name}")
+        value = rows[0]
+        networks = value.get("NetworkSettings", {}).get("Networks", {})
+        if retired_inventory.network not in networks:
+            raise ContractError(
+                f"retired container is outside the exact deployment network: {name}"
+            )
+        mounts = {
+            mount.get("Name")
+            for mount in value.get("Mounts", [])
+            if mount.get("Type") == "volume"
+            and isinstance(mount.get("Name"), str)
+        }
+        unexpected = mounts - allowed_volumes
+        if unexpected:
+            raise ContractError(
+                f"retired container binds an unaccounted named volume: {name}"
+            )
+        mounted_volumes.update(mounts)
+        container_id = str(value.get("Id", ""))
+        if not re.fullmatch(r"[0-9a-f]{64}", container_id):
+            raise ContractError(f"retired container ID is invalid: {name}")
+        status = value.get("State", {}).get("Status")
+        if status == "running":
+            running.append(service)
+        elif status not in {"created", "exited"}:
+            raise ContractError(f"retired container state is unsupported: {name}")
+        inventory.append(
+            {
+                "service": service,
+                "authority": "former-state-adoption",
+                "container": name,
+                "containerIdFingerprint": "sha256:"
+                + hashlib.sha256(container_id.encode("ascii")).hexdigest(),
+            }
+        )
+    if mounted_volumes != allowed_volumes:
+        raise ContractError("retired volume inventory is not completely mounted")
+    return running, inventory
 
 
 def _stop(context: ComposeContext, services: list[str], inventory: list[dict[str, str]]) -> None:
@@ -261,9 +339,9 @@ def _published_postgres_image(container: str) -> str:
 
 
 def _postgres_dump(
-    context: ComposeContext, target: Path
+    context: ComposeContext, target: Path, container: str | None = None
 ) -> tuple[str, str, list[str]]:
-    container = _container(context, "db")
+    container = container or _container(context, "db")
     dump_client_image = _published_postgres_image(container)
     fingerprint = subprocess.run(
         [
@@ -380,7 +458,9 @@ def _require_no_pending_registration_operations(context: ComposeContext) -> None
             )
 
 
-def backup(context: ComposeContext) -> Path:
+def backup(
+    context: ComposeContext, retired_inventory: RetiredInventory | None = None
+) -> Path:
     if context.environment not in ("dogfood", "prod"):
         raise ContractError("private consistency backups are required for dogfood/prod, not dev or disposable E2E")
     candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
@@ -410,7 +490,7 @@ def backup(context: ComposeContext) -> Path:
     if destination.exists() or destination.is_symlink():
         raise ContractError("candidate-bound private backup already exists")
     _require_no_pending_registration_operations(context)
-    running, inventory = _running_services(context)
+    running, inventory = _running_services(context, retired_inventory)
     to_stop = [name for name in QUIESCED_SERVICES if name in running]
     staging = backup_root / (
         f".{backup_id}.partial-{os.getpid()}-{secrets.token_hex(6)}"
@@ -426,10 +506,18 @@ def backup(context: ComposeContext) -> Path:
                 database_fingerprint,
                 postgres_dump_client_image,
                 postgres_databases,
-            ) = _postgres_dump(context, dump)
-            for variable, archive, kind in active_volume_artifacts(context):
+            ) = _postgres_dump(
+                context,
+                dump,
+                retired_inventory.database_container
+                if retired_inventory is not None
+                else None,
+            )
+            for volume, archive, kind in backup_volume_artifacts(
+                context, retired_inventory
+            ):
                 target = staging / archive
-                _archive_volume(context, context.env[variable], target)
+                _archive_volume(context, volume, target)
                 digest, size = _sha256(target)
                 artifacts.append(
                     {
@@ -463,7 +551,16 @@ def backup(context: ComposeContext) -> Path:
                 "candidateCommit": candidate,
                 "candidateManifestDigest": candidate_manifest_digest,
                 "profile": environment,
-                "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
+                "composeProject": (
+                    retired_inventory.namespace
+                    if retired_inventory is not None
+                    else context.env["WEAVE_COMPOSE_PROJECT"]
+                ),
+                **(
+                    {"retiredInventoryDigest": retired_inventory.digest}
+                    if retired_inventory is not None
+                    else {}
+                ),
                 "databaseFingerprint": database_fingerprint,
                 "postgresDumpClientImage": postgres_dump_client_image,
                 "postgresDatabases": postgres_databases,
