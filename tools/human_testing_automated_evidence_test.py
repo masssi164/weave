@@ -169,9 +169,6 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
                         "db_data",
                         "keycloak_data",
                         "mailpit_data",
-                        "nextcloud_data",
-                        "synapse_data",
-                        "matrix_chat_appservice_runtime",
                         "native_files_data",
                         "runtime_state",
                     )

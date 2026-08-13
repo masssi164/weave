@@ -42,15 +42,12 @@ REALM_EVIDENCE_DIGEST_FIELDS = {
     "renderedRealmDigest",
     "semanticReadbackDigest",
 }
-ISOLATED_VOLUME_SUFFIXES = {
+NATIVE_ISOLATED_VOLUME_SUFFIXES = {
     "caddy_data",
     "caddy_config",
     "db_data",
     "keycloak_data",
     "mailpit_data",
-    "nextcloud_data",
-    "synapse_data",
-    "matrix_chat_appservice_runtime",
     "native_files_data",
     "runtime_state",
 }
@@ -360,7 +357,9 @@ def require_teardown(
     if not isinstance(namespace, str) or re.fullmatch(r"weave-e2e-[0-9a-f]{16}", namespace) is None:
         raise EvidenceError("teardown evidence has no valid isolated namespace")
     volume_prefix = namespace.replace("-", "_")
-    expected_volumes = {f"{volume_prefix}_{suffix}" for suffix in ISOLATED_VOLUME_SUFFIXES}
+    expected_volumes = {
+        f"{volume_prefix}_{suffix}" for suffix in NATIVE_ISOLATED_VOLUME_SUFFIXES
+    }
     removed_volumes = teardown.get("removedVolumeNames")
     if (
         not isinstance(removed_volumes, list)
