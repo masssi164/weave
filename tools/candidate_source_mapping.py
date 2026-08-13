@@ -17,11 +17,13 @@ COMMIT = re.compile(r"^[0-9a-f]{40}$")
 IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 IMAGE_NAMES = (
     "backend",
-    "identity-ops",
     "keycloak",
     "mcp",
 )
-SOURCE_IMAGE_NAMES = {"backend", "identity-ops", "mcp"}
+SOURCE_IMAGE_MODULES = {
+    "backend": "server",
+    "mcp": "weave-mcp-server",
+}
 KEYCLOAK_MODULE = "keycloak-runtime"
 KEYCLOAK_PROVIDER = "weave-workload-client-registration-enforcer"
 KEYCLOAK_BUILD_EVIDENCE_LABEL = (
@@ -29,7 +31,6 @@ KEYCLOAK_BUILD_EVIDENCE_LABEL = (
 )
 IMAGE_ENVIRONMENT = {
     "backend": "WEAVE_BACKEND_IMAGE",
-    "identity-ops": "WEAVE_IDENTITY_OPS_IMAGE",
     "keycloak": "WEAVE_KEYCLOAK_IMAGE",
     "mcp": "WEAVE_MCP_IMAGE",
 }
@@ -64,7 +65,7 @@ def parse_images(values: list[str]) -> dict[str, str]:
             raise MappingError(f"duplicate image binding: {name}")
         parsed[name] = image_id
     if tuple(sorted(parsed)) != tuple(sorted(IMAGE_NAMES)):
-        raise MappingError("a complete candidate image mapping requires all four components")
+        raise MappingError("a complete candidate image mapping requires all three components")
     return dict(sorted(parsed.items()))
 
 
@@ -152,16 +153,14 @@ def assert_local_images(images: dict[str, str], source_candidate: str) -> None:
             raise MappingError(
                 f"attested source image revision changed: {name}"
             )
-        if name in SOURCE_IMAGE_NAMES:
-            if (
-                name == "identity-ops"
-                and labels.get("com.massimotter.weave.component")
-                != "keycloak-identity-ops"
-            ):
-                raise MappingError(
-                    "attested Identity Ops image has no component provenance"
-                )
-        elif (
+        expected_module = SOURCE_IMAGE_MODULES.get(name)
+        if expected_module is not None and (
+            labels.get("com.massimotter.weave.module") != expected_module
+        ):
+            raise MappingError(
+                f"attested source image has incorrect module provenance: {name}"
+            )
+        if name == "keycloak" and (
             labels.get("com.massimotter.weave.module") != KEYCLOAK_MODULE
             or labels.get("com.massimotter.weave.provider-id") != KEYCLOAK_PROVIDER
             or not re.fullmatch(

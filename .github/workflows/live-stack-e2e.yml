@@ -14,7 +14,7 @@ on:
         default: false
         type: boolean
       candidate_images_run_id:
-        description: Optional successful Candidate Images run for the resolved protected dev source
+        description: Optional successful Candidate Cut run for the resolved protected dev source
         required: false
         type: string
   workflow_call:
@@ -53,7 +53,7 @@ jobs:
           }
 
   live-stack-e2e:
-    name: Invitation, OIDC, WebDAV, ARC, and MCP
+    name: Invitation, OIDC, Weave-native collaboration, ARC, and MCP
     needs: isolation-gate
     runs-on: [self-hosted, macOS, ARM64, weave-live]
     timeout-minutes: 75
@@ -79,6 +79,14 @@ jobs:
         with:
           path: weave
           fetch-depth: 0
+
+      - name: Verify runner capacity before candidate work
+        working-directory: weave
+        run: >-
+          python3 tools/runner_capacity_preflight.py
+          --path .
+          --minimum-free-gib 20
+          --require-docker
 
       - name: Resolve protected dev source candidate
         working-directory: weave
@@ -129,14 +137,14 @@ jobs:
           persist-credentials: false
 
       - name: Set up Java 21
-        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
           java-version: "21"
           cache: gradle
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3 # v4.4.2
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       - name: Resolve immutable candidate manifest
         env:
@@ -145,26 +153,30 @@ jobs:
         run: |
           set -euo pipefail
           candidate_run_id="$REQUESTED_CANDIDATE_IMAGES_RUN_ID"
+          runs_file="$WEAVE_LIVE_EVIDENCE_ROOT/candidate-cut-runs.json"
           if [[ -n "$candidate_run_id" ]]; then
             [[ "$candidate_run_id" =~ ^[0-9]+$ ]] || {
               echo "::error::candidate_images_run_id must be numeric." >&2
               exit 1
             }
-            run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${candidate_run_id}")"
-            [[ "$(jq -r .name <<<"$run")" == "Candidate Images" && \
-               "$(jq -r .path <<<"$run")" == ".github/workflows/candidate-images.yml" && \
-               "$(jq -r .conclusion <<<"$run")" == success && \
-               "$(jq -r .head_sha <<<"$run")" == "$WEAVE_IMAGE_SOURCE_COMMIT" ]] || {
-              echo "::error::Requested Candidate Images run is not a successful source-candidate build." >&2
-              exit 1
-            }
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${candidate_run_id}" > "$runs_file"
+            candidate_run_id="$(
+              python3 tools/candidate_cut_run_resolver.py \
+                --input "$runs_file" \
+                --source-sha "$WEAVE_IMAGE_SOURCE_COMMIT" \
+                --repository "$GITHUB_REPOSITORY" \
+                --run-id "$candidate_run_id"
+            )"
           else
-            runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/candidate-images.yml/runs?head_sha=${WEAVE_IMAGE_SOURCE_COMMIT}&status=completed&per_page=30")"
-            candidate_run_id="$(jq -r '[.workflow_runs[] | select(.conclusion == "success")][0].id // empty' <<<"$runs")"
-            [[ -n "$candidate_run_id" ]] || {
-              echo "::error::No successful Candidate Images run exists for protected dev source ${WEAVE_IMAGE_SOURCE_COMMIT}." >&2
-              exit 1
-            }
+            gh api --paginate --slurp \
+              "/repos/${GITHUB_REPOSITORY}/actions/workflows/candidate-images.yml/runs?branch=dev&event=workflow_dispatch&status=completed&per_page=100" \
+              > "$runs_file"
+            candidate_run_id="$(
+              python3 tools/candidate_cut_run_resolver.py \
+                --input "$runs_file" \
+                --source-sha "$WEAVE_IMAGE_SOURCE_COMMIT" \
+                --repository "$GITHUB_REPOSITORY"
+            )"
           fi
           manifest_dir="$WEAVE_LIVE_EVIDENCE_ROOT/candidate-manifest-source"
           install -d -m 700 "$manifest_dir"
@@ -197,6 +209,11 @@ jobs:
             exit 1
           }
           install -d -m 700 "$DOCKER_AUTH_ROOT"
+          docker_endpoint="$(docker context inspect --format '{{.Endpoints.docker.Host}}')"
+          [[ "$docker_endpoint" == unix:///* ]] || {
+            echo "::error::The active Docker context does not expose a bounded Unix endpoint." >&2
+            exit 1
+          }
           compose_plugin_path="$(docker info --format '{{range .ClientInfo.Plugins}}{{if eq .Name "compose"}}{{.Path}}{{end}}{{end}}')"
           [[ "$compose_plugin_path" == /*/docker-compose && -x "$compose_plugin_path" ]] || {
             echo "::error::The active Docker Compose CLI plugin is unavailable." >&2
@@ -213,8 +230,11 @@ jobs:
             (.cliPluginsExtraDirs == [$compose_plugin_dir]) and
             (.auths["ghcr.io"].auth | type == "string" and length > 0)
           ' "$DOCKER_AUTH_ROOT/config.json" >/dev/null
-          DOCKER_CONFIG="$DOCKER_AUTH_ROOT" docker compose version >/dev/null
-          printf 'DOCKER_CONFIG=%s\n' "$DOCKER_AUTH_ROOT" >> "$GITHUB_ENV"
+          DOCKER_HOST="$docker_endpoint" DOCKER_CONFIG="$DOCKER_AUTH_ROOT" docker compose version >/dev/null
+          {
+            printf 'DOCKER_HOST=%s\n' "$docker_endpoint"
+            printf 'DOCKER_CONFIG=%s\n' "$DOCKER_AUTH_ROOT"
+          } >> "$GITHUB_ENV"
 
       - name: Pull and bind all immutable candidate images
         working-directory: weave
@@ -227,9 +247,8 @@ jobs:
           }
           server_ref="$(component_ref server)"
           mcp_ref="$(component_ref mcp-server)"
-          identity_ref="$(component_ref identity-ops)"
           keycloak_ref="$(component_ref keycloak-runtime)"
-          for image in "$server_ref" "$mcp_ref" "$identity_ref" "$keycloak_ref"; do
+          for image in "$server_ref" "$mcp_ref" "$keycloak_ref"; do
             [[ "$image" == *@sha256:* ]]
             docker pull --platform "$DOCKER_DEFAULT_PLATFORM" "$image"
             [[ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" == \
@@ -237,20 +256,17 @@ jobs:
           done
           server_id="$(docker image inspect --format '{{.Id}}' "$server_ref")"
           mcp_id="$(docker image inspect --format '{{.Id}}' "$mcp_ref")"
-          identity_id="$(docker image inspect --format '{{.Id}}' "$identity_ref")"
           keycloak_id="$(docker image inspect --format '{{.Id}}' "$keycloak_ref")"
           python3 tools/candidate_source_mapping.py \
             --repository . \
             --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
             --image "backend=$server_id" \
-            --image "identity-ops=$identity_id" \
             --image "keycloak=$keycloak_id" \
             --image "mcp=$mcp_id" \
             --output "$WEAVE_LIVE_EVIDENCE_ROOT/candidate-source-mapping.json"
           {
             echo "WEAVE_TEST_APP_SERVER_IMAGE=$server_ref"
             echo "WEAVE_TEST_APP_MCP_IMAGE=$mcp_ref"
-            echo "WEAVE_TEST_APP_IDENTITY_OPS_IMAGE=$identity_ref"
             echo "WEAVE_TEST_APP_KEYCLOAK_IMAGE=$keycloak_ref"
           } >> "$GITHUB_ENV"
 
@@ -308,10 +324,9 @@ jobs:
             export WEAVE_E2E_NAMESPACE="$namespace"
             export WEAVE_BACKEND_IMAGE="$WEAVE_TEST_APP_SERVER_IMAGE"
             export WEAVE_MCP_IMAGE="$WEAVE_TEST_APP_MCP_IMAGE"
-            export WEAVE_IDENTITY_OPS_IMAGE="$WEAVE_TEST_APP_IDENTITY_OPS_IMAGE"
             export WEAVE_KEYCLOAK_IMAGE="$WEAVE_TEST_APP_KEYCLOAK_IMAGE"
             WEAVE_TEARDOWN_EVIDENCE_FILE="$CLEANUP_ROOT/teardown-evidence.json" \
-              bash infra/weave-workspace/teardown.sh test \
+              bash infra/weave-workspace/teardown.sh e2e \
                 --isolated \
                 --evidence-file "$CLEANUP_ROOT/teardown-evidence.json"
             python3 gradle/scripts/cleanup_test_app_runtime.py \
@@ -369,7 +384,7 @@ jobs:
             --arg lane "$WEAVE_CANDIDATE_COMMIT" \
             --arg spec "${{ steps.spec.outputs.commit }}" \
             --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" '
-            .schemaVersion == "weave.test-app-product-flow/v1" and
+            .schemaVersion == "weave.test-app-product-flow/v2" and
             .candidateCommit == $lane and
             .sourceCandidateCommit == env.WEAVE_IMAGE_SOURCE_COMMIT and
             .specificationCommit == $spec and
@@ -388,6 +403,9 @@ jobs:
             .sameHumanSubjectAfterRegrant == true and
             .samePersonRefAfterRegrant == true and
             .collaboration.repeatCount == 2 and
+            .collaboration.selectedProviders == {"chat":"weave-native","files":"weave-native","calendar":"weave-native"} and
+            .collaboration.northboundFacades == {"matrix":true,"webdav":true,"caldav":true} and
+            .collaboration.southboundProviderDependencyObserved == false and
             (.collaboration.identityRefHashes | keys | sort) == ["author", "collaborator", "outsider"] and
             (.collaboration.passes | length) == 2 and
             .collaboration.passes[0].pass == 1 and
@@ -403,9 +421,9 @@ jobs:
               .profilePassed == true and
               .outsiderDenied == true and
               .canonicalJpaVerified == true and
-              .directSynapseVerified == true and
-              .providerOutageExactlyOnceVerified == true and
-              .callbackReplayVerified == true and
+              .nativePersistenceVerified == true and
+              .idempotencyVerified == true and
+              .southboundProviderDependencyObserved == false and
               .cleanupComplete == true) and
             .credentialsIncluded == false and
             .actionLinksIncluded == false and
@@ -440,6 +458,7 @@ jobs:
             --product-evidence "$WEAVE_LIVE_UPLOAD_ROOT/weave-test-app-evidence.json" \
             --teardown-evidence "$WEAVE_LIVE_UPLOAD_ROOT/teardown-evidence.json" \
             --candidate-manifest "$WEAVE_LIVE_UPLOAD_ROOT/candidate-manifest.json" \
+            --runtime-image-evidence "$WEAVE_LIVE_UPLOAD_ROOT/runtime-image-evidence.json" \
             --run-url "$WEAVE_CANDIDATE_EVIDENCE_REF" \
             --output "$WEAVE_LIVE_UPLOAD_ROOT/human-testing-live-automated-evidence.json"
           scan_arguments=()

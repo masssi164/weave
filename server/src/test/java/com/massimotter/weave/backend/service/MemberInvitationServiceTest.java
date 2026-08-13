@@ -22,6 +22,7 @@ import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminCl
 import com.massimotter.weave.backend.identity.invitation.ProvisioningIntent;
 import com.massimotter.weave.backend.identity.invitation.ProvisioningIntentStatus;
 import com.massimotter.weave.backend.model.identity.BootstrapOwnerInvitationRequest;
+import com.massimotter.weave.backend.model.identity.MemberInvitationRequest;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -100,13 +101,15 @@ class MemberInvitationServiceTest {
   }
 
   @Test
-  void returnsTheSameUnambiguousPendingOwnerInvitationOnRetry() {
+  void resendsTheSameUnambiguousPendingOwnerInvitationOnRetry() {
     ProviderInvitation providerInvitation = providerInvitation();
     when(keycloak.hasHumanUsers()).thenReturn(false);
     when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
     when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL))
         .thenReturn(List.of(), List.of(providerInvitation));
     when(keycloak.issue(ORGANIZATION_ID, EMAIL, "Weave Owner"))
+        .thenReturn(providerInvitation);
+    when(keycloak.resend(ORGANIZATION_ID, "invitation-1"))
         .thenReturn(providerInvitation);
 
     var first =
@@ -118,8 +121,184 @@ class MemberInvitationServiceTest {
 
     assertThat(replay).isEqualTo(first);
     verify(keycloak).issue(ORGANIZATION_ID, EMAIL, "Weave Owner");
+    verify(keycloak).resend(ORGANIZATION_ID, "invitation-1");
     assertThat(intents.findPendingByEmail(TENANT_ID, ORGANIZATION_ID, EMAIL)).hasSize(1);
-    assertThat(audit.events()).hasSize(1);
+    assertThat(audit.events())
+        .extracting(event -> event.action())
+        .containsExactly(
+            AuditAction.MEMBER_INVITATION_CREATED,
+            AuditAction.MEMBER_INVITATION_RESENT);
+    assertThat(audit.events().get(1).idempotencyKey())
+        .startsWith(IDEMPOTENCY_KEY + ":bootstrap-replay:")
+        .endsWith(":" + AuditAction.MEMBER_INVITATION_RESENT.wireName());
+  }
+
+  @Test
+  void rejectsBootstrapReplayWhenTheAddressChanges() {
+    intents.save(pendingIntent("invitation-1", ProvisioningIntentStatus.PENDING));
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+
+    assertThatThrownBy(
+            () ->
+                service.bootstrapOwner(
+                    new BootstrapOwnerInvitationRequest(
+                        "another-owner@example.org", "Another Owner"),
+                    IDEMPOTENCY_KEY))
+        .isInstanceOfSatisfying(
+            ApiErrorException.class,
+            error -> assertThat(error.code()).isEqualTo("owner-bootstrap-not-empty"));
+
+    verify(keycloak, never()).issue(anyString(), anyString(), anyString());
+    verify(keycloak, never()).resend(anyString(), anyString());
+  }
+
+  @Test
+  void rejectsBootstrapReplayWithAnotherIdempotencyKey() {
+    intents.save(pendingIntent("invitation-1", ProvisioningIntentStatus.PENDING));
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+
+    assertThatThrownBy(
+            () ->
+                service.bootstrapOwner(
+                    new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"),
+                    "bootstrap-owner-run-0002"))
+        .isInstanceOfSatisfying(
+            ApiErrorException.class,
+            error -> assertThat(error.code()).isEqualTo("owner-bootstrap-not-empty"));
+
+    verify(keycloak, never()).resend(anyString(), anyString());
+  }
+
+  @Test
+  void rejectsBootstrapReplayWithoutOneCorrelatedProviderInvitation() {
+    intents.save(pendingIntent("invitation-1", ProvisioningIntentStatus.PENDING));
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL))
+        .thenReturn(
+            List.of(
+                providerInvitation(
+                    "invitation-2", EMAIL, "pending", NOW.plusSeconds(86_400))));
+
+    assertThatThrownBy(
+            () ->
+                service.bootstrapOwner(
+                    new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"),
+                    IDEMPOTENCY_KEY))
+        .isInstanceOfSatisfying(
+            ApiErrorException.class,
+            error -> assertThat(error.code()).isEqualTo("owner-bootstrap-not-empty"));
+
+    verify(keycloak, never()).resend(anyString(), anyString());
+  }
+
+  @Test
+  void rejectsBootstrapReplayUnlessTheProviderInvitationIsPending() {
+    intents.save(pendingIntent("invitation-1", ProvisioningIntentStatus.PENDING));
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL))
+        .thenReturn(
+            List.of(
+                providerInvitation(
+                    "invitation-1", EMAIL, "accepted", NOW.plusSeconds(86_400))));
+
+    assertThatThrownBy(
+            () ->
+                service.bootstrapOwner(
+                    new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"),
+                    IDEMPOTENCY_KEY))
+        .isInstanceOfSatisfying(
+            ApiErrorException.class,
+            error -> assertThat(error.code()).isEqualTo("owner-bootstrap-not-empty"));
+
+    verify(keycloak, never()).resend(anyString(), anyString());
+  }
+
+  @Test
+  void failsClosedWhenTheResendProjectionChangesCorrelation() {
+    ProviderInvitation providerInvitation = providerInvitation();
+    intents.save(pendingIntent("invitation-1", ProvisioningIntentStatus.PENDING));
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL))
+        .thenReturn(List.of(providerInvitation));
+    when(keycloak.resend(ORGANIZATION_ID, "invitation-1"))
+        .thenReturn(
+            providerInvitation(
+                "invitation-2", EMAIL, "pending", NOW.plusSeconds(86_400)));
+
+    assertThatThrownBy(
+            () ->
+                service.bootstrapOwner(
+                    new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"),
+                    IDEMPOTENCY_KEY))
+        .isInstanceOfSatisfying(
+            ApiErrorException.class,
+            error -> assertThat(error.code()).isEqualTo("owner-bootstrap-not-empty"));
+
+    assertThat(audit.events())
+        .extracting(event -> event.action())
+        .containsExactly(AuditAction.MEMBER_INVITATION_RESENT);
+  }
+
+  @Test
+  void failsClosedWhenTheResendProjectionIsNoLongerPending() {
+    ProviderInvitation providerInvitation = providerInvitation();
+    intents.save(pendingIntent("invitation-1", ProvisioningIntentStatus.PENDING));
+    when(keycloak.hasHumanUsers()).thenReturn(false);
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL))
+        .thenReturn(List.of(providerInvitation));
+    when(keycloak.resend(ORGANIZATION_ID, "invitation-1"))
+        .thenReturn(
+            providerInvitation(
+                "invitation-1", EMAIL, "accepted", NOW.plusSeconds(86_400)));
+
+    assertThatThrownBy(
+            () ->
+                service.bootstrapOwner(
+                    new BootstrapOwnerInvitationRequest(EMAIL, "Weave Owner"),
+                    IDEMPOTENCY_KEY))
+        .isInstanceOfSatisfying(
+            ApiErrorException.class,
+            error -> assertThat(error.code()).isEqualTo("owner-bootstrap-not-empty"));
+
+    assertThat(audit.events())
+        .extracting(event -> event.action())
+        .containsExactly(AuditAction.MEMBER_INVITATION_RESENT);
+  }
+
+  @Test
+  void preservesOrdinaryAdminInvitationIdempotencyWithoutResending() {
+    ProviderInvitation providerInvitation = providerInvitation();
+    when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
+    when(keycloak.issue(ORGANIZATION_ID, EMAIL, "Weave Owner"))
+        .thenReturn(providerInvitation);
+    when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL))
+        .thenReturn(List.of(providerInvitation));
+
+    var first =
+        service.create(
+            TENANT_ID,
+            new MemberInvitationRequest(EMAIL, "Weave Owner", "owner"),
+            IDEMPOTENCY_KEY,
+            authenticatedOwner());
+    var replay =
+        service.create(
+            TENANT_ID,
+            new MemberInvitationRequest(EMAIL, "Weave Owner", "owner"),
+            IDEMPOTENCY_KEY,
+            authenticatedOwner());
+
+    assertThat(replay).isEqualTo(first);
+    verify(keycloak).issue(ORGANIZATION_ID, EMAIL, "Weave Owner");
+    verify(keycloak, never()).resend(anyString(), anyString());
+    assertThat(audit.events())
+        .extracting(event -> event.action())
+        .containsExactly(AuditAction.MEMBER_INVITATION_CREATED);
   }
 
   @Test
@@ -173,6 +352,8 @@ class MemberInvitationServiceTest {
     when(keycloak.configuredOrganizationId()).thenReturn(ORGANIZATION_ID);
     when(keycloak.invitationsForEmail(ORGANIZATION_ID, EMAIL))
         .thenReturn(List.of(providerInvitation));
+    when(keycloak.resend(ORGANIZATION_ID, "invitation-1"))
+        .thenReturn(providerInvitation);
 
     var recovered =
         service.bootstrapOwner(
@@ -325,12 +506,18 @@ class MemberInvitationServiceTest {
   }
 
   private ProviderInvitation providerInvitation() {
+    return providerInvitation(
+        "invitation-1", EMAIL, "pending", NOW.plusSeconds(86_400));
+  }
+
+  private ProviderInvitation providerInvitation(
+      String id, String email, String lifecycleStatus, Instant expiresAt) {
     return new ProviderInvitation(
-        "invitation-1",
-        EMAIL,
+        id,
+        email,
         "Weave Owner",
-        "pending",
-        NOW.plusSeconds(86_400),
+        lifecycleStatus,
+        expiresAt,
         NOW);
   }
 }

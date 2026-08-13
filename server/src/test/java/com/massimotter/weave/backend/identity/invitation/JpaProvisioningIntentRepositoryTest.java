@@ -28,6 +28,18 @@ class JpaProvisioningIntentRepositoryTest {
         assertThat(repository.findById(pending.intentId())).contains(persistedLinked);
         assertThat(repository.findByProviderInvitationId("provider-invitation-1"))
                 .contains(persistedLinked);
+        assertThat(repository.findPendingByActor(
+                        pending.tenantId(),
+                        pending.organizationId(),
+                        pending.invitedByIssuer(),
+                        pending.invitedBySubject()))
+                .containsExactly(persistedLinked);
+        assertThat(repository.findPendingByActor(
+                        pending.tenantId(),
+                        pending.organizationId(),
+                        pending.invitedByIssuer(),
+                        "another-bootstrap-authority"))
+                .isEmpty();
     }
 
     @Test

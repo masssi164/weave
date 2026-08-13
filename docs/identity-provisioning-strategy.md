@@ -189,17 +189,17 @@ Acceptance rules:
 - context roles do not automatically grant organization admin rights;
 - provider roles never directly grant Weave capabilities without a mapping record.
 
-## Keycloak desired state and Identity Ops
+## Keycloak baseline and lifecycle ownership
 
-The canonical desired state lives in `infra/weave-workspace/keycloak` and is owned exclusively by the profile-specific Identity Ops plan/apply/verify tasks. The server does not define a second realm model, persist a shadow plan, or expose realm desired-state mutation routes. This single-writer boundary prevents drift between runtime code and infrastructure reconciliation.
+The canonical realm source lives in `infra/weave-workspace/keycloak` and is rendered into an environment-specific import without real secret values. A bounded, backup-gated post-import migration owns only FGAP state Keycloak import cannot express. The server does not define a second static realm model or persist a shadow plan. This single-writer boundary prevents drift while leaving dynamic human lifecycle with Server.
 
-Identity Ops normalizes and verifies realm basics, OIDC clients, workload roles, native organization role/capability groups, scopes, redirect origins, claim mappings, and service-account boundaries. It uses Keycloak's supported administration surface through the pinned `kcadm` runtime. Evidence is deterministic and support-safe; destructive convergence requires a separate, explicitly approved recovery path and is never inferred from an ordinary apply.
+Realm import establishes realm basics, first-party clients, workload roles, native organization role/capability groups, scopes, redirect origins, claim mappings, and service-account boundaries. The migration uses the Server-owned Keycloak Admin REST anti-corruption layer, removes its temporary bootstrap client, and records deterministic support-safe evidence. Destructive convergence requires a separate, explicitly approved recovery path and is never inferred from ordinary startup.
 
 Member clients consume provider-neutral readiness and capability policy. Admin Console consumes the server's read-only readiness/evidence summary. Neither calls Keycloak administration APIs directly, accepts reconciliation credentials, nor reconstructs the desired-state plan.
 
 ## Effective policy simulation before apply
 
-`POST /api/admin/policies/effective/simulations` is the read-only backend/admin companion to Identity Ops and the admin readiness surface. Identity Ops compares and reconciles provider state; readiness reports support-safe setup posture; effective policy simulation previews how selected known roles, groups, and capabilities would appear to members before a reviewed Identity Ops apply.
+`POST /api/admin/policies/effective/simulations` is the read-only backend/admin companion to the identity readiness surface. Readiness reports the support-safe import/migration posture; effective policy simulation previews how selected known roles, groups, and capabilities would appear to members before a reviewed lifecycle or policy change.
 
 The simulation is read-only and deterministic enough for support fixtures: unknown roles, groups, or capabilities fail closed; member states stay within `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, and `coming_later`; audit payloads record counts/support-safe booleans instead of free-text reasons; and emails, raw provider identifiers, tokens, SecretRefs, and provider internals stay out of the contract.
 

@@ -14,10 +14,17 @@ from typing import Iterable, Mapping
 from urllib.parse import urlsplit
 
 
-PROFILES = ("dev", "test", "prod")
+OPERATOR_ENVIRONMENTS = ("dev", "dogfood", "prod", "e2e")
+ENVIRONMENT_SELECTORS = OPERATOR_ENVIRONMENTS
+COMPOSE_ENVIRONMENT_PROFILES = frozenset(OPERATOR_ENVIRONMENTS)
+OPTIONAL_COMPOSE_PROFILES = frozenset(
+    ("dev-tools", "provider-matrix", "provider-nextcloud", "storage-s3")
+)
+SUPPORTED_COMPOSE_PROFILES = COMPOSE_ENVIRONMENT_PROFILES | OPTIONAL_COMPOSE_PROFILES
 DEPLOYMENT_CONTEXTS = {
     "dev": {"developer", "disposable"},
-    "test": {"disposable", "persistent-dogfood"},
+    "dogfood": {"persistent-dogfood"},
+    "e2e": {"disposable"},
     "prod": {"production"},
 }
 KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
@@ -35,7 +42,6 @@ PUBLIC_PROCESS_COORDINATES = {
 DEPLOYMENT_PROCESS_OVERRIDES = {
     "WEAVE_BACKEND_IMAGE",
     "WEAVE_KEYCLOAK_IMAGE",
-    "WEAVE_IDENTITY_OPS_IMAGE",
     "WEAVE_MCP_IMAGE",
 }
 OPERATOR_PROCESS_INPUTS = {
@@ -46,7 +52,6 @@ OPERATOR_PROCESS_INPUTS = {
     "WEAVE_E2E_RUN_ID",
     "WEAVE_E2E_RUN_NAMESPACE",
     "WEAVE_E2E_STACK_SCOPE",
-    "WEAVE_IDENTITY_ROTATION_EPOCH",
     "WEAVE_RESOURCE_GENERATION",
     "WEAVE_RESOURCE_STACK",
     "WEAVE_SPEC_CORPUS_ROOT",
@@ -70,8 +75,29 @@ class ContractError(RuntimeError):
     pass
 
 
+def declared_profiles(env: Mapping[str, str]) -> tuple[str, ...]:
+    value = env.get("COMPOSE_PROFILES", "")
+    if not value or value != value.strip():
+        fail("COMPOSE_PROFILES must be an explicit comma-separated profile list")
+    profiles = tuple(value.split(","))
+    if any(
+        not profile
+        or profile != profile.strip()
+        or not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,31}", profile)
+        for profile in profiles
+    ):
+        fail("COMPOSE_PROFILES contains an invalid profile name")
+    if len(profiles) != len(set(profiles)):
+        fail("COMPOSE_PROFILES must not contain duplicate profiles")
+    unknown = sorted(set(profiles) - SUPPORTED_COMPOSE_PROFILES)
+    if unknown:
+        fail(f"COMPOSE_PROFILES contains unsupported profiles: {', '.join(unknown)}")
+    return profiles
+
+
 @dataclass(frozen=True)
 class ComposeContext:
+    environment: str
     profile: str
     root: Path
     repository_root: Path
@@ -82,10 +108,10 @@ class ComposeContext:
 
     @property
     def compose_files(self) -> tuple[Path, ...]:
-        files = [self.root / "compose.yaml", self.root / f"compose.{self.profile}.yaml"]
-        if self.isolated_namespace is not None:
-            files.append(self.root / "compose.isolated-e2e.yaml")
-        return tuple(files)
+        return (
+            self.root / "compose.yaml",
+            self.root / f"compose.{self.environment}.yaml",
+        )
 
     @property
     def generated_root(self) -> Path:
@@ -101,11 +127,24 @@ class ComposeContext:
 
     @property
     def compose_base_command(self) -> list[str]:
-        command = ["docker", "compose"]
+        command = [
+            "docker",
+            "compose",
+            "--env-file",
+            str(self.common_env_file),
+            "--env-file",
+            str(self.profile_env_file),
+        ]
         for path in self.compose_files:
             command.extend(("--file", str(path)))
-        command.extend(("--project-name", self.env["WEAVE_COMPOSE_PROJECT"], "--profile", self.profile))
+        command.extend(("--project-name", self.env["WEAVE_COMPOSE_PROJECT"]))
+        for profile in self.active_profiles:
+            command.extend(("--profile", profile))
         return command
+
+    @property
+    def active_profiles(self) -> tuple[str, ...]:
+        return declared_profiles(self.env)
 
 
 def fail(message: str) -> None:
@@ -140,28 +179,30 @@ def parse_env_file(path: Path) -> dict[str, str]:
     return values
 
 
-def _profile_file(root: Path, profile: str, supplied: str | None) -> Path:
-    if profile == "dev":
+def _profile_file(root: Path, environment: str, supplied: str | None) -> Path:
+    if environment == "dev":
         return Path(supplied).expanduser().resolve() if supplied else root / "environments/dev.env"
     if not supplied:
-        fail(f"{profile} requires WEAVE_ENV_FILE pointing to a private, reviewed environment file")
+        fail(f"{environment} requires WEAVE_ENV_FILE pointing to a private, reviewed environment file")
     path = Path(supplied).expanduser().resolve()
     if path.name.endswith(".example"):
-        fail(f"refusing to deploy {profile} from an example environment file")
+        fail(f"refusing to deploy {environment} from an example environment file")
     return path
 
 
-def _isolated_overrides(profile: str, env: dict[str, str]) -> tuple[dict[str, str], str | None]:
+def _isolated_overrides(environment: str, env: dict[str, str]) -> tuple[dict[str, str], str | None]:
     scope = os.environ.get("WEAVE_E2E_STACK_SCOPE", "")
     if scope not in ("", "persistent", "isolated"):
         fail("WEAVE_E2E_STACK_SCOPE must be persistent or isolated")
+    if environment == "e2e" and scope != "isolated":
+        fail("e2e requires WEAVE_E2E_STACK_SCOPE=isolated")
     if scope != "isolated":
         if os.environ.get("WEAVE_E2E_NAMESPACE") or os.environ.get("WEAVE_E2E_RUN_NAMESPACE"):
             fail("persistent deployments reject isolated E2E namespace inputs")
         env["WEAVE_STACK_SCOPE"] = "persistent"
         return env, None
-    if profile != "test":
-        fail("isolated E2E uses the test topology")
+    if environment != "e2e":
+        fail("isolated E2E uses the e2e environment")
     run_id = os.environ.get("WEAVE_E2E_RUN_ID", "")
     if not ISOLATED_RUN_RE.fullmatch(run_id):
         fail("isolated E2E requires WEAVE_E2E_RUN_ID matching [a-z0-9][a-z0-9-]{5,39}")
@@ -176,13 +217,15 @@ def _isolated_overrides(profile: str, env: dict[str, str]) -> tuple[dict[str, st
     volume_prefix = namespace.replace("-", "_")
     env.update(
         {
-            "WEAVE_ENVIRONMENT": "test",
+            "WEAVE_ENVIRONMENT": "e2e",
             "WEAVE_DEPLOYMENT_CONTEXT": "disposable",
             "WEAVE_DEPLOYMENT_SCOPE": "isolated-e2e",
             "WEAVE_DEPLOYMENT_INSTANCE": namespace,
             "WEAVE_COMPOSE_PROJECT": namespace,
             "WEAVE_RESOURCE_PREFIX": namespace,
             "WEAVE_E2E_RUN_NAMESPACE": namespace,
+            "WEAVE_E2E_RUN_ID": run_id,
+            "WEAVE_E2E_STACK_SCOPE": "isolated",
             "WEAVE_E2E_NAMESPACE": namespace,
             "WEAVE_STACK_SCOPE": "isolated",
             "WEAVE_DOCKER_NETWORK": f"{namespace}_network",
@@ -198,6 +241,7 @@ def _isolated_overrides(profile: str, env: dict[str, str]) -> tuple[dict[str, st
             "WEAVE_SYNAPSE_DATA_VOLUME": f"{volume_prefix}_synapse_data",
             "WEAVE_MATRIX_APPSERVICE_VOLUME": f"{volume_prefix}_matrix_chat_appservice_runtime",
             "WEAVE_RUNTIME_STATE_VOLUME": f"{volume_prefix}_runtime_state",
+            "WEAVE_NATIVE_FILES_DATA_VOLUME": f"{volume_prefix}_native_files_data",
         }
     )
     port_names = (
@@ -213,7 +257,10 @@ def _isolated_overrides(profile: str, env: dict[str, str]) -> tuple[dict[str, st
         "WEAVE_MCP_HOST_PORT",
     )
     supplied_ports = {name: os.environ.get(name, "") for name in port_names}
-    if any(supplied_ports.values()):
+    # The public E2E template uses
+    # zero to request Docker-assigned ports. Treat an all-zero/empty set as
+    # unsupplied; a partially explicit set still fails the all-values check.
+    if any(value not in {"", "0"} for value in supplied_ports.values()):
         if not all(value.isdigit() and 1024 <= int(value) <= 65535 for value in supplied_ports.values()):
             fail("isolated E2E requires every declared host port to be an integer from 1024 through 65535")
         if len(set(supplied_ports.values())) != len(port_names):
@@ -225,15 +272,18 @@ def _isolated_overrides(profile: str, env: dict[str, str]) -> tuple[dict[str, st
     return env, namespace
 
 
-def load_context(profile: str, root: Path, supplied_env_file: str | None = None) -> ComposeContext:
-    if profile not in PROFILES:
-        fail(f"profile must be one of: {', '.join(PROFILES)}")
+def load_context(selector: str, root: Path, supplied_env_file: str | None = None) -> ComposeContext:
+    if selector not in ENVIRONMENT_SELECTORS:
+        fail(f"environment must be one of: {', '.join(OPERATOR_ENVIRONMENTS)}")
     root = root.resolve()
     repository_root = root.parents[1]
     common = root / "environments/common.env"
-    selected = _profile_file(root, profile, supplied_env_file or os.environ.get("WEAVE_ENV_FILE"))
+    selected = _profile_file(root, selector, supplied_env_file or os.environ.get("WEAVE_ENV_FILE"))
     env = parse_env_file(common)
     env.update(parse_env_file(selected))
+    declared_environment = env.get("WEAVE_ENVIRONMENT", "")
+    environment = selector
+    profile = environment
     if "WEAVE_IDENTITY_ROTATION_EPOCH" in os.environ:
         epoch = os.environ["WEAVE_IDENTITY_ROTATION_EPOCH"]
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}", epoch):
@@ -261,13 +311,7 @@ def load_context(profile: str, root: Path, supplied_env_file: str | None = None)
     if not COMMIT_RE.fullmatch(candidate_commit):
         fail("WEAVE_CANDIDATE_COMMIT must be one immutable implementation commit")
     spec_digest = "sha256:" + hashlib.sha256(lock_bytes).hexdigest()
-    resource_environment = (
-        "persistent-dogfood"
-        if profile == "test"
-        and env.get("WEAVE_DEPLOYMENT_CONTEXT") == "persistent-dogfood"
-        and os.environ.get("WEAVE_E2E_STACK_SCOPE") != "isolated"
-        else profile
-    )
+    resource_environment = environment
     resource_generation = os.environ.get(
         "WEAVE_RESOURCE_GENERATION", env.get("WEAVE_RESOURCE_GENERATION", "fresh-v1")
     )
@@ -285,7 +329,8 @@ def load_context(profile: str, root: Path, supplied_env_file: str | None = None)
             "schemaVersion": "weave.compose-local-candidate.v1",
             "candidateCommit": candidate_commit,
             "deploymentInstance": env.get("WEAVE_DEPLOYMENT_INSTANCE"),
-            "profile": profile,
+            "environment": environment,
+            "topologyProfile": profile,
             "specDigest": spec_digest,
         },
         ensure_ascii=False,
@@ -321,14 +366,17 @@ def load_context(profile: str, root: Path, supplied_env_file: str | None = None)
     admin_authority = admin_host + (f":{public.port}" if public.port is not None else "")
     env.setdefault("WEAVE_ADMIN_CONSOLE_URL", f"{public.scheme}://{admin_authority}")
     env.setdefault("WEAVE_PROVIDER_PROFILE", "sovereign-default")
-    if env.get("WEAVE_ENVIRONMENT") != profile:
-        fail(f"{selected} declares WEAVE_ENVIRONMENT={env.get('WEAVE_ENVIRONMENT')!r}, expected {profile}")
-    env, namespace = _isolated_overrides(profile, env)
-    _validate_environment(profile, env)
-    return ComposeContext(profile, root, repository_root, common, selected, env, namespace)
+    if declared_environment != environment:
+        fail(
+            f"{selected} declares WEAVE_ENVIRONMENT={declared_environment!r}, "
+            f"expected {environment}"
+        )
+    env, namespace = _isolated_overrides(environment, env)
+    _validate_environment(environment, profile, env)
+    return ComposeContext(environment, profile, root, repository_root, common, selected, env, namespace)
 
 
-def _validate_environment(profile: str, env: Mapping[str, str]) -> None:
+def _validate_environment(environment: str, profile: str, env: Mapping[str, str]) -> None:
     required = (
         "WEAVE_COMPOSE_PROJECT",
         "WEAVE_RESOURCE_PREFIX",
@@ -343,21 +391,30 @@ def _validate_environment(profile: str, env: Mapping[str, str]) -> None:
         "WEAVE_FILES_URL",
         "WEAVE_ADMIN_CONSOLE_URL",
         "WEAVE_PROVIDER_PROFILE",
+        "COMPOSE_PROFILES",
+        "WEAVE_NATIVE_FILES_DATA_VOLUME",
+        "WEAVE_FILES_PROVIDER",
+        "WEAVE_FILES_NATIVE_BLOB_STORE",
+        "WEAVE_CHAT_PROVIDER",
+        "WEAVE_CALENDAR_PROVIDER",
     )
     missing = [name for name in required if not env.get(name)]
     if missing:
         fail(f"missing public deployment inputs: {', '.join(missing)}")
     deployment_context = env.get("WEAVE_DEPLOYMENT_CONTEXT", "")
-    if deployment_context not in DEPLOYMENT_CONTEXTS[profile]:
+    if deployment_context not in DEPLOYMENT_CONTEXTS[environment]:
         fail(
-            f"{profile} requires WEAVE_DEPLOYMENT_CONTEXT to be one of: "
-            + ", ".join(sorted(DEPLOYMENT_CONTEXTS[profile]))
+            f"{environment} requires WEAVE_DEPLOYMENT_CONTEXT to be one of: "
+            + ", ".join(sorted(DEPLOYMENT_CONTEXTS[environment]))
         )
-    expected_scope = "isolated-e2e" if env.get("WEAVE_STACK_SCOPE") == "isolated" else {
-        "dev": "developer", "test": "persistent-test", "prod": "production"
-    }[profile]
+    expected_scope = {
+        "dev": "developer",
+        "dogfood": "dogfood",
+        "e2e": "isolated-e2e",
+        "prod": "production",
+    }[environment]
     if env.get("WEAVE_DEPLOYMENT_SCOPE") != expected_scope:
-        fail(f"{profile} requires WEAVE_DEPLOYMENT_SCOPE={expected_scope}")
+        fail(f"{environment} requires WEAVE_DEPLOYMENT_SCOPE={expected_scope}")
     for name in (
         "WEAVE_PUBLIC_URL",
         "WEAVE_API_URL",
@@ -372,26 +429,75 @@ def _validate_environment(profile: str, env: Mapping[str, str]) -> None:
             fail(f"{name} must not carry credentials, query, fragment, or backslash")
     if env["WEAVE_PROVIDER_PROFILE"] != "sovereign-default":
         fail("Core Compose profiles require WEAVE_PROVIDER_PROFILE=sovereign-default")
-    if profile in ("test", "prod"):
+    active_profiles = set(declared_profiles(env))
+    environment_profiles = active_profiles & COMPOSE_ENVIRONMENT_PROFILES
+    if environment_profiles != {environment}:
+        fail(f"COMPOSE_PROFILES must select the {environment} environment profile")
+    optional_profiles = active_profiles - COMPOSE_ENVIRONMENT_PROFILES
+    allowed_provider_values = {
+        "WEAVE_FILES_PROVIDER": {"weave-native", "nextcloud-webdav"},
+        "WEAVE_FILES_NATIVE_BLOB_STORE": {"filesystem", "s3-compatible"},
+        "WEAVE_CHAT_PROVIDER": {"weave-native", "matrix-synapse"},
+        "WEAVE_CALENDAR_PROVIDER": {"weave-native", "nextcloud-caldav"},
+    }
+    for name, allowed_values in allowed_provider_values.items():
+        if env[name] not in allowed_values:
+            fail(f"{name} must be one of: {', '.join(sorted(allowed_values))}")
+    expected_optional_profiles = set()
+    if env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse":
+        expected_optional_profiles.add("provider-matrix")
+    if (
+        env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav"
+        or env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav"
+    ):
+        expected_optional_profiles.add("provider-nextcloud")
+    if env["WEAVE_FILES_NATIVE_BLOB_STORE"] == "s3-compatible":
+        expected_optional_profiles.add("storage-s3")
+    if environment == "e2e":
+        expected_optional_profiles.add("storage-s3")
+    if environment == "dev" and "dev-tools" in optional_profiles:
+        expected_optional_profiles.add("dev-tools")
+    if optional_profiles != expected_optional_profiles:
+        fail(
+            "COMPOSE_PROFILES optional selections must exactly match the configured providers "
+            "and environment requirements"
+        )
+    if env["WEAVE_FILES_NATIVE_BLOB_STORE"] == "s3-compatible":
+        fail(
+            "native Files S3-compatible storage is not deployment-qualified with file-based "
+            "credentials; select filesystem until its exact SecretRef binding is implemented"
+        )
+    if (
+        env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse"
+        or env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav"
+        or env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav"
+    ):
+        fail(
+            "optional Matrix/Nextcloud provider activation is blocked until an explicit "
+            "manifest-bound Keycloak IAM migration is implemented and qualified"
+        )
+    if environment != "dev":
         image_names = [
             "WEAVE_POSTGRES_IMAGE",
             "WEAVE_CADDY_IMAGE",
             "WEAVE_KEYCLOAK_IMAGE",
-            "WEAVE_IDENTITY_OPS_IMAGE",
-            "WEAVE_MAS_IMAGE",
-            "WEAVE_SYNAPSE_IMAGE",
-            "WEAVE_NEXTCLOUD_IMAGE",
             "WEAVE_BACKEND_IMAGE",
             "WEAVE_MCP_IMAGE",
         ]
-        if profile == "test":
-            image_names.extend(("WEAVE_MAILPIT_IMAGE", "WEAVE_RUNTIME_STATE_IMAGE"))
+        if environment in {"dogfood", "e2e"}:
+            image_names.append("WEAVE_MAILPIT_IMAGE")
+        if "provider-matrix" in active_profiles:
+            image_names.extend(("WEAVE_MAS_IMAGE", "WEAVE_SYNAPSE_IMAGE"))
+        if "provider-nextcloud" in active_profiles:
+            image_names.append("WEAVE_NEXTCLOUD_IMAGE")
+        if "storage-s3" in active_profiles:
+            image_names.append("WEAVE_RUNTIME_STATE_IMAGE")
         local_candidate_images = {
-            "WEAVE_BACKEND_IMAGE", "WEAVE_IDENTITY_OPS_IMAGE", "WEAVE_MCP_IMAGE"
-        } if profile == "test" else set()
-        if profile == "test" and env.get("WEAVE_STACK_SCOPE") == "isolated":
+            "WEAVE_BACKEND_IMAGE", "WEAVE_MCP_IMAGE"
+        } if environment == "e2e" else set()
+        if environment == "e2e" and env.get("WEAVE_STACK_SCOPE") == "isolated":
             # Live E2E resolves the pinned stock multi-arch index to its exact
-            # local platform image ID before Compose. Persistent test/prod
+            # local platform image ID before Compose. Persistent dogfood/prod
             # still require the reviewed published digest reference.
             local_candidate_images.add("WEAVE_KEYCLOAK_IMAGE")
         unpinned = [
@@ -400,7 +506,7 @@ def _validate_environment(profile: str, env: Mapping[str, str]) -> None:
             and not (name in local_candidate_images and LOCAL_IMAGE_ID_RE.fullmatch(env[name]))
         ]
         if unpinned:
-            fail(f"{profile} requires digest-pinned images: {', '.join(sorted(unpinned))}")
+            fail(f"{environment} requires digest-pinned images: {', '.join(sorted(unpinned))}")
 
 
 def compose_environment(context: ComposeContext) -> dict[str, str]:

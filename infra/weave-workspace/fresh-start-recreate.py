@@ -182,15 +182,17 @@ def recreate_environment(
             "WEAVE_MCP_IMAGE": image_reference(
                 candidate, "mcp-server"
             ),
-            "WEAVE_IDENTITY_OPS_IMAGE": image_reference(
-                candidate, "identity-ops"
-            ),
             "WEAVE_KEYCLOAK_IMAGE": image_reference(
                 candidate, "keycloak-runtime"
             ),
         }
     )
-    profile = "test" if plan["environment"] in {"test", "persistent-dogfood"} else "dev"
+    profile = {
+        "dev": "dev",
+        "e2e": "e2e",
+        "persistent-dogfood": "dogfood",
+        "prod": "prod",
+    }[plan["environment"]]
     subprocess.run(
         ["bash", str(SCRIPT_ROOT / "install.sh"), profile],
         cwd=SCRIPT_ROOT,

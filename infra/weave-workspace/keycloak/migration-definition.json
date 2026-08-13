@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "weave.keycloak-migration-definition/v1",
+  "keycloakVersion": "26.7.1",
+  "operations": [
+    {
+      "id": "fgap-v2-primary-organization-post-import",
+      "phase": "post-realm-import",
+      "type": "keycloak-fgap-v2",
+      "desiredStatePointer": "/fineGrainedAdminPermissions"
+    }
+  ],
+  "containsSecretValues": false
+}

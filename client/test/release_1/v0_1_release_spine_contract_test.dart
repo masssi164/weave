@@ -269,7 +269,7 @@ void main() {
       for (final required in <String>[
         '@weave-sprint8-domain-control-plane-evidence',
         'reviews canonical domain setup',
-        'reviews support-safe Keycloak Identity Ops plan and verify evidence',
+        'reviews support-safe Keycloak realm import and bounded migration evidence',
         'reviews domain-first readiness states',
         'provider switch is blocked',
         'Boards portability dry-run report',
@@ -296,7 +296,7 @@ void main() {
         'Product-ready definition',
         'Domain registry version',
         'Migration contract version',
-        'Keycloak Identity Ops evidence',
+        'Keycloak realm baseline evidence',
         'Calls/MatrixRTC readiness artifact',
         'ARC workload identity and lifecycle proof',
         'Weaver/OpenClaw upstream provenance',
@@ -312,7 +312,7 @@ void main() {
       for (final required in <String>[
         '@weave-product-readiness-waterfall',
         'reviews the domain registry',
-        'reviews protected Keycloak Identity Ops plan and verify evidence',
+        'reviews protected Keycloak realm import and bounded migration evidence',
         'provider apply is blocked',
         'reviews migration dry-run, lossy report, conflict report, rollback boundary, and member impact preview',
         'grants the agent runtime entitlement through Keycloak',

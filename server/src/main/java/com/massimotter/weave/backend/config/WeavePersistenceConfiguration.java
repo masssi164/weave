@@ -50,7 +50,7 @@ public class WeavePersistenceConfiguration {
       EntityManagerFactory entityManagerFactory,
       SchemaAuthorityJpaRepository schemaAuthority,
       Environment environment) {
-    Set<String> markerProfiles = Set.of("test", "prod");
+    Set<String> markerProfiles = Set.of("test", "dogfood", "prod", "e2e");
     boolean markerRequired =
         markerProfiles.contains(environment.getProperty("weave.deployment.profile", ""))
             || Arrays.stream(environment.getActiveProfiles()).anyMatch(markerProfiles::contains);

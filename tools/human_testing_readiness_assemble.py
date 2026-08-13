@@ -17,8 +17,30 @@ from human_testing_readiness_manifest import ManifestError, evaluate_manifest
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 IMMUTABLE_IMAGE_PATTERN = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
-AUTOMATED_IMAGE_COMPONENTS = {"server", "mcp-server", "identity-ops", "keycloak-runtime"}
-DEPLOYMENT_IMAGE_COMPONENTS = {"backend", "mcp", "identity-ops", "keycloak"}
+AUTOMATED_IMAGE_COMPONENTS = {"server", "mcp-server", "keycloak-runtime"}
+DEPLOYMENT_IMAGE_COMPONENTS = {"backend", "mcp", "keycloak"}
+REALM_EVIDENCE_FIELDS = {
+    "semanticRealmSourceDigest",
+    "migrationDefinitionDigest",
+    "overlayDigest",
+    "renderedRealmDigest",
+    "semanticReadbackDigest",
+    "candidateRealmDefinitionMatched",
+    "environmentRealmRenderStable",
+    "semanticReadbackVerified",
+    "containsSecrets",
+}
+REALM_EVIDENCE_DIGEST_FIELDS = {
+    "semanticRealmSourceDigest",
+    "migrationDefinitionDigest",
+    "overlayDigest",
+    "renderedRealmDigest",
+    "semanticReadbackDigest",
+}
+REALM_CANDIDATE_IDENTITY_FIELDS = (
+    "semanticRealmSourceDigest",
+    "migrationDefinitionDigest",
+)
 
 
 def load_object(path: Path, label: str) -> dict[str, Any]:
@@ -82,6 +104,38 @@ def require_automated_origins(automated: dict[str, Any]) -> dict[str, Any]:
     return surfaces
 
 
+def require_realm_evidence(document: dict[str, Any], label: str) -> dict[str, Any]:
+    evidence = document.get("realmEvidence")
+    if not isinstance(evidence, dict) or set(evidence) != REALM_EVIDENCE_FIELDS:
+        raise ManifestError(f"{label} realm evidence is incomplete")
+    if any(
+        DIGEST_PATTERN.fullmatch(str(evidence.get(field))) is None
+        for field in REALM_EVIDENCE_DIGEST_FIELDS
+    ):
+        raise ManifestError(f"{label} realm evidence contains a malformed digest")
+    if any(
+        evidence.get(field) is not True
+        for field in (
+            "candidateRealmDefinitionMatched",
+            "environmentRealmRenderStable",
+            "semanticReadbackVerified",
+        )
+    ):
+        raise ManifestError(f"{label} realm evidence is not fully verified")
+    if evidence.get("containsSecrets") is not False:
+        raise ManifestError(f"{label} realm evidence must be secret-free")
+    return evidence
+
+
+def require_same_realm_candidate_identity(
+    left: dict[str, Any], right: dict[str, Any], left_label: str, right_label: str
+) -> None:
+    if any(left.get(field) != right.get(field) for field in REALM_CANDIDATE_IDENTITY_FIELDS):
+        raise ManifestError(
+            f"{left_label} and {right_label} realm evidence disagree on candidate realm definition"
+        )
+
+
 def assemble(
     *,
     candidate: str,
@@ -130,7 +184,7 @@ def assemble(
         or automated_manifest != health_manifest
         or automated_manifest != distribution_manifest
     ):
-        raise ManifestError("automated, deployment, and distribution evidence disagree on candidate manifest")
+        raise ManifestError("automated, deployment, provider health, and distribution evidence disagree on candidate manifest")
     automated_images = automated.get("images")
     deployment_images = deployment.get("candidateImages")
     health_images = provider_health.get("images")
@@ -148,6 +202,24 @@ def assemble(
         or health_images != automated_images
     ):
         raise ManifestError("candidate image evidence is incomplete or mutable")
+
+    automated_realm_evidence = require_realm_evidence(automated, "automated")
+    deployment_realm_evidence = require_realm_evidence(deployment, "deployment")
+    health_realm_evidence = require_realm_evidence(provider_health, "provider health")
+    require_same_realm_candidate_identity(
+        automated_realm_evidence,
+        deployment_realm_evidence,
+        "automated E2E",
+        "dogfood deployment",
+    )
+    if health_realm_evidence != deployment_realm_evidence:
+        raise ManifestError("provider health realm evidence disagrees with dogfood deployment evidence")
+
+    deployment_details = require_object(deployment, "deployment", "deployment")
+    if deployment_details.get("realmEvidenceVerified") is not True:
+        raise ManifestError("deployment did not verify semantic realm and environment render evidence")
+    manifest_deployment = dict(deployment_details)
+    manifest_deployment.pop("realmEvidenceVerified")
     if distribution.get("deploymentRunUrl") != deployment.get("runUrl"):
         raise ManifestError("distribution is not bound to the selected deployment run")
     if distribution.get("liveE2eRunUrl") != automated.get("liveE2eRunUrl"):
@@ -186,12 +258,13 @@ def assemble(
 
     surfaces = require_automated_origins(automated)
     return {
-        "schemaVersion": 3,
+        "schemaVersion": 5,
         "candidateCommit": candidate,
         "sourceCandidateCommit": source_candidate,
         "specCorpusCommit": spec_commit,
         "candidateManifestDigest": automated_manifest,
         "images": dict(sorted(automated_images.items())),
+        "realmEvidence": dict(deployment_realm_evidence),
         "evidenceModes": automated["evidenceModes"],
         "generatedAtUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "state": "blocked",
@@ -202,7 +275,7 @@ def assemble(
         },
         "surfaces": surfaces,
         "collaboration": require_object(automated, "collaboration", "automated"),
-        "deployment": require_object(deployment, "deployment", "deployment"),
+        "deployment": manifest_deployment,
         "providerHealth": require_object(provider_health, "providerHealth", "provider health"),
         "distribution": {
             "status": distribution_status,

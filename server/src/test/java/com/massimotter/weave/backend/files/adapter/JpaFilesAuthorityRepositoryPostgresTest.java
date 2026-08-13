@@ -46,6 +46,7 @@ class JpaFilesAuthorityRepositoryPostgresTest {
                 new FileObject(stableId, original, Kind.FILE, 12, "text/markdown", now, false),
                 new FileVersion("etag-1"),
                 "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "v1/file/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 1, Lifecycle.ACTIVE, now));
 
         CanonicalFileRecord afterMove = repository.move(

@@ -18,16 +18,37 @@ HASH = re.compile(r"^sha256:[0-9a-f]{64}$")
 IMMUTABLE_IMAGE = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
 JWT = re.compile(r"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])")
 EMAIL = re.compile(r"(?<![A-Za-z0-9.!#$%&'*+/=?^_`{|}~-])[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?![A-Za-z0-9-])")
-CANDIDATE_COMPONENTS = {"server", "mcp-server", "identity-ops", "keycloak-runtime"}
-ISOLATED_VOLUME_SUFFIXES = {
+CANDIDATE_COMPONENTS = {"server", "mcp-server", "keycloak-runtime"}
+REALM_DEFINITION_FIELDS = {
+    "semanticRealmSourceDigest",
+    "migrationDefinitionDigest",
+    "containsSecrets",
+}
+REALM_EVIDENCE_FIELDS = {
+    "semanticRealmSourceDigest",
+    "migrationDefinitionDigest",
+    "overlayDigest",
+    "renderedRealmDigest",
+    "semanticReadbackDigest",
+    "candidateRealmDefinitionMatched",
+    "environmentRealmRenderStable",
+    "semanticReadbackVerified",
+    "containsSecrets",
+}
+REALM_EVIDENCE_DIGEST_FIELDS = {
+    "semanticRealmSourceDigest",
+    "migrationDefinitionDigest",
+    "overlayDigest",
+    "renderedRealmDigest",
+    "semanticReadbackDigest",
+}
+NATIVE_ISOLATED_VOLUME_SUFFIXES = {
     "caddy_data",
     "caddy_config",
     "db_data",
     "keycloak_data",
     "mailpit_data",
-    "nextcloud_data",
-    "synapse_data",
-    "matrix_chat_appservice_runtime",
+    "native_files_data",
     "runtime_state",
 }
 REQUIRED_PASS_FACTS = (
@@ -39,9 +60,8 @@ REQUIRED_PASS_FACTS = (
     "profilePassed",
     "outsiderDenied",
     "canonicalJpaVerified",
-    "directSynapseVerified",
-    "providerOutageExactlyOnceVerified",
-    "callbackReplayVerified",
+    "nativePersistenceVerified",
+    "idempotencyVerified",
     "cleanupComplete",
 )
 SIMULATOR_SURFACES = ("home", "chat", "files", "calendar", "settings", "profile")
@@ -90,12 +110,10 @@ def require_same_identity(left: dict[str, Any], right: dict[str, Any]) -> None:
 def require_support_safe(value: dict[str, Any], label: str) -> None:
     if value.get("supportSafe") is not True:
         raise EvidenceError(f"{label} must declare supportSafe=true")
-
     require_values_safe(value, label)
 
 
 def require_values_safe(value: object, label: str) -> None:
-
     def walk(node: object) -> None:
         if isinstance(node, dict):
             for key, child in node.items():
@@ -169,14 +187,20 @@ def require_https_run_url(value: str) -> str:
 
 def require_candidate_manifest(
     manifest: dict[str, Any], product: dict[str, Any], source: str, spec: str
-) -> tuple[str, dict[str, str]]:
+) -> tuple[str, dict[str, str], dict[str, Any]]:
     require_support_safe(manifest, "candidate manifest")
     images = manifest.get("images")
+    definition = manifest.get("realmDefinition")
     if (
-        manifest.get("schemaVersion") != "weave.release.candidate-manifest.v2"
+        manifest.get("schemaVersion") != "weave.release.candidate-manifest.v4"
         or manifest.get("commit") != source
         or manifest.get("specificationCommit") != spec
         or not isinstance(images, list)
+        or not isinstance(definition, dict)
+        or set(definition) != REALM_DEFINITION_FIELDS
+        or HASH.fullmatch(str(definition.get("semanticRealmSourceDigest", ""))) is None
+        or HASH.fullmatch(str(definition.get("migrationDefinitionDigest", ""))) is None
+        or definition.get("containsSecrets") is not False
     ):
         raise EvidenceError("candidate manifest belongs to another source or specification")
     by_component: dict[str, str] = {}
@@ -194,14 +218,88 @@ def require_candidate_manifest(
             raise EvidenceError("candidate manifest contains a mutable or duplicate image")
         by_component[component] = reference
     if set(by_component) != CANDIDATE_COMPONENTS:
-        raise EvidenceError("candidate manifest must contain the exact four runtime images")
+        raise EvidenceError("candidate manifest must contain the exact three runtime images")
     serialized = json.dumps(
         manifest, ensure_ascii=False, separators=(",", ":"), sort_keys=True
     ).encode("utf-8")
     digest = "sha256:" + hashlib.sha256(serialized).hexdigest()
     if product.get("candidateManifestDigest") != digest:
         raise EvidenceError("product evidence does not match the candidate manifest digest")
-    return digest, dict(sorted(by_component.items()))
+    return digest, dict(sorted(by_component.items())), dict(definition)
+
+
+def require_realm_evidence(value: Any, definition: dict[str, Any]) -> dict[str, Any]:
+    if (
+        not isinstance(value, dict)
+        or set(value) != REALM_EVIDENCE_FIELDS
+        or any(
+            HASH.fullmatch(str(value.get(field, ""))) is None
+            for field in REALM_EVIDENCE_DIGEST_FIELDS
+        )
+        or value.get("semanticRealmSourceDigest")
+        != definition.get("semanticRealmSourceDigest")
+        or value.get("migrationDefinitionDigest")
+        != definition.get("migrationDefinitionDigest")
+        or value.get("candidateRealmDefinitionMatched") is not True
+        or value.get("environmentRealmRenderStable") is not True
+        or value.get("semanticReadbackVerified") is not True
+        or value.get("containsSecrets") is not False
+    ):
+        raise EvidenceError("runtime realm evidence is incomplete or not candidate-bound")
+    return dict(value)
+
+
+def require_runtime_image_evidence(
+    runtime: dict[str, Any],
+    *,
+    candidate: str,
+    source: str,
+    spec: str,
+    manifest_digest: str,
+    compose_project: object,
+    images: dict[str, str],
+    realm_definition: dict[str, Any],
+) -> dict[str, Any]:
+    require_support_safe(runtime, "runtime image evidence")
+    entries = runtime.get("images")
+    realm_evidence = require_realm_evidence(runtime.get("realmEvidence"), realm_definition)
+    if (
+        runtime.get("schemaVersion") != "weave.test-app-runtime-images/v2"
+        or runtime.get("candidateCommit") != candidate
+        or runtime.get("sourceCandidateCommit") != source
+        or runtime.get("specificationCommit") != spec
+        or runtime.get("candidateManifestDigest") != manifest_digest
+        or runtime.get("composeProject") != compose_project
+        or runtime.get("manifestBound") is not True
+        or runtime.get("realmEvidenceVerified") is not True
+        or runtime.get("credentialsIncluded") is not False
+        or runtime.get("containsSecretValues") is not False
+        or not isinstance(entries, list)
+        or len(entries) != len(CANDIDATE_COMPONENTS)
+    ):
+        raise EvidenceError(
+            "runtime image evidence is not bound to the exact candidate and semantic realm evidence"
+        )
+    by_component: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise EvidenceError("runtime image evidence contains an invalid image entry")
+        component = entry.get("component")
+        if not isinstance(component, str) or component in by_component:
+            raise EvidenceError("runtime image evidence contains a duplicate image component")
+        by_component[component] = entry
+    if set(by_component) != CANDIDATE_COMPONENTS:
+        raise EvidenceError("runtime image evidence does not contain the exact three images")
+    for component, reference in images.items():
+        entry = by_component[component]
+        if (
+            entry.get("immutableReference") != reference
+            or entry.get("matchesCandidate") is not True
+            or HASH.fullmatch(str(entry.get("localImageId", ""))) is None
+            or entry.get("observedImageId") != entry.get("localImageId")
+        ):
+            raise EvidenceError(f"runtime {component} image does not match the exact candidate")
+    return realm_evidence
 
 
 def require_teardown(
@@ -260,7 +358,7 @@ def require_teardown(
         raise EvidenceError("teardown evidence has no valid isolated namespace")
     volume_prefix = namespace.replace("-", "_")
     expected_volumes = {
-        f"{volume_prefix}_{suffix}" for suffix in ISOLATED_VOLUME_SUFFIXES
+        f"{volume_prefix}_{suffix}" for suffix in NATIVE_ISOLATED_VOLUME_SUFFIXES
     }
     removed_volumes = teardown.get("removedVolumeNames")
     if (
@@ -279,15 +377,29 @@ def build_live(
     product: dict[str, Any],
     teardown: dict[str, Any],
     candidate_manifest: dict[str, Any],
+    runtime_image_evidence: dict[str, Any],
     run_url: str,
 ) -> dict[str, Any]:
     require_support_safe(product, "product evidence")
-    if product.get("schemaVersion") != "weave.test-app-product-flow/v1":
+    if product.get("schemaVersion") != "weave.test-app-product-flow/v2":
         raise EvidenceError("product evidence has the wrong schema")
     candidate = require_commit(product.get("candidateCommit"), "product.candidateCommit")
     source = require_commit(product.get("sourceCandidateCommit"), "product.sourceCandidateCommit")
     spec = require_commit(product.get("specificationCommit"), "product.specificationCommit")
-    manifest_digest, images = require_candidate_manifest(candidate_manifest, product, source, spec)
+    compose_project = product.get("composeProject")
+    manifest_digest, images, definition = require_candidate_manifest(
+        candidate_manifest, product, source, spec
+    )
+    realm_evidence = require_runtime_image_evidence(
+        runtime_image_evidence,
+        candidate=candidate,
+        source=source,
+        spec=spec,
+        manifest_digest=manifest_digest,
+        compose_project=compose_project,
+        images=images,
+        realm_definition=definition,
+    )
     if product.get("credentialsIncluded") is not False or product.get("actionLinksIncluded") is not False:
         raise EvidenceError("product evidence is not support-safe")
     if product.get("activation") != "keycloak-required-actions-real-chromium":
@@ -313,6 +425,16 @@ def build_live(
     collaboration = product.get("collaboration")
     if not isinstance(collaboration, dict) or collaboration.get("repeatCount") != 2:
         raise EvidenceError("product evidence must contain exactly two collaboration passes")
+    if collaboration.get("selectedProviders") != {
+        "chat": "weave-native", "files": "weave-native", "calendar": "weave-native"
+    }:
+        raise EvidenceError("default collaboration providers must all be weave-native")
+    if collaboration.get("northboundFacades") != {
+        "matrix": True, "webdav": True, "caldav": True
+    }:
+        raise EvidenceError("native collaboration must prove all northbound facades")
+    if collaboration.get("southboundProviderDependencyObserved") is not False:
+        raise EvidenceError("native collaboration observed a southbound provider dependency")
     hashes = collaboration.get("identityRefHashes")
     if not isinstance(hashes, dict) or set(hashes) != {"author", "collaborator", "outsider"}:
         raise EvidenceError("collaboration identity hashes are incomplete")
@@ -329,16 +451,17 @@ def build_live(
         for fact in REQUIRED_PASS_FACTS:
             if proof.get(fact) is not True:
                 raise EvidenceError(f"collaboration pass {expected} does not prove {fact}")
-        correlation = proof.get("providerCorrelationHash")
-        if not isinstance(correlation, str) or HASH.fullmatch(correlation) is None:
-            raise EvidenceError(f"collaboration pass {expected} has no provider correlation hash")
+        if proof.get("southboundProviderDependencyObserved") is not False:
+            raise EvidenceError(f"collaboration pass {expected} observed a southbound provider dependency")
+        revision = proof.get("nativeRevisionHash")
+        if not isinstance(revision, str) or HASH.fullmatch(revision) is None:
+            raise EvidenceError(f"collaboration pass {expected} has no native revision hash")
     if passes[0].get("restartContinuityVerified") is not False:
         raise EvidenceError("first collaboration pass must precede the service restart")
     if passes[1].get("restartContinuityVerified") is not True:
         raise EvidenceError("second collaboration pass must prove restart continuity")
 
     namespace = require_teardown(teardown, candidate, manifest_digest)
-    compose_project = product.get("composeProject")
     if compose_project != namespace or teardown.get("composeProject") != namespace:
         raise EvidenceError("product, teardown, and isolated Compose namespace disagree")
     run_ref = require_https_run_url(run_url)
@@ -349,7 +472,7 @@ def build_live(
         "evidenceRefs": [f"{live_ref}-{marker}"],
     }
     return {
-        "schemaVersion": "weave.human-testing-automated-live.v1",
+        "schemaVersion": "weave.human-testing-automated-live.v2",
         "supportSafe": True,
         "candidateCommit": candidate,
         "sourceCandidateCommit": source,
@@ -357,6 +480,7 @@ def build_live(
         "candidateManifestDigest": manifest_digest,
         "composeProject": compose_project,
         "images": images,
+        "realmEvidence": realm_evidence,
         "liveE2eRunUrl": run_ref,
         "evidenceMode": "live-provider-backed",
         "isolatedNamespace": namespace,
@@ -384,9 +508,9 @@ def build_live(
             },
             "cleanupStatus": "passed",
             "repeatCount": 2,
-            "providerCorrelationHashes": [proof["providerCorrelationHash"] for proof in passes],
+            "nativeRevisionHashes": [proof["nativeRevisionHash"] for proof in passes],
             "restartContinuity": "passed",
-            "callbackReplay": "passed",
+            "southboundProviderDependencyObserved": False,
         },
         "evidenceRefs": [live_ref, f"artifact:teardown/{namespace}"],
         "blockers": [],
@@ -396,7 +520,7 @@ def build_live(
 def combine(live: dict[str, Any], simulator: dict[str, Any]) -> dict[str, Any]:
     require_support_safe(live, "live automated evidence")
     require_support_safe(simulator, "Simulator evidence")
-    if live.get("schemaVersion") != "weave.human-testing-automated-live.v1":
+    if live.get("schemaVersion") != "weave.human-testing-automated-live.v2":
         raise EvidenceError("live automated evidence has the wrong schema")
     if simulator.get("schemaVersion") != "weave.ios-simulator-current-surfaces.v1":
         raise EvidenceError("Simulator evidence has the wrong schema")
@@ -423,6 +547,7 @@ def combine(live: dict[str, Any], simulator: dict[str, Any]) -> dict[str, Any]:
         raise EvidenceError("live collaboration or cleanup did not pass")
     manifest_digest = live.get("candidateManifestDigest")
     images = live.get("images")
+    realm_evidence = live.get("realmEvidence")
     compose_project = live.get("composeProject")
     if (
         not isinstance(manifest_digest, str)
@@ -430,10 +555,20 @@ def combine(live: dict[str, Any], simulator: dict[str, Any]) -> dict[str, Any]:
         or not isinstance(images, dict)
         or set(images) != CANDIDATE_COMPONENTS
         or any(not isinstance(value, str) or IMMUTABLE_IMAGE.fullmatch(value) is None for value in images.values())
+        or not isinstance(realm_evidence, dict)
+        or set(realm_evidence) != REALM_EVIDENCE_FIELDS
+        or any(
+            HASH.fullmatch(str(realm_evidence.get(field, ""))) is None
+            for field in REALM_EVIDENCE_DIGEST_FIELDS
+        )
+        or realm_evidence.get("candidateRealmDefinitionMatched") is not True
+        or realm_evidence.get("environmentRealmRenderStable") is not True
+        or realm_evidence.get("semanticReadbackVerified") is not True
+        or realm_evidence.get("containsSecrets") is not False
         or not isinstance(compose_project, str)
         or re.fullmatch(r"weave-e2e-[0-9a-f]{16}", compose_project) is None
     ):
-        raise EvidenceError("live evidence lost its manifest, image, or Compose identity")
+        raise EvidenceError("live evidence lost its manifest, image, realm, or Compose identity")
 
     simulator_ref = simulator.get("evidenceRef")
     if not isinstance(simulator_ref, str) or not simulator_ref.startswith("artifact:"):
@@ -468,7 +603,7 @@ def combine(live: dict[str, Any], simulator: dict[str, Any]) -> dict[str, Any]:
         simulator_ref,
     ]
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "supportSafe": True,
         "candidateCommit": live["candidateCommit"],
         "sourceCandidateCommit": live["sourceCandidateCommit"],
@@ -476,6 +611,7 @@ def combine(live: dict[str, Any], simulator: dict[str, Any]) -> dict[str, Any]:
         "candidateManifestDigest": manifest_digest,
         "composeProject": compose_project,
         "images": images,
+        "realmEvidence": dict(realm_evidence),
         "liveE2eRunUrl": live["liveE2eRunUrl"],
         "evidenceModes": ["live-provider-backed", "fixture-ui"],
         "surfaces": surfaces,
@@ -500,6 +636,7 @@ def parser() -> argparse.ArgumentParser:
     live.add_argument("--product-evidence", type=Path, required=True)
     live.add_argument("--teardown-evidence", type=Path, required=True)
     live.add_argument("--candidate-manifest", type=Path, required=True)
+    live.add_argument("--runtime-image-evidence", type=Path, required=True)
     live.add_argument("--run-url", required=True)
     live.add_argument("--output", type=Path, required=True)
     combined = commands.add_parser("combine")
@@ -524,6 +661,7 @@ def main(argv: list[str] | None = None) -> int:
                 load_object(args.product_evidence, "product evidence"),
                 load_object(args.teardown_evidence, "teardown evidence"),
                 load_object(args.candidate_manifest, "candidate manifest"),
+                load_object(args.runtime_image_evidence, "runtime image evidence"),
                 args.run_url,
             )
             marker = "HUMAN_TESTING_LIVE_AUTOMATION_RESULT"

@@ -1,14 +1,14 @@
-ARG WEAVE_KEYCLOAK_BASE=quay.io/keycloak/keycloak@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13
+ARG WEAVE_KEYCLOAK_BASE=quay.io/keycloak/keycloak@sha256:f1f1f01e472c8a78df40d8f2a49a925274eda4d3d80d5f6edbb5c880ee3c01c6
 FROM ${WEAVE_KEYCLOAK_BASE} AS builder
 
 ARG WEAVE_PATCHED_SERVICES_SHA256
 USER 0
-COPY --chown=1000:0 keycloak-services-26.7.0.jar \
-    /opt/keycloak/lib/lib/main/org.keycloak.keycloak-services-26.7.0.jar
-RUN test "$(sha256sum /opt/keycloak/lib/lib/main/org.keycloak.keycloak-services-26.7.0.jar | cut -d' ' -f1)" = \
+COPY --chown=1000:0 keycloak-services-26.7.1.jar \
+    /opt/keycloak/lib/lib/main/org.keycloak.keycloak-services-26.7.1.jar
+RUN test "$(sha256sum /opt/keycloak/lib/lib/main/org.keycloak.keycloak-services-26.7.1.jar | cut -d' ' -f1)" = \
     "${WEAVE_PATCHED_SERVICES_SHA256}"
 USER 1000:0
-RUN /opt/keycloak/bin/kc.sh build --db=postgres
+RUN /opt/keycloak/bin/kc.sh build --db=postgres --vault=file
 
 FROM ${WEAVE_KEYCLOAK_BASE}
 
@@ -19,6 +19,9 @@ ARG WEAVE_SPEC_COMMIT
 ARG WEAVE_SPEC_DIGEST
 ARG WEAVE_KEYCLOAK_UPSTREAM_COMMIT
 ARG WEAVE_KEYCLOAK_ARCHIVE_SHA256
+ARG WEAVE_KEYCLOAK_STOCK_INDEX_DIGEST
+ARG WEAVE_KEYCLOAK_STOCK_PLATFORM
+ARG WEAVE_KEYCLOAK_STOCK_PLATFORM_MANIFEST_DIGEST
 ARG WEAVE_KEYCLOAK_STOCK_SERVICES_SHA256
 ARG WEAVE_KEYCLOAK_PATCH_SHA256
 ARG WEAVE_PATCHED_SERVICES_SHA256
@@ -38,10 +41,13 @@ LABEL org.opencontainers.image.title="Weave Keycloak Runtime" \
       com.massimotter.weave.spec-digest="${WEAVE_SPEC_DIGEST}" \
       com.massimotter.weave.module="keycloak-runtime" \
       com.massimotter.weave.runtime-user="1000:0" \
-      com.massimotter.weave.dependency-platform="keycloak-26.7.0-downstream-built-in-policy" \
+      com.massimotter.weave.dependency-platform="keycloak-26.7.1-downstream-built-in-policy" \
       com.massimotter.weave.provider-id="weave-workload-client-registration-enforcer" \
       com.massimotter.weave.keycloak-upstream-commit="${WEAVE_KEYCLOAK_UPSTREAM_COMMIT}" \
       com.massimotter.weave.keycloak-archive-sha256="${WEAVE_KEYCLOAK_ARCHIVE_SHA256}" \
+      com.massimotter.weave.keycloak-stock-index-digest="${WEAVE_KEYCLOAK_STOCK_INDEX_DIGEST}" \
+      com.massimotter.weave.keycloak-stock-platform="${WEAVE_KEYCLOAK_STOCK_PLATFORM}" \
+      com.massimotter.weave.keycloak-stock-platform-manifest-digest="${WEAVE_KEYCLOAK_STOCK_PLATFORM_MANIFEST_DIGEST}" \
       com.massimotter.weave.keycloak-stock-services-sha256="${WEAVE_KEYCLOAK_STOCK_SERVICES_SHA256}" \
       com.massimotter.weave.keycloak-patch-sha256="${WEAVE_KEYCLOAK_PATCH_SHA256}" \
       com.massimotter.weave.keycloak-patched-services-sha256="${WEAVE_PATCHED_SERVICES_SHA256}" \

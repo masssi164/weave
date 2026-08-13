@@ -95,6 +95,8 @@ PATH="${stub_bin}:${PATH}" \
 grep -Fq $'container\tstate\thealth\texitCode\toomKilled\trestartCount\tengineError' "${output_dir}/container-status.tsv"
 grep -Fq $'weave-runtime-state\trunning\tnone\t0\tfalse\t0\tnone' "${output_dir}/container-status.tsv"
 [[ -s "${output_dir}/one-shot/schema-init.log" ]] || { echo "missing schema initializer diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/one-shot/native-files-volume-init.log" ]] || { echo "missing native Files volume initializer diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/one-shot/keycloak-realm-migration-receipt-check.log" ]] || { echo "missing Keycloak migration receipt diagnostic" >&2; exit 1; }
 [[ -s "${output_dir}/runtime/runtime-state.log" ]] || { echo "missing RuntimeState process diagnostic" >&2; exit 1; }
 [[ -s "${output_dir}/one-shot/runtime-state-volume-init.log" ]] || { echo "missing RuntimeState volume initializer diagnostic" >&2; exit 1; }
 [[ -s "${output_dir}/one-shot/runtime-state-init.log" ]] || { echo "missing RuntimeState initializer diagnostic" >&2; exit 1; }
@@ -107,12 +109,16 @@ grep -Fq 'rawContainerLogsIncluded": false' "${output_dir}/failure-summary.json"
 ! grep -RFq "${output_dir}" "${output_dir}"
 grep -Fq 'CHAT_RESULT' "${output_dir}/failed-markers.json"
 grep -Fq '<redacted>' "${output_dir}/one-shot/schema-init.log"
+grep -Fq '<redacted>' "${output_dir}/one-shot/native-files-volume-init.log"
+grep -Fq '<redacted>' "${output_dir}/one-shot/keycloak-realm-migration-receipt-check.log"
 grep -Fq '<redacted>' "${output_dir}/runtime/runtime-state.log"
 grep -Fq '<redacted>' "${output_dir}/one-shot/runtime-state-volume-init.log"
 grep -Fq '<redacted>' "${output_dir}/one-shot/runtime-state-init.log"
 ! grep -Fq -- '-generated-secret-value' "${output_dir}/runtime/runtime-state.log"
 ! grep -Fq -- '-generated-secret-value' "${output_dir}/one-shot/runtime-state-volume-init.log"
 ! grep -Fq -- '-generated-secret-value' "${output_dir}/one-shot/runtime-state-init.log"
+! grep -Fq -- '-generated-secret-value' "${output_dir}/one-shot/native-files-volume-init.log"
+! grep -Fq -- '-generated-secret-value' "${output_dir}/one-shot/keycloak-realm-migration-receipt-check.log"
 grep -Fq '<redacted>' "${output_dir}/runtime/backend-startup.log"
 grep -Fq '<redacted>' "${output_dir}/runtime/synapse.log"
 grep -Fq '"key": "persistence"' "${output_dir}/health-checks/backend-readiness.json"

@@ -35,7 +35,7 @@ class FreshStartBackupRehearsalContractTest(unittest.TestCase):
         self.backup_dir = base / "private-backup"
         self.backup_dir.mkdir()
         env = {
-            "WEAVE_COMPOSE_PROJECT": "weave-test",
+            "WEAVE_COMPOSE_PROJECT": "weave-dogfood",
             "WEAVE_DOCKER_NETWORK": "weave_network",
             "WEAVE_DB_ADMIN_USERNAME": "weave_admin",
             "WEAVE_BACKEND_DB_NAME": "weave_backend",
@@ -52,7 +52,9 @@ class FreshStartBackupRehearsalContractTest(unittest.TestCase):
         env["WEAVE_DB_DATA_VOLUME"] = "weave-db-data"
         env["WEAVE_MAILPIT_DATA_VOLUME"] = "weave-mailpit-data"
         self.context = SimpleNamespace(
-            profile="test",
+            profile="dogfood",
+            environment="dogfood",
+            active_profiles=("dogfood",),
             generated_root=self.generated,
             env=env,
         )
@@ -267,7 +269,9 @@ class FreshStartBackupRehearsalContractTest(unittest.TestCase):
             "private-config-secrets.tgz",
             *[
                 archive
-                for _variable, archive, _kind in adoption_rehearsal.VOLUME_ARTIFACTS
+                for _variable, archive, _kind in adoption_rehearsal.active_volume_artifacts(
+                    self.context
+                )
             ],
         ]
         artifacts = []
@@ -284,8 +288,8 @@ class FreshStartBackupRehearsalContractTest(unittest.TestCase):
             "schemaVersion": "weave.compose-private-backup.v3",
             "candidateCommit": self.CANDIDATE,
             "candidateManifestDigest": self.CANDIDATE_MANIFEST,
-            "profile": "test",
-            "composeProject": "weave-test",
+            "profile": "dogfood",
+            "composeProject": "weave-dogfood",
             "databaseFingerprint": "sha256:" + "c" * 64,
             "postgresDumpClientImage": "postgres@sha256:" + "f" * 64,
             "postgresDatabases": databases,
@@ -394,7 +398,10 @@ class FreshStartBackupRehearsalContractTest(unittest.TestCase):
             "private-backup-only-no-adoption",
         )
         self.assertNotIn("resources", receipt)
-        self.assertEqual(receipt["restoredProviderVolumeCount"], 6)
+        self.assertEqual(
+            receipt["restoredProviderVolumeCount"],
+            len(adoption_rehearsal.active_volume_artifacts(self.context)),
+        )
         self.assertEqual(receipt["verifiedDatabaseCount"], len(databases))
         self.assertEqual(
             receipt["verifiedServiceDatabaseCount"], len(databases) - 1
