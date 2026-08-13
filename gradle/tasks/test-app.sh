@@ -118,6 +118,7 @@ done
 [[ "${OUTPUT_ROOT}" == /* ]] || fail "WEAVE_TEST_APP_OUTPUT_ROOT must be absolute"
 [[ -f "${CONTEXT_HELPER}" ]] || fail "Fresh testApp context helper is unavailable"
 [[ -f "${EMPTY_NAMESPACE_WRITER}" ]] || fail "Fresh namespace proof helper is unavailable"
+mkdir -p "${OUTPUT_ROOT}"
 python3 "${REPOSITORY_ROOT}/tools/runner_capacity_preflight.py" \
   --path "${REPOSITORY_ROOT}" \
   --minimum-free-gib 8 \
