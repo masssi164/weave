@@ -13,6 +13,7 @@ import shutil
 import stat
 import subprocess
 import tarfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -37,6 +38,8 @@ VOLUME_ARTIFACTS = (
     ("WEAVE_RUNTIME_STATE_VOLUME", "runtime-state-data.tgz", "runtime-state-sensitive"),
 )
 BACKUP_HELPER_CAPABILITIES = ("DAC_READ_SEARCH",)
+BACKUP_HELPER_MAX_ATTEMPTS = 3
+BACKUP_HELPER_RETRY_DELAY_SECONDS = 1
 QUIESCED_SERVICES = ("caddy", "mcp", "backend", "synapse", "mas", "nextcloud", "keycloak")
 SERVICE_SUFFIXES = {
     "caddy": "proxy",
@@ -296,18 +299,29 @@ def _archive_volume(context: ComposeContext, volume: str, target: Path) -> None:
         "-euc",
         f"tar -C /source -czf /backup/{target.name} . && chmod 0600 /backup/{target.name}",
     ]
-    try:
-        subprocess.run(
-            command,
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-        )
-    except subprocess.CalledProcessError as error:
-        raise ContractError(
-            "persistent volume archive helper failed for "
-            f"{volume}: {_support_safe_process_error(error)}"
-        ) from error
+    for attempt in range(1, BACKUP_HELPER_MAX_ATTEMPTS + 1):
+        try:
+            subprocess.run(
+                command,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+            return
+        except subprocess.CalledProcessError as error:
+            if not _retryable_docker_digest_race(error) or attempt == BACKUP_HELPER_MAX_ATTEMPTS:
+                raise ContractError(
+                    "persistent volume archive helper failed for "
+                    f"{volume}: {_support_safe_process_error(error)}"
+                ) from error
+            time.sleep(BACKUP_HELPER_RETRY_DELAY_SECONDS)
+
+
+def _retryable_docker_digest_race(error: subprocess.CalledProcessError) -> bool:
+    stderr = error.stderr or b""
+    if isinstance(stderr, str):
+        stderr = stderr.encode("utf-8", errors="replace")
+    return error.returncode == 125 and b"docker: cannot overwrite digest sha256:" in stderr
 
 
 def _published_postgres_image(container: str) -> str:
