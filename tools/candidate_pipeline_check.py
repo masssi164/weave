@@ -276,6 +276,10 @@ def main() -> int:
         require(obsolete not in deployment, f"obsolete adoption authority remains in persistent deployment: {obsolete}")
     for required in (
         "fresh-start-backup-rehearsal.sh",
+        "--retired-inventory fresh-start-targets.json",
+        '--receipt-output "$receipt"',
+        "WEAVE_RETIRED_RESOURCE_GENERATION",
+        "WEAVE_RETIRED_NAMESPACE",
         "fresh-start.py plan",
         "FreshStartBackupRehearsal.json",
         "DELETE_OLD_WEAVE:${plan_sha}",

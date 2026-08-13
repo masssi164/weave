@@ -9,6 +9,7 @@ import json
 import os
 import re
 import secrets
+import stat
 import subprocess
 import sys
 import tarfile
@@ -25,9 +26,18 @@ from private_backup_integrity import (  # noqa: E402
     validate_backup,
 )
 
-from backup_runtime import VOLUME_ARTIFACTS, active_volume_artifacts, backup
+from backup_runtime import (
+    VOLUME_ARTIFACTS,
+    active_volume_artifacts,
+    backup,
+    backup_volume_artifacts,
+)
 from compose_env import ContractError, load_context
 from compose_runtime import active_volume_keys
+from fresh_start_retired_inventory import (
+    RetiredInventory,
+    load_retired_inventory,
+)
 from legacy_secret_migration import migrate
 from compose_env import canonical_json
 from recovery_receipt import (
@@ -46,12 +56,19 @@ def _digest(path: Path) -> str:
 
 
 def _validate_private_backup(
-    backup_dir: Path, context: object
+    backup_dir: Path,
+    context: object,
+    retired_inventory: RetiredInventory | None = None,
 ) -> dict[str, object]:
     expected_artifacts = {
         "postgres.sql",
         "private-config-secrets.tgz",
-        *(archive for _variable, archive, _kind in active_volume_artifacts(context)),
+        *(
+            archive
+            for _volume, archive, _kind in backup_volume_artifacts(
+                context, retired_inventory
+            )
+        ),
     }
     try:
         return validate_backup(
@@ -455,11 +472,16 @@ def _prepare_legacy_secret_continuity(context: object) -> tuple[Path, dict[str, 
 
 
 def rehearse(
-    context: object, backup_dir: Path, purpose: str = "adoption"
+    context: object,
+    backup_dir: Path,
+    purpose: str = "adoption",
+    retired_inventory: RetiredInventory | None = None,
 ) -> dict[str, object]:
     if purpose not in {"adoption", "fresh-start"}:
         raise ContractError("backup rehearsal purpose is unsupported")
-    integrity = _validate_private_backup(backup_dir, context)
+    if purpose == "adoption" and retired_inventory is not None:
+        raise ContractError("adoption cannot consume a Fresh Start retired inventory")
+    integrity = _validate_private_backup(backup_dir, context, retired_inventory)
     manifest_path = backup_dir / "BackupManifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     candidate = os.environ["WEAVE_CANDIDATE_COMMIT"]
@@ -476,7 +498,17 @@ def rehearse(
         or manifest.get("candidateManifestDigest")
         != candidate_manifest_digest
         or manifest.get("profile") != getattr(context, "environment", context.profile)
-        or manifest.get("composeProject") != context.env["WEAVE_COMPOSE_PROJECT"]
+        or manifest.get("composeProject")
+        != (
+            retired_inventory.namespace
+            if retired_inventory is not None
+            else context.env["WEAVE_COMPOSE_PROJECT"]
+        )
+        or (
+            retired_inventory is not None
+            and manifest.get("retiredInventoryDigest")
+            != retired_inventory.digest
+        )
         or not isinstance(postgres_dump_client_image, str)
         or not re.fullmatch(
             r"postgres@sha256:[0-9a-f]{64}", postgres_dump_client_image
@@ -519,8 +551,10 @@ def rehearse(
     _run("docker", "network", "create", "--internal", *_labels(namespace), network)
     try:
         restored_inventories: list[dict[str, object]] = []
-        for variable, archive, _kind in active_volume_artifacts(context):
-            volume = f"{namespace}-{variable.lower().removeprefix('weave_').removesuffix('_volume').replace('_', '-')}"
+        for source_volume, archive, _kind in backup_volume_artifacts(
+            context, retired_inventory
+        ):
+            volume = f"{namespace}-{source_volume.lower().removeprefix('weave_').removesuffix('_volume').replace('_', '-')}"
             volumes.append(volume)
             expected_inventory = _archive_inventory(
                 backup_dir / archive, require_root=True
@@ -689,7 +723,11 @@ def rehearse(
             resources.append({"kind": "volume", "name": context.env[key]})
         common = {
             "profile": getattr(context, "environment", context.profile),
-            "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
+            "composeProject": (
+                retired_inventory.namespace
+                if retired_inventory is not None
+                else context.env["WEAVE_COMPOSE_PROJECT"]
+            ),
             "candidateCommit": candidate,
             "candidateManifestDigest": candidate_manifest_digest,
             "backupRef": f"evidence:private-backup:sha256:{manifest_digest}",
@@ -748,7 +786,11 @@ def rehearse(
             candidate=candidate,
             candidate_manifest_digest=candidate_manifest_digest,
             profile=getattr(context, "environment", context.profile),
-            compose_project=context.env["WEAVE_COMPOSE_PROJECT"],
+            compose_project=(
+                retired_inventory.namespace
+                if retired_inventory is not None
+                else context.env["WEAVE_COMPOSE_PROJECT"]
+            ),
             backup_manifest_digest="sha256:" + manifest_digest,
         )
     except ReceiptContractError as error:
@@ -757,14 +799,23 @@ def rehearse(
 
 
 def execute(
-    context: object, purpose: str, receipt_output: Path | None = None
+    context: object,
+    purpose: str,
+    receipt_output: Path | None = None,
+    retired_inventory: RetiredInventory | None = None,
 ) -> Path:
     if purpose == "adoption":
         # Adoption deliberately preserves the former credential generation.
         # Fresh Start never calls this migration path.
         _prepare_legacy_secret_continuity(context)
-    backup_dir = backup(context)
-    receipt = rehearse(context, backup_dir, purpose)
+    if purpose == "adoption" and retired_inventory is not None:
+        raise ContractError("adoption cannot consume a Fresh Start retired inventory")
+    if retired_inventory is None:
+        backup_dir = backup(context)
+        receipt = rehearse(context, backup_dir, purpose)
+    else:
+        backup_dir = backup(context, retired_inventory)
+        receipt = rehearse(context, backup_dir, purpose, retired_inventory)
     output = (
         context.generated_root / "adoption/adoption-receipt.json"
         if purpose == "adoption"
@@ -772,6 +823,32 @@ def execute(
         or backup_dir / "FreshStartBackupRehearsal.json"
     )
     output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if purpose == "fresh-start" and output.parent.resolve() != backup_dir.resolve():
+        source_manifest = backup_dir / "BackupManifest.json"
+        receipt_manifest = output.parent / "BackupManifest.json"
+        source_bytes = source_manifest.read_bytes()
+        if receipt_manifest.exists() or receipt_manifest.is_symlink():
+            metadata = receipt_manifest.lstat()
+            if (
+                stat.S_ISLNK(metadata.st_mode)
+                or not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != os.getuid()
+                or stat.S_IMODE(metadata.st_mode) != 0o600
+                or receipt_manifest.read_bytes() != source_bytes
+            ):
+                raise ContractError(
+                    "Fresh Start receipt BackupManifest binding is unsafe or mismatched"
+                )
+        else:
+            descriptor = os.open(
+                receipt_manifest,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+            )
+            with os.fdopen(descriptor, "wb") as manifest_output:
+                manifest_output.write(source_bytes)
+                manifest_output.flush()
+                os.fsync(manifest_output.fileno())
     output.write_text(
         json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -788,12 +865,22 @@ def main() -> int:
         "--purpose", choices=("adoption", "fresh-start"), default="adoption"
     )
     parser.add_argument("--receipt-output", type=Path)
+    parser.add_argument("--retired-inventory", type=Path)
     args = parser.parse_args()
     try:
         context = load_context(args.profile, args.root, args.env_file)
         if args.purpose == "adoption" and args.receipt_output is not None:
             raise ContractError("adoption receipt output is fixed by the deployment context")
-        output = execute(context, args.purpose, args.receipt_output)
+        if args.purpose == "adoption" and args.retired_inventory is not None:
+            raise ContractError("adoption cannot consume a Fresh Start retired inventory")
+        retired_inventory = (
+            load_retired_inventory(args.retired_inventory)
+            if args.retired_inventory is not None
+            else None
+        )
+        output = execute(
+            context, args.purpose, args.receipt_output, retired_inventory
+        )
     except (ContractError, OSError, ValueError, KeyError, json.JSONDecodeError, subprocess.CalledProcessError, tarfile.TarError) as error:
         prefix = (
             "WEAVE_ADOPTION_REHEARSAL_ERROR"

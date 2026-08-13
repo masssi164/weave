@@ -223,7 +223,8 @@ WEAVE_CANDIDATE_COMMIT=<exact-sha> \
 WEAVE_CANDIDATE_MANIFEST_DIGEST=sha256:<exact-manifest-digest> \
 WEAVE_BACKUP_ROOT=/private/mode-0700/path \
 WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
-bash weave-workspace/fresh-start-backup-rehearsal.sh dogfood
+bash weave-workspace/fresh-start-backup-rehearsal.sh dogfood \
+  --retired-inventory weave-workspace/fresh-start-targets.json
 ```
 
 This command quiesces the exact former runtime, creates the same private Compose v3 consistency

@@ -53,7 +53,7 @@ Normal operator entrypoints are profile-driven infra commands. The stack renders
 
 ## Fresh generation vs later update
 
-The standards-first dogfood cutover is a Fresh Start. It has no legacy database, Keycloak realm, provider object, runtime credential, or volume adoption/migration path. Before the first persistent mutation, the governed workflow must produce the exact manifest-bound deletion plan, private recovery evidence for the retired generation, isolated restore probe, and typed `DELETE_OLD_WEAVE:<plan-sha256>` approval. Normal promotion cannot substitute for that approval.
+The standards-first dogfood cutover is a Fresh Start. It has no legacy database, Keycloak realm, provider object, runtime credential, or volume adoption/migration path. Before the first persistent mutation, the governed workflow must produce the exact manifest-bound deletion plan, private recovery evidence for the retired generation, isolated restore probe, and typed `DELETE_OLD_WEAVE:<plan-sha256>` approval. The candidate-bound backup and deletion plan consume the same checked-in exact-name retired inventory, while recreation consumes the separate current reviewed `dogfood` environment. The target environment file must never be rewritten with retired resource names to make the backup pass. Normal promotion cannot substitute for that approval.
 
 For the newly empty realm, Keycloak startup import establishes the static baseline. A bounded post-import migration applies only FGAP state that Keycloak import cannot express. That Fresh-Start operation does not fabricate a backup requirement for the new empty realm; it is authorized by machine-verifiable Fresh-Start plan/apply evidence.
 
