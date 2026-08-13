@@ -104,6 +104,32 @@ class FreshStartBackupRehearsalContractTest(unittest.TestCase):
             receipt,
         )
 
+    def test_explicit_receipt_output_keeps_private_manifest_adjacent(self) -> None:
+        manifest = self.backup_dir / "BackupManifest.json"
+        manifest.write_text('{"schemaVersion":"weave.compose-private-backup.v3"}\n')
+        os.chmod(manifest, 0o600)
+        receipt_output = self.generated / "pending/FreshStartBackupRehearsal.json"
+        receipt = {
+            "schemaVersion": "weave.fresh-start-private-backup-rehearsal.v1",
+            "supportSafe": True,
+            "containsSecretValues": False,
+        }
+        with (
+            mock.patch.object(
+                adoption_rehearsal, "backup", return_value=self.backup_dir
+            ),
+            mock.patch.object(
+                adoption_rehearsal, "rehearse", return_value=receipt
+            ),
+        ):
+            output = adoption_rehearsal.execute(
+                self.context, "fresh-start", receipt_output
+            )
+
+        adjacent = output.parent / "BackupManifest.json"
+        self.assertEqual(adjacent.read_bytes(), manifest.read_bytes())
+        self.assertEqual(stat.S_IMODE(adjacent.stat().st_mode), 0o600)
+
     def test_read_only_archive_root_is_applied_after_child_extraction(
         self,
     ) -> None:

@@ -129,6 +129,55 @@ class RecoveryReceiptContractTest(unittest.TestCase):
             )
             self.assertRegex(result, r"^[0-9a-f]{64}$")
 
+    def test_exact_retired_provider_receipt_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            receipt_path, receipt = self.write_fixture(Path(temporary))
+            receipt["restoredVolumeInventories"] = [
+                item
+                for item in receipt["restoredVolumeInventories"]
+                if item["artifact"] != "native-files-data.tgz"
+            ]
+            receipt["privateArtifactCount"] = (
+                len(receipt["restoredVolumeInventories"]) + 2
+            )
+            receipt["restoredProviderVolumeCount"] = len(
+                receipt["restoredVolumeInventories"]
+            )
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            os.chmod(receipt_path, 0o600)
+            result = load_fresh_start_recovery(
+                receipt_path,
+                candidate=self.CANDIDATE,
+                candidate_manifest_digest=self.CANDIDATE_MANIFEST,
+            )
+            self.assertRegex(result, r"^[0-9a-f]{64}$")
+
+    def test_incomplete_retired_provider_receipt_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            receipt_path, receipt = self.write_fixture(Path(temporary))
+            receipt["restoredVolumeInventories"] = [
+                item
+                for item in receipt["restoredVolumeInventories"]
+                if item["artifact"]
+                not in {"native-files-data.tgz", "synapse-data.tgz"}
+            ]
+            receipt["privateArtifactCount"] = (
+                len(receipt["restoredVolumeInventories"]) + 2
+            )
+            receipt["restoredProviderVolumeCount"] = len(
+                receipt["restoredVolumeInventories"]
+            )
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            os.chmod(receipt_path, 0o600)
+            with self.assertRaisesRegex(
+                ReceiptContractError, "core volume inventory"
+            ):
+                load_fresh_start_recovery(
+                    receipt_path,
+                    candidate=self.CANDIDATE,
+                    candidate_manifest_digest=self.CANDIDATE_MANIFEST,
+                )
+
     def test_destructive_plan_validation_consumes_the_private_receipt(
         self,
     ) -> None:
