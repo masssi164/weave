@@ -56,7 +56,7 @@ assert module.PATCHED_SERVICES_SHA256 == (
     "3788d01bc4a97e8c82d0ed27ccd67ff340af80e8492874678eb3bd6887b2f7e9"
 )
 specification_commit, specification_digest = module.specification_pin(repository)
-assert specification_commit == "edf9e9c7a095aac96da4a4acb070268ef0628487"
+assert specification_commit == "cb74a8c596ee0f79dd229632b14f9f5b099ec151"
 assert specification_digest == "sha256:" + hashlib.sha256(
     (repository / "specs/weave-specs.lock.json").read_bytes()
 ).hexdigest()

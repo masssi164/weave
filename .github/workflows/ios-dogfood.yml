@@ -390,6 +390,12 @@ jobs:
         with:
           ref: ${{ needs.contract.outputs.source_candidate_sha }}
 
+      - name: Verify runner capacity before physical-device build
+        run: >-
+          python3 tools/runner_capacity_preflight.py
+          --path .
+          --minimum-free-gib 20
+
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: '3.44.4'

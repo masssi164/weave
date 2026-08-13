@@ -34,18 +34,6 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
 }
 
-require_free_disk_space() {
-  local minimum_kib=8388608
-  local available_kib
-  mkdir -p "${OUTPUT_ROOT}"
-  available_kib="$(df -Pk "${OUTPUT_ROOT}" | awk 'NR == 2 {print $4}')"
-  [[ "${available_kib}" =~ ^[0-9]+$ ]] ||
-    fail "unable to determine free disk space for the isolated proof"
-  if ((available_kib < minimum_kib)); then
-    fail "isolated proof requires at least ${minimum_kib} KiB free before image build and resource creation"
-  fi
-}
-
 require_no_pending_registration_operations() {
   local workload_root="${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads"
   local operation_root
@@ -123,15 +111,17 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-for command in awk bash df docker find git java jq openssl python3 shasum; do
+for command in awk bash docker find git java jq openssl python3 shasum; do
   require_command "${command}"
 done
-docker info >/dev/null 2>&1 || fail "Docker daemon is not reachable"
 [[ -x "${REPOSITORY_ROOT}/gradlew" ]] || fail "Gradle wrapper is unavailable"
 [[ "${OUTPUT_ROOT}" == /* ]] || fail "WEAVE_TEST_APP_OUTPUT_ROOT must be absolute"
 [[ -f "${CONTEXT_HELPER}" ]] || fail "Fresh testApp context helper is unavailable"
 [[ -f "${EMPTY_NAMESPACE_WRITER}" ]] || fail "Fresh namespace proof helper is unavailable"
-require_free_disk_space
+python3 "${REPOSITORY_ROOT}/tools/runner_capacity_preflight.py" \
+  --path "${REPOSITORY_ROOT}" \
+  --minimum-free-gib 8 \
+  --require-docker
 
 candidate_commit="${WEAVE_CANDIDATE_COMMIT:-$(git -C "${REPOSITORY_ROOT}" rev-parse HEAD)}"
 [[ "${candidate_commit}" =~ ^[0-9a-f]{40}$ ]] ||
