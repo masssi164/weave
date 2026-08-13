@@ -293,15 +293,14 @@ final class CollaborationJourney {
 
   private MatrixIdentity matrixIdentity(Identity identity, int pass) {
     JsonNode response =
-        http.json(
+        http.jsonRetryingMatrixIdentityConflict(
             "register " + identity.role() + " Matrix facade identity",
-            "GET",
             environment.api("/_matrix/client/v3/account/whoami"),
             bearer(
                 identity.token(),
                 Map.of(MATRIX_DEVICE_HEADER, deviceId(identity.role(), pass))),
-            null,
-            Set.of(200));
+            6,
+            Duration.ofSeconds(1));
     String userId = response.path("user_id").asString();
     String deviceId = response.path("device_id").asString();
     if (!userId.matches("@[A-Za-z0-9._=/-]+:[A-Za-z0-9.:-]+")
