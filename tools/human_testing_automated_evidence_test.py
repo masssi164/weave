@@ -172,6 +172,7 @@ class HumanTestingAutomatedEvidenceTest(unittest.TestCase):
                         "nextcloud_data",
                         "synapse_data",
                         "matrix_chat_appservice_runtime",
+                        "native_files_data",
                         "runtime_state",
                     )
                 )
