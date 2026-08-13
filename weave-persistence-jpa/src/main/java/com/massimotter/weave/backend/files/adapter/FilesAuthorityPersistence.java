@@ -16,6 +16,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import java.io.Serial;
 import java.io.Serializable;
@@ -31,7 +32,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 @Entity
-@Table(name = "weave_files_objects")
+@Table(
+        name = "weave_files_objects",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_weave_files_active_path",
+                columnNames = {"organization_ref", "space_ref", "active_path_key"}))
 class FileObjectJpaEntity {
 
     @EmbeddedId
@@ -39,6 +44,10 @@ class FileObjectJpaEntity {
 
     @Column(name = "canonical_path", nullable = false, length = 2048)
     private String canonicalPath;
+
+    /** Null for tombstones so PostgreSQL/H2 uniqueness applies only to active paths. */
+    @Column(name = "active_path_key", length = 2048)
+    private String activePathKey;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "object_kind", nullable = false, length = 32)
@@ -61,6 +70,9 @@ class FileObjectJpaEntity {
 
     @Column(name = "content_digest", length = 71)
     private String contentDigest;
+
+    @Column(name = "storage_reference", length = 1024)
+    private String storageReference;
 
     @Column(name = "provider_binding_revision", nullable = false)
     private long providerBindingRevision;
@@ -92,6 +104,7 @@ class FileObjectJpaEntity {
                     "canonical file observation cannot move backwards");
         }
         canonicalPath = record.object().path().value();
+        activePathKey = record.lifecycle() == Lifecycle.ACTIVE ? canonicalPath : null;
         kind = record.object().kind();
         byteSize = record.object().size();
         mediaType = record.object().mediaType();
@@ -99,6 +112,7 @@ class FileObjectJpaEntity {
         hidden = record.object().hidden();
         versionToken = record.version().value();
         contentDigest = record.contentDigest();
+        storageReference = record.storageReference();
         providerBindingRevision = record.providerBindingRevision();
         lifecycle = record.lifecycle();
         observedAt = FilesPersistenceTime.utc(record.observedAt());
@@ -110,6 +124,7 @@ class FileObjectJpaEntity {
             return false;
         }
         canonicalPath = destination.value();
+        activePathKey = canonicalPath;
         modifiedAt = FilesPersistenceTime.utc(movedAt);
         observedAt = FilesPersistenceTime.utc(movedAt);
         return true;
@@ -130,6 +145,7 @@ class FileObjectJpaEntity {
                 object,
                 new FileVersion(versionToken),
                 contentDigest,
+                storageReference,
                 providerBindingRevision,
                 lifecycle,
                 observedAt.toInstant());
@@ -202,6 +218,12 @@ interface FileObjectJpaRepository
                     String organizationRef,
                     String spaceRef,
                     String canonicalPath);
+
+    List<FileObjectJpaEntity>
+            findByIdOrganizationRefAndIdSpaceRefAndLifecycleOrderByCanonicalPath(
+                    String organizationRef,
+                    String spaceRef,
+                    Lifecycle lifecycle);
 }
 
 @Entity

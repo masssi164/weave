@@ -34,7 +34,8 @@ class ComposeTeardownContractTest(unittest.TestCase):
         for key in teardown_compose.VOLUME_KEYS:
             env[key] = "weave_e2e_run_123456_" + key.removeprefix("WEAVE_").removesuffix("_VOLUME").lower()
         self.context = SimpleNamespace(
-            profile="test",
+            profile="e2e",
+            environment="e2e",
             isolated_namespace="weave-e2e-run-123456",
             env=env,
             root=ROOT,
@@ -331,7 +332,7 @@ class ComposeTeardownContractTest(unittest.TestCase):
         inventory_line = json.dumps(
             [
                 self.CONTAINER_ID,
-                "weave-e2e-run-123456-identity-ops-run-1",
+                "weave-e2e-run-123456-keycloak-migration-run-1",
                 *expected.values(),
             ]
         )
@@ -354,7 +355,7 @@ class ComposeTeardownContractTest(unittest.TestCase):
             [
                 (
                     self.CONTAINER_ID,
-                    "weave-e2e-run-123456-identity-ops-run-1",
+                    "weave-e2e-run-123456-keycloak-migration-run-1",
                 )
             ],
         )
@@ -554,7 +555,7 @@ class ComposeTeardownContractTest(unittest.TestCase):
     def test_candidate_manifest_and_compose_project_mismatches_are_refused(self) -> None:
         correct = {
             "com.massimotter.weave.managed": "true",
-            "com.massimotter.weave.environment": "test",
+            "com.massimotter.weave.environment": "e2e",
             "com.massimotter.weave.namespace": self.context.env["WEAVE_RESOURCE_PREFIX"],
             "com.massimotter.weave.scope": "isolated",
             "com.massimotter.weave.candidate-commit": self.CANDIDATE,

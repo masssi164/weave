@@ -32,7 +32,7 @@ class CanonicalCollaborationDomainTest {
     }
 
     @Test
-    void recurrenceRequiresABoundAndKeepsLocalTimeAcrossDst() {
+    void recurrenceExpansionIsWindowBoundedAndKeepsLocalTimeAcrossDst() {
         ZoneId berlin = ZoneId.of("Europe/Berlin");
         RecurrenceSet recurrence = new RecurrenceSet(
                 RecurrenceFrequency.WEEKLY,
@@ -63,15 +63,13 @@ class CanonicalCollaborationDomainTest {
         assertThat(afterDst.getHour()).isEqualTo(9);
         assertThat(first.getOffset()).isNotEqualTo(afterDst.getOffset());
 
-        assertThatThrownBy(() -> new RecurrenceSet(
+        assertThat(new RecurrenceSet(
                 RecurrenceFrequency.DAILY,
                 1,
                 null,
                 null,
                 List.of(),
-                List.of()))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("COUNT or UNTIL");
+                List.of()).rrule()).isEqualTo("FREQ=DAILY");
     }
 
     @Test

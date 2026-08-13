@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -50,6 +51,7 @@ class BootstrapOwnerInvitationControllerTest {
 
     assertThat(controller.create(TOKEN, IDEMPOTENCY_KEY, request)).isEqualTo(expected);
     verify(invitations).bootstrapOwner(request, IDEMPOTENCY_KEY);
+    verify(credential).consumeAfterSuccess();
   }
 
   @Test
@@ -70,6 +72,7 @@ class BootstrapOwnerInvitationControllerTest {
               assertThat(error.code()).isEqualTo("owner-bootstrap-unauthorized");
               assertThat(error.getMessage()).doesNotContain(TOKEN);
             });
+    verify(credential, never()).consumeAfterSuccess();
   }
 
   @Test
@@ -90,5 +93,6 @@ class BootstrapOwnerInvitationControllerTest {
               assertThat(error.code()).isEqualTo("owner-bootstrap-unavailable");
               assertThat(error.getMessage()).doesNotContain("private detail");
             });
+    verify(credential, never()).consumeAfterSuccess();
   }
 }

@@ -4,21 +4,27 @@ import { AdminControlPlaneApi, sampleControlPlane } from "./api";
 // V01_ADMIN_CONSOLE_MVP: Admin Console may call only Weave backend admin APIs, not optional provider APIs.
 describe("AdminControlPlaneApi provider boundary", () => {
   it("uses only Weave admin APIs for Keycloak invitation lifecycle", async () => {
-    const calls: Array<{ url: string; method: string; body?: string }> = [];
+    const calls: Array<{
+      url: string;
+      method: string;
+      body?: string;
+      idempotencyKey: string | null;
+    }> = [];
     const invitation = {
-      providerInvitationId: "invite-123",
+      invitationHandle: "inv_handle-123",
       organizationId: "acme",
       email: "member@example.test",
       lifecycleStatus: "pending",
       provisioningStatus: "pending" as const,
       requestedRole: "member" as const,
-      capabilities: ["agent-runtime.entitled"],
     };
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
       calls.push({
         url: String(input),
         method: init?.method ?? "GET",
         body: init?.body as string | undefined,
+        idempotencyKey: headers.get("Idempotency-Key"),
       });
       if (init?.method === "DELETE") return new Response(null, { status: 204 });
       return new Response(
@@ -39,24 +45,35 @@ describe("AdminControlPlaneApi provider boundary", () => {
     await api.createOrganizationInvitation("acme", {
       email: "member@example.test",
       role: "member",
-      capabilities: ["agent-runtime.entitled"],
     });
-    await api.resendOrganizationInvitation("acme", "invite-123");
-    await api.revokeOrganizationInvitation("acme", "invite-123");
+    await api.resendOrganizationInvitation("acme", "inv_handle/123");
+    await api.revokeOrganizationInvitation("acme", "inv_handle/123");
 
     expect(calls.map(({ url, method }) => `${method} ${url}`)).toEqual([
       "GET https://api.example.invalid/api/admin/organizations/acme/invitations",
       "POST https://api.example.invalid/api/admin/organizations/acme/invitations",
-      "POST https://api.example.invalid/api/admin/organizations/acme/invitations/invite-123/resend",
-      "DELETE https://api.example.invalid/api/admin/organizations/acme/invitations/invite-123",
+      "POST https://api.example.invalid/api/admin/organizations/acme/invitations/inv_handle%2F123/resend",
+      "DELETE https://api.example.invalid/api/admin/organizations/acme/invitations/inv_handle%2F123",
     ]);
     expect(calls[1]?.body).toBe(
       JSON.stringify({
         email: "member@example.test",
         role: "member",
-        capabilities: ["agent-runtime.entitled"],
       }),
     );
+    expect(calls[0]?.idempotencyKey).toBeNull();
+    expect(calls[1]?.idempotencyKey).toMatch(
+      /^admin-invitation-create-[0-9a-f]{32}$/,
+    );
+    expect(calls[2]?.idempotencyKey).toMatch(
+      /^admin-invitation-resend-[0-9a-f]{32}$/,
+    );
+    expect(calls[3]?.idempotencyKey).toMatch(
+      /^admin-invitation-revoke-[0-9a-f]{32}$/,
+    );
+    expect(
+      new Set(calls.slice(1).map(({ idempotencyKey }) => idempotencyKey)).size,
+    ).toBe(3);
     expect(calls.map(({ url }) => url).join("\n")).not.toMatch(
       /auth\.example|keycloak|activation/i,
     );

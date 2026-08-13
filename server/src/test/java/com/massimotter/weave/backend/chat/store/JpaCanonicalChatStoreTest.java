@@ -4,14 +4,17 @@ import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatCallbackRetryRequiredException;
+import com.massimotter.weave.backend.chat.domain.ChatConversation;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
 import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
 import com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
+import com.massimotter.weave.backend.chat.domain.ConversationId;
 import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
 import com.massimotter.weave.backend.chat.port.ChatSouthboundProvider;
+import com.massimotter.weave.backend.chat.provider.weave.NativeChatProviderAdapter;
 import com.massimotter.weave.backend.chat.provider.synapse.MatrixSynapseChatSouthboundAdapter;
 import com.massimotter.weave.backend.chat.provider.synapse.SynapseBackedCanonicalChatAdapter;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
@@ -38,6 +41,102 @@ class JpaCanonicalChatStoreTest {
 
     private static final Clock FIXED = Clock.fixed(Instant.parse("2026-07-15T08:00:00Z"), ZoneOffset.UTC);
     private static final String PROVIDER = "matrix-synapse";
+
+    @Test
+    void nativeAdapterCommitsCanonicalStateWithoutProviderMappingsOrBridgeLedger() {
+        DriverManagerDataSource dataSource = dataSource();
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store(dataSource), FIXED);
+        ChatRequestContext author = context("native-author");
+        ChatRequestContext collaborator = context("native-collaborator");
+        ChatRequestContext outsider = context("native-outsider");
+
+        ChatTransactionId createTransaction = new ChatTransactionId("native-create");
+        ChatConversation created = adapter.createConversation(
+                author,
+                createTransaction,
+                "Native encrypted room",
+                "channel",
+                List.of(ChatResolvedIdentity.from(collaborator)),
+                ChatEncryptionState.unencrypted());
+        ChatConversation replayed = adapter.createConversation(
+                author,
+                createTransaction,
+                "Native encrypted room",
+                "channel",
+                List.of(ChatResolvedIdentity.from(collaborator)),
+                ChatEncryptionState.unencrypted());
+
+        assertThat(replayed.conversationId()).isEqualTo(created.conversationId());
+        assertThatThrownBy(() -> adapter.joinConversation(outsider, new ConversationId(created.conversationId())))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        adapter.joinConversation(collaborator, new ConversationId(created.conversationId()));
+        adapter.enableEncryption(
+                author,
+                new ConversationId(created.conversationId()),
+                ChatEncryptedEnvelope.MEGOLM_V1);
+
+        Map<String, Object> envelope = Map.of(
+                "algorithm", ChatEncryptedEnvelope.MEGOLM_V1,
+                "ciphertext", "opaque-native-ciphertext",
+                "session_id", "opaque-native-session");
+        ChatTransactionId eventTransaction = new ChatTransactionId("native-encrypted-event");
+        var event = adapter.sendEvent(
+                author,
+                new ConversationId(created.conversationId()),
+                eventTransaction,
+                ChatEventContent.encrypted(envelope));
+        var replayedEvent = adapter.sendEvent(
+                author,
+                new ConversationId(created.conversationId()),
+                eventTransaction,
+                ChatEventContent.encrypted(envelope));
+        adapter.markRead(author, new ConversationId(created.conversationId()), event.eventId());
+
+        assertThat(replayedEvent.eventId()).isEqualTo(event.eventId());
+        assertThatThrownBy(() -> adapter.send(
+                author,
+                new ConversationId(created.conversationId()),
+                new ChatTransactionId("native-plaintext-rejected"),
+                "plaintext after encryption"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("plaintext Chat events are forbidden");
+
+        NativeChatProviderAdapter restarted = new NativeChatProviderAdapter(store(dataSource), FIXED);
+        assertThat(restarted.timelineEvents(
+                        author, new ConversationId(created.conversationId()), null, 100).events())
+                .singleElement()
+                .satisfies(persisted -> {
+                    assertThat(persisted.eventId()).isEqualTo(event.eventId());
+                    assertThat(persisted.content().body()).isNull();
+                    assertThat(persisted.content().encryptedEnvelope().content()).isEqualTo(envelope);
+                });
+        restarted.redactEvent(
+                author,
+                new ConversationId(created.conversationId()),
+                new ChatTransactionId("native-redaction"),
+                event.eventId());
+
+        NativeChatProviderAdapter afterRedactionRestart = new NativeChatProviderAdapter(store(dataSource), FIXED);
+        assertThat(afterRedactionRestart.timelineEvents(
+                        author, new ConversationId(created.conversationId()), null, 100).events())
+                .singleElement()
+                .satisfies(persisted -> assertThat(persisted.redacted()).isTrue());
+        assertThat(afterRedactionRestart.conversation(
+                        collaborator, new ConversationId(created.conversationId())).memberships())
+                .filteredOn(membership -> membership.memberRef().equals(collaborator.actorRef().value()))
+                .singleElement()
+                .satisfies(membership -> assertThat(membership.state()).isEqualTo("joined"));
+
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        assertThat(jdbc.queryForObject("select count(*) from weave_chat_provider_mappings", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from weave_chat_bridge_ledger", Long.class)).isZero();
+        assertThat(jdbc.queryForObject(
+                "select count(*) from weave_chat_outbox where outbox_state <> 'acknowledged'", Long.class)).isZero();
+        assertThat(afterRedactionRestart.changes(author, null, 100).changes())
+                .filteredOn(change -> change.messageId().equals(event.eventId()))
+                .extracting(change -> change.kind())
+                .containsExactly("message.created", "event.redacted");
+    }
 
     @Test
     void encryptedConversationTraversesTheCanonicalStoreAndSynapseAdapter() {

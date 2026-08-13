@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -37,7 +38,8 @@ class ChatE2eProofSecurityConfigurationTest {
                         Duration.ofSeconds(60),
                         65_536,
                         100));
-        var secrets = configuration.chatE2eProofSecrets(proofProperties, applicationServiceSecrets);
+        var secrets = configuration.chatE2eProofSecrets(
+                proofProperties, Optional.of(applicationServiceSecrets));
         var filter = configuration.chatE2eProofAuthenticationFilter(secrets);
         var registration = configuration.chatE2eProofAuthenticationFilterRegistration(filter);
 
@@ -53,6 +55,19 @@ class ChatE2eProofSecurityConfigurationTest {
     @Test
     void proofTokenMustDifferFromHomeserverToken() throws IOException {
         assertTokenConflict("proof-token-that-is-distinct", "application-service-distinct", "proof-token-that-is-distinct");
+    }
+
+    @Test
+    void nativeChatProofDoesNotRequireMatrixApplicationServiceAuthority() throws IOException {
+        ChatE2eProofProperties proofProperties = new ChatE2eProofProperties(
+                true,
+                tokenFile("native-proof", "native-proof-token-value-1234").toString(),
+                "isolated-run-1234",
+                "isolated");
+
+        assertThat(new ChatE2eProofSecurityConfiguration()
+                        .chatE2eProofSecrets(proofProperties, Optional.empty()))
+                .isNotNull();
     }
 
     private void assertTokenConflict(String proof, String applicationService, String homeserver) throws IOException {
@@ -76,7 +91,8 @@ class ChatE2eProofSecurityConfigurationTest {
                         100));
 
         assertThatThrownBy(() -> new ChatE2eProofSecurityConfiguration()
-                        .chatE2eProofSecrets(proofProperties, applicationServiceSecrets))
+                        .chatE2eProofSecrets(
+                                proofProperties, Optional.of(applicationServiceSecrets)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("must be distinct");
     }

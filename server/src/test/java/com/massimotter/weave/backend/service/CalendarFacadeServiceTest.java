@@ -2,6 +2,8 @@ package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 
+import com.massimotter.weave.backend.audit.AuditAction;
+import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChangeSet;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
@@ -77,7 +79,7 @@ class CalendarFacadeServiceTest {
             assertThat(event.id()).isEqualTo("event-id");
             assertThat(event.title()).isEqualTo("Planning");
         });
-        assertThat(capturedCalendar.get().value()).isEqualTo("massimo");
+        assertThat(capturedCalendar.get().value()).startsWith("calendar-").hasSize(49);
         assertThat(capturedFrom.get()).isEqualTo(from.toInstant());
     }
 
@@ -229,7 +231,7 @@ class CalendarFacadeServiceTest {
         var response = service(adapter).read("event-id");
 
         assertThat(response.title()).isEqualTo("Planning");
-        assertThat(capturedCalendar.get().value()).isEqualTo("massimo");
+        assertThat(capturedCalendar.get().value()).startsWith("calendar-").hasSize(49);
     }
 
     @Test
@@ -341,8 +343,10 @@ class CalendarFacadeServiceTest {
                         """
                                 BEGIN:VCALENDAR
                                 VERSION:2.0
+                                PRODID:-//Weave Test//EN
                                 BEGIN:VEVENT
                                 UID:planning
+                                DTSTAMP:20260708T100000Z
                                 DTSTART;TZID=UTC:20260708T120000
                                 DTEND;TZID=UTC:20260708T120000
                                 SUMMARY:Invalid planning
@@ -444,6 +448,36 @@ class CalendarFacadeServiceTest {
     }
 
     @Test
+    void publishesSupportSafeAuditBeforeCalendarMutation() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        AtomicBoolean providerCalled = new AtomicBoolean();
+        CalendarProviderPort adapter = new StubCalendarProvider() {
+            @Override
+            public CalendarEvent write(CalendarWrite write) {
+                assertThat(audit.events()).singleElement().satisfies(event -> {
+                    assertThat(event.action()).isEqualTo(AuditAction.CALENDAR_EVENT_WRITE_ATTEMPTED);
+                    assertThat(event.tenantId()).isEqualTo("tenant-default");
+                    assertThat(event.contextId()).isEqualTo("workspace-default");
+                    assertThat(event.payload())
+                            .containsEntry("operation", "create-event")
+                            .containsEntry("providerDataPlaneExposed", false);
+                    assertThat(event.payload().toString()).doesNotContain("Planning");
+                });
+                providerCalled.set(true);
+                return event(write.event().id().value(), write.event().scope());
+            }
+        };
+        authenticate();
+
+        service(
+                adapter,
+                request -> ContextAuthorizationDecision.allow("test allow"),
+                audit).create(request(CalendarScopeResponse.workspace()));
+
+        assertThat(providerCalled).isTrue();
+    }
+
+    @Test
     void syncCollectionWrapsProviderTokensAndScopesCursorsToOneCalendar() {
         AtomicReference<String> capturedProviderToken = new AtomicReference<>();
         CalendarProviderPort adapter = new StubCalendarProvider() {
@@ -483,6 +517,35 @@ class CalendarFacadeServiceTest {
                 });
     }
 
+    @Test
+    void nativeSyncTokensRemainUsableAcrossFacadeRestartWithoutProviderTokenWrapping() {
+        AtomicReference<String> capturedToken = new AtomicReference<>();
+        CalendarProviderPort adapter = new StubCalendarProvider() {
+            @Override
+            public boolean ownsNorthboundSyncTokens() {
+                return true;
+            }
+
+            @Override
+            public CalendarChangeSet changes(CalendarId calendarId, CalendarScope scope, String sinceToken) {
+                capturedToken.set(sinceToken);
+                String next = sinceToken == null
+                        ? "weave-native-calendar-sync-scope-1"
+                        : "weave-native-calendar-sync-scope-2";
+                return new CalendarChangeSet(next, List.of());
+            }
+        };
+        authenticate();
+
+        var first = service(adapter).syncCalDavResources(CalendarScopeResponse.workspace(), null);
+        var second = service(adapter).syncCalDavResources(
+                CalendarScopeResponse.workspace(), first.syncToken());
+
+        assertThat(first.syncToken()).isEqualTo("weave-native-calendar-sync-scope-1");
+        assertThat(second.syncToken()).isEqualTo("weave-native-calendar-sync-scope-2");
+        assertThat(capturedToken.get()).isEqualTo(first.syncToken());
+    }
+
     private CalendarFacadeService service(CalendarProviderPort adapter) {
         return service(adapter, request -> ContextAuthorizationDecision.allow("test allow"));
     }
@@ -490,6 +553,13 @@ class CalendarFacadeServiceTest {
     private CalendarFacadeService service(
             CalendarProviderPort adapter,
             ContextAuthorizationPort contextAuthorizationPort) {
+        return service(adapter, contextAuthorizationPort, new InMemoryAuditEventPublisher());
+    }
+
+    private CalendarFacadeService service(
+            CalendarProviderPort adapter,
+            ContextAuthorizationPort contextAuthorizationPort,
+            InMemoryAuditEventPublisher auditEventPublisher) {
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("calendarProviderPort", adapter);
         return new CalendarFacadeService(
@@ -499,7 +569,8 @@ class CalendarFacadeServiceTest {
                 contextAuthorizationProperties(),
                 OrganizationIdentityContextResolver.configured(contextAuthorizationProperties()),
                 new DeviceCredentialService(new InMemoryDeviceCredentialRepository()),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                auditEventPublisher);
     }
 
     private CreateCalendarEventRequest request(CalendarScopeResponse scope) {
@@ -540,8 +611,10 @@ class CalendarFacadeServiceTest {
         return """
                 BEGIN:VCALENDAR
                 VERSION:2.0
+                PRODID:-//Weave Test//EN
                 BEGIN:VEVENT
                 UID:%s
+                DTSTAMP:20260708T100000Z
                 DTSTART:20260708T120000Z
                 DTEND:20260708T130000Z
                 SUMMARY:%s

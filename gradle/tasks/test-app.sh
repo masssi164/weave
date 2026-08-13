@@ -8,10 +8,12 @@ readonly REPOSITORY_ROOT
 readonly WORKSPACE_ROOT="${REPOSITORY_ROOT}/infra/weave-workspace"
 readonly CONTEXT_HELPER="${REPOSITORY_ROOT}/gradle/scripts/prepare_test_app_context.py"
 readonly RUNTIME_CLEANUP="${REPOSITORY_ROOT}/gradle/scripts/cleanup_test_app_runtime.py"
+readonly EMPTY_NAMESPACE_WRITER="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_empty_namespace_evidence.py"
 readonly COMPOSE="${WORKSPACE_ROOT}/compose.sh"
 readonly TEARDOWN="${WORKSPACE_ROOT}/teardown.sh"
 readonly FAILURE_DIAGNOSTICS="${WORKSPACE_ROOT}/live-stack-failure-diagnostics.sh"
 readonly DCR_CONTRACT_PROBE="${WORKSPACE_ROOT}/scripts/verify_keycloak_dcr_contract.py"
+readonly REALM_EVIDENCE_WRITER="${WORKSPACE_ROOT}/scripts/keycloak_realm_evidence.py"
 readonly RUNTIME_IMAGE_EVIDENCE_WRITER="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_runtime_image_evidence.py"
 readonly CANDIDATE_MANIFEST_CHECK="${REPOSITORY_ROOT}/gradle/tasks/candidate-manifest-check.py"
 
@@ -19,7 +21,6 @@ RUN_ID="${WEAVE_TEST_APP_RUN_ID:-}"
 OUTPUT_ROOT="${WEAVE_TEST_APP_OUTPUT_ROOT:-${REPOSITORY_ROOT}/build/test-app}"
 SERVER_IMAGE="${WEAVE_TEST_APP_SERVER_IMAGE:-}"
 MCP_IMAGE="${WEAVE_TEST_APP_MCP_IMAGE:-}"
-IDENTITY_OPS_IMAGE="${WEAVE_TEST_APP_IDENTITY_OPS_IMAGE:-}"
 KEYCLOAK_IMAGE="${WEAVE_TEST_APP_KEYCLOAK_IMAGE:-}"
 LOCAL_SERVER_TAG=""
 LOCAL_MCP_TAG=""
@@ -31,18 +32,6 @@ fail() { printf 'WEAVE_TEST_APP_LIFECYCLE_ERROR %s\n' "$*" >&2; exit 1; }
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
-}
-
-require_free_disk_space() {
-  local minimum_kib=8388608
-  local available_kib
-  mkdir -p "${OUTPUT_ROOT}"
-  available_kib="$(df -Pk "${OUTPUT_ROOT}" | awk 'NR == 2 {print $4}')"
-  [[ "${available_kib}" =~ ^[0-9]+$ ]] ||
-    fail "unable to determine free disk space for the isolated proof"
-  if ((available_kib < minimum_kib)); then
-    fail "isolated proof requires at least ${minimum_kib} KiB free before image build and resource creation"
-  fi
 }
 
 require_no_pending_registration_operations() {
@@ -87,7 +76,7 @@ cleanup() {
   set +e
   if [[ "${STACK_PREPARED}" == "true" ]]; then
     if ((primary_status != 0)) && [[ -x "${FAILURE_DIAGNOSTICS}" ]]; then
-      WEAVE_PROFILE=test \
+      WEAVE_PROFILE=e2e \
         WEAVE_RESOURCE_PREFIX="${WEAVE_E2E_RUN_NAMESPACE}" \
         WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS=30 \
         bash "${FAILURE_DIAGNOSTICS}" \
@@ -95,7 +84,7 @@ cleanup() {
         log "WEAVE_TEST_APP_LIFECYCLE_WARNING support-safe failure diagnostics did not complete"
     fi
     WEAVE_TEARDOWN_EVIDENCE_FILE="${WEAVE_TEST_APP_TEARDOWN_EVIDENCE_PATH}" \
-      bash "${TEARDOWN}" test \
+      bash "${TEARDOWN}" e2e \
         --env-file "${WEAVE_ENV_FILE}" \
         --isolated \
         --evidence-file "${WEAVE_TEST_APP_TEARDOWN_EVIDENCE_PATH}" ||
@@ -122,14 +111,18 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-for command in awk bash df docker find git java jq openssl python3 shasum; do
+for command in awk bash docker find git java jq openssl python3 shasum; do
   require_command "${command}"
 done
-docker info >/dev/null 2>&1 || fail "Docker daemon is not reachable"
 [[ -x "${REPOSITORY_ROOT}/gradlew" ]] || fail "Gradle wrapper is unavailable"
 [[ "${OUTPUT_ROOT}" == /* ]] || fail "WEAVE_TEST_APP_OUTPUT_ROOT must be absolute"
 [[ -f "${CONTEXT_HELPER}" ]] || fail "Fresh testApp context helper is unavailable"
-require_free_disk_space
+[[ -f "${EMPTY_NAMESPACE_WRITER}" ]] || fail "Fresh namespace proof helper is unavailable"
+mkdir -p "${OUTPUT_ROOT}"
+python3 "${REPOSITORY_ROOT}/tools/runner_capacity_preflight.py" \
+  --path "${REPOSITORY_ROOT}" \
+  --minimum-free-gib 8 \
+  --require-docker
 
 candidate_commit="${WEAVE_CANDIDATE_COMMIT:-$(git -C "${REPOSITORY_ROOT}" rev-parse HEAD)}"
 [[ "${candidate_commit}" =~ ^[0-9a-f]{40}$ ]] ||
@@ -253,18 +246,6 @@ validate_runtime_image \
   "Weave MCP Server" \
   "java21-spring-boot-4.1-spring-ai-2.0"
 
-if [[ -z "${IDENTITY_OPS_IMAGE}" ]]; then
-  IDENTITY_OPS_IMAGE="$(
-    python3 "${WORKSPACE_ROOT}/scripts/build_identity_ops_image.py" \
-      --root "${WORKSPACE_ROOT}" \
-      --candidate-commit "${image_source_commit}" |
-      tail -n 1
-  )"
-else
-  [[ "${IDENTITY_OPS_IMAGE}" =~ @sha256:[0-9a-f]{64}$ ]] ||
-    fail "WEAVE_TEST_APP_IDENTITY_OPS_IMAGE must be digest-pinned"
-  docker pull "${IDENTITY_OPS_IMAGE}"
-fi
 if [[ -z "${KEYCLOAK_IMAGE}" ]]; then
   KEYCLOAK_IMAGE="$(
     python3 "${WORKSPACE_ROOT}/scripts/build_keycloak_image.py" \
@@ -277,13 +258,9 @@ else
   docker pull "${KEYCLOAK_IMAGE}"
 fi
 validate_runtime_image \
-  "${IDENTITY_OPS_IMAGE}" \
-  "Weave Identity Ops" \
-  "keycloak-26.7-kcadm-python3"
-validate_runtime_image \
   "${KEYCLOAK_IMAGE}" \
   "Weave Keycloak Runtime" \
-  "keycloak-26.7.0-downstream-built-in-policy"
+  "keycloak-26.7.1-downstream-built-in-policy"
 
 if [[ -n "${candidate_manifest_path}" ]]; then
   jq -e \
@@ -292,9 +269,8 @@ if [[ -n "${candidate_manifest_path}" ]]; then
     --arg spec_digest "${spec_digest}" \
     --arg server "${SERVER_IMAGE}" \
     --arg mcp "${MCP_IMAGE}" \
-    --arg identity_ops "${IDENTITY_OPS_IMAGE}" \
     --arg keycloak "${KEYCLOAK_IMAGE}" '
-      .schemaVersion == "weave.release.candidate-manifest.v2" and
+      .schemaVersion == "weave.release.candidate-manifest.v4" and
       .commit == $source_candidate_commit and
       .specificationCommit == $specification_commit and
       .specDigest == $spec_digest and
@@ -302,9 +278,11 @@ if [[ -n "${candidate_manifest_path}" ]]; then
       ([.images[] | {key: .component, value: .reference}] | from_entries) == {
         "server": $server,
         "mcp-server": $mcp,
-        "identity-ops": $identity_ops,
         "keycloak-runtime": $keycloak
-      }
+      } and
+      .realmDefinition.containsSecrets == false and
+      (.realmDefinition.semanticRealmSourceDigest | test("^sha256:[0-9a-f]{64}$")) and
+      (.realmDefinition.migrationDefinitionDigest | test("^sha256:[0-9a-f]{64}$"))
     ' "${candidate_manifest_path}" >/dev/null ||
     fail "runtime image inputs do not match the exact candidate manifest"
 fi
@@ -313,15 +291,40 @@ export WEAVE_BACKEND_IMAGE
 WEAVE_BACKEND_IMAGE="$(docker image inspect "${SERVER_IMAGE}" --format '{{.Id}}')"
 export WEAVE_MCP_IMAGE
 WEAVE_MCP_IMAGE="$(docker image inspect "${MCP_IMAGE}" --format '{{.Id}}')"
-export WEAVE_IDENTITY_OPS_IMAGE
-WEAVE_IDENTITY_OPS_IMAGE="$(docker image inspect "${IDENTITY_OPS_IMAGE}" --format '{{.Id}}')"
 export WEAVE_KEYCLOAK_IMAGE
 WEAVE_KEYCLOAK_IMAGE="$(docker image inspect "${KEYCLOAK_IMAGE}" --format '{{.Id}}')"
 
-log "Starting one exact, disposable Compose test stack."
+empty_namespace_proof="${WEAVE_TEST_APP_RUN_ROOT}/empty-namespace-proof.json"
+python3 "${EMPTY_NAMESPACE_WRITER}" \
+  --repository-root "${REPOSITORY_ROOT}" \
+  --env-file "${WEAVE_ENV_FILE}" \
+  --run-id "${RUN_ID}" \
+  --candidate-commit "${candidate_commit}" \
+  --candidate-manifest-digest "${candidate_manifest_digest}" \
+  --output "${empty_namespace_proof}"
+export WEAVE_E2E_EMPTY_NAMESPACE_PROOF="${empty_namespace_proof}"
+
+log "Applying one bounded migration to the proven-empty E2E namespace."
 STACK_PREPARED=true
-bash "${COMPOSE}" test up
-bash "${WORKSPACE_ROOT}/operator-check.sh" test
+bash "${COMPOSE}" e2e keycloak-migration-apply
+first_render_manifest="${WEAVE_TEST_APP_RUN_ROOT}/render-manifest-first.json"
+cp "${WEAVE_TEST_APP_GENERATED_ROOT}/render-manifest.json" "${first_render_manifest}"
+
+log "Starting one exact, disposable Compose test stack."
+bash "${COMPOSE}" e2e up
+bash "${WORKSPACE_ROOT}/operator-check.sh" e2e
+
+realm_evidence_path="${WEAVE_TEST_APP_RUN_ROOT}/realm-evidence.json"
+if [[ -n "${candidate_manifest_path}" ]]; then
+  python3 "${REALM_EVIDENCE_WRITER}" \
+    --lane-candidate "${candidate_commit}" \
+    --candidate-manifest "${candidate_manifest_path}" \
+    --first-render-manifest "${first_render_manifest}" \
+    --current-render-manifest "${WEAVE_TEST_APP_GENERATED_ROOT}/render-manifest.json" \
+    --render-evidence "${WEAVE_TEST_APP_GENERATED_ROOT}/keycloak/realm-render-evidence.json" \
+    --migration-receipt "${WEAVE_TEST_APP_GENERATED_ROOT}/keycloak/migrations/fgap-v2-primary-organization-post-import.receipt.json" \
+    --output "${realm_evidence_path}"
+fi
 
 runtime_image_evidence_arguments=(
   --candidate-commit "${candidate_commit}"
@@ -333,11 +336,13 @@ runtime_image_evidence_arguments=(
   --output "${WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH}"
   --image server "${SERVER_IMAGE}" "${WEAVE_BACKEND_IMAGE}"
   --image mcp-server "${MCP_IMAGE}" "${WEAVE_MCP_IMAGE}"
-  --image identity-ops "${IDENTITY_OPS_IMAGE}" "${WEAVE_IDENTITY_OPS_IMAGE}"
   --image keycloak-runtime "${KEYCLOAK_IMAGE}" "${WEAVE_KEYCLOAK_IMAGE}"
 )
 if [[ -n "${candidate_manifest_path}" ]]; then
-  runtime_image_evidence_arguments+=(--manifest "${candidate_manifest_path}")
+  runtime_image_evidence_arguments+=(
+    --manifest "${candidate_manifest_path}"
+    --realm-evidence "${realm_evidence_path}"
+  )
 fi
 python3 "${RUNTIME_IMAGE_EVIDENCE_WRITER}" \
   "${runtime_image_evidence_arguments[@]}"
@@ -426,6 +431,7 @@ log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
   "-Dweave.e2e.product-origin=${WEAVE_TEST_APP_PRODUCT_ORIGIN}" \
   "-Dweave.e2e.api-origin=${WEAVE_TEST_APP_API_ORIGIN}" \
   "-Dweave.e2e.issuer=${WEAVE_TEST_APP_ISSUER}" \
+  "-Dweave.e2e.mailpit-origin=${WEAVE_TEST_APP_MAILPIT_ORIGIN}" \
   "-Dweave.e2e.mailpit-api=${WEAVE_TEST_APP_MAILPIT_API}" \
   "-Dweave.e2e.mcp-endpoint=${WEAVE_TEST_APP_MCP_ENDPOINT}" \
   "-Dweave.e2e.chat-proof-origin=${WEAVE_TEST_APP_CHAT_PROOF_ORIGIN}" \
@@ -448,7 +454,7 @@ jq -e \
   --arg specification_commit "${specification_commit}" \
   --arg candidate_manifest_digest "${candidate_manifest_digest}" \
   --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
-  .schemaVersion == "weave.test-app-product-flow/v1" and
+  .schemaVersion == "weave.test-app-product-flow/v2" and
   .candidateCommit == $candidate_commit and
   .sourceCandidateCommit == $source_candidate_commit and
   .specificationCommit == $specification_commit and
@@ -471,6 +477,9 @@ jq -e \
   .sameHumanSubjectAfterRegrant == true and
   .samePersonRefAfterRegrant == true and
   .collaboration.repeatCount == 2 and
+  .collaboration.selectedProviders == {"chat":"weave-native","files":"weave-native","calendar":"weave-native"} and
+  .collaboration.northboundFacades == {"matrix":true,"webdav":true,"caldav":true} and
+  .collaboration.southboundProviderDependencyObserved == false and
   (.collaboration.identityRefHashes.author | test("^sha256:[0-9a-f]{64}$")) and
   (.collaboration.identityRefHashes.collaborator | test("^sha256:[0-9a-f]{64}$")) and
   (.collaboration.identityRefHashes.outsider | test("^sha256:[0-9a-f]{64}$")) and
@@ -485,10 +494,11 @@ jq -e \
     .profilePassed and
     .outsiderDenied and
     .canonicalJpaVerified and
-    .directSynapseVerified and
-    .callbackReplayVerified and
+    .nativePersistenceVerified and
+    .idempotencyVerified and
+    (.southboundProviderDependencyObserved == false) and
     .cleanupComplete and
-    (.providerCorrelationHash | test("^sha256:[0-9a-f]{64}$"))] | all) and
+    (.nativeRevisionHash | test("^sha256:[0-9a-f]{64}$"))] | all) and
   (.collaboration.passes[] | select(.pass == 1) |
     .restartContinuityVerified == false) and
   (.collaboration.passes[] | select(.pass == 2) |
@@ -533,15 +543,27 @@ jq -e \
   --arg specification_commit "${specification_commit}" \
   --arg candidate_manifest_digest "${candidate_manifest_digest}" \
   --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
-  .schemaVersion == "weave.test-app-runtime-images/v1" and
+  .schemaVersion == "weave.test-app-runtime-images/v2" and
   .candidateCommit == $candidate_commit and
   .sourceCandidateCommit == $source_candidate_commit and
   .specificationCommit == $specification_commit and
   .candidateManifestDigest == $candidate_manifest_digest and
   .composeProject == $compose_project and
-  (.images | length) == 4 and
+  (.images | length) == 3 and
   ([.images[].component] | sort) ==
-    ["identity-ops", "keycloak-runtime", "mcp-server", "server"] and
+    ["keycloak-runtime", "mcp-server", "server"] and
+  ((.manifestBound == false and .realmEvidence == null and .realmEvidenceVerified == false) or
+    (.manifestBound == true and
+      .realmEvidenceVerified == true and
+      .realmEvidence.candidateRealmDefinitionMatched == true and
+      .realmEvidence.environmentRealmRenderStable == true and
+      .realmEvidence.semanticReadbackVerified == true and
+      .realmEvidence.containsSecrets == false and
+      (.realmEvidence.semanticRealmSourceDigest | test("^sha256:[0-9a-f]{64}$")) and
+      (.realmEvidence.migrationDefinitionDigest | test("^sha256:[0-9a-f]{64}$")) and
+      (.realmEvidence.overlayDigest | test("^sha256:[0-9a-f]{64}$")) and
+      (.realmEvidence.renderedRealmDigest | test("^sha256:[0-9a-f]{64}$")) and
+      (.realmEvidence.semanticReadbackDigest | test("^sha256:[0-9a-f]{64}$")))) and
   (.images[] | select(.component == "keycloak-runtime") |
     .buildEvidenceDigest | test("^sha256:[0-9a-f]{64}$")) and
   ([.images[].matchesCandidate] | all) and

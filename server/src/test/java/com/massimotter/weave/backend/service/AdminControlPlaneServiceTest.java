@@ -280,9 +280,9 @@ class AdminControlPlaneServiceTest {
                 new com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunRequest(
                         "chat",
                         "synapse-homeserver",
-                        "matrix-chat",
+                        "weave-native",
                         "recommended_self_hosted_default",
-                        "secretref://weave/provider/matrix-chat",
+                        "secretref://weave/provider/synapse-homeserver",
                         "weave-chat-domain",
                         List.of("power-level parity requires manual review"),
                         true,

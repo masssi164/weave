@@ -30,6 +30,7 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
@@ -223,9 +224,9 @@ public class FilesFacadeService {
     }
 
     public FileListResponse list(String path) {
-        requireContextPermission(ContextPermission.VIEW, "list-files");
+        PrincipalContext principal = requireContextPermission(ContextPermission.VIEW, "list-files");
         try {
-            return toResponse(configuredAdapter("list-files").list(new FilePath(path)).listing());
+            return toResponse(configuredAdapter("list-files", principal).list(new FilePath(path)).listing());
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, "list-files");
         }
@@ -233,10 +234,10 @@ public class FilesFacadeService {
 
     public WebDavPropfindListing webDavPropfind(String path) {
         String operation = "webdav-propfind";
-        requireContextPermission(ContextPermission.VIEW, operation);
+        PrincipalContext principal = requireContextPermission(ContextPermission.VIEW, operation);
         String normalizedPath = FilePathCodec.normalizeProductPath(path);
         try {
-            VersionedListing versionedListing = configuredAdapter(operation).list(new FilePath(normalizedPath));
+            VersionedListing versionedListing = configuredAdapter(operation, principal).list(new FilePath(normalizedPath));
             FileListing listing = versionedListing.listing();
             FileObject requested = new FileObject(
                     new FileId("files:" + normalizedPath),
@@ -273,7 +274,7 @@ public class FilesFacadeService {
         List<WebDavPropfindResource> matches = new java.util.ArrayList<>();
         int scanned = 0;
         try {
-            FilesProviderPort adapter = configuredAdapter(operation);
+            FilesProviderPort adapter = configuredAdapter(operation, principal);
             while (!pending.isEmpty() && matches.size() < request.limit()) {
                 SearchNode node = pending.removeFirst();
                 VersionedListing listing = adapter.list(new FilePath(node.path()));
@@ -325,12 +326,31 @@ public class FilesFacadeService {
         PrincipalContext principal =
                 requireContextPermission(ContextPermission.VIEW, "download-file");
         try {
-            FileContent content = configuredAdapter("download-file").read(new FileId(id));
+            FileContent content = configuredAdapter("download-file", principal).read(new FileId(id));
             publishWorkloadReadAudit(principal, "files.resource.read", id, "completed", 1);
             return new DownloadedFile(content.item().name(), content.item().mediaType(), content.bytes());
         } catch (ApiErrorException exception) {
             publishWorkloadReadAudit(principal, "files.resource.read", id, "failed", 0);
             throw supportSafeStorageError(exception, "download-file");
+        }
+    }
+
+    public DownloadedFile downloadWebDavPath(String path) {
+        String operation = "webdav-get";
+        PrincipalContext principal = requireContextPermission(ContextPermission.VIEW, operation);
+        String normalizedPath = FilePathCodec.normalizeProductPath(path);
+        try {
+            FilesProviderPort adapter = configuredAdapter(operation, principal);
+            VersionedFile item = adapter.find(new FilePath(normalizedPath))
+                    .orElseThrow(() -> new ApiErrorException(
+                            HttpStatus.NOT_FOUND,
+                            "file-not-found",
+                            "The requested file or folder was not found.",
+                            Map.of("module", "files", "operation", operation)));
+            FileContent content = adapter.read(item.item().id());
+            return new DownloadedFile(content.item().name(), content.item().mediaType(), content.bytes());
+        } catch (ApiErrorException exception) {
+            throw supportSafeStorageError(exception, operation);
         }
     }
 
@@ -722,10 +742,11 @@ public class FilesFacadeService {
 
     public String etagFor(String path) {
         String operation = "webdav-etag";
-        requireContextPermission(ContextPermission.VIEW, operation);
+        PrincipalContext principal = requireContextPermission(ContextPermission.VIEW, operation);
         String normalizedPath = FilePathCodec.normalizeProductPath(path);
         try {
-            VersionedFileItem item = existingVersionedItem(configuredAdapter(operation), normalizedPath, operation, false);
+            VersionedFileItem item = existingVersionedItem(
+                    configuredAdapter(operation, principal), normalizedPath, operation, false);
             if (item == null) {
                 throw new ApiErrorException(
                         HttpStatus.NOT_FOUND,
@@ -1052,6 +1073,17 @@ public class FilesFacadeService {
         return filesProviderPort;
     }
 
+    private FilesProviderPort configuredAdapter(String operation, PrincipalContext principal) {
+        return configuredAdapter(operation).scoped(new FilesRequestScope(
+                principal.tenantId(), DEFAULT_CONTEXT_ID, 1));
+    }
+
+    private FilesProviderPort configuredAdapter(
+            String operation, PrincipalContext principal, long providerBindingRevision) {
+        return configuredAdapter(operation).scoped(new FilesRequestScope(
+                principal.tenantId(), DEFAULT_CONTEXT_ID, providerBindingRevision));
+    }
+
     private <T> T executeMutation(
             String idempotencyKey,
             PrincipalContext principal,
@@ -1062,7 +1094,7 @@ public class FilesFacadeService {
             ProviderMutation<T> reconcile,
             Function<T, String> canonicalResult) {
         if (filesMutationIntentService == null) {
-            return apply.execute(configuredAdapter(operation));
+            return apply.execute(configuredAdapter(operation, principal));
         }
 
         PinnedMutation mutation;
@@ -1103,6 +1135,7 @@ public class FilesFacadeService {
                                 "providerBindingRevision", mutation.binding().revision(),
                                 "diagnosticsRedacted", true));
             }
+            adapter = configuredAdapter(operation, principal, mutation.binding().revision());
             if (mutation.retry()) {
                 mutation = prepareRetry(mutation, operation);
                 T reconciled = reconcile.execute(adapter);

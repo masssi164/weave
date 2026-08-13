@@ -122,7 +122,7 @@ class DomainAdapterRegistryMapperTest {
         assertThat(contract.canonicalObjects()).contains("WeaveConversation", "WeaveMessage", "WeaveMembership");
         assertThat(contract.externalAdapters()).contains("microsoft-teams", "slack");
         assertThat(contract.lossyMappingRisks()).contains("Slack broadcast/thread semantics", "Teams channel permissions");
-        assertThat(contract.sourceOfTruth()).contains("selected chat provider owns message history");
+        assertThat(contract.sourceOfTruth()).contains("Weave owns canonical Chat history");
         assertThat(contract.replacementRequirement()).contains("dry-run");
         assertThat(contract.choiceModels()).extracting(ProviderChoiceModelResponse::choiceModel).contains("hybrid_composite");
     }
@@ -185,8 +185,14 @@ class DomainAdapterRegistryMapperTest {
 
     @Test
     void providerCapabilityContractsUseCanonicalRegistryCandidateKeys() {
+        assertThat(ProviderCapabilityContracts.contract("files", Set.of(ProviderModule.FILES)).defaultAdapters())
+                .containsExactly("weave-native");
+        assertThat(ProviderCapabilityContracts.contract("files", Set.of(ProviderModule.FILES)).externalAdapters())
+                .contains("nextcloud-files");
+        assertThat(ProviderCapabilityContracts.contract("calendar", Set.of(ProviderModule.CALENDAR)).defaultAdapters())
+                .containsExactly("weave-native");
         assertThat(ProviderCapabilityContracts.contract("calendar", Set.of(ProviderModule.CALENDAR)).externalAdapters())
-                .contains("weave-calendar")
+                .contains("nextcloud-caldav")
                 .doesNotContain("workspace-calendar", "team-channel-calendar");
         assertThat(ProviderCapabilityContracts.contract("documents-collaboration", Set.of(ProviderModule.OFFICE)).defaultAdapters())
                 .containsExactly("onlyoffice");

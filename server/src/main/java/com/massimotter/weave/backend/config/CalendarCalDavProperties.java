@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.config;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "weave.calendar.caldav")
@@ -9,7 +11,8 @@ public record CalendarCalDavProperties(
         AuthMode authMode,
         String backendUsername,
         String backendToken,
-        int requestTimeoutSeconds) {
+        int requestTimeoutSeconds,
+        ZoneId evaluationZone) {
 
     public CalendarCalDavProperties {
         baseUrl = trimToNull(baseUrl);
@@ -19,15 +22,12 @@ public record CalendarCalDavProperties(
         backendUsername = trimToNull(backendUsername);
         backendToken = trimToNull(backendToken);
         requestTimeoutSeconds = requestTimeoutSeconds <= 0 ? 10 : requestTimeoutSeconds;
+        evaluationZone = evaluationZone == null ? ZoneOffset.UTC : evaluationZone;
     }
 
     public boolean isConfigured() {
-        if (baseUrl == null || targetsPrivateUserCalendar()) {
-            return false;
-        }
-        if (authMode == AuthMode.BEARER) {
-            return backendToken != null;
-        }
+        if (baseUrl == null || targetsPrivateUserCalendar()) return false;
+        if (authMode == AuthMode.BEARER) return backendToken != null;
         return backendUsername != null && backendToken != null;
     }
 
@@ -39,10 +39,7 @@ public record CalendarCalDavProperties(
         return targetsPrivateUserCalendar() ? "private-personal" : "workspace";
     }
 
-    public enum AuthMode {
-        BASIC,
-        BEARER
-    }
+    public enum AuthMode { BASIC, BEARER }
 
     private static String defaultIfBlank(String value, String fallback) {
         String trimmed = trimToNull(value);
@@ -50,9 +47,6 @@ public record CalendarCalDavProperties(
     }
 
     private static String trimToNull(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.trim();
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

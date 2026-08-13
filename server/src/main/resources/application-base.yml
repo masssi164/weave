@@ -20,17 +20,6 @@ spring:
       ddl-auto: ${WEAVE_JPA_DDL_AUTO:validate}
   security:
     oauth2:
-      client:
-        provider:
-          weave-identity-admin:
-            token-uri: ${WEAVE_IDENTITY_KEYCLOAK_TOKEN_URI:http://keycloak:8080/realms/weave/protocol/openid-connect/token}
-        registration:
-          weave-identity-admin:
-            provider: weave-identity-admin
-            client-id: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_ID:weave-identity-admin}
-            client-secret: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_SECRET:}
-            client-authentication-method: client_secret_basic
-            authorization-grant-type: client_credentials
       resourceserver:
         jwt:
           # Required for a ready auth contract. Leave blank to start in blocked mode until
@@ -54,6 +43,14 @@ management:
         enabled: true
 
 weave:
+  files:
+    # JPA canonical metadata plus private blob storage is the Weave server default.
+    provider: ${WEAVE_FILES_PROVIDER:weave-native}
+    native:
+      blob-store: ${WEAVE_FILES_NATIVE_BLOB_STORE:filesystem}
+      filesystem-root: ${WEAVE_FILES_NATIVE_FILESYSTEM_ROOT:.weave/files/blobs}
+      maximum-blob-bytes: ${WEAVE_FILES_NATIVE_MAXIMUM_BLOB_BYTES:67108864}
+      reconciliation-limit: ${WEAVE_FILES_NATIVE_RECONCILIATION_LIMIT:10000}
   agent-runtime:
     # ARC remains inert until its feature-specific adapters are enabled. JPA is
     # the sole repository authority; long-lived credentials are SecretRefs.
@@ -99,8 +96,6 @@ weave:
       keycloak-organization-alias: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_ORGANIZATION_ALIAS:}
       admin-client-id: ${WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID:weave-agent-runtime-admin}
       admin-credential-ref: ${WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF:}
-      entitlement-client-id: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CLIENT_ID:weave-identity-admin}
-      entitlement-credential-ref: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_REF:}
       secret-root: ${WEAVE_AGENT_RUNTIME_SECRET_ROOT:}
       timeout: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_TIMEOUT:10s}
       workload-role: weaver-runtime
@@ -108,9 +103,9 @@ weave:
       optional-client-scopes: ${WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES:agent-runtime.profile.read,mcp.tools,files.read}
       access-token-lifespan-seconds: ${WEAVE_AGENT_RUNTIME_ACCESS_TOKEN_LIFESPAN_SECONDS:59}
   chat:
-    # Canonical chat has one durable JPA authority. Matrix/Synapse is the default
-    # southbound provider; switching providers never changes persistence.
-    provider: ${WEAVE_CHAT_PROVIDER:matrix-synapse}
+    # Canonical Chat has one durable JPA authority. Weave-native commits directly
+    # to it by default; Matrix/Synapse remains an explicit southbound adapter.
+    provider: ${WEAVE_CHAT_PROVIDER:weave-native}
     e2e-proof:
       # Isolated disposable stacks only. Persistent dogfood leaves this false and
       # does not mount the independent proof token.
@@ -159,12 +154,15 @@ weave:
       actor-username: ${WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME:}
       actor-token: ${WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN:}
   calendar:
+    # Weave-native is the selected Calendar authority. The southbound CalDAV adapter
+    # remains available only through the explicit nextcloud-caldav selection.
+    provider: ${WEAVE_CALENDAR_PROVIDER:weave-native}
     caldav:
       # Northbound Weave-owned CalDAV profile/discovery host. Do not point member-native
       # setup profiles at a downstream provider URL.
       public-base-url: ${WEAVE_CALDAV_PUBLIC_BASE_URL:https://calendar.weave.test}
-      # Calendar product operations stay on /api; this backend actor is the only component
-      # that talks to Nextcloud CalDAV. The first safe slice targets a backend-owned
+      # Calendar product operations stay on /api; when nextcloud-caldav is explicitly
+      # selected, this backend actor is the only component that talks to Nextcloud. It targets a backend-owned
       # workspace calendar; private per-user templates containing {user} fail closed until
       # a delegated/sharing access model is contracted. Leave credentials blank to fail
       # safely with a normalized nextcloud-adapter-not-configured error until wired.
@@ -251,7 +249,10 @@ weave:
         realm: ${WEAVE_IDENTITY_KEYCLOAK_REALM:weave}
         organization-id: ${WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ID:}
         organization-alias: ${WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ALIAS:weave}
-        oauth-registration-id: weave-identity-admin
+        admin-client-id: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_ID:weave-identity-admin}
+        admin-credential-ref: ${WEAVE_IDENTITY_KEYCLOAK_CREDENTIAL_REF:credentialref://weave/keycloak/weave-identity-admin}
+        admin-private-jwk-file: ${WEAVE_IDENTITY_KEYCLOAK_PRIVATE_JWK_FILE:/run/secrets/identity-admin/weave-identity-admin-private-jwk.json}
+        private-key-jwt-audience: ${WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE:${WEAVE_OIDC_ISSUER_URI:http://keycloak:8080/realms/weave}}
         timeout: ${WEAVE_IDENTITY_KEYCLOAK_TIMEOUT:10s}
         reference-hmac-secret-file: ${WEAVE_IDENTITY_REFERENCE_HMAC_SECRET_FILE:}
   profile:

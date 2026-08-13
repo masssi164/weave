@@ -37,6 +37,7 @@ import java.util.Optional;
 import java.util.Set;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -56,6 +57,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 @Component
+@ConditionalOnProperty(name = "weave.files.provider", havingValue = "nextcloud-webdav")
 public class NextcloudFilesAdapter implements FilesProviderPort {
 
     private static final HttpMethod PROPFIND = HttpMethod.valueOf("PROPFIND");

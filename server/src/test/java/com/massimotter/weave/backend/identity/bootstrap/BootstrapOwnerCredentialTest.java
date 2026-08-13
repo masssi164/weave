@@ -36,6 +36,20 @@ class BootstrapOwnerCredentialTest {
   }
 
   @Test
+  void consumesTheCredentialWithoutMutatingTheDeploymentOwnedSecretRef() throws IOException {
+    Path tokenFile = privateTokenFile(FIRST_TOKEN);
+    BootstrapOwnerCredential credential = credential(tokenFile);
+
+    assertThat(credential.matches(FIRST_TOKEN)).isTrue();
+
+    credential.consumeAfterSuccess();
+
+    assertThat(Files.exists(tokenFile)).isTrue();
+    assertThat(credential.matches(FIRST_TOKEN)).isFalse();
+    credential.consumeAfterSuccess();
+  }
+
+  @Test
   void rejectsBlankShortAndIncorrectCredentialsWithoutExposingTheExpectedValue()
       throws IOException {
     BootstrapOwnerCredential credential = credential(privateTokenFile(FIRST_TOKEN));

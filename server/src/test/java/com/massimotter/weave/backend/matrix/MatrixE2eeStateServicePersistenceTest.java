@@ -1,29 +1,19 @@
 package com.massimotter.weave.backend.matrix;
 
-import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.chat.domain.ChatActorRef;
-import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixE2eeSnapshotJpaRepository;
-import java.util.List;
-import java.util.Map;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.support.StaticListableBeanFactory;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class MatrixE2eeStateServicePersistenceTest {
+import com.massimotter.weave.backend.chat.domain.ChatActorRef;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
 
-    private final ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
+class MatrixE2eeStateServicePersistenceTest {
 
     @Test
     void publicKeysToDeviceEventsAndOpaqueBackupsSurviveServiceRestart() {
-        DriverManagerDataSource dataSource =
-                com.massimotter.weave.backend.testing.JpaTestDatabase
-                        .entityFirstDataSource("matrix-e2ee");
-        MatrixE2eeSnapshotJpaRepository repository = repository(dataSource);
-        MatrixE2eeSnapshotStore snapshotStore = snapshotStore(repository);
-        MatrixE2eeStateService first = service(snapshotStore);
+        InMemoryMatrixE2eeRelationalStore store = new InMemoryMatrixE2eeRelationalStore();
+        MatrixE2eeStateService first = service(store);
         var trusted = identity("WEAVETRUSTEDDEVICE", "oidc-session-hash-a");
         var second = identity("WEAVESECONDDEVICE");
 
@@ -42,23 +32,14 @@ class MatrixE2eeStateServicePersistenceTest {
                 "!room:api.weave.test",
                 "session-1",
                 Map.of("session_data", Map.of("ciphertext", "opaque-backup")));
-        first.putAccountData(
-                trusted,
-                "m.secret_storage.default_key",
-                Map.of("key", "weave-recovery-key-id"));
+        first.putAccountData(trusted, "m.secret_storage.default_key", Map.of("key", "weave-recovery-key-id"));
 
-        MatrixE2eeStateService restarted = service(snapshotStore(repository));
+        MatrixE2eeStateService restarted = service(store);
         Map<String, Object> queried = restarted.queryKeys(trusted, Map.of(
                 "device_keys", Map.of(trusted.userId(), List.of())));
-        Map<String, Object> backup = restarted.backupKeys(
-                trusted,
-                backupVersion,
-                "!room:api.weave.test",
-                "session-1");
+        Map<String, Object> backup = restarted.backupKeys(trusted, backupVersion, "!room:api.weave.test", "session-1");
         var sync = restarted.sync(second, 0);
-        Map<String, Object> accountData = restarted.accountData(
-                trusted,
-                "m.secret_storage.default_key");
+        Map<String, Object> accountData = restarted.accountData(trusted, "m.secret_storage.default_key");
         long restoredSequence = sync.nextSequence();
 
         restarted.sendToDevice(trusted, "m.room_key", "txn-persisted", Map.of(
@@ -70,76 +51,47 @@ class MatrixE2eeStateServicePersistenceTest {
                 assertThat(event.toString()).contains("opaque-to-device"));
         assertThat(backup.toString()).contains("opaque-backup").doesNotContain("plaintext", "recoveryKey");
         assertThat(accountData).containsEntry("key", "weave-recovery-key-id");
-        assertThat(restarted.currentSequence()).isEqualTo(restoredSequence);
+        assertThat(restarted.currentSequence(second)).isEqualTo(restoredSequence);
+        assertThat(store.currentRevision("tenant-a")).isEqualTo(restoredSequence);
         assertThat(restarted.sync(second, restoredSequence).toDeviceEvents()).isEmpty();
-        assertThatThrownBy(() -> restarted.requireActive(identity(
-                        "WEAVERENAMEDDEVICE",
-                        "oidc-session-hash-a")))
+        assertThatThrownBy(() -> restarted.requireActive(identity("WEAVERENAMEDDEVICE", "oidc-session-hash-a")))
                 .isInstanceOfSatisfying(MatrixProtocolException.class, exception ->
                         assertThat(exception.errcode()).isEqualTo("M_UNKNOWN_TOKEN"));
-        assertThat(repository.count()).isEqualTo(1);
-        assertThat(repository.findById("tenant-a")).get()
-                .extracting(entity -> entity.sequence())
-                .isEqualTo(restoredSequence);
     }
 
     @Test
     void fallbackKeyClaimAndUsedStateSurviveRestartWithoutMutatingStatusQueries() {
-        DriverManagerDataSource dataSource =
-                com.massimotter.weave.backend.testing.JpaTestDatabase
-                        .entityFirstDataSource("matrix-e2ee-fallback");
-        MatrixE2eeSnapshotJpaRepository repository = repository(dataSource);
-        MatrixE2eeStateService service = service(snapshotStore(repository));
+        InMemoryMatrixE2eeRelationalStore store = new InMemoryMatrixE2eeRelationalStore();
+        MatrixE2eeStateService service = service(store);
         var target = identity("WEAVEFALLBACKTARGET");
         var claimant = identity("WEAVEFALLBACKCLAIMANT");
 
         service.uploadKeys(target, fallbackKeyUpload(target, "fallback-public-key"));
-        long sequenceAfterUpload = service.currentSequence();
+        long sequenceAfterUpload = service.currentSequence(target);
         Map<String, Object> status = service.uploadKeys(target, Map.of());
 
-        assertThat(service.currentSequence()).isEqualTo(sequenceAfterUpload);
+        assertThat(service.currentSequence(target)).isEqualTo(sequenceAfterUpload);
         assertThat(status).containsEntry("one_time_key_counts", Map.of());
-        assertThat(service.sync(target, 0).unusedFallbackKeyTypes())
-                .containsExactly("signed_curve25519");
+        assertThat(service.sync(target, 0).unusedFallbackKeyTypes()).containsExactly("signed_curve25519");
 
         Map<String, Object> claimed = service.claimKeys(claimant, Map.of(
-                "one_time_keys", Map.of(
-                        target.userId(), Map.of(target.deviceId(), "signed_curve25519"))));
+                "one_time_keys", Map.of(target.userId(), Map.of(target.deviceId(), "signed_curve25519"))));
 
         assertThat(claimed.toString()).contains("fallback-public-key");
         assertThat(service.sync(target, 0).unusedFallbackKeyTypes()).isEmpty();
 
-        MatrixE2eeStateService restarted = service(snapshotStore(repository));
+        MatrixE2eeStateService restarted = service(store);
         assertThat(restarted.sync(target, 0).unusedFallbackKeyTypes()).isEmpty();
         assertThat(restarted.claimKeys(claimant, Map.of(
-                "one_time_keys", Map.of(
-                        target.userId(), Map.of(target.deviceId(), "signed_curve25519")))).toString())
+                "one_time_keys", Map.of(target.userId(), Map.of(target.deviceId(), "signed_curve25519")))).toString())
                 .contains("fallback-public-key");
 
         restarted.uploadKeys(target, fallbackKeyUpload(target, "replacement-fallback-key"));
-        assertThat(restarted.sync(target, 0).unusedFallbackKeyTypes())
-                .containsExactly("signed_curve25519");
+        assertThat(restarted.sync(target, 0).unusedFallbackKeyTypes()).containsExactly("signed_curve25519");
     }
 
-    private MatrixE2eeStateService service(MatrixE2eeSnapshotStore store) {
-        StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("matrixE2eeSnapshotStore", store);
-        return new MatrixE2eeStateService(
-                objectMapper,
-                beans.getBeanProvider(MatrixE2eeSnapshotStore.class));
-    }
-
-    private MatrixE2eeSnapshotStore snapshotStore(MatrixE2eeSnapshotJpaRepository repository) {
-        StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("matrixE2eeSnapshotJpaRepository", repository);
-        return new MatrixE2eeSnapshotStore(
-                beans.getBeanProvider(MatrixE2eeSnapshotJpaRepository.class),
-                beans.getBeanProvider(java.time.Clock.class));
-    }
-
-    private MatrixE2eeSnapshotJpaRepository repository(DriverManagerDataSource dataSource) {
-        return com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
-                dataSource, MatrixE2eeSnapshotJpaRepository.class);
+    private MatrixE2eeStateService service(MatrixE2eePersistence store) {
+        return new MatrixE2eeStateService(store);
     }
 
     private MatrixFacadeClientStateService.MatrixIdentity identity(String deviceId) {
@@ -156,9 +108,7 @@ class MatrixE2eeStateServicePersistenceTest {
                 oidcSessionHash);
     }
 
-    private Map<String, Object> keyUpload(
-            MatrixFacadeClientStateService.MatrixIdentity identity,
-            String publicKey) {
+    private Map<String, Object> keyUpload(MatrixFacadeClientStateService.MatrixIdentity identity, String publicKey) {
         return Map.of("device_keys", Map.of(
                 "user_id", identity.userId(),
                 "device_id", identity.deviceId(),
@@ -167,9 +117,7 @@ class MatrixE2eeStateServicePersistenceTest {
                 "signatures", Map.of()));
     }
 
-    private Map<String, Object> fallbackKeyUpload(
-            MatrixFacadeClientStateService.MatrixIdentity identity,
-            String publicKey) {
+    private Map<String, Object> fallbackKeyUpload(MatrixFacadeClientStateService.MatrixIdentity identity, String publicKey) {
         return Map.of(
                 "device_keys", keyUpload(identity, publicKey).get("device_keys"),
                 "fallback_keys", Map.of(
