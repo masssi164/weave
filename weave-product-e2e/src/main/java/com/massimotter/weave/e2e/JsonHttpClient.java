@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 
@@ -124,6 +125,52 @@ final class JsonHttpClient {
       }
     }
     throw new IllegalStateException("bounded retry loop completed without a response");
+  }
+
+  JsonNode jsonRetryingTransport(
+      String operation,
+      String method,
+      URI uri,
+      Map<String, String> headers,
+      JsonNode body,
+      Set<Integer> expectedStatuses,
+      int maxAttempts,
+      Duration retryDelay) {
+    return executeBoundedTransport(
+        operation,
+        maxAttempts,
+        retryDelay,
+        () -> json(operation, method, uri, headers, body, expectedStatuses));
+  }
+
+  static JsonNode executeBoundedTransport(
+      String operation,
+      int maxAttempts,
+      Duration retryDelay,
+      Supplier<JsonNode> attempt) {
+    if (maxAttempts < 1 || retryDelay == null || retryDelay.isNegative() || attempt == null) {
+      throw new IllegalArgumentException("transport retry policy must be bounded and non-negative");
+    }
+    for (int attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber++) {
+      try {
+        return attempt.get();
+      } catch (ProductFlowException failure) {
+        if (!(failure.getCause() instanceof IOException)) {
+          throw failure;
+        }
+        if (attemptNumber == maxAttempts) {
+          throw new ProductFlowException(
+              operation + " transport did not become ready after " + maxAttempts + " attempts");
+        }
+        try {
+          Thread.sleep(retryDelay.toMillis());
+        } catch (InterruptedException interrupted) {
+          Thread.currentThread().interrupt();
+          throw new ProductFlowException(operation + " transport retry was interrupted", interrupted);
+        }
+      }
+    }
+    throw new IllegalStateException("bounded transport retry loop completed without a response");
   }
 
   JsonNode form(
