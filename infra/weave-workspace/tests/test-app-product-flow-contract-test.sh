@@ -113,6 +113,14 @@ contains "${LIFECYCLE}" 'tools/runner_capacity_preflight.py'
 contains "${LIFECYCLE}" '--minimum-free-gib 8'
 contains "${LIFECYCLE}" '--require-docker'
 absent "${LIFECYCLE}" 'require_free_disk_space'
+output_root_create_line="$(grep -nF 'mkdir -p "${OUTPUT_ROOT}"' "${LIFECYCLE}" | cut -d: -f1)"
+capacity_preflight_line="$(grep -nF 'tools/runner_capacity_preflight.py' "${LIFECYCLE}" | cut -d: -f1)"
+output_root_chmod_line="$(grep -nF 'chmod 700 "${OUTPUT_ROOT}"' "${LIFECYCLE}" | cut -d: -f1)"
+[[ "${output_root_create_line}" =~ ^[0-9]+$ && "${capacity_preflight_line}" =~ ^[0-9]+$ &&
+   "${output_root_chmod_line}" =~ ^[0-9]+$ &&
+   ${output_root_create_line} -lt ${capacity_preflight_line} &&
+   ${capacity_preflight_line} -lt ${output_root_chmod_line} ]] ||
+  fail "testApp must create its output root before capacity preflight and permission hardening"
 contains "${LIFECYCLE}" 'live-stack-failure-diagnostics.sh'
 contains "${LIFECYCLE}" 'WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS=30'
 diagnostics_line="$(grep -nF 'bash "${FAILURE_DIAGNOSTICS}"' "${LIFECYCLE}" | cut -d: -f1)"
