@@ -91,6 +91,11 @@ def main() -> int:
     )
 
     require("push:\n    branches: [dogfood]" in live, "isolated product flow does not run on the exact dogfood commit")
+    require(
+        "name: Invitation, OIDC, Weave-native collaboration, ARC, and MCP" in live
+        and "Invitation, OIDC, WebDAV, ARC, and MCP" not in live,
+        "Live Stack job name does not match the protected dogfood check context",
+    )
     ordered(
         live,
         (

@@ -53,7 +53,7 @@ jobs:
           }
 
   live-stack-e2e:
-    name: Invitation, OIDC, WebDAV, ARC, and MCP
+    name: Invitation, OIDC, Weave-native collaboration, ARC, and MCP
     needs: isolation-gate
     runs-on: [self-hosted, macOS, ARM64, weave-live]
     timeout-minutes: 75
