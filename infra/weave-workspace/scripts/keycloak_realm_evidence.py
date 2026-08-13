@@ -72,12 +72,15 @@ def identity(manifest: dict[str, Any], label: str) -> dict[str, Any]:
 
 
 def finalize(
+    lane_candidate: str,
     candidate: dict[str, Any],
     first_render: dict[str, Any],
     current_render: dict[str, Any],
     render_evidence: dict[str, Any],
     receipt: dict[str, Any],
 ) -> dict[str, Any]:
+    if not COMMIT.fullmatch(lane_candidate):
+        raise EvidenceError("lane candidate must be one exact lowercase Git object ID")
     definition = candidate.get("realmDefinition")
     if (
         candidate.get("schemaVersion") != "weave.release.candidate-manifest.v4"
@@ -111,7 +114,7 @@ def finalize(
         != "weave.keycloak-environment-render-evidence/v1"
         or render_evidence.get("supportSafe") is not True
         or render_evidence.get("containsSecretValues") is not False
-        or render_evidence.get("candidateCommit") != candidate["commit"]
+        or render_evidence.get("candidateCommit") != lane_candidate
         or render_evidence.get("realmIdentity") != current_identity
         or render_evidence.get("semanticReadbackDigest") is not None
         or render_evidence.get("semanticReadbackVerified") is not False
@@ -161,6 +164,7 @@ def finalize(
 
 def parser() -> argparse.ArgumentParser:
     value = argparse.ArgumentParser(description=__doc__)
+    value.add_argument("--lane-candidate", required=True)
     value.add_argument("--candidate-manifest", type=Path, required=True)
     value.add_argument("--first-render-manifest", type=Path, required=True)
     value.add_argument("--current-render-manifest", type=Path, required=True)
@@ -174,6 +178,7 @@ def main() -> int:
     args = parser().parse_args()
     try:
         evidence = finalize(
+            args.lane_candidate,
             load(args.candidate_manifest, "candidate manifest"),
             load(args.first_render_manifest, "first render manifest"),
             load(args.current_render_manifest, "current render manifest"),
