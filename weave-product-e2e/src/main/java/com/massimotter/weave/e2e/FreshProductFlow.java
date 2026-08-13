@@ -225,6 +225,7 @@ public final class FreshProductFlow {
               browser.jwtPayload(memberSession.accessToken()),
               browser.jwtPayload(outsiderSession.accessToken())));
       collaboration.restartCollaborationServices();
+      browser.awaitIssuerTransportAfterRestart();
       ownerSession =
           browser.authorize(
               "weave-app",

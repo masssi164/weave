@@ -3,6 +3,7 @@ package com.massimotter.weave.e2e;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.sun.net.httpserver.HttpServer;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
@@ -13,6 +14,70 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class JsonHttpClientTest {
+
+  @Test
+  void retriesOnlyTransportFailuresUntilTheReadOnlyProbeSucceeds() {
+    AtomicInteger attempts = new AtomicInteger();
+    tools.jackson.databind.JsonNode expected =
+        tools.jackson.databind.json.JsonMapper.builder().build().createObjectNode().put("ready", true);
+
+    tools.jackson.databind.JsonNode result =
+        JsonHttpClient.executeBoundedTransport(
+            "verify OIDC transport after collaboration restart",
+            3,
+            Duration.ZERO,
+            () -> {
+              if (attempts.incrementAndGet() < 3) {
+                throw new ProductFlowException("support-safe transport failure", new IOException());
+              }
+              return expected;
+            });
+
+    assertThat(result).isSameAs(expected);
+    assertThat(attempts).hasValue(3);
+  }
+
+  @Test
+  void doesNotRetryAnHttpOrSemanticFailure() {
+    AtomicInteger attempts = new AtomicInteger();
+
+    org.assertj.core.api.ThrowableAssert.ThrowingCallable call =
+        () ->
+            JsonHttpClient.executeBoundedTransport(
+                "verify OIDC transport after collaboration restart",
+                3,
+                Duration.ZERO,
+                () -> {
+                  attempts.incrementAndGet();
+                  throw new ProductFlowException("failed with HTTP 503");
+                });
+
+    assertThat(org.assertj.core.api.Assertions.catchThrowable(call))
+        .hasMessage("failed with HTTP 503");
+    assertThat(attempts).hasValue(1);
+  }
+
+  @Test
+  void stopsTransportReadinessAtTheConfiguredAttemptLimit() {
+    AtomicInteger attempts = new AtomicInteger();
+
+    org.assertj.core.api.ThrowableAssert.ThrowingCallable call =
+        () ->
+            JsonHttpClient.executeBoundedTransport(
+                "verify OIDC transport after collaboration restart",
+                3,
+                Duration.ZERO,
+                () -> {
+                  attempts.incrementAndGet();
+                  throw new ProductFlowException("untrusted transport detail", new IOException());
+                });
+
+    assertThat(org.assertj.core.api.Assertions.catchThrowable(call))
+        .hasMessage(
+            "verify OIDC transport after collaboration restart transport did not become ready after 3 attempts")
+        .hasMessageNotContaining("untrusted");
+    assertThat(attempts).hasValue(3);
+  }
 
   @Test
   void retriesOnlyTheBoundedAgentRuntimeDependencyFailure() throws Exception {

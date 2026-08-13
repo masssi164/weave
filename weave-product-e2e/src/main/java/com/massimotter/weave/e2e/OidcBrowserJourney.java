@@ -20,6 +20,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -269,6 +270,23 @@ final class OidcBrowserJourney implements AutoCloseable {
       throw new ProductFlowException("OIDC ID token nonce did not match");
     }
     return result;
+  }
+
+  void awaitIssuerTransportAfterRestart() {
+    JsonNode discovery =
+        http.jsonRetryingTransport(
+            "verify OIDC transport after collaboration restart",
+            "GET",
+            environment.oidc("/.well-known/openid-configuration"),
+            Map.of(),
+            null,
+            Set.of(200),
+            6,
+            Duration.ofSeconds(2));
+    if (!environment.issuer().toString().equals(discovery.path("issuer").asString())) {
+      throw new ProductFlowException(
+          "OIDC discovery issuer did not match after collaboration restart");
+    }
   }
 
   TokenSet refresh(TokenSet current) {
