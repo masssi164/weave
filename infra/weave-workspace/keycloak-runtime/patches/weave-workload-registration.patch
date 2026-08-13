@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..5c985a8
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,912 @@
+@@ -0,0 +1,914 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import com.fasterxml.jackson.databind.JsonNode;
@@ -708,7 +708,9 @@ index 0000000..5c985a8
 +            ArrayNode roles = root.putArray("effectiveRoles");
 +            UserModel serviceAccount = session.users().getServiceAccount(client);
 +            RoleUtils.getDeepUserRoleMappings(serviceAccount).stream()
-+                    .map(WeaveWorkloadClientRegistrationExecutor::roleIdentity)
++                    .map(role -> role.isClientRole()
++                            ? roleIdentity(role)
++                            : new RoleIdentity("realm", client.getRealm().getName(), role.getName()))
 +                    .sorted(Comparator.comparing(RoleIdentity::kind)
 +                            .thenComparing(RoleIdentity::containerId)
 +                            .thenComparing(RoleIdentity::name))

@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.security.MessageDigest;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -22,6 +23,7 @@ public final class BootstrapOwnerCredential {
   private static final int MAXIMUM_BYTES = 512;
 
   private final Path tokenFile;
+  private final AtomicBoolean consumed = new AtomicBoolean();
 
   public BootstrapOwnerCredential(IdentityInvitationProperties properties) {
     String configured = properties.bootstrapOwner().tokenFile();
@@ -32,7 +34,7 @@ public final class BootstrapOwnerCredential {
   }
 
   public boolean matches(String candidate) {
-    if (candidate == null || candidate.isBlank()) {
+    if (consumed.get() || candidate == null || candidate.isBlank()) {
       return false;
     }
     byte[] expected = readToken();
@@ -45,6 +47,11 @@ public final class BootstrapOwnerCredential {
       java.util.Arrays.fill(expected, (byte) 0);
       java.util.Arrays.fill(supplied, (byte) 0);
     }
+  }
+
+  /** Atomically consumes the one-shot credential without mutating its deployment-owned SecretRef. */
+  public void consumeAfterSuccess() {
+    consumed.set(true);
   }
 
   private byte[] readToken() {

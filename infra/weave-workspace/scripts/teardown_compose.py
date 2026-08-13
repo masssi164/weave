@@ -21,6 +21,7 @@ VOLUME_KEYS = (
     "WEAVE_KEYCLOAK_DATA_VOLUME", "WEAVE_MAILPIT_DATA_VOLUME", "WEAVE_NEXTCLOUD_DATA_VOLUME",
     "WEAVE_SYNAPSE_DATA_VOLUME", "WEAVE_MATRIX_APPSERVICE_VOLUME",
     "WEAVE_RUNTIME_STATE_VOLUME",
+    "WEAVE_NATIVE_FILES_DATA_VOLUME",
 )
 TEARDOWN_BUDGET_SECONDS = 240
 COMPOSE_DOWN_TIMEOUT_SECONDS = 120
@@ -142,7 +143,7 @@ def _expected_labels(
 ) -> dict[str, str]:
     expected = {
         "com.massimotter.weave.managed": "true",
-        "com.massimotter.weave.environment": "test",
+        "com.massimotter.weave.environment": "e2e",
         "com.massimotter.weave.namespace": context.env["WEAVE_RESOURCE_PREFIX"],
         "com.massimotter.weave.scope": "isolated",
         "com.massimotter.weave.candidate-commit": binding.candidate_commit,
@@ -269,7 +270,7 @@ def _remaining_owned_resource_counts(
 
 def teardown(context: ComposeContext, *, dry_run: bool) -> dict[str, object]:
     if context.isolated_namespace is None or context.env.get("WEAVE_STACK_SCOPE") != "isolated":
-        raise ContractError("destructive teardown is restricted to a run-scoped isolated test project")
+        raise ContractError("destructive teardown is restricted to a run-scoped isolated E2E project")
     candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
     if re.fullmatch(r"[0-9a-f]{40}", candidate) is None:
         raise ContractError("isolated teardown requires exact WEAVE_CANDIDATE_COMMIT evidence")
@@ -360,7 +361,7 @@ def teardown(context: ComposeContext, *, dry_run: bool) -> dict[str, object]:
 
     return {
         "schemaVersion": "weave.compose-isolated-teardown.v1",
-        "profile": context.profile,
+        "profile": getattr(context, "environment", context.profile),
         "namespace": context.isolated_namespace,
         "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
         "candidateCommit": candidate,
@@ -398,7 +399,7 @@ def _evidence_output_path(context: ComposeContext, explicit: Path | None) -> Pat
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("test",))
+    parser.add_argument("profile", choices=("e2e",))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     parser.add_argument("--isolated", action="store_true")

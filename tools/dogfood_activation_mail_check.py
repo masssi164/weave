@@ -25,7 +25,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Check the support-safe activation evidence emitted by "
-            "the protected Dogfood Member workflow and verify Mailpit captured "
+            "the bounded first-owner or authenticated Server invitation flow and verify Mailpit captured "
             "the corresponding local identity mail without printing action links."
         )
     )
@@ -51,21 +51,18 @@ def main() -> int:
     assert_support_safe("activation evidence", evidence)
 
     schema = evidence.get("schemaVersion")
-    require(
-        schema in {"weave.dogfood.activation-invite.v1", "weave.dogfood.persistent-member.v1"},
-        "activation evidence schema mismatch",
-    )
+    require(schema in {"weave.dogfood.activation-invite.v1", "weave-owner-bootstrap-evidence-v2"}, "activation evidence schema mismatch")
     if schema == "weave.dogfood.activation-invite.v1":
         require(
             evidence.get("inviteRef") == args.expected_invite_ref,
             "activation inviteRef does not match the dogfood handoff",
         )
     else:
-        require(evidence.get("state") == "pending", "persistent member must be pending when activation mail is sent")
-        require(
-            evidence.get("action") in {"created_and_activation_sent", "activation_resent"},
-            "persistent member evidence does not prove an activation mail operation",
-        )
+        require(evidence.get("requestedRole") == "owner", "first-owner evidence must request owner")
+        require(evidence.get("lifecycleStatus") == "pending", "first-owner invitation must be pending")
+        require(evidence.get("mailMessageMatched") is True, "first-owner evidence did not match Mailpit")
+        for key in ("bootstrapAuthorityAbsent", "bootstrapMountAbsent", "requestAnchorPresent", "tokenAbsent"):
+            require(evidence.get(key) is True, f"first-owner evidence must prove {key}")
     require(evidence.get("supportSafe") is True, "activation evidence is not supportSafe=true")
     require(
         evidence.get("qrOrDeeplinkCarriesSecret") is False,
@@ -77,16 +74,16 @@ def main() -> int:
     )
 
     activation = object_field(evidence, "activation")
-    require(
-        activation.get("mode") == "keycloak-required-actions-email",
-        "activation mode must be Keycloak required-action email",
+    expected_mode = (
+        "keycloak-required-actions-email"
+        if schema == "weave.dogfood.activation-invite.v1"
+        else "keycloak-organizations-invitation"
     )
+    require(activation.get("mode") == expected_mode, "activation mode does not match the Server invitation contract")
     require(activation.get("mailSent") is True, "activation mail was not sent")
     required_actions = string_list(activation.get("requiredActions"), "activation.requiredActions")
-    require(
-        "UPDATE_PASSWORD" in required_actions,
-        "activation required actions must include UPDATE_PASSWORD",
-    )
+    if schema == "weave.dogfood.activation-invite.v1":
+        require("UPDATE_PASSWORD" in required_actions, "activation required actions must include UPDATE_PASSWORD")
 
     expected_email_sha = (
         args.expected_email_sha256

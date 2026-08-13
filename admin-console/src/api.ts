@@ -2,6 +2,8 @@ import type {
   GeneratedAdminAuditEventResponse,
   GeneratedAdminControlPlaneResponse,
   GeneratedCapabilityWhitelistResponse,
+  GeneratedMemberInvitationRequest,
+  GeneratedMemberInvitationResponse,
   GeneratedPlatformIdentityReadinessResponse,
   GeneratedProviderReadinessTestRequest,
   GeneratedProviderReadinessTestResponse,
@@ -171,27 +173,30 @@ export type InvitationProvisioningStatus =
   | "pending"
   | "applied"
   | "failed"
-  | "expired";
+  | "expired"
+  | "not_requested";
 
-export interface CreateOrganizationInvitationRequest {
-  email: string;
-  displayName?: string;
+export interface CreateOrganizationInvitationRequest
+  extends Omit<GeneratedMemberInvitationRequest, "role"> {
   role: OrganizationRole;
-  capabilities: string[];
 }
 
-export interface OrganizationInvitation {
-  providerInvitationId: string;
+export interface OrganizationInvitation
+  extends Omit<
+    GeneratedMemberInvitationResponse,
+    | "invitationHandle"
+    | "organizationId"
+    | "email"
+    | "lifecycleStatus"
+    | "provisioningStatus"
+    | "requestedRole"
+  > {
+  invitationHandle: string;
   organizationId: string;
   email: string;
-  displayName?: string;
   lifecycleStatus: string;
   provisioningStatus: InvitationProvisioningStatus;
-  requestedRole: OrganizationRole;
-  capabilities: string[];
-  expiresAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  requestedRole?: OrganizationRole;
 }
 
 export interface SuiteDomainReadiness {
@@ -435,6 +440,46 @@ export const adminConsoleConfig: AdminConsoleConfig = {
     runtimeEnv.VITE_WEAVE_ADMIN_OIDC_CLIENT_ID ?? "weave-admin-console",
 };
 
+interface PlatformBootstrapConfig {
+  oidc?: { issuer?: string };
+}
+
+/**
+ * A packaged console discovers only public coordinates from the same Server
+ * process that served its immutable assets. The Vite host-development fallback
+ * remains unchanged when that same-origin endpoint is not available.
+ */
+export async function resolveAdminConsoleConfig(
+  fetchImpl: typeof fetch = fetch,
+  browserOrigin: string | undefined = globalThis.location?.origin,
+): Promise<AdminConsoleConfig> {
+  const explicitApiBase = runtimeEnv.VITE_WEAVE_API_BASE_URL?.replace(/\/$/, "");
+  const sameOriginApiBase = browserOrigin
+    ? new URL("/api", browserOrigin).toString().replace(/\/$/, "")
+    : undefined;
+  const apiBaseUrl = explicitApiBase ?? sameOriginApiBase ?? adminConsoleConfig.apiBaseUrl;
+  if (runtimeEnv.VITE_WEAVE_OIDC_ISSUER_URL) {
+    return { ...adminConsoleConfig, apiBaseUrl };
+  }
+
+  try {
+    const response = await fetchImpl(`${apiBaseUrl}/platform/config`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) return { ...adminConsoleConfig, apiBaseUrl };
+    const platform = (await response.json()) as PlatformBootstrapConfig;
+    const issuer = platform.oidc?.issuer?.trim();
+    if (!issuer) return { ...adminConsoleConfig, apiBaseUrl };
+    return {
+      apiBaseUrl,
+      oidcIssuerUrl: issuer.replace(/\/$/, ""),
+      oidcClientId: adminConsoleConfig.oidcClientId,
+    };
+  } catch {
+    return { ...adminConsoleConfig, apiBaseUrl: explicitApiBase ?? adminConsoleConfig.apiBaseUrl };
+  }
+}
+
 export class AdminApiError extends Error {
   constructor(
     message: string,
@@ -629,6 +674,7 @@ export class AdminControlPlaneApi {
     return normalizeControlPlane(
       controlPlane as ServerControlPlaneResponse,
       auditEvents,
+      this.config.oidcIssuerUrl,
     );
   }
 
@@ -828,31 +874,50 @@ export class AdminControlPlaneApi {
   ): Promise<OrganizationInvitation> {
     return this.request<OrganizationInvitation>(
       `/admin/organizations/${encodeURIComponent(organizationId)}/invitations`,
-      { method: "POST", body: JSON.stringify(invitation) },
+      {
+        method: "POST",
+        headers: {
+          "Idempotency-Key": invitationIdempotencyKey("create"),
+        },
+        body: JSON.stringify(invitation),
+      },
     );
   }
 
   async resendOrganizationInvitation(
     organizationId: string,
-    providerInvitationId: string,
+    invitationHandle: string,
   ): Promise<OrganizationInvitation> {
     return this.request<OrganizationInvitation>(
-      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(providerInvitationId)}/resend`,
-      { method: "POST" },
+      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(invitationHandle)}/resend`,
+      {
+        method: "POST",
+        headers: {
+          "Idempotency-Key": invitationIdempotencyKey("resend"),
+        },
+      },
     );
   }
 
   async revokeOrganizationInvitation(
     organizationId: string,
-    providerInvitationId: string,
+    invitationHandle: string,
   ): Promise<void> {
     await this.request<void>(
-      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(providerInvitationId)}`,
-      { method: "DELETE" },
+      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(invitationHandle)}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Idempotency-Key": invitationIdempotencyKey("revoke"),
+        },
+      },
     );
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    if (path !== "/admin" && !path.startsWith("/admin/")) {
+      throw new Error("Admin Console requests must stay under the Weave /api/admin boundary");
+    }
     const token = this.tokenProvider();
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
@@ -874,9 +939,21 @@ export class AdminControlPlaneApi {
   }
 }
 
+function invitationIdempotencyKey(
+  action: "create" | "resend" | "revoke",
+): string {
+  const entropy = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(entropy);
+  const nonce = Array.from(entropy, (value) =>
+    value.toString(16).padStart(2, "0"),
+  ).join("");
+  return `admin-invitation-${action}-${nonce}`;
+}
+
 function normalizeControlPlane(
   controlPlane: ServerControlPlaneResponse,
   auditEvents: AuditEvent[],
+  oidcIssuerUrl: string,
 ): ControlPlaneResponse {
   const selections = controlPlane.selectedProviderMappings ?? [];
   const secretRefs = controlPlane.secretRefs ?? [];
@@ -885,7 +962,7 @@ function normalizeControlPlane(
       id: controlPlane.organizationId ?? "weave-dogfood",
       displayName: controlPlane.organizationName ?? "Weave Dogfood",
       manifestUrl: "/api/organization/manifest",
-      authIssuerUrl: adminConsoleConfig.oidcIssuerUrl,
+      authIssuerUrl: oidcIssuerUrl,
     },
     providerConfigSource:
       controlPlane.providerConfigSource ??

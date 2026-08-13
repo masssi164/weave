@@ -214,7 +214,7 @@ class FilesWebDavControllerTest {
     @Test
     void getDownloadsFileThroughFacadePath() throws Exception {
         // FILES_WEBDAV_GET_HEAD_FACADE
-        given(filesFacadeService.download("/Team/readme one.md"))
+        given(filesFacadeService.downloadWebDavPath("/Team/readme one.md"))
                 .willReturn(new DownloadedFile("readme one.md", "text/markdown", "hello".getBytes()));
         given(filesFacadeService.etagFor("/Team/readme one.md")).willReturn("\"etag-readme\"");
 
@@ -257,13 +257,13 @@ class FilesWebDavControllerTest {
                         "files-forbidden",
                         "Files access is not allowed for this Context/Space.",
                         Map.of("module", "files", "operation", "webdav-propfind")));
-        given(filesFacadeService.download("/Missing.md"))
+        given(filesFacadeService.downloadWebDavPath("/Missing.md"))
                 .willThrow(new ApiErrorException(
                         HttpStatus.NOT_FOUND,
                         "file-not-found",
                         "The requested file or folder was not found.",
                         Map.of("module", "files", "operation", "download-file")));
-        given(filesFacadeService.download("/Locked.md"))
+        given(filesFacadeService.downloadWebDavPath("/Locked.md"))
                 .willThrow(new ApiErrorException(
                         HttpStatus.CONFLICT,
                         "file-conflict",

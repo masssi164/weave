@@ -7,9 +7,12 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
+
+SHA256 = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -19,6 +22,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--spec-digest", required=True)
     parser.add_argument("--build-evidence-ref", required=True)
     parser.add_argument("--keycloak-build-evidence-digest", required=True)
+    parser.add_argument("--semantic-realm-source-digest", required=True)
+    parser.add_argument("--realm-migration-definition-digest", required=True)
     parser.add_argument(
         "--image",
         action="append",
@@ -28,6 +33,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args()
+
+
+def exact_digest(value: str, label: str) -> str:
+    if not SHA256.fullmatch(value):
+        raise ValueError(f"{label} must be an exact sha256 digest")
+    return value
 
 
 def main() -> int:
@@ -44,12 +55,22 @@ def main() -> int:
             image["buildEvidenceDigest"] = args.keycloak_build_evidence_digest
         images.append(image)
     payload = {
-        "schemaVersion": "weave.release.candidate-manifest.v2",
+        "schemaVersion": "weave.release.candidate-manifest.v4",
         "supportSafe": True,
         "commit": args.commit,
         "specificationCommit": args.specification_commit,
         "specDigest": args.spec_digest,
         "buildEvidenceRef": args.build_evidence_ref,
+        "realmDefinition": {
+            "semanticRealmSourceDigest": exact_digest(
+                args.semantic_realm_source_digest, "semantic realm source digest"
+            ),
+            "migrationDefinitionDigest": exact_digest(
+                args.realm_migration_definition_digest,
+                "realm migration definition digest",
+            ),
+            "containsSecrets": False,
+        },
         "images": sorted(images, key=lambda image: image["component"]),
     }
     serialized = json.dumps(

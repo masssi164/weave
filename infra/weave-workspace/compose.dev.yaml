@@ -4,8 +4,23 @@ services:
       - host.docker.internal:host-gateway
 
   keycloak:
+    depends_on: !reset {}
     command:
       - start-dev
+      - --import-realm
+    environment:
+      KC_DB: dev-file
+    secrets: !reset []
+
+  keycloak-realm-migration-bootstrap:
+    environment:
+      KC_DB: dev-file
+    secrets: !override
+      - source: keycloak-realm-migration-bootstrap-secret
+        target: keycloak-realm-migration-bootstrap-secret
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "0"
+        mode: 0600
 
   synapse:
     extra_hosts:

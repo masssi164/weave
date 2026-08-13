@@ -15,6 +15,7 @@ readonly DCR_CONTRACT_PROBE_TEST="${REPOSITORY_ROOT}/infra/weave-workspace/tests
 readonly COMPOSE_RUNTIME="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/compose_runtime.py"
 readonly BOUNDED_PROCESS="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/bounded_process.py"
 readonly RUNTIME_IMAGE_EVIDENCE="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_runtime_image_evidence.py"
+readonly RUNTIME_IMAGE_EVIDENCE_TEST="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_runtime_image_evidence_test.py"
 readonly GRADLE_TASKS="${REPOSITORY_ROOT}/gradle/tasks/architecture-lifecycle.gradle"
 readonly MODULE_BUILD="${REPOSITORY_ROOT}/weave-product-e2e/build.gradle"
 readonly MODULE_TASKS="${REPOSITORY_ROOT}/weave-product-e2e/gradle/tasks/product-flow.gradle"
@@ -23,7 +24,10 @@ readonly BROWSER_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/ma
 readonly ACTIVATION_INBOX="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/MailpitActivationInbox.java"
 readonly MCP_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/WorkloadMcpJourney.java"
 readonly RESTART_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/PersistenceRestartJourney.java"
+readonly COLLABORATION_FLOW="${REPOSITORY_ROOT}/weave-product-e2e/src/main/java/com/massimotter/weave/e2e/CollaborationJourney.java"
 readonly CANDIDATE_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/candidate-images.yml"
+readonly COMPOSE_FILE="${REPOSITORY_ROOT}/infra/weave-workspace/compose.yaml"
+readonly E2E_COMPOSE_FILE="${REPOSITORY_ROOT}/infra/weave-workspace/compose.e2e.yaml"
 
 fail() { printf 'testApp product-flow contract failed: %s\n' "$*" >&2; exit 1; }
 contains() {
@@ -44,6 +48,7 @@ python3 -m py_compile \
   "${BOUNDED_PROCESS}" \
   "${RUNTIME_IMAGE_EVIDENCE}"
 python3 -m unittest "${DCR_CONTRACT_PROBE_TEST}"
+python3 -m unittest "${RUNTIME_IMAGE_EVIDENCE_TEST}"
 
 CONTEXT_TEST_OUTPUT_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/weave-testapp-context-contract.XXXXXX")"
 CONTEXT_TEST_NAMESPACE=""
@@ -71,6 +76,13 @@ context_assignments="$(
 )"
 eval "${context_assignments}"
 CONTEXT_TEST_NAMESPACE="${WEAVE_E2E_RUN_NAMESPACE}"
+grep -Fxq -- \
+  "WEAVE_MAILPIT_URL=https://mail.weave.test:${WEAVE_PROXY_HTTPS_HOST_PORT}" \
+  "${WEAVE_ENV_FILE}" || fail "isolated context omitted the Mailpit gateway URL"
+grep -Fq -- "mail.weave.test" "${WEAVE_TEST_APP_HOSTS_FILE}" ||
+  fail "isolated context omitted the Mailpit gateway host mapping"
+[[ "${WEAVE_TEST_APP_MAILPIT_ORIGIN}" == "https://mail.weave.test:${WEAVE_PROXY_HTTPS_HOST_PORT}" ]] ||
+  fail "isolated context omitted the exact Mailpit gateway origin"
 python3 - "${WEAVE_TEST_APP_CONTEXT_MEMBERSHIPS}" "${WEAVE_TEST_APP_TENANT_ID}" <<'PY'
 import json
 import sys
@@ -97,13 +109,22 @@ contains "${LIFECYCLE}" ':weave-product-e2e:productFlow'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_SERVER_IMAGE must be digest-pinned'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_MCP_IMAGE must be digest-pinned'
 contains "${LIFECYCLE}" 'testApp requires a clean worktree'
-contains "${LIFECYCLE}" 'require_free_disk_space'
-contains "${LIFECYCLE}" 'local minimum_kib=8388608'
-contains "${LIFECYCLE}" 'before image build and resource creation'
+contains "${LIFECYCLE}" 'tools/runner_capacity_preflight.py'
+contains "${LIFECYCLE}" '--minimum-free-gib 8'
+contains "${LIFECYCLE}" '--require-docker'
+absent "${LIFECYCLE}" 'require_free_disk_space'
+output_root_create_line="$(grep -nF 'mkdir -p "${OUTPUT_ROOT}"' "${LIFECYCLE}" | cut -d: -f1)"
+capacity_preflight_line="$(grep -nF 'tools/runner_capacity_preflight.py' "${LIFECYCLE}" | cut -d: -f1)"
+output_root_chmod_line="$(grep -nF 'chmod 700 "${OUTPUT_ROOT}"' "${LIFECYCLE}" | cut -d: -f1)"
+[[ "${output_root_create_line}" =~ ^[0-9]+$ && "${capacity_preflight_line}" =~ ^[0-9]+$ &&
+   "${output_root_chmod_line}" =~ ^[0-9]+$ &&
+   ${output_root_create_line} -lt ${capacity_preflight_line} &&
+   ${capacity_preflight_line} -lt ${output_root_chmod_line} ]] ||
+  fail "testApp must create its output root before capacity preflight and permission hardening"
 contains "${LIFECYCLE}" 'live-stack-failure-diagnostics.sh'
 contains "${LIFECYCLE}" 'WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS=30'
 diagnostics_line="$(grep -nF 'bash "${FAILURE_DIAGNOSTICS}"' "${LIFECYCLE}" | cut -d: -f1)"
-teardown_line="$(grep -nF 'bash "${TEARDOWN}" test' "${LIFECYCLE}" | cut -d: -f1)"
+teardown_line="$(grep -nF 'bash "${TEARDOWN}" e2e' "${LIFECYCLE}" | cut -d: -f1)"
 [[ "${diagnostics_line}" =~ ^[0-9]+$ && "${teardown_line}" =~ ^[0-9]+$ &&
    ${diagnostics_line} -lt ${teardown_line} ]] ||
   fail "bounded diagnostics must remain immediately before exact teardown"
@@ -144,8 +165,16 @@ contains "${CONTEXT_HELPER}" 'weave.context-authorization-seed/v1'
 contains "${CONTEXT_HELPER}" 'weave-test-app-evidence.json'
 contains "${CONTEXT_HELPER}" 'persistence-restart-evidence.json'
 contains "${CONTEXT_HELPER}" 'runtime-image-evidence.json'
+contains "${COMPOSE_FILE}" 'native-files-data:'
+contains "${E2E_COMPOSE_FILE}" 'WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM: preferred_username'
+contains "${COMPOSE_FILE}" 'name: ${WEAVE_NATIVE_FILES_DATA_VOLUME:-weave_native_files_data}'
+contains "${COMPOSE_FILE}" '      - DAC_OVERRIDE'
+contains "${COMPOSE_FILE}" '      - FOWNER'
+contains "${COMPOSE_FILE}" 'runtime-state-data:'
+contains "${COMPOSE_FILE}" 'name: ${WEAVE_RUNTIME_STATE_VOLUME:-weave_runtime_state_data}'
+absent "${COMPOSE_FILE}" 'WEAVE_RUNTIME_STATE_DATA_VOLUME'
 contains "${RUNTIME_CLEANUP}" 'invalid isolated namespace'
-contains "${RUNTIME_CLEANUP}" 'for generated_input in ("test.env", "hosts")'
+contains "${RUNTIME_CLEANUP}" 'for generated_input in ("e2e.env", "hosts")'
 absent "${LIFECYCLE}" 'reset-password'
 absent "${LIFECYCLE}" 'isolated-e2e-identities.sh'
 absent "${LIFECYCLE}" 'test-users.json'
@@ -176,14 +205,19 @@ contains "${FLOW}" '/api/v1/identity/session/reconcile'
 contains "${FLOW}" '"access_updated"'
 contains "${FLOW}" 'organizationGroups(claims)'
 contains "${FLOW}" '/api/admin/providers/selections'
-contains "${FLOW}" 'new ProviderSelection("chat", "synapse-homeserver")'
-contains "${FLOW}" 'new ProviderSelection("files", "nextcloud-files")'
-contains "${FLOW}" 'new ProviderSelection("calendar", "nextcloud-caldav")'
+contains "${FLOW}" 'new ProviderSelection("chat", "weave-native")'
+contains "${FLOW}" 'new ProviderSelection("files", "weave-native")'
+contains "${FLOW}" 'new ProviderSelection("calendar", "weave-native")'
+contains "${FLOW}" 'weave.test-app-product-flow/v2'
+contains "${FLOW}" 'southboundProviderDependencyObserved'
+contains "${FLOW}" 'nativePersistenceVerified'
 contains "${FLOW}" '"recommended_self_hosted_default"'
 contains "${FLOW}" '/api/chat/readiness'
 contains "${FLOW}" '"available".equals(observedState)'
 absent "${FLOW}" 'claims.path("groups")'
 contains "${FLOW}" 'authorization_code_pkce_s256'
+contains "${FLOW}" 'environment.productOrigin().resolve("/admin-console/")'
+absent "${FLOW}" 'environment.productOrigin().resolve("/admin/oauth/callback")'
 contains "${FLOW}" 'client_credentials_private_key_jwt'
 contains "${FLOW}" 'awaitEmailVerificationLink'
 contains "${FLOW}" 'credentialsIncluded'
@@ -196,14 +230,25 @@ contains "${FLOW}" 'sameJpaCellAfterRestart'
 contains "${FLOW}" 'sameMcpCellAfterRestart'
 contains "${RESTART_FLOW}" 'persistence-restart-proof'
 contains "${RESTART_FLOW}" 'weave.test-app-persistence-restart/v1'
+contains "${RESTART_FLOW}" '"e2e"'
+absent "${RESTART_FLOW}" '"test"'
+contains "${COLLABORATION_FLOW}" '"e2e"'
+absent "${COLLABORATION_FLOW}" '"test"'
 contains "${COMPOSE_RUNTIME}" 'compose(context, "restart", "--no-deps"'
 contains "${COMPOSE_RUNTIME}" '"dependentKeycloakRestartObserved": True'
 contains "${COMPOSE_RUNTIME}" '"fixtureRestoredExactly": True'
 contains "${COMPOSE_RUNTIME}" '"live-integration-fixture"'
-contains "${RUNTIME_IMAGE_EVIDENCE}" '"weave.test-app-runtime-images/v1"'
+contains "${RUNTIME_IMAGE_EVIDENCE}" '"weave.test-app-runtime-images/v2"'
 contains "${RUNTIME_IMAGE_EVIDENCE}" 'manifest_references.get(component) != reference'
 contains "${RUNTIME_IMAGE_EVIDENCE}" 'KEYCLOAK_BUILD_EVIDENCE_LABEL'
 contains "${RUNTIME_IMAGE_EVIDENCE}" 'buildEvidenceDigest'
+contains "${RUNTIME_IMAGE_EVIDENCE}" '--realm-evidence'
+contains "${RUNTIME_IMAGE_EVIDENCE}" 'candidateRealmDefinitionMatched'
+contains "${RUNTIME_IMAGE_EVIDENCE}" 'realmEvidenceVerified'
+contains "${LIFECYCLE}" 'keycloak_realm_evidence.py'
+contains "${LIFECYCLE}" '--realm-evidence "${realm_evidence_path}"'
+contains "${LIFECYCLE}" 'keycloak/realm-render-evidence.json'
+contains "${LIFECYCLE}" 'fgap-v2-primary-organization-post-import.receipt.json'
 contains "${BROWSER_FLOW}" '--ignore-certificate-errors-spki-list='
 contains "${BROWSER_FLOW}" '--host-resolver-rules='
 contains "${BROWSER_FLOW}" 'isEmailVerificationRequiredAction'
@@ -236,12 +281,12 @@ if not selection < readiness < collaboration:
 PY
 
 contains "${CANDIDATE_WORKFLOW}" 'fresh-product-proof:'
-contains "${CANDIDATE_WORKFLOW}" 'needs: build-candidate'
+contains "${CANDIDATE_WORKFLOW}" 'needs: [verify-source, build-candidate]'
 contains "${CANDIDATE_WORKFLOW}" 'weave-server@${{ needs.build-candidate.outputs.server_digest }}'
 contains "${CANDIDATE_WORKFLOW}" 'weave-mcp-server@${{ needs.build-candidate.outputs.mcp_digest }}'
 contains "${CANDIDATE_WORKFLOW}" 'weave-keycloak-runtime@${{ needs.build-candidate.outputs.keycloak_runtime_digest }}'
 contains "${CANDIDATE_WORKFLOW}" 'WEAVE_CANDIDATE_MANIFEST_DIGEST: ${{ needs.build-candidate.outputs.candidate_manifest_digest }}'
-contains "${CANDIDATE_WORKFLOW}" 'actions/download-artifact@v5'
+contains "${CANDIDATE_WORKFLOW}" 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1'
 contains "${CANDIDATE_WORKFLOW}" 'run: ./gradlew --no-daemon testApp'
 contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/keycloak-dcr-live-proof.json'
 contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/persistence-restart-evidence.json'

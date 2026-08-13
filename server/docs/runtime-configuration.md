@@ -118,7 +118,7 @@ When required actor credentials are missing or a private-personal template is co
 
 ## Profile persistence
 
-Profile facade endpoints are protected by the same first-party bearer-token contract as `/api/me`. `PATCH /api/profile` accepts partial updates for `displayName`, `avatar`, `locale`, `timezone`, `accessibilityPreferences`, and `profileVisibility`. Mutable profile state is persisted through the code-first JPA composition: the host-only `dev` runtime profile may use H2 in PostgreSQL compatibility mode, while the `test` and `prod` runtime profiles require PostgreSQL schema initialization from the exact Server image followed by serving validation. No file-path storage variable or production JSON fallback is supported.
+Profile facade endpoints are protected by the same first-party bearer-token contract as `/api/me`. `PATCH /api/profile` accepts partial updates for `displayName`, `avatar`, `locale`, `timezone`, `accessibilityPreferences`, and `profileVisibility`. Mutable profile state is persisted through the code-first JPA composition: the host-only `dev` environment may use H2 in PostgreSQL compatibility mode, while `dogfood`, `prod`, and `e2e` require PostgreSQL schema initialization from the exact Server image followed by serving validation. Spring's `test` profile is reserved for automated tests and is not an operator environment. No file-path storage variable or production JSON fallback is supported.
 
 ## Interop gateway, Slack on-ramp, guests, and migration previews
 

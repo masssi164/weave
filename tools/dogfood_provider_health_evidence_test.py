@@ -35,14 +35,17 @@ class DogfoodProviderHealthEvidenceTest(unittest.TestCase):
         ids = {
             "backend": "sha256:" + "5" * 64,
             "mcp": "sha256:" + "6" * 64,
-            "identity-ops": "sha256:" + "7" * 64,
             "keycloak": "sha256:" + "8" * 64,
         }
         references = {
             "backend": "ghcr.io/example/server@" + ids["backend"],
             "mcp": "ghcr.io/example/mcp@" + ids["mcp"],
-            "identity-ops": "ghcr.io/example/identity@" + ids["identity-ops"],
             "keycloak": "ghcr.io/example/keycloak@" + ids["keycloak"],
+        }
+        realm_artifacts = {
+            "baselineDigest": "sha256:" + "9" * 64,
+            "migrationBundleDigest": "sha256:" + "a" * 64,
+            "containsSecrets": False,
         }
         manifest_images = {
             name: {
@@ -56,22 +59,25 @@ class DogfoodProviderHealthEvidenceTest(unittest.TestCase):
         }
         return {
             "deployment": {
-                "schemaVersion": 2,
+                "schemaVersion": 3,
                 "supportSafe": True,
                 "candidateCommit": LANE,
                 "sourceCandidateCommit": SOURCE,
                 "candidateManifestDigest": MANIFEST,
+                "realmArtifacts": copy.deepcopy(realm_artifacts),
                 "candidateImages": ids,
+                "deployment": {"realmArtifactsVerified": True},
                 "runUrl": f"https://github.com/example/weave/actions/runs/{DEPLOYMENT_RUN}",
             },
             "manifest": {
-                "schemaVersion": "weave.test-stack-manifest.v2",
+                "schemaVersion": "weave.test-stack-manifest.v3",
                 "supportSafe": True,
                 "containsSecretValues": False,
                 "laneCandidateCommit": LANE,
                 "sourceCandidateCommit": SOURCE,
                 "specificationCommit": SPEC,
                 "candidateManifestDigest": MANIFEST,
+                "realmArtifacts": copy.deepcopy(realm_artifacts),
                 "images": manifest_images,
                 "runtime": {
                     "environment": "persistent-dogfood",
@@ -151,7 +157,8 @@ class DogfoodProviderHealthEvidenceTest(unittest.TestCase):
             set(result["providerHealth"]),
             {"overall", "observedAtUtc", "cachedResultAgeSeconds", "capabilities"},
         )
-        self.assertEqual(set(result["images"]), {"server", "mcp-server", "identity-ops", "keycloak-runtime"})
+        self.assertEqual(set(result["images"]), {"server", "mcp-server", "keycloak-runtime"})
+        self.assertEqual(result["realmArtifacts"], self.documents()["manifest"]["realmArtifacts"])
 
     def test_stale_health_is_rejected_even_when_claimed_age_is_small(self) -> None:
         documents = self.documents()
@@ -182,6 +189,22 @@ class DogfoodProviderHealthEvidenceTest(unittest.TestCase):
         completed = self.run_tool(documents)
         self.assertEqual(completed.returncode, 2)
         self.assertIn("available", completed.stderr)
+
+    def test_realm_artifact_mismatch_is_rejected(self) -> None:
+        documents = self.documents()
+        documents["deployment"]["realmArtifacts"]["baselineDigest"] = (
+            "sha256:" + "f" * 64
+        )
+        completed = self.run_tool(documents)
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("deployment evidence", completed.stderr)
+
+    def test_unverified_deployment_realm_artifacts_are_rejected(self) -> None:
+        documents = self.documents()
+        documents["deployment"]["deployment"]["realmArtifactsVerified"] = False
+        completed = self.run_tool(documents)
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("deployment evidence", completed.stderr)
 
 
 if __name__ == "__main__":

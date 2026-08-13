@@ -47,7 +47,7 @@ export const adminConsoleMessages = {
     adminSignInDescriptionEnd:
       'This console calls only Weave backend admin APIs; it does not call identity, chat, files, office, task, meeting, or other providers directly.',
     adminSignInIssuerLabel: 'Issuer',
-    adminSignInOpenBrokerButton: 'Open identity broker',
+    adminSignInOpenBrokerButton: 'Sign in with organization identity',
     organizationOverviewHeading: 'Organization overview',
     organizationProviderSourceLabel: 'Provider source of truth',
     organizationBootstrapDefaultsLabel: 'Bootstrap defaults are suggestions only',

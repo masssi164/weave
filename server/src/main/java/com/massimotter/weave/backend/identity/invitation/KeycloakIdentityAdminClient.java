@@ -34,6 +34,7 @@ import org.springframework.web.util.UriUtils;
  */
 @Component
 public class KeycloakIdentityAdminClient {
+  private static final int HUMAN_USER_PROBE_LIMIT = 1;
   private static final Map<String, String> ROLE_GROUP_PATHS =
       Map.of(
           "owner", "/owners",
@@ -87,44 +88,36 @@ public class KeycloakIdentityAdminClient {
   }
 
   /**
-   * Returns whether the configured organization contains a person.
+   * Returns whether the realm contains any human identity, including one outside Weave's org.
    *
-   * <p>Fresh Weave admits people only through the configured organization. Reading its member
-   * projection keeps this check inside the organization-specific FGAP boundary; the identity
-   * administration client has Keycloak's query-only {@code query-users} collection gate while
-   * visibility remains constrained by the declared Users and Organizations FGAP permissions.
-   * The bounded pagination fails closed if the complete projection cannot be determined.
+   * <p>Keycloak's unfiltered user search deliberately excludes service-account users. Adding a
+   * user filter changes that provider behavior, so this guarded request admits only pagination
+   * and representation-shape parameters and treats every returned identity as human. The bounded
+   * one-row projection is sufficient for this bootstrap-presence check and fails closed if the
+   * provider ignores the requested bound or omits the stable user identifier.
    */
   public boolean hasHumanUsers() {
-    String organizationId = configuredOrganizationId();
-    int pageSize = 100;
-    for (int first = 0; first < 1_000; first += pageSize) {
-      List<JsonNode> users =
-          values(
-                  json(
-                      request(
-                          HttpMethod.GET,
-                          adminPath(
-                              "/organizations/"
-                                  + path(organizationId)
-                                  + "/members?first="
-                                  + first
-                                  + "&max="
-                                  + pageSize
-                                  + "&briefRepresentation=true"),
-                          null,
-                          null,
-                          200)))
-              .toList();
-      if (users.stream().anyMatch(user -> !isServiceAccount(user))) {
-        return true;
-      }
-      if (users.size() < pageSize) {
-        return false;
-      }
+    List<JsonNode> users =
+        values(
+                json(
+                    request(
+                        HttpMethod.GET,
+                        adminPath(
+                            "/users?first=0&max="
+                                + HUMAN_USER_PROBE_LIMIT
+                                + "&briefRepresentation=true"),
+                        null,
+                        null,
+                        200)))
+            .toList();
+    if (users.size() > HUMAN_USER_PROBE_LIMIT) {
+      throw ambiguousHumanUserInventory();
     }
-    throw new IllegalStateException(
-        "Keycloak human-user inventory exceeded the protected bootstrap bound");
+    if (users.isEmpty()) {
+      return false;
+    }
+    requiredBootstrapUserField(users.getFirst(), "id");
+    return true;
   }
 
   public String configuredOrganizationId() {
@@ -553,6 +546,19 @@ public class KeycloakIdentityAdminClient {
       throw new IllegalStateException("Keycloak returned an invalid member projection");
     }
     return value;
+  }
+
+  private String requiredBootstrapUserField(JsonNode node, String fieldName) {
+    String value = node.path(fieldName).asString("");
+    if (value.isBlank()) {
+      throw ambiguousHumanUserInventory();
+    }
+    return value;
+  }
+
+  private IllegalStateException ambiguousHumanUserInventory() {
+    return new IllegalStateException(
+        "Keycloak human-user inventory is unavailable or ambiguous");
   }
 
   private JsonNode json(String body) {

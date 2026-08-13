@@ -21,4 +21,13 @@ public class InMemoryProvisioningIntentRepository implements ProvisioningIntentR
                 .filter(i -> i.invitedEmail().equalsIgnoreCase(email) && i.status() == ProvisioningIntentStatus.PENDING)
                 .sorted(Comparator.comparing(ProvisioningIntent::createdAt).reversed()).toList();
     }
+    @Override public List<ProvisioningIntent> findPendingByActor(
+            String tenant, String organization, String invitedByIssuer, String invitedBySubject) {
+        return intents.values().stream()
+                .filter(i -> i.tenantId().equals(tenant) && i.organizationId().equals(organization))
+                .filter(i -> i.invitedByIssuer().equals(invitedByIssuer))
+                .filter(i -> i.invitedBySubject().equals(invitedBySubject))
+                .filter(i -> i.status() == ProvisioningIntentStatus.PENDING)
+                .sorted(Comparator.comparing(ProvisioningIntent::createdAt).reversed()).toList();
+    }
 }

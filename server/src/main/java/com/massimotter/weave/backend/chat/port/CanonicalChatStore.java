@@ -57,6 +57,14 @@ public interface CanonicalChatStore {
             String providerRoomRef,
             String providerSourceVersion);
 
+    /**
+     * Commits a provider-free canonical conversation. No provider mapping or
+     * bridge-ledger row may be created by this operation.
+     */
+    ChatConversation commitConversation(
+            ChatRequestContext context,
+            PreparedConversation prepared);
+
     PreparedMembership prepareMembership(
             ChatRequestContext context,
             ConversationId conversationId,
@@ -67,6 +75,11 @@ public interface CanonicalChatStore {
             PreparedMembership prepared,
             String providerKey,
             String providerSourceVersion);
+
+    /** Commits provider-free canonical membership state. */
+    ChatConversation commitMembership(
+            ChatRequestContext context,
+            PreparedMembership prepared);
 
     PreparedEncryption prepareEncryption(
             ChatRequestContext context,
@@ -79,6 +92,11 @@ public interface CanonicalChatStore {
             String providerKey,
             String providerEventRef,
             String providerSourceVersion);
+
+    /** Commits provider-free canonical encryption state. */
+    ChatConversation commitEncryption(
+            ChatRequestContext context,
+            PreparedEncryption prepared);
 
     PreparedEvent prepareEvent(
             ChatRequestContext context,
@@ -93,6 +111,11 @@ public interface CanonicalChatStore {
             String providerEventRef,
             String providerSourceVersion);
 
+    /** Commits a provider-free canonical event. */
+    ChatTimelineEvent commitEvent(
+            ChatRequestContext context,
+            PreparedEvent prepared);
+
     PreparedRedaction prepareRedaction(
             ChatRequestContext context,
             ConversationId conversationId,
@@ -105,6 +128,11 @@ public interface CanonicalChatStore {
             String providerKey,
             String providerEventRef,
             String providerSourceVersion);
+
+    /** Commits a provider-free canonical redaction. */
+    ChatRedactionReceipt commitRedaction(
+            ChatRequestContext context,
+            PreparedRedaction prepared);
 
     void failOperation(String tenantId, String operationId, String supportSafeCode, Instant retryAt);
 

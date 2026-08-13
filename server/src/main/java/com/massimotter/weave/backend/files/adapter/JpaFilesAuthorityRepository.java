@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.files.adapter;
 
 import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
+import com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
@@ -51,7 +52,8 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
                         organizationRef,
                         spaceRef,
                         path.value())
-                .map(FileObjectJpaEntity::toDomain);
+                .map(FileObjectJpaEntity::toDomain)
+                .filter(record -> record.lifecycle() == Lifecycle.ACTIVE);
     }
 
     @Override
@@ -63,7 +65,43 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
                         organizationRef,
                         spaceRef,
                         id.value()))
-                .map(FileObjectJpaEntity::toDomain);
+                .map(FileObjectJpaEntity::toDomain)
+                .filter(record -> record.lifecycle() == Lifecycle.ACTIVE);
+    }
+
+    @Override
+    public List<CanonicalFileRecord> activeFiles(String organizationRef, String spaceRef) {
+        return files
+                .findByIdOrganizationRefAndIdSpaceRefAndLifecycleOrderByCanonicalPath(
+                        organizationRef, spaceRef, Lifecycle.ACTIVE)
+                .stream()
+                .map(FileObjectJpaEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public List<CanonicalFileRecord> replace(
+            List<CanonicalFileRecord> tombstones,
+            List<CanonicalFileRecord> activations) {
+        for (CanonicalFileRecord record : List.copyOf(tombstones)) {
+            if (record.lifecycle() != Lifecycle.TOMBSTONED) {
+                throw new IllegalArgumentException("replacement deactivation must be tombstoned");
+            }
+            entity(record).observe(record);
+        }
+        files.flush();
+        List<CanonicalFileRecord> activated = new java.util.ArrayList<>();
+        for (CanonicalFileRecord record : List.copyOf(activations)) {
+            if (record.lifecycle() != Lifecycle.ACTIVE) {
+                throw new IllegalArgumentException("replacement activation must be active");
+            }
+            FileObjectJpaEntity entity = entity(record);
+            entity.observe(record);
+            activated.add(entity.toDomain());
+        }
+        files.flush();
+        return List.copyOf(activated);
     }
 
     @Override
@@ -189,5 +227,13 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
             super("canonical file changed before move: " + id.value()
                     + " at " + expectedPath.value());
         }
+    }
+
+    private FileObjectJpaEntity entity(CanonicalFileRecord record) {
+        CanonicalFileId id = CanonicalFileId.from(record);
+        return files.findById(id).orElseGet(() -> {
+            FileObjectJpaEntity created = FileObjectJpaEntity.create(id);
+            return files.save(created);
+        });
     }
 }

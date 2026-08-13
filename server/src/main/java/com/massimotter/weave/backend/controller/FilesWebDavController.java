@@ -178,7 +178,7 @@ public class FilesWebDavController {
 
     private ResponseEntity<byte[]> get(HttpServletRequest request, boolean headOnly) {
         String path = productPath(request);
-        DownloadedFile file = filesFacadeService.download(path);
+        DownloadedFile file = filesFacadeService.downloadWebDavPath(path);
         String etag = filesFacadeService.etagFor(path);
         ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(file.mimeType()))

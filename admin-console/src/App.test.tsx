@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
@@ -170,14 +171,13 @@ function mockApi(
     listOrganizationInvitations: vi.fn().mockResolvedValue([]),
     createOrganizationInvitation: vi.fn().mockImplementation(
       async (organizationId, request) => ({
-        providerInvitationId: "invite-123",
+        invitationHandle: "inv_handle-123",
         organizationId,
         email: request.email,
         displayName: request.displayName,
         lifecycleStatus: "pending",
         provisioningStatus: "pending",
         requestedRole: request.role,
-        capabilities: request.capabilities,
       }),
     ),
     resendOrganizationInvitation: vi.fn().mockResolvedValue({}),
@@ -196,19 +196,22 @@ describe("Admin Console MVP", () => {
   it("manages Keycloak invitation lifecycle separately from provisioning intent", async () => {
     const listOrganizationInvitations = vi.fn().mockResolvedValue([
       {
-        providerInvitationId: "invite-existing",
+        invitationHandle: "inv_handle-existing",
         organizationId: "weave-dogfood",
         email: "existing@example.test",
         lifecycleStatus: "pending",
         provisioningStatus: "applied",
         requestedRole: "member",
-        capabilities: ["agent-runtime.entitled"],
       },
     ]);
     const createOrganizationInvitation = vi.fn().mockResolvedValue({});
+    const resendOrganizationInvitation = vi.fn().mockResolvedValue({});
+    const revokeOrganizationInvitation = vi.fn().mockResolvedValue(undefined);
     const api = mockApi({
       listOrganizationInvitations,
       createOrganizationInvitation,
+      resendOrganizationInvitation,
+      revokeOrganizationInvitation,
     });
     const user = userEvent.setup();
 
@@ -225,10 +228,9 @@ describe("Admin Console MVP", () => {
 
     await user.type(screen.getByLabelText(/member email/i), "new@example.test");
     await user.type(screen.getByLabelText(/display name/i), "New Member");
-    await user.type(
-      screen.getByLabelText(/additional product capabilities/i),
-      "agent-runtime.entitled, boards.update_task",
-    );
+    expect(
+      screen.queryByLabelText(/additional product capabilities/i),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /invite member/i }));
 
     await waitFor(() =>
@@ -238,8 +240,30 @@ describe("Admin Console MVP", () => {
           email: "new@example.test",
           displayName: "New Member",
           role: "member",
-          capabilities: ["agent-runtime.entitled", "boards.update_task"],
         },
+      ),
+    );
+
+    await user.click(
+      within(
+        screen.getByRole("list", { name: /current keycloak invitations/i }),
+      ).getByRole("button", { name: /resend/i }),
+    );
+    await waitFor(() =>
+      expect(resendOrganizationInvitation).toHaveBeenCalledWith(
+        "weave-dogfood",
+        "inv_handle-existing",
+      ),
+    );
+    await user.click(
+      within(
+        screen.getByRole("list", { name: /current keycloak invitations/i }),
+      ).getByRole("button", { name: /revoke/i }),
+    );
+    await waitFor(() =>
+      expect(revokeOrganizationInvitation).toHaveBeenCalledWith(
+        "weave-dogfood",
+        "inv_handle-existing",
       ),
     );
     expect(document.body).not.toHaveTextContent(/activation token|client_secret/i);

@@ -5,7 +5,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
-readonly PROFILE="${1:-test}"
+readonly PROFILE="${1:-dogfood}"
 if [[ $# -gt 0 ]]; then
   shift
 fi

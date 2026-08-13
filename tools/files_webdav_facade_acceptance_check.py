@@ -78,7 +78,7 @@ def require_read_list_download() -> None:
         'case "GET"',
         'case "HEAD"',
         "filesFacadeService.webDavPropfind(path)",
-        "filesFacadeService.download(path)",
+        "filesFacadeService.downloadWebDavPath(path)",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",

@@ -167,6 +167,8 @@ public final class CanonicalDomainRegistry {
     private static Map<String, String> providerRealityLevels(String key) {
         return switch (key) {
             case "chat" -> Map.of(
+                    "weave-native", "live_write",
+                    "matrix-synapse", "release_ready",
                     "synapse-homeserver", "release_ready",
                     "microsoft-teams", "contract_only",
                     "slack", "contract_only",
@@ -178,11 +180,11 @@ public final class CanonicalDomainRegistry {
                     "s3-compatible", "live_write",
                     "smb", "live_write");
             case "calendar" -> Map.of(
+                    "weave-native", "live_write",
                     "nextcloud-caldav", "release_ready",
                     "microsoft-graph-calendar", "contract_only",
                     "google-workspace-calendar", "contract_only",
-                    "generic-caldav", "live_read",
-                    "weave-calendar", "contract_only");
+                    "generic-caldav", "live_read");
             case "boards" -> Map.of(
                     "openproject-primary", "release_ready",
                     "placeholder-boards", "contract_only",

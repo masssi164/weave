@@ -29,6 +29,10 @@ final class KeycloakIdentityAdminOperationPolicy {
               Set.of(HttpMethod.GET),
               REALM + "/organizations\\?first=\\d+&max=\\d+&briefRepresentation=true"),
           rule(
+              "human-user-inventory",
+              Set.of(HttpMethod.GET),
+              REALM + "/users\\?first=0&max=1&briefRepresentation=true"),
+          rule(
               "member-inventory",
               Set.of(HttpMethod.GET),
               ORGANIZATION

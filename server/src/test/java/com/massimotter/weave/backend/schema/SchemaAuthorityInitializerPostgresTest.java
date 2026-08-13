@@ -37,7 +37,7 @@ class SchemaAuthorityInitializerPostgresTest {
 
     SchemaAuthorityInitializer.run(environment.values());
     var first = new ObjectMapper().readTree(Files.readString(environment.receipt()));
-    assertThat(first.path("schemaVersion").asText()).isEqualTo("weave.schema-init-receipt/v2");
+    assertThat(first.path("schemaVersion").asText()).isEqualTo("weave.schema-init-receipt/v3");
     assertThat(first.path("candidateCommit").asText()).isEqualTo(CANDIDATE);
     assertThat(first.path("catalogFingerprint").asText()).matches("[0-9a-f]{64}");
     assertThat(first.path("tableCount").asInt()).isEqualTo(first.path("tables").size());
@@ -90,8 +90,8 @@ class SchemaAuthorityInitializerPostgresTest {
     }
 
     assertThatThrownBy(() -> SchemaAuthorityInitializer.run(environment.values()))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("no code-first authority marker");
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("non-empty schema(s)");
 
     try (var connection =
             DriverManager.getConnection(

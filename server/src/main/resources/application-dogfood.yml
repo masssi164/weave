@@ -1,0 +1,91 @@
+spring:
+  config:
+    activate:
+      on-profile: dogfood
+  datasource:
+    url: jdbc:postgresql://postgres:5432/${WEAVE_BACKEND_DB_NAME:weave_backend}
+    username: ${WEAVE_BACKEND_DB_USERNAME:weave_backend}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://auth.weave.test/realms/weave
+          jwk-set-uri: http://keycloak:8080/realms/weave/protocol/openid-connect/certs
+
+weave:
+  deployment:
+    profile: dogfood
+  platform:
+    public-base-url: https://weave.test
+    api-base-url: https://api.weave.test/api
+    auth-base-url: https://auth.weave.test
+    release-posture: dogfood
+  security:
+    required-audience: https://api.weave.test/api
+  files:
+    provider: weave-native
+    native:
+      blob-store: filesystem
+      filesystem-root: /var/lib/weave/files/blobs
+  chat:
+    provider: weave-native
+  calendar:
+    provider: weave-native
+  workspace:
+    chat:
+      enabled: true
+      readiness: ready
+    files:
+      enabled: true
+      readiness: ready
+    calendar:
+      enabled: true
+      readiness: ready
+  identity:
+    invitations:
+      keycloak:
+        base-url: http://keycloak:8080
+        realm: weave
+        organization-alias: weave
+        admin-client-id: weave-identity-admin
+        admin-credential-ref: credentialref://weave/keycloak/weave-identity-admin
+        admin-private-jwk-file: /run/secrets/identity-admin/weave-identity-admin-private-jwk.json
+        private-key-jwt-audience: https://auth.weave.test/realms/weave
+        reference-hmac-secret-file: /run/secrets/identity-reference-hmac-key
+  agent-runtime:
+    state-store:
+      enabled: true
+      wrapping-key-root: /run/secrets/agent-runtime/state-wrapping
+      endpoint: http://runtime-state:9000
+      region: us-east-1
+      bucket: weave-runtime-state
+      credential-ref: secretref:weave/runtime-state-s3
+      access-key-file: /run/secrets/weave/runtime-state-s3-access-key
+      secret-key-file: /run/secrets/weave/runtime-state-s3-secret-key
+      path-style-access: true
+    profile-signing:
+      enabled: true
+      secret-root: /run/secrets/agent-runtime/profile-signing
+      maximum-profile-ttl: 2m
+    policy:
+      enabled: true
+      file: /app/agent-runtime-policy.json
+    entitlement:
+      enabled: true
+      allowed-capabilities: files.read
+    workload-identity:
+      enabled: true
+      keycloak-admin-base-url: http://keycloak:8080
+      issuer: https://auth.weave.test/realms/weave
+      realm: weave
+      organization-ref: tenant-default
+      keycloak-organization-alias: weave
+      admin-client-id: weave-agent-runtime-admin
+      admin-credential-ref: credentialref://weave/keycloak/weave-agent-runtime-admin
+      secret-root: /run/secrets/agent-runtime/workloads
+      default-client-scopes: weaver-runtime-workload
+      optional-client-scopes: agent-runtime.profile.read,mcp.tools,files.read
+      access-token-lifespan-seconds: 59
