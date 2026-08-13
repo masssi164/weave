@@ -260,6 +260,36 @@ class BackupRuntimeContractTest(unittest.TestCase):
         self.assertIn("type=volume,src=weave-nextcloud-data,dst=/source,readonly", archive_command)
         self.assertIn("no-new-privileges:true", archive_command)
 
+    def test_volume_archiver_reports_bounded_support_safe_docker_failure(self) -> None:
+        target = self.backup_root / "caddy-config.tgz"
+        target.parent.mkdir(parents=True)
+        failure = subprocess.CalledProcessError(
+            125,
+            ["docker", "run", "--secret-value-must-not-be-repeated"],
+            stderr=(
+                b"docker: failed to mount /Users/example/private/location: "
+                b"daemon rejected helper startup\n"
+            ),
+        )
+        with mock.patch.object(
+            backup_runtime.subprocess,
+            "run",
+            side_effect=[mock.Mock(returncode=0), failure],
+        ):
+            with self.assertRaisesRegex(
+                ContractError,
+                r"archive helper failed.*exit 125.*<path>.*daemon rejected",
+            ) as raised:
+                backup_runtime._archive_volume(
+                    self.context,
+                    "weave-caddy-config",
+                    target,
+                )
+
+        diagnostic = str(raised.exception)
+        self.assertNotIn("/Users/example", diagnostic)
+        self.assertNotIn("secret-value", diagnostic)
+
     def test_postgres_dump_client_is_bound_to_the_running_published_digest(
         self,
     ) -> None:

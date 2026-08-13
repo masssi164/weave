@@ -102,6 +102,17 @@ def _private_directory(path: Path) -> None:
     os.chmod(path, 0o700)
 
 
+def _support_safe_process_error(error: subprocess.CalledProcessError) -> str:
+    """Return bounded diagnostics without leaking runner paths or command inputs."""
+    stderr = error.stderr
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", errors="replace")
+    detail = " ".join(str(stderr or "").split())
+    detail = re.sub(r"/(?:Users|home|private|tmp)/[^\s,:;]+", "<path>", detail)
+    detail = detail[-512:] if detail else "no stderr returned"
+    return f"exit {error.returncode}: {detail}"
+
+
 def _compose(context: ComposeContext, *arguments: str, capture: bool = False) -> subprocess.CompletedProcess[bytes]:
     result = subprocess.run(
         [*context.compose_base_command, *arguments],
@@ -260,36 +271,43 @@ def _start(context: ComposeContext, services: list[str], inventory: list[dict[st
 def _archive_volume(context: ComposeContext, volume: str, target: Path) -> None:
     if subprocess.run(["docker", "volume", "inspect", volume], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
         raise ContractError(f"required persistent volume is absent: {volume}")
-    subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "--network",
-            "none",
-            "--read-only",
-            "--user",
-            "0:0",
-            "--cap-drop",
-            "ALL",
-            "--cap-add",
-            BACKUP_HELPER_CAPABILITIES[0],
-            "--security-opt",
-            "no-new-privileges:true",
-            "--mount",
-            f"type=volume,src={volume},dst=/source,readonly",
-            "--mount",
-            f"type=bind,src={target.parent},dst=/backup",
-            "--entrypoint",
-            "/bin/sh",
-            context.env["WEAVE_POSTGRES_IMAGE"],
-            "-euc",
-            f"tar -C /source -czf /backup/{target.name} . && chmod 0600 /backup/{target.name}",
-        ],
-        check=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-    )
+    command = [
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--read-only",
+        "--user",
+        "0:0",
+        "--cap-drop",
+        "ALL",
+        "--cap-add",
+        BACKUP_HELPER_CAPABILITIES[0],
+        "--security-opt",
+        "no-new-privileges:true",
+        "--mount",
+        f"type=volume,src={volume},dst=/source,readonly",
+        "--mount",
+        f"type=bind,src={target.parent},dst=/backup",
+        "--entrypoint",
+        "/bin/sh",
+        context.env["WEAVE_POSTGRES_IMAGE"],
+        "-euc",
+        f"tar -C /source -czf /backup/{target.name} . && chmod 0600 /backup/{target.name}",
+    ]
+    try:
+        subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as error:
+        raise ContractError(
+            "persistent volume archive helper failed for "
+            f"{volume}: {_support_safe_process_error(error)}"
+        ) from error
 
 
 def _published_postgres_image(container: str) -> str:
