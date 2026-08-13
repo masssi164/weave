@@ -209,6 +209,11 @@ jobs:
             exit 1
           }
           install -d -m 700 "$DOCKER_AUTH_ROOT"
+          docker_endpoint="$(docker context inspect --format '{{.Endpoints.docker.Host}}')"
+          [[ "$docker_endpoint" == unix:///* ]] || {
+            echo "::error::The active Docker context does not expose a bounded Unix endpoint." >&2
+            exit 1
+          }
           compose_plugin_path="$(docker info --format '{{range .ClientInfo.Plugins}}{{if eq .Name "compose"}}{{.Path}}{{end}}{{end}}')"
           [[ "$compose_plugin_path" == /*/docker-compose && -x "$compose_plugin_path" ]] || {
             echo "::error::The active Docker Compose CLI plugin is unavailable." >&2
@@ -225,8 +230,11 @@ jobs:
             (.cliPluginsExtraDirs == [$compose_plugin_dir]) and
             (.auths["ghcr.io"].auth | type == "string" and length > 0)
           ' "$DOCKER_AUTH_ROOT/config.json" >/dev/null
-          DOCKER_CONFIG="$DOCKER_AUTH_ROOT" docker compose version >/dev/null
-          printf 'DOCKER_CONFIG=%s\n' "$DOCKER_AUTH_ROOT" >> "$GITHUB_ENV"
+          DOCKER_HOST="$docker_endpoint" DOCKER_CONFIG="$DOCKER_AUTH_ROOT" docker compose version >/dev/null
+          {
+            printf 'DOCKER_HOST=%s\n' "$docker_endpoint"
+            printf 'DOCKER_CONFIG=%s\n' "$DOCKER_AUTH_ROOT"
+          } >> "$GITHUB_ENV"
 
       - name: Pull and bind all immutable candidate images
         working-directory: weave

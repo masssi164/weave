@@ -100,16 +100,26 @@ def main() -> int:
         and 'DOCKER_CONFIG="$DOCKER_AUTH_ROOT"' in workflow
         and 'python3 weave/tools/write_docker_auth_config.py'
         in workflow
+        and 'docker_endpoint="$(docker context inspect --format' in workflow
+        and '[[ "$docker_endpoint" == unix:///* ]]' in workflow
         and 'compose_plugin_path="$(docker info --format' in workflow
         and '--cli-plugin-dir "$compose_plugin_dir"' in workflow
         and '.cliPluginsExtraDirs == [$compose_plugin_dir]' in workflow
-        and 'DOCKER_CONFIG="$DOCKER_AUTH_ROOT" docker compose version'
+        and 'DOCKER_HOST="$docker_endpoint" DOCKER_CONFIG="$DOCKER_AUTH_ROOT" docker compose version'
         in workflow
         and '(.credsStore? // "") == ""' in workflow
         and '(.credHelpers? // {}) == {}' in workflow
         and 'printf \'DOCKER_CONFIG=%s\\n\' "$DOCKER_AUTH_ROOT" >> "$GITHUB_ENV"'
-        in workflow,
+        not in workflow
+        and 'printf \'DOCKER_HOST=%s\\n\' "$docker_endpoint"' in workflow
+        and 'printf \'DOCKER_CONFIG=%s\\n\' "$DOCKER_AUTH_ROOT"' in workflow,
         "candidate pulls must use one non-interactive run-scoped Docker authority",
+    )
+    require(
+        workflow.index('docker_endpoint="$(docker context inspect --format')
+        < workflow.index('printf \'DOCKER_HOST=%s\\n\' "$docker_endpoint"')
+        < workflow.index('printf \'DOCKER_CONFIG=%s\\n\' "$DOCKER_AUTH_ROOT"'),
+        "run-scoped Docker authentication must preserve the verified host endpoint",
     )
     require(
         "docker login" not in workflow
