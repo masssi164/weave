@@ -48,6 +48,18 @@ REQUIRED_ARTIFACTS = frozenset(
         "private-config-secrets.tgz",
     )
 )
+RETIRED_REQUIRED_ARTIFACTS = frozenset(
+    (
+        "postgres.sql",
+        "caddy-data.tgz",
+        "caddy-config.tgz",
+        "keycloak-data.tgz",
+        "matrix-appservice.tgz",
+        "nextcloud-data.tgz",
+        "synapse-data.tgz",
+        "private-config-secrets.tgz",
+    )
+)
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 BACKUP_ID_RE = re.compile(r"^weave-(dogfood|prod)-\d{8}T\d{6}Z-[0-9a-f]{12}$")
 PROJECT_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,62}$")
@@ -186,6 +198,12 @@ def validate_backup(
     compose_project = manifest.get("composeProject")
     if not isinstance(compose_project, str) or not PROJECT_RE.fullmatch(compose_project):
         raise IntegrityError("backup manifest Compose project is invalid")
+    retired_inventory_digest = manifest.get("retiredInventoryDigest")
+    if retired_inventory_digest is not None and (
+        not isinstance(retired_inventory_digest, str)
+        or not re.fullmatch(r"sha256:[0-9a-f]{64}", retired_inventory_digest)
+    ):
+        raise IntegrityError("backup manifest retired inventory digest is invalid")
     database_fingerprint = manifest.get("databaseFingerprint")
     if not isinstance(database_fingerprint, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", database_fingerprint):
         raise IntegrityError("backup manifest database fingerprint is invalid")
@@ -243,7 +261,12 @@ def validate_backup(
         if not isinstance(expected_size, int) or isinstance(expected_size, bool) or expected_size <= 0:
             raise IntegrityError("backup artifact byte count is invalid")
         inventory[name] = item
-    if not REQUIRED_ARTIFACTS.issubset(inventory):
+    required_artifacts = (
+        RETIRED_REQUIRED_ARTIFACTS
+        if retired_inventory_digest is not None
+        else REQUIRED_ARTIFACTS
+    )
+    if not required_artifacts.issubset(inventory):
         raise IntegrityError("backup artifact inventory is missing the canonical core restore set")
     present_artifacts = {
         path.name

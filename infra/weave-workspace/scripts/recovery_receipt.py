@@ -34,6 +34,16 @@ PROVIDER_ARCHIVES = frozenset(
 REQUIRED_PROVIDER_ARCHIVES = frozenset(
     ("caddy-config.tgz", "caddy-data.tgz", "keycloak-data.tgz", "native-files-data.tgz")
 )
+RETIRED_PROVIDER_ARCHIVES = frozenset(
+    (
+        "caddy-config.tgz",
+        "caddy-data.tgz",
+        "keycloak-data.tgz",
+        "matrix-appservice.tgz",
+        "nextcloud-data.tgz",
+        "synapse-data.tgz",
+    )
+)
 COMMON_FIELDS = frozenset(
     (
         "schemaVersion",
@@ -96,7 +106,7 @@ def _bounded_integer(value: object, *, minimum: int = 0) -> bool:
     )
 
 
-def _validate_inventory(rows: object) -> None:
+def _validate_inventory(rows: object, *, purpose: str) -> None:
     if not isinstance(rows, list) or not rows:
         raise ReceiptContractError("restore receipt provider-volume inventory is incomplete")
     observed: set[str] = set()
@@ -142,7 +152,9 @@ def _validate_inventory(rows: object) -> None:
             raise ReceiptContractError(
                 "restore receipt provider-volume root metadata is invalid"
             )
-    if not REQUIRED_PROVIDER_ARCHIVES.issubset(observed):
+    current = REQUIRED_PROVIDER_ARCHIVES.issubset(observed)
+    retired = purpose == "fresh-start" and observed == RETIRED_PROVIDER_ARCHIVES
+    if not current and not retired:
         raise ReceiptContractError("restore receipt core volume inventory is incomplete")
 
 
@@ -210,7 +222,7 @@ def validate_receipt(
         or receipt.get("verifiedServiceDatabaseCount") != database_count - 1
     ):
         raise ReceiptContractError("restore receipt database proof is inconsistent")
-    _validate_inventory(receipt.get("restoredVolumeInventories"))
+    _validate_inventory(receipt.get("restoredVolumeInventories"), purpose=purpose)
     try:
         verified_at = datetime.fromisoformat(
             str(receipt.get("verifiedAt", "")).replace("Z", "+00:00")

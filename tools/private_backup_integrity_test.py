@@ -14,6 +14,7 @@ from private_backup_integrity import (
     EXPECTED_ARTIFACT_KINDS,
     IntegrityError,
     REQUIRED_ARTIFACTS,
+    RETIRED_REQUIRED_ARTIFACTS,
     database_inventory_digest,
     digest,
     validate_backup,
@@ -24,10 +25,11 @@ CANDIDATE = "a" * 40
 
 
 class PrivateBackupIntegrityTest(unittest.TestCase):
-    def create_backup(self, root: Path) -> Path:
+    def create_backup(self, root: Path, *, retired: bool = False) -> Path:
         backup = root / f"weave-dogfood-20260722T120000Z-{CANDIDATE[:12]}"
         backup.mkdir()
-        for name in REQUIRED_ARTIFACTS:
+        required = RETIRED_REQUIRED_ARTIFACTS if retired else REQUIRED_ARTIFACTS
+        for name in required:
             target = backup / name
             if name.endswith(".tgz"):
                 with tarfile.open(target, "w:gz") as archive:
@@ -45,7 +47,7 @@ class PrivateBackupIntegrityTest(unittest.TestCase):
             else:
                 target.write_text(f"fixture:{name}\n", encoding="utf-8")
         artifacts = []
-        for name in sorted(REQUIRED_ARTIFACTS):
+        for name in sorted(required):
             checksum, size = digest(backup / name)
             artifacts.append(
                 {
@@ -79,6 +81,9 @@ class PrivateBackupIntegrityTest(unittest.TestCase):
             "supportSafe": False,
             "containsSecretsOrMemberData": True,
         }
+        if retired:
+            manifest["composeProject"] = "weave"
+            manifest["retiredInventoryDigest"] = "sha256:" + "e" * 64
         (backup / "BackupManifest.json").write_text(
             json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
         )
@@ -103,6 +108,29 @@ class PrivateBackupIntegrityTest(unittest.TestCase):
             self.assertEqual("weave.compose-private-backup-integrity.v3", result["schemaVersion"])
             self.assertEqual(CANDIDATE, result["candidateCommit"])
             self.assertTrue(result["allRequiredArtifactsVerified"])
+
+    def test_exact_retired_generation_backup_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            backup = self.create_backup(Path(temporary), retired=True)
+            result = validate_backup(
+                backup, expected_artifacts=RETIRED_REQUIRED_ARTIFACTS
+            )
+            self.assertTrue(result["allRequiredArtifactsVerified"])
+
+    def test_retired_generation_missing_provider_archive_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            backup = self.create_backup(Path(temporary), retired=True)
+            (backup / "synapse-data.tgz").unlink()
+            manifest_path = backup / "BackupManifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["artifacts"] = [
+                item
+                for item in manifest["artifacts"]
+                if item["path"] != "synapse-data.tgz"
+            ]
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(IntegrityError, "core restore set"):
+                validate_backup(backup)
 
     def test_unmanifested_optional_artifact_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

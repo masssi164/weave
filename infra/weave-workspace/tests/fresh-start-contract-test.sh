@@ -37,8 +37,10 @@ grep -Fq "DELETE_OLD_WEAVE:{digest}" "${PYTHON_SCRIPT}"
 grep -Fq 'canonical_json_bytes' "${PYTHON_SCRIPT}"
 grep -Fq '"WEAVE_KEYCLOAK_IMAGE": image_reference(' "${ROOT_DIR}/fresh-start-recreate.py"
 grep -Fq 'candidate, "keycloak-runtime"' "${ROOT_DIR}/fresh-start-recreate.py"
-grep -Fq '"name": "weave-dogfood-backend"' "${ROOT_DIR}/fresh-start-targets.json"
-grep -Fq '"name": "weave_dogfood_native_files_data"' "${ROOT_DIR}/fresh-start-targets.json"
+grep -Fq '"retiredGeneration": "legacy-unlabeled-v1"' "${ROOT_DIR}/fresh-start-targets.json"
+grep -Fq '"retiredNamespace": "weave"' "${ROOT_DIR}/fresh-start-targets.json"
+grep -Fq '"name": "weave-backend"' "${ROOT_DIR}/fresh-start-targets.json"
+grep -Fq '"name": "weave_nextcloud_data"' "${ROOT_DIR}/fresh-start-targets.json"
 if grep -Eq 'docker (system|container|volume|network) prune|name.*startswith|prefix|glob' "${PYTHON_SCRIPT}"; then
   echo "Fresh Start contains a broad selection/deletion primitive" >&2
   exit 1
