@@ -14,6 +14,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.EnumSet;
@@ -757,18 +758,19 @@ public final class FreshProductFlow {
   }
 
   private JsonNode reconcileRuntime(String personRef, String token, String operation) {
-    return
-        http.json(
-            "reconcile Agent Runtime entitlement",
-            "POST",
-            runtimeUri(personRef, "/reconcile"),
-            bearer(
-                token,
-                Map.of(
-                    "Idempotency-Key",
-                    "test-app-reconcile-" + operation + "-" + runHash())),
-            null,
-            Set.of(202));
+    return http.jsonRetryingDependencyUnavailable(
+        "reconcile Agent Runtime entitlement",
+        "POST",
+        runtimeUri(personRef, "/reconcile"),
+        bearer(
+            token,
+            Map.of(
+                "Idempotency-Key",
+                "test-app-reconcile-" + operation + "-" + runHash())),
+        null,
+        Set.of(202),
+        6,
+        Duration.ofSeconds(2));
   }
 
   private JsonNode getRuntime(String personRef, String token) {
