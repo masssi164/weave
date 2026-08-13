@@ -290,6 +290,64 @@ class BackupRuntimeContractTest(unittest.TestCase):
         self.assertNotIn("/Users/example", diagnostic)
         self.assertNotIn("secret-value", diagnostic)
 
+    def test_volume_archiver_retries_only_the_docker_digest_race(self) -> None:
+        target = self.backup_root / "caddy-config.tgz"
+        target.parent.mkdir(parents=True)
+        digest_race = subprocess.CalledProcessError(
+            125,
+            ["docker", "run"],
+            stderr=b"docker: cannot overwrite digest sha256:" + b"a" * 64,
+        )
+        completed = subprocess.CompletedProcess(["docker", "run"], 0, b"", b"")
+        with (
+            mock.patch.object(
+                backup_runtime.subprocess,
+                "run",
+                side_effect=[mock.Mock(returncode=0), digest_race, completed],
+            ) as run,
+            mock.patch.object(backup_runtime.time, "sleep") as sleep,
+        ):
+            backup_runtime._archive_volume(
+                self.context,
+                "weave-caddy-config",
+                target,
+            )
+
+        self.assertEqual(run.call_count, 3)
+        sleep.assert_called_once_with(backup_runtime.BACKUP_HELPER_RETRY_DELAY_SECONDS)
+
+    def test_volume_archiver_stops_after_bounded_digest_races(self) -> None:
+        target = self.backup_root / "caddy-config.tgz"
+        target.parent.mkdir(parents=True)
+        digest_race = subprocess.CalledProcessError(
+            125,
+            ["docker", "run"],
+            stderr=b"docker: cannot overwrite digest sha256:" + b"a" * 64,
+        )
+        with (
+            mock.patch.object(
+                backup_runtime.subprocess,
+                "run",
+                side_effect=[mock.Mock(returncode=0)]
+                + [digest_race] * backup_runtime.BACKUP_HELPER_MAX_ATTEMPTS,
+            ),
+            mock.patch.object(backup_runtime.time, "sleep") as sleep,
+        ):
+            with self.assertRaisesRegex(
+                ContractError,
+                r"archive helper failed.*exit 125.*cannot overwrite digest",
+            ):
+                backup_runtime._archive_volume(
+                    self.context,
+                    "weave-caddy-config",
+                    target,
+                )
+
+        self.assertEqual(
+            sleep.call_count,
+            backup_runtime.BACKUP_HELPER_MAX_ATTEMPTS - 1,
+        )
+
     def test_postgres_dump_client_is_bound_to_the_running_published_digest(
         self,
     ) -> None:
