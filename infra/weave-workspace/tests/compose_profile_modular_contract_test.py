@@ -155,6 +155,8 @@ def assert_native_collaboration_restart_is_bounded(context) -> None:
 
 
 def main() -> int:
+    assert compose_runtime_module.COLLABORATION_CONTROL_BUDGET_SECONDS == 240
+    assert compose_runtime_module.COLLABORATION_SUBPROCESS_TIMEOUT_SECONDS == 30
     assert_realm_definition_identity_contract()
     compose_source = (ROOT / "compose.yaml").read_text(encoding="utf-8")
     assert compose_source.count(
