@@ -27,7 +27,7 @@ final class CollaborationJourney {
       PosixFilePermissions.fromString("rw-------");
   private static final String MATRIX_DEVICE_HEADER = "X-Weave-Matrix-Device-Id";
   private static final String MEGOLM = "m.megolm.v1.aes-sha2";
-  private static final Duration PROCESS_TIMEOUT = Duration.ofMinutes(3);
+  private static final Duration PROCESS_TIMEOUT = Duration.ofMinutes(5);
   private static final Duration PROCESS_CLEANUP_TIMEOUT = Duration.ofSeconds(10);
 
   private final ProductFlowEnvironment environment;
@@ -293,15 +293,14 @@ final class CollaborationJourney {
 
   private MatrixIdentity matrixIdentity(Identity identity, int pass) {
     JsonNode response =
-        http.json(
+        http.jsonRetryingMatrixIdentityConflict(
             "register " + identity.role() + " Matrix facade identity",
-            "GET",
             environment.api("/_matrix/client/v3/account/whoami"),
             bearer(
                 identity.token(),
                 Map.of(MATRIX_DEVICE_HEADER, deviceId(identity.role(), pass))),
-            null,
-            Set.of(200));
+            6,
+            Duration.ofSeconds(1));
     String userId = response.path("user_id").asString();
     String deviceId = response.path("device_id").asString();
     if (!userId.matches("@[A-Za-z0-9._=/-]+:[A-Za-z0-9.:-]+")
@@ -984,7 +983,9 @@ final class CollaborationJourney {
       }
       String diagnostic = Files.readString(output, StandardCharsets.UTF_8);
       if (process.exitValue() != 0 || !diagnostic.contains(marker)) {
-        throw new ProductFlowException("collaboration service control failed");
+        throw new ProductFlowException(
+            "collaboration service control failed reason="
+                + supportSafeControlFailure(diagnostic));
       }
     } catch (IOException failure) {
       throw new ProductFlowException("collaboration service control could not execute", failure);
@@ -1001,6 +1002,25 @@ final class CollaborationJourney {
         // Support-safe command output remains inside the private run directory.
       }
     }
+  }
+
+  static String supportSafeControlFailure(String diagnostic) {
+    if (diagnostic == null) {
+      return "unspecified";
+    }
+    Map<String, String> allowlisted =
+        Map.of(
+            "collaboration service control exceeded its bounded timeout", "control-timeout",
+            "collaboration service control Docker operation exceeded its bounded timeout",
+                "docker-timeout",
+            "collaboration service control Docker operation failed", "docker-operation",
+            "collaboration service restart identity did not advance exactly",
+                "restart-identity");
+    return allowlisted.entrySet().stream()
+        .filter(entry -> diagnostic.contains("WEAVE_COMPOSE_ERROR " + entry.getKey()))
+        .map(Map.Entry::getValue)
+        .findFirst()
+        .orElse("unspecified");
   }
 
   private void redactBestEffort(
