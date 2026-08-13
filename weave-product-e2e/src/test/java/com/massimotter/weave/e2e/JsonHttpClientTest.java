@@ -16,6 +16,109 @@ import org.junit.jupiter.api.Test;
 class JsonHttpClientTest {
 
   @Test
+  void retriesOnlyTheTemporaryMatrixIdentityConflict() throws Exception {
+    AtomicInteger attempts = new AtomicInteger();
+    HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext(
+        "/whoami",
+        exchange -> {
+          int attempt = attempts.incrementAndGet();
+          byte[] body =
+              (attempt < 3 ? "{\"errcode\":\"M_UNKNOWN\"}" : "{\"user_id\":\"@member:weave.test\"}")
+                  .getBytes(StandardCharsets.UTF_8);
+          exchange.sendResponseHeaders(attempt < 3 ? 500 : 200, body.length);
+          exchange.getResponseBody().write(body);
+          exchange.close();
+        });
+    server.start();
+    try {
+      JsonHttpClient client = new JsonHttpClient(HttpClient.newHttpClient());
+
+      tools.jackson.databind.JsonNode response =
+          client.jsonRetryingMatrixIdentityConflict(
+              "register collaborator Matrix facade identity",
+              java.net.URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/whoami"),
+              Map.of(),
+              3,
+              Duration.ZERO);
+
+      assertThat(response.path("user_id").asString()).isEqualTo("@member:weave.test");
+      assertThat(attempts).hasValue(3);
+    } finally {
+      server.stop(0);
+    }
+  }
+
+  @Test
+  void doesNotRetryAnotherMatrixServerFailure() throws Exception {
+    AtomicInteger attempts = new AtomicInteger();
+    HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext(
+        "/whoami",
+        exchange -> {
+          attempts.incrementAndGet();
+          byte[] body = "{\"errcode\":\"M_FORBIDDEN\"}".getBytes(StandardCharsets.UTF_8);
+          exchange.sendResponseHeaders(500, body.length);
+          exchange.getResponseBody().write(body);
+          exchange.close();
+        });
+    server.start();
+    try {
+      JsonHttpClient client = new JsonHttpClient(HttpClient.newHttpClient());
+
+      org.assertj.core.api.ThrowableAssert.ThrowingCallable call =
+          () ->
+              client.jsonRetryingMatrixIdentityConflict(
+                  "register collaborator Matrix facade identity",
+                  java.net.URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/whoami"),
+                  Map.of(),
+                  3,
+                  Duration.ZERO);
+
+      assertThat(org.assertj.core.api.Assertions.catchThrowable(call))
+          .hasMessage("register collaborator Matrix facade identity failed with HTTP 500");
+      assertThat(attempts).hasValue(1);
+    } finally {
+      server.stop(0);
+    }
+  }
+
+  @Test
+  void stopsMatrixIdentityConflictAtTheConfiguredAttemptLimit() throws Exception {
+    AtomicInteger attempts = new AtomicInteger();
+    HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext(
+        "/whoami",
+        exchange -> {
+          attempts.incrementAndGet();
+          byte[] body = "{\"errcode\":\"M_UNKNOWN\"}".getBytes(StandardCharsets.UTF_8);
+          exchange.sendResponseHeaders(500, body.length);
+          exchange.getResponseBody().write(body);
+          exchange.close();
+        });
+    server.start();
+    try {
+      JsonHttpClient client = new JsonHttpClient(HttpClient.newHttpClient());
+
+      org.assertj.core.api.ThrowableAssert.ThrowingCallable call =
+          () ->
+              client.jsonRetryingMatrixIdentityConflict(
+                  "register collaborator Matrix facade identity",
+                  java.net.URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/whoami"),
+                  Map.of(),
+                  3,
+                  Duration.ZERO);
+
+      assertThat(org.assertj.core.api.Assertions.catchThrowable(call))
+          .hasMessage(
+              "register collaborator Matrix facade identity failed after 3 attempts with HTTP 500 errcode=M_UNKNOWN");
+      assertThat(attempts).hasValue(3);
+    } finally {
+      server.stop(0);
+    }
+  }
+
+  @Test
   void retriesOnlyTransportFailuresUntilTheReadOnlyProbeSucceeds() {
     AtomicInteger attempts = new AtomicInteger();
     tools.jackson.databind.JsonNode expected =

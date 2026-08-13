@@ -143,6 +143,44 @@ final class JsonHttpClient {
         () -> json(operation, method, uri, headers, body, expectedStatuses));
   }
 
+  JsonNode jsonRetryingMatrixIdentityConflict(
+      String operation,
+      URI uri,
+      Map<String, String> headers,
+      int maxAttempts,
+      Duration retryDelay) {
+    if (maxAttempts < 1 || retryDelay == null || retryDelay.isNegative()) {
+      throw new IllegalArgumentException("Matrix identity retry policy must be bounded and non-negative");
+    }
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      Response response =
+          send(
+              operation,
+              "GET",
+              uri,
+              merge(headers, Map.of("Accept", "application/json")),
+              null,
+              new byte[0],
+              Set.of(200, 500));
+      if (response.status() == 200) {
+        return parseJson(operation, response);
+      }
+      String errcode = safeMatrixErrcode(response);
+      if (!"M_UNKNOWN".equals(errcode)) {
+        throw failure(operation, response);
+      }
+      if (attempt == maxAttempts) {
+        throw new ProductFlowException(
+            operation
+                + " failed after "
+                + maxAttempts
+                + " attempts with HTTP 500 errcode=M_UNKNOWN");
+      }
+      sleep(operation + " Matrix identity retry", retryDelay);
+    }
+    throw new IllegalStateException("bounded Matrix identity retry loop completed without a response");
+  }
+
   static JsonNode executeBoundedTransport(
       String operation,
       int maxAttempts,
@@ -162,15 +200,28 @@ final class JsonHttpClient {
           throw new ProductFlowException(
               operation + " transport did not become ready after " + maxAttempts + " attempts");
         }
-        try {
-          Thread.sleep(retryDelay.toMillis());
-        } catch (InterruptedException interrupted) {
-          Thread.currentThread().interrupt();
-          throw new ProductFlowException(operation + " transport retry was interrupted", interrupted);
-        }
+        sleep(operation + " transport retry", retryDelay);
       }
     }
     throw new IllegalStateException("bounded transport retry loop completed without a response");
+  }
+
+  private String safeMatrixErrcode(Response response) {
+    try {
+      String errcode = mapper.readTree(response.body()).path("errcode").asString("");
+      return errcode.matches("M_[A-Z0-9_]{1,79}") ? errcode : "";
+    } catch (RuntimeException ignored) {
+      return "";
+    }
+  }
+
+  private static void sleep(String operation, Duration delay) {
+    try {
+      Thread.sleep(delay.toMillis());
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+      throw new ProductFlowException(operation + " was interrupted", interrupted);
+    }
   }
 
   JsonNode form(
