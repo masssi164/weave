@@ -10,11 +10,22 @@ public record ChatRuntimeProperties(
         String provider,
         Matrix matrix) {
 
+    public static final String WEAVE_NATIVE_PROVIDER = "weave-native";
     public static final String MATRIX_SYNAPSE_PROVIDER = "matrix-synapse";
+    public static final String IN_MEMORY_TEST_PROVIDER = "in-memory-test";
 
     public ChatRuntimeProperties {
-        provider = normalized(provider, MATRIX_SYNAPSE_PROVIDER);
+        provider = normalized(provider, WEAVE_NATIVE_PROVIDER);
+        if (!WEAVE_NATIVE_PROVIDER.equals(provider)
+                && !MATRIX_SYNAPSE_PROVIDER.equals(provider)
+                && !IN_MEMORY_TEST_PROVIDER.equals(provider)) {
+            throw new IllegalArgumentException("Unsupported Chat provider selection.");
+        }
         matrix = matrix == null ? Matrix.defaults() : matrix;
+    }
+
+    public boolean weaveNativeSelected() {
+        return WEAVE_NATIVE_PROVIDER.equals(provider);
     }
 
     public boolean matrixSynapseSelected() {

@@ -87,7 +87,7 @@
     },
     {
       "id": "persistent-dogfood-verification",
-      "purpose": "deploy the accepted candidate without mutating the single persistent human tester",
+      "purpose": "deploy the accepted candidate while preserving persistent product, identity, Mailpit, native Files, ingress, and public TLS state without receiving a human identity writer",
       "trigger": "candidate merged to dogfood after isolated collaboration succeeds",
       "requiredFor": [
         "ios-dogfood-distribution",

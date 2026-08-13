@@ -398,7 +398,7 @@ def main() -> int:
     assert_contains(INFRA_DOC, ["Provider Stack / Infra is optional", "bootstrap-foundation-contract.md"])
     assert_contains(ADMIN_README, ["Control Plane", "Weave Server + Admin Console", "Vite is development-only"])
     assert_contains(INFRA_README, ["provider-stack implementation", "bootstrap-foundation-contract.md"])
-    assert_contains(LOCAL_BOOTSTRAP, ["provider-stack implementation path", "not the canonical product bootstrap entrypoint"])
+    assert_contains(LOCAL_BOOTSTRAP, ["local/dev infrastructure path", "not the canonical product bootstrap entrypoint"])
     assert_contains(FEATURE, ["Bootstrap deploys the Control Plane as server plus Admin Console"])
     assert_bootstrap_runtime()
 

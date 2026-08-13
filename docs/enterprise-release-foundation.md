@@ -74,7 +74,7 @@ The live lane validates product flows. It must not become a junk drawer for admi
 
 ### `persistent-dogfood-verification`
 
-Purpose: run `persistent-dogfood-deployment` for the accepted candidate under the shared non-cancelling lock. The deployment runs twice, uses non-destructive operator checks rather than the static-user smoke suite, verifies normalized Compose-model, Keycloak-reconciliation, and runtime idempotency, records cached provider health, and proves that the single persistent human member, captured Mailpit data, TLS identity, and existing session state were not reset. Persistent dogfood does not retain disposable automation identities.
+Purpose: run `persistent-dogfood-deployment` for the accepted candidate under the shared non-cancelling lock. The deployment runs twice, uses non-destructive operator checks, verifies the normalized Compose model, static Keycloak migration, and runtime idempotency, records cached provider health, and preserves the PostgreSQL, Mailpit, Caddy, and native Files volumes plus public TLS identity. It receives no human identity writer or realm-admin credential. The later OIDC gate proves the activated owner session through normal product boundaries.
 
 ### `ios-dogfood-distribution`
 
@@ -82,7 +82,7 @@ Purpose: run `ios-dogfood-distribution` only after the exact candidate's persist
 
 ### `physical-human-acceptance`
 
-Purpose: close `physical-iphone-voiceover` and `human-testing-readiness-manifest` after the candidate is installed in place. `.github/workflows/human-testing-readiness.yml` consumes the tester-confirmed physical-device evidence, then runs under the persistent dogfood runner lock to reverify the exact four running image identities and collect a new cached, support-safe provider-health snapshot immediately before validating `human-testing-readiness.json`. It never reuses the deployment-time snapshot as current health. Simulator evidence is functional evidence only and cannot satisfy this lane.
+Purpose: close `physical-iphone-voiceover` and `human-testing-readiness-manifest` after the candidate is installed in place. `.github/workflows/human-testing-readiness.yml` consumes the tester-confirmed physical-device evidence, then runs under the persistent dogfood runner lock to reverify the exact three running image identities and collect a new cached, support-safe provider-health snapshot immediately before validating `human-testing-readiness.json`. It never reuses the deployment-time snapshot as current health. Simulator evidence is functional evidence only and cannot satisfy this lane.
 
 ### `release-promotion`
 

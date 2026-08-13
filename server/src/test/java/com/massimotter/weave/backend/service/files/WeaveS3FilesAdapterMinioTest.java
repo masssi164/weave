@@ -8,6 +8,7 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
@@ -38,13 +39,14 @@ class WeaveS3FilesAdapterMinioTest {
             .withExposedPorts(9000)
             .waitingFor(Wait.forHttp("/minio/health/ready").forPort(9000).forStatusCode(200));
 
-    private static S3Client client;
+    private static S3Client bucketAdminClient;
+    private static OpenDalS3ObjectStorageAdapter storage;
     private static WeaveS3FilesAdapter adapter;
 
     @BeforeAll
     static void prepareBucket() {
         URI endpoint = URI.create("http://" + MINIO.getHost() + ":" + MINIO.getMappedPort(9000));
-        client = S3Client.builder()
+        bucketAdminClient = S3Client.builder()
                 .endpointOverride(endpoint)
                 .region(Region.US_EAST_1)
                 .credentialsProvider(StaticCredentialsProvider.create(
@@ -52,7 +54,8 @@ class WeaveS3FilesAdapterMinioTest {
                 .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
                 .httpClientBuilder(UrlConnectionHttpClient.builder())
                 .build();
-        client.createBucket(CreateBucketRequest.builder().bucket(BUCKET).build());
+        bucketAdminClient.createBucket(CreateBucketRequest.builder().bucket(BUCKET).build());
+
         WeaveS3FilesProperties properties = new WeaveS3FilesProperties();
         properties.setEnabled(true);
         properties.setEndpoint(endpoint);
@@ -60,11 +63,26 @@ class WeaveS3FilesAdapterMinioTest {
         properties.setBucket(BUCKET);
         properties.setAccessKey(ACCESS_KEY);
         properties.setSecretKey(SECRET_KEY);
-        adapter = new WeaveS3FilesAdapter(properties, client);
+        properties.setPathStyle(true);
+
+        storage = new OpenDalS3ObjectStorageAdapter(properties);
+        adapter = new WeaveS3FilesAdapter(properties, storage);
+    }
+
+    @AfterAll
+    static void closeInfrastructure() {
+        if (storage != null) {
+            storage.closeOperators();
+        }
+        if (bucketAdminClient != null) {
+            bucketAdminClient.close();
+        }
     }
 
     @Test
-    void performsRealWriteReadCopyMoveListAndDeleteAgainstMinio() {
+    void performsRealWriteReadCopyMoveListAndDeleteThroughOpenDalAgainstMinio() {
+        assertThat(adapter.readiness().available()).isTrue();
+
         adapter.createCollection(new FilePath("/Team"));
         adapter.createCollection(new FilePath("/Archive"));
         var written = adapter.write(new FileWrite(

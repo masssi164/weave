@@ -1,31 +1,43 @@
 #!/usr/bin/env python3
-"""Closed operator interface for normalized Compose and one-shot Identity Ops."""
+"""Closed operator interface for normalized Compose and bounded migrations."""
 
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
 import re
+import secrets
+import shutil
+import ssl
 import stat
 import subprocess
 import sys
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from bounded_process import BoundedProcessTimeout, run_bounded
-from compose_env import ComposeContext, ContractError, compose_environment, load_context, run
+from compose_env import (
+    ComposeContext,
+    ContractError,
+    compose_environment,
+    load_context,
+    run,
+)
+from keycloak_migration import migration_inputs, require_completed_migration
+from keycloak_migration_backup import create_backup_proof
 
 
 COMMANDS = (
     "secrets-init",
     "render",
+    "configure",
     "config",
     "prepare",
     "provider-prepare",
@@ -33,17 +45,19 @@ COMMANDS = (
     "down",
     "ps",
     "logs",
-    "identity-plan",
-    "identity-apply",
-    "identity-verify",
+    "keycloak-migration-apply",
+    "bootstrap-owner",
     "persistence-restart-proof",
     "chat-provider-stop-proof",
     "chat-provider-start-proof",
     "collaboration-restart-proof",
 )
 RUNTIME_ROOT_SERVICES = {
-    "dev": ("caddy", "mailpit"),
-    "test": ("caddy", "mailpit", "mcp"),
+    # Normal development runs Server, MCP, and Admin Console on the host. The
+    # Compose lifecycle converges only the database/Keycloak dependency path.
+    "dev": ("keycloak",),
+    "dogfood": ("caddy", "mailpit", "mcp"),
+    "e2e": ("caddy", "mailpit", "mcp"),
     "prod": ("caddy", "mcp"),
 }
 HOST_APPLICATION_SERVICES = (
@@ -52,6 +66,7 @@ HOST_APPLICATION_SERVICES = (
     "mcp-secret-check",
     "mcp-keycloak-connectivity-check",
 )
+
 VOLUME_KEYS = (
     "WEAVE_CADDY_DATA_VOLUME",
     "WEAVE_CADDY_CONFIG_VOLUME",
@@ -62,6 +77,7 @@ VOLUME_KEYS = (
     "WEAVE_SYNAPSE_DATA_VOLUME",
     "WEAVE_MATRIX_APPSERVICE_VOLUME",
     "WEAVE_RUNTIME_STATE_VOLUME",
+    "WEAVE_NATIVE_FILES_DATA_VOLUME",
 )
 RESOURCE_METADATA = {
     "WEAVE_CADDY_DATA_VOLUME": ("gateway", "tls-sensitive"),
@@ -73,7 +89,30 @@ RESOURCE_METADATA = {
     "WEAVE_SYNAPSE_DATA_VOLUME": ("chat", "collaboration-sensitive"),
     "WEAVE_MATRIX_APPSERVICE_VOLUME": ("chat-appservice", "credential-sensitive"),
     "WEAVE_RUNTIME_STATE_VOLUME": ("runtime-state", "runtime-state-sensitive"),
+    "WEAVE_NATIVE_FILES_DATA_VOLUME": ("files-native", "collaboration-sensitive"),
 }
+
+
+def active_volume_keys(context: ComposeContext) -> tuple[str, ...]:
+    if getattr(context, "environment", context.profile) == "dev":
+        return ("WEAVE_KEYCLOAK_DATA_VOLUME",)
+    keys = [
+        "WEAVE_CADDY_DATA_VOLUME",
+        "WEAVE_CADDY_CONFIG_VOLUME",
+        "WEAVE_DB_DATA_VOLUME",
+        "WEAVE_KEYCLOAK_DATA_VOLUME",
+        "WEAVE_NATIVE_FILES_DATA_VOLUME",
+    ]
+    profiles = set(context.active_profiles)
+    if profiles.intersection({"dogfood", "e2e", "dev-tools"}):
+        keys.append("WEAVE_MAILPIT_DATA_VOLUME")
+    if "provider-nextcloud" in profiles:
+        keys.append("WEAVE_NEXTCLOUD_DATA_VOLUME")
+    if "provider-matrix" in profiles:
+        keys.extend(("WEAVE_SYNAPSE_DATA_VOLUME", "WEAVE_MATRIX_APPSERVICE_VOLUME"))
+    if context.environment == "dogfood" or "storage-s3" in profiles:
+        keys.append("WEAVE_RUNTIME_STATE_VOLUME")
+    return tuple(keys)
 RESOURCE_PROVENANCE_LABEL_PATTERNS = {
     "com.massimotter.weave.spec-commit": re.compile(r"^[0-9a-f]{40}$"),
     "com.massimotter.weave.spec-digest": re.compile(r"^sha256:[0-9a-f]{64}$"),
@@ -87,13 +126,15 @@ WORKLOADS_TARGET = AGENT_RUNTIME_ROOT / "workloads"
 RUNTIME_ADMIN_TARGET = (
     WORKLOADS_TARGET / "weave/keycloak/weave-agent-runtime-admin"
 )
+IDENTITY_ADMIN_PRIVATE_TARGET = PurePosixPath(
+    "/run/secrets/identity-admin/weave-identity-admin-private-jwk.json"
+)
 AGENT_RUNTIME_MOUNT_POLICY = {
     ("agent-runtime-keys-init", str(PROFILE_SIGNING_TARGET)): ("read-write", "directory"),
     ("agent-runtime-keys-init", str(STATE_WRAPPING_TARGET)): ("read-write", "directory"),
     ("backend", str(WORKLOADS_TARGET)): ("read-write", "directory"),
     ("backend", str(PROFILE_SIGNING_TARGET)): ("read-only", "directory"),
     ("backend", str(STATE_WRAPPING_TARGET)): ("read-only", "directory"),
-    ("identity-ops", str(RUNTIME_ADMIN_TARGET)): ("read-only", "file"),
 }
 MCP_PROTECTED_SECRET_MARKERS = (
     "weave-agent-runtime-admin",
@@ -111,6 +152,18 @@ def script(context: ComposeContext, name: str) -> None:
     if context.profile_env_file != context.root / f"environments/{context.profile}.env":
         command.extend(("--env-file", str(context.profile_env_file)))
     subprocess.run(command, cwd=context.root, env=compose_environment(context), check=True)
+
+
+def runtime_root_services(context: ComposeContext) -> tuple[str, ...]:
+    roots = list(RUNTIME_ROOT_SERVICES[context.profile])
+    profiles = set(context.active_profiles)
+    if "provider-matrix" in profiles:
+        roots.append("synapse")
+    if "provider-nextcloud" in profiles:
+        roots.append("nextcloud")
+    if "dev-tools" in profiles and "mailpit" not in roots:
+        roots.append("mailpit")
+    return tuple(roots)
 
 
 def compose(context: ComposeContext, *arguments: str, capture: bool = False) -> subprocess.CompletedProcess[str]:
@@ -206,7 +259,7 @@ def labels(context: ComposeContext, kind: str, name: str) -> dict[str, str]:
 
 def resource_inventory(context: ComposeContext) -> set[tuple[str, str]]:
     resources = {("network", context.env["WEAVE_DOCKER_NETWORK"])}
-    resources.update(("volume", context.env[key]) for key in VOLUME_KEYS)
+    resources.update(("volume", context.env[key]) for key in active_volume_keys(context))
     return resources
 
 
@@ -409,11 +462,36 @@ def validate_mount_contract(model: dict[str, Any]) -> list[dict[str, Any]]:
             and "weave-identity-admin" in (entry["source"] + entry["target"])
         }
         if identity_admin_targets != {
-            "/run/secrets/weave/spring.security.oauth2.client.registration.weave-identity-admin.client-secret"
+            str(IDENTITY_ADMIN_PRIVATE_TARGET)
         }:
             raise ContractError(
-                "backend identity-admin access must remain one exact Identity adapter SecretRef"
+                "backend identity-admin access must be one exact private-JWK SecretRef"
             )
+
+    identity_admin_private_entries = [
+        entry
+        for entry in graph
+        if "weave-identity-admin-private-jwk" in (entry["source"] + entry["target"])
+    ]
+    declared_identity_admin_private = {
+        ("backend", str(IDENTITY_ADMIN_PRIVATE_TARGET), "read-only", "file"),
+    }
+    expected_identity_admin_private = {
+        entry for entry in declared_identity_admin_private if entry[0] in services
+    }
+    observed_identity_admin_private = {
+        (
+            entry["service"],
+            entry["target"],
+            entry["access"],
+            entry["expectedSourceType"],
+        )
+        for entry in identity_admin_private_entries
+    }
+    if observed_identity_admin_private != expected_identity_admin_private:
+        raise ContractError(
+            "identity-admin private JWK must be mounted only by Server"
+        )
 
     if "agent-runtime-keys-init" in services:
         expected_initializer = {
@@ -590,16 +668,16 @@ def prepare_runtime_paths(context: ComposeContext) -> None:
     manifest = context.generated_root / "render-manifest.json"
     if manifest.is_symlink() or not manifest.is_file():
         raise ContractError("render-manifest.json is missing; run render first")
-    evidence_root = context.generated_root / "identity-ops"
-    evidence_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(evidence_root, 0o700)
+    migration_root = context.generated_root / "keycloak/migrations"
+    migration_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(migration_root, 0o700)
     runtime_uid = int(context.env["WEAVE_RUNTIME_UID"])
     runtime_gid = int(context.env["WEAVE_RUNTIME_GID"])
-    if evidence_root.stat().st_uid != runtime_uid or evidence_root.stat().st_gid != runtime_gid:
+    if migration_root.stat().st_uid != runtime_uid or migration_root.stat().st_gid != runtime_gid:
         try:
-            os.chown(evidence_root, runtime_uid, runtime_gid)
+            os.chown(migration_root, runtime_uid, runtime_gid)
         except PermissionError as error:
-            raise ContractError("Identity Ops evidence directory is not writable by the rootless runtime uid/gid") from error
+            raise ContractError("Keycloak migration receipt directory is not writable by the rootless runtime uid/gid") from error
     for path in (
         context.secret_root / "agent-runtime/workloads",
         context.secret_root / "agent-runtime/workloads/weave/keycloak",
@@ -623,24 +701,76 @@ def prepare(context: ComposeContext) -> None:
     graph = validate_mount_contract(model)
     preflight_protected_sources(context, model, graph)
     ensure_resource(context, "network", context.env["WEAVE_DOCKER_NETWORK"])
-    for key in VOLUME_KEYS:
+    for key in active_volume_keys(context):
         ensure_resource(context, "volume", context.env[key])
+    write_native_compose_environment(context)
+
+
+def write_native_compose_environment(
+    context: ComposeContext, destination: Path | None = None
+) -> Path:
+    """Write the one-file, secret-free descriptor consumed by native Compose.
+
+    The reviewed operator environment intentionally omits derived provenance and
+    runtime ownership values.  Native Compose must receive those exact values or
+    it could create falsely labelled resources, so only the invariant preparer
+    may materialize this finalized descriptor.
+    """
+    target = destination or context.root / f".env.{context.environment}"
+    if target.exists() and target.is_symlink():
+        raise ContractError("native Compose environment descriptor must not be a symlink")
+    values = dict(context.env)
+    values.update(
+        {
+            "COMPOSE_FILE": f"compose.yaml:compose.{context.environment}.yaml",
+            "COMPOSE_PATH_SEPARATOR": ":",
+            "COMPOSE_PROJECT_NAME": context.env["WEAVE_COMPOSE_PROJECT"],
+        }
+    )
+    forbidden_markers = ("PASSWORD", "SECRET", "TOKEN", "ASSERTION", "PRIVATE_KEY", "CREDENTIAL")
+    for key, value in values.items():
+        if "\n" in value or "\r" in value or "\x00" in value:
+            raise ContractError("native Compose environment contains an invalid control byte")
+        if key != "WEAVE_SECRET_ROOT" and any(marker in key for marker in forbidden_markers):
+            raise ContractError(
+                f"native Compose environment cannot contain credential-shaped input {key}"
+            )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(target.name + ".tmp-" + secrets.token_hex(8))
+    descriptor = "".join(f"{key}={values[key]}\n" for key in sorted(values))
+    descriptor_fd = os.open(
+        temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+    )
+    try:
+        with os.fdopen(descriptor_fd, "w", encoding="utf-8") as stream:
+            stream.write(descriptor)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, 0o600)
+        temporary.replace(target)
+    finally:
+        if temporary.exists() or temporary.is_symlink():
+            temporary.unlink()
+    return target
 
 
 def normalized_config(context: ComposeContext, emit: bool) -> dict[str, Any]:
     result = compose(context, "config", "--format", "json", capture=True)
     model = json.loads(result.stdout)
     services = model.get("services", {})
-    required = {"postgres", "keycloak", "identity-ops"}
+    required = {"keycloak"} if context.environment == "dev" else {"postgres", "keycloak"}
     if not required.issubset(services):
-        raise ContractError("normalized Compose model is missing a core or Identity Ops service")
+        raise ContractError("normalized Compose model is missing a core service")
     serialized = json.dumps(model)
     forbidden = ("/var/run/docker.sock", "keycloak-supervisor", "keycloak-admin-sanitizer")
     if any(value in serialized for value in forbidden):
         raise ContractError("normalized Compose model contains a retired privileged identity control plane")
     if context.profile == "dev" and {"backend", "mcp"}.intersection(services):
         raise ContractError("dev must keep the application tier on the host")
-    if context.profile in {"test", "prod"} and not {"backend", "mcp"}.issubset(services):
+    if context.environment in {"dogfood", "e2e", "prod"} and not {
+        "backend",
+        "mcp",
+    }.issubset(services):
         raise ContractError(f"{context.profile} normalized model is missing the application tier")
     validate_mount_contract(model)
     if emit:
@@ -648,109 +778,87 @@ def normalized_config(context: ComposeContext, emit: bool) -> dict[str, Any]:
     return model
 
 
-def identity_ops(context: ComposeContext, action: str) -> None:
+def _write_migration_bootstrap_secret(context: ComposeContext, path: Path) -> None:
+    if path.exists() or path.is_symlink():
+        raise ContractError("temporary Keycloak migration bootstrap SecretRef already exists")
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="ascii") as stream:
+            stream.write(secrets.token_urlsafe(48) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    finally:
+        if path.exists():
+            os.chmod(path, 0o600)
+            runtime_uid = int(context.env["WEAVE_RUNTIME_UID"])
+            runtime_gid = int(context.env["WEAVE_RUNTIME_GID"])
+            if path.stat().st_uid != runtime_uid or path.stat().st_gid != runtime_gid:
+                try:
+                    os.chown(path, runtime_uid, runtime_gid)
+                except PermissionError as error:
+                    path.unlink()
+                    raise ContractError(
+                        "temporary Keycloak migration SecretRef is not readable by the rootless migration uid/gid"
+                    ) from error
+
+
+def keycloak_migration_apply(context: ComposeContext) -> None:
+    if context.environment not in {"dogfood", "prod"}:
+        raise ContractError(
+            "keycloak-migration-apply is qualified only for dogfood/prod with a verified private backup"
+        )
+    script(context, "init_secrets.py")
+    script(context, "render_config.py")
     prepare(context)
-    compose(context, "up", "-d", "--wait", "keycloak")
-    if not bootstrap_authority_available(context):
-        compose(context, "stop", "keycloak")
+    inputs = migration_inputs(context)
+    try:
+        require_completed_migration(context)
+        print("WEAVE_KEYCLOAK_MIGRATION_RESULT state=already-complete supportSafe=true")
+        return
+    except ContractError:
+        pass
+    compose(context, "up", "-d", "--wait", "--wait-timeout", "600", "keycloak")
+    backup_proof = create_backup_proof(context)
+    credential = context.secret_root / "keycloak-realm-migration-bootstrap-secret"
+    _write_migration_bootstrap_secret(context, credential)
+    try:
+        compose(context, "stop", "--timeout", "30", "keycloak")
         compose(
             context,
             "run",
             "--rm",
             "--no-deps",
-            "keycloak",
-            "bootstrap-admin",
-            "service",
-            "--client-id",
-            "weave-identity-ops-bootstrap",
-            "--client-secret:env=WEAVE_IDENTITY_OPS_BOOTSTRAP_SECRET",
-            "--no-prompt",
+            "keycloak-realm-migration-bootstrap",
         )
-        compose(context, "up", "-d", "--wait", "keycloak")
-        if not bootstrap_authority_available(context):
-            raise ContractError(
-                "temporary Identity Ops bootstrap authority is unavailable after recovery"
-            )
-    command = {
-        "identity-plan": "plan",
-        "identity-apply": "apply",
-        "identity-verify": "verify",
-    }[action]
-    compose(
-        context,
-        "run",
-        "--rm",
-        "--no-deps",
-        "identity-ops",
-        command,
-    )
-    if action == "identity-apply":
-        adopt_secret_updates(context)
-
-
-def bootstrap_authority_available(context: ComposeContext) -> bool:
-    """Probe the one-shot bootstrap client without retaining its access token."""
-    credential = context.secret_root / "keycloak-bootstrap-admin-password"
-    try:
-        metadata = credential.lstat()
-    except OSError as error:
-        raise ContractError(
-            "Identity Ops bootstrap SecretRef is unavailable"
-        ) from error
-    if (
-        credential.is_symlink()
-        or not stat.S_ISREG(metadata.st_mode)
-        or stat.S_IMODE(metadata.st_mode) != 0o600
-    ):
-        raise ContractError("Identity Ops bootstrap SecretRef is unsafe")
-    secret = credential.read_text(encoding="utf-8").strip()
-    if not secret:
-        raise ContractError("Identity Ops bootstrap SecretRef is empty")
-    request = urllib.request.Request(
-        (
-            "http://127.0.0.1:"
-            + context.env["WEAVE_KEYCLOAK_HOST_PORT"]
-            + "/realms/master/protocol/openid-connect/token"
-        ),
-        data=urllib.parse.urlencode(
-            {
-                "grant_type": "client_credentials",
-                "client_id": "weave-identity-ops-bootstrap",
-                "client_secret": secret,
-            }
-        ).encode("ascii"),
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=10) as response:
-            try:
-                payload = json.loads(response.read(1024 * 1024))
-            except (json.JSONDecodeError, UnicodeDecodeError) as error:
-                raise ContractError(
-                    "temporary Identity Ops bootstrap authority probe was malformed"
-                ) from error
-            if response.status != 200 or not isinstance(
-                payload.get("access_token"), str
-            ):
-                raise ContractError(
-                    "temporary Identity Ops bootstrap authority probe was malformed"
-                )
-            return True
-    except urllib.error.HTTPError as error:
-        try:
-            payload = json.loads(error.read(1024 * 1024))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            payload = {}
-        if error.code in {400, 401} and payload.get("error") == "invalid_client":
-            return False
-        raise ContractError(
-            "temporary Identity Ops bootstrap authority probe was rejected"
-        ) from error
-    except (urllib.error.URLError, TimeoutError) as error:
-        raise ContractError(
-            "temporary Identity Ops bootstrap authority probe was unavailable"
-        ) from error
+        compose(context, "up", "-d", "--wait", "--wait-timeout", "600", "keycloak")
+        common_arguments = (
+            f"--manifest-digest={inputs.manifest_digest}",
+            f"--baseline-digest={inputs.baseline_digest}",
+            f"--target-revision={inputs.target_revision}",
+            f"--environment={context.environment}",
+            f"--candidate-commit={context.env['WEAVE_CANDIDATE_COMMIT']}",
+            f"--compose-project={context.env['WEAVE_COMPOSE_PROJECT']}",
+        )
+        compose(
+            context,
+            "run",
+            "--rm",
+            "--no-deps",
+            "keycloak-realm-migration",
+            "keycloak-realm-migration",
+            "--artifact-root=/run/weave-generated",
+            *common_arguments,
+            "--keycloak-base-url=http://keycloak:8080",
+            "--bootstrap-secret-file=/run/secrets/keycloak-realm-migration-bootstrap-secret",
+            "--backup-proof-file=/run/weave-generated/keycloak/migrations/"
+            + backup_proof.name,
+            "--timeout=PT10S",
+        )
+        require_completed_migration(context)
+        print("WEAVE_KEYCLOAK_MIGRATION_RESULT state=complete supportSafe=true")
+    finally:
+        if credential.exists() or credential.is_symlink():
+            credential.unlink()
 
 
 def _service_container(
@@ -911,7 +1019,7 @@ mc rm --force "runtime-state/weave-runtime-state/${WEAVE_PERSISTENCE_FIXTURE_KEY
 def _private_json(path: Path, payload: dict[str, Any]) -> None:
     path = path.resolve()
     if path.exists() and (path.is_symlink() or not path.is_file()):
-        raise ContractError("persistence-restart evidence target must be a regular file")
+        raise ContractError("private JSON target must be a regular file")
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(path.parent, 0o700)
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
@@ -930,8 +1038,8 @@ def _private_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def persistence_restart_proof(context: ComposeContext) -> None:
-    if context.profile != "test" or context.isolated_namespace is None:
-        raise ContractError("persistence-restart-proof is restricted to isolated testApp stacks")
+    if context.environment != "e2e" or context.isolated_namespace is None:
+        raise ContractError("persistence-restart-proof is restricted to isolated E2E stacks")
     evidence_value = os.environ.get("WEAVE_TEST_APP_RESTART_EVIDENCE_PATH", "")
     run_root_value = os.environ.get("WEAVE_TEST_APP_RUN_ROOT", "")
     if not evidence_value or not run_root_value:
@@ -1072,12 +1180,14 @@ def persistence_restart_proof(context: ComposeContext) -> None:
 
 
 def isolated_collaboration_control(context: ComposeContext, operation: str) -> None:
-    if context.profile != "test" or context.isolated_namespace is None:
+    if context.environment != "e2e" or context.isolated_namespace is None:
         raise ContractError(
-            "collaboration service control is restricted to isolated testApp stacks"
+            "collaboration service control is restricted to isolated E2E stacks"
         )
     deadline = time.monotonic() + COLLABORATION_CONTROL_BUDGET_SECONDS
     if operation == "stop-provider":
+        if "provider-matrix" not in context.active_profiles:
+            raise ContractError("Synapse control requires the explicit provider-matrix profile")
         before = _service_snapshot(context, "synapse", deadline=deadline)
         _bounded_collaboration_compose(
             context, deadline, "stop", "--timeout", "20", "synapse"
@@ -1090,13 +1200,16 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
         print("WEAVE_CHAT_PROVIDER_CONTROL_RESULT state=stopped supportSafe=true")
         return
     if operation == "start-provider":
+        if "provider-matrix" not in context.active_profiles:
+            raise ContractError("Synapse control requires the explicit provider-matrix profile")
         _bounded_collaboration_compose(context, deadline, "start", "synapse")
         _await_healthy(context, "synapse", deadline)
         _await_healthy(context, "backend", deadline)
         print("WEAVE_CHAT_PROVIDER_CONTROL_RESULT state=healthy supportSafe=true")
         return
     if operation == "restart-collaboration":
-        synapse_before = _service_snapshot(context, "synapse", deadline=deadline)
+        postgres_before = _service_snapshot(context, "postgres", deadline=deadline)
+        keycloak_before = _service_snapshot(context, "keycloak", deadline=deadline)
         backend_before = _service_snapshot(context, "backend", deadline=deadline)
         _bounded_collaboration_compose(
             context,
@@ -1105,9 +1218,23 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
             "--no-deps",
             "--timeout",
             "20",
-            "synapse",
+            "postgres",
         )
-        synapse_after = _await_healthy(context, "synapse", deadline)
+        postgres_after = _await_healthy(context, "postgres", deadline)
+        # Keycloak retains a JDBC pool to PostgreSQL. A green management
+        # endpoint alone does not prove those pre-restart connections are
+        # usable, so restart the dependent identity process before exercising
+        # the post-restart browser login.
+        _bounded_collaboration_compose(
+            context,
+            deadline,
+            "restart",
+            "--no-deps",
+            "--timeout",
+            "20",
+            "keycloak",
+        )
+        keycloak_after = _await_healthy(context, "keycloak", deadline)
         _bounded_collaboration_compose(
             context,
             deadline,
@@ -1119,8 +1246,10 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
         )
         backend_after = _await_healthy(context, "backend", deadline)
         if (
-            synapse_after["containerId"] != synapse_before["containerId"]
-            or synapse_after["startedAt"] == synapse_before["startedAt"]
+            postgres_after["containerId"] != postgres_before["containerId"]
+            or postgres_after["startedAt"] == postgres_before["startedAt"]
+            or keycloak_after["containerId"] != keycloak_before["containerId"]
+            or keycloak_after["startedAt"] == keycloak_before["startedAt"]
             or backend_after["containerId"] != backend_before["containerId"]
             or backend_after["startedAt"] == backend_before["startedAt"]
         ):
@@ -1129,32 +1258,405 @@ def isolated_collaboration_control(context: ComposeContext, operation: str) -> N
             )
         print(
             "WEAVE_COLLABORATION_RESTART_RESULT backend=healthy "
-            "synapse=healthy supportSafe=true"
+            "keycloak=healthy postgres=healthy providerDependency=false supportSafe=true"
         )
         return
     raise ContractError("unsupported isolated collaboration control operation")
 
 
-def adopt_secret_updates(context: ComposeContext) -> None:
-    updates = context.generated_root / "identity-ops/secret-updates"
-    if not updates.exists():
-        return
-    allowed = {
-        "keycloak-weave-identity-admin",
-        "keycloak-nextcloud",
-        "keycloak-matrix-mas",
+def _owner_bootstrap_arguments(extra: list[str]) -> tuple[Path, Path | None]:
+    if len(extra) not in {2, 4} or extra[0] != "--request-file":
+        raise ContractError(
+            "bootstrap-owner requires --request-file <private-json> "
+            "[--evidence-file <private-json>]"
+        )
+    request_file = Path(extra[1]).expanduser().resolve()
+    evidence_file: Path | None = None
+    if len(extra) == 4:
+        if extra[2] != "--evidence-file":
+            raise ContractError("bootstrap-owner accepts only --evidence-file after the request")
+        evidence_file = Path(extra[3]).expanduser().resolve()
+    return request_file, evidence_file
+
+
+def _owner_bootstrap_request(path: Path) -> dict[str, str]:
+    if path.is_symlink() or not path.is_file():
+        raise ContractError("owner bootstrap request must be one regular private file")
+    if stat.S_IMODE(path.stat().st_mode) & 0o077:
+        raise ContractError("owner bootstrap request must not grant group or other access")
+    try:
+        request = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ContractError("owner bootstrap request is not valid JSON") from error
+    expected = {"displayName", "email", "idempotencyKey"}
+    if not isinstance(request, dict) or set(request) != expected:
+        raise ContractError("owner bootstrap request has an invalid shape")
+    if not all(isinstance(request[key], str) for key in expected):
+        raise ContractError("owner bootstrap request values must be strings")
+    email = request["email"].strip().lower()
+    if "@" not in email or len(email) > 320:
+        raise ContractError("owner bootstrap request has no bounded email address")
+    request["email"] = email
+    return request
+
+
+def _owner_bootstrap_smtp_preflight(context: ComposeContext) -> None:
+    realm_path = context.generated_root / "keycloak/import/weave-realm.json"
+    if realm_path.is_symlink() or not realm_path.is_file():
+        raise ContractError("owner bootstrap requires the rendered Keycloak realm baseline")
+    realm = json.loads(realm_path.read_text(encoding="utf-8"))
+    smtp = realm.get("smtpServer")
+    if smtp != {
+        "from": "noreply@weave.test",
+        "fromDisplayName": "Weave",
+        "host": "mailpit",
+        "port": "1025",
+        "ssl": "true",
+        "starttls": "false",
+    }:
+        raise ContractError(
+            "dogfood owner bootstrap requires the reviewed implicit-TLS Mailpit SMTP baseline"
+        )
+
+
+def _mailpit_addresses(value: object) -> list[str]:
+    if isinstance(value, dict):
+        addresses: list[str] = []
+        for key, child in value.items():
+            if key.lower() in {"address", "email"} and isinstance(child, str):
+                addresses.append(child.strip().lower())
+            elif isinstance(child, (dict, list)):
+                addresses.extend(_mailpit_addresses(child))
+        return addresses
+    if isinstance(value, list):
+        addresses = []
+        for child in value:
+            addresses.extend(_mailpit_addresses(child))
+        return addresses
+    return []
+
+
+def _mailpit_recipient_summaries(
+    context: ComposeContext, email_sha256: str
+) -> dict[str, str]:
+    url = (
+        "http://127.0.0.1:"
+        + context.env["WEAVE_MAILPIT_WEB_HOST_PORT"]
+        + "/api/v1/messages"
+    )
+    with urllib.request.urlopen(url, timeout=10) as response:
+        payload_bytes = response.read(2 * 1024 * 1024 + 1)
+    if len(payload_bytes) > 2 * 1024 * 1024:
+        raise ContractError("Mailpit summary response exceeded the bounded size")
+    payload = json.loads(payload_bytes)
+    messages = payload.get("messages") if isinstance(payload, dict) else payload
+    if not isinstance(messages, list):
+        raise ContractError("Mailpit did not return a message summary list")
+    matches: dict[str, str] = {}
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        recipients = _mailpit_addresses(message.get("To", message.get("to", [])))
+        if not any(
+            hashlib.sha256(recipient.encode("utf-8")).hexdigest() == email_sha256
+            for recipient in recipients
+        ):
+            continue
+        message_id = next(
+            (
+                str(message[key]).strip()
+                for key in ("ID", "Id", "id")
+                if isinstance(message.get(key), str) and str(message[key]).strip()
+            ),
+            "",
+        )
+        if not message_id:
+            raise ContractError("Mailpit recipient summary has no bounded message identifier")
+        observed_at = next(
+            (
+                str(message[key]).strip()
+                for key in ("Created", "CreatedAt", "created", "createdAt")
+                if isinstance(message.get(key), str) and str(message[key]).strip()
+            ),
+            "unavailable",
+        )
+        matches[message_id] = observed_at
+    return matches
+
+
+def _bootstrap_boundary_present(container: dict[str, Any]) -> bool:
+    environment = container.get("Config", {}).get("Env", []) or []
+    mounts = container.get("Mounts", []) or []
+    return any(
+        str(value).startswith("WEAVE_IDENTITY_BOOTSTRAP_OWNER_")
+        for value in environment
+    ) or any(
+        str(mount.get("Destination", "")).startswith(
+            "/run/secrets/weave/bootstrap-owner"
+        )
+        for mount in mounts
+        if isinstance(mount, dict)
+    )
+
+
+def _canonical_backend(context: ComposeContext) -> dict[str, Any]:
+    compose(
+        context,
+        "up",
+        "-d",
+        "--no-deps",
+        "--force-recreate",
+        "--wait",
+        "--wait-timeout",
+        "180",
+        "backend",
+    )
+    container = _service_container(context, "backend")
+    if _bootstrap_boundary_present(container):
+        raise ContractError("canonical backend retained owner bootstrap authority")
+    return container
+
+
+def _bootstrap_disabled(context: ComposeContext) -> bool:
+    url = context.env["WEAVE_API_ORIGIN"].rstrip("/") + "/api/bootstrap/owner-invitation"
+    request = urllib.request.Request(
+        url,
+        data=b"{}",
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "X-Weave-Bootstrap-Token": secrets.token_urlsafe(32),
+        },
+    )
+    tls = ssl.create_default_context(cafile=str(context.tls_root / "ca.pem"))
+    try:
+        urllib.request.urlopen(request, context=tls, timeout=10)
+    except urllib.error.HTTPError as error:
+        return error.code == 404
+    return False
+
+
+def _bootstrap_override_command(
+    context: ComposeContext, override: Path, *arguments: str
+) -> subprocess.CompletedProcess[str]:
+    command = [*context.compose_base_command, "--file", str(override), *arguments]
+    return run(command, context)
+
+
+def owner_bootstrap(context: ComposeContext, extra: list[str]) -> None:
+    if context.environment != "dogfood" or context.isolated_namespace is not None:
+        raise ContractError("bootstrap-owner is restricted to persistent dogfood")
+    request_path, requested_evidence_path = _owner_bootstrap_arguments(extra)
+    owner_request = _owner_bootstrap_request(request_path)
+    owner_bootstrap_root = context.generated_root / "owner-bootstrap"
+    request_anchor_path = owner_bootstrap_root / "request-anchor.json"
+    anchor_evidence_path = owner_bootstrap_root / "evidence.json"
+    evidence_path = requested_evidence_path or anchor_evidence_path
+    owner_email_sha256 = hashlib.sha256(
+        owner_request["email"].encode("utf-8")
+    ).hexdigest()
+    owner_idempotency_sha256 = hashlib.sha256(
+        owner_request["idempotencyKey"].encode("utf-8")
+    ).hexdigest()
+    prepare(context)
+    require_completed_migration(context)
+    _owner_bootstrap_smtp_preflight(context)
+    lock_root = context.generated_root / "operations"
+    lock_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(lock_root, 0o700)
+    lock_fd = os.open(lock_root / "owner-bootstrap.lock", os.O_RDWR | os.O_CREAT, 0o600)
+    operation_root: Path | None = None
+    override: Path | None = None
+    primary_error: BaseException | None = None
+    helper_evidence: dict[str, Any] | None = None
+    matched_message: tuple[str, str] | None = None
+    canonical_image = ""
+    try:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ContractError("another dogfood owner bootstrap operation is active") from error
+        for service in ("keycloak", "mailpit", "backend"):
+            _await_healthy(context, service)
+        canonical_before = _service_container(context, "backend")
+        if _bootstrap_boundary_present(canonical_before):
+            canonical_before = _canonical_backend(context)
+        canonical_image = str(canonical_before.get("Image", ""))
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", canonical_image):
+            raise ContractError("canonical backend image identity is unavailable")
+        if request_anchor_path.exists() or request_anchor_path.is_symlink():
+            if request_anchor_path.is_symlink() or not request_anchor_path.is_file():
+                raise ContractError("owner bootstrap request anchor is not a regular file")
+            previous = json.loads(request_anchor_path.read_text(encoding="utf-8"))
+            if (
+                previous.get("emailSha256") != owner_email_sha256
+                or previous.get("idempotencyKeySha256") != owner_idempotency_sha256
+            ):
+                raise ContractError(
+                    "owner bootstrap request differs from the protected first-owner anchor"
+                )
+        else:
+            # Persist the support-safe correlation before enabling the mutation
+            # route. If anything fails after Keycloak accepts the invitation,
+            # only an exact retry can re-enter the bounded bootstrap lifecycle.
+            _private_json(
+                request_anchor_path,
+                {
+                    "schemaVersion": "weave-owner-bootstrap-request-anchor-v1",
+                    "emailSha256": owner_email_sha256,
+                    "idempotencyKeySha256": owner_idempotency_sha256,
+                    "supportSafe": True,
+                },
+            )
+        before_messages = _mailpit_recipient_summaries(context, owner_email_sha256)
+
+        operation_root = context.secret_root / (
+            ".owner-bootstrap-" + secrets.token_hex(12)
+        )
+        operation_root.mkdir(mode=0o700)
+        runtime_uid = int(context.env["WEAVE_RUNTIME_UID"])
+        runtime_gid = int(context.env["WEAVE_RUNTIME_GID"])
+        os.chown(operation_root, runtime_uid, runtime_gid)
+        token = operation_root / "token"
+        token_fd = os.open(token, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(token_fd, "w", encoding="ascii") as stream:
+            stream.write(secrets.token_urlsafe(48) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chown(token, runtime_uid, runtime_gid)
+
+        override = lock_root / (operation_root.name + ".compose.json")
+        _private_json(
+            override,
+            {
+                "services": {
+                    "backend": {
+                        "environment": {
+                            "WEAVE_IDENTITY_BOOTSTRAP_OWNER_ENABLED": "true",
+                            "WEAVE_IDENTITY_BOOTSTRAP_OWNER_TOKEN_FILE": (
+                                "/run/secrets/weave/bootstrap-owner/token"
+                            ),
+                        },
+                        "volumes": [
+                            {
+                                "type": "bind",
+                                "source": str(operation_root),
+                                "target": "/run/secrets/weave/bootstrap-owner",
+                                "read_only": False,
+                            }
+                        ],
+                    }
+                }
+            },
+        )
+        _bootstrap_override_command(
+            context,
+            override,
+            "up",
+            "-d",
+            "--no-deps",
+            "--force-recreate",
+            "--wait",
+            "--wait-timeout",
+            "180",
+            "backend",
+        )
+        temporary_evidence = lock_root / (operation_root.name + ".helper.json")
+        helper = subprocess.run(
+            [
+                "python3",
+                str(context.repository_root / "gradle/tasks/bootstrap-owner.py"),
+                "--api-base-url",
+                context.env["WEAVE_API_ORIGIN"],
+                "--token-file",
+                str(token),
+                "--request-file",
+                str(request_path),
+                "--ca-file",
+                str(context.tls_root / "ca.pem"),
+                "--evidence",
+                str(temporary_evidence),
+            ],
+            cwd=context.repository_root,
+            env=compose_environment(context),
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if helper.stderr.strip():
+            raise ContractError("owner bootstrap helper emitted unexpected diagnostics")
+        helper_evidence = json.loads(temporary_evidence.read_text(encoding="utf-8"))
+        temporary_evidence.unlink()
+        deadline = time.monotonic() + 30
+        after_messages: dict[str, str] = {}
+        while time.monotonic() < deadline:
+            after_messages = _mailpit_recipient_summaries(context, owner_email_sha256)
+            new_ids = sorted(set(after_messages) - set(before_messages))
+            if new_ids:
+                message_id = new_ids[-1]
+                matched_message = (message_id, after_messages[message_id])
+                break
+            time.sleep(1)
+        if matched_message is None:
+            raise ContractError("Mailpit did not capture a new owner invitation message")
+    except BaseException as error:
+        primary_error = error
+    finally:
+        restoration_error: BaseException | None = None
+        try:
+            restored = _canonical_backend(context)
+            if canonical_image and restored.get("Image") != canonical_image:
+                raise ContractError("owner bootstrap changed the canonical backend image")
+            if not _bootstrap_disabled(context):
+                raise ContractError("owner bootstrap endpoint remained available after cleanup")
+        except BaseException as error:
+            restoration_error = error
+        if operation_root is not None:
+            token = operation_root / "token"
+            if token.exists() or token.is_symlink():
+                token.unlink()
+            if operation_root.exists():
+                shutil.rmtree(operation_root)
+        if override is not None and (override.exists() or override.is_symlink()):
+            override.unlink()
+        os.close(lock_fd)
+        if restoration_error is not None:
+            raise ContractError("owner bootstrap could not restore the canonical backend boundary") from restoration_error
+    if primary_error is not None:
+        if isinstance(primary_error, ContractError):
+            raise primary_error
+        raise ContractError("owner bootstrap failed before producing support-safe evidence") from primary_error
+    if helper_evidence is None or matched_message is None or operation_root is None:
+        raise ContractError("owner bootstrap completed without bounded evidence")
+    evidence = {
+        **helper_evidence,
+        "mailMessageIdSha256": hashlib.sha256(
+            matched_message[0].encode("utf-8")
+        ).hexdigest(),
+        "mailObservedAt": matched_message[1],
+        "mailMessageMatched": True,
+        "activation": {
+            "mode": "keycloak-organizations-invitation",
+            "mailSent": True,
+            "requiredActions": [],
+        },
+        "qrOrDeeplinkCarriesSecret": False,
+        "appStoresActivationSecret": False,
+        "idempotencyKeySha256": owner_idempotency_sha256,
+        "bootstrapAuthorityAbsent": True,
+        "bootstrapMountAbsent": True,
+        "canonicalImageUnchanged": True,
+        "requestAnchorPresent": request_anchor_path.is_file(),
+        "tokenAbsent": not operation_root.exists(),
     }
-    for source in updates.iterdir():
-        if source.name not in allowed or source.is_symlink() or not source.is_file():
-            raise ContractError("Identity Ops produced an unexpected SecretRef update")
-        if stat.S_IMODE(source.stat().st_mode) != 0o600:
-            raise ContractError("Identity Ops SecretRef update is not mode-0600")
-        target = context.secret_root / source.name
-        temporary = target.with_name(f".{target.name}.{os.getpid()}.identity-ops")
-        temporary.write_bytes(source.read_bytes())
-        os.chmod(temporary, 0o600)
-        os.replace(temporary, target)
-        source.unlink()
+    _private_json(anchor_evidence_path, evidence)
+    if evidence_path != anchor_evidence_path:
+        _private_json(evidence_path, evidence)
+    print(
+        "WEAVE_OWNER_BOOTSTRAP_RESULT mailMessageMatched=true "
+        "bootstrapAuthorityAbsent=true tokenAbsent=true supportSafe=true"
+    )
 
 
 def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
@@ -1162,12 +1664,22 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         script(context, "init_secrets.py")
     elif command == "render":
         script(context, "render_config.py")
+    elif command == "configure":
+        script(context, "init_secrets.py")
+        script(context, "render_config.py")
+        prepare(context)
     elif command == "config":
         normalized_config(context, emit=True)
     elif command == "prepare":
         prepare(context)
     elif command == "provider-prepare":
         subprocess.run([str(context.root / "provision-matrix-default-workspace.sh")], cwd=context.root, env=compose_environment(context), check=True)
+    elif command == "keycloak-migration-apply":
+        if extra:
+            raise ContractError("keycloak-migration-apply does not accept command arguments")
+        keycloak_migration_apply(context)
+    elif command == "bootstrap-owner":
+        owner_bootstrap(context, extra)
     elif command == "up":
         script(context, "init_secrets.py")
         script(context, "render_config.py")
@@ -1184,8 +1696,10 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
                 "--force",
                 *HOST_APPLICATION_SERVICES,
             )
-        compose(context, "up", "-d", "postgres", "postgres-reconcile")
-        identity_ops(context, "identity-apply")
+        if context.environment != "dev":
+            compose(context, "up", "-d", "postgres", "postgres-reconcile")
+        compose(context, "up", "-d", "--wait", "--wait-timeout", "600", "keycloak")
+        require_completed_migration(context)
         compose(
             context,
             "up",
@@ -1194,9 +1708,10 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
             "--wait",
             "--wait-timeout",
             "600",
-            *RUNTIME_ROOT_SERVICES[context.profile],
+            *runtime_root_services(context),
         )
-        script(context, "nextcloud_reconcile.py")
+        if context.environment != "dev" and "provider-nextcloud" in context.active_profiles:
+            script(context, "nextcloud_reconcile.py")
     elif command == "down":
         if context.profile == "dev":
             compose(
@@ -1227,13 +1742,17 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         }[command]
         isolated_collaboration_control(context, operation)
     else:
-        identity_ops(context, command)
+        raise ContractError(f"unsupported Compose operation: {command}")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
-    parser.add_argument("profile", choices=("dev", "test", "prod"))
+    parser.add_argument(
+        "profile",
+        choices=("dev", "dogfood", "prod", "e2e"),
+        help="operator environment",
+    )
     parser.add_argument("command", choices=COMMANDS)
     parser.add_argument("extra", nargs=argparse.REMAINDER)
     args = parser.parse_args()

@@ -3,10 +3,10 @@
   "supportSafe": true,
   "generatedAt": "2026-07-26T19:18:52Z",
   "backupBinding": {
-    "manifestSha256": "4a1202671a704ad5363cd9867c07f4893c4e7463310a1c0225903f125eb2b634",
-    "backupIdSha256": "48f010d8a0e63c26b376f0dd3e379b7cc81924a563f5962a1e7ac9ee45b09bf5",
+    "manifestSha256": "1972b8fd7132386a099699e0c91a63a023b6f372a5b5a62db9086bacb3aab24e",
+    "backupIdSha256": "e38dcfce1872b2a7ae9f0c6ed6c1e3960c1358c88889b90e726e5b885a2e1144",
     "candidateCommit": "4f25fb17725c1bd6eac38927dca081e3c61cbd94",
-    "profile": "test",
+    "profile": "dogfood",
     "composeProject": "weave-disposable-proof"
   },
   "restoreRunId": "disposable-restore-proof-architecture-hard-cut",

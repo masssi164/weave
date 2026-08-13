@@ -25,9 +25,14 @@ PROVIDER_ARCHIVES = frozenset(
         "caddy-data.tgz",
         "keycloak-data.tgz",
         "matrix-appservice.tgz",
+        "native-files-data.tgz",
         "nextcloud-data.tgz",
+        "runtime-state-data.tgz",
         "synapse-data.tgz",
     )
+)
+REQUIRED_PROVIDER_ARCHIVES = frozenset(
+    ("caddy-config.tgz", "caddy-data.tgz", "keycloak-data.tgz", "native-files-data.tgz")
 )
 COMMON_FIELDS = frozenset(
     (
@@ -92,7 +97,7 @@ def _bounded_integer(value: object, *, minimum: int = 0) -> bool:
 
 
 def _validate_inventory(rows: object) -> None:
-    if not isinstance(rows, list) or len(rows) != len(PROVIDER_ARCHIVES):
+    if not isinstance(rows, list) or not rows:
         raise ReceiptContractError("restore receipt provider-volume inventory is incomplete")
     observed: set[str] = set()
     for row in rows:
@@ -137,8 +142,8 @@ def _validate_inventory(rows: object) -> None:
             raise ReceiptContractError(
                 "restore receipt provider-volume root metadata is invalid"
             )
-    if observed != PROVIDER_ARCHIVES:
-        raise ReceiptContractError("restore receipt provider-volume inventory is incomplete")
+    if not REQUIRED_PROVIDER_ARCHIVES.issubset(observed):
+        raise ReceiptContractError("restore receipt core volume inventory is incomplete")
 
 
 def validate_receipt(
@@ -226,8 +231,9 @@ def validate_receipt(
             or receipt.get("legacyStateMigrated") is not False
             or receipt.get("adoptionAuthorized") is not False
             or receipt.get("privateArtifactCount")
-            != len(PROVIDER_ARCHIVES) + 2
-            or receipt.get("restoredProviderVolumeCount") != len(PROVIDER_ARCHIVES)
+            != len(receipt["restoredVolumeInventories"]) + 2
+            or receipt.get("restoredProviderVolumeCount")
+            != len(receipt["restoredVolumeInventories"])
         ):
             raise ReceiptContractError(
                 "Fresh Start receipt does not prove the no-adoption recovery boundary"

@@ -48,7 +48,14 @@ class SpringSecurityKeycloakAdminAccessTokenProviderTest {
 
         Path secret = temporary.resolve("weave/agent-runtime/admin/keycloak");
         Files.createDirectories(secret.getParent());
-        Files.writeString(secret, "admin-secret\n", StandardCharsets.UTF_8);
+        Files.writeString(
+                secret,
+                new RSAKeyGenerator(2048)
+                        .keyID("identity-admin-test")
+                        .algorithm(JWSAlgorithm.PS256)
+                        .generate()
+                        .toJSONString(),
+                StandardCharsets.UTF_8);
         if (Files.getFileStore(secret).supportsFileAttributeView("posix")) {
             Files.setPosixFilePermissions(secret.getParent(), PosixFilePermissions.fromString("rwx------"));
             Files.setPosixFilePermissions(secret, PosixFilePermissions.fromString("rw-------"));
@@ -61,7 +68,7 @@ class SpringSecurityKeycloakAdminAccessTokenProviderTest {
     }
 
     @Test
-    void readsTheLongLivedSecretOnlyThroughItsRefAndCachesShortLivedTokens() throws Exception {
+    void usesPrivateKeyJwtOnlyAndCachesShortLivedTokens() throws Exception {
         server.createContext("/realms/weave/protocol/openid-connect/token", exchange -> {
             int sequence = requests.incrementAndGet();
             authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
@@ -79,47 +86,6 @@ class SpringSecurityKeycloakAdminAccessTokenProviderTest {
         assertThat(provider.accessToken()).isEqualTo("admin-token-2");
 
         assertThat(requests).hasValue(2);
-        assertThat(requestBody).hasValue("grant_type=client_credentials");
-        assertThat(authorization.get()).isEqualTo("Basic " + Base64.getEncoder()
-                .encodeToString("weave-identity-admin:admin-secret".getBytes(StandardCharsets.UTF_8)));
-        assertThat(Files.readString(temporary.resolve("weave/agent-runtime/admin/keycloak")))
-                .isEqualTo("admin-secret\n");
-    }
-
-    @Test
-    void rejectsKeycloakErrorsWithoutLeakingTheSecretOrResponseBody() {
-        server.createContext("/realms/weave/protocol/openid-connect/token", exchange ->
-                respond(exchange, 401, "private-provider-diagnostic admin-secret"));
-
-        assertThatThrownBy(() -> provider().accessToken())
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
-                .hasMessageContaining("authentication failed")
-                .hasMessageNotContaining("private-provider-diagnostic")
-                .hasMessageNotContaining("admin-secret");
-    }
-
-    @Test
-    void authenticatesTheRuntimeAdministratorWithPrivateKeyJwt() throws Exception {
-        Path secret = temporary.resolve("weave/agent-runtime/admin/keycloak");
-        Files.writeString(
-                secret,
-                new RSAKeyGenerator(2048)
-                        .keyID("runtime-admin-test")
-                        .algorithm(JWSAlgorithm.PS256)
-                        .generate()
-                        .toJSONString(),
-                StandardCharsets.UTF_8);
-        server.createContext("/realms/weave/protocol/openid-connect/token", exchange -> {
-            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
-            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.US_ASCII));
-            respond(exchange, 200, "{\"access_token\":\"runtime-token\","
-                    + "\"token_type\":\"Bearer\",\"expires_in\":60}");
-        });
-
-        assertThat(provider(
-                SpringSecurityKeycloakAdminAccessTokenProvider.CredentialMethod.PRIVATE_KEY_JWT,
-                "weave-agent-runtime-admin").accessToken()).isEqualTo("runtime-token");
-
         assertThat(authorization.get()).isNull();
         assertThat(requestBody.get())
                 .contains("grant_type=client_credentials")
@@ -138,15 +104,34 @@ class SpringSecurityKeycloakAdminAccessTokenProviderTest {
         assertThat(claims).contains("\"aud\":\"https://auth.weave.local/realms/weave\"");
     }
 
-    private SpringSecurityKeycloakAdminAccessTokenProvider provider() {
-        return provider(
-                SpringSecurityKeycloakAdminAccessTokenProvider.CredentialMethod.CLIENT_SECRET_BASIC,
-                "weave-identity-admin");
+    @Test
+    void rejectsKeycloakErrorsWithoutLeakingTheSecretOrResponseBody() {
+        server.createContext("/realms/weave/protocol/openid-connect/token", exchange ->
+                respond(exchange, 401, "private-provider-diagnostic identity-admin-test"));
+
+        assertThatThrownBy(() -> provider().accessToken())
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("authentication failed")
+                .hasMessageNotContaining("private-provider-diagnostic")
+                .hasMessageNotContaining("identity-admin-test");
     }
 
-    private SpringSecurityKeycloakAdminAccessTokenProvider provider(
-            SpringSecurityKeycloakAdminAccessTokenProvider.CredentialMethod credentialMethod,
-            String clientId) {
+    @Test
+    void rejectsPublicOnlyOrMalformedJwksAtTheServerPrivateKeyBoundary() throws Exception {
+        Path secret = temporary.resolve("weave/agent-runtime/admin/keycloak");
+        Files.writeString(
+                secret,
+                "{\"kty\":\"RSA\",\"alg\":\"PS256\",\"kid\":\"public-only\",\"n\":\"n\",\"e\":\"AQAB\"}",
+                StandardCharsets.UTF_8);
+
+        assertThatThrownBy(() -> provider().accessToken())
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessage("Keycloak workload administration private JWK is invalid")
+                .hasMessageNotContaining("public-only");
+        assertThat(requests).hasValue(0);
+    }
+
+    private SpringSecurityKeycloakAdminAccessTokenProvider provider() {
         FileRuntimeWorkloadCredentialStore secrets =
                 new FileRuntimeWorkloadCredentialStore(temporary, new ObjectMapper());
         URI base = URI.create("http://127.0.0.1:" + server.getAddress().getPort());
@@ -154,9 +139,8 @@ class SpringSecurityKeycloakAdminAccessTokenProviderTest {
                 new SpringSecurityKeycloakAdminAccessTokenProvider.Settings(
                         base,
                         "weave",
-                        clientId,
+                        "weave-identity-admin",
                         CREDENTIAL_REF,
-                        credentialMethod,
                         URI.create("https://auth.weave.local/realms/weave"),
                         Duration.ofSeconds(2));
         return new SpringSecurityKeycloakAdminAccessTokenProvider(settings, secrets);

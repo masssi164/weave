@@ -32,6 +32,29 @@ class RelationalProfileGuardTest {
     }
 
     @Test
+    void dogfoodRejectsEmbeddedDatabaseEvenWhenOnlyDeploymentProfileIsSet() {
+        MockEnvironment environment = environment(
+                "dogfood",
+                "jdbc:h2:mem:weave-dogfood",
+                "org.h2.Driver");
+
+        assertThatThrownBy(() -> new RelationalProfileGuard(environment).afterSingletonsInstantiated())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("PostgreSQL");
+    }
+
+    @Test
+    void e2eAcceptsExplicitPostgresqlConfiguration() {
+        MockEnvironment environment = environment(
+                "e2e",
+                "jdbc:postgresql://postgres:5432/weave_e2e",
+                "org.postgresql.Driver");
+
+        assertThatCode(() -> new RelationalProfileGuard(environment).afterSingletonsInstantiated())
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     void prodRequiresThePostgresqlDriverAsWellAsItsUrl() {
         MockEnvironment environment = environment(
                 "prod",

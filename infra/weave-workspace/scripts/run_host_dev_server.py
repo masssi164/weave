@@ -36,11 +36,12 @@ def load_environment(path: Path) -> dict[str, str]:
         raise RuntimeError("host dev must select application-dev H2 without a container PostgreSQL override")
     for required in (
         "SPRING_CONFIG_IMPORT",
-        "WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL",
-        "WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE",
-        "WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE",
-        "WEAVE_NEXTCLOUD_BASE_URL",
+        "WEAVE_CHAT_PROVIDER",
+        "WEAVE_FILES_PROVIDER",
+        "WEAVE_FILES_NATIVE_FILESYSTEM_ROOT",
+        "WEAVE_CALENDAR_PROVIDER",
         "WEAVE_IDENTITY_KEYCLOAK_BASE_URL",
+        "WEAVE_IDENTITY_KEYCLOAK_PRIVATE_JWK_FILE",
     ):
         if not values.get(required):
             raise RuntimeError(f"host.env omits {required}")
