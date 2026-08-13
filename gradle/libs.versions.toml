@@ -5,14 +5,17 @@ spring-ai = "2.0.0"
 springdoc = "3.0.3"
 mapstruct = "1.6.3"
 archunit = "1.4.1"
-testcontainers = "2.0.2"
+testcontainers = "2.0.5"
 cucumber = "7.18.1"
 bouncycastle = "1.84"
 h2-test = "2.3.232"
 jcs = "1.1"
 playwright = "1.60.0"
 nimbus-jose-jwt = "10.9"
-aws-sdk = "2.46.8"
+ical4j = "4.2.5"
+flyway = "13.0.0"
+opendal = "0.50.0"
+aws-sdk = "2.36.2"
 
 [libraries]
 spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
@@ -31,6 +34,10 @@ h2-test = { module = "com.h2database:h2", version.ref = "h2-test" }
 jcs = { module = "io.github.erdtman:java-json-canonicalization", version.ref = "jcs" }
 playwright = { module = "com.microsoft.playwright:playwright", version.ref = "playwright" }
 nimbus-jose-jwt = { module = "com.nimbusds:nimbus-jose-jwt", version.ref = "nimbus-jose-jwt" }
+ical4j = { module = "org.mnode.ical4j:ical4j", version.ref = "ical4j" }
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
+opendal = { module = "org.apache.opendal:opendal", version.ref = "opendal" }
 aws-s3 = { module = "software.amazon.awssdk:s3", version.ref = "aws-sdk" }
 aws-url-connection-client = { module = "software.amazon.awssdk:url-connection-client", version.ref = "aws-sdk" }
 

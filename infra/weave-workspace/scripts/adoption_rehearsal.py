@@ -25,8 +25,9 @@ from private_backup_integrity import (  # noqa: E402
     validate_backup,
 )
 
-from backup_runtime import VOLUME_ARTIFACTS, backup
+from backup_runtime import VOLUME_ARTIFACTS, active_volume_artifacts, backup
 from compose_env import ContractError, load_context
+from compose_runtime import active_volume_keys
 from legacy_secret_migration import migrate
 from compose_env import canonical_json
 from recovery_receipt import (
@@ -44,9 +45,18 @@ def _digest(path: Path) -> str:
     return value.hexdigest()
 
 
-def _validate_private_backup(backup_dir: Path) -> dict[str, object]:
+def _validate_private_backup(
+    backup_dir: Path, context: object
+) -> dict[str, object]:
+    expected_artifacts = {
+        "postgres.sql",
+        "private-config-secrets.tgz",
+        *(archive for _variable, archive, _kind in active_volume_artifacts(context)),
+    }
     try:
-        return validate_backup(backup_dir)
+        return validate_backup(
+            backup_dir, expected_artifacts=expected_artifacts
+        )
     except IntegrityError as error:
         raise ContractError(
             "private backup failed its closed v3 integrity contract"
@@ -449,7 +459,7 @@ def rehearse(
 ) -> dict[str, object]:
     if purpose not in {"adoption", "fresh-start"}:
         raise ContractError("backup rehearsal purpose is unsupported")
-    integrity = _validate_private_backup(backup_dir)
+    integrity = _validate_private_backup(backup_dir, context)
     manifest_path = backup_dir / "BackupManifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     candidate = os.environ["WEAVE_CANDIDATE_COMMIT"]
@@ -465,7 +475,7 @@ def rehearse(
         or manifest.get("candidateCommit") != candidate
         or manifest.get("candidateManifestDigest")
         != candidate_manifest_digest
-        or manifest.get("profile") != context.profile
+        or manifest.get("profile") != getattr(context, "environment", context.profile)
         or manifest.get("composeProject") != context.env["WEAVE_COMPOSE_PROJECT"]
         or not isinstance(postgres_dump_client_image, str)
         or not re.fullmatch(
@@ -509,7 +519,7 @@ def rehearse(
     _run("docker", "network", "create", "--internal", *_labels(namespace), network)
     try:
         restored_inventories: list[dict[str, object]] = []
-        for variable, archive, _kind in VOLUME_ARTIFACTS:
+        for variable, archive, _kind in active_volume_artifacts(context):
             volume = f"{namespace}-{variable.lower().removeprefix('weave_').removesuffix('_volume').replace('_', '-')}"
             volumes.append(volume)
             expected_inventory = _archive_inventory(
@@ -675,19 +685,10 @@ def rehearse(
                 )
         manifest_digest = _digest(manifest_path)
         resources = [{"kind": "network", "name": context.env["WEAVE_DOCKER_NETWORK"]}]
-        for key in (
-            "WEAVE_CADDY_DATA_VOLUME",
-            "WEAVE_CADDY_CONFIG_VOLUME",
-            "WEAVE_DB_DATA_VOLUME",
-            "WEAVE_KEYCLOAK_DATA_VOLUME",
-            "WEAVE_MAILPIT_DATA_VOLUME",
-            "WEAVE_NEXTCLOUD_DATA_VOLUME",
-            "WEAVE_SYNAPSE_DATA_VOLUME",
-            "WEAVE_MATRIX_APPSERVICE_VOLUME",
-        ):
+        for key in active_volume_keys(context):
             resources.append({"kind": "volume", "name": context.env[key]})
         common = {
-            "profile": context.profile,
+            "profile": getattr(context, "environment", context.profile),
             "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
             "candidateCommit": candidate,
             "candidateManifestDigest": candidate_manifest_digest,
@@ -746,7 +747,7 @@ def rehearse(
             purpose=purpose,
             candidate=candidate,
             candidate_manifest_digest=candidate_manifest_digest,
-            profile=context.profile,
+            profile=getattr(context, "environment", context.profile),
             compose_project=context.env["WEAVE_COMPOSE_PROJECT"],
             backup_manifest_digest="sha256:" + manifest_digest,
         )
@@ -780,7 +781,7 @@ def execute(
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "test", "prod"))
+    parser.add_argument("profile", choices=("dogfood", "prod"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     parser.add_argument(

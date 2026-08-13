@@ -16,17 +16,24 @@ import tarfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from compose_env import ComposeContext, ContractError, compose_environment, load_context
+from compose_env import (
+    ComposeContext,
+    ContractError,
+    compose_environment,
+    load_context,
+)
 from recovery_receipt import database_inventory_digest
 
 
 VOLUME_ARTIFACTS = (
+    ("WEAVE_NATIVE_FILES_DATA_VOLUME", "native-files-data.tgz", "native-files-payload-data"),
     ("WEAVE_NEXTCLOUD_DATA_VOLUME", "nextcloud-data.tgz", "files-calendar-provider-data"),
     ("WEAVE_SYNAPSE_DATA_VOLUME", "synapse-data.tgz", "matrix-media-and-local-state"),
     ("WEAVE_CADDY_DATA_VOLUME", "caddy-data.tgz", "gateway-runtime-state"),
     ("WEAVE_CADDY_CONFIG_VOLUME", "caddy-config.tgz", "gateway-config-state"),
     ("WEAVE_KEYCLOAK_DATA_VOLUME", "keycloak-data.tgz", "keycloak-runtime-state"),
     ("WEAVE_MATRIX_APPSERVICE_VOLUME", "matrix-appservice.tgz", "matrix-appservice-runtime"),
+    ("WEAVE_RUNTIME_STATE_VOLUME", "runtime-state-data.tgz", "runtime-state-sensitive"),
 )
 BACKUP_HELPER_CAPABILITIES = ("DAC_READ_SEARCH",)
 QUIESCED_SERVICES = ("caddy", "mcp", "backend", "synapse", "mas", "nextcloud", "keycloak")
@@ -40,11 +47,29 @@ SERVICE_SUFFIXES = {
     "keycloak": "keycloak",
 }
 SERVICE_VOLUMES = {
+    "backend": ("WEAVE_NATIVE_FILES_DATA_VOLUME",),
     "caddy": ("WEAVE_CADDY_DATA_VOLUME", "WEAVE_CADDY_CONFIG_VOLUME"),
     "synapse": ("WEAVE_SYNAPSE_DATA_VOLUME", "WEAVE_MATRIX_APPSERVICE_VOLUME"),
     "nextcloud": ("WEAVE_NEXTCLOUD_DATA_VOLUME",),
     "keycloak": ("WEAVE_KEYCLOAK_DATA_VOLUME",),
 }
+
+
+def active_volume_artifacts(context: ComposeContext) -> tuple[tuple[str, str, str], ...]:
+    profiles = set(context.active_profiles)
+    selected = {
+        "WEAVE_NATIVE_FILES_DATA_VOLUME",
+        "WEAVE_CADDY_DATA_VOLUME",
+        "WEAVE_CADDY_CONFIG_VOLUME",
+        "WEAVE_KEYCLOAK_DATA_VOLUME",
+    }
+    if "provider-nextcloud" in profiles:
+        selected.add("WEAVE_NEXTCLOUD_DATA_VOLUME")
+    if "provider-matrix" in profiles:
+        selected.update(("WEAVE_SYNAPSE_DATA_VOLUME", "WEAVE_MATRIX_APPSERVICE_VOLUME"))
+    if "storage-s3" in profiles:
+        selected.add("WEAVE_RUNTIME_STATE_VOLUME")
+    return tuple(item for item in VOLUME_ARTIFACTS if item[0] in selected)
 
 
 def _sha256(path: Path) -> tuple[str, int]:
@@ -356,8 +381,8 @@ def _require_no_pending_registration_operations(context: ComposeContext) -> None
 
 
 def backup(context: ComposeContext) -> Path:
-    if context.profile not in ("test", "prod"):
-        raise ContractError("private consistency backups are required for test/prod, not H2 host-dev")
+    if context.environment not in ("dogfood", "prod"):
+        raise ContractError("private consistency backups are required for dogfood/prod, not dev or disposable E2E")
     candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
     if not re.fullmatch(r"[0-9a-f]{40}", candidate):
         raise ContractError("WEAVE_CANDIDATE_COMMIT must bind the private backup to an exact candidate")
@@ -379,7 +404,8 @@ def backup(context: ComposeContext) -> Path:
     if stat.S_IMODE(backup_root.stat().st_mode) & 0o077:
         raise ContractError("WEAVE_BACKUP_ROOT must not be group/world accessible")
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    backup_id = f"weave-{context.profile}-{timestamp}-{candidate[:12]}"
+    environment = getattr(context, "environment", context.profile)
+    backup_id = f"weave-{environment}-{timestamp}-{candidate[:12]}"
     destination = backup_root / backup_id
     if destination.exists() or destination.is_symlink():
         raise ContractError("candidate-bound private backup already exists")
@@ -401,7 +427,7 @@ def backup(context: ComposeContext) -> Path:
                 postgres_dump_client_image,
                 postgres_databases,
             ) = _postgres_dump(context, dump)
-            for variable, archive, kind in VOLUME_ARTIFACTS:
+            for variable, archive, kind in active_volume_artifacts(context):
                 target = staging / archive
                 _archive_volume(context, context.env[variable], target)
                 digest, size = _sha256(target)
@@ -436,7 +462,7 @@ def backup(context: ComposeContext) -> Path:
                 .replace("+00:00", "Z"),
                 "candidateCommit": candidate,
                 "candidateManifestDigest": candidate_manifest_digest,
-                "profile": context.profile,
+                "profile": environment,
                 "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
                 "databaseFingerprint": database_fingerprint,
                 "postgresDumpClientImage": postgres_dump_client_image,
@@ -488,7 +514,7 @@ def backup(context: ComposeContext) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "test", "prod"))
+    parser.add_argument("profile", choices=("dogfood", "prod"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     args = parser.parse_args()

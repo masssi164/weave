@@ -103,7 +103,7 @@ tasks.register('freshStartBackupRehearsal', Exec) {
         def arguments = [
             'bash',
             'infra/weave-workspace/fresh-start-backup-rehearsal.sh',
-            optionalProperty('freshStartBackupProfile', 'test')
+            optionalProperty('freshStartBackupProfile', 'dogfood')
         ]
         def receipt = providers.gradleProperty('freshStartBackupReceipt').orNull
         if (receipt != null && !receipt.toString().trim().isEmpty()) {
@@ -151,11 +151,15 @@ tasks.register('freshStartRecreateTargetGeneration', Exec) {
     workingDir rootProject.projectDir
     outputs.upToDateWhen { false }
     doFirst {
+        def plan = requiredProperty('freshStartManifest')
+        def applyEvidence = requiredProperty('freshStartApplyEvidence')
+        environment 'WEAVE_FRESH_START_PLAN', file(plan).absolutePath
+        environment 'WEAVE_FRESH_START_APPLY_EVIDENCE', file(applyEvidence).absolutePath
         commandLine(
             'python3',
             'infra/weave-workspace/fresh-start-recreate.py',
-            '--plan', requiredProperty('freshStartManifest'),
-            '--apply-evidence', requiredProperty('freshStartApplyEvidence'),
+            '--plan', plan,
+            '--apply-evidence', applyEvidence,
             '--candidate-manifest', requiredProperty('candidateManifest'),
             '--allowlist', optionalProperty(
                 'freshStartAllowlist',
@@ -196,7 +200,7 @@ tasks.register('dogfoodCandidateCheck', Exec) {
 
 tasks.register('createCandidateManifest', Exec) {
     group = 'weave release'
-    description = 'Create and validate one immutable candidate manifest from digest-pinned images and attestations.'
+    description = 'Create and validate one immutable candidate manifest from semantic realm identities, digest-pinned images, and attestations.'
     workingDir rootProject.projectDir
     outputs.upToDateWhen { false }
     doFirst {
@@ -208,6 +212,8 @@ tasks.register('createCandidateManifest', Exec) {
             '--spec-digest', requiredProperty('specDigest'),
             '--build-evidence-ref', requiredProperty('buildEvidenceRef'),
             '--keycloak-build-evidence-digest', requiredProperty('keycloakRuntimeBuildEvidenceDigest'),
+            '--semantic-realm-source-digest', requiredProperty('semanticRealmSourceDigest'),
+            '--realm-migration-definition-digest', requiredProperty('realmMigrationDefinitionDigest'),
             '--image',
             'server',
             requiredProperty('serverImage'),
@@ -219,90 +225,11 @@ tasks.register('createCandidateManifest', Exec) {
             requiredProperty('mcpServerSbomDigest'),
             requiredProperty('mcpServerProvenanceDigest'),
             '--image',
-            'identity-ops',
-            requiredProperty('identityOpsImage'),
-            requiredProperty('identityOpsSbomDigest'),
-            requiredProperty('identityOpsProvenanceDigest'),
-            '--image',
             'keycloak-runtime',
             requiredProperty('keycloakRuntimeImage'),
             requiredProperty('keycloakRuntimeSbomDigest'),
             requiredProperty('keycloakRuntimeProvenanceDigest'),
             '--output', requiredProperty('candidateManifest')
         )
-    }
-}
-
-def configureIdentityOpsTask = { String taskName, String operation, String descriptionText ->
-    tasks.register(taskName, Exec) {
-        group = 'weave operations'
-        description = descriptionText
-        workingDir rootProject.projectDir
-        outputs.upToDateWhen { false }
-        doFirst {
-            commandLine(
-                'bash',
-                'gradle/tasks/identity-ops-run.sh',
-                '--operation', operation,
-                '--image', requiredProperty('identityOpsImage'),
-                '--state-root', requiredProperty('identityOpsStateRoot'),
-                '--env-file', requiredProperty('identityOpsEnvFile'),
-                '--network', requiredProperty('identityOpsNetwork')
-            )
-        }
-    }
-}
-
-configureIdentityOpsTask(
-    'identityOpsPlan',
-    'plan',
-    'Create a reviewable Keycloak Desired State plan in the mounted identity state root.'
-)
-configureIdentityOpsTask(
-    'identityOpsApply',
-    'apply',
-    'Apply only the reviewed Keycloak Desired State plan from the mounted identity state root.'
-)
-configureIdentityOpsTask(
-    'identityOpsValidate',
-    'validate',
-    'Validate the bundled Keycloak Desired State and mirrored provider without contacting Keycloak.'
-)
-
-tasks.register('prepareDogfoodTester', Exec) {
-    group = 'weave operations'
-    description = 'Idempotently create or verify the protected persistent dogfood member activation state.'
-    workingDir file('infra/weave-workspace')
-    commandLine 'bash', 'dogfood-member.sh', 'ensure'
-    outputs.upToDateWhen { false }
-}
-
-tasks.register('bootstrapOwner', Exec) {
-    group = 'weave operations'
-    description = 'Create or replay the protected first owner invitation from a mounted SecretRef.'
-    workingDir rootProject.projectDir
-    outputs.upToDateWhen { false }
-    doFirst {
-        def arguments = [
-            'python3',
-            'gradle/tasks/bootstrap-owner.py',
-            '--api-base-url', requiredProperty('bootstrapApiBaseUrl'),
-            '--token-file', optionalProperty(
-                'bootstrapOwnerTokenFile',
-                file('infra/weave-workspace/.generated/dev/identity/bootstrap-owner.token').absolutePath
-            ),
-            '--email', requiredProperty('bootstrapOwnerEmail'),
-            '--display-name', optionalProperty('bootstrapOwnerDisplayName', ''),
-            '--idempotency-key', requiredProperty('bootstrapOwnerIdempotencyKey')
-        ]
-        def caFile = providers.gradleProperty('bootstrapCaFile').orNull
-        if (caFile != null && !caFile.toString().trim().isEmpty()) {
-            arguments.addAll(['--ca-file', caFile.toString()])
-        }
-        def evidence = providers.gradleProperty('bootstrapOwnerEvidence').orNull
-        if (evidence != null && !evidence.toString().trim().isEmpty()) {
-            arguments.addAll(['--evidence', evidence.toString()])
-        }
-        commandLine arguments
     }
 }

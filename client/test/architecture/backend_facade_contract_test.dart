@@ -199,7 +199,7 @@ void main() {
       );
 
       final rustManifest = await File(
-        '../rust/matrix-core/Cargo.toml',
+        '../rust/matrix-client/Cargo.toml',
       ).readAsString();
       final flutterManifest = await File('pubspec.yaml').readAsString();
       expect(rustManifest, contains('matrix-sdk'));

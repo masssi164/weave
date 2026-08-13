@@ -31,7 +31,10 @@ final class SchemaCatalogFingerprint {
     try (ResultSet rows = metadata.getTables(connection.getCatalog(), schema, "%", new String[] {"TABLE"})) {
       while (rows.next()) {
         String table = rows.getString("TABLE_NAME");
-        if (table != null && !table.startsWith("pg_") && !table.startsWith("sql_")) {
+        if (table != null
+            && !table.startsWith("pg_")
+            && !table.startsWith("sql_")
+            && !"flyway_schema_history".equals(table)) {
           tables.put(table, tableProjection(metadata, connection, schema, table));
         }
       }

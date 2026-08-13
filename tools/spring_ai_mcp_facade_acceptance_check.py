@@ -37,6 +37,17 @@ def require(path: str, *fragments: str) -> str:
     return text
 
 
+def reject(path: str, *fragments: str) -> str:
+    file_path = ROOT / path
+    if not file_path.is_file():
+        fail(f"missing required file {path}")
+    text = file_path.read_text(encoding="utf-8")
+    for fragment in fragments:
+        if fragment in text:
+            fail(f"{path} retains forbidden fragment: {fragment}")
+    return text
+
+
 def require_absent(path: str) -> None:
     if (ROOT / path).exists():
         fail(f"obsolete runtime file still exists: {path}")
@@ -68,6 +79,34 @@ def main() -> int:
         "mcp-endpoint: /mcp",
         "issuer-uri:",
         "resource-uri:",
+        "exchange-client-jwk-file: ${WEAVE_MCP_EXCHANGE_CLIENT_JWK_FILE:/run/secrets/weave/mcp-private-jwk.json}",
+    )
+    for profile in ("dogfood", "e2e"):
+        require(
+            f"weave-mcp-server/src/main/resources/application-{profile}.yml",
+            "issuer-uri: https://auth.weave.test/realms/weave",
+            "jwk-set-uri: http://keycloak:8080/realms/weave/protocol/openid-connect/certs",
+            "resource-uri: https://api.weave.test/mcp",
+            "authorization-server: https://auth.weave.test/realms/weave",
+            "token-uri: http://keycloak:8080/realms/weave/protocol/openid-connect/token",
+            "backend-files-uri: http://backend:8080/dav/files",
+        )
+        reject(
+            f"weave-mcp-server/src/main/resources/application-{profile}.yml",
+            "datasource:",
+            "jpa:",
+        )
+    require(
+        "weave-mcp-server/src/main/resources/application-dev.yml",
+        "issuer-uri: https://auth.weave.test/realms/weave",
+        "resource-uri: https://api.weave.test/mcp",
+    )
+    require(
+        "weave-mcp-server/src/main/resources/application-prod.yml",
+        "issuer-uri: ${WEAVE_OIDC_ISSUER_URI}",
+        "jwk-set-uri: ${WEAVE_OIDC_JWK_SET_URI}",
+        "resource-uri: ${WEAVE_MCP_RESOURCE_URI}",
+        "authorization-server: ${WEAVE_MCP_AUTHORIZATION_SERVER}",
     )
     require(
         "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpSecurityConfiguration.java",
@@ -128,18 +167,22 @@ def main() -> int:
         "SCOPE_files.read",
     )
     require(
-        "infra/weave-workspace/scripts/render_config.py",
-        '"WEAVE_OIDC_ISSUER_URI": issuer',
-        '"WEAVE_MCP_REQUIRED_SCOPES": "mcp.tools,files.read"',
-        '"WEAVE_MCP_EXCHANGE_CLIENT_JWK_FILE": "/run/secrets/weave/mcp-private-jwk.json"',
-        '"WEAVE_MCP_BACKEND_FILES_URI": "http://backend:8080/dav/files"',
-        '"WEAVE_MCP_EXCHANGE_SCOPES": "files.read"',
-    )
-    require(
         "infra/weave-workspace/compose.yaml",
-        "${WEAVE_GENERATED_ROOT:-./.generated/dev}/mcp/public.env",
+        "SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}",
         '"127.0.0.1:${WEAVE_MCP_HOST_PORT:-48085}:8091"',
         "/run/secrets/weave/mcp-private-jwk.json",
+    )
+    reject(
+        "infra/weave-workspace/compose.yaml",
+        "mcp/public.env",
+        "backend/public.env",
+    )
+    reject(
+        "infra/weave-workspace/scripts/render_config.py",
+        "_mcp_env(",
+        "_backend_env(",
+        "WEAVE_OIDC_ISSUER_URI",
+        "WEAVE_MCP_REQUIRED_SCOPES",
     )
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpJsonRpcController.java")
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/CanonicalMcpFeatures.java")

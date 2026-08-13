@@ -139,21 +139,22 @@ MCP itself.
 
 ## Identity and candidate artifacts
 
-Keycloak Desired State is bundled as the separate `weave-identity-ops` OCI artifact. The image
-uses digest-pinned Alpine and OpenTofu-minimal bases, mirrors the lock-file-selected Keycloak
-provider during the build, runs as a numeric non-root identity, and supports only `validate`,
-`plan`, and reviewed-plan `apply`. Its runtime root filesystem is read-only; `/tmp` is `noexec`,
-the provider work area is a bounded executable tmpfs, and the state directory is an explicit
-private mount.
+Static Keycloak state is rendered reproducibly from the canonical realm source and enters only
+through Keycloak realm import. The separately invoked, rootless post-import migration is bounded
+to FGAP state import cannot express, requires a verified private backup, deletes its temporary
+bootstrap authority, records a digest-bound receipt, and must produce an empty second plan.
 
-`.github/workflows/candidate-images.yml` is the only candidate image producer. It runs the JVM,
-MCP, and PostgreSQL gates before publishing Server, MCP Server, Identity Ops, and the
-version-pinned Keycloak Runtime. Tags identify a commit and workflow attempt for navigation, but
+`.github/workflows/candidate-images.yml` is the only candidate image producer. It is a protected,
+dispatch-only Candidate Cut: normal `dev` pushes run merge CI without publishing release
+artifacts. Its read-only gate verifies the selected commit against protected `dev` before the
+`candidate-cut` environment grants package-write authority. It then runs the JVM, MCP, and
+PostgreSQL gates before publishing Server, MCP Server, and the version-pinned Keycloak Runtime.
+Tags identify a commit and workflow attempt for navigation, but
 deployment identity is always the image digest.
 Each image carries OCI/Weave labels plus embedded SPDX SBOM and SLSA provenance attestations. A
-canonical candidate manifest binds all four image digests, attestation layer digests, the commit,
+canonical candidate manifest binds all three image digests, attestation layer digests, the commit,
 and the Specification Corpus lock digest. Its dependent `fresh-product-proof` job passes only the
-published Server, MCP, Identity Ops, and Keycloak Runtime `@sha256` references into `testApp`,
+published Server, MCP, and Keycloak Runtime `@sha256` references into `testApp`,
 which verifies their revision,
 Specification Corpus digest and dependency-platform annotations before starting the isolated
 stack.
@@ -163,7 +164,7 @@ stack.
 `./gradlew testApp` owns one run-scoped stack from preparation through exact teardown:
 
 1. A local image build requires a clean Git worktree; candidate CI instead supplies paired,
-   published digest references for all four candidate runtime images. This prevents an
+   published digest references for all three candidate runtime images. This prevents an
    uncommitted source tree from inheriting a misleading commit revision label.
 2. `prepare-product-flow` creates namespace, ports, ownership evidence, a machine-only Chat proof
    SecretRef and empty human membership inputs. It creates no `credentials.env`.

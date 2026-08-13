@@ -24,6 +24,8 @@ CANONICAL_FIELDS = {
     "upstreamCommit",
     "upstreamArchiveSha256",
     "stockReference",
+    "stockPlatform",
+    "stockPlatformManifestDigest",
     "stockServicesJarSha256",
     "patchSha256",
     "patchedPaths",
@@ -69,6 +71,9 @@ def main() -> None:
         or evidence.get("containsSecretValues") is not False
         or evidence.get("evidenceForCandidateCommit") != args.candidate_commit
         or evidence.get("specificationCommit") != args.specification_commit
+        or evidence.get("keycloakVersion") != build_contract.UPSTREAM_TAG
+        or evidence.get("upstreamTag") != build_contract.UPSTREAM_TAG
+        or evidence.get("upstreamTagCommit") != build_contract.UPSTREAM_COMMIT
         or not isinstance(projection, dict)
         or projection.get("schemaVersion")
         != "weave.downstream-keycloak-build-evidence.v1"
@@ -81,8 +86,15 @@ def main() -> None:
         != build_contract.ARCHIVE_SHA256
         or projection.get("stockReference")
         != build_contract.STOCK_KEYCLOAK_REFERENCE
+        or projection.get("stockPlatform")
+        != build_contract.STOCK_KEYCLOAK_PLATFORM
+        or projection.get("stockPlatformManifestDigest")
+        != build_contract.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST
         or projection.get("stockServicesJarSha256")
         != build_contract.STOCK_SERVICES_SHA256
+        or projection.get("patchSha256") != build_contract.PATCH_SHA256
+        or projection.get("patchedServicesJarSha256")
+        != build_contract.PATCHED_SERVICES_SHA256
         or projection.get("patchedPaths")
         != list(build_contract.PATCHED_PATHS)
         or projection.get("downstreamTestClasses")
@@ -124,6 +136,11 @@ def main() -> None:
                 ("upstreamCommit", "upstreamCommit"),
                 ("upstreamArchiveSha256", "upstreamArchiveSha256"),
                 ("stockReference", "stockReference"),
+                ("stockPlatform", "stockPlatform"),
+                (
+                    "stockPlatformManifestDigest",
+                    "stockPlatformManifestDigest",
+                ),
                 ("stockServicesJarSha256", "stockServicesJarSha256"),
                 ("patchSha256", "patchSha256"),
                 ("patchedPaths", "patchedPaths"),

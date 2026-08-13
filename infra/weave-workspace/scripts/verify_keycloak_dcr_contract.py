@@ -23,7 +23,7 @@ KEYCLOAK_ROOT = SCRIPT_ROOT.parent / "keycloak"
 sys.path.insert(0, str(SCRIPT_ROOT))
 sys.path.insert(0, str(KEYCLOAK_ROOT))
 
-import identity_ops  # noqa: E402
+import oauth_probe  # noqa: E402
 import init_secrets  # noqa: E402
 
 
@@ -429,12 +429,20 @@ def registration(
     expected_uri = (
         f"{issuer}/clients-registrations/openid-connect/{client_id}"
     )
-    if (
-        status not in {200, 201}
-        or response.get("registration_client_uri") != expected_uri
-        or not expected_uri.startswith(issuer + "/clients-registrations/openid-connect/")
+    violations: list[str] = []
+    if status not in {200, 201}:
+        violations.append(f"status-{status}")
+    if response.get("registration_client_uri") != expected_uri:
+        violations.append("registration-uri")
+    if not expected_uri.startswith(
+        issuer + "/clients-registrations/openid-connect/"
     ):
-        raise ContractError("valid DCR response did not preserve the exact workload contract")
+        violations.append("expected-uri-coordinate")
+    if violations:
+        raise ContractError(
+            "valid DCR response did not preserve the exact workload contract "
+            f"[constraints={','.join(violations)}]"
+        )
     initial_rat = exact_client_state(response, client_id, private_jwk)
     recover_endpoint = (
         f"{endpoint}/{client_id}/weave-registration-handoff/recover"
@@ -518,7 +526,7 @@ def workload_token(
     client_id: str,
     private_jwk: dict[str, Any],
 ) -> None:
-    status, response = identity_ops.private_key_jwt_token_response(
+    status, response = oauth_probe.private_key_jwt_token_response(
         base,
         realm,
         client_id,
@@ -529,10 +537,10 @@ def workload_token(
     if status != 200 or not isinstance(access_token, str):
         raise ContractError("workload effective-role projection is not exact")
     try:
-        realm_roles, client_roles = identity_ops.access_token_role_projection(
+        realm_roles, client_roles = oauth_probe.access_token_role_projection(
             access_token
         )
-    except identity_ops.IdentityOpsError as error:
+    except oauth_probe.OAuthProbeError as error:
         raise ContractError(
             "workload effective-role projection is malformed"
         ) from error
@@ -568,7 +576,7 @@ def run(args: argparse.Namespace) -> None:
         f"{base}/realms/{args.realm}/clients-registrations/openid-connect"
     )
     admin_jwk = private_json(args.runtime_admin_jwk)
-    status, token_response = identity_ops.private_key_jwt_token_response(
+    status, token_response = oauth_probe.private_key_jwt_token_response(
         base,
         args.realm,
         "weave-agent-runtime-admin",
@@ -576,13 +584,17 @@ def run(args: argparse.Namespace) -> None:
         issuer,
     )
     admin_token = token_response.get("access_token")
-    if status != 200 or not isinstance(admin_token, str):
-        raise ContractError("runtime administration authority is not exact")
+    if status != 200:
+        raise ContractError(
+            f"runtime administration private-key authentication was rejected with HTTP {status}"
+        )
+    if not isinstance(admin_token, str):
+        raise ContractError("runtime administration token response is malformed")
     try:
         admin_realm_roles, admin_client_roles = (
-            identity_ops.access_token_role_projection(admin_token)
+            oauth_probe.access_token_role_projection(admin_token)
         )
-    except identity_ops.IdentityOpsError as error:
+    except oauth_probe.OAuthProbeError as error:
         raise ContractError(
             "runtime administration token role projection is malformed"
         ) from error
@@ -591,9 +603,17 @@ def run(args: argparse.Namespace) -> None:
         or admin_client_roles
         != {"realm-management": {"create-client"}}
     ):
-        raise ContractError("runtime administration authority is not exact")
+        realm_projection = ",".join(sorted(admin_realm_roles)) or "none"
+        client_projection = ",".join(
+            f"{client_id}:[{','.join(sorted(roles))}]"
+            for client_id, roles in sorted(admin_client_roles.items())
+        ) or "none"
+        raise ContractError(
+            "runtime administration authority is not exact "
+            f"(realm={realm_projection}; clients={client_projection})"
+        )
     if (
-        identity_ops.administration_read_probe_status(
+        oauth_probe.administration_read_probe_status(
             base, args.realm, "clients", admin_token
         )
         not in {401, 403}

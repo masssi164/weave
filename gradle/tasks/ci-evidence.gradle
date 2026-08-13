@@ -40,6 +40,7 @@ ext.ciEvidenceGates = [
     'synapseCompatibilityProbeTest',
     'dogfoodDeploymentEvidenceTest',
     'candidatePipelineCheck',
+    'workflowActionRuntimeCheck',
     'obsoleteFirstRunContractCheck'
 ]
 
@@ -176,6 +177,8 @@ List<String> artifactPathsForGate(String gateName) {
             return ['tools/release_readiness_check.py', 'tools/fixtures/rc_readiness/green']
         case 'crossDomainProviderProofCheck':
             return ['release/provider-lab/cross-domain-provider-proof', 'docs/evidence/sprint-27-cross-domain-provider-proof.md', 'tools/cross_domain_provider_proof_check.py']
+        case 'workflowActionRuntimeCheck':
+            return ['.github/workflows', 'tools/workflow_action_runtime_manifest.json', 'tools/workflow_action_runtime_check.py']
         default:
             return []
     }

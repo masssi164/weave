@@ -11,7 +11,7 @@ import re
 import sys
 import tarfile
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Collection
 
 sys.path.insert(
     0,
@@ -33,11 +33,23 @@ EXPECTED_ARTIFACT_KINDS = {
     "caddy-config.tgz": "gateway-config-state",
     "keycloak-data.tgz": "keycloak-runtime-state",
     "matrix-appservice.tgz": "matrix-appservice-runtime",
+    "native-files-data.tgz": "native-files-payload-data",
+    "runtime-state-data.tgz": "runtime-state-sensitive",
     "private-config-secrets.tgz": "private-config-secretrefs",
 }
-REQUIRED_ARTIFACTS = frozenset(EXPECTED_ARTIFACT_KINDS)
+ALLOWED_ARTIFACTS = frozenset(EXPECTED_ARTIFACT_KINDS)
+REQUIRED_ARTIFACTS = frozenset(
+    (
+        "postgres.sql",
+        "caddy-data.tgz",
+        "caddy-config.tgz",
+        "keycloak-data.tgz",
+        "native-files-data.tgz",
+        "private-config-secrets.tgz",
+    )
+)
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
-BACKUP_ID_RE = re.compile(r"^weave-(test|prod)-\d{8}T\d{6}Z-[0-9a-f]{12}$")
+BACKUP_ID_RE = re.compile(r"^weave-(dogfood|prod)-\d{8}T\d{6}Z-[0-9a-f]{12}$")
 PROJECT_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,62}$")
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -142,7 +154,9 @@ def _manifest(path: Path) -> dict[str, Any]:
     return value
 
 
-def validate_backup(backup_dir: Path) -> dict[str, Any]:
+def validate_backup(
+    backup_dir: Path, *, expected_artifacts: Collection[str] | None = None
+) -> dict[str, Any]:
     if backup_dir.is_symlink() or not backup_dir.is_dir():
         raise IntegrityError("private backup directory is missing or unsafe")
     manifest = _manifest(backup_dir / "BackupManifest.json")
@@ -160,7 +174,7 @@ def validate_backup(backup_dir: Path) -> dict[str, Any]:
         r"sha256:[0-9a-f]{64}", candidate_manifest_digest
     ):
         raise IntegrityError("backup manifest candidate manifest digest is invalid")
-    if profile not in {"test", "prod"}:
+    if profile not in {"dogfood", "prod"}:
         raise IntegrityError("backup manifest profile is invalid")
     if (
         not isinstance(backup_id, str)
@@ -216,7 +230,7 @@ def validate_backup(backup_dir: Path) -> dict[str, Any]:
         if not isinstance(item, dict) or set(item) != {"path", "kind", "sha256", "bytes"}:
             raise IntegrityError("backup artifact inventory contains an invalid entry")
         name = item.get("path")
-        if not isinstance(name, str) or Path(name).name != name or name not in REQUIRED_ARTIFACTS:
+        if not isinstance(name, str) or Path(name).name != name or name not in ALLOWED_ARTIFACTS:
             raise IntegrityError("backup artifact path is unsafe or unsupported")
         if name in inventory:
             raise IntegrityError("backup artifact inventory contains a duplicate path")
@@ -229,10 +243,27 @@ def validate_backup(backup_dir: Path) -> dict[str, Any]:
         if not isinstance(expected_size, int) or isinstance(expected_size, bool) or expected_size <= 0:
             raise IntegrityError("backup artifact byte count is invalid")
         inventory[name] = item
-    if set(inventory) != REQUIRED_ARTIFACTS:
-        raise IntegrityError("backup artifact inventory does not match the canonical restore set")
+    if not REQUIRED_ARTIFACTS.issubset(inventory):
+        raise IntegrityError("backup artifact inventory is missing the canonical core restore set")
+    present_artifacts = {
+        path.name
+        for path in backup_dir.iterdir()
+        if path.name in ALLOWED_ARTIFACTS
+    }
+    if present_artifacts != set(inventory):
+        raise IntegrityError(
+            "backup artifact inventory does not exactly match the private artifact files"
+        )
+    if expected_artifacts is not None:
+        expected = set(expected_artifacts)
+        if not expected.issubset(ALLOWED_ARTIFACTS):
+            raise IntegrityError("expected backup artifact set contains an unsupported path")
+        if set(inventory) != expected:
+            raise IntegrityError(
+                "backup artifact inventory does not match the selected deployment profile"
+            )
 
-    for name in sorted(REQUIRED_ARTIFACTS):
+    for name in sorted(inventory):
         path = backup_dir / name
         if path.is_symlink() or not path.is_file():
             raise IntegrityError("a required private backup artifact is missing or unsafe")
@@ -255,7 +286,7 @@ def validate_backup(backup_dir: Path) -> dict[str, Any]:
         "postgresDumpClientImage": postgres_dump_client_image,
         "postgresDatabaseInventoryDigest": postgres_database_inventory_digest,
         "postgresDatabaseCount": len(postgres_databases),
-        "artifactCount": len(REQUIRED_ARTIFACTS),
+        "artifactCount": len(inventory),
         "allRequiredArtifactsVerified": True,
         "privateArtifactContentIncluded": False,
         "supportSafe": True,

@@ -1,0 +1,3 @@
+tasks.named('infraStatic', Exec) {
+    commandLine execCommand(['bash', 'infra/weave-workspace/tests/run-static-contracts.sh'])
+}

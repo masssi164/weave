@@ -114,7 +114,7 @@ class ChatDomainFacadeServiceTest {
         assertThat(readiness.providerMapping().lossyMappingWarnings()).contains("Thread replies need Weave annotations.");
         assertThat(readiness.supportSafeDiagnostics())
                 .containsEntry("missingConfigurationCategory", "backend_provider_configuration")
-                .containsEntry("currentRealProviderPath", "matrix-chat")
+                .containsEntry("currentRealProviderPath", "in-memory-test")
                 .containsEntry("contractOnlyChatProviders", List.of("microsoft-teams", "slack", "nextcloud-talk"))
                 .containsEntry("diagnosticsRedacted", true);
         assertThat(readiness.toString()).doesNotContain("Bear" + "er ", "access_token", "xoxb-");
@@ -134,8 +134,8 @@ class ChatDomainFacadeServiceTest {
                 .containsExactly("channel-general");
         assertThat(conversations.readiness().defaultHistoryPolicy().visibility()).isEqualTo("conversation_members");
         assertThat(service.adminReadiness(adminJwt()).supportSafeDiagnostics())
-                .containsEntry("currentRealProviderPath", "matrix-chat")
-                .containsEntry("currentRealProviderAliases", List.of("synapse-homeserver"));
+                .containsEntry("currentRealProviderPath", "in-memory-test")
+                .containsEntry("currentRealProviderAliases", List.of("in-memory-test"));
         assertThat(conversations.toString()).doesNotContain("rawProvider", "Authorization");
     }
 

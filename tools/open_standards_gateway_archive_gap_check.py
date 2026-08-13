@@ -32,45 +32,11 @@ REQUIRED_FEATURES = {
 }
 
 REQUIRED_EVIDENCE_BOUNDARIES = {
-    "files-full-webdav": [
-        "MOVE",
-        "COPY",
-        "LOCK",
-        "UNLOCK",
-        "streaming PUT",
-        "quota 507",
-    ],
-    "calendar-caldav-parity": [
-        "calendar-multiget",
-        "sync-collection",
-        "MKCALENDAR",
-        "recurrence",
-        "DST",
-        "Flutter CalDAV",
-    ],
-    "chat-matrix-parity": [
-        "OIDC-gated Weave Matrix Client-Server facade",
-        "Rust/Ruma Matrix core",
-        "server JNI",
-        "flutter_rust_bridge",
-        "southbound provider/fixture",
-        "device revocation",
-        "raw Chat API-first member data-plane",
-    ],
-    "calls-matrixrtc-profile-zero": [
-        "MatrixRTC Profile 0",
-        "RTC Authorizer",
-        "room/slot/member/device/policy/nonce/audience/expiry",
-        "MatrixRTC media E2EE",
-        "replaceable southbound SFU adapter",
-    ],
-    "protocol-credentials": [
-        "WEBDAV_FILES",
-        "CALDAV_CALENDAR",
-        "scoped",
-        "expiring",
-        "revocable",
-    ],
+    "files-full-webdav": ["MOVE", "COPY", "LOCK", "UNLOCK", "streaming PUT", "quota 507"],
+    "calendar-caldav-parity": ["calendar-multiget", "sync-collection", "MKCALENDAR", "recurrence", "DST", "Flutter CalDAV"],
+    "chat-matrix-parity": ["OIDC-gated Weave Matrix Client-Server facade", "Rust/Ruma Matrix core", "server JNI", "flutter_rust_bridge", "southbound provider/fixture", "device revocation", "raw Chat API-first member data-plane"],
+    "calls-matrixrtc-profile-zero": ["MatrixRTC Profile 0", "RTC Authorizer", "room/slot/member/device/policy/nonce/audience/expiry", "MatrixRTC media E2EE", "replaceable southbound SFU adapter"],
+    "protocol-credentials": ["WEBDAV_FILES", "CALDAV_CALENDAR", "scoped", "expiring", "revocable"],
 }
 
 
@@ -108,12 +74,7 @@ def require_archive_features() -> None:
 
 
 def require_gap_inventory() -> None:
-    docs = require(
-        "docs/open-standards-gateway-archive-integration.md",
-        MARKER,
-        "Spring AI MCP is the only runtime MCP path",
-        "not complete",
-    )
+    docs = require("docs/open-standards-gateway-archive-integration.md", MARKER, "Spring AI MCP is the only runtime MCP path", "not complete")
     for gap_id, fragments in REQUIRED_EVIDENCE_BOUNDARIES.items():
         if gap_id not in docs:
             fail(f"gap inventory is missing {gap_id}")
@@ -123,42 +84,21 @@ def require_gap_inventory() -> None:
 
 
 def require_current_evidence_boundaries() -> None:
-    require(
-        "tools/target_standard_facade_hard_gate_check.py",
-        "TARGET_STANDARDS_WEBDAV_FILES_CURRENT_PROOF",
-        "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP",
-        "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP",
-    )
-    require(
-        "server/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java",
-        'case "MOVE" -> move(request)',
-        'case "COPY" -> copy(request)',
-        'case "LOCK" -> lock(request)',
-        'case "UNLOCK" -> unlock(request)',
-    )
-    require(
-        "server/src/main/java/com/massimotter/weave/backend/service/FilesFacadeService.java",
-        "copyWebDavPath(",
-        "moveWebDavPath(",
-        "lockWebDavPath(",
-        "unlockWebDavPath(",
-        "files-locked",
-    )
-    require(
-        "server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
-        'case "MKCALENDAR", "COPY", "MOVE", "LOCK", "UNLOCK" -> unsupportedMethod(method)',
-    )
-    require(
-        "server/src/main/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionController.java",
-        '"X-Weave-Matrix-Core", "rust-ruma-jni"',
-        "chatDomainFacadeService.conversations(jwt)",
-        "chatDomainFacadeService.sendEvent(",
-    )
+    require("tools/target_standard_facade_hard_gate_check.py", "TARGET_STANDARDS_WEBDAV_FILES_CURRENT_PROOF", "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP", "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP")
+    require("server/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java", 'case "MOVE" -> move(request)', 'case "COPY" -> copy(request)', 'case "LOCK" -> lock(request)', 'case "UNLOCK" -> unlock(request)')
+    require("server/src/main/java/com/massimotter/weave/backend/service/FilesFacadeService.java", "copyWebDavPath(", "moveWebDavPath(", "lockWebDavPath(", "unlockWebDavPath(", "files-locked")
+    require("server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java", 'case "MKCALENDAR", "COPY", "MOVE", "LOCK", "UNLOCK" -> unsupportedMethod(method)')
+    require("server/src/main/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionController.java", '"X-Weave-Matrix-Core", "rust-ruma-jni"', "chatDomainFacadeService.conversations(jwt)", "chatDomainFacadeService.sendEvent(")
+    require("server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCodec.java", "Map<String, Object> project(MatrixProtocolOperation operation, String inputJson)")
     require(
         "server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCoreService.java",
-        'NativeMatrixCore.projectJson(operation, inputJson, serverName)',
-        'public static final String FLUTTER_BRIDGE_BOUNDARY = "flutter-rust-bridge"',
+        "implements MatrixProtocolCodec",
+        "NativeMatrixCore.projectJson(operation.wireName(), inputJson, serverName)",
+        'public static final String SERVER_JNI_BOUNDARY = "server-jni-wrapper"',
+        'public static final String RUST_PROTOCOL_CORE = "ruma-serde-serde_json-thiserror-tracing"',
     )
+    require("rust/matrix-protocol/Cargo.toml", 'name = "weave-matrix-protocol"', "ruma", "jni")
+    require("rust/matrix-client/Cargo.toml", 'name = "weave-matrix-client"', "flutter_rust_bridge", "matrix-sdk")
     forbidden_calls_path = ROOT / "server/src/main/java/com/massimotter/weave/backend/controller/CallsController.java"
     if forbidden_calls_path.exists():
         fail("legacy member Calls controller must be removed")
@@ -166,16 +106,7 @@ def require_current_evidence_boundaries() -> None:
         text = path.read_text(encoding="utf-8")
         if '"/api/calls' in text or "com.weave.call." in text:
             fail(f"legacy Calls contract remains in {path.relative_to(ROOT)}")
-    require(
-        "tools/spring_ai_mcp_facade_acceptance_check.py",
-        "SPRING_AI_MCP_STATEFUL_TRANSPORT",
-        "MCP_WORKLOAD_EDGE_BOUND_CELL_ONLY",
-        "MCP_FILES_READ_SLICE_ACTIVE",
-        "MCP_CALENDAR_CATALOG_GUARDED",
-        "MCP_CHAT_CATALOG_GUARDED",
-        "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED",
-        "MCP_LEGACY_RUNTIME_REMOVED",
-    )
+    require("tools/spring_ai_mcp_facade_acceptance_check.py", "SPRING_AI_MCP_STATEFUL_TRANSPORT", "MCP_WORKLOAD_EDGE_BOUND_CELL_ONLY", "MCP_FILES_READ_SLICE_ACTIVE", "MCP_CALENDAR_CATALOG_GUARDED", "MCP_CHAT_CATALOG_GUARDED", "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED", "MCP_LEGACY_RUNTIME_REMOVED")
 
 
 def main() -> int:

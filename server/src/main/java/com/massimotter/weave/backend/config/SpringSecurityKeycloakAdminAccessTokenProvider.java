@@ -33,9 +33,8 @@ import org.springframework.web.client.RestClient;
  * SecretRef-backed Keycloak administration token boundary implemented with Spring Security's
  * OAuth2 client.
  *
- * <p>The long-lived client secret is resolved only while constructing one grant request. The
- * provider adapter receives only the resulting short-lived bearer and contains no token-endpoint
- * protocol implementation.
+ * <p>The long-lived private JWK is resolved only while constructing one PS256
+ * {@code private_key_jwt} grant request.
  */
 public final class SpringSecurityKeycloakAdminAccessTokenProvider
     implements KeycloakAdminAccessTokenProvider {
@@ -43,24 +42,18 @@ public final class SpringSecurityKeycloakAdminAccessTokenProvider
 
   private final Settings settings;
   private final SecretRefAccess secrets;
-  private final OAuth2AccessTokenResponseClient<OAuth2ClientCredentialsGrantRequest>
-      tokenResponseClient;
   private final Clock clock;
   private volatile CachedToken cached;
 
   public SpringSecurityKeycloakAdminAccessTokenProvider(
       Settings settings, SecretRefAccess secrets) {
-    this(settings, secrets, tokenResponseClient(settings), Clock.systemUTC());
+    this(settings, secrets, Clock.systemUTC());
   }
 
   SpringSecurityKeycloakAdminAccessTokenProvider(
-      Settings settings,
-      SecretRefAccess secrets,
-      OAuth2AccessTokenResponseClient<OAuth2ClientCredentialsGrantRequest> tokenResponseClient,
-      Clock clock) {
+      Settings settings, SecretRefAccess secrets, Clock clock) {
     this.settings = Objects.requireNonNull(settings, "settings");
     this.secrets = Objects.requireNonNull(secrets, "secrets");
-    this.tokenResponseClient = Objects.requireNonNull(tokenResponseClient, "tokenResponseClient");
     this.clock = Objects.requireNonNull(clock, "clock");
   }
 
@@ -86,18 +79,10 @@ public final class SpringSecurityKeycloakAdminAccessTokenProvider
   private CachedToken requestToken(byte[] mountedSecret, Instant now) {
     byte[] secret = trimAsciiWhitespace(mountedSecret);
     try {
-      ClientAuthenticationMethod authenticationMethod =
-          settings.credentialMethod() == CredentialMethod.PRIVATE_KEY_JWT
-              ? ClientAuthenticationMethod.PRIVATE_KEY_JWT
-              : ClientAuthenticationMethod.CLIENT_SECRET_BASIC;
       ClientRegistration registration =
           ClientRegistration.withRegistrationId(settings.registrationId())
               .clientId(settings.adminClientId())
-              .clientSecret(
-                  settings.credentialMethod() == CredentialMethod.CLIENT_SECRET_BASIC
-                      ? new String(secret, StandardCharsets.UTF_8)
-                      : null)
-              .clientAuthenticationMethod(authenticationMethod)
+              .clientAuthenticationMethod(ClientAuthenticationMethod.PRIVATE_KEY_JWT)
               .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
               .tokenUri(settings.tokenEndpoint().toString())
               .clientName("Weave Keycloak administration")
@@ -141,9 +126,6 @@ public final class SpringSecurityKeycloakAdminAccessTokenProvider
 
   private OAuth2AccessTokenResponseClient<OAuth2ClientCredentialsGrantRequest>
       tokenResponseClient(byte[] secret) {
-    if (settings.credentialMethod() == CredentialMethod.CLIENT_SECRET_BASIC) {
-      return tokenResponseClient;
-    }
     RSAKey key;
     try {
       key = RSAKey.parse(new String(secret, StandardCharsets.UTF_8));
@@ -216,7 +198,6 @@ public final class SpringSecurityKeycloakAdminAccessTokenProvider
       String realm,
       String adminClientId,
       String adminCredentialRef,
-      CredentialMethod credentialMethod,
       URI privateKeyJwtAudience,
       Duration timeout) {
     public Settings {
@@ -235,7 +216,6 @@ public final class SpringSecurityKeycloakAdminAccessTokenProvider
       if (adminCredentialRef == null || !adminCredentialRef.startsWith("credentialref://")) {
         throw new IllegalArgumentException("adminCredentialRef must be a credentialref URI");
       }
-      Objects.requireNonNull(credentialMethod, "credentialMethod");
       if (privateKeyJwtAudience == null
           || privateKeyJwtAudience.getHost() == null
           || !("http".equalsIgnoreCase(privateKeyJwtAudience.getScheme())
@@ -258,11 +238,6 @@ public final class SpringSecurityKeycloakAdminAccessTokenProvider
     String registrationId() {
       return "weave-keycloak-admin-" + Integer.toUnsignedString(adminClientId.hashCode(), 16);
     }
-  }
-
-  public enum CredentialMethod {
-    CLIENT_SECRET_BASIC,
-    PRIVATE_KEY_JWT
   }
 
   private record CachedToken(String value, Instant refreshAfter) {}

@@ -607,7 +607,11 @@ def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser()
     subparsers = result.add_subparsers(dest="operation", required=True)
     plan_parser = subparsers.add_parser("plan")
-    plan_parser.add_argument("--environment", required=True, choices=("dev", "test", "persistent-dogfood", "prod"))
+    plan_parser.add_argument(
+        "--environment",
+        required=True,
+        choices=("dev", "e2e", "persistent-dogfood", "prod"),
+    )
     plan_parser.add_argument("--scope", required=True, choices=("persistent", "isolated"))
     plan_parser.add_argument("--stack", required=True)
     plan_parser.add_argument("--namespace", required=True)

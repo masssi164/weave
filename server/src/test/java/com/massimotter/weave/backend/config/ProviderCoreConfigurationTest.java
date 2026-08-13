@@ -1,8 +1,12 @@
 package com.massimotter.weave.backend.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.massimotter.weave.backend.boards.local.LocalWorkspaceBoardsRepository;
+import com.massimotter.weave.backend.chat.port.ChatProviderPort;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.provider.ProviderRealityLevel;
 import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
@@ -11,6 +15,32 @@ import org.junit.jupiter.api.Test;
 class ProviderCoreConfigurationTest {
 
     private final ProviderCoreConfiguration configuration = new ProviderCoreConfiguration();
+
+    @Test
+    void chatRegistryReportsTheBoundNativeAdapterWithoutInflatingReadiness() {
+        ChatProviderPort runtime = mock(ChatProviderPort.class);
+        when(runtime.providerKey()).thenReturn("weave-native");
+        when(runtime.configured()).thenReturn(true);
+        when(runtime.conformanceProfile()).thenReturn(new ProviderConformanceProfile(
+                "chat",
+                "weave-native",
+                java.util.Set.of("timeline", "send"),
+                java.util.Map.of(),
+                true,
+                true,
+                true));
+
+        ProviderStatusResponse status = configuration.chatProviderRegistrySeamFor(runtime).status();
+
+        assertThat(status.providerKey()).isEqualTo("weave-native");
+        assertThat(status.state()).isEqualTo(ProviderState.CONFIGURED);
+        assertThat(status.readiness()).isEqualTo("configured_pending_cached_health");
+        assertThat(status.candidates()).contains("weave-native", "matrix-synapse");
+        assertThat(status.diagnostics())
+                .containsEntry("runtimeBindingObserved", true)
+                .containsEntry("secretsReturned", false)
+                .containsEntry("rawProviderErrorsReturned", false);
+    }
 
     @Test
     void boardsRegistryReportsTheActuallyBoundLocalWorkspaceAdapter() {

@@ -52,13 +52,23 @@ public class BootstrapOwnerInvitationController {
         throw unauthorized();
       }
     } catch (IllegalStateException unavailable) {
-      throw new ApiErrorException(
-          HttpStatus.SERVICE_UNAVAILABLE,
-          "owner-bootstrap-unavailable",
-          "The protected owner bootstrap operation is unavailable.",
-          Map.of());
+      throw unavailable();
     }
-    return invitations.bootstrapOwner(request, idempotencyKey);
+    MemberInvitationResponse invitation = invitations.bootstrapOwner(request, idempotencyKey);
+    try {
+      credential.consumeAfterSuccess();
+    } catch (IllegalStateException unavailable) {
+      throw unavailable();
+    }
+    return invitation;
+  }
+
+  private static ApiErrorException unavailable() {
+    return new ApiErrorException(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "owner-bootstrap-unavailable",
+        "The protected owner bootstrap operation is unavailable.",
+        Map.of());
   }
 
   private static ApiErrorException unauthorized() {
