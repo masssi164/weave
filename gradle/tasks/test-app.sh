@@ -317,6 +317,7 @@ bash "${WORKSPACE_ROOT}/operator-check.sh" e2e
 realm_evidence_path="${WEAVE_TEST_APP_RUN_ROOT}/realm-evidence.json"
 if [[ -n "${candidate_manifest_path}" ]]; then
   python3 "${REALM_EVIDENCE_WRITER}" \
+    --lane-candidate "${candidate_commit}" \
     --candidate-manifest "${candidate_manifest_path}" \
     --first-render-manifest "${first_render_manifest}" \
     --current-render-manifest "${WEAVE_TEST_APP_GENERATED_ROOT}/render-manifest.json" \
