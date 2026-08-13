@@ -51,6 +51,7 @@ ISOLATED_VOLUME_SUFFIXES = {
     "nextcloud_data",
     "synapse_data",
     "matrix_chat_appservice_runtime",
+    "native_files_data",
     "runtime_state",
 }
 REQUIRED_PASS_FACTS = (
