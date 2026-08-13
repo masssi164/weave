@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 
@@ -71,11 +72,105 @@ final class JsonHttpClient {
             body == null ? null : "application/json",
             payload,
             expectedStatuses);
-    try {
-      return mapper.readTree(response.body());
-    } catch (RuntimeException failure) {
-      throw new ProductFlowException(operation + " returned invalid JSON", failure);
+    return parseJson(operation, response);
+  }
+
+  JsonNode jsonRetryingDependencyUnavailable(
+      String operation,
+      String method,
+      URI uri,
+      Map<String, String> headers,
+      JsonNode body,
+      Set<Integer> expectedStatuses,
+      int maxAttempts,
+      Duration retryDelay) {
+    if (maxAttempts < 1 || retryDelay == null || retryDelay.isNegative()) {
+      throw new IllegalArgumentException("retry policy must be bounded and non-negative");
     }
+    byte[] payload;
+    try {
+      payload = body == null ? new byte[0] : mapper.writeValueAsBytes(body);
+    } catch (JacksonException failure) {
+      throw new ProductFlowException(operation + " request encoding failed", failure);
+    }
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      Response response =
+          send(
+              operation,
+              method,
+              uri,
+              merge(headers, Map.of("Accept", "application/json")),
+              body == null ? null : "application/json",
+              payload,
+              union(expectedStatuses, Set.of(503)));
+      if (expectedStatuses.contains(response.status())) {
+        return parseJson(operation, response);
+      }
+      String code = safeErrorCode(response);
+      if (!"agent-runtime-dependency-unavailable".equals(code)) {
+        throw failure(operation, response);
+      }
+      if (attempt == maxAttempts) {
+        throw new ProductFlowException(
+            operation
+                + " failed after "
+                + maxAttempts
+                + " attempts with HTTP 503 code=agent-runtime-dependency-unavailable");
+      }
+      try {
+        Thread.sleep(retryDelay.toMillis());
+      } catch (InterruptedException interrupted) {
+        Thread.currentThread().interrupt();
+        throw new ProductFlowException(operation + " retry was interrupted", interrupted);
+      }
+    }
+    throw new IllegalStateException("bounded retry loop completed without a response");
+  }
+
+  JsonNode jsonRetryingTransport(
+      String operation,
+      String method,
+      URI uri,
+      Map<String, String> headers,
+      JsonNode body,
+      Set<Integer> expectedStatuses,
+      int maxAttempts,
+      Duration retryDelay) {
+    return executeBoundedTransport(
+        operation,
+        maxAttempts,
+        retryDelay,
+        () -> json(operation, method, uri, headers, body, expectedStatuses));
+  }
+
+  static JsonNode executeBoundedTransport(
+      String operation,
+      int maxAttempts,
+      Duration retryDelay,
+      Supplier<JsonNode> attempt) {
+    if (maxAttempts < 1 || retryDelay == null || retryDelay.isNegative() || attempt == null) {
+      throw new IllegalArgumentException("transport retry policy must be bounded and non-negative");
+    }
+    for (int attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber++) {
+      try {
+        return attempt.get();
+      } catch (ProductFlowException failure) {
+        if (!(failure.getCause() instanceof IOException)) {
+          throw failure;
+        }
+        if (attemptNumber == maxAttempts) {
+          throw new ProductFlowException(
+              operation + " transport did not become ready after " + maxAttempts + " attempts");
+        }
+        try {
+          Thread.sleep(retryDelay.toMillis());
+        } catch (InterruptedException interrupted) {
+          Thread.currentThread().interrupt();
+          throw new ProductFlowException(operation + " transport retry was interrupted", interrupted);
+        }
+      }
+    }
+    throw new IllegalStateException("bounded transport retry loop completed without a response");
   }
 
   JsonNode form(
@@ -101,6 +196,14 @@ final class JsonHttpClient {
             "application/x-www-form-urlencoded",
             encoded.getBytes(StandardCharsets.UTF_8),
             expectedStatuses);
+    try {
+      return mapper.readTree(response.body());
+    } catch (RuntimeException failure) {
+      throw new ProductFlowException(operation + " returned invalid JSON", failure);
+    }
+  }
+
+  private JsonNode parseJson(String operation, Response response) {
     try {
       return mapper.readTree(response.body());
     } catch (RuntimeException failure) {
@@ -209,6 +312,26 @@ final class JsonHttpClient {
     return reference.toString();
   }
 
+  private ProductFlowException failure(String operation, Response response) {
+    String code = safeErrorCode(response);
+    String suffix = code.isBlank() ? "" : " code=" + code;
+    return new ProductFlowException(
+        operation + " failed with HTTP " + response.status() + suffix);
+  }
+
+  private String safeErrorCode(Response response) {
+    try {
+      String code = mapper.readTree(response.body()).path("code").asString("");
+      if (code.matches("[a-z0-9][a-z0-9-]{0,79}")) {
+        return code;
+      }
+    } catch (RuntimeException ignored) {
+      // A malformed or provider-owned body must not enter diagnostics or retry decisions.
+    }
+    String header = response.firstHeader("X-Weave-Error-Code");
+    return header.matches("[a-z0-9][a-z0-9-]{0,79}") ? header : "";
+  }
+
   private static void appendSafeText(
       StringBuilder target, String prefix, String value, String allowedPattern) {
     if (value != null && value.matches(allowedPattern)) {
@@ -251,6 +374,12 @@ final class JsonHttpClient {
     result.putAll(first);
     result.putAll(second);
     return Map.copyOf(result);
+  }
+
+  private static Set<Integer> union(Set<Integer> first, Set<Integer> second) {
+    java.util.HashSet<Integer> result = new java.util.HashSet<>(first);
+    result.addAll(second);
+    return Set.copyOf(result);
   }
 
   record Response(int status, Map<String, java.util.List<String>> headers, byte[] body) {
