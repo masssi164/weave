@@ -39,6 +39,9 @@ def main() -> int:
     promotion = read(".github/workflows/main-promotion-gate.yml")
     docs = read("docs/ios-dogfood-distribution.md")
     readiness_assembler = read("tools/human_testing_readiness_assemble.py")
+    run_resolver = read("tools/candidate_cut_run_resolver.py")
+    capacity_preflight = read("tools/runner_capacity_preflight.py")
+    test_app = read("gradle/tasks/test-app.sh")
 
     require(
         "on:\n  workflow_dispatch:\n    inputs:\n      candidate_sha:" in candidate
@@ -126,16 +129,69 @@ def main() -> int:
         "persistent deployment is not downstream of the isolated product flow",
     )
     require(
-        "expected_title=\"Candidate Cut $WEAVE_IMAGE_SOURCE_COMMIT\"" in live
+        "tools/candidate_cut_run_resolver.py" in live
         and "gh api --paginate --slurp" in live
-        and "[.[].workflow_runs[] | select(" in live
-        and '.event <<<"$run")" == "workflow_dispatch"' in live
-        and '.head_branch <<<"$run")" == "dev"' in live
-        and '.display_title <<<"$run")" == "$expected_title"' in live
-        and '"$(jq -r \'length\' <<<"$matching_runs")" == "1"' in live
+        and '--source-sha "$WEAVE_IMAGE_SOURCE_COMMIT"' in live
+        and '--repository "$GITHUB_REPOSITORY"' in live
+        and '--run-id "$candidate_run_id"' in live
         and "runs?head_sha=${WEAVE_IMAGE_SOURCE_COMMIT}" not in live
         and "[0].id // empty" not in live,
         "dogfood does not uniquely resolve one successful protected Candidate Cut",
+    )
+    require(
+        '.name == "Candidate Cut"' not in live
+        and 'jq -r .name <<<"$run"' not in live
+        and "WORKFLOW_PATH = \".github/workflows/candidate-images.yml\"" in run_resolver
+        and '"workflow_dispatch"' in run_resolver
+        and '"head_branch": "dev"' in run_resolver
+        and '"head_sha": source_sha' in run_resolver
+        and 'f"Candidate Cut {source_sha}"' in run_resolver
+        and '"conclusion": "success"' in run_resolver
+        and "len(matching) != 1" in run_resolver,
+        "Candidate Cut resolver does not enforce one shared dynamic-title metadata contract",
+    )
+    require(
+        capacity_preflight.count("subprocess.run(") == 1
+        and '["docker", "info"]' in capacity_preflight
+        and '["docker", "compose", "version"]' in capacity_preflight
+        and "minimum_free_gib * GIB" in capacity_preflight
+        and "docker builder prune" not in capacity_preflight
+        and "docker system prune" not in capacity_preflight
+        and "docker volume" not in capacity_preflight,
+        "shared runner capacity preflight is not read-only or complete",
+    )
+    ordered(
+        live,
+        (
+            "Verify runner capacity before candidate work",
+            "--minimum-free-gib 20",
+            "Resolve protected dev source candidate",
+        ),
+        "live runner capacity preflight",
+    )
+    ordered(
+        deployment,
+        (
+            "Verify runner capacity before persistent deployment work",
+            "--minimum-free-gib 20",
+            "Resolve pinned specification corpus",
+        ),
+        "persistent runner capacity preflight",
+    )
+    ordered(
+        ios,
+        (
+            "Verify runner capacity before physical-device build",
+            "--minimum-free-gib 20",
+            "Install the exact candidate in place",
+        ),
+        "physical-device runner capacity preflight",
+    )
+    require(
+        "tools/runner_capacity_preflight.py" in test_app
+        and "--minimum-free-gib 8" in test_app
+        and "require_free_disk_space" not in test_app,
+        "local Fresh product proof still duplicates runner capacity logic",
     )
     require("ref: ${{ env.LANE_CANDIDATE_COMMIT }}" in deployment, "persistent deployment does not check out the exact lane candidate")
     require(

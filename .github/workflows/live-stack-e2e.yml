@@ -80,6 +80,14 @@ jobs:
           path: weave
           fetch-depth: 0
 
+      - name: Verify runner capacity before candidate work
+        working-directory: weave
+        run: >-
+          python3 tools/runner_capacity_preflight.py
+          --path .
+          --minimum-free-gib 20
+          --require-docker
+
       - name: Resolve protected dev source candidate
         working-directory: weave
         run: |
@@ -145,40 +153,30 @@ jobs:
         run: |
           set -euo pipefail
           candidate_run_id="$REQUESTED_CANDIDATE_IMAGES_RUN_ID"
-          expected_title="Candidate Cut $WEAVE_IMAGE_SOURCE_COMMIT"
+          runs_file="$WEAVE_LIVE_EVIDENCE_ROOT/candidate-cut-runs.json"
           if [[ -n "$candidate_run_id" ]]; then
             [[ "$candidate_run_id" =~ ^[0-9]+$ ]] || {
               echo "::error::candidate_images_run_id must be numeric." >&2
               exit 1
             }
-            run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${candidate_run_id}")"
-            [[ "$(jq -r .name <<<"$run")" == "Candidate Cut" && \
-               "$(jq -r .path <<<"$run")" == ".github/workflows/candidate-images.yml" && \
-               "$(jq -r .event <<<"$run")" == "workflow_dispatch" && \
-               "$(jq -r .head_branch <<<"$run")" == "dev" && \
-               "$(jq -r .display_title <<<"$run")" == "$expected_title" && \
-               "$(jq -r .conclusion <<<"$run")" == success && \
-               "$(jq -r .head_sha <<<"$run")" =~ ^[0-9a-f]{40}$ ]] || {
-              echo "::error::Requested Candidate Cut is not a successful protected-dev source build." >&2
-              exit 1
-            }
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${candidate_run_id}" > "$runs_file"
+            candidate_run_id="$(
+              python3 tools/candidate_cut_run_resolver.py \
+                --input "$runs_file" \
+                --source-sha "$WEAVE_IMAGE_SOURCE_COMMIT" \
+                --repository "$GITHUB_REPOSITORY" \
+                --run-id "$candidate_run_id"
+            )"
           else
-            runs="$(gh api --paginate --slurp "/repos/${GITHUB_REPOSITORY}/actions/workflows/candidate-images.yml/runs?branch=dev&event=workflow_dispatch&status=completed&per_page=100")"
-            matching_runs="$(jq -c --arg title "$expected_title" '
-              [.[].workflow_runs[] | select(
-                .name == "Candidate Cut" and
-                .path == ".github/workflows/candidate-images.yml" and
-                .event == "workflow_dispatch" and
-                .head_branch == "dev" and
-                .display_title == $title and
-                .conclusion == "success"
-              )]
-            ' <<<"$runs")"
-            [[ "$(jq -r 'length' <<<"$matching_runs")" == "1" ]] || {
-              echo "::error::Expected exactly one successful Candidate Cut for ${WEAVE_IMAGE_SOURCE_COMMIT}; pass candidate_images_run_id to resolve zero or ambiguous matches." >&2
-              exit 1
-            }
-            candidate_run_id="$(jq -er '.[0].id' <<<"$matching_runs")"
+            gh api --paginate --slurp \
+              "/repos/${GITHUB_REPOSITORY}/actions/workflows/candidate-images.yml/runs?branch=dev&event=workflow_dispatch&status=completed&per_page=100" \
+              > "$runs_file"
+            candidate_run_id="$(
+              python3 tools/candidate_cut_run_resolver.py \
+                --input "$runs_file" \
+                --source-sha "$WEAVE_IMAGE_SOURCE_COMMIT" \
+                --repository "$GITHUB_REPOSITORY"
+            )"
           fi
           manifest_dir="$WEAVE_LIVE_EVIDENCE_ROOT/candidate-manifest-source"
           install -d -m 700 "$manifest_dir"

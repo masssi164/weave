@@ -102,6 +102,13 @@ jobs:
           ref: ${{ env.LANE_CANDIDATE_COMMIT }}
           fetch-depth: 0
 
+      - name: Verify runner capacity before persistent deployment work
+        run: >-
+          python3 tools/runner_capacity_preflight.py
+          --path .
+          --minimum-free-gib 20
+          --require-docker
+
       - name: Resolve pinned specification corpus
         id: spec-corpus
         run: |
