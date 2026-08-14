@@ -93,6 +93,25 @@ def _desired(baseline: dict[str, object], overlay: dict[str, object]) -> dict[st
         # disposable E2E lane deliberately retains this policy because it
         # proves the complete Weaver workload lifecycle.
         desired["clientPolicies"] = []
+    if overlay["environment"] in {"dev", "dogfood", "e2e"}:
+        grants = desired.get("serviceAccountRoleGrants")
+        if not isinstance(grants, list):
+            raise ContractError("canonical service-account role grants are required")
+        identity_grants = [
+            grant
+            for grant in grants
+            if isinstance(grant, dict)
+            and grant.get("clientKey") == "client:weave-identity-admin"
+        ]
+        if len(identity_grants) != 1 or not isinstance(identity_grants[0].get("roleRefs"), list):
+            raise ContractError("canonical identity-admin role grant is required")
+        identity_grants[0]["roleRefs"] = sorted(
+            {
+                *identity_grants[0]["roleRefs"],
+                "builtin-role:realm-management:manage-organizations",
+                "builtin-role:realm-management:manage-users",
+            }
+        )
     if desired.get("apiVersion") != "weave.keycloak-desired-state/v3" or desired.get("keycloakVersion") != "26.7.1":
         raise ContractError("canonical Keycloak desired-state v3/26.7.1 required")
     if "groups" in desired:

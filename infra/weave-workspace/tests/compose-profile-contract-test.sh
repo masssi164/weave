@@ -34,7 +34,7 @@ fi
 for task in dogfoodUp dogfoodDown dogfoodReset; do
   grep -Fq "tasks.register('${task}'" "${LIFECYCLE_TASKS}"
 done
-grep -Fq 'choices=("up", "down", "reset")' "${DOGFOOD_LIFECYCLE}"
+grep -Fq 'choices=("up", "down", "reset", "bootstrap-owner")' "${DOGFOOD_LIFECYCLE}"
 grep -Fq 'execute(context, "down", ["--remove-orphans"])' "${DOGFOOD_LIFECYCLE}"
-grep -Fq 'execute(context, args.operation, [])' "${DOGFOOD_LIFECYCLE}"
+grep -Fq 'execute(context, args.operation, operation_arguments)' "${DOGFOOD_LIFECYCLE}"
 ! grep -Fq 'freshStart' "${LIFECYCLE_TASKS}"

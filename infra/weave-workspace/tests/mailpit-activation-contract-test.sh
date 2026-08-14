@@ -23,6 +23,13 @@ grep -Fq \
   '${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/opt/weave/trust/ca.pem:ro' \
   "${ROOT_DIR}/compose.yaml"
 grep -Fq 'KC_TRUSTSTORE_PATHS: /opt/weave/trust/ca.pem' "${ROOT_DIR}/compose.yaml"
+grep -Fq 'tls /certs/cert.pem /certs/key.pem' \
+  "${ROOT_DIR}/scripts/rendering/gateway.py"
+if grep -Fq 'tls /certs/mailpit-cert.pem /certs/mailpit-key.pem' \
+  "${ROOT_DIR}/scripts/rendering/gateway.py"; then
+  printf '%s\n' "Public Mailpit must use the stable gateway certificate; its service leaf is internal only." >&2
+  exit 1
+fi
 if grep -Fq \
   '${WEAVE_TLS_ROOT:-./.generated/dev/tls}:/opt/weave/trust' \
   "${ROOT_DIR}/compose.yaml"; then

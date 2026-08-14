@@ -90,6 +90,7 @@ class OwnerBootstrapLifecycleContractTest(unittest.TestCase):
         )
         self.assertIn('"requestAnchorPresent": request_anchor_path.is_file()', lifecycle)
         self.assertIn("shutil.rmtree(operation_root)", lifecycle)
+        self.assertNotIn("require_completed_migration(context)", lifecycle)
         self.assertNotIn('compose(context, "down"', lifecycle)
         self.assertNotIn("providerInvitationId", lifecycle)
 

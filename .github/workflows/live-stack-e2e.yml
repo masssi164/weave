@@ -199,13 +199,3 @@ jobs:
           path: weave/build/evidence/dogfood-compose
           if-no-files-found: warn
           retention-days: 14
-
-  prepare-physical-iphone:
-    name: Prepare physical iPhone
-    needs: deploy-dogfood
-    uses: ./.github/workflows/ios-dogfood.yml
-    with:
-      candidate_sha: ${{ github.sha }}
-      bootstrap_owner: false
-      full_compose_e2e_run_id: ${{ github.run_id }}
-    secrets: inherit
