@@ -40,6 +40,9 @@ STOCK_KEYCLOAK_PLATFORM = "linux/amd64"
 STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST = (
     "sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2"
 )
+STOCK_KEYCLOAK_PLATFORM_REFERENCE = (
+    f"quay.io/keycloak/keycloak@{STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST}"
+)
 ARCHIVE_URL = f"https://github.com/keycloak/keycloak/archive/{UPSTREAM_COMMIT}.tar.gz"
 PATCH_RELATIVE = Path(
     "infra/weave-workspace/keycloak-runtime/patches/"
@@ -281,7 +284,7 @@ def verify_stock_services() -> None:
         "pull",
         "--platform",
         STOCK_KEYCLOAK_PLATFORM,
-        STOCK_KEYCLOAK_REFERENCE,
+        STOCK_KEYCLOAK_PLATFORM_REFERENCE,
     )
     observed = run(
         "docker",
@@ -291,7 +294,7 @@ def verify_stock_services() -> None:
         STOCK_KEYCLOAK_PLATFORM,
         "--entrypoint",
         "/usr/bin/sha256sum",
-        STOCK_KEYCLOAK_REFERENCE,
+        STOCK_KEYCLOAK_PLATFORM_REFERENCE,
         STOCK_SERVICES_PATH,
         capture=True,
     ).split()[0]
@@ -490,7 +493,11 @@ def build_image(
     )
     tag = f"weave-keycloak-runtime:{candidate[:12]}"
     build_arguments = {
-        "WEAVE_KEYCLOAK_BASE": STOCK_KEYCLOAK_REFERENCE,
+        # Build from the exact platform manifest, not the multi-platform index
+        # name. Docker Desktop/OrbStack can then keep the native ARM64 dogfood
+        # image and the AMD64 E2E image side by side without overwriting one
+        # digest reference with another platform.
+        "WEAVE_KEYCLOAK_BASE": STOCK_KEYCLOAK_PLATFORM_REFERENCE,
         "WEAVE_IMAGE_CREATED": created,
         "WEAVE_IMAGE_REVISION": candidate,
         "WEAVE_IMAGE_VERSION": f"{UPSTREAM_TAG}-weave.{candidate[:12]}",

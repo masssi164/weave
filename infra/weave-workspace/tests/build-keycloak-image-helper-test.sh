@@ -46,6 +46,12 @@ assert module.STOCK_KEYCLOAK_PLATFORM == "linux/amd64"
 assert module.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST == (
     "sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2"
 )
+assert module.STOCK_KEYCLOAK_PLATFORM_REFERENCE == (
+    "quay.io/keycloak/keycloak@"
+    "sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2"
+)
+source = script.read_text(encoding="utf-8")
+assert '"WEAVE_KEYCLOAK_BASE": STOCK_KEYCLOAK_PLATFORM_REFERENCE' in source
 assert module.STOCK_SERVICES_SHA256 == (
     "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
 )
