@@ -546,26 +546,43 @@ def exact_client_state(
     private_jwk: dict[str, Any],
 ) -> str:
     rat = response.get("registration_access_token")
-    forbidden = any(
-        value not in (None, "", [], {})
-        for value in (response.get(field) for field in FORBIDDEN_METADATA_FIELDS)
+    violations: list[str] = []
+    expected_values = (
+        ("client-id", response.get("client_id"), client_id),
+        ("client-name", response.get("client_name"), client_id),
+        (
+            "authentication-method",
+            response.get("token_endpoint_auth_method"),
+            "private_key_jwt",
+        ),
+        (
+            "authentication-algorithm",
+            response.get("token_endpoint_auth_signing_alg"),
+            "PS256",
+        ),
+        ("subject-type", response.get("subject_type"), "public"),
+        ("grant-types", response.get("grant_types"), ["client_credentials"]),
+        ("redirect-uris", response.get("redirect_uris"), []),
+        ("response-types", response.get("response_types"), []),
+        ("public-jwks", response.get("jwks"), public_jwks(private_jwk)),
     )
-    if (
-        response.get("client_id") != client_id
-        or response.get("client_name") != client_id
-        or response.get("token_endpoint_auth_method") != "private_key_jwt"
-        or response.get("token_endpoint_auth_signing_alg") != "PS256"
-        or response.get("subject_type") != "public"
-        or set(str(response.get("scope", "")).split()) != set(APPROVED_SCOPES)
-        or response.get("grant_types") != ["client_credentials"]
-        or response.get("redirect_uris") != []
-        or response.get("response_types") != []
-        or response.get("jwks") != public_jwks(private_jwk)
-        or forbidden
-        or not isinstance(rat, str)
-        or not rat
-    ):
-        raise ContractError("Keycloak client state did not preserve the exact workload contract")
+    violations.extend(
+        name for name, observed, expected in expected_values if observed != expected
+    )
+    if set(str(response.get("scope", "")).split()) != set(APPROVED_SCOPES):
+        violations.append("scopes")
+    violations.extend(
+        "forbidden-" + field.replace("_", "-")
+        for field in FORBIDDEN_METADATA_FIELDS
+        if response.get(field) not in (None, "", [], {})
+    )
+    if not isinstance(rat, str) or not rat:
+        violations.append("registration-authority")
+    if violations:
+        raise ContractError(
+            "Keycloak client state did not preserve the exact workload contract "
+            f"[constraints={','.join(violations)}]"
+        )
     return rat
 
 

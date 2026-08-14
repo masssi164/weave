@@ -311,6 +311,38 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
             "exact workload contract",
         ):
             target.exact_client_state(response, client_id, private)
+
+    def test_exact_client_state_reports_all_safe_constraints_without_values(self) -> None:
+        client_id = "weaver-cell-test"
+        private = {
+            "kty": "RSA",
+            "use": "sig",
+            "alg": "PS256",
+            "kid": "test-current",
+            "n": "modulus",
+            "e": "AQAB",
+        }
+        response = target.metadata(client_id, private)
+        response.update(
+            {
+                "client_id": "wrong-client",
+                "client_uri": "https://forbidden.invalid",
+                "grant_types": ["authorization_code"],
+                "registration_access_token": "",
+            }
+        )
+
+        with self.assertRaises(target.ContractError) as raised:
+            target.exact_client_state(response, client_id, private)
+
+        self.assertEqual(
+            str(raised.exception),
+            "Keycloak client state did not preserve the exact workload contract "
+            "[constraints=client-id,grant-types,forbidden-client-uri,"
+            "registration-authority]",
+        )
+        self.assertNotIn("wrong-client", str(raised.exception))
+        self.assertNotIn("forbidden.invalid", str(raised.exception))
         response["scope"] = " ".join(target.APPROVED_SCOPES)
         response["provider_url"] = "https://forbidden.invalid"
         with self.assertRaisesRegex(
