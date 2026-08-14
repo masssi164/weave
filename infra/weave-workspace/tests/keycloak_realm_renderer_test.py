@@ -203,27 +203,7 @@ def desired_state() -> dict[str, object]:
                 "protocol": "openid-connect",
                 "includeInTokenScope": False,
                 "roleScopeRefs": ["role:weaver-runtime"],
-                "mappers": [
-                    {
-                        "name": "weaver-runtime-client-id",
-                        "mapperType": "user-session-note",
-                        "sessionNote": "client_id",
-                        "claimName": "client_id",
-                        "claimValueType": "String",
-                        "addToIdToken": False,
-                        "addToAccessToken": True,
-                        "addToUserInfo": False,
-                    },
-                    {
-                        "name": "weaver-runtime-realm-role",
-                        "mapperType": "role",
-                        "claimName": "realm_access.roles",
-                        "roleRef": "role:weaver-runtime",
-                        "addToIdToken": False,
-                        "addToAccessToken": True,
-                        "addToUserInfo": False,
-                    },
-                ],
+                "mappers": [],
             },
         ],
         "clients": clients,
@@ -349,38 +329,7 @@ def run() -> None:
         for scope in first["clientScopes"]
         if scope["name"] == "weaver-runtime-workload"
     )
-    assert workload_scope["protocolMappers"] == [
-        {
-            "config": {
-                "access.token.claim": "true",
-                "access.tokenResponse.claim": "false",
-                "claim.name": "client_id",
-                "id.token.claim": "false",
-                "introspection.token.claim": "false",
-                "jsonType.label": "String",
-                "lightweight.claim": "false",
-                "user.session.note": "client_id",
-                "userinfo.token.claim": "false",
-            },
-            "name": "weaver-runtime-client-id",
-            "protocol": "openid-connect",
-            "protocolMapper": "oidc-usersessionmodel-note-mapper",
-        },
-        {
-            "config": {
-                "access.token.claim": "true",
-                "claim.name": "realm_access.roles",
-                "id.token.claim": "false",
-                "introspection.token.claim": "false",
-                "jsonType.label": "String",
-                "multivalued": "true",
-                "userinfo.token.claim": "false",
-            },
-            "name": "weaver-runtime-realm-role",
-            "protocol": "openid-connect",
-            "protocolMapper": "oidc-usermodel-realm-role-mapper",
-        },
-    ]
+    assert workload_scope["protocolMappers"] == []
     assert "admin-permissions" not in {
         client["clientId"] for client in first["clients"]
     }, "blocked organization FGAP must not be projected as a misleading client import"

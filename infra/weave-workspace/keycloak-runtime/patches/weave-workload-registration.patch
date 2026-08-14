@@ -81,10 +81,10 @@ index 0000000..9603ed4
 +}
 diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
 new file mode 100644
-index 0000000..7a032f1
+index 0000000..a52aa8e
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,1036 @@
+@@ -0,0 +1,1045 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import com.fasterxml.jackson.databind.JsonNode;
@@ -575,6 +575,8 @@ index 0000000..7a032f1
 +                || !workloadRole.getId().equals(workloadScopeRoles.get(0).getId())) {
 +            throw invalid(INVALID_FINAL_STATE_DETAIL);
 +        }
++        validateMapperFreeWorkloadScope(
++                defaultScope.getProtocolMappersStream().toList());
 +        Set<RoleIdentity> directRoles = serviceAccount.getRoleMappingsStream()
 +                .map(WeaveWorkloadClientRegistrationExecutor::roleIdentity)
 +                .collect(Collectors.toUnmodifiableSet());
@@ -695,6 +697,13 @@ index 0000000..7a032f1
 +            throws ClientPolicyException {
 +        RoleIdentity expected = new RoleIdentity("realm", realmId, WORKLOAD_ROLE);
 +        if (!Set.of(expected).equals(scopeRoles)) {
++            throw invalid(INVALID_FINAL_SCOPES_DETAIL);
++        }
++    }
++
++    static void validateMapperFreeWorkloadScope(List<ProtocolMapperModel> mappers)
++            throws ClientPolicyException {
++        if (!mappers.isEmpty()) {
 +            throw invalid(INVALID_FINAL_SCOPES_DETAIL);
 +        }
 +    }
@@ -1533,10 +1542,10 @@ index bcb129b..c4a7b71 100644
 +org.keycloak.services.clientpolicy.executor.WeaveWorkloadClientRegistrationExecutorFactory
 diff --git a/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java b/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java
 new file mode 100644
-index 0000000..48e0615
+index 0000000..ec73883
 --- /dev/null
 +++ b/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java
-@@ -0,0 +1,228 @@
+@@ -0,0 +1,240 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -1746,6 +1755,18 @@ index 0000000..48e0615
 +                        "weave",
 +                        Set.of(new WeaveWorkloadClientRegistrationExecutor.RoleIdentity(
 +                                "client", "workload-client", "weaver-runtime"))));
++    }
++
++    @Test
++    void requiresTheWorkloadScopeToRemainMapperFree() {
++        assertDoesNotThrow(() ->
++                WeaveWorkloadClientRegistrationExecutor.validateMapperFreeWorkloadScope(
++                        List.of()));
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.validateMapperFreeWorkloadScope(
++                        List.of(WeaveWorkloadRealmRoleMapper.create(
++                                "duplicate-realm-role"))));
 +    }
 +
 +    private static OIDCClientRepresentation representation(

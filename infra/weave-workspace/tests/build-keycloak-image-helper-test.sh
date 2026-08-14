@@ -72,10 +72,10 @@ assert module.STOCK_SERVICES_SHA256 == (
     "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
 )
 assert module.PATCH_SHA256 == (
-    "1cb15f2523c51ff9fcb1a0e9aa4cf8cdc6eefc11bae616e5671a49eeac9d7b5a"
+    "e18b012f5edbec3a9e04e7690b38dcd2a09e4c6c0fb15809f62183db06de69b5"
 )
 assert module.PATCHED_SERVICES_SHA256 == (
-    "52a7fbe9e3821e6e61ff5391368fe2a9bd13f3e95850d77bfe19d62b5fcdbb63"
+    "574693aba6b21e57250aba7bb49f7c1ca9a0aa0053ea5febf1db202e3ac70ebe"
 )
 specification_commit, specification_digest = module.specification_pin(repository)
 assert specification_commit == json.loads(
@@ -334,6 +334,8 @@ assert "runAfterRegisterPolicies(" in patch_text
 assert "WeaveWorkloadClientRegistrationExecutor.isWorkloadClient(" in patch_text
 assert "clientModel.getClientId())" in patch_text
 assert "finalizesWorkloadClientPolicyAfterLegacyRegistrationCleanupOnly" in patch_text
+assert "validateMapperFreeWorkloadScope(" in patch_text
+assert "requiresTheWorkloadScopeToRemainMapperFree" in patch_text
 assert "FROM ${WEAVE_KEYCLOAK_BASE} AS builder" in dockerfile_text
 assert "kc.sh build --db=postgres --vault=file" in dockerfile_text
 assert "com.massimotter.weave.keycloak-patch-sha256" in dockerfile_text
