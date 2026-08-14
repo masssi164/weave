@@ -87,7 +87,12 @@ def ssl_context(ca_file: Path | None) -> ssl.SSLContext:
         return ssl.create_default_context()
     if ca_file.is_symlink() or not ca_file.is_file():
         raise ValueError("Configured CA file is unavailable")
-    return ssl.create_default_context(cafile=str(ca_file))
+    context = ssl.create_default_context(cafile=str(ca_file))
+    # Python 3.13+ enables X509 strict mode by default. The long-lived local
+    # development CA predates the strict key-usage encoding, so retain normal
+    # chain and hostname validation without rotating the CA trusted by devices.
+    context.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return context
 
 
 def support_safe_result(response: dict[str, object], email: str) -> dict[str, object]:

@@ -21,6 +21,7 @@ import compose_runtime as compose_runtime_module  # noqa: E402
 from compose_runtime import active_volume_keys  # noqa: E402
 from render_config import _reset_provider_configtree, _runtime_policy  # noqa: E402
 from rendering.gateway import _site, render_caddy  # noqa: E402
+from rendering.io import write as write_rendered  # noqa: E402
 from rendering.keycloak import (  # noqa: E402
     _desired,
     _image_digest,
@@ -82,6 +83,17 @@ def assert_dogfood_application_image_platform_contract() -> None:
     ).read_text(encoding="utf-8")
     assert "requestedTask.tokenize(':').last() in ['dogfoodUp', 'dogfoodReset']" in server_dependencies
     assert "dogfoodLifecycleRequested ? 'linux-x86_64' : null" in server_dependencies
+
+
+def assert_unchanged_render_preserves_bind_mount_inode() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        target = Path(temporary) / "Caddyfile"
+        write_rendered(target, "stable\n", private=False)
+        inode = target.stat().st_ino
+        write_rendered(target, "stable\n", private=False)
+        assert target.stat().st_ino == inode
+        write_rendered(target, "changed\n", private=False)
+        assert target.stat().st_ino != inode
 
 
 def assert_realm_definition_identity_contract() -> None:
@@ -283,6 +295,7 @@ def main() -> int:
     assert compose_runtime_module.COLLABORATION_CONTROL_BUDGET_SECONDS == 240
     assert compose_runtime_module.COLLABORATION_SUBPROCESS_TIMEOUT_SECONDS == 30
     assert_dogfood_application_image_platform_contract()
+    assert_unchanged_render_preserves_bind_mount_inode()
     assert_realm_definition_identity_contract()
     assert_retired_cleanup_is_bounded()
     compose_source = (ROOT / "compose.yaml").read_text(encoding="utf-8")
@@ -306,6 +319,10 @@ def main() -> int:
     session_resources = dogfood_overlay.split("volumes:\n", 1)[1]
     assert "WEAVE_CANDIDATE_COMMIT" not in session_resources
     assert "WEAVE_CANDIDATE_MANIFEST_DIGEST" not in session_resources
+    e2e_overlay = (ROOT / "compose.e2e.yaml").read_text(encoding="utf-8")
+    e2e_backend = e2e_overlay.split("  backend:\n", 1)[1].split("\nsecrets:\n", 1)[0]
+    assert "depends_on: !override" in e2e_backend
+    assert "keycloak-realm-migration-receipt-check" not in e2e_backend
 
     for profile in ("dev", "dogfood", "e2e", "prod"):
         assert_spring_profile_contract(profile)
@@ -377,10 +394,22 @@ def main() -> int:
     assert rendered["realm"]["smtp"] == {"host": "mailpit", "port": 1025}
     assert "smtpServer" not in rendered["realm"]
     assert rendered["clientPolicies"] == []
+    development_roles = rendered["serviceAccountRoleGrants"][0]["roleRefs"]
+    assert development_roles == [
+        "builtin-role:realm-management:manage-organizations",
+        "builtin-role:realm-management:manage-users",
+        "builtin-role:realm-management:query-organizations",
+        "builtin-role:realm-management:query-users",
+    ]
     e2e_rendered = _desired(canonical, {**overlay, "environment": "e2e"})
     assert e2e_rendered["clientPolicies"] == canonical["clientPolicies"]
+    assert e2e_rendered["serviceAccountRoleGrants"][0]["roleRefs"] == development_roles
     prod_rendered = _desired(canonical, {**overlay, "environment": "prod"})
     assert prod_rendered["clientPolicies"] == canonical["clientPolicies"]
+    assert prod_rendered["serviceAccountRoleGrants"][0]["roleRefs"] == [
+        "builtin-role:realm-management:query-organizations",
+        "builtin-role:realm-management:query-users",
+    ]
     try:
         _desired({**canonical, "groups": []}, overlay)
     except ContractError:
@@ -419,6 +448,9 @@ def main() -> int:
         dogfood_caddy = render_caddy(dogfood)
         assert "@internal path /api/internal/* /actuator/*" in dogfood_caddy
         assert "reverse_proxy mailpit:8025" in dogfood_caddy
+        mailpit_site = dogfood_caddy.split("https://mail.weave.test", 1)[1].split("}\n", 1)[0]
+        assert "tls /certs/cert.pem /certs/key.pem" in mailpit_site
+        assert "mailpit-cert.pem" not in mailpit_site
         assert "reverse_proxy mailpit:8025" not in render_caddy(prod)
 
         isolated_overrides = {

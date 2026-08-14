@@ -27,7 +27,15 @@ services:
       weave.provider-bindings.bootstrap.files.organization-ref: ${WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID:-tenant-default}
       weave.provider-bindings.bootstrap.files.adapter-key: ${WEAVE_FILES_PROVIDER:-weave-native}
       weave.provider-bindings.bootstrap.files.configuration-ref: profile:${WEAVE_FILES_PROVIDER:-weave-native}
-    depends_on:
+    depends_on: !override
+      schema-receipt-check:
+        condition: service_completed_successfully
+      native-files-volume-init:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+      agent-runtime-keys-init:
+        condition: service_completed_successfully
       runtime-state-init:
         condition: service_completed_successfully
     secrets:

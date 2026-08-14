@@ -182,6 +182,12 @@ def main() -> int:
         'if context.environment != "dev" and "provider-nextcloud" in context.active_profiles:'
         in runtime_source
     )
+    assert (
+        'if context.environment == "prod":\n'
+        '            require_completed_migration(context)'
+        in runtime_source
+    )
+    assert 'if context.environment in {"e2e", "prod"}:' not in runtime_source
 
     shell_source = (ROOT / "compose.sh").read_text(encoding="utf-8")
     assert "<dev|dogfood|prod|e2e>" in shell_source

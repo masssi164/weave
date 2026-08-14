@@ -286,15 +286,13 @@ python3 "${EMPTY_NAMESPACE_WRITER}" \
   --output "${empty_namespace_proof}"
 export WEAVE_E2E_EMPTY_NAMESPACE_PROOF="${empty_namespace_proof}"
 
-log "Applying one bounded migration to the proven-empty E2E namespace."
+log "Starting one exact, import-initialized disposable Compose test stack."
 STACK_PREPARED=true
-bash "${COMPOSE}" e2e keycloak-migration-apply
-first_render_manifest="${WEAVE_TEST_APP_RUN_ROOT}/render-manifest-first.json"
-cp "${WEAVE_TEST_APP_GENERATED_ROOT}/render-manifest.json" "${first_render_manifest}"
-
-log "Starting one exact, disposable Compose test stack."
 bash "${COMPOSE}" e2e up
 bash "${WORKSPACE_ROOT}/operator-check.sh" e2e
+
+first_render_manifest="${WEAVE_TEST_APP_RUN_ROOT}/render-manifest-first.json"
+cp "${WEAVE_TEST_APP_GENERATED_ROOT}/render-manifest.json" "${first_render_manifest}"
 
 realm_evidence_path="${WEAVE_TEST_APP_RUN_ROOT}/realm-evidence.json"
 if [[ -n "${candidate_manifest_path}" ]]; then

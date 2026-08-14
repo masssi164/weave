@@ -1473,6 +1473,7 @@ def _bootstrap_disabled(context: ComposeContext) -> bool:
         },
     )
     tls = ssl.create_default_context(cafile=str(context.tls_root / "ca.pem"))
+    tls.verify_flags &= ~ssl.VERIFY_X509_STRICT
     try:
         urllib.request.urlopen(request, context=tls, timeout=10)
     except urllib.error.HTTPError as error:
@@ -1503,7 +1504,6 @@ def owner_bootstrap(context: ComposeContext, extra: list[str]) -> None:
         owner_request["idempotencyKey"].encode("utf-8")
     ).hexdigest()
     prepare(context)
-    require_completed_migration(context)
     _owner_bootstrap_smtp_preflight(context)
     lock_root = context.generated_root / "operations"
     lock_root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -1606,28 +1606,34 @@ def owner_bootstrap(context: ComposeContext, extra: list[str]) -> None:
             "backend",
         )
         temporary_evidence = lock_root / (operation_root.name + ".helper.json")
-        helper = subprocess.run(
-            [
-                "python3",
-                str(context.repository_root / "gradle/tasks/bootstrap-owner.py"),
-                "--api-base-url",
-                context.env["WEAVE_API_ORIGIN"],
-                "--token-file",
-                str(token),
-                "--request-file",
-                str(request_path),
-                "--ca-file",
-                str(context.tls_root / "ca.pem"),
-                "--evidence",
-                str(temporary_evidence),
-            ],
-            cwd=context.repository_root,
-            env=compose_environment(context),
-            check=True,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        try:
+            helper = subprocess.run(
+                [
+                    "python3",
+                    str(context.repository_root / "gradle/tasks/bootstrap-owner.py"),
+                    "--api-base-url",
+                    context.env["WEAVE_API_ORIGIN"],
+                    "--token-file",
+                    str(token),
+                    "--request-file",
+                    str(request_path),
+                    "--ca-file",
+                    str(context.tls_root / "ca.pem"),
+                    "--evidence",
+                    str(temporary_evidence),
+                ],
+                cwd=context.repository_root,
+                env=compose_environment(context),
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except subprocess.CalledProcessError as error:
+            diagnostic = (error.stderr or "").strip()
+            if diagnostic.startswith("owner-bootstrap:") and "\n" not in diagnostic:
+                raise ContractError(diagnostic) from error
+            raise ContractError("owner bootstrap helper failed") from error
         if helper.stderr.strip():
             raise ContractError("owner bootstrap helper emitted unexpected diagnostics")
         helper_evidence = json.loads(temporary_evidence.read_text(encoding="utf-8"))
@@ -1881,7 +1887,7 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         if context.environment != "dev":
             compose(context, "up", "-d", "postgres", "postgres-reconcile")
         compose(context, "up", "-d", "--wait", "--wait-timeout", "600", "keycloak")
-        if context.environment in {"e2e", "prod"}:
+        if context.environment == "prod":
             require_completed_migration(context)
         compose(
             context,

@@ -139,10 +139,10 @@ def _build_application_images(repository: Path, commit: str) -> tuple[str, str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("operation", choices=("up", "down", "reset"))
+    parser.add_argument("operation", choices=("up", "down", "reset", "bootstrap-owner"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file", type=Path)
-    args = parser.parse_args()
+    args, operation_arguments = parser.parse_known_args()
     root = args.root.resolve()
     repository = root.parents[1]
     env_file = (
@@ -154,6 +154,8 @@ def main() -> int:
     context = load_context("dogfood", root, str(env_file))
 
     if args.operation == "down":
+        if operation_arguments:
+            raise ContractError("dogfoodDown does not accept operation arguments")
         execute(context, "down", ["--remove-orphans"])
         print("WEAVE_DOGFOOD_DOWN_RESULT sessionVolumes=preserved tls=preserved")
         return 0
@@ -165,7 +167,12 @@ def main() -> int:
     os.environ["WEAVE_BACKEND_IMAGE"] = backend_image
     os.environ["WEAVE_MCP_IMAGE"] = mcp_image
     context = load_context("dogfood", root, str(env_file))
-    execute(context, args.operation, [])
+    operation_arguments = list(operation_arguments)
+    if operation_arguments[:1] == ["--"]:
+        operation_arguments.pop(0)
+    if args.operation != "bootstrap-owner" and operation_arguments:
+        raise ContractError(f"dogfood {args.operation} does not accept operation arguments")
+    execute(context, args.operation, operation_arguments)
     print(
         "WEAVE_DOGFOOD_LIFECYCLE_RESULT "
         f"operation={args.operation} candidateCommit={commit} "
