@@ -365,6 +365,7 @@ require_no_pending_registration_operations
 
 log "Running direct Keycloak DCR policy and Registration Access Token lifecycle proof."
 dcr_evidence="${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/keycloak-dcr-live-proof.json"
+dcr_probe_log="${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/keycloak-dcr-probe.log"
 keycloak_container_id="$(
   docker ps \
     --filter "label=com.docker.compose.project=${WEAVE_E2E_RUN_NAMESPACE}" \
@@ -384,7 +385,7 @@ python3 "${DCR_CONTRACT_PROBE}" \
   --specification-commit "${specification_commit}" \
   --compose-project "${WEAVE_E2E_RUN_NAMESPACE}" \
   --keycloak-container-id "${keycloak_container_id}" \
-  --output "${dcr_evidence}"
+  --output "${dcr_evidence}" 2>&1 | tee "${dcr_probe_log}"
 jq -e \
   --arg candidate_commit "${candidate_commit}" \
   --arg source_candidate_commit "${image_source_commit}" \

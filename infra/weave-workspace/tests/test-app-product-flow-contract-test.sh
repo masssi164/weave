@@ -132,6 +132,8 @@ teardown_line="$(grep -nF 'bash "${TEARDOWN}" e2e' "${LIFECYCLE}" | cut -d: -f1)
    ${diagnostics_line} -lt ${teardown_line} ]] ||
   fail "bounded diagnostics must remain immediately before exact teardown"
 contains "${LIFECYCLE}" 'verify_keycloak_dcr_contract.py'
+contains "${LIFECYCLE}" 'keycloak-dcr-probe.log'
+contains "${LIFECYCLE}" '| tee "${dcr_probe_log}"'
 contains "${LIFECYCLE}" 'keycloak-dcr-live-proof.json'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RESTART_EVIDENCE_PATH'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH'
