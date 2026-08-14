@@ -319,6 +319,10 @@ def main() -> int:
     session_resources = dogfood_overlay.split("volumes:\n", 1)[1]
     assert "WEAVE_CANDIDATE_COMMIT" not in session_resources
     assert "WEAVE_CANDIDATE_MANIFEST_DIGEST" not in session_resources
+    e2e_overlay = (ROOT / "compose.e2e.yaml").read_text(encoding="utf-8")
+    e2e_backend = e2e_overlay.split("  backend:\n", 1)[1].split("\nsecrets:\n", 1)[0]
+    assert "depends_on: !override" in e2e_backend
+    assert "keycloak-realm-migration-receipt-check" not in e2e_backend
 
     for profile in ("dev", "dogfood", "e2e", "prod"):
         assert_spring_profile_contract(profile)
