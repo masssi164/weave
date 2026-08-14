@@ -63,7 +63,10 @@ void main() {
     expect(browserJourney, contains('S256'));
     expect(productFlow, contains('private_key_jwt'));
     expect(productFlow, contains('files.search'));
-    expect(workflow, contains('./gradlew --no-daemon testApp'));
+    expect(
+      workflow,
+      contains('./gradlew --no-daemon specCorpusConformance testApp'),
+    );
     expect(workflow, isNot(contains('WEAVE_TEST_PASSWORD')));
     expect(workflow, isNot(contains('WEAVE_TEST_USERNAME')));
   });

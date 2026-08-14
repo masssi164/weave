@@ -13,6 +13,7 @@ import stat
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,13 @@ APPROVED_SCOPES = (
     "agent-runtime.profile.read",
     "mcp.tools",
     "files.read",
+)
+WORKLOAD_ROLE = "weaver-runtime"
+ALLOWED_KEYCLOAK_REALM_DEFAULT_ROLES = frozenset(
+    {"default-roles-weave", "offline_access", "uma_authorization"}
+)
+ALLOWED_KEYCLOAK_ACCOUNT_ROLES = frozenset(
+    {"manage-account", "manage-account-links", "view-profile"}
 )
 PRIVATE_JWK_FIELDS = ("kty", "use", "alg", "kid", "n", "e")
 FORBIDDEN_METADATA_FIELDS = (
@@ -307,6 +315,16 @@ def recovered_handoff_authority(
     violations: list[str] = []
     if status != 200:
         violations.append(f"status-{status}")
+    protocol_error = response.get("error")
+    if isinstance(protocol_error, str) and re.fullmatch(
+        r"[a-z][a-z0-9_]{0,63}", protocol_error
+    ):
+        violations.append("protocol-" + protocol_error.replace("_", "-"))
+    protocol_description = response.get("error_description")
+    if isinstance(protocol_description, str):
+        constraint = re.search(r"\[constraint=([a-z][a-z0-9-]{0,63})\]", protocol_description)
+        if constraint is not None:
+            violations.append("protocol-constraint-" + constraint.group(1))
     if response.get("client_id") != client_id:
         violations.append("client")
     if response.get("registration_client_uri") != expected_uri:
@@ -432,8 +450,26 @@ def registration(
     violations: list[str] = []
     if status not in {200, 201}:
         violations.append(f"status-{status}")
-    if response.get("registration_client_uri") != expected_uri:
+    observed_uri = response.get("registration_client_uri")
+    observed_client_id = response.get("client_id")
+    if observed_client_id != client_id:
+        violations.append("client-id")
+    if observed_uri != expected_uri:
         violations.append("registration-uri")
+        violations.extend(
+            registration_uri_mismatch_constraints(
+                expected_uri, observed_uri, client_id
+            )
+        )
+        if (
+            isinstance(observed_client_id, str)
+            and isinstance(observed_uri, str)
+            and urllib.parse.unquote(
+                urllib.parse.urlsplit(observed_uri).path.rpartition("/")[2]
+            )
+            == observed_client_id
+        ):
+            violations.append("registration-uri-matches-response-client")
     if not expected_uri.startswith(
         issuer + "/clients-registrations/openid-connect/"
     ):
@@ -490,32 +526,88 @@ def registration(
     return expected_uri, current_rat
 
 
+def registration_uri_mismatch_constraints(
+    expected: str, observed: Any, client_id: str
+) -> list[str]:
+    if not isinstance(observed, str):
+        return ["registration-uri-type"]
+    try:
+        expected_uri = urllib.parse.urlsplit(expected)
+        observed_uri = urllib.parse.urlsplit(observed)
+        expected_port = expected_uri.port
+        observed_port = observed_uri.port
+    except ValueError:
+        return ["registration-uri-syntax"]
+
+    constraints: list[str] = []
+    if observed_uri.scheme != expected_uri.scheme:
+        constraints.append("registration-uri-scheme")
+    if observed_uri.hostname != expected_uri.hostname:
+        constraints.append("registration-uri-host")
+    if observed_port != expected_port:
+        constraints.append("registration-uri-port")
+    expected_prefix, _, expected_tail = expected_uri.path.rpartition("/")
+    observed_prefix, _, observed_tail = observed_uri.path.rpartition("/")
+    if observed_prefix != expected_prefix:
+        constraints.append("registration-uri-path")
+    if urllib.parse.unquote(observed_tail) != client_id or expected_tail != client_id:
+        constraints.append("registration-uri-client")
+    if observed_uri.query or observed_uri.fragment:
+        constraints.append("registration-uri-suffix")
+    return constraints or ["registration-uri-bytes"]
+
+
 def exact_client_state(
     response: dict[str, Any],
     client_id: str,
     private_jwk: dict[str, Any],
 ) -> str:
     rat = response.get("registration_access_token")
-    forbidden = any(
-        value not in (None, "", [], {})
-        for value in (response.get(field) for field in FORBIDDEN_METADATA_FIELDS)
+    violations: list[str] = []
+    expected_values = (
+        ("client-id", response.get("client_id"), client_id),
+        ("client-name", response.get("client_name"), client_id),
+        (
+            "authentication-method",
+            response.get("token_endpoint_auth_method"),
+            "private_key_jwt",
+        ),
+        (
+            "authentication-algorithm",
+            response.get("token_endpoint_auth_signing_alg"),
+            "PS256",
+        ),
+        ("subject-type", response.get("subject_type"), "public"),
+        ("grant-types", response.get("grant_types"), ["client_credentials"]),
+        ("redirect-uris", response.get("redirect_uris"), []),
+        ("response-types", response.get("response_types"), []),
+        ("public-jwks", response.get("jwks"), public_jwks(private_jwk)),
     )
-    if (
-        response.get("client_id") != client_id
-        or response.get("client_name") != client_id
-        or response.get("token_endpoint_auth_method") != "private_key_jwt"
-        or response.get("token_endpoint_auth_signing_alg") != "PS256"
-        or response.get("subject_type") != "public"
-        or set(str(response.get("scope", "")).split()) != set(APPROVED_SCOPES)
-        or response.get("grant_types") != ["client_credentials"]
-        or response.get("redirect_uris") != []
-        or response.get("response_types") != []
-        or response.get("jwks") != public_jwks(private_jwk)
-        or forbidden
-        or not isinstance(rat, str)
-        or not rat
-    ):
-        raise ContractError("Keycloak client state did not preserve the exact workload contract")
+    violations.extend(
+        name for name, observed, expected in expected_values if observed != expected
+    )
+    observed_scope = response.get("scope")
+    if not isinstance(observed_scope, str):
+        violations.append("scopes-type")
+    else:
+        observed_scopes = set(observed_scope.split())
+        approved_scopes = set(APPROVED_SCOPES)
+        if approved_scopes - observed_scopes:
+            violations.append("scopes-missing")
+        if observed_scopes - approved_scopes:
+            violations.append("scopes-unapproved")
+    violations.extend(
+        "forbidden-" + field.replace("_", "-")
+        for field in FORBIDDEN_METADATA_FIELDS
+        if response.get(field) not in (None, "", [], {})
+    )
+    if not isinstance(rat, str) or not rat:
+        violations.append("registration-authority")
+    if violations:
+        raise ContractError(
+            "Keycloak client state did not preserve the exact workload contract "
+            f"[constraints={','.join(violations)}]"
+        )
     return rat
 
 
@@ -544,8 +636,21 @@ def workload_token(
         raise ContractError(
             "workload effective-role projection is malformed"
         ) from error
-    if realm_roles != {"weaver-runtime"} or client_roles:
+    if not bounded_workload_role_projection(realm_roles, client_roles):
         raise ContractError("workload effective-role projection is not exact")
+
+
+def bounded_workload_role_projection(
+    realm_roles: set[str], client_roles: dict[str, set[str]]
+) -> bool:
+    allowed_realm_roles = ALLOWED_KEYCLOAK_REALM_DEFAULT_ROLES | {WORKLOAD_ROLE}
+    if WORKLOAD_ROLE not in realm_roles or not realm_roles <= allowed_realm_roles:
+        return False
+    if not client_roles:
+        return True
+    return set(client_roles) == {"account"} and (
+        client_roles["account"] <= ALLOWED_KEYCLOAK_ACCOUNT_ROLES
+    )
 
 
 def atomic_evidence(path: Path, value: dict[str, Any]) -> None:
@@ -1004,6 +1109,7 @@ def run(args: argparse.Namespace) -> None:
             "validRegistration": True,
             "privateKeyJwt": True,
             "effectiveWorkloadRoles": ["weaver-runtime"],
+            "boundedKeycloakDefaultProjection": True,
             "registrationAccessTokenRotation": True,
             "postUpdateFinalStateVerified": True,
             "staleRegistrationAccessTokenRejected": True,

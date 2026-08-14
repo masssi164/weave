@@ -14,7 +14,7 @@ Weave is now a monorepo product stack:
 | `weave-persistence-jpa/`, `weave-runtime-*-adapters/` | Portable entity persistence and explicitly composed provider/security adapters. |
 | `weave-mcp-server/` | Separate workload-only Spring AI MCP process over Weave open standards. |
 | `weave-product-e2e/` | Plain-Java real-browser/OIDC/WebDAV/MCP product proof; no runtime beans or implementation-module dependency. |
-| `infra/` | Local/dev stack, Caddy, Keycloak, Matrix/Synapse/MAS, Nextcloud, Docker/OpenTofu orchestration, live-stack smoke and E2E environment. |
+| `infra/` | Local/dev stack, Caddy, Keycloak, optional providers, Docker Compose orchestration, live-stack smoke and E2E environment. |
 | `e2e/` | Binding product-language Gherkin scenarios, scenario mapping, and sanitized evidence contract. |
 | `release/` | Stack manifests and release compatibility metadata. |
 
@@ -28,7 +28,7 @@ Prerequisites:
 - Xcode/macOS or another Flutter-supported target for local app runs.
 - `make`, Python 3, Java 21+ for Gradle/backend checks, and the normal Dart/Flutter toolchain.
 - Node/npm for admin console checks.
-- Docker/OpenTofu only for live-stack validation.
+- Docker with Compose for dev, dogfood, and live-stack validation.
 
 On macOS with Homebrew JDK 21, use the same Java line as CI before running Gradle gates:
 
@@ -68,7 +68,7 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `testAppContract` | Compile/unit/ArchUnit checks for the framework-free Fresh product-flow driver. |
 | `testApp` | Full disposable invitation, activation, PKCE, ARC, WebDAV, MCP, revocation, and exact-cleanup proof. |
 | `adminCi` | Admin console npm CI path. |
-| `infraStatic` | OpenTofu format/validate plus infrastructure script/static checks. |
+| `infraStatic` | Compose, renderer, lifecycle, secret, and infrastructure contract checks. |
 | `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
 | `docsCheck` | Docs structure check plus strict MkDocs build. |
 | `releaseNotesLabelCheck` | Current PR release-notes label validation when `PR_LABELS_JSON` is available; skipped locally when unset. |
@@ -111,7 +111,7 @@ contract.
 
 ## Lane-based PR and release workflow
 
-Use the lane-based DevOps flow: protected `dev` for integration and normal feature PRs, protected `dogfood` for persistent LAN candidate/human validation, protected `main` for stable release-capable truth, `future/*` for larger not-yet-release-ready lines, optional `rc/*` for later release hardening, and `hotfix/*` for emergency stable-line fixes. See [Weave DevOps branching model](devops/branching-model.md), [release flow](devops/release-flow.md), [release notes policy](devops/release-notes.md), and [spec governance](devops/spec-governance.md). Every PR must deliberately choose exactly one release-notes label before review/merge:
+Use the lane-based DevOps flow: protected `dev` for integration and normal feature PRs, protected `dogfood` for resettable LAN Compose and human validation, and protected `main` only after a later production-hardening decision. `future/*`, optional `rc/*`, and `hotfix/*` remain available when those release lanes are actually needed. See [Weave DevOps branching model](devops/branching-model.md), [release flow](devops/release-flow.md), [release notes policy](devops/release-notes.md), and [spec governance](devops/spec-governance.md). Every PR must deliberately choose exactly one release-notes label before review/merge:
 
 - `release-notes-feature`
 - `release-notes-bugfix`

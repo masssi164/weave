@@ -108,6 +108,54 @@ class ComposeTeardownContractTest(unittest.TestCase):
         self.assertFalse(evidence["fallbackAttempted"])
         self.assertEqual(evidence["remainingOwnedResources"], 0)
 
+    def test_execute_accepts_network_already_removed_by_compose_down(self) -> None:
+        network_checks = 0
+
+        def owned_after_compose(
+            _context: object,
+            _binding: object,
+            kind: str,
+            _name: str,
+            **_kwargs: object,
+        ) -> bool:
+            nonlocal network_checks
+            if kind != "network":
+                return True
+            network_checks += 1
+            return network_checks == 1
+
+        with (
+            mock.patch.dict(os.environ, self.evidence_environment(), clear=False),
+            mock.patch.object(
+                teardown_compose, "_assert_owned", side_effect=owned_after_compose
+            ),
+            mock.patch.object(teardown_compose, "_owned_containers", return_value=[]),
+            mock.patch.object(
+                teardown_compose,
+                "_remaining_owned_resource_counts",
+                return_value=(0, 0, 0),
+            ),
+            mock.patch.object(teardown_compose, "compose_environment", return_value={}),
+            mock.patch.object(
+                teardown_compose.subprocess,
+                "run",
+                return_value=subprocess.CompletedProcess([], 0),
+            ) as run,
+        ):
+            evidence = teardown_compose.teardown(self.context, dry_run=False)
+
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertNotIn(
+            ["docker", "network", "rm", self.context.env["WEAVE_DOCKER_NETWORK"]],
+            commands,
+        )
+        self.assertEqual(network_checks, 2)
+        self.assertTrue(evidence["networkRemoved"])
+        self.assertEqual(
+            evidence["removedNetworkName"], self.context.env["WEAVE_DOCKER_NETWORK"]
+        )
+        self.assertEqual(evidence["remainingOwnedResources"], 0)
+
     def test_failed_compose_down_uses_only_exact_owned_container_fallback(self) -> None:
         results = iter(
             [subprocess.CompletedProcess([], 1)]

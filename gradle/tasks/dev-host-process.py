@@ -174,8 +174,11 @@ def application_environment(
             "WEAVE_JPA_DDL_AUTO",
         ):
             translated.pop(key, None)
-        translated["SPRING_PROFILES_ACTIVE"] = "dev-h2"
+        translated["SPRING_PROFILES_ACTIVE"] = "dev"
         translated["PORT"] = host_port
+        translated["WEAVE_FILES_NATIVE_FILESYSTEM_ROOT"] = str(
+            Path.cwd() / "infra/weave-workspace/.generated/dev/native-files"
+        )
         for key in (
             "WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE",
             "WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE",

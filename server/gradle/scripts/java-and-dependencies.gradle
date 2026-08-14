@@ -1,4 +1,10 @@
-def weaveOpenDalClassifier = System.getenv('WEAVE_OPENDAL_CLASSIFIER') ?: {
+def dogfoodLifecycleRequested = gradle.startParameter.taskNames.any { requestedTask ->
+    requestedTask.tokenize(':').last() in ['dogfoodUp', 'dogfoodReset']
+}
+def weaveOpenDalClassifier = System.getenv('WEAVE_OPENDAL_CLASSIFIER')
+        ?: project.findProperty('weaveOpenDalClassifier')
+        ?: (dogfoodLifecycleRequested ? 'linux-x86_64' : null)
+        ?: {
     def os = System.getProperty('os.name').toLowerCase(java.util.Locale.ROOT)
     def arch = System.getProperty('os.arch').toLowerCase(java.util.Locale.ROOT)
     def arm = arch in ['aarch64', 'arm64']
@@ -7,6 +13,16 @@ def weaveOpenDalClassifier = System.getenv('WEAVE_OPENDAL_CLASSIFIER') ?: {
     if (os.contains('linux')) return arm ? 'linux-aarch_64' : 'linux-x86_64'
     throw new GradleException("Unsupported OpenDAL native platform: ${os}/${arch}; set WEAVE_OPENDAL_CLASSIFIER explicitly")
 }.call()
+def supportedOpenDalClassifiers = [
+        'linux-aarch_64',
+        'linux-x86_64',
+        'osx-aarch_64',
+        'osx-x86_64',
+        'windows-x86_64',
+] as Set
+if (!(weaveOpenDalClassifier in supportedOpenDalClassifiers)) {
+    throw new GradleException("Unsupported OpenDAL native classifier: ${weaveOpenDalClassifier}")
+}
 
 java {
     toolchain {

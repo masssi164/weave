@@ -26,9 +26,9 @@ UPSTREAM_COMMIT = "73f08b397f193712b26d317210dce99898129709"
 UPSTREAM_REPOSITORY = "https://github.com/keycloak/keycloak.git"
 ARCHIVE_SHA256 = "4ef57bbe2d97acf658b0347885a8239543af9cc27337c1bfa6ece50bfb6f9b90"
 STOCK_SERVICES_SHA256 = "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
-PATCH_SHA256 = "4409bbf51d352179afec7668475947f3e3446dbaceb324ce282a7e1a5ce0df27"
+PATCH_SHA256 = "a160e180afb93fd249129397671134983bd3aea5b112cfeb96e77c3a9493f33f"
 PATCHED_SERVICES_SHA256 = (
-    "3788d01bc4a97e8c82d0ed27ccd67ff340af80e8492874678eb3bd6887b2f7e9"
+    "ded246ad30ef995a73a4839ecd01b5851dbeceff1898d95d1744c18fa715fe3b"
 )
 STOCK_KEYCLOAK_INDEX_DIGEST = (
     "sha256:f1f1f01e472c8a78df40d8f2a49a925274eda4d3d80d5f6edbb5c880ee3c01c6"
@@ -40,6 +40,9 @@ STOCK_KEYCLOAK_PLATFORM = "linux/amd64"
 STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST = (
     "sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2"
 )
+STOCK_KEYCLOAK_PLATFORM_REFERENCE = (
+    f"quay.io/keycloak/keycloak@{STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST}"
+)
 ARCHIVE_URL = f"https://github.com/keycloak/keycloak/archive/{UPSTREAM_COMMIT}.tar.gz"
 PATCH_RELATIVE = Path(
     "infra/weave-workspace/keycloak-runtime/patches/"
@@ -50,6 +53,8 @@ PATCHED_PATHS = (
     "WeaveWorkloadClientRegistrationExecutor.java",
     "services/src/main/java/org/keycloak/services/clientpolicy/executor/"
     "WeaveWorkloadClientRegistrationExecutorFactory.java",
+    "services/src/main/java/org/keycloak/services/clientregistration/"
+    "AbstractClientRegistrationProvider.java",
     "services/src/main/java/org/keycloak/services/clientregistration/"
     "ClientRegistrationAuth.java",
     "services/src/main/java/org/keycloak/services/clientregistration/oidc/"
@@ -281,7 +286,7 @@ def verify_stock_services() -> None:
         "pull",
         "--platform",
         STOCK_KEYCLOAK_PLATFORM,
-        STOCK_KEYCLOAK_REFERENCE,
+        STOCK_KEYCLOAK_PLATFORM_REFERENCE,
     )
     observed = run(
         "docker",
@@ -291,7 +296,7 @@ def verify_stock_services() -> None:
         STOCK_KEYCLOAK_PLATFORM,
         "--entrypoint",
         "/usr/bin/sha256sum",
-        STOCK_KEYCLOAK_REFERENCE,
+        STOCK_KEYCLOAK_PLATFORM_REFERENCE,
         STOCK_SERVICES_PATH,
         capture=True,
     ).split()[0]
@@ -455,7 +460,8 @@ def build_services(
     patched_digest = sha256(services)
     if patched_digest != PATCHED_SERVICES_SHA256:
         raise SystemExit(
-            "WEAVE_KEYCLOAK_BUILD_ERROR patched services JAR digest mismatch"
+            "WEAVE_KEYCLOAK_BUILD_ERROR patched services JAR digest mismatch "
+            f"[actual={patched_digest}]"
         )
     listing = run("jar", "tf", str(services), capture=True)
     required_entries = (
@@ -490,7 +496,11 @@ def build_image(
     )
     tag = f"weave-keycloak-runtime:{candidate[:12]}"
     build_arguments = {
-        "WEAVE_KEYCLOAK_BASE": STOCK_KEYCLOAK_REFERENCE,
+        # Build from the exact platform manifest, not the multi-platform index
+        # name. Docker Desktop/OrbStack can then keep the native ARM64 dogfood
+        # image and the AMD64 E2E image side by side without overwriting one
+        # digest reference with another platform.
+        "WEAVE_KEYCLOAK_BASE": STOCK_KEYCLOAK_PLATFORM_REFERENCE,
         "WEAVE_IMAGE_CREATED": created,
         "WEAVE_IMAGE_REVISION": candidate,
         "WEAVE_IMAGE_VERSION": f"{UPSTREAM_TAG}-weave.{candidate[:12]}",

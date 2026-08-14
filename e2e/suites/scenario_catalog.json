@@ -4599,7 +4599,7 @@
     },
     {
       "tag": "@human-ready-manifest",
-      "suiteId": "member-live-critical-path",
+      "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
         "operator"
       ],
@@ -4607,12 +4607,12 @@
         "operator-release",
         "admin-health-ops"
       ],
-      "testLevel": "live-e2e",
+      "testLevel": "offline-contract",
       "assertionFocus": [
-        "single fail-closed manifest",
-        "exact candidate",
-        "explicit blockers",
-        "main promotion denial"
+        "no candidate manifest gate",
+        "exact dogfood source",
+        "full Compose E2E prerequisite",
+        "no automatic release publication"
       ]
     }
   ]

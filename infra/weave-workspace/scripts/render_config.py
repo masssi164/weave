@@ -75,6 +75,17 @@ def _reset_provider_configtree(path: Path) -> None:
 def _render_provider_secrets(context: ComposeContext, runtime_owner: tuple[int, int]) -> None:
     provider_configtree = context.generated_root / "backend/configtree"
     runtime_directory(provider_configtree, runtime_owner)
+    retired_identity_secret = (
+        provider_configtree
+        / "spring.security.oauth2.client.registration.weave-identity-admin.client-secret"
+    )
+    if (
+        context.environment != "prod"
+        and (retired_identity_secret.exists() or retired_identity_secret.is_symlink())
+    ):
+        if not retired_identity_secret.is_symlink() and not retired_identity_secret.is_file():
+            raise ContractError("retired identity provider configtree entry is not a file")
+        retired_identity_secret.unlink()
     _reset_provider_configtree(provider_configtree)
 
     if context.env["WEAVE_FILES_PROVIDER"] == "nextcloud-webdav" or context.env["WEAVE_CALENDAR_PROVIDER"] == "nextcloud-caldav":

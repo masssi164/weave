@@ -52,6 +52,9 @@ class SchemaAuthorityInitializerPostgresTest {
     var second = new ObjectMapper().readTree(Files.readString(environment.receipt()));
     assertThat(second.path("catalogFingerprint").asText())
         .isEqualTo(first.path("catalogFingerprint").asText());
+    assertThat(second.path("migrationsExecuted").asInt()).isZero();
+    assertThat(second.path("targetSchemaVersion").asText()).isNotBlank();
+    SchemaReceiptVerifier.verify(environment.values());
 
     try (var connection =
             DriverManager.getConnection(

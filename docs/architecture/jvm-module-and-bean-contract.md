@@ -144,20 +144,11 @@ through Keycloak realm import. The separately invoked, rootless post-import migr
 to FGAP state import cannot express, requires a verified private backup, deletes its temporary
 bootstrap authority, records a digest-bound receipt, and must produce an empty second plan.
 
-`.github/workflows/candidate-images.yml` is the only candidate image producer. It is a protected,
-dispatch-only Candidate Cut: normal `dev` pushes run merge CI without publishing release
-artifacts. Its read-only gate verifies the selected commit against protected `dev` before the
-`candidate-cut` environment grants package-write authority. It then runs the JVM, MCP, and
-PostgreSQL gates before publishing Server, MCP Server, and the version-pinned Keycloak Runtime.
-Tags identify a commit and workflow attempt for navigation, but
-deployment identity is always the image digest.
-Each image carries OCI/Weave labels plus embedded SPDX SBOM and SLSA provenance attestations. A
-canonical candidate manifest binds all three image digests, attestation layer digests, the commit,
-and the Specification Corpus lock digest. Its dependent `fresh-product-proof` job passes only the
-published Server, MCP, and Keycloak Runtime `@sha256` references into `testApp`,
-which verifies their revision,
-Specification Corpus digest and dependency-platform annotations before starting the isolated
-stack.
+During active development, `Full Compose E2E` builds from and tests the exact checked-out `dev` or
+`dogfood` SHA through `./gradlew testApp`; dogfood deployment builds local Server and MCP images
+through the root Compose lifecycle. There is no active Candidate Cut or candidate manifest in this
+loop. A future production-hardening ADR must reintroduce immutable image publication, SBOM,
+provenance, and release promotion rules for the selected production target.
 
 ## Fresh product-flow proof
 
