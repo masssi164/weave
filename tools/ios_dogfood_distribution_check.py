@@ -26,7 +26,8 @@ def main() -> int:
     smoke = read("tools/dogfood_ios_deeplink_smoke.sh")
     entry = read("tools/dogfood_iphone_entry.sh")
     project = read("client/ios/Runner.xcodeproj/project.pbxproj")
-    entitlements = read("client/ios/Runner/RunnerDevelopment.entitlements")
+    development_entitlements = read("client/ios/Runner/RunnerDevelopment.entitlements")
+    release_entitlements = read("client/ios/Runner/Runner.entitlements")
     docs = read("docs/ios-dogfood-distribution.md")
 
     require("name: Prepare Human Test" in workflow, "physical iPhone workflow must be the one-click human-test preparation")
@@ -42,7 +43,26 @@ def main() -> int:
 
     require(project.count("PRODUCT_BUNDLE_IDENTIFIER = com.massimotter.weave;") == 3, "bundle identity is not stable across build modes")
     require(project.count("DEVELOPMENT_TEAM = KNDHGC2KV6;") == 3, "Apple team identity is not stable across build modes")
-    require("$(AppIdentifierPrefix)com.massimotter.weave" in entitlements, "development Keychain identity is not stable")
+    require(
+        project.count("CODE_SIGN_ENTITLEMENTS = Runner/RunnerDevelopment.entitlements;") == 1,
+        "the Profile dogfood build must use the Personal Team-compatible entitlements",
+    )
+    require(
+        project.count("CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;") == 2,
+        "Debug and Release must retain the full app entitlements",
+    )
+    require(
+        "$(AppIdentifierPrefix)com.massimotter.weave" in development_entitlements,
+        "development Keychain identity is not stable",
+    )
+    require(
+        "com.apple.developer.associated-domains" not in development_entitlements,
+        "the Personal Team-compatible Profile must not request Associated Domains",
+    )
+    require(
+        "com.apple.developer.associated-domains" in release_entitlements,
+        "the Release build must retain Associated Domains",
+    )
 
     for marker in (
         'BUNDLE_ID="com.massimotter.weave"',
