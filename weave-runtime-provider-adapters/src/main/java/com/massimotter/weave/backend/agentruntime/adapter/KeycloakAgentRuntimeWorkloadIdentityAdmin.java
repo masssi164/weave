@@ -1352,9 +1352,11 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         }
         Set<String> allowedRealmRoles = new HashSet<>(ALLOWED_KEYCLOAK_REALM_DEFAULT_ROLES);
         allowedRealmRoles.add(settings.workloadRole());
-        if (!projectedRoles.contains(settings.workloadRole())
-                || !allowedRealmRoles.containsAll(projectedRoles)) {
-            throw malformedWorkloadToken("realm-role-value");
+        if (!projectedRoles.contains(settings.workloadRole())) {
+            throw malformedWorkloadToken("realm-role-required");
+        }
+        if (!allowedRealmRoles.containsAll(projectedRoles)) {
+            throw malformedWorkloadToken("realm-role-unexpected");
         }
         JsonNode resourceAccess = claims.get("resource_access");
         if (resourceAccess != null && !allowedAccountProjection(resourceAccess)) {

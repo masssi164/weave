@@ -190,6 +190,32 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
     }
 
     @Test
+    void classifiesAMissingWorkloadRoleWithoutDisclosingTokenClaims() {
+        transport.nextTokenClaimsMutation = claims ->
+                claims.withObject("realm_access").withArray("roles").removeAll();
+
+        assertThatThrownBy(() -> adapter.ensureBinding(ensure()))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining(
+                        "malformed workload access token [constraint=realm-role-required]")
+                .hasMessageNotContaining("realm_access");
+    }
+
+    @Test
+    void classifiesAnUnexpectedRealmRoleWithoutDisclosingItsName() {
+        transport.nextTokenClaimsMutation = claims -> claims
+                .withObject("realm_access")
+                .withArray("roles")
+                .add("same-name-or-extra-role");
+
+        assertThatThrownBy(() -> adapter.ensureBinding(ensure()))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining(
+                        "malformed workload access token [constraint=realm-role-unexpected]")
+                .hasMessageNotContaining("same-name-or-extra-role");
+    }
+
+    @Test
     void rejectsAWorkloadTokenWithAnUnknownClientRoleProjection() {
         transport.nextTokenClaimsMutation = claims -> claims
                 .withObject("resource_access")
