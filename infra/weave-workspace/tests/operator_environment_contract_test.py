@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from compose_env import load_context  # noqa: E402
+from compose_env import ContractError, load_context  # noqa: E402
 from compose_runtime import runtime_root_services  # noqa: E402
 
 
@@ -60,6 +60,20 @@ def main() -> int:
             ROOT,
             str(_materialize_example("dogfood", temporary_root / "dogfood.env")),
         )
+        legacy_dogfood_path = _materialize_example(
+            "dogfood", temporary_root / "dogfood-without-mailpit-url.env"
+        )
+        legacy_dogfood_path.write_text(
+            re.sub(
+                r"^WEAVE_MAILPIT_URL=.*\n?",
+                "",
+                legacy_dogfood_path.read_text(encoding="utf-8"),
+                flags=re.MULTILINE,
+            ),
+            encoding="utf-8",
+        )
+        legacy_dogfood = load_context("dogfood", ROOT, str(legacy_dogfood_path))
+        assert legacy_dogfood.env["WEAVE_MAILPIT_URL"] == "https://mail.weave.test:44443"
         previous_e2e_scope = os.environ.get("WEAVE_E2E_STACK_SCOPE")
         previous_e2e_run_id = os.environ.get("WEAVE_E2E_RUN_ID")
         try:
@@ -91,6 +105,65 @@ def main() -> int:
             str(_materialize_example("prod", temporary_root / "prod.env")),
         )
 
+        local_images = {
+            "WEAVE_BACKEND_IMAGE": "sha256:" + "b" * 64,
+            "WEAVE_MCP_IMAGE": "sha256:" + "c" * 64,
+            "WEAVE_KEYCLOAK_IMAGE": "sha256:" + "d" * 64,
+        }
+        previous_local_images = {key: os.environ.get(key) for key in local_images}
+        try:
+            os.environ.update(local_images)
+            local_dogfood = load_context(
+                "dogfood",
+                ROOT,
+                str(_materialize_example("dogfood", temporary_root / "dogfood-local.env")),
+            )
+            assert local_dogfood.env["WEAVE_BACKEND_IMAGE"] == local_images["WEAVE_BACKEND_IMAGE"]
+        finally:
+            for key, value in previous_local_images.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+        mutable_path = _materialize_example(
+            "dogfood", temporary_root / "dogfood-mutable.env"
+        )
+        mutable_path.write_text(
+            re.sub(
+                r"^WEAVE_BACKEND_IMAGE=.*$",
+                "WEAVE_BACKEND_IMAGE=weave-backend:dogfood",
+                mutable_path.read_text(encoding="utf-8"),
+                flags=re.MULTILINE,
+            ),
+            encoding="utf-8",
+        )
+        try:
+            load_context("dogfood", ROOT, str(mutable_path))
+        except ContractError:
+            pass
+        else:
+            raise AssertionError("dogfood accepted a mutable application image tag")
+
+        wrong_reset_boundary = _materialize_example(
+            "dogfood", temporary_root / "dogfood-wrong-reset-boundary.env"
+        )
+        wrong_reset_boundary.write_text(
+            re.sub(
+                r"^WEAVE_DB_DATA_VOLUME=.*$",
+                "WEAVE_DB_DATA_VOLUME=some_other_volume",
+                wrong_reset_boundary.read_text(encoding="utf-8"),
+                flags=re.MULTILINE,
+            ),
+            encoding="utf-8",
+        )
+        try:
+            load_context("dogfood", ROOT, str(wrong_reset_boundary))
+        except ContractError as error:
+            assert "fixed reset boundary" in str(error)
+        else:
+            raise AssertionError("dogfood accepted an arbitrary reset volume")
+
     assert dogfood.environment == "dogfood"
     assert e2e.environment == "e2e"
     assert e2e.env["WEAVE_STACK_SCOPE"] == "isolated"
@@ -117,7 +190,10 @@ def main() -> int:
 
     repository = ROOT.parents[1]
     for workflow_name in ("test-stack-deploy.yml", "human-testing-readiness.yml"):
-        workflow = (repository / ".github/workflows" / workflow_name).read_text(encoding="utf-8")
+        workflow_path = repository / ".github/workflows" / workflow_name
+        if not workflow_path.is_file():
+            continue
+        workflow = workflow_path.read_text(encoding="utf-8")
         assert 'load_context("test"' not in workflow
         assert "./compose.sh test " not in workflow
         assert "./operator-check.sh test" not in workflow
@@ -147,6 +223,7 @@ def main() -> int:
     dogfood_example = (ROOT / "environments/dogfood.env.example").read_text(encoding="utf-8")
     assert "WEAVE_MAILPIT_IMAGE=" in dogfood_example
     assert "WEAVE_MAILPIT_DATA_VOLUME=" in dogfood_example
+    assert "WEAVE_MAILPIT_URL=https://mail.weave.test:44443" in dogfood_example
     assert "WEAVE_MAILPIT_REQUIRE_TLS=true" in dogfood_example
     assert "WEAVE_SMTP_" not in dogfood_example
 

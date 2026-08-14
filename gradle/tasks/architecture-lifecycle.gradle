@@ -6,10 +6,6 @@ def requiredProperty = { String name ->
     value.toString()
 }
 
-def optionalProperty = { String name, String fallback ->
-    providers.gradleProperty(name).orElse(fallback).get().toString()
-}
-
 tasks.register('devUp', Exec) {
     group = 'application'
     description = 'Converge the dev provider stack and leave Server/MCP ports ready for host processes.'
@@ -35,6 +31,32 @@ tasks.register('devDown', Exec) {
     outputs.upToDateWhen { false }
 }
 
+tasks.register('dogfoodUp', Exec) {
+    group = 'application'
+    description = 'Build the current checkout and converge the lean dogfood Compose stack while preserving session data.'
+    dependsOn ':server:bootJar', ':weave-mcp-server:bootJar'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'up', '--root', 'infra/weave-workspace'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('dogfoodDown', Exec) {
+    group = 'application'
+    description = 'Stop the dogfood Compose stack while preserving its three session volumes and external TLS files.'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'down', '--root', 'infra/weave-workspace'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('dogfoodReset', Exec) {
+    group = 'application'
+    description = 'Delete only the dogfood project and its three session volumes, then recreate an empty stack.'
+    dependsOn ':server:bootJar', ':weave-mcp-server:bootJar'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'reset', '--root', 'infra/weave-workspace'
+    outputs.upToDateWhen { false }
+}
+
 tasks.register('testApp', Exec) {
     group = 'verification'
     description = 'Prove invitation, browser activation, PKCE, WebDAV, ARC, MCP, revocation, and exact cleanup in one disposable stack.'
@@ -47,141 +69,6 @@ tasks.register('testAppContract') {
     group = 'verification'
     description = 'Compile and test the framework-free testApp product-flow proof without starting a stack.'
     dependsOn ':weave-product-e2e:test'
-}
-
-tasks.register('freshStartPlan', Exec) {
-    group = 'weave operations'
-    description = 'Create a non-mutating, canonical, exact-resource Fresh Start plan.'
-    workingDir rootProject.projectDir
-    outputs.upToDateWhen { false }
-    doFirst {
-        def manifest = optionalProperty(
-            'freshStartManifest',
-            layout.buildDirectory.file('operations/fresh-start/plan.json').get().asFile.absolutePath
-        )
-        def arguments = [
-            'python3',
-            'infra/weave-workspace/fresh-start.py',
-            'plan',
-            '--environment', requiredProperty('freshStartEnvironment'),
-            '--scope', requiredProperty('freshStartScope'),
-            '--stack', optionalProperty('freshStartStack', 'weave'),
-            '--namespace', requiredProperty('freshStartNamespace'),
-            '--retired-generation', requiredProperty('retiredGeneration'),
-            '--target-generation', requiredProperty('targetGeneration'),
-            '--spec-commit', requiredProperty('specCommit'),
-            '--spec-digest', requiredProperty('specDigest'),
-            '--candidate-commit', requiredProperty('candidateCommit'),
-            '--candidate-manifest-digest', requiredProperty('candidateManifestDigest'),
-            '--operation-nonce', requiredProperty('operationNonce'),
-            '--recovery-decision', requiredProperty('recoveryDecision'),
-            '--recovery-evidence-ref', requiredProperty('recoveryEvidenceRef'),
-            '--allowlist', optionalProperty(
-                'freshStartAllowlist',
-                file('infra/weave-workspace/fresh-start-targets.json').absolutePath
-            ),
-            '--lock-file', optionalProperty(
-                'freshStartLock',
-                new File(System.getProperty('user.home'), '.local/state/weave/fresh-start.lock').absolutePath
-            ),
-            '--output', manifest
-        ]
-        def recoveryReceipt = providers.gradleProperty('recoveryReceipt').orNull
-        if (recoveryReceipt != null && !recoveryReceipt.toString().trim().isEmpty()) {
-            arguments.addAll(['--recovery-receipt', recoveryReceipt.toString()])
-        }
-        commandLine arguments
-    }
-}
-
-tasks.register('freshStartBackupRehearsal', Exec) {
-    group = 'weave operations'
-    description = 'Create a private candidate-bound backup and prove it in isolation without migration or adoption.'
-    workingDir rootProject.projectDir
-    outputs.upToDateWhen { false }
-    doFirst {
-        def arguments = [
-            'bash',
-            'infra/weave-workspace/fresh-start-backup-rehearsal.sh',
-            optionalProperty('freshStartBackupProfile', 'dogfood')
-        ]
-        def receipt = providers.gradleProperty('freshStartBackupReceipt').orNull
-        if (receipt != null && !receipt.toString().trim().isEmpty()) {
-            arguments.addAll(['--receipt-output', receipt.toString()])
-        }
-        commandLine arguments
-    }
-}
-
-tasks.register('freshStartDeleteApprovedTargets', Exec) {
-    group = 'weave operations'
-    description = 'Internal Fresh Start phase: delete only the targets in one reviewed manifest.'
-    workingDir rootProject.projectDir
-    outputs.upToDateWhen { false }
-    doFirst {
-        def manifest = requiredProperty('freshStartManifest')
-        def arguments = [
-            'python3',
-            'infra/weave-workspace/fresh-start.py',
-            'apply',
-            '--manifest', manifest,
-            '--confirm', requiredProperty('confirm'),
-            '--approval-evidence', requiredProperty('approvalEvidence'),
-            '--allowlist', optionalProperty(
-                'freshStartAllowlist',
-                file('infra/weave-workspace/fresh-start-targets.json').absolutePath
-            ),
-            '--lock-file', optionalProperty(
-                'freshStartLock',
-                new File(System.getProperty('user.home'), '.local/state/weave/fresh-start.lock').absolutePath
-            )
-        ]
-        def evidence = providers.gradleProperty('freshStartEvidence').orNull
-        if (evidence != null && !evidence.toString().trim().isEmpty()) {
-            arguments.addAll(['--evidence', evidence.toString()])
-        }
-        commandLine arguments
-    }
-}
-
-tasks.register('freshStartRecreateTargetGeneration', Exec) {
-    group = 'weave operations'
-    description = 'Internal Fresh Start phase: recreate the target generation from exact candidate images.'
-    dependsOn 'freshStartDeleteApprovedTargets'
-    workingDir rootProject.projectDir
-    outputs.upToDateWhen { false }
-    doFirst {
-        def plan = requiredProperty('freshStartManifest')
-        def applyEvidence = requiredProperty('freshStartApplyEvidence')
-        environment 'WEAVE_FRESH_START_PLAN', file(plan).absolutePath
-        environment 'WEAVE_FRESH_START_APPLY_EVIDENCE', file(applyEvidence).absolutePath
-        commandLine(
-            'python3',
-            'infra/weave-workspace/fresh-start-recreate.py',
-            '--plan', plan,
-            '--apply-evidence', applyEvidence,
-            '--candidate-manifest', requiredProperty('candidateManifest'),
-            '--allowlist', optionalProperty(
-                'freshStartAllowlist',
-                file('infra/weave-workspace/fresh-start-targets.json').absolutePath
-            ),
-            '--lock-file', optionalProperty(
-                'freshStartLock',
-                new File(System.getProperty('user.home'), '.local/state/weave/fresh-start.lock').absolutePath
-            ),
-            '--archive-root', optionalProperty(
-                'freshStartArchiveRoot',
-                new File(System.getProperty('user.home'), '.local/state/weave/fresh-start').absolutePath
-            ),
-            '--evidence', requiredProperty('freshStartRecreationEvidence')
-        )
-    }
-}
-
-tasks.register('freshStartApply') {
-    group = 'weave operations'
-    description = 'Apply one approved Fresh Start plan and recreate its complete target generation.'
-    dependsOn 'freshStartRecreateTargetGeneration'
 }
 
 tasks.register('dogfoodCandidateCheck', Exec) {

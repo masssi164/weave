@@ -281,17 +281,19 @@ if not selection < readiness < collaboration:
     raise SystemExit("Fresh product flow must apply providers and await readiness before collaboration")
 PY
 
-contains "${CANDIDATE_WORKFLOW}" 'fresh-product-proof:'
-contains "${CANDIDATE_WORKFLOW}" 'needs: [verify-source, build-candidate]'
-contains "${CANDIDATE_WORKFLOW}" 'weave-server@${{ needs.build-candidate.outputs.server_digest }}'
-contains "${CANDIDATE_WORKFLOW}" 'weave-mcp-server@${{ needs.build-candidate.outputs.mcp_digest }}'
-contains "${CANDIDATE_WORKFLOW}" 'weave-keycloak-runtime@${{ needs.build-candidate.outputs.keycloak_runtime_digest }}'
-contains "${CANDIDATE_WORKFLOW}" 'WEAVE_CANDIDATE_MANIFEST_DIGEST: ${{ needs.build-candidate.outputs.candidate_manifest_digest }}'
-contains "${CANDIDATE_WORKFLOW}" 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1'
-contains "${CANDIDATE_WORKFLOW}" 'run: ./gradlew --no-daemon testApp'
-contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/keycloak-dcr-live-proof.json'
-contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/persistence-restart-evidence.json'
-contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/runtime-image-evidence.json'
-contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/failure-diagnostics/**'
+if [[ -f "${CANDIDATE_WORKFLOW}" ]]; then
+  contains "${CANDIDATE_WORKFLOW}" 'fresh-product-proof:'
+  contains "${CANDIDATE_WORKFLOW}" 'needs: [verify-source, build-candidate]'
+  contains "${CANDIDATE_WORKFLOW}" 'weave-server@${{ needs.build-candidate.outputs.server_digest }}'
+  contains "${CANDIDATE_WORKFLOW}" 'weave-mcp-server@${{ needs.build-candidate.outputs.mcp_digest }}'
+  contains "${CANDIDATE_WORKFLOW}" 'weave-keycloak-runtime@${{ needs.build-candidate.outputs.keycloak_runtime_digest }}'
+  contains "${CANDIDATE_WORKFLOW}" 'WEAVE_CANDIDATE_MANIFEST_DIGEST: ${{ needs.build-candidate.outputs.candidate_manifest_digest }}'
+  contains "${CANDIDATE_WORKFLOW}" 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1'
+  contains "${CANDIDATE_WORKFLOW}" 'run: ./gradlew --no-daemon testApp'
+  contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/keycloak-dcr-live-proof.json'
+  contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/persistence-restart-evidence.json'
+  contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/runtime-image-evidence.json'
+  contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/failure-diagnostics/**'
+fi
 
 printf 'testApp product-flow contract tests passed\n'

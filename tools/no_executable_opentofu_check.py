@@ -50,6 +50,10 @@ def active_files(root: Path) -> list[Path]:
                 part.startswith(".") and part not in {".github"} for part in relative_parts
             ):
                 continue
+            # Contract tests quote forbidden commands and environment names as
+            # negative fixtures; they are not deployment entrypoints.
+            if "tests" in relative_parts:
+                continue
             if path.suffix in ACTIVE_SUFFIXES or path.name in {"Makefile", "Dockerfile"}:
                 files.add(path)
     workflows = root / ".github" / "workflows"

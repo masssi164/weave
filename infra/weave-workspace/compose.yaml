@@ -1101,14 +1101,20 @@ volumes:
     external: true
     name: ${WEAVE_CADDY_CONFIG_VOLUME:-weave_caddy_config}
   db-data:
-    external: true
     name: ${WEAVE_DB_DATA_VOLUME:-weave_db_data}
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: postgres
+      com.massimotter.weave.data-class: database-sensitive
   keycloak-data:
     external: true
     name: ${WEAVE_KEYCLOAK_DATA_VOLUME:-weave_keycloak_data}
   mailpit-data:
-    external: true
     name: ${WEAVE_MAILPIT_DATA_VOLUME:-weave_mailpit_data}
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: mail
+      com.massimotter.weave.data-class: activation-sensitive
   synapse-data:
     external: true
     name: ${WEAVE_SYNAPSE_DATA_VOLUME:-weave_synapse_data}
@@ -1122,9 +1128,16 @@ volumes:
     external: true
     name: ${WEAVE_RUNTIME_STATE_VOLUME:-weave_runtime_state_data}
   native-files-data:
-    external: true
     name: ${WEAVE_NATIVE_FILES_DATA_VOLUME:-weave_native_files_data}
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: files-native
+      com.massimotter.weave.data-class: collaboration-sensitive
 
 networks:
   weave:
-    name: ${WEAVE_NETWORK_NAME:-weave_net}
+    name: ${WEAVE_DOCKER_NETWORK:-weave_net}
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: network
+      com.massimotter.weave.data-class: connectivity

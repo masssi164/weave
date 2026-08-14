@@ -60,13 +60,13 @@ It writes `build/evidence/ci-summary.json` even when the Gradle build fails, so 
 These checks are intentionally cheap enough for normal pull requests and do
 not require human credentials.
 
-## Live-stack and persistent test-stack evidence
+## Full Compose E2E and dogfood evidence
 
 The live-stack path is expensive and runs on a dedicated self-hosted macOS ARM64 runner. Use it when a change affects sign-in, backend facade contracts, Matrix/files/calendar live behavior, acceptance scenarios, or integration boundaries.
 
-There are five deliberately separated lanes:
+There are four deliberately separated steps:
 
-- `Live Stack Product Flow` (`.github/workflows/live-stack-e2e.yml`) runs
+- `Full Compose E2E` (`.github/workflows/live-stack-e2e.yml`) runs
   `./gradlew testApp`. The bounded Java process creates owner/collaborator/outsider invitations,
   reads one-time activation links from Mailpit, completes Keycloak required
   actions in Chromium, performs fresh Authorization Code with PKCE sessions,
@@ -74,44 +74,37 @@ There are five deliberately separated lanes:
   twice, proves canonical JPA/PostgreSQL and direct Synapse state plus restart,
   outage/retry, callback-replay and outsider-denial behavior, proves workload-only
   MCP `files.search` revoke/regrant, writes allowlisted support-safe evidence, and
-  tears down only its namespace.
-- `iOS Dogfood` runs the current member UI surfaces on a newly created iPhone
-  Simulator before archive or physical installation. Its repositories are
-  fixtures and its artifact is labelled `fixture-ui`; only the validator may
-  combine it with the exact live artifact. It is not authentication, provider,
-  multi-user, VoiceOver, or physical-device evidence.
-- `physical-device-auth-e2e` is interactive and never runs on a simulator. It
-  uses the production Flutter `flutter_appauth` client and accepts only public
-  endpoints/client ID as build arguments. The human enters credentials directly
-  in Keycloak's system-browser surface.
-- `Physical iPhone Human Test` validates a tester-supplied, support-safe twenty-step protocol
-  against the exact manifest-bound deployment and iOS distribution. `Human Testing Readiness`
-  consumes that artifact and cannot manufacture human outcomes, timestamps, or confirmation. Its
-  final persistent-runner step independently reverifies all three release image identities and
-  captures a new cached provider-health observation; the older deployment snapshot is historical
-  evidence only and cannot satisfy the final freshness gate.
-- `Test Stack Deploy` (`.github/workflows/test-stack-deploy.yml`) is the persistent LAN dogfood stack for the `dogfood` branch. It starts only from successful exact-candidate isolated evidence, applies the candidate twice, runs non-destructive operator checks, proves Compose/runtime idempotency and persistent PostgreSQL/Mailpit/Caddy/native-Files volume plus public-TLS continuity, and leaves the verified stack running. It has no human identity writer; owner activation and session continuity are separate normal-product evidence.
+  tears down only its namespace. This one exact-SHA run is the only automated
+  prerequisite for beginning the development human test.
+- The successful `dogfood` push starts that same source through `dogfoodUp`. The
+  stack is deliberately resettable and keeps only PostgreSQL, native Files, and
+  Mailpit session volumes; Caddy and Keycloak state are ephemeral.
+- `Prepare Human Test` proves the external TLS identity is unchanged, optionally
+  creates the first owner invitation in private Mailpit, and updates the paired
+  physical iPhone in place with the development-signed build. It does not use
+  TestFlight, a Candidate Cut, or a protected-environment approval.
+- The physical test is interactive. Only the tester may report real system-browser
+  sign-in, normal session continuity, Chat/Files/Calendar behavior, and VoiceOver
+  outcomes; installation evidence cannot manufacture those results.
 
-The persistent test stack is the required bridge between `dev` and `main`: a commit may be promoted to `main` only after it is contained in `dev`, contained in `dogfood`, and has a successful `Test Stack Deploy` run on `dogfood`. See [Dev/Dogfood/Main promotion flow](dev-test-main-promotion-flow.md).
+Production promotion is intentionally deferred until a production-hardening ADR
+selects the actual target and controls. See [Dev/Dogfood development loop](dev-test-main-promotion-flow.md).
 
-The disposable workflow uploads the product result, exact teardown result, immutable
-candidate manifest/mapping, and a derived live-only automation summary. Each binds
-the exact implementation commit, pinned specification commit, and isolated
-Compose project and contains timestamps, hashes, protocol/result enums, the MCP
-tool/projection, and explicit `credentialsIncluded=false`,
+The disposable workflow uploads the product result and exact teardown result.
+Each binds the exact implementation commit, pinned specification commit, and
+isolated Compose project and contains timestamps, hashes, protocol/result enums,
+the MCP tool/projection, and explicit `credentialsIncluded=false`,
 `actionLinksIncluded=false`, and `supportSafe=true` flags. Passwords, activation
 URLs, bearer tokens, client assertions, private keys, emails, raw client IDs,
 provider payloads, and raw logs remain outside durable evidence.
 
 The support-safe Synapse compatibility probe is separate from the full Live Stack. Run `python3 tools/synapse_compatibility_probe.py --target <supported-version> --output <private-build-path>` against each versioned target. It creates and removes one uniquely named Synapse container, injects one Application Service outage, and records only version/profile booleans plus a signature hash. A green probe does not authorize a Synapse pin change or substitute for exact-candidate collaboration, cleanup, teardown, physical-device, or distribution evidence.
 
-The self-hosted runner serializes product-flow, persistent dogfood, recovery, and
-physical distribution work. `testApp` uses a run-unique namespace for
+The self-hosted runner serializes product-flow, dogfood deployment, and physical
+installation work. `testApp` uses a run-unique namespace for
 containers, volumes, network, ports, state, people, and workload clients. A
-persistent-dogfood guard captures owned resource identities before the run and
-verifies them unchanged afterwards. No Simulator, Flutter VM-service scraping,
-test-only certificate callback, custom OIDC HTTP driver, or credential-bearing
-Dart define belongs to this lane.
+capacity preflight runs before expensive work. No credential-bearing Dart define
+belongs to this lane.
 
 ## Interpreting pass/fail states
 

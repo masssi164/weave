@@ -331,6 +331,8 @@ def _organization_groups(
 
 
 def _client_policy(policies: object) -> tuple[dict[str, object], dict[str, object]]:
+    if policies == []:
+        return ({"profiles": []}, {"policies": []})
     if not isinstance(policies, list) or len(policies) != 1 or not isinstance(policies[0], dict):
         raise RealmProjectionError("baseline must declare one workload registration policy")
     policy = policies[0]

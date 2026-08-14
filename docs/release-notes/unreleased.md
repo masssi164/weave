@@ -12,16 +12,8 @@ Use this page for release-affecting changes that have merged but are not include
   activation, real Chromium registration, Authorization Code + PKCE, member invitation, ARC
   provisioning, per-cell `private_key_jwt`, MCP discovery/tool use, WebDAV provider access,
   revocation, support-safe evidence, and exact isolated cleanup.
-- Adds digest-bound Server, MCP Server, and version-pinned Keycloak Runtime candidate images with
-  immutable navigation tags, standard OCI metadata, module/runtime/platform labels, numeric
-  non-root users, embedded SBOM/provenance attestations, and post-publish metadata verification.
-- Adds candidate realm-definition identity and environment-specific Keycloak realm render evidence:
-  Candidate Cut binds only `semanticRealmSourceDigest` and `migrationDefinitionDigest`, while each
-  environment owns its overlay, public JWKS, concrete render digest, and semantic readback digest.
-- Adds a versioned enterprise dogfood readiness manifest and ordered candidate chain covering exact-commit three-user collaboration, non-destructive persistent deployment, TestFlight distribution, and mandatory physical-iPhone VoiceOver signoff before any human-testing-ready or main-promotion claim.
-- Adds manifest-bound schema-v5 human readiness: the three runtime image digests, semantic realm evidence, and live/fixture proof origins remain explicit, while a separate protected workflow validates the tester-confirmed twenty-step physical-iPhone protocol instead of deriving human success from workflow checkboxes.
 - Adds a client-owned Matrix E2EE release candidate through the Apache-2.0 Matrix Rust SDK and `flutter_rust_bridge`: encrypted room sync/send, encrypted SQLite state, stable device identity, cross-signing, accessible SAS verification, recovery, lost-device denial, opaque server persistence, and live E2E evidence gates.
-- Adds stable physical-iPhone session continuity for in-place TestFlight iterations. The saved organization profile, OIDC refresh session, Matrix device ID, Keychain-held crypto-store passphrase, and encrypted history survive ordinary close, relaunch, and app update; explicit account removal remains the destructive boundary.
+- Adds stable physical-iPhone session continuity for in-place app updates. The saved organization profile, OIDC refresh session, Matrix device ID, Keychain-held crypto-store passphrase, and encrypted history survive ordinary close, relaunch, and app update; explicit account removal remains the destructive boundary.
 - Sprint 22 adds a CI-safe free provider lab gate, manifests, fixture evidence, and operator runbook for Keycloak, Authentik, Matrix/Synapse, Zulip, Nextcloud, MinIO, Radicale, and OpenProject without claiming provider interchangeability or release readiness. Agent runtimes are not provider-lab adapters.
 - Sprint 23 adds a CI-safe Chat Provider Switch contract gate for Matrix/Synapse to Zulip canonical object coverage, fixture dry-run/apply evidence, rollback-honesty classification, LossyFieldReport enforcement, scoped claim gating, and support-safe ProviderRef redaction without claiming lossless migration, production apply, production rollback, release readiness, or provider interchangeability.
 - Sprint 29 adds executable pre-human release validation guards, human UX/accessibility and Weaver evidence templates, and a final decision guard that blocks release-ready wording until automated evidence, human signoff, and release-blocker checks all pass.
@@ -30,16 +22,13 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
-- Makes release candidate creation an explicit protected Candidate Cut instead of an automatic
-  consequence of every `dev` merge. One verified protected-`dev` SHA now owns all image,
-  attestation, manifest, Linux Fresh-proof, and downstream dogfood identities; immutable GitHub
-  Action pins and a canonical CI guard protect the workflow supply chain.
+- Replaces the premature Candidate Cut/Fresh Start/TestFlight dogfood chain with a direct
+  `dev`/`dogfood` Compose lifecycle: exact-SHA Full Compose E2E is the single automated human-test
+  prerequisite, dogfood keeps only PostgreSQL/native-Files/Mailpit session volumes, TLS remains
+  stable outside Docker, and the physical iPhone is updated in place with development signing.
 - Makes environment-specific Keycloak `realm.json` files generated deployment artifacts rather
   than maintained sources. A single secret-free semantic realm definition and versioned migration
   definition are projected with environment coordinates and environment-owned public JWKS.
-- Separates Fresh Start from persistent non-empty realm upgrades: Fresh Start and disposable E2E
-  require machine-verifiable empty-state evidence; non-empty dogfood/prod upgrades retain private
-  backup and isolated restore-rehearsal requirements.
 - Makes the JPA-backed `weave-native` Chat adapter the Server default. Native conversations,
   membership, events, encryption state, receipts, typing, and redaction commit without fake
   provider mappings, bridge-ledger rows, Synapse/MAS, or Matrix Application Service secrets;
@@ -93,15 +82,14 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Migration/Operator Notes
 
-- Fresh Start has no legacy database, Flyway, Keycloak-user, provider-object, credential, or
-  volume migration path. Operators must approve an exact manifest-bound hard cut and recreate
-  the new generation from digest-pinned candidates and the canonical semantic realm definition.
+- Dogfood is resettable development state. `dogfoodReset` deletes only the fixed
+  Dogfood Compose project and its PostgreSQL/native-Files/Mailpit session volumes,
+  then recreates the stack from the exact clean checkout.
 - Keycloak startup import is only the empty-realm bootstrap path; an existing realm is changed only
   through an explicit versioned migration. The bounded FGAP post-import operation is verified by
   semantic readback, idempotent second-plan evidence, and removal of temporary bootstrap authority.
-- Persistent dogfood deployment now runs twice under a non-cancelling lock, verifies environment
-  render stability, semantic realm readback, human-subject, Mailpit, TLS, and active-session
-  invariants, and never creates or resets disposable automation identities in that environment.
+- Dogfood keeps the existing host-managed CA and gateway certificate byte-for-byte
+  across reset and restart, so paired iPhones do not need a new CA trust decision.
 - No production provider cutover, migration apply, Terraform/live infrastructure change, or public production release has been performed after `v0.1.0-rc.3`.
 - Sprint 30 phone dogfood uses the same profile-driven setup pipeline across profiles. `local-lan-dogfood` may be used for the first real iPhone test over LAN, but phone handoff rejects localhost, `127.0.0.1`, and Mac-only `.local` assumptions.
 - Slack and Microsoft Teams remain commercial adapter readiness candidates only; adapter implementation, production migration, rollback, and customer-ready claims are blocked until future `implementation_allowed` and `release_ready` evidence exists.

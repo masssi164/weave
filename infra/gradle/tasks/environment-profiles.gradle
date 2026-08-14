@@ -18,7 +18,7 @@
         ['infra/weave-workspace/operator-check.sh', profile],
         "Verify runtime and provider readiness for the canonical ${profile} profile."
     )
-    if (profile in ['dogfood', 'prod']) {
+    if (profile == 'prod') {
         registerInfraCommandTask(
             "keycloak${profileTitle}MigrationApply",
             ['infra/weave-workspace/compose.sh', profile, 'keycloak-migration-apply'],
@@ -27,7 +27,7 @@
     }
 }
 
-['dogfood', 'prod'].each { profile ->
+['prod'].each { profile ->
     def profileTitle = profile.capitalize()
     registerInfraCommandTask(
         "compose${profileTitle}AdoptionRehearsal",

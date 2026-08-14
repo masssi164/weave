@@ -57,35 +57,12 @@ weave:
         reference-hmac-secret-file: /run/secrets/identity-reference-hmac-key
   agent-runtime:
     state-store:
-      enabled: true
-      wrapping-key-root: /run/secrets/agent-runtime/state-wrapping
-      endpoint: http://runtime-state:9000
-      region: us-east-1
-      bucket: weave-runtime-state
-      credential-ref: secretref:weave/runtime-state-s3
-      access-key-file: /run/secrets/weave/runtime-state-s3-access-key
-      secret-key-file: /run/secrets/weave/runtime-state-s3-secret-key
-      path-style-access: true
+      enabled: false
     profile-signing:
-      enabled: true
-      secret-root: /run/secrets/agent-runtime/profile-signing
-      maximum-profile-ttl: 2m
+      enabled: false
     policy:
-      enabled: true
-      file: /app/agent-runtime-policy.json
+      enabled: false
     entitlement:
-      enabled: true
-      allowed-capabilities: files.read
+      enabled: false
     workload-identity:
-      enabled: true
-      keycloak-admin-base-url: http://keycloak:8080
-      issuer: https://auth.weave.test/realms/weave
-      realm: weave
-      organization-ref: tenant-default
-      keycloak-organization-alias: weave
-      admin-client-id: weave-agent-runtime-admin
-      admin-credential-ref: credentialref://weave/keycloak/weave-agent-runtime-admin
-      secret-root: /run/secrets/agent-runtime/workloads
-      default-client-scopes: weaver-runtime-workload
-      optional-client-scopes: agent-runtime.profile.read,mcp.tools,files.read
-      access-token-lifespan-seconds: 59
+      enabled: false

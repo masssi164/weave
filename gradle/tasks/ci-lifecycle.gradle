@@ -60,8 +60,31 @@ tasks.register('doctor') {
 
 tasks.register('ci') {
     group = 'verification'
-    description = 'Run the canonical monorepo CI orchestration checks.'
-    dependsOn 'doctor', 'gradleStructureCheck', 'specCorpusConformance', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'humanTestingReadinessManifestTest', 'multiUserE2EEvidenceTest', 'matrixToDeviceEvidenceValidatorTest', 'synapseCompatibilityProbeTest', 'matrixRustCoreTest', 'clientCi', 'serverCi', 'mcpCi', 'testAppContract', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'liveStackRunnerHygieneCheck', 'workflowActionRuntimeCheck', 'projectReadinessEvidenceCheck'
+    description = 'Run the active-development monorepo checks; full integrated behavior runs separately in Full Compose E2E.'
+    dependsOn 'doctor',
+            'gradleStructureCheck',
+            'specCorpusConformance',
+            'acceptanceContract',
+            'specContract',
+            'specContractTest',
+            'domainRegistryCheck',
+            'portabilityContractCheck',
+            'androidReleaseIdentityCheck',
+            'adminDependencyPolicyCheck',
+            'matrixRustCoreTest',
+            'clientCi',
+            'serverCi',
+            'mcpCi',
+            'testAppContract',
+            'infraStatic',
+            'adminCi',
+            'docsCheck',
+            'releaseNotesLabelCheck',
+            'candidatePipelineCheck',
+            'iosDogfoodDistributionCheck',
+            'liveStackRunnerHygieneCheck',
+            'noExecutableOpenTofuCheck',
+            'workflowActionRuntimeCheck'
 }
 
 ['gradleStructureCheck', 'specCorpusConformance', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'spaceAnchorCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'humanTestingReadinessManifestTest', 'multiUserE2EEvidenceTest', 'matrixToDeviceEvidenceValidatorTest', 'matrixSdkVendorProvenanceCheck', 'synapseCompatibilityProbeTest', 'matrixRustCoreTest', 'clientCi', 'serverCi', 'mcpCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'liveStackRunnerHygieneCheck', 'workflowActionRuntimeCheck', 'sprint30HotPhaseCheck', 'crossDomainProviderProofCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->

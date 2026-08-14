@@ -7,13 +7,14 @@ It is meant to remove the remaining tribal knowledge around install, verify, rec
 
 Prepare these explicitly:
 
-- DNS for `<tenant_domain>`, `api`, `auth`, `matrix`, and the raw `files` protocol/admin fallback;
+- LAN DNS for the reviewed product, API, auth, and native Files endpoints;
 - a private reviewed copy of `weave-workspace/environments/dogfood.env.example`,
   `e2e.env.example`, or `prod.env.example`, stored outside the checkout;
-- exact digest references for every dogfood/e2e/prod image;
+- exact digest references for production images; dogfood may use exact local image IDs built from
+  the clean checked-out commit;
 - absolute `WEAVE_GENERATED_ROOT`, `WEAVE_SECRET_ROOT`, and `WEAVE_TLS_ROOT` paths;
-- an unprivileged deployment operator able to run the rootless one-shot Server migration command;
-- TLS certificate/key material and an operator-owned mode-0700 backup root outside the checkout.
+- TLS certificate/key material in the stable operator-owned `WEAVE_TLS_ROOT` outside Compose
+  volumes. A dogfood reset must not rotate or remove it.
 
 Recommended file permissions on the host:
 
@@ -53,62 +54,39 @@ backup, restore rehearsal, reconciliation, and explicit consumer validation. Nev
 wrapping key while a retained state generation still references it. Normal backend startup must
 not invent a missing trust root.
 
-## 3. Install and upgrade flow
+## 3. Development and dogfood lifecycle
 
 ```bash
 cd weave
-git fetch --no-tags --prune origin \
-  '+refs/heads/dev:refs/remotes/origin/dev'
 export WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env
-export WEAVE_CANDIDATE_COMMIT="$(git rev-parse HEAD)"
-python3 tools/candidate_source_mapping.py \
-  --repository . \
-  --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
-  --output build/evidence/candidate-source-mapping.json
-export WEAVE_IMAGE_SOURCE_COMMIT="$(
-  jq -er '.sourceCandidateCommit' build/evidence/candidate-source-mapping.json
-)"
-bash infra/weave-workspace/install.sh dogfood
-bash infra/weave-workspace/release-verify.sh
-bash infra/weave-workspace/operator-check.sh dogfood
+./gradlew dogfoodUp
 ```
 
 Notes:
 
 - `compose.yaml` plus the selected `compose.dev.yaml`, `compose.dogfood.yaml`,
   `compose.prod.yaml`, or `compose.e2e.yaml` overlays is the only deployment model;
-- `install.sh dogfood|prod` is the supported idempotent apply path and runs
-  `secrets-init → render → prepare → verified private backup → bounded Keycloak migration → up`;
-- dogfood/e2e/prod require a private reviewed `WEAVE_ENV_FILE`, exact image digests, and an exact candidate
-  commit; never use `:latest`;
-- for dogfood promotion, `WEAVE_CANDIDATE_COMMIT` remains the checked-out lane SHA used by
-  runtime, backup, deployment, and human evidence. Locally built images use
-  `WEAVE_IMAGE_SOURCE_COMMIT`, derived by the protected workflow from fetched `origin/dev`.
-  The source must be an ancestor with the same Git tree, and the closed three-image mapping is
-  recorded in `candidate-source-mapping.json`; never accept the source as workflow input. The
-  successful isolated run retains those exact IDs on the locked runner, and persistent dogfood
-  verifies and consumes them without rebuilding;
-- the Server migration CLI runs rootless and one-shot without the Docker socket, proves an empty
-  second plan, deletes its temporary bootstrap client, and negatively verifies absence;
-- build/publish both `weave-backend` and `weave-mcp-server`; MCP is a separate workload boundary
-  and must not be folded into the member API process;
-- repeated migration apply validates the existing receipt without mutation. Repeated `install.sh`
-  must preserve volume identity, credentials, organization/person identity, and sessions;
-- Nextcloud trusts only the exact Caddy container address on the deployment network. Do not widen
-  trusted proxies or disable brute-force protection;
-- the direct backend/MCP/provider host ports are loopback-bound. Public `/actuator` is denied;
+- `dogfoodUp` requires a clean exact checkout, builds backend and MCP from that commit, prepares
+  the canonical Compose model, waits for readiness, and starts no alternate deployment engine;
+- repeated `dogfoodUp` preserves the PostgreSQL, native Files, and Mailpit session volumes;
+- `dogfoodDown` stops the stack and preserves those volumes and the external TLS directory;
+- `dogfoodReset` removes only the fixed dogfood project and the three session volumes, performs
+  the bounded one-time cleanup of the known unlabeled legacy Weave stack when present, and starts
+  an empty stack. It needs no backup, receipt, deletion plan, issue comment, or approval token;
+- Matrix, Nextcloud, MinIO, and Weaver are absent from the default dogfood profile;
+- the direct backend/MCP host ports are loopback-bound. Public `/actuator` is denied;
   `/api/health/live` and `/api/health/ready` remain the public operational contract.
 
-Transition boundary: Matrix and Nextcloud are optional provider profiles and no general identity
-reconciler remains. The deferred FGAP migration is qualified only for backup-gated dogfood/prod;
-dev and disposable E2E remain fail-closed pending their separately reviewed migration contract.
+Production migration, backup, and restore policy remains separate and must not be copied into the
+resettable dogfood feedback loop.
 
 For development, run provider dependencies separately from the host server:
 
 ```bash
-./gradlew :infra:composeDevDependenciesReady
-./gradlew :server:serverDevBoot
-./gradlew :server:serverDevHostSmoke
+./gradlew devUp
+./gradlew devRun
+# In another shell after development:
+./gradlew devDown
 ```
 
 Only this `dev` host process uses H2. Flyway still owns its schema and Hibernate still uses
@@ -117,27 +95,20 @@ e2e, prod, backup/recovery, and every release claim.
 
 ## 4. Routine verification
 
-Use these in order:
+Use these in order for the default dogfood stack:
 
-1. `WEAVE_ENV_FILE=<reviewed-env> bash weave-workspace/release-verify.sh`
-2. `WEAVE_ENV_FILE=<reviewed-env> bash weave-workspace/operator-check.sh <dogfood|prod>`
-3. `WEAVE_ENV_FILE=<reviewed-env> weave-workspace/compose.sh <environment> ps`
+1. `./gradlew dogfoodUp`
+2. `WEAVE_ENV_FILE=<reviewed-env> infra/weave-workspace/compose.sh dogfood ps`
+3. run the full isolated E2E task before handing the same commit to a human tester.
 
-What `operator-check.sh` adds beyond `release-verify.sh`:
+Provider-specific operator checks apply only when their explicit optional profile is selected; they
+must not make Matrix, Nextcloud, object storage, or Weaver a default dogfood prerequisite.
 
-- confirms the core containers exist and are running
-- checks loopback health endpoints for Keycloak, MAS, Synapse, and backend
-- checks the public product, backend, auth, OIDC-gated Matrix facade, southbound Matrix provider, and raw Nextcloud fallback routes through the configured release URLs
-- checks that the default Matrix workspace aliases resolve (`#weave-workspace`, `#announcements`, `#general`, and `#help` on the configured southbound Matrix provider)
-- checks that `weave-backend` has the required server-side Files/Calendar Nextcloud actor env and that the actor user exists in Nextcloud
-- checks backend and MCP readiness plus support-safe Agent Runtime state/workload-identity
-  summaries; readiness closes when signing/wrapping trust, the workload-administration boundary,
-  or external RuntimeStateStore is unavailable
-- verifies the canonical `weave-workspace` CalDAV collection used by the provider-neutral Calendar facade; private personal calendars remain outside that service-actor projection
+## 5. Production backup boundary
 
-The default Matrix workspace is provisioned by `weave-workspace/provision-matrix-default-workspace.sh` during install. See `docs/matrix-default-workspace.md` for aliases, the owner/admin-limited `announcements` policy, and current member/guest automation limits.
-
-## 5. Backup expectations
+Backups are not required before `dogfoodReset`. The three dogfood volumes are development-session
+convenience and carry no durability promise. The repository's backup and restore helpers belong to
+the separately reviewed production/recovery boundary described below.
 
 The repository does not schedule or export backups. The operator supplies a mode-0700 location
 outside the checkout and binds every private consistency set to the exact candidate:
@@ -145,8 +116,8 @@ outside the checkout and binds every private consistency set to the exact candid
 ```bash
 WEAVE_CANDIDATE_COMMIT=<exact-sha> \
 WEAVE_BACKUP_ROOT=/var/backups/weave \
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
-bash weave-workspace/backup.sh dogfood
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-prod.env \
+bash weave-workspace/backup.sh prod
 ```
 
 The helper quiesces the application/provider writers, writes the consistency set, and restarts
@@ -175,7 +146,7 @@ The backup remains bound to `WEAVE_CANDIDATE_COMMIT`, the lane authority, and to
 lane commit to `WEAVE_IMAGE_SOURCE_COMMIT` and the four immutable image IDs; do not relabel a
 lane-built image or substitute the source commit in backup receipts.
 
-Minimum expectation before calling the stack release-ready:
+Minimum expectation before calling a future production stack release-ready:
 
 - backups run on a schedule owned by the operator
 - at least one recent backup is stored off-host or on snapshot-backed storage
@@ -198,53 +169,9 @@ Compose/control-store restore workflow must prove an isolated destructive rehear
 resources, credential continuity, database/volume reconciliation, rollback, and post-restore
 identity/session/provider readiness before apply can be enabled.
 
-For the one-time migration from the former unlabeled runtime, run:
-
-```bash
-WEAVE_CANDIDATE_COMMIT=<exact-sha> \
-WEAVE_BACKUP_ROOT=/var/backups/weave \
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
-bash weave-workspace/adoption-rehearsal.sh dogfood
-```
-
-This backs up the existing exact-named runtime, restores all volume inventories and PostgreSQL
-service databases in an isolated namespace, verifies the Weave realm and private SecretRef
-continuity, and emits an owner-controlled mode-`0600`, candidate-bound adoption receipt at the
-canonical generated-state path. Export that exact path as `WEAVE_ADOPTION_RECEIPT` for the
-subsequent `:infra:composeDogfoodUp`; the runtime rejects a missing, stale, symlinked, weakly permissioned,
-wrong-candidate, wrong-project, or resource-incomplete receipt. The former state is retained as
-restricted migration evidence, not an executable rollback engine.
-
-Do not use that adoption path for the manifest-bound Fresh Start. The hard cut has no legacy
-credential migration or state adoption. Before requesting its exact destructive approval, run:
-
-```bash
-WEAVE_CANDIDATE_COMMIT=<exact-sha> \
-WEAVE_CANDIDATE_MANIFEST_DIGEST=sha256:<exact-manifest-digest> \
-WEAVE_BACKUP_ROOT=/private/mode-0700/path \
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
-bash weave-workspace/fresh-start-backup-rehearsal.sh dogfood \
-  --retired-inventory weave-workspace/fresh-start-targets.json
-```
-
-This command quiesces the exact former runtime, creates the same private Compose v3 consistency
-set, restores every archived provider volume and PostgreSQL service database into a newly generated
-isolated namespace, verifies the Weave realm, and removes every rehearsal-owned container, network,
-volume, and temporary password file. Its mode-`0600` support-safe receipt is written inside the
-private backup directory as `FreshStartBackupRehearsal.json`. The receipt explicitly records
-`legacyStateMigrated=false`, `adoptionAuthorized=false`, and `cleanupVerified=true`; it is recovery
-evidence for the hard cut, never authority to import or attach the restored state.
-
-The restore server and SQL client both use the immutable PostgreSQL image recorded from the source
-runtime. Provider-volume extraction uses the candidate's immutable GNU-tar helper without network
-access. The receipt binds both helper images, the candidate manifest, the database-inventory
-digest, exact provider-volume inventory digests, and successful cleanup.
-
-When `freshStartPlan` uses `-PrecoveryDecision=verified-backup`, also supply
-`-PrecoveryReceipt=/absolute/private/path/FreshStartBackupRehearsal.json`. Planning rejects a
-missing, stale, weakly permissioned, candidate-mismatched, non-cleaned, migration-authorizing, or
-manifest-mismatched receipt. Only the receipt SHA-256 and the support-safe
-`-PrecoveryEvidenceRef=...` are written to the canonical deletion plan.
+The former unlabeled development runtime is not adopted. The first `dogfoodReset` validates and
+removes only the closed legacy Weave container, volume, and network names before Compose starts
+the new native stack. Bind mounts and the external TLS directory are never cleanup targets.
 
 `restore-smoke.sh` does not restore or delete data. After a separately approved restore/rehearsal it
 revalidates the v3 consistency set, runs `operator-check.sh`, and verifies Matrix Application Service
@@ -282,28 +209,22 @@ identity topology, prove current private backup and isolated restore rehearsal, 
 subject and tombstone, run through the Server identity boundary, and remain unable to delete active
 or ambiguous identities. It must never use the persistent dogfood namespace as its test fixture.
 
-Physical-iPhone readiness still requires the normal user to complete the current invitation,
-perform a normal OIDC sign-in, and pass the standard Test Stack Deploy plus physical-device
-acceptance chain. Neither an email resend nor a guarded recovery dispatch proves readiness.
+Physical-iPhone readiness requires the normal user to complete the invitation, perform a normal
+OIDC sign-in, and test the exact dogfood commit after full integrated E2E is green.
 
 ## 7. Stop, clean rebuild, and destructive reset
 
-Use the least destructive action that solves the problem:
+Use the task matching the intended session behavior:
 
-1. **Stop/restart:** `WEAVE_ENV_FILE=<reviewed-env> weave-workspace/compose.sh <profile> down`,
-   followed by `install.sh <profile>`. `down` never removes named volumes or SecretRefs.
-2. **Repair declared drift:** rerun render/config/prepare and the explicit Keycloak migration.
-   Require the receipt-bound second plan to be empty; normal startup never reconciles identity.
-3. **Rollback:** restore the previous coherent application image set and control/data snapshot under
-   the reviewed release procedure. Do not rely on old/new API coexistence.
-4. **Isolated E2E cleanup only:** `teardown.sh e2e --isolated` requires the deterministic run
+1. **Start/update:** `./gradlew dogfoodUp`; existing session volumes and TLS remain.
+2. **Stop:** `./gradlew dogfoodDown`; existing session volumes and TLS remain.
+3. **Empty development session:** `./gradlew dogfoodReset`; exactly the fixed project, its network,
+   and its PostgreSQL/native Files/Mailpit volumes are replaced. TLS remains.
+4. **Isolated E2E cleanup:** `teardown.sh e2e --isolated` requires the deterministic run
    namespace, exact ownership labels, exact candidate, identity evidence, and explicit volume-removal
    confirmation. It refuses persistent resources and any label mismatch.
 
-There is no generic persistent destructive reset or clean-rebuild command. Persistent dogfood/prod
-deletion, crypto-shred, or full restore requires its own step-up, backup, evidence, and approval
-workflow. Never delete named volumes, generated trust, or credentials merely to repair a failed
-deployment.
+`dogfoodReset` never applies to production and never accepts arbitrary project or volume names.
 
 ## 8. Minimum observability and triage
 
@@ -314,14 +235,9 @@ docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 docker logs --tail=100 weave-backend
 docker logs --tail=100 weave-mcp-server
 docker logs --tail=100 weave-keycloak
-docker logs --tail=100 weave-mas
-docker logs --tail=100 weave-synapse
-docker logs --tail=100 weave-nextcloud
-bash weave-workspace/operator-check.sh
-bash weave-workspace/release-verify.sh
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
+  infra/weave-workspace/compose.sh dogfood ps
 ```
-
-`operator-check.sh` starts by diagnosing the Weave-local `weave_synapse_data` volume for `weave-synapse`: expected owner `991:991`, mode `0750` on `/data` and `/data/media_store`, and write access for the Matrix signing-key path. This check is intentionally scoped to `weave-synapse` and must not be used as evidence about any separate `homelab-synapse` service.
 
 For support requests, prefer a redacted support bundle over hand-copying raw logs:
 

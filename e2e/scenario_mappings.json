@@ -379,9 +379,9 @@
         {
           "path": "docs/ios-dogfood-distribution.md",
           "fragments": [
-            "TestFlight is the preferred physical-iPhone dogfood channel",
-            "DOGFOOD_SESSION_CONTINUITY_RESULT",
-            "destructive uninstall"
+            "Full Compose E2E",
+            "update in place",
+            "destructive_uninstall"
           ]
         },
         {
@@ -5817,12 +5817,11 @@
     },
     {
       "tag": "@human-ready-dogfood-deployment",
-      "scenario": "Persistent dogfood deployment is non-destructive and idempotent",
+      "scenario": "Dogfood deployment starts the exact green source through Compose",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "tools/dogfood_deployment_evidence.py",
+      "executableTest": ".github/workflows/live-stack-e2e.yml",
       "evidenceMarkers": [
-        "DOGFOOD_DEPLOYMENT_RESULT",
-        "DOGFOOD_PROVIDER_HEALTH_RESULT"
+        "DOGFOOD_COMPOSE_DEPLOY_RESULT"
       ],
       "evidenceMode": "live-runtime",
       "runtimeSources": [
@@ -5831,11 +5830,11 @@
     },
     {
       "tag": "@human-ready-ios-distribution",
-      "scenario": "iOS distribution uses the verified dogfood candidate",
+      "scenario": "Physical iPhone preparation installs the exact green dogfood commit",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",
       "executableTest": ".github/workflows/ios-dogfood.yml",
       "evidenceMarkers": [
-        "IOS_DOGFOOD_DISTRIBUTION_RESULT"
+        "PREPARE_HUMAN_TEST_RESULT"
       ],
       "evidenceMode": "live-runtime",
       "runtimeSources": [
@@ -5844,7 +5843,7 @@
     },
     {
       "tag": "@human-ready-physical-voiceover",
-      "scenario": "Physical iPhone VoiceOver acceptance closes the final gate",
+      "scenario": "The tester records the real physical iPhone result",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",
       "executableTest": "tools/human_testing_readiness_assemble.py",
       "evidenceMarkers": [
@@ -5857,16 +5856,13 @@
     },
     {
       "tag": "@human-ready-manifest",
-      "scenario": "One manifest controls the human-testing readiness claim",
+      "scenario": "Human testing requires no candidate manifest gate",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "tools/human_testing_readiness_assemble.py",
+      "executableTest": "docs/ios-dogfood-distribution.md",
       "evidenceMarkers": [
-        "HUMAN_TESTING_READINESS_RESULT"
+        "HUMAN_TESTING_HAS_NO_MANIFEST_GATE"
       ],
-      "evidenceMode": "live-runtime",
-      "runtimeSources": [
-        "physical-iphone-acceptance"
-      ]
+      "evidenceMode": "offline-spec"
     }
   ]
 }

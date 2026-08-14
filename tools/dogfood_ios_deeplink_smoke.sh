@@ -17,6 +17,9 @@ LOCAL_CA_TRUST_STATUS="${WEAVE_IOS_LOCAL_CA_TRUST_STATUS:-not_verified}"
 PLATFORM_CONFIG_URL="${WEAVE_DOGFOOD_PLATFORM_CONFIG_URL:-}"
 EXPECTED_VISIBLE_STATE="${WEAVE_IOS_EXPECTED_VISIBLE_STATE:-handoff_ready}"
 EXPECTED_AUTH_STATE="${WEAVE_IOS_EXPECTED_AUTH_STATE:-ready_for_sso}"
+CANDIDATE_COMMIT="${WEAVE_CANDIDATE_COMMIT:-$(git -C "${ROOT_DIR}" rev-parse HEAD)}"
+BUILD_NUMBER="${WEAVE_IOS_BUILD_NUMBER:-$(git -C "${ROOT_DIR}" rev-list --count HEAD)}"
+CANDIDATE_EVIDENCE_REF="${WEAVE_CANDIDATE_EVIDENCE_REF:-local:${CANDIDATE_COMMIT}}"
 
 fail() {
   echo "dogfood iOS smoke failed: $*" >&2
@@ -25,6 +28,8 @@ fail() {
 
 [[ -n "${DEVICE_ID}" ]] || fail "set WEAVE_IOS_DEVICE_ID to the paired iPhone device identifier"
 [[ -n "${DEEPLINK}" ]] || fail "set WEAVE_DOGFOOD_DEEPLINK to the current weave://join URL"
+[[ "${CANDIDATE_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || fail "WEAVE_CANDIDATE_COMMIT must be the exact lowercase source SHA"
+[[ "${BUILD_NUMBER}" =~ ^[1-9][0-9]*$ ]] || fail "WEAVE_IOS_BUILD_NUMBER must be a positive integer"
 [[ "${BUILD_MODE}" != "debug" ]] || fail "debug builds are invalid for installed iOS custom-scheme smoke; use profile or release"
 [[ "${BUILD_MODE}" == "profile" || "${BUILD_MODE}" == "release" ]] || fail "WEAVE_IOS_BUILD_MODE must be profile or release"
 [[ -z "${WEAVE_IOS_RESET_APP_DATA:-}" ]] || fail "WEAVE_IOS_RESET_APP_DATA is deprecated because uninstall can destroy Developer App trust; use WEAVE_IOS_RESET_MODE=update_in_place, app_state, or destructive_uninstall"
@@ -115,7 +120,11 @@ xcrun devicectl device info details \
 
 (
   cd "${CLIENT_DIR}"
-  "${FLUTTER_BIN}" build ios "--${BUILD_MODE}"
+  "${FLUTTER_BIN}" build ios "--${BUILD_MODE}" \
+    --build-number="${BUILD_NUMBER}" \
+    --dart-define="WEAVE_CANDIDATE_COMMIT=${CANDIDATE_COMMIT}" \
+    --dart-define="WEAVE_CANDIDATE_EVIDENCE_REF=${CANDIDATE_EVIDENCE_REF}" \
+    --dart-define=WEAVE_BUILD_CHANNEL=development-dogfood
   EXPECTED_TEAM_ID="${EXPECTED_TEAM_ID}" EXPECTED_DEVELOPER_CERT_TEAM_ID="${EXPECTED_DEVELOPER_CERT_TEAM_ID}" \
     APP_PATH="build/ios/iphoneos/Runner.app" \
     OUTPUT_PATH="${EVIDENCE_DIR}/ios-signing-evidence.json" \
@@ -190,6 +199,9 @@ cat > "${EVIDENCE_DIR}/ios-deeplink-smoke.json" <<JSON
 {
   "schemaVersion": "weave.dogfood.ios-deeplink-smoke.v1",
   "buildMode": "${BUILD_MODE}",
+  "candidateCommit": "${CANDIDATE_COMMIT}",
+  "buildNumber": "${BUILD_NUMBER}",
+  "candidateEvidenceRef": "${CANDIDATE_EVIDENCE_REF}",
   "bundleId": "${BUNDLE_ID}",
   "deviceId": "${DEVICE_ID}",
   "installTransport": "${INSTALL_TRANSPORT}",

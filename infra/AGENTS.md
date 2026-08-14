@@ -1,7 +1,7 @@
 # Infrastructure Repository Guide
 
 `infra/weave-workspace/` is the Compose-owned single-host deployment model. The binding
-contract is the pinned Weave specification corpus, especially ADR 0017, plus the root and
+contract is the pinned Weave specification corpus, especially ADR 0022, plus the root and
 repository `AGENTS.md` files. Do not reintroduce executable OpenTofu/Terraform, HCL state,
 `TF_VAR_*` inputs, or a compatibility deployment path.
 
@@ -13,8 +13,9 @@ repository `AGENTS.md` files. Do not reintroduce executable OpenTofu/Terraform, 
   E2E distinct public entry paths.
 - `dev` starts Keycloak with its dev-file store in Compose while Server, MCP, and Admin Console
   run on the host. Only the host server may use H2 for the fast development loop.
-- `dogfood` and `prod` are persistent application-tier deployments. `e2e` is disposable and must
-  use a run-unique Compose project, resource namespace, generated root, SecretRef root, and ports.
+- `dogfood` is a resettable application-tier development session. `prod` retains a separate
+  persistent policy. `e2e` is disposable and must use a run-unique Compose project, resource
+  namespace, generated root, SecretRef root, and ports.
 - `COMPOSE_PROFILES` in the reviewed environment file selects exactly one matching environment
   profile. Development may additionally select `dev-tools`; provider/storage profiles are selected
   only with their exact matching provider configuration. Native Files, Calendar, and Chat are the
@@ -26,37 +27,35 @@ repository `AGENTS.md` files. Do not reintroduce executable OpenTofu/Terraform, 
 
 ## Operator entry points
 
-Use `weave-workspace/compose.sh <dev|dogfood|prod|e2e> <command>` with one of:
+Use the root Gradle lifecycle tasks for ordinary development:
 
-- `secrets-init`, `render`, `configure`, `config`, or `prepare` for invariant preparation;
-- `keycloak-migration-apply` for the explicit backup-gated dogfood/prod post-import migration.
+- `devUp` and `devDown` operate the local dependency stack;
+- `dogfoodUp` and `dogfoodDown` start or stop the fixed LAN stack while preserving its session;
+- `dogfoodReset` removes only the fixed dogfood project and its PostgreSQL, native Files, and
+  Mailpit session volumes, then recreates an empty stack. Operator-owned TLS is never removed.
 
-Preparation creates a secret-free mode-0600 `.env.<environment>` descriptor. Ordinary prepared
-`up`, `down`, `ps`, and `logs` use native `docker compose --env-file .env.<environment>`.
+`weave-workspace/compose.sh <dev|dogfood|prod|e2e> <command>` remains the lower-level interface for
+rendering, inspection, and production-only migration operations. Preparation creates a
+secret-free mode-0600 `.env.<environment>` descriptor.
 
 `dogfood`, `prod`, and `e2e` require `WEAVE_ENV_FILE` pointing to a private reviewed file. E2E
-also requires `WEAVE_E2E_STACK_SCOPE=isolated` and a valid `WEAVE_E2E_RUN_ID`. The normal
-deployment sequence is `secrets-init -> render -> config -> prepare -> verified private backup ->
-keycloak-migration-apply -> up`. Routine `up` verifies the receipt and never reconciles identity.
-A normal `down` never removes persistent volumes. Dev/E2E remain fail-closed at the deferred FGAP
-migration until a separately reviewed disposable-environment contract exists.
+also requires `WEAVE_E2E_STACK_SCOPE=isolated` and a valid `WEAVE_E2E_RUN_ID`. Native dogfood does
+not require a backup, migration receipt, deletion manifest, or approval token. Optional Matrix,
+Nextcloud, S3, and Weaver services remain off unless an explicit qualified profile selects them.
+A normal `down` never removes session volumes.
 
-`backup.sh` creates a private, quiesced, candidate-bound backup below an operator-owned mode-0700
-directory outside the checkout. `adoption-rehearsal.sh` verifies that backup through an isolated
-restore before an unlabeled former deployment resource can be adopted. Never mutate or adopt a
-persistent dogfood/prod resource without exact ownership labels or an explicitly selected
-`persistent-dogfood` deployment context after the approved manifest-bound Fresh Start.
-`fresh-start-backup-rehearsal.sh` is the separate hard-cut recovery proof: it backs up and restores
-the retired generation in an isolated namespace without migrating credential state or authorizing
-adoption. Never substitute the adoption receipt for Fresh Start evidence.
+Backup, adoption, and migration utilities are production/recovery policy and are not prerequisites
+for `dev`, resettable `dogfood`, E2E, or human testing. Do not attach retired resources to the new
+dogfood project. The bounded compatibility cleanup in `dogfoodReset` may remove only its closed
+list of known unlabeled legacy Weave resources after every target passes its preflight.
 
 ## Validation and safety
 
 - Run `./gradlew infraStatic`, the profile-specific `compose*Config` task, and the relevant
   backup-gated Keycloak migration/receipt check.
 - `./gradlew noExecutableOpenTofuCheck` must remain green.
-- Keep image digests pinned for dogfood/e2e/prod, Compose resources explicitly named and labeled,
-  reconciliation idempotent, and teardown bounded to exact isolated ownership evidence.
+- Keep images immutable by digest or exact local image ID where ADR 0022 allows it, Compose
+  resources explicitly named and labeled, and teardown bounded to the exact selected project.
 - Never weaken TLS, auth, provider readiness, secret permissions, backup checks, or support-safe
   redaction to make a test pass.
 - Update root specs/contracts before changing public topology, URLs, credentials, provider

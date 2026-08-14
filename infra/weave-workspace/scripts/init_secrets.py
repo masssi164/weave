@@ -337,6 +337,115 @@ def _generate_leaf_certificate(
     return key, cert
 
 
+def _certificate_public_key(path: Path) -> bytes:
+    return subprocess.run(
+        [OPENSSL, "x509", "-in", path, "-pubkey", "-noout"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ).stdout
+
+
+def _private_public_key(path: Path) -> bytes:
+    return subprocess.run(
+        [OPENSSL, "pkey", "-in", path, "-pubout"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ).stdout
+
+
+def _adopt_retired_dogfood_tls(
+    context: ComposeContext,
+    paths: dict[str, Path],
+    hosts: list[str],
+) -> bool:
+    """Preserve the exact CA and gateway identity used by the retired LAN stack."""
+
+    if context.environment != "dogfood":
+        return False
+    legacy_root = (
+        context.generated_root / "01-infrastructure/caddy/certs"
+    )
+    legacy = {
+        "ca.pem": legacy_root / "weave-local-ca.pem",
+        "ca-key.pem": legacy_root / "weave-local-ca-key.pem",
+        "cert.pem": legacy_root / "weave.test.pem",
+        "key.pem": legacy_root / "weave.test-key.pem",
+    }
+    present = {
+        name: source.exists() or source.is_symlink()
+        for name, source in legacy.items()
+    }
+    if not any(present.values()):
+        return False
+    if not all(present.values()):
+        raise ContractError(
+            f"partial retired dogfood TLS generation under {legacy_root}"
+        )
+    for source in legacy.values():
+        metadata = source.lstat()
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ContractError(
+                f"retired dogfood TLS source must be a regular file: {source}"
+            )
+    if _certificate_public_key(legacy["ca.pem"]) != _private_public_key(
+        legacy["ca-key.pem"]
+    ):
+        raise ContractError("retired dogfood CA certificate and key do not match")
+    if _certificate_public_key(legacy["cert.pem"]) != _private_public_key(
+        legacy["key.pem"]
+    ):
+        raise ContractError("retired dogfood gateway certificate and key do not match")
+    subprocess.run(
+        [
+            OPENSSL,
+            "verify",
+            "-CAfile",
+            legacy["ca.pem"],
+            legacy["cert.pem"],
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+    for host in hosts:
+        subprocess.run(
+            [
+                OPENSSL,
+                "x509",
+                "-in",
+                legacy["cert.pem"],
+                "-noout",
+                "-checkhost",
+                host,
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+    with tempfile.TemporaryDirectory(prefix="weave-mailpit-tls-") as temporary:
+        mailpit_key, mailpit_cert = _generate_leaf_certificate(
+            Path(temporary),
+            legacy["ca-key.pem"],
+            legacy["ca.pem"],
+            "mailpit",
+            ["mailpit"],
+        )
+        generated = (
+            (legacy["ca-key.pem"], paths["ca-key.pem"]),
+            (legacy["ca.pem"], paths["ca.pem"]),
+            (legacy["key.pem"], paths["key.pem"]),
+            (legacy["cert.pem"], paths["cert.pem"]),
+            (mailpit_key, paths["mailpit-key.pem"]),
+            (mailpit_cert, paths["mailpit-cert.pem"]),
+        )
+        for source, target in generated:
+            _atomic_write(target, source.read_bytes())
+    print("WEAVE_DOGFOOD_TLS_ADOPTED ca=true gateway=true mailpit=true")
+    return True
+
+
 def _generate_tls(context: ComposeContext) -> None:
     root = context.tls_root
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -369,6 +478,8 @@ def _generate_tls(context: ComposeContext) -> None:
             context.env["WEAVE_FILES_URL"].split("//", 1)[1].split(":", 1)[0],
         }
     )
+    if _adopt_retired_dogfood_tls(context, paths, hosts):
+        return
     with tempfile.TemporaryDirectory(prefix="weave-tls-") as temporary:
         temp = Path(temporary)
         ca_key = temp / "ca-key.pem"
@@ -405,7 +516,7 @@ def _validate_existing(context: ComposeContext) -> None:
     retired_identity_admin_secret = context.secret_root / "keycloak-weave-identity-admin"
     if retired_identity_admin_secret.exists() or retired_identity_admin_secret.is_symlink():
         raise ContractError(
-            "retired identity-admin shared secret exists; Fresh Start or explicit secure removal is required"
+            "retired identity-admin shared secret exists in the production SecretRef root"
         )
     for retired in (
         "keycloak-bootstrap-admin-password",
@@ -497,18 +608,26 @@ def initialize(context: ComposeContext) -> None:
     os.chmod(context.secret_root, 0o700)
     retired_identity_admin_secret = context.secret_root / "keycloak-weave-identity-admin"
     if retired_identity_admin_secret.exists() or retired_identity_admin_secret.is_symlink():
-        raise ContractError(
-            "retired identity-admin shared secret exists; Fresh Start or explicit secure removal is required"
-        )
+        if context.environment == "prod":
+            raise ContractError(
+                "retired identity-admin shared secret exists in the production SecretRef root"
+            )
+        if not retired_identity_admin_secret.is_symlink() and not retired_identity_admin_secret.is_file():
+            raise ContractError("retired identity-admin SecretRef is not a removable file")
+        retired_identity_admin_secret.unlink()
     for retired in (
         "keycloak-bootstrap-admin-password",
         "keycloak-realm-migration-bootstrap-secret",
     ):
         path = context.secret_root / retired
         if path.exists() or path.is_symlink():
-            raise ContractError(
-                f"retired or temporary Keycloak bootstrap SecretRef is present outside an explicit migration: {retired}"
-            )
+            if context.environment == "prod":
+                raise ContractError(
+                    f"retired or temporary production Keycloak bootstrap SecretRef is present: {retired}"
+                )
+            if not path.is_symlink() and not path.is_file():
+                raise ContractError(f"retired Keycloak SecretRef is not a removable file: {retired}")
+            path.unlink()
     if context.environment == "prod":
         _validate_existing(context)
         _project_machine_public_jwks(context)

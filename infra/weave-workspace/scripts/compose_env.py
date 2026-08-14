@@ -365,6 +365,15 @@ def load_context(selector: str, root: Path, supplied_env_file: str | None = None
     admin_host = f"{env.get('WEAVE_ADMIN_SUBDOMAIN', 'admin')}.{env.get('WEAVE_TENANT_DOMAIN', '')}"
     admin_authority = admin_host + (f":{public.port}" if public.port is not None else "")
     env.setdefault("WEAVE_ADMIN_CONSOLE_URL", f"{public.scheme}://{admin_authority}")
+    if environment == "dogfood" and public.scheme and env.get("WEAVE_TENANT_DOMAIN"):
+        mailpit_host = f"mail.{env['WEAVE_TENANT_DOMAIN']}"
+        mailpit_authority = mailpit_host + (
+            f":{public.port}" if public.port is not None else ""
+        )
+        # Older reviewed dogfood env files predate the public Mailpit key. Its
+        # origin is deterministic from the stable product origin, so adopting
+        # that coordinate does not require a private-file migration.
+        env.setdefault("WEAVE_MAILPIT_URL", f"{public.scheme}://{mailpit_authority}")
     env.setdefault("WEAVE_PROVIDER_PROFILE", "sovereign-default")
     if declared_environment != environment:
         fail(
@@ -415,6 +424,25 @@ def _validate_environment(environment: str, profile: str, env: Mapping[str, str]
     }[environment]
     if env.get("WEAVE_DEPLOYMENT_SCOPE") != expected_scope:
         fail(f"{environment} requires WEAVE_DEPLOYMENT_SCOPE={expected_scope}")
+    if environment == "dogfood":
+        fixed_dogfood_resources = {
+            "WEAVE_COMPOSE_PROJECT": "weave-dogfood",
+            "WEAVE_RESOURCE_PREFIX": "weave-dogfood",
+            "WEAVE_DOCKER_NETWORK": "weave_dogfood_network",
+            "WEAVE_DB_DATA_VOLUME": "weave_dogfood_db_data",
+            "WEAVE_NATIVE_FILES_DATA_VOLUME": "weave_dogfood_native_files_data",
+            "WEAVE_MAILPIT_DATA_VOLUME": "weave_dogfood_mailpit_data",
+        }
+        mismatched = [
+            name
+            for name, expected in fixed_dogfood_resources.items()
+            if env.get(name) != expected
+        ]
+        if mismatched:
+            fail(
+                "dogfood uses one fixed reset boundary; mismatched coordinates: "
+                + ", ".join(sorted(mismatched))
+            )
     for name in (
         "WEAVE_PUBLIC_URL",
         "WEAVE_API_URL",
@@ -492,13 +520,16 @@ def _validate_environment(environment: str, profile: str, env: Mapping[str, str]
             image_names.append("WEAVE_NEXTCLOUD_IMAGE")
         if "storage-s3" in active_profiles:
             image_names.append("WEAVE_RUNTIME_STATE_IMAGE")
-        local_candidate_images = {
-            "WEAVE_BACKEND_IMAGE", "WEAVE_MCP_IMAGE"
-        } if environment == "e2e" else set()
+        local_candidate_images = (
+            {"WEAVE_BACKEND_IMAGE", "WEAVE_MCP_IMAGE", "WEAVE_KEYCLOAK_IMAGE"}
+            if environment in {"dogfood", "e2e"}
+            else set()
+        )
         if environment == "e2e" and env.get("WEAVE_STACK_SCOPE") == "isolated":
             # Live E2E resolves the pinned stock multi-arch index to its exact
-            # local platform image ID before Compose. Persistent dogfood/prod
-            # still require the reviewed published digest reference.
+            # local platform image ID before Compose. Dogfood also accepts
+            # exact local image IDs so the current checkout can be tested
+            # without publishing; production still requires registry digests.
             local_candidate_images.add("WEAVE_KEYCLOAK_IMAGE")
         unpinned = [
             name for name in image_names

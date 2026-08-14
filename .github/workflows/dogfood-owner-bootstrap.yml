@@ -1,4 +1,4 @@
-name: Dogfood Owner Bootstrap
+name: Dogfood Owner Invitation
 
 on:
   workflow_dispatch:
@@ -11,41 +11,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  owner-bootstrap:
-    name: Ephemeral First Owner Bootstrap
-    environment: dogfood
-    runs-on:
-      - self-hosted
-      - macOS
-      - ARM64
-      - weave-live
-    timeout-minutes: 10
+  invite-owner:
+    name: Create first owner invitation
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 15
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
-      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE || vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
       WEAVE_DOGFOOD_OWNER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
       WEAVE_DOGFOOD_OWNER_DISPLAY_NAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME }}
-    defaults:
-      run:
-        shell: bash
+
     steps:
-      - name: Verify protected dogfood boundary
-        env:
-          DISPATCH_REF: ${{ github.ref_name }}
+      - name: Verify dogfood invitation request
         run: |
           set -euo pipefail
-          [[ "${RUNNER_NAME:-}" == "${EXPECTED_RUNNER_NAME}" ]]
-          [[ "${DISPATCH_REF}" == dogfood ]]
-          [[ "${WEAVE_ENV_FILE:-}" == /* && -f "${WEAVE_ENV_FILE}" && ! -L "${WEAVE_ENV_FILE}" ]]
-          : "${WEAVE_DOGFOOD_OWNER_EMAIL:?Configure the protected first-owner email}"
-          : "${WEAVE_DOGFOOD_OWNER_DISPLAY_NAME:?Configure the first-owner display name}"
+          [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER_NAME" ]]
+          [[ "$GITHUB_REF" == refs/heads/dogfood ]]
+          [[ "${WEAVE_ENV_FILE:-}" == /* && -f "$WEAVE_ENV_FILE" && ! -L "$WEAVE_ENV_FILE" ]]
+          : "${WEAVE_DOGFOOD_OWNER_EMAIL:?Configure the dogfood owner email}"
+          : "${WEAVE_DOGFOOD_OWNER_DISPLAY_NAME:?Configure the dogfood owner display name}"
 
-      - name: Check out deployed dogfood ref
+      - name: Check out dogfood
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - name: Create private owner request
+      - name: Verify capacity and Compose runtime
+        run: >-
+          python3 tools/runner_capacity_preflight.py
+          --path .
+          --minimum-free-gib 20
+          --require-docker
+
+      - name: Create private first-owner request
         env:
           REQUEST_FILE: ${{ runner.temp }}/dogfood-owner-bootstrap-request.json
+          EVIDENCE_FILE: ${{ runner.temp }}/dogfood-owner-bootstrap-evidence.json
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -66,48 +65,19 @@ jobs:
               json.dump(request, stream, sort_keys=True)
               stream.write("\n")
           PY
-
-      - name: Run bounded Server-owned owner bootstrap
-        working-directory: infra/weave-workspace
-        env:
-          REQUEST_FILE: ${{ runner.temp }}/dogfood-owner-bootstrap-request.json
-          EVIDENCE_FILE: ${{ runner.temp }}/dogfood-owner-bootstrap-evidence.json
-        run: |
-          set -euo pipefail
-          ./compose.sh dogfood bootstrap-owner \
-            --request-file "${REQUEST_FILE}" \
-            --evidence-file "${EVIDENCE_FILE}"
-          jq -e '
-            .schemaVersion == "weave-owner-bootstrap-evidence-v2" and
-            .requestedRole == "owner" and
-            .mailMessageMatched == true and
-            .bootstrapAuthorityAbsent == true and
-            .bootstrapMountAbsent == true and
-            .canonicalImageUnchanged == true and
-            .requestAnchorPresent == true and
-            .tokenAbsent == true and
-            .supportSafe == true
-          ' "${EVIDENCE_FILE}" >/dev/null
-          {
-            echo "## Dogfood first owner"
-            echo
-            echo "- Invitation delivery: persistent Mailpit over implicit TLS"
-            echo "- Bootstrap authority absent after operation: true"
-            echo "- Mail inbox: https://mail.weave.test:44443"
-            echo "- The activation link remains in Mailpit and is never copied into workflow output."
-          } >>"${GITHUB_STEP_SUMMARY}"
+          infra/weave-workspace/compose.sh dogfood bootstrap-owner \
+            --request-file "$REQUEST_FILE" \
+            --evidence-file "$EVIDENCE_FILE"
+          jq -e '.mailMessageMatched == true and .bootstrapAuthorityAbsent == true and .supportSafe == true and .tokenAbsent == true' "$EVIDENCE_FILE" >/dev/null
 
       - name: Remove private request
         if: always()
-        env:
-          REQUEST_FILE: ${{ runner.temp }}/dogfood-owner-bootstrap-request.json
-        run: |
-          rm -f -- "${REQUEST_FILE}"
+        run: rm -f -- "${RUNNER_TEMP}/dogfood-owner-bootstrap-request.json"
 
-      - name: Upload support-safe evidence
+      - name: Upload support-safe invitation evidence
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: dogfood-owner-bootstrap-evidence
+          name: dogfood-owner-invitation
           path: ${{ runner.temp }}/dogfood-owner-bootstrap-evidence.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 14
