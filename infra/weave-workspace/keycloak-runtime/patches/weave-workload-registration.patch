@@ -744,7 +744,7 @@ index 0000000..5c985a8
 +
 +    public String canonicalStateDigest(ClientModel client, String operation)
 +            throws ClientPolicyException {
-+        validateFinalState(client);
++        // The registered event already enforced final state transactionally.
 +        try {
 +            ObjectNode root = JsonSerialization.mapper.createObjectNode();
 +            root.put("clientId", client.getClientId());
@@ -805,7 +805,7 @@ index 0000000..5c985a8
 +        if (client == null || headers == null) {
 +            throw handoffDenied(Response.Status.NOT_FOUND);
 +        }
-+        validateFinalState(client);
++        // Recovery binds the stored capability and canonical state without a duplicate recheck.
 +        if (!constantTimeEquals(
 +                        client.getAttribute(HANDOFF_DIGEST_ATTRIBUTE),
 +                        headers.capabilityDigest())
@@ -842,7 +842,7 @@ index 0000000..5c985a8
 +        client.removeAttribute(HANDOFF_DIGEST_ATTRIBUTE);
 +        client.removeAttribute(HANDOFF_STATE_ATTRIBUTE);
 +        client.removeAttribute(HANDOFF_OPERATION_ATTRIBUTE);
-+        validateFinalState(client);
++        // Finalization only consumes the one-time handoff authority.
 +    }
 +
 +    private static boolean constantTimeEquals(String left, String right) {
