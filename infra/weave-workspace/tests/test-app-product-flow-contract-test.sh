@@ -135,6 +135,8 @@ teardown_line="$(grep -nF 'bash "${TEARDOWN}" e2e' "${LIFECYCLE}" | cut -d: -f1)
   fail "bounded diagnostics must remain immediately before exact teardown"
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RESTART_EVIDENCE_PATH'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH'
+absent "${LIFECYCLE}" 'e2e keycloak-migration-apply'
+contains "${LIFECYCLE}" 'import-initialized disposable Compose test stack'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_CANDIDATE_MANIFEST'
 contains "${LIFECYCLE}" 'candidate-manifest-check.py'
 contains "${LIFECYCLE}" '.postgresRestartObserved == true'

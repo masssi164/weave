@@ -21,4 +21,12 @@ if [[ "$1" == "e2e" && "$2" == "keycloak-migration-apply" ]]; then
     --env-file "${WEAVE_ENV_FILE:?WEAVE_ENV_FILE is required for isolated E2E migration}"
 fi
 
+if [[ "$1" == "dogfood" && "$2" == "bootstrap-owner" ]]; then
+  exec python3 "${ROOT_DIR}/scripts/dogfood_lifecycle.py" \
+    bootstrap-owner \
+    --root "${ROOT_DIR}" \
+    --env-file "${WEAVE_ENV_FILE:?WEAVE_ENV_FILE is required for dogfood owner bootstrap}" \
+    -- "${@:3}"
+fi
+
 exec python3 "${ROOT_DIR}/scripts/compose_runtime.py" --root "${ROOT_DIR}" "$@"
