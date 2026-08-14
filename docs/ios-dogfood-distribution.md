@@ -2,13 +2,21 @@
 
 Dogfood is a fast development loop, not a release-distribution system. A commit is ready for human testing when `Full Compose E2E` succeeded for that exact `dogfood` SHA. There is no Candidate Cut, Fresh Start, TestFlight upload, environment approval, or release manifest in this loop.
 
-Run the manual GitHub workflow `Prepare Human Test` with the exact dogfood SHA. It performs the complete handoff on `weave-live-mac-mini`:
+The protected dogfood push deploys Compose after Full Compose E2E but does not automatically start
+an iPhone signing job. This keeps the branch green independently of the macOS background runner's
+login-Keychain access. Run the manual GitHub workflow `Prepare Human Test` only when its runner
+process can access the Apple Development private key. With the current Personal Team setup, use
+the interactive local equivalent below from the exact dogfood SHA; it performs the same in-place
+installation without changing app identity or device trust.
+
+The preparation sequence is:
 
 1. verify the successful exact-SHA `Full Compose E2E` run;
 2. start the dogfood stack through `./gradlew dogfoodUp`;
 3. start it a second time and prove that the CA and leaf certificate fingerprints did not change;
 4. optionally create or resend the first-owner invitation and leave its activation link only in private Mailpit at `https://mail.weave.test:44443`;
-5. build the exact commit with development signing, install it over the existing app, and launch the handoff on the paired iPhone.
+5. build the exact commit with development signing in the interactive user session, install it
+   over the existing app, and launch the handoff on the paired iPhone.
 
 The only private workflow value required for the device is `WEAVE_IOS_DEVICE_ID`. The first-owner path additionally uses the existing dogfood member email secret and display-name variable. Apple distribution and App Store Connect secrets are not part of development dogfood.
 
@@ -22,7 +30,7 @@ Every normal iteration is an update in place. The workflow and installer preserv
 - the development Keychain application identity;
 - the existing app container and Developer App trust.
 
-The installer defaults to `update_in_place`. It may uninstall only when a developer explicitly selects the separate `destructive_uninstall` recovery mode; the human-test workflow never selects that mode. The build embeds the exact commit, the GitHub preparation-run reference, and a positive build number.
+The installer defaults to `update_in_place`. It may uninstall only when a developer explicitly selects the separate `destructive_uninstall` recovery mode; the human-test path never selects that mode. The build embeds the exact commit, the preparation evidence reference, and a positive build number.
 
 The active `Profile` configuration uses the Personal Team-compatible development entitlements: it preserves the Keychain application identity but omits Associated Domains, which Personal Development Teams cannot provision. The production `Release` configuration keeps the full Associated Domains entitlement. Dogfood login and handoff continue through the explicit AppAuth/custom-scheme path rather than universal links.
 

@@ -1,10 +1,15 @@
 # Identity environment parity
 
-`dev`, `dogfood`, `e2e`, and `prod` run the same identity model: the approved downstream Keycloak
-26.7 runtime, one generated secret-free realm baseline, the bounded Server-owned post-import
-migration, native organization roles, and OIDC Authorization Code with PKCE. There is no
-environment-specific login branch and no general identity reconciler. Delivery lanes never select
-an application environment.
+`dev`, `dogfood`, `e2e`, and `prod` run the same login model: the approved downstream Keycloak
+26.7 runtime, one generated secret-free realm baseline, native organization roles, and OIDC
+Authorization Code with PKCE. There is no environment-specific login branch and no general
+identity reconciler. Delivery lanes never select an application environment.
+
+The resettable non-production environments initialize identity completely through realm import.
+Their environment projection gives the private Server-only `weave-identity-admin` client the
+development `manage-organizations` and `manage-users` roles in addition to its query roles. The
+Server's closed Admin REST allowlist remains the operation boundary. Production does not receive
+those broad roles and retains the bounded fine-grained post-import migration.
 
 Only reviewed operator coordinates differ:
 

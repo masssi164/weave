@@ -48,7 +48,7 @@ def render_caddy(context: ComposeContext) -> str:
         if not mailpit_url:
             raise ContractError(f"{context.profile} Mailpit gateway requires WEAVE_MAILPIT_URL")
         mailpit_block = f"""{_site(mailpit_url)} {{
-  tls /certs/mailpit-cert.pem /certs/mailpit-key.pem
+  tls /certs/cert.pem /certs/key.pem
   @private_network remote_ip private_ranges
   handle @private_network {{
     reverse_proxy mailpit:8025
