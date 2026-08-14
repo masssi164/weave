@@ -10,6 +10,7 @@ export ROOT_DIR
 python3 - <<'PY'
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -52,6 +53,18 @@ with tempfile.TemporaryDirectory() as temporary:
     init_secrets._generate_tls(
         SimpleNamespace(environment="dev", tls_root=staging, env=env)
     )
+    ca_text = subprocess.run(
+        [init_secrets.OPENSSL, "x509", "-in", staging / "ca.pem", "-noout", "-text"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ).stdout
+    assert "X509v3 Basic Constraints: critical" in ca_text
+    assert "CA:TRUE" in ca_text
+    assert "X509v3 Key Usage: critical" in ca_text
+    assert "Certificate Sign" in ca_text
+    assert "CRL Sign" in ca_text
     generated_root = temporary_root / "generated"
     retired = generated_root / "01-infrastructure/caddy/certs"
     retired.mkdir(parents=True)

@@ -337,6 +337,35 @@ def _generate_leaf_certificate(
     return key, cert
 
 
+def _generate_ca_certificate(ca_key: Path, ca_cert: Path) -> None:
+    subprocess.run(
+        [
+            OPENSSL,
+            "req",
+            "-x509",
+            "-new",
+            "-key",
+            ca_key,
+            "-sha256",
+            "-days",
+            "825",
+            "-subj",
+            "/CN=Weave Local Compose CA",
+            "-addext",
+            "basicConstraints=critical,CA:TRUE",
+            "-addext",
+            "keyUsage=critical,keyCertSign,cRLSign",
+            "-addext",
+            "subjectKeyIdentifier=hash",
+            "-out",
+            ca_cert,
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+
+
 def _certificate_public_key(path: Path) -> bytes:
     return subprocess.run(
         [OPENSSL, "x509", "-in", path, "-pubkey", "-noout"],
@@ -485,7 +514,7 @@ def _generate_tls(context: ComposeContext) -> None:
         ca_key = temp / "ca-key.pem"
         ca_cert = temp / "ca.pem"
         subprocess.run([OPENSSL, "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:3072", "-out", ca_key], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-        subprocess.run([OPENSSL, "req", "-x509", "-new", "-key", ca_key, "-sha256", "-days", "825", "-subj", "/CN=Weave Local Compose CA", "-out", ca_cert], check=True)
+        _generate_ca_certificate(ca_key, ca_cert)
         gateway_key, gateway_cert = _generate_leaf_certificate(
             temp,
             ca_key,

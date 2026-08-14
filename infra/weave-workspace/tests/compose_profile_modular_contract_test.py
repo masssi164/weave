@@ -376,6 +376,11 @@ def main() -> int:
     assert "groups" not in rendered
     assert rendered["realm"]["smtp"] == {"host": "mailpit", "port": 1025}
     assert "smtpServer" not in rendered["realm"]
+    assert rendered["clientPolicies"] == []
+    e2e_rendered = _desired(canonical, {**overlay, "environment": "e2e"})
+    assert e2e_rendered["clientPolicies"] == canonical["clientPolicies"]
+    prod_rendered = _desired(canonical, {**overlay, "environment": "prod"})
+    assert prod_rendered["clientPolicies"] == canonical["clientPolicies"]
     try:
         _desired({**canonical, "groups": []}, overlay)
     except ContractError:

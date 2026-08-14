@@ -86,10 +86,12 @@ def _desired(baseline: dict[str, object], overlay: dict[str, object]) -> dict[st
     assert isinstance(public, dict)
     desired = _replace_strings(desired, (("https://api.weave.test/mcp", f"{_origin(str(public['api']))}/mcp"),("https://api.weave.test/api", str(public["api"])),("https://auth.weave.test", str(public["auth"])),("https://weave.test", str(public["weave"]))))
     assert isinstance(desired, dict)
-    if overlay["environment"] in {"dev", "dogfood", "e2e"}:
+    if overlay["environment"] in {"dev", "dogfood"}:
         # Weaver is an opt-in product line. The native Compose baseline must
         # remain compatible with stock Keycloak and must not activate its
-        # downstream Dynamic Client Registration executor by default.
+        # downstream Dynamic Client Registration executor by default. The
+        # disposable E2E lane deliberately retains this policy because it
+        # proves the complete Weaver workload lifecycle.
         desired["clientPolicies"] = []
     if desired.get("apiVersion") != "weave.keycloak-desired-state/v3" or desired.get("keycloakVersion") != "26.7.1":
         raise ContractError("canonical Keycloak desired-state v3/26.7.1 required")
