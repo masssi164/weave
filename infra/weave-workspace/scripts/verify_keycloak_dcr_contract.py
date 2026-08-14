@@ -308,6 +308,11 @@ def recovered_handoff_authority(
     violations: list[str] = []
     if status != 200:
         violations.append(f"status-{status}")
+    protocol_error = response.get("error")
+    if isinstance(protocol_error, str) and re.fullmatch(
+        r"[a-z][a-z0-9_]{0,63}", protocol_error
+    ):
+        violations.append("protocol-" + protocol_error.replace("_", "-"))
     if response.get("client_id") != client_id:
         violations.append("client")
     if response.get("registration_client_uri") != expected_uri:

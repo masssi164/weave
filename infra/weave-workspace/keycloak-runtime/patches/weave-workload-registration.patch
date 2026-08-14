@@ -1250,7 +1250,7 @@ index 6f931eb..7630732 100755
 +
 +    static void requireEmptyBody(InputStream body) {
 +        try {
-+            if (body != null && body.read() != -1) {
++            if (body != null && body.available() > 0) {
 +                throw protocolError(
 +                        "invalid_registration_handoff",
 +                        "The registration handoff is invalid.",
