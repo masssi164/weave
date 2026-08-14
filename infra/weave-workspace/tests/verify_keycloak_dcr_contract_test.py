@@ -306,11 +306,9 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
             "fixture-rat",
         )
         response.pop("scope")
-        with self.assertRaisesRegex(
-            target.ContractError,
-            "exact workload contract",
-        ):
+        with self.assertRaises(target.ContractError) as missing_scope:
             target.exact_client_state(response, client_id, private)
+        self.assertIn("constraints=scopes-type", str(missing_scope.exception))
 
     def test_exact_client_state_reports_all_safe_constraints_without_values(self) -> None:
         client_id = "weaver-cell-test"
@@ -350,6 +348,21 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
             "exact workload contract",
         ):
             target.exact_client_state(response, client_id, private)
+
+        response = target.metadata(client_id, private)
+        response.update(
+            {
+                "client_id": client_id,
+                "registration_access_token": "fixture-rat",
+            }
+        )
+        response["scope"] = target.APPROVED_SCOPES[0] + " extra.scope"
+        with self.assertRaises(target.ContractError) as mismatched_scopes:
+            target.exact_client_state(response, client_id, private)
+        self.assertIn(
+            "constraints=scopes-missing,scopes-unapproved",
+            str(mismatched_scopes.exception),
+        )
 
     def test_evidence_is_owner_only_and_contains_no_credentials(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

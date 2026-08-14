@@ -569,8 +569,16 @@ def exact_client_state(
     violations.extend(
         name for name, observed, expected in expected_values if observed != expected
     )
-    if set(str(response.get("scope", "")).split()) != set(APPROVED_SCOPES):
-        violations.append("scopes")
+    observed_scope = response.get("scope")
+    if not isinstance(observed_scope, str):
+        violations.append("scopes-type")
+    else:
+        observed_scopes = set(observed_scope.split())
+        approved_scopes = set(APPROVED_SCOPES)
+        if approved_scopes - observed_scopes:
+            violations.append("scopes-missing")
+        if observed_scopes - approved_scopes:
+            violations.append("scopes-unapproved")
     violations.extend(
         "forbidden-" + field.replace("_", "-")
         for field in FORBIDDEN_METADATA_FIELDS
