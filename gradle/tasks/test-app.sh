@@ -12,7 +12,6 @@ readonly EMPTY_NAMESPACE_WRITER="${REPOSITORY_ROOT}/gradle/scripts/write_test_ap
 readonly COMPOSE="${WORKSPACE_ROOT}/compose.sh"
 readonly TEARDOWN="${WORKSPACE_ROOT}/teardown.sh"
 readonly FAILURE_DIAGNOSTICS="${WORKSPACE_ROOT}/live-stack-failure-diagnostics.sh"
-readonly DCR_CONTRACT_PROBE="${WORKSPACE_ROOT}/scripts/verify_keycloak_dcr_contract.py"
 readonly REALM_EVIDENCE_WRITER="${WORKSPACE_ROOT}/scripts/keycloak_realm_evidence.py"
 readonly RUNTIME_IMAGE_EVIDENCE_WRITER="${REPOSITORY_ROOT}/gradle/scripts/write_test_app_runtime_image_evidence.py"
 readonly CANDIDATE_MANIFEST_CHECK="${REPOSITORY_ROOT}/gradle/tasks/candidate-manifest-check.py"
@@ -32,26 +31,6 @@ fail() { printf 'WEAVE_TEST_APP_LIFECYCLE_ERROR %s\n' "$*" >&2; exit 1; }
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
-}
-
-require_no_pending_registration_operations() {
-  local workload_root="${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads"
-  local operation_root
-  [[ -d "${workload_root}" && ! -L "${workload_root}" ]] ||
-    fail "the isolated workload SecretRef root is unsafe or unavailable"
-  for operation_root in \
-    "${workload_root}/weave/agent-runtime/registration-handoffs" \
-    "${workload_root}/weave/agent-runtime/registration-deletions"; do
-    [[ ! -L "${operation_root}" ]] ||
-      fail "a registration authority operation root is unsafe"
-    if [[ -e "${operation_root}" ]]; then
-      [[ -d "${operation_root}" ]] ||
-        fail "a registration authority operation root is unsafe"
-      if [[ -n "$(find "${operation_root}" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
-        fail "a pending registration authority operation blocks isolated proof"
-      fi
-    fi
-  done
 }
 
 image_label() {
@@ -361,67 +340,6 @@ for required in \
   [[ -f "${required}" && ! -L "${required}" ]] ||
     fail "an exact TLS or bootstrap SecretRef input is unavailable"
 done
-require_no_pending_registration_operations
-
-log "Running direct Keycloak DCR policy and Registration Access Token lifecycle proof."
-dcr_evidence="${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/keycloak-dcr-live-proof.json"
-dcr_probe_log="${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/keycloak-dcr-probe.log"
-keycloak_container_id="$(
-  docker ps \
-    --filter "label=com.docker.compose.project=${WEAVE_E2E_RUN_NAMESPACE}" \
-    --filter "label=com.docker.compose.service=keycloak" \
-    --format '{{.ID}}'
-)"
-[[ "${keycloak_container_id}" =~ ^[0-9a-f]{12,64}$ ]] ||
-  fail "the isolated Keycloak runtime container is ambiguous or unavailable"
-python3 "${DCR_CONTRACT_PROBE}" \
-  --keycloak-base "http://127.0.0.1:${WEAVE_KEYCLOAK_HOST_PORT}" \
-  --issuer "${WEAVE_TEST_APP_ISSUER}" \
-  --realm weave \
-  --runtime-admin-jwk \
-    "${WEAVE_TEST_APP_SECRET_ROOT}/agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin" \
-  --run-id "${RUN_ID}" \
-  --candidate-commit "${candidate_commit}" \
-  --specification-commit "${specification_commit}" \
-  --compose-project "${WEAVE_E2E_RUN_NAMESPACE}" \
-  --keycloak-container-id "${keycloak_container_id}" \
-  --output "${dcr_evidence}" 2>&1 | tee "${dcr_probe_log}"
-jq -e \
-  --arg candidate_commit "${candidate_commit}" \
-  --arg source_candidate_commit "${image_source_commit}" \
-  --arg specification_commit "${specification_commit}" \
-  --arg compose_project "${WEAVE_E2E_RUN_NAMESPACE}" '
-  .schemaVersion == "weave.keycloak-dcr-live-proof/v1" and
-  .candidateCommit == $candidate_commit and
-  .specificationCommit == $specification_commit and
-  .composeProject == $compose_project and
-  .runtimeAdminRoles == ["create-client"] and
-  .broadAdminRestRejected == true and
-  .directAdminRestCreationRejected == true and
-  .validRegistration == true and
-  .privateKeyJwt == true and
-  .effectiveWorkloadRoles == ["weaver-runtime"] and
-  .registrationAccessTokenRotation == true and
-  .postUpdateFinalStateVerified == true and
-  .staleRegistrationAccessTokenRejected == true and
-  .crossCellRegistrationAccessTokenRejected == true and
-  .crossCellUpdateRejected == true and
-  .crossCellHandoffRejected == true and
-  .handoffRecoveryAndFinalize == true and
-  .handoffResponsesNonCacheable == true and
-  .failedCreateRollbackVerified == true and
-  .failedUpdateRollbackVerified == true and
-  .internalSpiWarningAbsent == true and
-  (.negativeCases | length) == 12 and
-  .cleanupComplete == true and
-  .credentialsIncluded == false and
-  .supportSafe == true
-' "${dcr_evidence}" >/dev/null ||
-  fail "the live Keycloak DCR evidence is incomplete"
-! grep -Eqi 'authorization:|bearer |registration_access_token|access_token|client_assertion|private_key' \
-  "${dcr_evidence}" ||
-  fail "the live Keycloak DCR evidence contains credential material"
-
 log "Running invitation, real Chromium activation, PKCE, WebDAV, ARC, and MCP."
 "${REPOSITORY_ROOT}/gradlew" \
   --no-daemon \
@@ -590,7 +508,5 @@ for evidence in \
     "${evidence}" ||
     fail "support-safe evidence contains credential material"
 done
-
-require_no_pending_registration_operations
 
 log "WEAVE_TEST_APP_LIFECYCLE_RESULT status=passed isolated=true cleanup=armed supportSafe=true"

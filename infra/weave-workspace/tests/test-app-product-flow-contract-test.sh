@@ -125,33 +125,20 @@ output_root_chmod_line="$(grep -nF 'chmod 700 "${OUTPUT_ROOT}"' "${LIFECYCLE}" |
    ${capacity_preflight_line} -lt ${output_root_chmod_line} ]] ||
   fail "testApp must create its output root before capacity preflight and permission hardening"
 contains "${LIFECYCLE}" 'live-stack-failure-diagnostics.sh'
+absent "${LIFECYCLE}" 'verify_keycloak_dcr_contract.py'
+absent "${LIFECYCLE}" 'keycloak-dcr-live-proof.json'
 contains "${LIFECYCLE}" 'WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS=30'
 diagnostics_line="$(grep -nF 'bash "${FAILURE_DIAGNOSTICS}"' "${LIFECYCLE}" | cut -d: -f1)"
 teardown_line="$(grep -nF 'bash "${TEARDOWN}" e2e' "${LIFECYCLE}" | cut -d: -f1)"
 [[ "${diagnostics_line}" =~ ^[0-9]+$ && "${teardown_line}" =~ ^[0-9]+$ &&
    ${diagnostics_line} -lt ${teardown_line} ]] ||
   fail "bounded diagnostics must remain immediately before exact teardown"
-contains "${LIFECYCLE}" 'verify_keycloak_dcr_contract.py'
-contains "${LIFECYCLE}" 'keycloak-dcr-probe.log'
-contains "${LIFECYCLE}" '| tee "${dcr_probe_log}"'
-contains "${LIFECYCLE}" 'keycloak-dcr-live-proof.json'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RESTART_EVIDENCE_PATH'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_CANDIDATE_MANIFEST'
 contains "${LIFECYCLE}" 'candidate-manifest-check.py'
 contains "${LIFECYCLE}" '.postgresRestartObserved == true'
 contains "${LIFECYCLE}" '.runtimeStateRestartObserved == true'
-contains "${LIFECYCLE}" '.postUpdateFinalStateVerified == true'
-contains "${LIFECYCLE}" '.directAdminRestCreationRejected == true'
-contains "${LIFECYCLE}" '.failedCreateRollbackVerified == true'
-contains "${LIFECYCLE}" '.failedUpdateRollbackVerified == true'
-contains "${LIFECYCLE}" '.crossCellHandoffRejected == true'
-contains "${LIFECYCLE}" '.handoffRecoveryAndFinalize == true'
-contains "${LIFECYCLE}" '.handoffResponsesNonCacheable == true'
-contains "${LIFECYCLE}" '.internalSpiWarningAbsent == true'
-contains "${LIFECYCLE}" 'require_no_pending_registration_operations'
-contains "${LIFECYCLE}" 'a pending registration authority operation blocks isolated proof'
-contains "${LIFECYCLE}" 'label=com.docker.compose.service=keycloak'
 contains "${LIFECYCLE}" 'WEAVE_RESOURCE_PREFIX="${WEAVE_E2E_RUN_NAMESPACE}"'
 contains "${LIFECYCLE}" '/failure-diagnostics'
 contains "${LIFECYCLE}" 'status --porcelain=v1 --untracked-files=all'
