@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..5c985a8
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,918 @@
+@@ -0,0 +1,941 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import com.fasterxml.jackson.databind.JsonNode;
@@ -266,6 +266,29 @@ index 0000000..5c985a8
 +                            representation.getTokenEndpointAuthMethod())
 +                    || !Algorithm.PS256.equals(
 +                            representation.getTokenEndpointAuthSigningAlg())
++                    || !exactSet(
++                            representation.getGrantTypes(), Set.of("client_credentials"))
++                    || hasValues(representation.getResponseTypes())
++                    || hasValues(representation.getRedirectUris())
++                    || representation.getApplicationType() != null
++                    || hasText(representation.getClientSecret())
++                    || hasText(representation.getClientUri())
++                    || hasText(representation.getLogoUri())
++                    || hasValues(representation.getContacts())
++                    || hasText(representation.getTosUri())
++                    || hasText(representation.getPolicyUri())
++                    || hasText(representation.getJwksUri())
++                    || hasText(representation.getInitiateLoginUri())
++                    || hasValues(representation.getRequestUris())
++                    || hasValues(representation.getPostLogoutRedirectUris())
++                    || hasText(representation.getBackchannelLogoutUri())
++                    || hasText(representation.getFrontChannelLogoutUri())
++                    || !Boolean.FALSE.equals(
++                            representation.getBackchannelLogoutSessionRequired())
++                    || !Boolean.FALSE.equals(
++                            representation.getBackchannelLogoutRevokeOfflineTokens())
++                    || !Boolean.FALSE.equals(
++                            representation.getFrontchannelLogoutSessionRequired())
 +                    || representation.getSectorIdentifierUri() != null
 +                    || (representation.getSubjectType() != null
 +                            && !"public".equals(representation.getSubjectType()))
@@ -1239,13 +1262,14 @@ new file mode 100644
 index 0000000..8e56e65
 --- /dev/null
 +++ b/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,145 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 +import static org.junit.jupiter.api.Assertions.assertNull;
 +import static org.junit.jupiter.api.Assertions.assertThrows;
 +
++import java.util.List;
 +import java.util.Set;
 +import org.junit.jupiter.api.Test;
 +import org.keycloak.representations.idm.ClientRepresentation;
@@ -1304,6 +1328,32 @@ index 0000000..8e56e65
 +    }
 +
 +    @Test
++    void rejectsHumanLoginFlowBeforeDescriptionConversion() {
++        OIDCClientRepresentation representation =
++                representation(CLIENT_ID, APPROVED_SCOPES);
++        representation.setGrantTypes(List.of("authorization_code"));
++        representation.setResponseTypes(List.of("code"));
++        representation.setRedirectUris(List.of("https://forbidden.invalid/callback"));
++
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.validateOidcMetadata(
++                        representation, null));
++    }
++
++    @Test
++    void rejectsProviderUrlBeforeDescriptionConversion() {
++        OIDCClientRepresentation representation =
++                representation(CLIENT_ID, APPROVED_SCOPES);
++        representation.setClientUri("https://forbidden.invalid");
++
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.validateOidcMetadata(
++                        representation, null));
++    }
++
++    @Test
 +    void rejectsInvalidNamespaceAtTheClientPolicyBoundary() {
 +        ClientRepresentation representation = new ClientRepresentation();
 +        representation.setName("weaver-cell-invalid!");
@@ -1349,6 +1399,12 @@ index 0000000..8e56e65
 +        representation.setSubjectType("public");
 +        representation.setTokenEndpointAuthMethod("private_key_jwt");
 +        representation.setTokenEndpointAuthSigningAlg("PS256");
++        representation.setGrantTypes(List.of("client_credentials"));
++        representation.setResponseTypes(List.of());
++        representation.setRedirectUris(List.of());
++        representation.setBackchannelLogoutSessionRequired(false);
++        representation.setBackchannelLogoutRevokeOfflineTokens(false);
++        representation.setFrontchannelLogoutSessionRequired(false);
 +        return representation;
 +    }
 +}
