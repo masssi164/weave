@@ -207,7 +207,8 @@ if [[ -z "${SERVER_IMAGE}" && -z "${MCP_IMAGE}" ]]; then
   SERVER_IMAGE="${LOCAL_SERVER_TAG}"
   MCP_IMAGE="${LOCAL_MCP_TAG}"
   log "Building Server and MCP from the exact candidate."
-  "${REPOSITORY_ROOT}/gradlew" --no-daemon --max-workers=2 \
+  WEAVE_OPENDAL_CLASSIFIER=linux-x86_64 \
+    "${REPOSITORY_ROOT}/gradlew" --no-daemon --max-workers=2 \
     :server:bootJar \
     :weave-mcp-server:bootJar
   image_created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
