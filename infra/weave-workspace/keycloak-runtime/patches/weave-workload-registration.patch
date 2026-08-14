@@ -1,9 +1,9 @@
 diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
 new file mode 100644
-index 0000000..ecfc5a5
+index 0000000..f7345e8
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,1029 @@
+@@ -0,0 +1,1043 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import com.fasterxml.jackson.databind.JsonNode;
@@ -455,6 +455,8 @@ index 0000000..ecfc5a5
 +        if (serviceAccount == null || workloadRole == null) {
 +            throw invalid(INVALID_FINAL_STATE_DETAIL);
 +        }
++        client.getScopeMappingsStream().toList().forEach(client::deleteScopeMapping);
++        client.addScopeMapping(workloadRole);
 +        List<RoleModel> workloadScopeRoles =
 +                defaultScope.getScopeMappingsStream().toList();
 +        if (workloadScopeRoles.isEmpty()) {
@@ -499,6 +501,9 @@ index 0000000..ecfc5a5
 +                RoleUtils.getDeepUserRoleMappings(serviceAccount).stream()
 +                .map(WeaveWorkloadClientRegistrationExecutor::roleIdentity)
 +                .collect(Collectors.toUnmodifiableSet());
++        Set<RoleIdentity> directClientScopeRoles = client.getScopeMappingsStream()
++                .map(WeaveWorkloadClientRegistrationExecutor::roleIdentity)
++                .collect(Collectors.toUnmodifiableSet());
 +
 +        if (!isWorkloadClient(client.getClientId())
 +                || !OIDCLoginProtocol.LOGIN_PROTOCOL.equals(client.getProtocol())
@@ -523,6 +528,7 @@ index 0000000..ecfc5a5
 +                || !OPTIONAL_SCOPES.equals(client.getClientScopes(false).keySet())) {
 +            throw invalid(INVALID_FINAL_SCOPES_DETAIL);
 +        }
++        validateExactScopeRoles(client.getRealm().getId(), directClientScopeRoles);
 +        Set<String> expectedAttributeKeys = new HashSet<>(ALLOWED_ATTRIBUTES);
 +        boolean hasAnyHandoff =
 +                attributes.keySet().stream().anyMatch(IN_FLIGHT_ATTRIBUTES::contains);
@@ -608,6 +614,14 @@ index 0000000..ecfc5a5
 +        if (!Set.of(expected).equals(directRoles)
 +                || !Set.of(expected).equals(effectiveRoles)) {
 +            throw invalid(INVALID_FINAL_ROLES_DETAIL);
++        }
++    }
++
++    static void validateExactScopeRoles(String realmId, Set<RoleIdentity> scopeRoles)
++            throws ClientPolicyException {
++        RoleIdentity expected = new RoleIdentity("realm", realmId, WORKLOAD_ROLE);
++        if (!Set.of(expected).equals(scopeRoles)) {
++            throw invalid(INVALID_FINAL_SCOPES_DETAIL);
 +        }
 +    }
 +
@@ -1381,10 +1395,10 @@ index bcb129b..c4a7b71 100644
 +org.keycloak.services.clientpolicy.executor.WeaveWorkloadClientRegistrationExecutorFactory
 diff --git a/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java b/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java
 new file mode 100644
-index 0000000..19daf33
+index 0000000..d07e18b
 --- /dev/null
 +++ b/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java
-@@ -0,0 +1,171 @@
+@@ -0,0 +1,200 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -1537,6 +1551,35 @@ index 0000000..19daf33
 +                mappers.stream()
 +                        .map(mapper -> mapper.getConfig().get("claim.name"))
 +                        .collect(java.util.stream.Collectors.toSet()));
++    }
++
++    @Test
++    void acceptsOnlyTheExactDirectWorkloadRoleScope() {
++        WeaveWorkloadClientRegistrationExecutor.RoleIdentity expected =
++                new WeaveWorkloadClientRegistrationExecutor.RoleIdentity(
++                        "realm", "weave", "weaver-runtime");
++
++        assertDoesNotThrow(() ->
++                WeaveWorkloadClientRegistrationExecutor.validateExactScopeRoles(
++                        "weave", Set.of(expected)));
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.validateExactScopeRoles(
++                        "weave", Set.of()));
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.validateExactScopeRoles(
++                        "weave",
++                        Set.of(
++                                expected,
++                                new WeaveWorkloadClientRegistrationExecutor.RoleIdentity(
++                                        "realm", "weave", "offline_access"))));
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.validateExactScopeRoles(
++                        "weave",
++                        Set.of(new WeaveWorkloadClientRegistrationExecutor.RoleIdentity(
++                                "client", "workload-client", "weaver-runtime"))));
 +    }
 +
 +    private static OIDCClientRepresentation representation(
