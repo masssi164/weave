@@ -24,6 +24,8 @@ Every normal iteration is an update in place. The workflow and installer preserv
 
 The installer defaults to `update_in_place`. It may uninstall only when a developer explicitly selects the separate `destructive_uninstall` recovery mode; the human-test workflow never selects that mode. The build embeds the exact commit, the GitHub preparation-run reference, and a positive build number.
 
+The active `Profile` configuration uses the Personal Team-compatible development entitlements: it preserves the Keychain application identity but omits Associated Domains, which Personal Development Teams cannot provision. The production `Release` configuration keeps the full Associated Domains entitlement. Dogfood login and handoff continue through the explicit AppAuth/custom-scheme path rather than universal links.
+
 TLS material lives outside Docker at `/Users/flotterotter/.weave/dogfood/generated/tls`. `dogfoodUp`, `dogfoodDown`, and `dogfoodReset` must not delete or rotate it. The Weave Local Development CA therefore normally needs to be installed and trusted on the iPhone only once.
 
 ## Before pressing Run
