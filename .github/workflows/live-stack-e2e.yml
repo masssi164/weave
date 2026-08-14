@@ -1,86 +1,53 @@
-name: Live Stack Product Flow
+name: Full Compose E2E
+run-name: Full Compose E2E ${{ github.event.pull_request.head.sha || github.sha }}
 
 on:
   push:
-    branches: [dogfood]
+    branches: [dev, dogfood]
   pull_request:
-    branches: [dogfood]
+    branches: [dev, dogfood]
     types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
   workflow_dispatch:
-    inputs:
-      enable_run_scoped_e2e:
-        description: Run the isolated Fresh product proof
-        required: true
-        default: false
-        type: boolean
-      candidate_images_run_id:
-        description: Optional successful Candidate Cut run for the resolved protected dev source
-        required: false
-        type: string
-  workflow_call:
-    inputs:
-      enable_run_scoped_e2e:
-        type: boolean
-        required: false
-        default: true
-      candidate_images_run_id:
-        type: string
-        required: false
-        default: ""
 
 permissions:
   actions: read
   contents: read
-  packages: read
 
 concurrency:
-  group: weave-live-mac-mini-exclusive
-  cancel-in-progress: false
+  group: full-compose-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  isolation-gate:
-    name: Require isolated Fresh product proof
-    runs-on: ubuntu-latest
-    steps:
-      - name: Fail closed without explicit isolation
-        env:
-          ENABLE_RUN_SCOPED_E2E: ${{ github.event_name != 'workflow_dispatch' || inputs.enable_run_scoped_e2e }}
-        run: |
-          set -euo pipefail
-          [[ "$ENABLE_RUN_SCOPED_E2E" == "true" ]] || {
-            echo "::error::The product proof requires explicit isolated-run approval."
-            exit 1
-          }
-
-  live-stack-e2e:
-    name: Invitation, OIDC, Weave-native collaboration, ARC, and MCP
-    needs: isolation-gate
+  full-compose-e2e:
+    name: Full Compose E2E
     runs-on: [self-hosted, macOS, ARM64, weave-live]
-    timeout-minutes: 75
+    timeout-minutes: 90
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
-      REQUESTED_CANDIDATE_IMAGES_RUN_ID: ${{ inputs.candidate_images_run_id || github.event.inputs.candidate_images_run_id || '' }}
-      WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
       DOCKER_DEFAULT_PLATFORM: linux/amd64
-      WEAVE_TEST_APP_RUN_ID: live-${{ github.run_id }}-${{ github.run_attempt }}
-      WEAVE_CANDIDATE_EVIDENCE_REF: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      WEAVE_CANDIDATE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      WEAVE_IMAGE_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      WEAVE_TEST_APP_RUN_ID: e2e-${{ github.run_id }}-${{ github.run_attempt }}
+      WEAVE_TEST_APP_OUTPUT_ROOT: ${{ github.workspace }}/weave/build/test-app
 
     steps:
       - name: Verify bounded runner
         run: |
           set -euo pipefail
           [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER_NAME" ]] || {
-            echo "::error::Expected $EXPECTED_RUNNER_NAME; got ${RUNNER_NAME:-unknown}."
+            echo "::error::Expected ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}."
             exit 1
           }
 
-      - name: Check out exact lane candidate
+      - name: Check out exact source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          ref: ${{ env.WEAVE_CANDIDATE_COMMIT }}
           path: weave
           fetch-depth: 0
 
-      - name: Verify runner capacity before candidate work
+      - name: Verify capacity and Compose runtime
         working-directory: weave
         run: >-
           python3 tools/runner_capacity_preflight.py
@@ -88,44 +55,13 @@ jobs:
           --minimum-free-gib 20
           --require-docker
 
-      - name: Resolve protected dev source candidate
-        working-directory: weave
-        run: |
-          set -euo pipefail
-          git fetch --no-tags --prune origin \
-            '+refs/heads/dev:refs/remotes/origin/dev'
-          evidence_root="$RUNNER_TEMP/weave-live-stack-private-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          upload_root="$RUNNER_TEMP/weave-live-stack-acceptance-evidence-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          cleanup_root="$RUNNER_TEMP/weave-live-stack-failure-cleanup-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          [[ ! -e "$evidence_root" && ! -e "$upload_root" && ! -e "$cleanup_root" ]] || {
-            echo "::error::Run-scoped live evidence roots already exist." >&2
-            exit 1
-          }
-          install -d -m 700 "$evidence_root" "$upload_root"
-          expected_namespace="weave-e2e-$(printf '%s' "$WEAVE_TEST_APP_RUN_ID" | shasum -a 256 | awk '{print substr($1, 1, 16)}')"
-          python3 tools/candidate_source_mapping.py \
-            --repository . \
-            --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
-            --output "$evidence_root/candidate-source-mapping-unbound.json"
-          source_candidate="$(jq -er .sourceCandidateCommit "$evidence_root/candidate-source-mapping-unbound.json")"
-          {
-            echo "WEAVE_IMAGE_SOURCE_COMMIT=$source_candidate"
-            echo "WEAVE_LIVE_EVIDENCE_ROOT=$evidence_root"
-            echo "WEAVE_LIVE_UPLOAD_ROOT=$upload_root"
-            echo "WEAVE_TEST_APP_OUTPUT_ROOT=$evidence_root/test-app"
-            echo "WEAVE_EXPECTED_E2E_NAMESPACE=$expected_namespace"
-          } >> "$GITHUB_ENV"
-
       - name: Resolve pinned specification corpus
         id: spec
         working-directory: weave
         run: |
           set -euo pipefail
-          spec_commit="$(
-            jq -er '.specCorpus.gitCommit | select(type == "string" and test("^[0-9a-f]{40}$"))' \
-              specs/weave-specs.lock.json
-          )"
-          printf 'commit=%s\n' "$spec_commit" >> "$GITHUB_OUTPUT"
+          commit="$(jq -er '.specCorpus.gitCommit | select(test("^[0-9a-f]{40}$"))' specs/weave-specs.lock.json)"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
       - name: Check out pinned Weave Specification Corpus
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -135,6 +71,13 @@ jobs:
           path: weave-specs
           ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
           persist-credentials: false
+
+      - name: Set up Node 24
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: weave/admin-console/package-lock.json
 
       - name: Set up Java 21
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
@@ -146,367 +89,123 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
-      - name: Resolve immutable candidate manifest
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Verify exact clean checkout
         working-directory: weave
         run: |
           set -euo pipefail
-          candidate_run_id="$REQUESTED_CANDIDATE_IMAGES_RUN_ID"
-          runs_file="$WEAVE_LIVE_EVIDENCE_ROOT/candidate-cut-runs.json"
-          if [[ -n "$candidate_run_id" ]]; then
-            [[ "$candidate_run_id" =~ ^[0-9]+$ ]] || {
-              echo "::error::candidate_images_run_id must be numeric." >&2
-              exit 1
-            }
-            gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${candidate_run_id}" > "$runs_file"
-            candidate_run_id="$(
-              python3 tools/candidate_cut_run_resolver.py \
-                --input "$runs_file" \
-                --source-sha "$WEAVE_IMAGE_SOURCE_COMMIT" \
-                --repository "$GITHUB_REPOSITORY" \
-                --run-id "$candidate_run_id"
-            )"
-          else
-            gh api --paginate --slurp \
-              "/repos/${GITHUB_REPOSITORY}/actions/workflows/candidate-images.yml/runs?branch=dev&event=workflow_dispatch&status=completed&per_page=100" \
-              > "$runs_file"
-            candidate_run_id="$(
-              python3 tools/candidate_cut_run_resolver.py \
-                --input "$runs_file" \
-                --source-sha "$WEAVE_IMAGE_SOURCE_COMMIT" \
-                --repository "$GITHUB_REPOSITORY"
-            )"
-          fi
-          manifest_dir="$WEAVE_LIVE_EVIDENCE_ROOT/candidate-manifest-source"
-          install -d -m 700 "$manifest_dir"
-          gh run download "$candidate_run_id" \
-            --name "candidate-manifest-${WEAVE_IMAGE_SOURCE_COMMIT}" \
-            --dir "$manifest_dir"
-          ./gradlew --no-daemon dogfoodCandidateCheck \
-            "-PcandidateManifest=$manifest_dir/candidate-manifest.json"
-          [[ "$(jq -er .commit "$manifest_dir/candidate-manifest.json")" == "$WEAVE_IMAGE_SOURCE_COMMIT" ]]
-          [[ "$(jq -er .specificationCommit "$manifest_dir/candidate-manifest.json")" == "${{ steps.spec.outputs.commit }}" ]]
-          expected_digest="$(awk 'NR == 1 {print $1}' "$manifest_dir/candidate-manifest.json.sha256")"
-          actual_digest="$(shasum -a 256 "$manifest_dir/candidate-manifest.json" | awk '{print $1}')"
-          [[ "$expected_digest" == "$actual_digest" ]]
-          cp "$manifest_dir/candidate-manifest.json" "$WEAVE_LIVE_EVIDENCE_ROOT/candidate-manifest.json"
-          cp "$manifest_dir/candidate-manifest.json.sha256" "$WEAVE_LIVE_EVIDENCE_ROOT/candidate-manifest.json.sha256"
-          {
-            echo "WEAVE_CANDIDATE_IMAGES_RUN_ID=$candidate_run_id"
-            echo "WEAVE_TEST_APP_CANDIDATE_MANIFEST=$manifest_dir/candidate-manifest.json"
-            echo "WEAVE_CANDIDATE_MANIFEST_DIGEST=sha256:$actual_digest"
-          } >> "$GITHUB_ENV"
+          [[ "$(git rev-parse HEAD)" == "$WEAVE_CANDIDATE_COMMIT" ]]
+          [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]]
 
-      - name: Prepare run-scoped Docker client authority
-        env:
-          DOCKER_AUTH_ROOT: ${{ runner.temp }}/weave-live-docker-auth-${{ github.run_id }}-${{ github.run_attempt }}
-          GHCR_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          [[ ! -e "$DOCKER_AUTH_ROOT" && -n "$GHCR_TOKEN" ]] || {
-            echo "::error::Run-scoped Docker authentication is unavailable or already exists." >&2
-            exit 1
-          }
-          install -d -m 700 "$DOCKER_AUTH_ROOT"
-          docker_endpoint="$(docker context inspect --format '{{.Endpoints.docker.Host}}')"
-          [[ "$docker_endpoint" == unix:///* ]] || {
-            echo "::error::The active Docker context does not expose a bounded Unix endpoint." >&2
-            exit 1
-          }
-          compose_plugin_path="$(docker info --format '{{range .ClientInfo.Plugins}}{{if eq .Name "compose"}}{{.Path}}{{end}}{{end}}')"
-          [[ "$compose_plugin_path" == /*/docker-compose && -x "$compose_plugin_path" ]] || {
-            echo "::error::The active Docker Compose CLI plugin is unavailable." >&2
-            exit 1
-          }
-          compose_plugin_dir="${compose_plugin_path%/*}"
-          python3 weave/tools/write_docker_auth_config.py \
-            --output "$DOCKER_AUTH_ROOT/config.json" \
-            --registry ghcr.io \
-            --cli-plugin-dir "$compose_plugin_dir"
-          jq -e --arg compose_plugin_dir "$compose_plugin_dir" '
-            ((.credsStore? // "") == "") and
-            ((.credHelpers? // {}) == {}) and
-            (.cliPluginsExtraDirs == [$compose_plugin_dir]) and
-            (.auths["ghcr.io"].auth | type == "string" and length > 0)
-          ' "$DOCKER_AUTH_ROOT/config.json" >/dev/null
-          DOCKER_HOST="$docker_endpoint" DOCKER_CONFIG="$DOCKER_AUTH_ROOT" docker compose version >/dev/null
-          {
-            printf 'DOCKER_HOST=%s\n' "$docker_endpoint"
-            printf 'DOCKER_CONFIG=%s\n' "$DOCKER_AUTH_ROOT"
-          } >> "$GITHUB_ENV"
-
-      - name: Pull and bind all immutable candidate images
+      - name: Run full isolated product flow
         working-directory: weave
-        run: |
-          set -euo pipefail
-          component_ref() {
-            jq -er --arg component "$1" \
-              '.images[] | select(.component == $component) | .reference' \
-              "$WEAVE_TEST_APP_CANDIDATE_MANIFEST"
-          }
-          server_ref="$(component_ref server)"
-          mcp_ref="$(component_ref mcp-server)"
-          keycloak_ref="$(component_ref keycloak-runtime)"
-          for image in "$server_ref" "$mcp_ref" "$keycloak_ref"; do
-            [[ "$image" == *@sha256:* ]]
-            docker pull --platform "$DOCKER_DEFAULT_PLATFORM" "$image"
-            [[ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" == \
-               "$DOCKER_DEFAULT_PLATFORM" ]]
-          done
-          server_id="$(docker image inspect --format '{{.Id}}' "$server_ref")"
-          mcp_id="$(docker image inspect --format '{{.Id}}' "$mcp_ref")"
-          keycloak_id="$(docker image inspect --format '{{.Id}}' "$keycloak_ref")"
-          python3 tools/candidate_source_mapping.py \
-            --repository . \
-            --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
-            --image "backend=$server_id" \
-            --image "keycloak=$keycloak_id" \
-            --image "mcp=$mcp_id" \
-            --output "$WEAVE_LIVE_EVIDENCE_ROOT/candidate-source-mapping.json"
-          {
-            echo "WEAVE_TEST_APP_SERVER_IMAGE=$server_ref"
-            echo "WEAVE_TEST_APP_MCP_IMAGE=$mcp_ref"
-            echo "WEAVE_TEST_APP_KEYCLOAK_IMAGE=$keycloak_ref"
-          } >> "$GITHUB_ENV"
+        run: ./gradlew --no-daemon specCorpusConformance testApp
 
-      - name: Verify runtime prerequisites
-        run: |
-          set -euo pipefail
-          for command in docker git java jq openssl python3 shasum; do
-            command -v "$command" >/dev/null
-          done
-          docker info >/dev/null
-
-      - name: Capture persistent dogfood resources
-        working-directory: weave
-        run: |
-          set -euo pipefail
-          tools/persistent_dogfood_resource_guard.sh capture \
-            "$WEAVE_LIVE_EVIDENCE_ROOT/persistent-resources.txt"
-
-      - name: Run the manifest-bound Fresh product proof
-        timeout-minutes: 60
-        working-directory: weave
-        run: |
-          set -euo pipefail
-          ./gradlew --no-daemon testApp
-
-      - name: Ensure exact isolated Fresh namespace is absent
+      - name: Upload support-safe E2E evidence
         if: always()
-        timeout-minutes: 10
-        working-directory: weave
-        env:
-          CLEANUP_ROOT: ${{ runner.temp }}/weave-live-stack-failure-cleanup-${{ github.run_id }}-${{ github.run_attempt }}
-        run: |
-          set -euo pipefail
-          namespace="$WEAVE_EXPECTED_E2E_NAMESPACE"
-          [[ "$namespace" =~ ^weave-e2e-[0-9a-f]{16}$ ]] || {
-            echo "::error::The deterministic isolated namespace is invalid." >&2
-            exit 1
-          }
-          [[ ! -e "$CLEANUP_ROOT" ]] || {
-            echo "::error::The run-scoped cleanup evidence root already exists." >&2
-            exit 1
-          }
-          install -d -m 700 "$CLEANUP_ROOT"
-          run_root="$WEAVE_TEST_APP_OUTPUT_ROOT/$namespace"
-          private_env="$run_root/test.env"
-          if [[ -e "$private_env" ]]; then
-            [[ -f "$private_env" && ! -L "$private_env" ]] || {
-              echo "::error::The isolated cleanup environment is unsafe." >&2
-              exit 1
-            }
-            export WEAVE_ENV_FILE="$private_env"
-            export WEAVE_E2E_STACK_SCOPE=isolated
-            export WEAVE_E2E_RUN_ID="$WEAVE_TEST_APP_RUN_ID"
-            export WEAVE_E2E_RUN_NAMESPACE="$namespace"
-            export WEAVE_E2E_NAMESPACE="$namespace"
-            export WEAVE_BACKEND_IMAGE="$WEAVE_TEST_APP_SERVER_IMAGE"
-            export WEAVE_MCP_IMAGE="$WEAVE_TEST_APP_MCP_IMAGE"
-            export WEAVE_KEYCLOAK_IMAGE="$WEAVE_TEST_APP_KEYCLOAK_IMAGE"
-            WEAVE_TEARDOWN_EVIDENCE_FILE="$CLEANUP_ROOT/teardown-evidence.json" \
-              bash infra/weave-workspace/teardown.sh e2e \
-                --isolated \
-                --evidence-file "$CLEANUP_ROOT/teardown-evidence.json"
-            python3 gradle/scripts/cleanup_test_app_runtime.py \
-              --repository-root "$PWD" \
-              --output-root "$WEAVE_TEST_APP_OUTPUT_ROOT" \
-              --namespace "$namespace"
-          fi
-          container_count="$(docker container ls --all --quiet \
-            --filter "label=com.docker.compose.project=$namespace" | wc -l | tr -d ' ')"
-          network_count="$(docker network ls --quiet \
-            --filter "label=com.massimotter.weave.namespace=$namespace" | wc -l | tr -d ' ')"
-          volume_count="$(docker volume ls --quiet \
-            --filter "label=com.massimotter.weave.namespace=$namespace" | wc -l | tr -d ' ')"
-          jq -n \
-            --arg namespace "$namespace" \
-            --argjson containers "$container_count" \
-            --argjson networks "$network_count" \
-            --argjson volumes "$volume_count" \
-            '{
-              schemaVersion: "weave.live-stack-failure-cleanup/v1",
-              composeProject: $namespace,
-              remainingContainers: $containers,
-              remainingNetworks: $networks,
-              remainingVolumes: $volumes,
-              credentialsIncluded: false,
-              supportSafe: true
-            }' >"$CLEANUP_ROOT/cleanup-summary.json"
-          [[ "$container_count" -eq 0 && "$network_count" -eq 0 && "$volume_count" -eq 0 ]] || {
-            echo "::error::The exact isolated Fresh namespace still owns Docker resources." >&2
-            exit 1
-          }
-
-      - name: Upload support-safe failure cleanup evidence
-        if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: weave-live-stack-failure-cleanup-evidence
-          path: ${{ runner.temp }}/weave-live-stack-failure-cleanup-${{ github.run_id }}-${{ github.run_attempt }}
-          if-no-files-found: error
-          retention-days: 30
+          name: full-compose-e2e-${{ env.WEAVE_CANDIDATE_COMMIT }}
+          path: weave/build/test-app/**
+          if-no-files-found: warn
+          retention-days: 14
 
-      - name: Verify product proof and persistent dogfood preservation
+  deploy-dogfood:
+    name: Deploy dogfood with Compose
+    needs: full-compose-e2e
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dogfood'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 60
+    env:
+      EXPECTED_RUNNER_NAME: weave-live-mac-mini
+      DOGFOOD_COMMIT: ${{ github.sha }}
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
+      WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/weave-specs
+
+    steps:
+      - name: Verify bounded dogfood deployment
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER_NAME" ]]
+          [[ "$DOGFOOD_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${WEAVE_ENV_FILE:-}" == /* && -f "$WEAVE_ENV_FILE" && ! -L "$WEAVE_ENV_FILE" ]]
+
+      - name: Check out exact dogfood commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ env.DOGFOOD_COMMIT }}
+          path: weave
+          fetch-depth: 0
+
+      - name: Verify protected dogfood ancestry
         working-directory: weave
         run: |
           set -euo pipefail
-          tools/persistent_dogfood_resource_guard.sh verify \
-            "$WEAVE_LIVE_EVIDENCE_ROOT/persistent-resources.txt"
-          product_count="$(find "$WEAVE_TEST_APP_OUTPUT_ROOT" -name weave-test-app-evidence.json -type f -print | wc -l | tr -d ' ')"
-          [[ "$product_count" -eq 1 ]] || {
-            echo "::error::Expected exactly one run-scoped product evidence document." >&2
-            exit 1
-          }
-          evidence="$(find "$WEAVE_TEST_APP_OUTPUT_ROOT" -name weave-test-app-evidence.json -type f -print)"
-          jq -e \
-            --arg lane "$WEAVE_CANDIDATE_COMMIT" \
-            --arg spec "${{ steps.spec.outputs.commit }}" \
-            --arg manifest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" '
-            .schemaVersion == "weave.test-app-product-flow/v2" and
-            .candidateCommit == $lane and
-            .sourceCandidateCommit == env.WEAVE_IMAGE_SOURCE_COMMIT and
-            .specificationCommit == $spec and
-            .candidateManifestDigest == $manifest and
-            .activation == "keycloak-required-actions-real-chromium" and
-            .humanOAuth == "authorization_code_pkce_s256" and
-            .workloadOAuth == "client_credentials_private_key_jwt" and
-            .mcpTool == "files.search" and
-            .postgresRestartObserved == true and
-            .runtimeStateRestartObserved == true and
-            .runtimeStateFixtureRestored == true and
-            .sameJpaCellAfterRestart == true and
-            .sameMcpCellAfterRestart == true and
-            .revocationDenied == true and
-            .regrantRestored == true and
-            .sameHumanSubjectAfterRegrant == true and
-            .samePersonRefAfterRegrant == true and
-            .collaboration.repeatCount == 2 and
-            .collaboration.selectedProviders == {"chat":"weave-native","files":"weave-native","calendar":"weave-native"} and
-            .collaboration.northboundFacades == {"matrix":true,"webdav":true,"caldav":true} and
-            .collaboration.southboundProviderDependencyObserved == false and
-            (.collaboration.identityRefHashes | keys | sort) == ["author", "collaborator", "outsider"] and
-            (.collaboration.passes | length) == 2 and
-            .collaboration.passes[0].pass == 1 and
-            .collaboration.passes[0].restartContinuityVerified == false and
-            .collaboration.passes[1].pass == 2 and
-            .collaboration.passes[1].restartContinuityVerified == true and
-            all(.collaboration.passes[];
-              .freshAuthorizationCodePkce == true and
-              .chatPassed == true and
-              .filesPassed == true and
-              .calendarPassed == true and
-              .homePassed == true and
-              .profilePassed == true and
-              .outsiderDenied == true and
-              .canonicalJpaVerified == true and
-              .nativePersistenceVerified == true and
-              .idempotencyVerified == true and
-              .southboundProviderDependencyObserved == false and
-              .cleanupComplete == true) and
-            .credentialsIncluded == false and
-            .actionLinksIncluded == false and
-            .supportSafe == true
-          ' "$evidence" >/dev/null
-          stage_one() {
-            local name="$1"
-            local count match
-            count="$(find "$WEAVE_TEST_APP_OUTPUT_ROOT" -name "$name" -type f -print | wc -l | tr -d ' ')"
-            [[ "$count" -eq 1 ]] || {
-              echo "::error::Expected exactly one ${name} in the run-scoped output." >&2
-              exit 1
-            }
-            match="$(find "$WEAVE_TEST_APP_OUTPUT_ROOT" -name "$name" -type f -print)"
-            cp -- "$match" "$WEAVE_LIVE_UPLOAD_ROOT/$name"
-          }
-          for name in \
-            weave-test-app-evidence.json \
-            keycloak-dcr-live-proof.json \
-            persistence-restart-evidence.json \
-            runtime-image-evidence.json \
-            teardown-evidence.json; do
-            stage_one "$name"
-          done
-          cp -- "$WEAVE_LIVE_EVIDENCE_ROOT/candidate-source-mapping.json" \
-            "$WEAVE_LIVE_UPLOAD_ROOT/candidate-source-mapping.json"
-          cp -- "$WEAVE_LIVE_EVIDENCE_ROOT/candidate-manifest.json" \
-            "$WEAVE_LIVE_UPLOAD_ROOT/candidate-manifest.json"
-          cp -- "$WEAVE_LIVE_EVIDENCE_ROOT/candidate-manifest.json.sha256" \
-            "$WEAVE_LIVE_UPLOAD_ROOT/candidate-manifest.json.sha256"
-          python3 tools/human_testing_automated_evidence.py live \
-            --product-evidence "$WEAVE_LIVE_UPLOAD_ROOT/weave-test-app-evidence.json" \
-            --teardown-evidence "$WEAVE_LIVE_UPLOAD_ROOT/teardown-evidence.json" \
-            --candidate-manifest "$WEAVE_LIVE_UPLOAD_ROOT/candidate-manifest.json" \
-            --runtime-image-evidence "$WEAVE_LIVE_UPLOAD_ROOT/runtime-image-evidence.json" \
-            --run-url "$WEAVE_CANDIDATE_EVIDENCE_REF" \
-            --output "$WEAVE_LIVE_UPLOAD_ROOT/human-testing-live-automated-evidence.json"
-          scan_arguments=()
-          while IFS= read -r path; do
-            scan_arguments+=(--path "$path")
-          done < <(find "$WEAVE_LIVE_UPLOAD_ROOT" -maxdepth 1 -type f -print | sort)
-          [[ "${#scan_arguments[@]}" -eq 18 ]] || {
-            echo "::error::The support-safe upload allowlist is incomplete." >&2
-            exit 1
-          }
-          python3 tools/human_testing_automated_evidence.py scan "${scan_arguments[@]}"
+          git fetch --no-tags origin '+refs/heads/dogfood:refs/remotes/origin/dogfood'
+          [[ "$(git rev-parse HEAD)" == "$DOGFOOD_COMMIT" ]]
+          git merge-base --is-ancestor "$DOGFOOD_COMMIT" origin/dogfood
 
-      - name: Upload support-safe live-stack evidence
-        if: success()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: weave-live-stack-acceptance-evidence
-          path: ${{ runner.temp }}/weave-live-stack-acceptance-evidence-${{ github.run_id }}-${{ github.run_attempt }}
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Remove exact run-scoped runner evidence
-        if: always()
-        env:
-          PRIVATE_ROOT: ${{ runner.temp }}/weave-live-stack-private-${{ github.run_id }}-${{ github.run_attempt }}
-          UPLOAD_ROOT: ${{ runner.temp }}/weave-live-stack-acceptance-evidence-${{ github.run_id }}-${{ github.run_attempt }}
-          DOCKER_AUTH_ROOT: ${{ runner.temp }}/weave-live-docker-auth-${{ github.run_id }}-${{ github.run_attempt }}
-          CLEANUP_ROOT: ${{ runner.temp }}/weave-live-stack-failure-cleanup-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Resolve pinned specification corpus
+        id: spec
+        working-directory: weave
         run: |
           set -euo pipefail
-          if [[ -d "$DOCKER_AUTH_ROOT" ]]; then
-            DOCKER_CONFIG="$DOCKER_AUTH_ROOT" docker logout ghcr.io >/dev/null 2>&1 || true
-          fi
-          python3 - <<'PY'
-          import os
-          import shutil
-          from pathlib import Path
+          commit="$(jq -er '.specCorpus.gitCommit | select(test("^[0-9a-f]{40}$"))' specs/weave-specs.lock.json)"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
-          runner_temp = Path(os.environ["RUNNER_TEMP"]).resolve()
-          for key, prefix in (
-              ("PRIVATE_ROOT", "weave-live-stack-private-"),
-              ("UPLOAD_ROOT", "weave-live-stack-acceptance-evidence-"),
-              ("DOCKER_AUTH_ROOT", "weave-live-docker-auth-"),
-              ("CLEANUP_ROOT", "weave-live-stack-failure-cleanup-"),
-          ):
-              target = Path(os.environ[key]).resolve()
-              if target.parent != runner_temp or not target.name.startswith(prefix):
-                  raise SystemExit(f"unsafe run-scoped cleanup target: {key}")
-              if target.exists():
-                  shutil.rmtree(target)
-          PY
+      - name: Check out pinned Weave Specification Corpus
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: ${{ github.repository_owner }}/weave-specs
+          ref: ${{ steps.spec.outputs.commit }}
+          path: weave-specs
+          ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
+          persist-credentials: false
+
+      - name: Verify capacity and Compose runtime
+        working-directory: weave
+        run: >-
+          python3 tools/runner_capacity_preflight.py
+          --path .
+          --minimum-free-gib 20
+          --require-docker
+
+      - name: Set up Node 24
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: weave/admin-console/package-lock.json
+
+      - name: Set up Java 21
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Build and start exact dogfood source
+        working-directory: weave
+        run: |
+          ./gradlew --no-daemon dogfoodUp
+          echo "DOGFOOD_COMPOSE_DEPLOY_RESULT status=passed commit=${DOGFOOD_COMMIT}"
+
+      - name: Upload support-safe deployment result
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: dogfood-compose-${{ env.DOGFOOD_COMMIT }}
+          path: weave/build/evidence/dogfood-compose
+          if-no-files-found: warn
+          retention-days: 14
+
+  prepare-physical-iphone:
+    name: Prepare physical iPhone
+    needs: deploy-dogfood
+    uses: ./.github/workflows/ios-dogfood.yml
+    with:
+      candidate_sha: ${{ github.sha }}
+      bootstrap_owner: false
+      full_compose_e2e_run_id: ${{ github.run_id }}
+    secrets: inherit

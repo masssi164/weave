@@ -18,6 +18,10 @@ public final class AgentRuntimeWorkloadTokenPolicy {
     public static final String WORKLOAD_ROLE = "weaver-runtime";
 
     private static final Pattern CLIENT_ID = Pattern.compile("weaver-cell-[A-Za-z0-9_-]+");
+    private static final Set<String> ALLOWED_REALM_ROLES = Set.of(
+            WORKLOAD_ROLE, "default-roles-weave", "offline_access", "uma_authorization");
+    private static final Set<String> ALLOWED_ACCOUNT_ROLES = Set.of(
+            "manage-account", "manage-account-links", "view-profile");
     private final String requiredAudience;
 
     public AgentRuntimeWorkloadTokenPolicy(String requiredAudience) {
@@ -46,8 +50,8 @@ public final class AgentRuntimeWorkloadTokenPolicy {
         }
         requireExactAudience(jwt.getAudience());
         requireExactScope(jwt.getClaimAsString("scope"));
-        requireExactRealmRole(mapClaim(jwt, "realm_access"));
-        requireNoClientRoles(mapClaim(jwt, "resource_access"));
+        requireAllowedRealmRoles(mapClaim(jwt, "realm_access"));
+        requireAllowedClientRoles(mapClaim(jwt, "resource_access"));
         try {
             return new RuntimeWorkloadPrincipal(jwt.getIssuer().toString(), subject, clientId);
         } catch (IllegalArgumentException exception) {
@@ -75,26 +79,40 @@ public final class AgentRuntimeWorkloadTokenPolicy {
         }
     }
 
-    private static void requireExactRealmRole(Map<String, Object> realmAccess) {
-        if (realmAccess == null || !(realmAccess.get("roles") instanceof Collection<?> roles)
-                || roles.size() != 1 || !WORKLOAD_ROLE.equals(roles.iterator().next())) {
+    private static void requireAllowedRealmRoles(Map<String, Object> realmAccess) {
+        if (realmAccess == null || !(realmAccess.get("roles") instanceof Collection<?> roles)) {
+            throw invalid("invalid-workload-role");
+        }
+        Set<String> actual = stringSet(roles, "invalid-workload-role");
+        if (!actual.contains(WORKLOAD_ROLE) || !ALLOWED_REALM_ROLES.containsAll(actual)) {
             throw invalid("invalid-workload-role");
         }
     }
 
-    private static void requireNoClientRoles(Map<String, Object> resourceAccess) {
-        if (resourceAccess == null) {
+    private static void requireAllowedClientRoles(Map<String, Object> resourceAccess) {
+        if (resourceAccess == null || resourceAccess.isEmpty()) {
             return;
         }
-        for (Object access : resourceAccess.values()) {
-            if (!(access instanceof Map<?, ?> clientAccess)) {
-                throw invalid("invalid-client-roles");
-            }
-            Object roles = clientAccess.get("roles");
-            if (roles != null && (!(roles instanceof Collection<?> values) || !values.isEmpty())) {
-                throw invalid("invalid-client-roles");
+        if (!resourceAccess.keySet().equals(Set.of("account"))
+                || !(resourceAccess.get("account") instanceof Map<?, ?> accountAccess)
+                || !accountAccess.keySet().equals(Set.of("roles"))
+                || !(accountAccess.get("roles") instanceof Collection<?> roles)) {
+            throw invalid("invalid-client-roles");
+        }
+        Set<String> actual = stringSet(roles, "invalid-client-roles");
+        if (!ALLOWED_ACCOUNT_ROLES.containsAll(actual)) {
+            throw invalid("invalid-client-roles");
+        }
+    }
+
+    private static Set<String> stringSet(Collection<?> values, String code) {
+        Set<String> result = new HashSet<>();
+        for (Object value : values) {
+            if (!(value instanceof String text) || text.isBlank() || !result.add(text)) {
+                throw invalid(code);
             }
         }
+        return Set.copyOf(result);
     }
 
     private static String stringClaim(Jwt jwt, String claim) {

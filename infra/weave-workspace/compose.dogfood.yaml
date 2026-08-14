@@ -1,22 +1,40 @@
-# Persistent dogfood overlay. Weave-native Files, Calendar, and Chat are the
-# default data plane; optional external providers are selected explicitly.
+# Resettable dogfood overlay. PostgreSQL, native Files, and Mailpit are the
+# only session volumes. TLS stays in the reviewed external host directory.
+x-weave-dogfood-session-labels: &weave-dogfood-session-labels
+  com.massimotter.weave.managed: "true"
+  com.massimotter.weave.environment: dogfood
+  com.massimotter.weave.scope: resettable-session
+  com.massimotter.weave.stack: weave
+
 services:
-  runtime-state-volume-init:
-    profiles: !override
-      - dogfood
-
-  runtime-state:
-    profiles: !override
-      - dogfood
-
-  runtime-state-init:
-    profiles: !override
-      - dogfood
+  caddy:
+    volumes: !override
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dogfood}/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${WEAVE_TLS_ROOT:?reviewed external TLS root required}/ca.pem:/certs/ca.pem:ro
+      - ${WEAVE_TLS_ROOT:?reviewed external TLS root required}/cert.pem:/certs/cert.pem:ro
+      - ${WEAVE_TLS_ROOT:?reviewed external TLS root required}/key.pem:/certs/key.pem:ro
+      - ${WEAVE_TLS_ROOT:?reviewed external TLS root required}/mailpit-cert.pem:/certs/mailpit-cert.pem:ro
+      - ${WEAVE_TLS_ROOT:?reviewed external TLS root required}/mailpit-key.pem:/certs/mailpit-key.pem:ro
+    tmpfs:
+      - /data
+      - /config
 
   keycloak:
     command:
       - start
       - --import-realm
+    volumes: !override
+      - ./scripts/run-keycloak.sh:/opt/weave/run-keycloak.sh:ro
+      - ${WEAVE_TLS_ROOT:?reviewed external TLS root required}/ca.pem:/opt/weave/trust/ca.pem:ro
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dogfood}/keycloak/import:/opt/keycloak/data/import:ro
+
+  keycloak-realm-migration-receipt-check:
+    profiles: !override
+      - identity-migration
+
+  agent-runtime-keys-init:
+    profiles: !override
+      - weaver
 
   mailpit:
     environment:
@@ -29,17 +47,35 @@ services:
       weave.provider-bindings.bootstrap.files.organization-ref: ${WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID:-tenant-default}
       weave.provider-bindings.bootstrap.files.adapter-key: ${WEAVE_FILES_PROVIDER:-weave-native}
       weave.provider-bindings.bootstrap.files.configuration-ref: profile:${WEAVE_FILES_PROVIDER:-weave-native}
-    depends_on:
-      runtime-state-init:
+      WEAVE_AGENT_RUNTIME_STATE_STORE_ENABLED: "false"
+      WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_ENABLED: "false"
+      WEAVE_AGENT_RUNTIME_POLICY_ENABLED: "false"
+      WEAVE_AGENT_RUNTIME_ENTITLEMENT_ENABLED: "false"
+      WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED: "false"
+    depends_on: !override
+      schema-receipt-check:
         condition: service_completed_successfully
-    secrets:
-      - source: runtime-state-s3-access-key
-        target: weave/runtime-state-s3-access-key
-        uid: "${WEAVE_RUNTIME_UID:-1000}"
-        gid: "${WEAVE_RUNTIME_GID:-1000}"
-        mode: 0400
-      - source: runtime-state-s3-secret-key
-        target: weave/runtime-state-s3-secret-key
-        uid: "${WEAVE_RUNTIME_UID:-1000}"
-        gid: "${WEAVE_RUNTIME_GID:-1000}"
-        mode: 0400
+      native-files-volume-init:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+
+volumes:
+  db-data:
+    labels: !override
+      <<: *weave-dogfood-session-labels
+      com.massimotter.weave.component: postgres
+  native-files-data:
+    labels: !override
+      <<: *weave-dogfood-session-labels
+      com.massimotter.weave.component: files-native
+  mailpit-data:
+    labels: !override
+      <<: *weave-dogfood-session-labels
+      com.massimotter.weave.component: mail
+
+networks:
+  weave:
+    labels: !override
+      <<: *weave-dogfood-session-labels
+      com.massimotter.weave.component: network

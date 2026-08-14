@@ -1,6 +1,9 @@
 # Sprint 31 runbook — Physical iPhone LAN dogfood
 
-Sprint 31 prepares Massimo's first real physical iPhone test on the same LAN as the Mac. It does not require public DNS or trusted internet TLS for this local dogfood profile.
+Status: the trust and physical-device notes remain applicable; delivery now follows
+the direct Compose path in `docs/ios-dogfood-distribution.md`.
+
+Sprint 31 prepared Massimo's first real physical iPhone test on the same LAN as the Mac. It does not require public DNS or trusted internet TLS for this local dogfood profile.
 
 ## Operator command
 
@@ -42,7 +45,9 @@ This writes `build/dogfood/handoff.json` and `build/dogfood/handoff.md` with the
 
 Installed iOS client smoke must use a profile or release build. Debug builds and raw `devicectl` process launch success are not valid dogfood evidence for iOS custom-scheme launch. Use `tools/dogfood_ios_deeplink_smoke.sh` with `WEAVE_IOS_BUILD_MODE=profile` or `release`; this proves `last_handoff_consumed_v1`, `dogfood_visible_state_v1=handoff_ready`, and `dogfood_auth_state_v1=ready_for_sso` from the app container. It is still only the handoff gate. Full member onboarding evidence additionally requires Sign In, account activation, saved session, workspace entry, restore, reinstall/manual login, and Mailpit capture. Wi-Fi install is preferred, USB is a fallback only, and both install paths use the same stable bundle ID, provisioning Team ID `KNDHGC2KV6`, developer certificate label `Apple Development: massimo164@me.com (6RUS2Z848X)`, signing identity/profile class, and developer-trust assumptions. If a normal update or trust-preserving app-state reset prompts Massimo to trust the development team/profile again, the dogfood path is not ready for Massimo.
 
-TestFlight is the preferred human testing channel for normal app iterations because it removes repeated Apple Development trust from the tester path while retaining bundle and Keychain identity. The profile runner remains the local engineering fallback. See [iOS dogfood distribution](ios-dogfood-distribution.md).
+The active development channel is a profile build installed in place with the
+stable bundle, Team, signing identity, and existing Developer App trust. TestFlight
+is deliberately deferred. See [iOS dogfood distribution](ios-dogfood-distribution.md).
 
 For local dogfood HTTPS, the physical smoke has a pre-launch TLS preflight. Set `WEAVE_IOS_LOCAL_CA_TRUST_STATUS=trusted` only after the Weave Local Development CA profile is installed on the iPhone and full trust is enabled in Settings > General > About > Certificate Trust Settings. If that state is not confirmed, the runner exits before install/launch with `PHYSICAL_DEVICE_TLS_PENDING` and writes `build/dogfood/ios-local-tls-preflight.json`. This is a precondition, not E2E success. iOS does not provide a support-safe non-interactive way for this runner to install and fully trust a local root CA; for a no-manual-CA tester flow, use a publicly trusted dogfood endpoint or stable installed configuration instead of relying on local CA setup.
 

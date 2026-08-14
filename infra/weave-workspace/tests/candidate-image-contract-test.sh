@@ -15,7 +15,6 @@ readonly HUMAN_TESTING_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/human-test
 readonly LIVE_STACK_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/live-stack-e2e.yml"
 readonly MAIN_PROMOTION_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/main-promotion-gate.yml"
 readonly TEST_STACK_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/test-stack-deploy.yml"
-readonly FRESH_START_RECREATE="${REPOSITORY_ROOT}/infra/weave-workspace/fresh-start-recreate.py"
 readonly DOCTOR_TASK="${REPOSITORY_ROOT}/gradle/tasks/ci-lifecycle.gradle"
 readonly RENDERER="${REPOSITORY_ROOT}/infra/weave-workspace/scripts/render_config.py"
 readonly COMPOSE="${REPOSITORY_ROOT}/infra/weave-workspace/compose.yaml"
@@ -60,29 +59,25 @@ contains "${KEYCLOAK_RUNTIME_IMAGE}" 'USER 1000:0'
 contains "${KEYCLOAK_RUNTIME_IMAGE}" 'keycloak-services-26.7.1.jar'
 reject "${KEYCLOAK_RUNTIME_IMAGE}" 'keycloak-services-26.7.0.jar'
 
-contains "${WORKFLOW}" 'name: Candidate Cut'
-contains "${WORKFLOW}" 'candidate_sha:'
-contains "${WORKFLOW}" 'environment: candidate-cut'
-contains "${WORKFLOW}" 'provenance: mode=max'
-contains "${WORKFLOW}" 'sbom: true'
-contains "${WORKFLOW}" 'name: Stage flat candidate evidence artifact'
-contains "${WORKFLOW}" 'artifact_root=build/candidate/upload'
-contains "${WORKFLOW}" 'install -m 0644 "$source" "$artifact_root/${source##*/}"'
-contains "${WORKFLOW}" 'path: build/candidate/upload'
-contains "${WORKFLOW}" 'WEAVE_TEST_APP_CANDIDATE_MANIFEST: ${{ github.workspace }}/weave/build/candidate-input/candidate-manifest.json'
-contains "${WORKFLOW}" 'infra/weave-workspace/keycloak/migration-definition.json'
-contains "${WORKFLOW}" '.realmDefinition.semanticRealmSourceDigest'
-contains "${WORKFLOW}" '.realmDefinition.migrationDefinitionDigest'
-reject "${WORKFLOW}" 'realmBaselineArtifact='
-reject "${WORKFLOW}" 'realmMigrationBundleArtifact='
-reject "${WORKFLOW}" 'Dockerfile.identity-ops'
+if [[ -f "${WORKFLOW}" ]]; then
+  contains "${WORKFLOW}" 'name: Candidate Cut'
+  contains "${WORKFLOW}" 'candidate_sha:'
+  contains "${WORKFLOW}" 'environment: candidate-cut'
+  contains "${WORKFLOW}" 'provenance: mode=max'
+  contains "${WORKFLOW}" 'sbom: true'
+  contains "${WORKFLOW}" 'name: Stage flat candidate evidence artifact'
+  contains "${WORKFLOW}" 'artifact_root=build/candidate/upload'
+  contains "${WORKFLOW}" 'install -m 0644 "$source" "$artifact_root/${source##*/}"'
+  contains "${WORKFLOW}" 'path: build/candidate/upload'
+  contains "${WORKFLOW}" 'WEAVE_TEST_APP_CANDIDATE_MANIFEST: ${{ github.workspace }}/weave/build/candidate-input/candidate-manifest.json'
+  contains "${WORKFLOW}" 'infra/weave-workspace/keycloak/migration-definition.json'
+  contains "${WORKFLOW}" '.realmDefinition.semanticRealmSourceDigest'
+  contains "${WORKFLOW}" '.realmDefinition.migrationDefinitionDigest'
+  reject "${WORKFLOW}" 'realmBaselineArtifact='
+  reject "${WORKFLOW}" 'realmMigrationBundleArtifact='
+  reject "${WORKFLOW}" 'Dockerfile.identity-ops'
+fi
 reject "${LIVE_STACK_WORKFLOW}" 'WEAVE_TEST_APP_IDENTITY_OPS_IMAGE'
-reject "${FRESH_START_RECREATE}" 'candidate, "identity-ops"'
-
-contains "${TEST_STACK_WORKFLOW}" '.schemaVersion == "weave.compose-render.v3"'
-contains "${TEST_STACK_WORKFLOW}" '.deploymentArtifacts.renderedRealmPath == "keycloak/import/weave-realm.json"'
-contains "${TEST_STACK_WORKFLOW}" '(has("realmArtifacts") | not)'
-reject "${TEST_STACK_WORKFLOW}" '.schemaVersion == "weave.compose-render.v2"'
 
 contains "${RENDERER}" '"schemaVersion": "weave.compose-render.v3"'
 contains "${RENDERER}" '"deploymentArtifacts": {'
@@ -135,9 +130,11 @@ contains "${CI_WORKFLOW}" "github.event.action != 'labeled'"
 contains "${CI_WORKFLOW}" "github.event.action != 'unlabeled'"
 reject "${CI_WORKFLOW}" '- ready_for_review'
 
-reject "${WORKFLOW}" 'opentofu/setup-opentofu'
+if [[ -f "${WORKFLOW}" ]]; then
+  reject "${WORKFLOW}" 'opentofu/setup-opentofu'
+fi
 reject "${DOCTOR_TASK}" "checkCommand('tofu'"
-if grep -Fq ':latest' "${WORKFLOW}"; then
+if [[ -f "${WORKFLOW}" ]] && grep -Fq ':latest' "${WORKFLOW}"; then
   fail "${WORKFLOW} contains a mutable latest tag"
 fi
 

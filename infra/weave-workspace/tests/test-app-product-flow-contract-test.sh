@@ -108,6 +108,9 @@ contains "${LIFECYCLE}" 'WEAVE_E2E_STACK_SCOPE=isolated'
 contains "${LIFECYCLE}" ':weave-product-e2e:productFlow'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_SERVER_IMAGE must be digest-pinned'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_MCP_IMAGE must be digest-pinned'
+contains "${LIFECYCLE}" 'WEAVE_OPENDAL_CLASSIFIER=linux-x86_64'
+[[ "$(grep -Fc -- '--platform linux/amd64' "${LIFECYCLE}")" == 2 ]] ||
+  fail "testApp must build both JVM runtime images for the pinned Linux/AMD64 target"
 contains "${LIFECYCLE}" 'testApp requires a clean worktree'
 contains "${LIFECYCLE}" 'tools/runner_capacity_preflight.py'
 contains "${LIFECYCLE}" '--minimum-free-gib 8'
@@ -122,31 +125,20 @@ output_root_chmod_line="$(grep -nF 'chmod 700 "${OUTPUT_ROOT}"' "${LIFECYCLE}" |
    ${capacity_preflight_line} -lt ${output_root_chmod_line} ]] ||
   fail "testApp must create its output root before capacity preflight and permission hardening"
 contains "${LIFECYCLE}" 'live-stack-failure-diagnostics.sh'
+absent "${LIFECYCLE}" 'verify_keycloak_dcr_contract.py'
+absent "${LIFECYCLE}" 'keycloak-dcr-live-proof.json'
 contains "${LIFECYCLE}" 'WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS=30'
 diagnostics_line="$(grep -nF 'bash "${FAILURE_DIAGNOSTICS}"' "${LIFECYCLE}" | cut -d: -f1)"
 teardown_line="$(grep -nF 'bash "${TEARDOWN}" e2e' "${LIFECYCLE}" | cut -d: -f1)"
 [[ "${diagnostics_line}" =~ ^[0-9]+$ && "${teardown_line}" =~ ^[0-9]+$ &&
    ${diagnostics_line} -lt ${teardown_line} ]] ||
   fail "bounded diagnostics must remain immediately before exact teardown"
-contains "${LIFECYCLE}" 'verify_keycloak_dcr_contract.py'
-contains "${LIFECYCLE}" 'keycloak-dcr-live-proof.json'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RESTART_EVIDENCE_PATH'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_RUNTIME_IMAGE_EVIDENCE_PATH'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_CANDIDATE_MANIFEST'
 contains "${LIFECYCLE}" 'candidate-manifest-check.py'
 contains "${LIFECYCLE}" '.postgresRestartObserved == true'
 contains "${LIFECYCLE}" '.runtimeStateRestartObserved == true'
-contains "${LIFECYCLE}" '.postUpdateFinalStateVerified == true'
-contains "${LIFECYCLE}" '.directAdminRestCreationRejected == true'
-contains "${LIFECYCLE}" '.failedCreateRollbackVerified == true'
-contains "${LIFECYCLE}" '.failedUpdateRollbackVerified == true'
-contains "${LIFECYCLE}" '.crossCellHandoffRejected == true'
-contains "${LIFECYCLE}" '.handoffRecoveryAndFinalize == true'
-contains "${LIFECYCLE}" '.handoffResponsesNonCacheable == true'
-contains "${LIFECYCLE}" '.internalSpiWarningAbsent == true'
-contains "${LIFECYCLE}" 'require_no_pending_registration_operations'
-contains "${LIFECYCLE}" 'a pending registration authority operation blocks isolated proof'
-contains "${LIFECYCLE}" 'label=com.docker.compose.service=keycloak'
 contains "${LIFECYCLE}" 'WEAVE_RESOURCE_PREFIX="${WEAVE_E2E_RUN_NAMESPACE}"'
 contains "${LIFECYCLE}" '/failure-diagnostics'
 contains "${LIFECYCLE}" 'status --porcelain=v1 --untracked-files=all'
@@ -281,17 +273,19 @@ if not selection < readiness < collaboration:
     raise SystemExit("Fresh product flow must apply providers and await readiness before collaboration")
 PY
 
-contains "${CANDIDATE_WORKFLOW}" 'fresh-product-proof:'
-contains "${CANDIDATE_WORKFLOW}" 'needs: [verify-source, build-candidate]'
-contains "${CANDIDATE_WORKFLOW}" 'weave-server@${{ needs.build-candidate.outputs.server_digest }}'
-contains "${CANDIDATE_WORKFLOW}" 'weave-mcp-server@${{ needs.build-candidate.outputs.mcp_digest }}'
-contains "${CANDIDATE_WORKFLOW}" 'weave-keycloak-runtime@${{ needs.build-candidate.outputs.keycloak_runtime_digest }}'
-contains "${CANDIDATE_WORKFLOW}" 'WEAVE_CANDIDATE_MANIFEST_DIGEST: ${{ needs.build-candidate.outputs.candidate_manifest_digest }}'
-contains "${CANDIDATE_WORKFLOW}" 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1'
-contains "${CANDIDATE_WORKFLOW}" 'run: ./gradlew --no-daemon testApp'
-contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/keycloak-dcr-live-proof.json'
-contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/persistence-restart-evidence.json'
-contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/runtime-image-evidence.json'
-contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/failure-diagnostics/**'
+if [[ -f "${CANDIDATE_WORKFLOW}" ]]; then
+  contains "${CANDIDATE_WORKFLOW}" 'fresh-product-proof:'
+  contains "${CANDIDATE_WORKFLOW}" 'needs: [verify-source, build-candidate]'
+  contains "${CANDIDATE_WORKFLOW}" 'weave-server@${{ needs.build-candidate.outputs.server_digest }}'
+  contains "${CANDIDATE_WORKFLOW}" 'weave-mcp-server@${{ needs.build-candidate.outputs.mcp_digest }}'
+  contains "${CANDIDATE_WORKFLOW}" 'weave-keycloak-runtime@${{ needs.build-candidate.outputs.keycloak_runtime_digest }}'
+  contains "${CANDIDATE_WORKFLOW}" 'WEAVE_CANDIDATE_MANIFEST_DIGEST: ${{ needs.build-candidate.outputs.candidate_manifest_digest }}'
+  contains "${CANDIDATE_WORKFLOW}" 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1'
+  contains "${CANDIDATE_WORKFLOW}" 'run: ./gradlew --no-daemon testApp'
+  contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/keycloak-dcr-live-proof.json'
+  contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/persistence-restart-evidence.json'
+  contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/runtime-image-evidence.json'
+  contains "${CANDIDATE_WORKFLOW}" 'weave/build/test-app/*/failure-diagnostics/**'
+fi
 
 printf 'testApp product-flow contract tests passed\n'

@@ -334,7 +334,13 @@ def teardown(context: ComposeContext, *, dry_run: bool) -> dict[str, object]:
             )
             if result.returncode != 0:
                 raise ContractError("isolated teardown could not remove an owned volume")
-        if network_exists:
+        # Compose normally removes its own project network during `down`. Re-check
+        # the exact owned name so that an already-absent network is success while a
+        # concurrently replaced, foreign network still fails closed.
+        network_still_exists = network_exists and _assert_owned(
+            context, binding, "network", network, deadline=deadline
+        )
+        if network_still_exists:
             result = _run_docker(
                 ["docker", "network", "rm", network],
                 deadline=deadline,

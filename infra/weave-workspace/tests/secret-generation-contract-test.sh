@@ -10,8 +10,11 @@ export ROOT_DIR
 python3 - <<'PY'
 import os
 import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 root = Path(os.environ["ROOT_DIR"])
 sys.path.insert(0, str(root / "scripts"))
@@ -35,6 +38,63 @@ assert init_secrets._valid_cli_argument_secret(b"fixture-value\n")
 assert not init_secrets._valid_cli_argument_secret(b"-option-shaped\n")
 assert not init_secrets._valid_cli_argument_secret(b"")
 assert not init_secrets._valid_cli_argument_secret(b"line-one\nline-two\n")
+
+with tempfile.TemporaryDirectory() as temporary:
+    temporary_root = Path(temporary)
+    env = {
+        "WEAVE_TENANT_DOMAIN": "weave.test",
+        "WEAVE_PUBLIC_URL": "https://weave.test:44443",
+        "WEAVE_API_ORIGIN": "https://api.weave.test:44443",
+        "WEAVE_AUTH_URL": "https://auth.weave.test:44443",
+        "WEAVE_MATRIX_URL": "https://matrix.weave.test:44443",
+        "WEAVE_FILES_URL": "https://files.weave.test:44443",
+    }
+    staging = temporary_root / "staging"
+    init_secrets._generate_tls(
+        SimpleNamespace(environment="dev", tls_root=staging, env=env)
+    )
+    ca_text = subprocess.run(
+        [init_secrets.OPENSSL, "x509", "-in", staging / "ca.pem", "-noout", "-text"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ).stdout
+    assert "X509v3 Basic Constraints: critical" in ca_text
+    assert "CA:TRUE" in ca_text
+    assert "X509v3 Key Usage: critical" in ca_text
+    assert "Certificate Sign" in ca_text
+    assert "CRL Sign" in ca_text
+    generated_root = temporary_root / "generated"
+    retired = generated_root / "01-infrastructure/caddy/certs"
+    retired.mkdir(parents=True)
+    for source, target in (
+        ("ca.pem", "weave-local-ca.pem"),
+        ("ca-key.pem", "weave-local-ca-key.pem"),
+        ("cert.pem", "weave.test.pem"),
+        ("key.pem", "weave.test-key.pem"),
+    ):
+        (retired / target).write_bytes((staging / source).read_bytes())
+    canonical = generated_root / "tls"
+    init_secrets._generate_tls(
+        SimpleNamespace(
+            environment="dogfood",
+            generated_root=generated_root,
+            tls_root=canonical,
+            env=env,
+        )
+    )
+    assert (canonical / "ca.pem").read_bytes() == (staging / "ca.pem").read_bytes()
+    assert (canonical / "cert.pem").read_bytes() == (staging / "cert.pem").read_bytes()
+    assert (canonical / "mailpit-cert.pem").is_file()
+    init_secrets._generate_tls(
+        SimpleNamespace(
+            environment="dogfood",
+            generated_root=generated_root,
+            tls_root=canonical,
+            env=env,
+        )
+    )
 PY
 
 printf '%s\n' "secret generation contract tests passed"

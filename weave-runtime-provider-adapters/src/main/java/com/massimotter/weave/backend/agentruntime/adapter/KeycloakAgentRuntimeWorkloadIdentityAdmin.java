@@ -66,6 +66,10 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
     private static final Pattern CLIENT_ID =
             Pattern.compile("^weaver-cell-[A-Za-z0-9_-]+$");
+    private static final Set<String> ALLOWED_KEYCLOAK_REALM_DEFAULT_ROLES = Set.of(
+            "default-roles-weave", "offline_access", "uma_authorization");
+    private static final Set<String> ALLOWED_KEYCLOAK_ACCOUNT_ROLES = Set.of(
+            "manage-account", "manage-account-links", "view-profile");
     private static final PSSParameterSpec PS256 = new PSSParameterSpec(
             "SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
 
@@ -1322,23 +1326,74 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
     }
 
     private String tokenSubject(String accessToken, String clientId) {
-        try {
-            String[] segments = accessToken.split("\\.");
-            if (segments.length != 3) {
-                throw new IllegalArgumentException();
-            }
-            JsonNode claims = mapper.readTree(Base64.getUrlDecoder().decode(segments[1]));
-            if (!clientId.equals(text(claims, "azp"))
-                    || !Set.of(settings.workloadRole())
-                            .equals(strings(claims.path("realm_access").path("roles")))
-                    || !claims.path("resource_access").propertyNames().isEmpty()) {
-                throw new IllegalArgumentException();
-            }
-            return text(claims, "sub");
-        } catch (RuntimeException failure) {
-            throw new RuntimeWorkloadIdentityException(
-                    "Keycloak returned a malformed workload access token");
+        String[] segments = accessToken.split("\\.");
+        if (segments.length != 3) {
+            throw malformedWorkloadToken("compact-serialization");
         }
+        JsonNode claims;
+        try {
+            claims = mapper.readTree(Base64.getUrlDecoder().decode(segments[1]));
+        } catch (Exception failure) {
+            throw malformedWorkloadToken("claims-encoding");
+        }
+        if (!claims.isObject()) {
+            throw malformedWorkloadToken("claims-shape");
+        }
+        if (!clientId.equals(optionalText(claims, "azp"))) {
+            throw malformedWorkloadToken("client-binding");
+        }
+        JsonNode realmRoles = claims.path("realm_access").path("roles");
+        if (!(realmRoles instanceof ArrayNode roles)) {
+            throw malformedWorkloadToken("realm-roles-shape");
+        }
+        Set<String> projectedRoles = strings(roles);
+        if (projectedRoles.size() != roles.size()) {
+            throw malformedWorkloadToken("realm-roles-shape");
+        }
+        Set<String> allowedRealmRoles = new HashSet<>(ALLOWED_KEYCLOAK_REALM_DEFAULT_ROLES);
+        allowedRealmRoles.add(settings.workloadRole());
+        if (!projectedRoles.contains(settings.workloadRole())) {
+            throw malformedWorkloadToken("realm-role-required");
+        }
+        if (!allowedRealmRoles.containsAll(projectedRoles)) {
+            throw malformedWorkloadToken("realm-role-unexpected");
+        }
+        JsonNode resourceAccess = claims.get("resource_access");
+        if (resourceAccess != null && !allowedAccountProjection(resourceAccess)) {
+            throw malformedWorkloadToken("client-roles");
+        }
+        String subject = optionalText(claims, "sub");
+        if (subject == null) {
+            throw malformedWorkloadToken("subject");
+        }
+        return subject;
+    }
+
+    private static boolean allowedAccountProjection(JsonNode resourceAccess) {
+        if (!resourceAccess.isObject()) {
+            return false;
+        }
+        if (resourceAccess.isEmpty()) {
+            return true;
+        }
+        if (resourceAccess.size() != 1 || !resourceAccess.has("account")) {
+            return false;
+        }
+        JsonNode account = resourceAccess.path("account");
+        if (!account.isObject() || account.size() != 1
+                || !(account.path("roles") instanceof ArrayNode roles)) {
+            return false;
+        }
+        Set<String> projectedRoles = strings(roles);
+        return projectedRoles.size() == roles.size()
+                && ALLOWED_KEYCLOAK_ACCOUNT_ROLES.containsAll(projectedRoles);
+    }
+
+    private static RuntimeWorkloadIdentityException malformedWorkloadToken(
+            String constraint) {
+        return new RuntimeWorkloadIdentityException(
+                "Keycloak returned a malformed workload access token [constraint="
+                        + constraint + "]");
     }
 
     private RuntimeWorkloadCredentialState requireCredential(
@@ -1427,6 +1482,13 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                     "Keycloak returned an incomplete client-registration response");
         }
         return value.stringValue();
+    }
+
+    private static String optionalText(JsonNode node, String field) {
+        JsonNode value = node == null ? null : node.get(field);
+        return value != null && value.isString() && !value.stringValue().isBlank()
+                ? value.stringValue()
+                : null;
     }
 
     private static Set<String> strings(JsonNode value) {

@@ -324,6 +324,12 @@ def run() -> None:
             },
         ]
     }
+    workload_scope = next(
+        scope
+        for scope in first["clientScopes"]
+        if scope["name"] == "weaver-runtime-workload"
+    )
+    assert workload_scope["protocolMappers"] == []
     assert "admin-permissions" not in {
         client["clientId"] for client in first["clients"]
     }, "blocked organization FGAP must not be projected as a misleading client import"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the GitHub-only stable iOS dogfood distribution contract."""
+"""Validate the development-signed, in-place physical iPhone dogfood path."""
 
 from __future__ import annotations
 
@@ -9,159 +9,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def main() -> int:
-    workflow = read(".github/workflows/ios-dogfood.yml")
-    project = read("client/ios/Runner.xcodeproj/project.pbxproj")
-    entitlements = read("client/ios/Runner/Runner.entitlements")
-    development_entitlements = read("client/ios/Runner/RunnerDevelopment.entitlements")
-    development_fallback = read("tools/dogfood_ios_development_fallback.sh")
-    docs = read("docs/ios-dogfood-distribution.md")
-
-    require("pull_request:" not in workflow, "TestFlight workflow must not run for pull requests")
-    require("push:" not in workflow, "TestFlight must not race the persistent deployment on dogfood push")
-    require("workflow_run:" in workflow, "TestFlight workflow must consume a completed deployment")
-    require("- Test Stack Deploy" in workflow, "TestFlight workflow is not ordered after Test Stack Deploy")
-    require(
-        'gh run download "$deployment_run_id" --name weave-test-stack-evidence' in workflow,
-        "TestFlight does not resolve its candidate from immutable deployment evidence",
-    )
-    require(
-        "'.candidateCommit' \"$source_evidence\"" in workflow
-        and "'.branch' \"$source_manifest\"" in workflow
-        and "== dogfood" in workflow,
-        "automatic TestFlight distribution is not bound to exact-candidate dogfood evidence",
-    )
-    require("workflow_dispatch:" in workflow, "TestFlight workflow has no explicit manual dispatch")
-    require("candidate_sha:" in workflow and "deployment_run_id:" in workflow, "manual recovery dispatch must identify the exact deployed candidate")
-    require("name: ios-dogfood" in workflow, "TestFlight upload is not protected by ios-dogfood environment")
-    require("group: ios-dogfood" in workflow and "cancel-in-progress: true" in workflow, "superseded pending iOS candidates are not cancelled")
-    require(
-        "live_e2e_run_url=\"$(jq -er '.evidence.liveE2eRunUrl'" in workflow
-        and ".github/workflows/live-stack-e2e.yml" in workflow,
-        "iOS distribution does not consume the deployment-bound Fresh product flow",
-    )
-    require(
-        '.composeProject == $deployment[0].runtime.composeProject' not in workflow,
-        "isolated live E2E and persistent dogfood must not be required to share a Compose namespace",
-    )
-    require("Test Stack Deploy ${DEPLOYMENT_RUN_ID} is not successful" in workflow, "iOS distribution does not verify the deployment result")
-    require("xcrun altool --upload-app" in workflow, "TestFlight workflow does not upload through Apple tooling")
-    require("credentialsIncluded:false" in workflow, "distribution evidence does not deny credential inclusion")
-    require("WEAVE_CANDIDATE_COMMIT=${SOURCE_CANDIDATE_SHA}" in workflow, "archive does not embed its source candidate commit")
-    require(
-        "laneCandidateCommit:$commit" in workflow
-        and "sourceCandidateCommit:$sourceCommit" in workflow,
-        "distribution evidence does not distinguish dogfood lane and build source",
-    )
-    require("WEAVE_CANDIDATE_EVIDENCE_REF=${DEPLOYMENT_RUN_URL}" in workflow, "archive does not embed its support-safe evidence reference")
-    require("CFBundleShortVersionString" in workflow, "archive version is not verified")
-    require("IOS_DOGFOOD_DISTRIBUTION_RESULT" in workflow, "distribution workflow has no stable evidence marker")
-    for marker in (
-        "simulator:",
-        "Verify release-required shell tabs and Profile on fresh iPhone Simulator",
-        "tools/ios-simulator-xcrun",
-        "shell_navigation_e2e_test.dart",
-        "evidenceMode=fixture-ui",
-        "human_testing_automated_evidence.py combine",
-        "human_testing_automated_evidence.py scan",
-        "CANDIDATE_MANIFEST_DIGEST",
-        "test-stack-manifest.json",
-        "ios-simulator-current-surfaces",
-        "ios-simulator-cleanup",
-        "remainingOwnedSimulators",
-        "needs: [contract, simulator]",
-    ):
-        require(marker in workflow, f"iOS distribution is missing the Simulator gate {marker!r}")
-
-    for secret_ref in (
-        "APPLE_DISTRIBUTION_CERTIFICATE_P12_BASE64",
-        "APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD",
-        "APPLE_PROVISIONING_PROFILE_BASE64",
-        "APPLE_PROVISIONING_PROFILE_NAME",
-        "APP_STORE_CONNECT_API_KEY_ID",
-        "APP_STORE_CONNECT_ISSUER_ID",
-        "APP_STORE_CONNECT_API_PRIVATE_KEY_BASE64",
-    ):
-        require(f"secrets.{secret_ref}" in workflow, f"missing protected SecretRef {secret_ref}")
-
-    require(project.count("PRODUCT_BUNDLE_IDENTIFIER = com.massimotter.weave;") == 3, "iOS app bundle identity is not stable in Debug/Profile/Release")
-    require(project.count("DEVELOPMENT_TEAM = KNDHGC2KV6;") == 3, "iOS Apple team identity is not stable in Debug/Profile/Release")
-    require(project.count("CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;") == 3, "iOS entitlements are not applied in Debug/Profile/Release")
-    require("$(AppIdentifierPrefix)com.massimotter.weave" in entitlements, "device-bound Keychain application identity is not explicit")
-    require("com.apple.developer.associated-domains" in entitlements, "production/TestFlight entitlements lost Associated Domains")
-    require("$(AppIdentifierPrefix)com.massimotter.weave" in development_entitlements, "development fallback lost the stable Keychain identity")
-    require("com.apple.developer.associated-domains" not in development_entitlements, "Personal Team fallback must omit Associated Domains")
-    require(
-        '"PRODUCT_BUNDLE_IDENTIFIER=${BUNDLE_ID}"' not in development_fallback,
-        "development fallback must not override embedded framework bundle identifiers",
-    )
-    for marker in (
-        "WEAVE_CANDIDATE_COMMIT",
-        "WEAVE_LANE_CANDIDATE_COMMIT",
-        "WEAVE_CANDIDATE_EVIDENCE_REF",
-        "WEAVE_CANDIDATE_MANIFEST_DIGEST",
-        "WEAVE_LIVE_E2E_RUN_URL",
-        "WEAVE_BUILD_NUMBER",
-        "RunnerDevelopment.entitlements",
-        "device install app",
-        "inPlaceUpdate: $inPlaceUpdate",
-        "laneCandidateCommit: $laneCommit",
-        "sourceCandidateCommit: $commit",
-        "sessionContinuityClaimed: false",
-        "IOS_DEVELOPMENT_FALLBACK_RESULT",
-    ):
-        require(marker in development_fallback, f"development-signed fallback is missing {marker!r}")
-    for marker in (
-        "stable-signing-fallback:",
-        "inputs.upload_to_testflight == false",
-        "EXPECTED_RUNNER_NAME: weave-live-mac-mini",
-        "secrets.WEAVE_IOS_DEVICE_ID",
-        "tools/dogfood_ios_development_fallback.sh",
-        "ios-dogfood-distribution.json",
-        "protected-stable-signing-fallback",
-        'raw_fallback_log="$RUNNER_TEMP/',
-        "raw diagnostics remain private",
-        "human_testing_automated_evidence.py scan",
-    ):
-        require(marker in workflow, f"protected fallback workflow is missing {marker!r}")
-    require(
-        "dogfood_ios_development_fallback.sh 2>&1 | tee" not in workflow,
-        "protected fallback must not upload or echo raw Flutter/xcodebuild output",
-    )
-    for marker in (
-        'schemaVersion: "weave.ios-dogfood-distribution.v2"',
-        'channel: "stable-signing-fallback"',
-        'result: "success"',
-        'laneCandidateCommit: $laneCommit',
-        'sourceCandidateCommit: $commit',
-        'candidateManifestDigest: $candidateManifestDigest',
-        'liveE2eRunUrl: $liveE2eRunUrl',
-        "credentialsIncluded: false",
-        "sessionContinuityClaimed: false",
-    ):
-        require(marker in development_fallback, f"fallback distribution evidence is missing {marker!r}")
-
-    for phrase in (
-        "TestFlight",
-        "update in place",
-        "ios-dogfood",
-        "DOGFOOD_SESSION_CONTINUITY_RESULT",
-        "destructive uninstall",
-        "approval request expires after 24 hours",
-        "physical-iPhone VoiceOver acceptance",
-        "Development-signed in-place fallback",
-        "session continuity unclaimed",
-        "upload_to_testflight=false",
-    ):
-        require(phrase in docs, f"iOS dogfood documentation is missing {phrase!r}")
-
-    print("ios-dogfood-distribution-check: ok")
-    return 0
-
-
 def read(relative_path: str) -> str:
     path = ROOT / relative_path
-    if not path.exists():
+    if not path.is_file():
         raise SystemExit(f"missing required iOS dogfood file: {relative_path}")
     return path.read_text(encoding="utf-8")
 
@@ -169,6 +19,58 @@ def read(relative_path: str) -> str:
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise SystemExit(message)
+
+
+def main() -> int:
+    workflow = read(".github/workflows/ios-dogfood.yml")
+    smoke = read("tools/dogfood_ios_deeplink_smoke.sh")
+    entry = read("tools/dogfood_iphone_entry.sh")
+    project = read("client/ios/Runner.xcodeproj/project.pbxproj")
+    entitlements = read("client/ios/Runner/RunnerDevelopment.entitlements")
+    docs = read("docs/ios-dogfood-distribution.md")
+
+    require("name: Prepare Human Test" in workflow, "physical iPhone workflow must be the one-click human-test preparation")
+    require("workflow_dispatch:" in workflow and "candidate_sha:" in workflow, "human-test preparation must select one exact dogfood SHA")
+    require("Full Compose E2E" in workflow and ".github/workflows/live-stack-e2e.yml" in workflow, "physical install is not gated by exact green E2E")
+    require("./gradlew --no-daemon dogfoodUp" in workflow, "physical preparation does not start Compose dogfood")
+    require("tools/dogfood_cert_persistence_smoke.py" in workflow, "TLS identity stability is not checked")
+    require("tools/dogfood_iphone_entry.sh" in workflow, "physical-device installation entrypoint is missing")
+    require("--reset-mode update_in_place" in workflow, "workflow does not preserve Developer App trust")
+    require("secrets.WEAVE_IOS_DEVICE_ID" in workflow, "paired device identifier is not provided privately")
+    for forbidden in ("TestFlight", "upload_to_testflight", "APP_STORE_CONNECT", "APPLE_DISTRIBUTION", "environment:"):
+        require(forbidden not in workflow, f"retired distribution gate remains: {forbidden}")
+
+    require(project.count("PRODUCT_BUNDLE_IDENTIFIER = com.massimotter.weave;") == 3, "bundle identity is not stable across build modes")
+    require(project.count("DEVELOPMENT_TEAM = KNDHGC2KV6;") == 3, "Apple team identity is not stable across build modes")
+    require("$(AppIdentifierPrefix)com.massimotter.weave" in entitlements, "development Keychain identity is not stable")
+
+    for marker in (
+        'BUNDLE_ID="com.massimotter.weave"',
+        'EXPECTED_TEAM_ID="${WEAVE_IOS_EXPECTED_TEAM_ID:-KNDHGC2KV6}"',
+        'EXPECTED_DEVELOPER_CERT_TEAM_ID="${WEAVE_IOS_EXPECTED_DEVELOPER_CERT_TEAM_ID:-6RUS2Z848X}"',
+        "WEAVE_CANDIDATE_COMMIT",
+        "WEAVE_IOS_BUILD_NUMBER",
+        "WEAVE_BUILD_CHANNEL=development-dogfood",
+        'if [[ "${RESET_MODE}" == "destructive_uninstall" ]]',
+        "device install app",
+    ):
+        require(marker in smoke, f"development-signed installer is missing {marker!r}")
+    require('RESET_MODE="${WEAVE_IOS_RESET_MODE:-update_in_place}"' in smoke, "installer default is not in-place update")
+    require('RESET_MODE="${WEAVE_IOS_RESET_MODE:-update_in_place}"' in entry, "entrypoint default is not in-place update")
+
+    for phrase in (
+        "Full Compose E2E",
+        "update in place",
+        "WEAVE_IOS_DEVICE_ID",
+        "com.massimotter.weave",
+        "KNDHGC2KV6",
+        "6RUS2Z848X",
+        "mail.weave.test:44443",
+    ):
+        require(phrase in docs, f"iOS dogfood documentation is missing {phrase!r}")
+
+    print("ios-dogfood-distribution-check: ok channel=development-in-place")
+    return 0
 
 
 if __name__ == "__main__":

@@ -225,8 +225,24 @@ class SpringAiMcpTransportTest {
         .claim("scope", scope)
         .claim(
             "realm_access",
-            human ? Map.of("roles", List.of("member")) : Map.of("roles", List.of("weaver-runtime")))
-        .claim("resource_access", Map.of())
+            human
+                ? Map.of("roles", List.of("member"))
+                : Map.of(
+                    "roles",
+                    List.of(
+                        "weaver-runtime",
+                        "default-roles-weave",
+                        "offline_access",
+                        "uma_authorization")))
+        .claim(
+            "resource_access",
+            human
+                ? Map.of()
+                : Map.of(
+                    "account",
+                    Map.of(
+                        "roles",
+                        List.of("manage-account", "manage-account-links", "view-profile"))))
         .jti("jti-" + tokenValue)
         .issuedAt(now)
         .expiresAt(now.plusSeconds(45))

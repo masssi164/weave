@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from dataclasses import replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +69,19 @@ def assert_spring_profile_contract(profile: str) -> None:
     assert "issuer-uri:" in mcp
     assert "datasource:" not in mcp
     assert "jpa:" not in mcp
+
+
+def assert_dogfood_application_image_platform_contract() -> None:
+    lifecycle = (ROOT / "scripts/dogfood_lifecycle.py").read_text(encoding="utf-8")
+    assert 'DOGFOOD_APPLICATION_PLATFORM = "linux/amd64"' in lifecycle
+    assert lifecycle.count('"--platform",\n            DOGFOOD_APPLICATION_PLATFORM,') == 2
+    assert '["git", "show", "-s", "--format=%cI", commit]' in lifecycle
+    assert "datetime.now" not in lifecycle
+    server_dependencies = (
+        REPOSITORY_ROOT / "server/gradle/scripts/java-and-dependencies.gradle"
+    ).read_text(encoding="utf-8")
+    assert "requestedTask.tokenize(':').last() in ['dogfoodUp', 'dogfoodReset']" in server_dependencies
+    assert "dogfoodLifecycleRequested ? 'linux-x86_64' : null" in server_dependencies
 
 
 def assert_realm_definition_identity_contract() -> None:
@@ -154,10 +168,123 @@ def assert_native_collaboration_restart_is_bounded(context) -> None:
     )
 
 
+def assert_dogfood_reset_is_exact(context) -> None:
+    original_compose = compose_runtime_module.compose
+    original_remove = compose_runtime_module._remove_exact_dogfood_resource
+    original_retired_cleanup = compose_runtime_module.cleanup_retired_dogfood
+    original_preflight = compose_runtime_module.preflight_dogfood_reset
+    original_execute = compose_runtime_module.execute
+    compose_calls: list[tuple[str, ...]] = []
+    removed: list[tuple[str, str]] = []
+    execute_calls: list[tuple[str, tuple[str, ...]]] = []
+    retired_cleanup_calls = 0
+    preflight_calls = 0
+
+    def fake_compose(_context, *arguments, capture=False):
+        del capture
+        compose_calls.append(arguments)
+        return subprocess.CompletedProcess(arguments, 0)
+
+    def fake_remove(kind, name):
+        removed.append((kind, name))
+
+    def fake_execute(_context, command, extra):
+        execute_calls.append((command, tuple(extra)))
+
+    def fake_retired_cleanup():
+        nonlocal retired_cleanup_calls
+        retired_cleanup_calls += 1
+
+    def fake_preflight(_context):
+        nonlocal preflight_calls
+        preflight_calls += 1
+
+    compose_runtime_module.compose = fake_compose
+    compose_runtime_module._remove_exact_dogfood_resource = fake_remove
+    compose_runtime_module.cleanup_retired_dogfood = fake_retired_cleanup
+    compose_runtime_module.preflight_dogfood_reset = fake_preflight
+    compose_runtime_module.execute = fake_execute
+    try:
+        compose_runtime_module.reset_dogfood(context)
+        invalid = replace(
+            context,
+            env={**context.env, "WEAVE_COMPOSE_PROJECT": "unexpected-project"},
+        )
+        try:
+            compose_runtime_module.reset_dogfood(invalid)
+        except ContractError:
+            pass
+        else:
+            raise AssertionError("dogfood reset accepted an unexpected Compose project")
+    finally:
+        compose_runtime_module.compose = original_compose
+        compose_runtime_module._remove_exact_dogfood_resource = original_remove
+        compose_runtime_module.cleanup_retired_dogfood = original_retired_cleanup
+        compose_runtime_module.preflight_dogfood_reset = original_preflight
+        compose_runtime_module.execute = original_execute
+
+    assert compose_calls == [("down", "--volumes", "--remove-orphans")]
+    assert removed == [
+        ("volume", context.env["WEAVE_DB_DATA_VOLUME"]),
+        ("volume", context.env["WEAVE_NATIVE_FILES_DATA_VOLUME"]),
+        ("volume", context.env["WEAVE_MAILPIT_DATA_VOLUME"]),
+        ("network", context.env["WEAVE_DOCKER_NETWORK"]),
+    ]
+    assert all(str(context.tls_root) not in name for _, name in removed)
+    assert retired_cleanup_calls == 1
+    assert preflight_calls == 1
+    assert execute_calls == [("up", ())]
+
+
+def assert_retired_cleanup_is_bounded() -> None:
+    original_inspect = compose_runtime_module._inspect_retired_resource
+    original_run = compose_runtime_module.subprocess.run
+    mutations: list[tuple[str, ...]] = []
+
+    def fake_inspect(kind, name):
+        if (kind, name) == ("container", "weave-backend"):
+            return {
+                "Config": {"Labels": {}},
+                "NetworkSettings": {"Networks": {"weave_network": {}}},
+                "Mounts": [],
+            }
+        if (kind, name) == ("volume", "weave_db_data"):
+            return {"Labels": {}}
+        if (kind, name) == ("network", "weave_network"):
+            return {"Labels": {}, "Containers": {"id": {"Name": "weave-backend"}}}
+        return None
+
+    def fake_run(command, **kwargs):
+        del kwargs
+        command_tuple = tuple(command)
+        if command_tuple[:3] == ("docker", "container", "ls"):
+            return subprocess.CompletedProcess(command, 0, stdout="weave-backend\n")
+        mutations.append(command_tuple)
+        return subprocess.CompletedProcess(command, 0, stdout="")
+
+    compose_runtime_module._inspect_retired_resource = fake_inspect
+    compose_runtime_module.subprocess.run = fake_run
+    try:
+        compose_runtime_module.cleanup_retired_dogfood()
+    finally:
+        compose_runtime_module._inspect_retired_resource = original_inspect
+        compose_runtime_module.subprocess.run = original_run
+
+    assert mutations == [
+        ("docker", "container", "rm", "--force", "weave-backend"),
+        ("docker", "volume", "rm", "weave_db_data"),
+        ("docker", "network", "rm", "weave_network"),
+    ]
+    serialized = repr(mutations)
+    assert "tls" not in serialized and "/Users/" not in serialized
+
+
 def main() -> int:
     assert compose_runtime_module.COLLABORATION_CONTROL_BUDGET_SECONDS == 240
     assert compose_runtime_module.COLLABORATION_SUBPROCESS_TIMEOUT_SECONDS == 30
+    assert_dogfood_application_image_platform_contract()
     assert_realm_definition_identity_contract()
+    assert_retired_cleanup_is_bounded()
     compose_source = (ROOT / "compose.yaml").read_text(encoding="utf-8")
     assert compose_source.count(
         "SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}"
@@ -166,6 +293,19 @@ def main() -> int:
     assert "/backend/host.env" not in compose_source
     assert "/mcp/public.env" not in compose_source
     assert "/mcp/host.env" not in compose_source
+    dogfood_overlay = (ROOT / "compose.dogfood.yaml").read_text(encoding="utf-8")
+    assert "runtime-state-volume-init:" not in dogfood_overlay
+    assert "runtime-state-init:" not in dogfood_overlay
+    assert "runtime-state-s3-access-key" not in dogfood_overlay
+    assert "runtime-state-s3-secret-key" not in dogfood_overlay
+    assert "${WEAVE_TLS_ROOT:?reviewed external TLS root required}" in dogfood_overlay
+    assert "caddy-data:/data" not in dogfood_overlay
+    assert "keycloak-data:/opt/keycloak/data" not in dogfood_overlay
+    assert "x-weave-dogfood-session-labels" in dogfood_overlay
+    assert "com.massimotter.weave.scope: resettable-session" in dogfood_overlay
+    session_resources = dogfood_overlay.split("volumes:\n", 1)[1]
+    assert "WEAVE_CANDIDATE_COMMIT" not in session_resources
+    assert "WEAVE_CANDIDATE_MANIFEST_DIGEST" not in session_resources
 
     for profile in ("dev", "dogfood", "e2e", "prod"):
         assert_spring_profile_contract(profile)
@@ -236,6 +376,11 @@ def main() -> int:
     assert "groups" not in rendered
     assert rendered["realm"]["smtp"] == {"host": "mailpit", "port": 1025}
     assert "smtpServer" not in rendered["realm"]
+    assert rendered["clientPolicies"] == []
+    e2e_rendered = _desired(canonical, {**overlay, "environment": "e2e"})
+    assert e2e_rendered["clientPolicies"] == canonical["clientPolicies"]
+    prod_rendered = _desired(canonical, {**overlay, "environment": "prod"})
+    assert prod_rendered["clientPolicies"] == canonical["clientPolicies"]
     try:
         _desired({**canonical, "groups": []}, overlay)
     except ContractError:
@@ -263,7 +408,12 @@ def main() -> int:
             "prod", ROOT, str(materialize_example("prod", root / "prod.env"))
         )
         assert _image_digest(dogfood) == "sha256:" + "a" * 64
-        assert "WEAVE_RUNTIME_STATE_VOLUME" in active_volume_keys(dogfood)
+        assert active_volume_keys(dogfood) == (
+            "WEAVE_DB_DATA_VOLUME",
+            "WEAVE_NATIVE_FILES_DATA_VOLUME",
+            "WEAVE_MAILPIT_DATA_VOLUME",
+        )
+        assert_dogfood_reset_is_exact(dogfood)
         assert _image_digest(prod) == "sha256:" + "a" * 64
         assert _overlay(dogfood, "sha256:" + "b" * 64)["smtpEndpoints"]["host"] == "mailpit"
         dogfood_caddy = render_caddy(dogfood)
@@ -286,6 +436,14 @@ def main() -> int:
             )
             assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
             assert _image_digest(isolated) == "sha256:" + "b" * 64
+            network_labels = compose_runtime_module.labels(
+                isolated, "network", isolated.env["WEAVE_DOCKER_NETWORK"]
+            )
+            assert network_labels["com.docker.compose.network"] == "weave"
+            assert (
+                network_labels["com.docker.compose.project"]
+                == isolated.env["WEAVE_COMPOSE_PROJECT"]
+            )
             assert _runtime_policy(isolated)["sandbox"]["allowedNetworkTargets"] == [
                 "api.weave.test"
             ]
