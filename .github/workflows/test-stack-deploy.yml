@@ -437,8 +437,11 @@ jobs:
           set -euo pipefail
           plan="${{ steps.fresh-plan.outputs.path }}"
           apply="$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-apply.json"
-          approval="$WEAVE_TEST_STACK_EVIDENCE_DIR/fresh-start-approval.json"
-          cp "${{ steps.approval.outputs.path }}" "$approval"
+          approval="${{ steps.approval.outputs.path }}"
+          [[ -f "$approval" ]] || {
+            echo "::error::Fresh Start approval evidence is missing." >&2
+            exit 1
+          }
           ./fresh-start.py apply \
             --manifest "$plan" \
             --confirm "DELETE_OLD_WEAVE:${{ steps.fresh-plan.outputs.sha }}" \

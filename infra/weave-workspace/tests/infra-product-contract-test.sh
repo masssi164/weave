@@ -183,7 +183,10 @@ require "${TEST_STACK_WORKFLOW}" 'Create or reuse the exact private backup, rest
 require "${TEST_STACK_WORKFLOW}" 'FreshStartBackupRehearsal.json'
 require "${TEST_STACK_WORKFLOW}" 'plan.json'
 require "${TEST_STACK_WORKFLOW}" '--recovery-evidence-ref "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/issues/1266"'
+require "${TEST_STACK_WORKFLOW}" 'approval="${{ steps.approval.outputs.path }}"'
+require "${TEST_STACK_WORKFLOW}" 'Fresh Start approval evidence is missing.'
 reject "${TEST_STACK_WORKFLOW}" '--recovery-evidence-ref "FreshStartBackupRehearsal.json"'
+reject "${TEST_STACK_WORKFLOW}" 'cp "${{ steps.approval.outputs.path }}" "$approval"'
 reject "${TEST_STACK_WORKFLOW}" 'WEAVE_ADOPTION_RECEIPT'
 reject "${REPO_ROOT}/build.gradle" 'gradle/tasks/environment-profiles.gradle'
 
