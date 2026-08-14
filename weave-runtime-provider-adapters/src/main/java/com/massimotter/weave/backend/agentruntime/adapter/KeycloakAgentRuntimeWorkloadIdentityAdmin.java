@@ -1338,9 +1338,19 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         if (!clientId.equals(optionalText(claims, "azp"))) {
             throw malformedWorkloadToken("client-binding");
         }
-        if (!Set.of(settings.workloadRole())
-                .equals(strings(claims.path("realm_access").path("roles")))) {
-            throw malformedWorkloadToken("realm-roles");
+        JsonNode realmRoles = claims.path("realm_access").path("roles");
+        if (!(realmRoles instanceof ArrayNode roles)) {
+            throw malformedWorkloadToken("realm-roles-shape");
+        }
+        Set<String> projectedRoles = strings(roles);
+        if (projectedRoles.size() != roles.size()) {
+            throw malformedWorkloadToken("realm-roles-shape");
+        }
+        if (projectedRoles.size() != 1) {
+            throw malformedWorkloadToken("realm-roles-count");
+        }
+        if (!projectedRoles.contains(settings.workloadRole())) {
+            throw malformedWorkloadToken("realm-role-value");
         }
         if (!claims.path("resource_access").propertyNames().isEmpty()) {
             throw malformedWorkloadToken("client-roles");
