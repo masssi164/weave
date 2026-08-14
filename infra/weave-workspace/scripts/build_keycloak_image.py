@@ -26,9 +26,9 @@ UPSTREAM_COMMIT = "73f08b397f193712b26d317210dce99898129709"
 UPSTREAM_REPOSITORY = "https://github.com/keycloak/keycloak.git"
 ARCHIVE_SHA256 = "4ef57bbe2d97acf658b0347885a8239543af9cc27337c1bfa6ece50bfb6f9b90"
 STOCK_SERVICES_SHA256 = "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
-PATCH_SHA256 = "dbd7a8318fa309c4e0088b75caa96f25ae0d69f79eacdf99a0d2bd06a075f122"
+PATCH_SHA256 = "1cb15f2523c51ff9fcb1a0e9aa4cf8cdc6eefc11bae616e5671a49eeac9d7b5a"
 PATCHED_SERVICES_SHA256 = (
-    "61ad0ca8abdcfdd8037c1acc5e7ae3bd6d256de2576bd91520779d598df94692"
+    "52a7fbe9e3821e6e61ff5391368fe2a9bd13f3e95850d77bfe19d62b5fcdbb63"
 )
 STOCK_KEYCLOAK_INDEX_DIGEST = (
     "sha256:f1f1f01e472c8a78df40d8f2a49a925274eda4d3d80d5f6edbb5c880ee3c01c6"
@@ -55,6 +55,8 @@ PATCHED_PATHS = (
     "WeaveWorkloadClientRegistrationExecutor.java",
     "services/src/main/java/org/keycloak/services/clientpolicy/executor/"
     "WeaveWorkloadClientRegistrationExecutorFactory.java",
+    "services/src/main/java/org/keycloak/services/clientregistration/"
+    "AbstractClientRegistrationProvider.java",
     "services/src/main/java/org/keycloak/services/clientregistration/"
     "ClientRegistrationAuth.java",
     "services/src/main/java/org/keycloak/services/clientregistration/oidc/"

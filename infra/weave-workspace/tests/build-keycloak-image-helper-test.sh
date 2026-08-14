@@ -72,10 +72,10 @@ assert module.STOCK_SERVICES_SHA256 == (
     "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
 )
 assert module.PATCH_SHA256 == (
-    "dbd7a8318fa309c4e0088b75caa96f25ae0d69f79eacdf99a0d2bd06a075f122"
+    "1cb15f2523c51ff9fcb1a0e9aa4cf8cdc6eefc11bae616e5671a49eeac9d7b5a"
 )
 assert module.PATCHED_SERVICES_SHA256 == (
-    "61ad0ca8abdcfdd8037c1acc5e7ae3bd6d256de2576bd91520779d598df94692"
+    "52a7fbe9e3821e6e61ff5391368fe2a9bd13f3e95850d77bfe19d62b5fcdbb63"
 )
 specification_commit, specification_digest = module.specification_pin(repository)
 assert specification_commit == json.loads(
@@ -330,6 +330,10 @@ assert (
 assert "keycloak-server-spi-private" not in patch_text
 assert "rejectsUnapprovedScopesBeforeDescriptionConversion" in patch_text
 assert "rejectsAnInjectedExtraEffectiveServiceAccountRole" in patch_text
+assert "runAfterRegisterPolicies(" in patch_text
+assert "WeaveWorkloadClientRegistrationExecutor.isWorkloadClient(" in patch_text
+assert "clientModel.getClientId())" in patch_text
+assert "finalizesWorkloadClientPolicyAfterLegacyRegistrationCleanupOnly" in patch_text
 assert "FROM ${WEAVE_KEYCLOAK_BASE} AS builder" in dockerfile_text
 assert "kc.sh build --db=postgres --vault=file" in dockerfile_text
 assert "com.massimotter.weave.keycloak-patch-sha256" in dockerfile_text

@@ -81,7 +81,7 @@ index 0000000..9603ed4
 +}
 diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
 new file mode 100644
-index 0000000..6dab55a
+index 0000000..7a032f1
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
 @@ -0,0 +1,1036 @@
@@ -1080,7 +1080,7 @@ index 0000000..6dab55a
 +                || context instanceof AdminClientUnregisterContext;
 +    }
 +
-+    static boolean isWorkloadClient(String clientId) {
++    public static boolean isWorkloadClient(String clientId) {
 +        return clientId != null && CLIENT_ID_PATTERN.matcher(clientId).matches();
 +    }
 +
@@ -1176,6 +1176,61 @@ index 0000000..974930c
 +        return List.of();
 +    }
 +}
+diff --git a/services/src/main/java/org/keycloak/services/clientregistration/AbstractClientRegistrationProvider.java b/services/src/main/java/org/keycloak/services/clientregistration/AbstractClientRegistrationProvider.java
+index f53f5fb..aeedcd1 100755
+--- a/services/src/main/java/org/keycloak/services/clientregistration/AbstractClientRegistrationProvider.java
++++ b/services/src/main/java/org/keycloak/services/clientregistration/AbstractClientRegistrationProvider.java
+@@ -51,6 +51,7 @@ import org.keycloak.services.ErrorResponseException;
+ import org.keycloak.services.clientpolicy.ClientPolicyException;
+ import org.keycloak.services.clientpolicy.context.DynamicClientRegisteredContext;
+ import org.keycloak.services.clientpolicy.context.DynamicClientUpdatedContext;
++import org.keycloak.services.clientpolicy.executor.WeaveWorkloadClientRegistrationExecutor;
+ import org.keycloak.services.clientregistration.policy.ClientRegistrationPolicyManager;
+ import org.keycloak.services.clientregistration.policy.RegistrationAuth;
+ import org.keycloak.services.managers.ClientManager;
+@@ -100,8 +101,14 @@ public abstract class AbstractClientRegistrationProvider implements ClientRegist
+             }
+
+             session.getContext().setClient(clientModel);
+-            session.clientPolicy().triggerOnEvent(new DynamicClientRegisteredContext(context, clientModel, auth.getJwt(), realm));
+-            ClientRegistrationPolicyManager.triggerAfterRegister(context, registrationAuth, clientModel);
++            runAfterRegisterPolicies(
++                    WeaveWorkloadClientRegistrationExecutor.isWorkloadClient(
++                            clientModel.getClientId()),
++                    () -> session.clientPolicy().triggerOnEvent(
++                            new DynamicClientRegisteredContext(
++                                    context, clientModel, auth.getJwt(), realm)),
++                    () -> ClientRegistrationPolicyManager.triggerAfterRegister(
++                            context, registrationAuth, clientModel));
+
+             client = ModelToRepresentation.toRepresentation(clientModel, session);
+
+@@ -135,6 +142,25 @@ public abstract class AbstractClientRegistrationProvider implements ClientRegist
+         }
+     }
+
++    static void runAfterRegisterPolicies(
++            boolean workloadClient,
++            AfterRegisterStep clientPolicy,
++            AfterRegisterStep registrationPolicy)
++            throws ClientPolicyException {
++        if (workloadClient) {
++            registrationPolicy.run();
++            clientPolicy.run();
++        } else {
++            clientPolicy.run();
++            registrationPolicy.run();
++        }
++    }
++
++    @FunctionalInterface
++    interface AfterRegisterStep {
++        void run() throws ClientPolicyException;
++    }
++
+     public ClientRepresentation get(ClientModel client) {
+         event.event(EventType.CLIENT_INFO);
+
 diff --git a/services/src/main/java/org/keycloak/services/clientregistration/ClientRegistrationAuth.java b/services/src/main/java/org/keycloak/services/clientregistration/ClientRegistrationAuth.java
 index 2b2d4b1..0d7a20a 100644
 --- a/services/src/main/java/org/keycloak/services/clientregistration/ClientRegistrationAuth.java
@@ -1712,22 +1767,48 @@ index 0000000..48e0615
 +}
 diff --git a/services/src/test/java/org/keycloak/services/clientregistration/WeaveClientRegistrationAuthTest.java b/services/src/test/java/org/keycloak/services/clientregistration/WeaveClientRegistrationAuthTest.java
 new file mode 100644
-index 0000000..de6c429
+index 0000000..97b7078
 --- /dev/null
 +++ b/services/src/test/java/org/keycloak/services/clientregistration/WeaveClientRegistrationAuthTest.java
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,65 @@
 +package org.keycloak.services.clientregistration;
 +
++import static org.junit.jupiter.api.Assertions.assertEquals;
 +import static org.junit.jupiter.api.Assertions.assertFalse;
 +import static org.junit.jupiter.api.Assertions.assertTrue;
 +
++import java.util.ArrayList;
++import java.util.List;
 +import java.util.Map;
 +import java.util.Set;
 +import org.junit.jupiter.api.Test;
 +import org.keycloak.representations.AccessToken;
++import org.keycloak.services.clientpolicy.ClientPolicyException;
 +import org.keycloak.services.clientpolicy.executor.WeaveWorkloadClientRegistrationExecutor;
 +
 +class WeaveClientRegistrationAuthTest {
++
++    @Test
++    void finalizesWorkloadClientPolicyAfterLegacyRegistrationCleanupOnly()
++            throws ClientPolicyException {
++        List<String> workloadOrder = new ArrayList<>();
++        AbstractClientRegistrationProvider.runAfterRegisterPolicies(
++                true,
++                () -> workloadOrder.add("client-policy"),
++                () -> workloadOrder.add("registration-policy"));
++        assertEquals(
++                List.of("registration-policy", "client-policy"),
++                workloadOrder);
++
++        List<String> ordinaryOrder = new ArrayList<>();
++        AbstractClientRegistrationProvider.runAfterRegisterPolicies(
++                false,
++                () -> ordinaryOrder.add("client-policy"),
++                () -> ordinaryOrder.add("registration-policy"));
++        assertEquals(
++                List.of("client-policy", "registration-policy"),
++                ordinaryOrder);
++    }
 +
 +    @Test
 +    void acceptsOnlyTheExactRuntimeAdminCreateClientProjection() {
