@@ -1887,7 +1887,7 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         if context.environment != "dev":
             compose(context, "up", "-d", "postgres", "postgres-reconcile")
         compose(context, "up", "-d", "--wait", "--wait-timeout", "600", "keycloak")
-        if context.environment in {"e2e", "prod"}:
+        if context.environment == "prod":
             require_completed_migration(context)
         compose(
             context,
