@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..5c985a8
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,951 @@
+@@ -0,0 +1,959 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import com.fasterxml.jackson.databind.JsonNode;
@@ -312,6 +312,14 @@ index 0000000..5c985a8
 +        String clientName = representation.getClientName();
 +        if (clientName != null && clientName.startsWith("weaver-cell-")) {
 +            representation.setClientId(clientName);
++        }
++    }
++
++    public static void normalizeOidcResponseMetadata(
++            OIDCClientRepresentation representation) {
++        if (isWorkloadClient(representation.getClientId())) {
++            representation.setScope(
++                    OPTIONAL_SCOPES.stream().sorted().collect(Collectors.joining(" ")));
 +        }
 +    }
 +
@@ -1110,7 +1118,19 @@ index 6f931eb..7630732 100755
 
          try {
              ClientRepresentation client = DescriptionConverter.toInternal(session, clientOIDC);
-@@ -136,6 +149,11 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
+@@ -107,4 +120,5 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
+             URI uri = getRegistrationClientUri(clientModel);
+             clientOIDC = DescriptionConverter.toExternalResponse(session, client, uri);
++            WeaveWorkloadClientRegistrationExecutor.normalizeOidcResponseMetadata(clientOIDC);
+             clientOIDC.setClientIdIssuedAt(Time.currentTime());
+             return cors.add(Response.created(uri).entity(clientOIDC));
+@@ -125,4 +139,5 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
+         ClientRepresentation clientRepresentation = get(client);
+
+         OIDCClientRepresentation clientOIDC = DescriptionConverter.toExternalResponse(session, clientRepresentation, getRegistrationClientUri(client));
++        WeaveWorkloadClientRegistrationExecutor.normalizeOidcResponseMetadata(clientOIDC);
+         return cors.add(Response.ok(clientOIDC));
+@@ -136,6 +151,11 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
          event.event(EventType.CLIENT_UPDATE);
          Cors cors = cors();
          try {
@@ -1122,7 +1142,12 @@ index 6f931eb..7630732 100755
              ClientRepresentation client = DescriptionConverter.toInternal(session, clientOIDC);
 
              if (clientOIDC.getScope() != null) {
-@@ -175,6 +193,135 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
+@@ -160,3 +180,4 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
+             URI uri = getRegistrationClientUri(clientModel);
+             clientOIDC = DescriptionConverter.toExternalResponse(session, client, uri);
++            WeaveWorkloadClientRegistrationExecutor.normalizeOidcResponseMetadata(clientOIDC);
+             return cors.add(Response.ok(clientOIDC));
+@@ -175,6 +196,135 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
          return cors.add(Response.noContent());
      }
 
@@ -1258,7 +1283,7 @@ index 6f931eb..7630732 100755
      private Cors cors() {
          return Cors.builder().auth().checkAllowedOrigins(getAllowedOrigins());
      }
-@@ -221,6 +368,6 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
+@@ -221,6 +371,6 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
      private URI getRegistrationClientUri(ClientModel client) {
          KeycloakContext context = session.getContext();
          RealmModel realm = context.getRealm();
@@ -1281,7 +1306,7 @@ new file mode 100644
 index 0000000..8e56e65
 --- /dev/null
 +++ b/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java
-@@ -0,0 +1,147 @@
+@@ -0,0 +1,150 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -1312,6 +1337,9 @@ index 0000000..8e56e65
 +
 +        assertNull(representation.getScope());
 +        assertEquals(CLIENT_ID, representation.getClientId());
++        representation.setScope("unapproved.scope");
++        WeaveWorkloadClientRegistrationExecutor.normalizeOidcResponseMetadata(representation);
++        assertEquals("agent-runtime.profile.read files.read mcp.tools", representation.getScope());
 +    }
 +
 +    @Test
