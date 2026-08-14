@@ -26,9 +26,9 @@ UPSTREAM_COMMIT = "73f08b397f193712b26d317210dce99898129709"
 UPSTREAM_REPOSITORY = "https://github.com/keycloak/keycloak.git"
 ARCHIVE_SHA256 = "4ef57bbe2d97acf658b0347885a8239543af9cc27337c1bfa6ece50bfb6f9b90"
 STOCK_SERVICES_SHA256 = "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
-PATCH_SHA256 = "e18b012f5edbec3a9e04e7690b38dcd2a09e4c6c0fb15809f62183db06de69b5"
+PATCH_SHA256 = "a160e180afb93fd249129397671134983bd3aea5b112cfeb96e77c3a9493f33f"
 PATCHED_SERVICES_SHA256 = (
-    "574693aba6b21e57250aba7bb49f7c1ca9a0aa0053ea5febf1db202e3ac70ebe"
+    "a13e2c7a828c5dd102aa6b619cec13e860e6cb9ae9d516eb5f3823229d34ebab"
 )
 STOCK_KEYCLOAK_INDEX_DIGEST = (
     "sha256:f1f1f01e472c8a78df40d8f2a49a925274eda4d3d80d5f6edbb5c880ee3c01c6"
@@ -49,8 +49,6 @@ PATCH_RELATIVE = Path(
     "weave-workload-registration.patch"
 )
 PATCHED_PATHS = (
-    "services/src/main/java/org/keycloak/protocol/oidc/mappers/"
-    "WeaveWorkloadRealmRoleMapper.java",
     "services/src/main/java/org/keycloak/services/clientpolicy/executor/"
     "WeaveWorkloadClientRegistrationExecutor.java",
     "services/src/main/java/org/keycloak/services/clientpolicy/executor/"
@@ -61,8 +59,6 @@ PATCHED_PATHS = (
     "ClientRegistrationAuth.java",
     "services/src/main/java/org/keycloak/services/clientregistration/oidc/"
     "OIDCClientRegistrationProvider.java",
-    "services/src/main/resources/META-INF/services/"
-    "org.keycloak.protocol.ProtocolMapper",
     "services/src/main/resources/META-INF/services/"
     "org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory",
     "services/src/test/java/org/keycloak/services/clientpolicy/executor/"

@@ -60,22 +60,24 @@ assert 'workloadProtocolMappers().forEach(client::addProtocolMapper);' in patch_
 assert '|| !exactWorkloadProtocolMappers(client))' in patch_source
 assert 'client.addScopeMapping(workloadRole);' in patch_source
 assert 'validateExactScopeRoles(client.getRealm().getId(), directClientScopeRoles);' in patch_source
-assert 'WeaveWorkloadRealmRoleMapper.create(REALM_ROLE_MAPPER)' in patch_source
-assert 'PROVIDER_ID = "weave-workload-realm-role-mapper"' in patch_source
-assert 'realmAccess.addRole(WORKLOAD_ROLE);' in patch_source
+assert 'UserRealmRoleMappingMapper.PROVIDER_ID' in patch_source
+assert 'OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME' in patch_source
+assert '"realm_access.roles"' in patch_source
+assert 'OIDCAttributeMapperHelper.INCLUDE_IN_INTROSPECTION' in patch_source
 assert 'void ownsExactlyTheTwoFixedWorkloadTokenProtocolMappers()' in patch_source
-assert 'void fixedWorkloadMapperWritesOnlyTheTypedAccessTokenRealmRole()' in patch_source
-assert 'token.getOtherClaims().isEmpty()' in patch_source
+assert '"oidc-usermodel-realm-role-mapper"' in patch_source
+assert '"introspection.token.claim", "false"' in patch_source
 assert 'HardcodedClaim.create(' not in patch_source
 assert 'HardcodedRole.create(' not in patch_source
+assert 'WeaveWorkloadRealmRoleMapper' not in patch_source
 assert module.STOCK_SERVICES_SHA256 == (
     "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
 )
 assert module.PATCH_SHA256 == (
-    "e18b012f5edbec3a9e04e7690b38dcd2a09e4c6c0fb15809f62183db06de69b5"
+    "a160e180afb93fd249129397671134983bd3aea5b112cfeb96e77c3a9493f33f"
 )
 assert module.PATCHED_SERVICES_SHA256 == (
-    "574693aba6b21e57250aba7bb49f7c1ca9a0aa0053ea5febf1db202e3ac70ebe"
+    "a13e2c7a828c5dd102aa6b619cec13e860e6cb9ae9d516eb5f3823229d34ebab"
 )
 specification_commit, specification_digest = module.specification_pin(repository)
 assert specification_commit == json.loads(
