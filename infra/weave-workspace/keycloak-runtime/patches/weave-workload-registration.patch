@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..5c985a8
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,959 @@
+@@ -0,0 +1,978 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import com.fasterxml.jackson.databind.JsonNode;
@@ -449,6 +449,16 @@ index 0000000..5c985a8
 +        if (serviceAccount == null || workloadRole == null) {
 +            throw invalid(INVALID_FINAL_STATE_DETAIL);
 +        }
++        List<RoleModel> workloadScopeRoles =
++                defaultScope.getScopeMappingsStream().toList();
++        if (workloadScopeRoles.isEmpty()) {
++            // Keycloak 26.7 drops realm-level client-scope mappings from an otherwise
++            // successful realm import. Reconcile only the one canonical workload role.
++            defaultScope.addScopeMapping(workloadRole);
++        } else if (workloadScopeRoles.size() != 1
++                || !workloadRole.getId().equals(workloadScopeRoles.get(0).getId())) {
++            throw invalid(INVALID_FINAL_STATE_DETAIL);
++        }
 +        serviceAccount.getRoleMappingsStream().toList().forEach(serviceAccount::deleteRoleMapping);
 +        serviceAccount.grantRole(workloadRole);
 +        validateFinalState(client);
@@ -466,6 +476,15 @@ index 0000000..5c985a8
 +        UserModel serviceAccount = session.users().getServiceAccount(client);
 +        if (serviceAccount == null) {
 +            throw invalid(INVALID_DETAIL);
++        }
++        ClientScopeModel defaultScope = findScope(client.getRealm(), DEFAULT_SCOPE);
++        RoleModel workloadRole = client.getRealm().getRole(WORKLOAD_ROLE);
++        List<RoleModel> workloadScopeRoles = defaultScope == null
++                ? List.of()
++                : defaultScope.getScopeMappingsStream().toList();
++        if (workloadRole == null || workloadScopeRoles.size() != 1
++                || !workloadRole.getId().equals(workloadScopeRoles.get(0).getId())) {
++            throw invalid(INVALID_FINAL_STATE_DETAIL);
 +        }
 +        Set<RoleIdentity> directRoles = serviceAccount.getRoleMappingsStream()
 +                .map(WeaveWorkloadClientRegistrationExecutor::roleIdentity)
