@@ -358,7 +358,7 @@ jobs:
               --candidate-manifest-digest "$WEAVE_CANDIDATE_MANIFEST_DIGEST" \
               --operation-nonce "$nonce" \
               --recovery-decision verified-backup \
-              --recovery-evidence-ref "FreshStartBackupRehearsal.json" \
+              --recovery-evidence-ref "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/issues/1266" \
               --recovery-receipt "$receipt" \
               --output "$plan"
           fi
