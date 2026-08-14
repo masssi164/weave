@@ -431,6 +431,14 @@ def main() -> int:
             )
             assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
             assert _image_digest(isolated) == "sha256:" + "b" * 64
+            network_labels = compose_runtime_module.labels(
+                isolated, "network", isolated.env["WEAVE_DOCKER_NETWORK"]
+            )
+            assert network_labels["com.docker.compose.network"] == "weave"
+            assert (
+                network_labels["com.docker.compose.project"]
+                == isolated.env["WEAVE_COMPOSE_PROJECT"]
+            )
             assert _runtime_policy(isolated)["sandbox"]["allowedNetworkTargets"] == [
                 "api.weave.test"
             ]

@@ -267,7 +267,7 @@ def resource_metadata(context: ComposeContext, kind: str, name: str) -> tuple[st
 
 def labels(context: ComposeContext, kind: str, name: str) -> dict[str, str]:
     component, data_class = resource_metadata(context, kind, name)
-    return {
+    values = {
         "com.massimotter.weave.managed": "true",
         "com.massimotter.weave.environment": context.env["WEAVE_RESOURCE_ENVIRONMENT"],
         "com.massimotter.weave.scope": context.env["WEAVE_STACK_SCOPE"],
@@ -284,6 +284,17 @@ def labels(context: ComposeContext, kind: str, name: str) -> dict[str, str]:
             "WEAVE_CANDIDATE_MANIFEST_DIGEST"
         ],
     }
+    if kind == "network":
+        # E2E pre-creates the reviewed isolated network before Compose starts.
+        # These are Compose's own identity labels for the logical `weave`
+        # network, so Compose can safely adopt that exact project network.
+        values.update(
+            {
+                "com.docker.compose.network": "weave",
+                "com.docker.compose.project": context.env["WEAVE_COMPOSE_PROJECT"],
+            }
+        )
+    return values
 
 
 def resource_inventory(context: ComposeContext) -> set[tuple[str, str]]:
