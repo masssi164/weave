@@ -57,6 +57,11 @@ def main() -> int:
         "permissions:\n  actions: read\n  contents: read" in e2e,
         "the reusable iPhone workflow cannot start without inherited actions:read",
     )
+    node_setup = "actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444"
+    require(
+        e2e.count(node_setup) == 2 and prepare.count(node_setup) == 1,
+        "every exact-source Server build must install the pinned Node runtime",
+    )
     ordered(
         e2e,
         (
