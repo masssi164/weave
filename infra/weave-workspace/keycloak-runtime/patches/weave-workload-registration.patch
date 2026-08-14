@@ -1248,6 +1248,15 @@ index 6f931eb..7630732 100755
      private Cors cors() {
          return Cors.builder().auth().checkAllowedOrigins(getAllowedOrigins());
      }
+@@ -221,6 +368,6 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
+     private URI getRegistrationClientUri(ClientModel client) {
+         KeycloakContext context = session.getContext();
+         RealmModel realm = context.getRealm();
+-        URI backendUri = context.getUri(UrlType.BACKEND).getBaseUri();
+-        return Urls.clientRegistration(backendUri, realm.getName(), OIDCLoginProtocol.LOGIN_PROTOCOL, client.getClientId());
++        URI frontendUri = context.getUri(UrlType.FRONTEND).getBaseUri();
++        return Urls.clientRegistration(frontendUri, realm.getName(), OIDCLoginProtocol.LOGIN_PROTOCOL, client.getClientId());
+     }
 diff --git a/services/src/main/resources/META-INF/services/org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory b/services/src/main/resources/META-INF/services/org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory
 index bcb129b..c4a7b71 100644
 --- a/services/src/main/resources/META-INF/services/org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory
