@@ -1,9 +1,90 @@
+diff --git a/services/src/main/java/org/keycloak/protocol/oidc/mappers/WeaveWorkloadRealmRoleMapper.java b/services/src/main/java/org/keycloak/protocol/oidc/mappers/WeaveWorkloadRealmRoleMapper.java
+new file mode 100644
+index 0000000..9603ed4
+--- /dev/null
++++ b/services/src/main/java/org/keycloak/protocol/oidc/mappers/WeaveWorkloadRealmRoleMapper.java
+@@ -0,0 +1,75 @@
++package org.keycloak.protocol.oidc.mappers;
++
++import java.util.List;
++import java.util.Map;
++import org.keycloak.models.ClientSessionContext;
++import org.keycloak.models.KeycloakSession;
++import org.keycloak.models.ProtocolMapperModel;
++import org.keycloak.models.UserSessionModel;
++import org.keycloak.protocol.oidc.OIDCLoginProtocol;
++import org.keycloak.provider.ProviderConfigProperty;
++import org.keycloak.representations.AccessToken;
++
++/**
++ * Projects the fixed Weave workload role into Keycloak's typed access-token realm role field.
++ *
++ * <p>This built-in downstream mapper has no caller-configurable claim path or role value. The
++ * workload registration executor separately verifies the exact service-account role and scope
++ * bindings before this mapper can be attached to a client.
++ */
++public final class WeaveWorkloadRealmRoleMapper extends AbstractOIDCProtocolMapper
++        implements OIDCAccessTokenMapper {
++
++    public static final String PROVIDER_ID = "weave-workload-realm-role-mapper";
++    public static final String WORKLOAD_ROLE = "weaver-runtime";
++
++    @Override
++    public List<ProviderConfigProperty> getConfigProperties() {
++        return List.of();
++    }
++
++    @Override
++    public String getId() {
++        return PROVIDER_ID;
++    }
++
++    @Override
++    public String getDisplayType() {
++        return "Weave Workload Realm Role";
++    }
++
++    @Override
++    public String getDisplayCategory() {
++        return TOKEN_MAPPER_CATEGORY;
++    }
++
++    @Override
++    public String getHelpText() {
++        return "Projects the fixed Weave workload role into access tokens.";
++    }
++
++    @Override
++    public AccessToken transformAccessToken(
++            AccessToken token,
++            ProtocolMapperModel mappingModel,
++            KeycloakSession session,
++            UserSessionModel userSession,
++            ClientSessionContext clientSessionContext) {
++        AccessToken.Access realmAccess = token.getRealmAccess();
++        if (realmAccess == null) {
++            realmAccess = new AccessToken.Access();
++            token.setRealmAccess(realmAccess);
++        }
++        realmAccess.addRole(WORKLOAD_ROLE);
++        return token;
++    }
++
++    public static ProtocolMapperModel create(String name) {
++        ProtocolMapperModel mapper = new ProtocolMapperModel();
++        mapper.setName(name);
++        mapper.setProtocolMapper(PROVIDER_ID);
++        mapper.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
++        mapper.setConfig(Map.of());
++        return mapper;
++    }
++}
 diff --git a/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
 new file mode 100644
-index 0000000..850cd23
+index 0000000..6dab55a
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,1046 @@
+@@ -0,0 +1,1036 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import com.fasterxml.jackson.databind.JsonNode;
@@ -45,9 +126,8 @@ index 0000000..850cd23
 +import org.keycloak.models.utils.RoleUtils;
 +import org.keycloak.protocol.oidc.OIDCConfigAttributes;
 +import org.keycloak.protocol.oidc.OIDCLoginProtocol;
-+import org.keycloak.protocol.oidc.mappers.HardcodedRole;
-+import org.keycloak.protocol.oidc.mappers.UserRealmRoleMappingMapper;
 +import org.keycloak.protocol.oidc.mappers.UserSessionNoteMapper;
++import org.keycloak.protocol.oidc.mappers.WeaveWorkloadRealmRoleMapper;
 +import org.keycloak.representations.JsonWebToken;
 +import org.keycloak.representations.idm.ClientPolicyExecutorConfigurationRepresentation;
 +import org.keycloak.representations.idm.ClientRepresentation;
@@ -84,7 +164,6 @@ index 0000000..850cd23
 +    static final String WORKLOAD_ROLE = "weaver-runtime";
 +    static final String DEFAULT_SCOPE = "weaver-runtime-workload";
 +    static final String CLIENT_ID_MAPPER = "weaver-runtime-client-id";
-+    static final String ROLE_SEED_MAPPER = "weaver-runtime-role-seed";
 +    static final String REALM_ROLE_MAPPER = "weaver-runtime-realm-role";
 +    static final Set<String> OPTIONAL_SCOPES =
 +            Set.of("agent-runtime.profile.read", "mcp.tools", "files.read");
@@ -577,15 +656,7 @@ index 0000000..850cd23
 +                        true,
 +                        false,
 +                        false),
-+                HardcodedRole.create(ROLE_SEED_MAPPER, WORKLOAD_ROLE),
-+                UserRealmRoleMappingMapper.create(
-+                        null,
-+                        REALM_ROLE_MAPPER,
-+                        "realm_access.roles",
-+                        true,
-+                        false,
-+                        false,
-+                        true));
++                WeaveWorkloadRealmRoleMapper.create(REALM_ROLE_MAPPER));
 +    }
 +
 +    private static boolean exactWorkloadProtocolMappers(ClientModel client) {
@@ -1387,6 +1458,15 @@ index 6f931eb..f2817a1 100755
 +        return Urls.clientRegistration(frontendUri, realm.getName(), OIDCLoginProtocol.LOGIN_PROTOCOL, client.getClientId());
      }
  }
+diff --git a/services/src/main/resources/META-INF/services/org.keycloak.protocol.ProtocolMapper b/services/src/main/resources/META-INF/services/org.keycloak.protocol.ProtocolMapper
+index c820d6f..b91d42a 100755
+--- a/services/src/main/resources/META-INF/services/org.keycloak.protocol.ProtocolMapper
++++ b/services/src/main/resources/META-INF/services/org.keycloak.protocol.ProtocolMapper
+@@ -64,3 +64,4 @@ org.keycloak.protocol.oidc.mappers.ParameterizedScopeUserPropertyMapper
+ org.keycloak.organization.protocol.mappers.saml.OrganizationMembershipMapper
+ org.keycloak.organization.protocol.mappers.saml.OrganizationGroupMembershipMapper
+ org.keycloak.protocol.saml.mappers.AuthnContextClassRefMapper
++org.keycloak.protocol.oidc.mappers.WeaveWorkloadRealmRoleMapper
 diff --git a/services/src/main/resources/META-INF/services/org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory b/services/src/main/resources/META-INF/services/org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory
 index bcb129b..c4a7b71 100644
 --- a/services/src/main/resources/META-INF/services/org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProviderFactory
@@ -1398,10 +1478,10 @@ index bcb129b..c4a7b71 100644
 +org.keycloak.services.clientpolicy.executor.WeaveWorkloadClientRegistrationExecutorFactory
 diff --git a/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java b/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java
 new file mode 100644
-index 0000000..7cb288f
+index 0000000..48e0615
 --- /dev/null
 +++ b/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java
-@@ -0,0 +1,224 @@
+@@ -0,0 +1,228 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -1414,8 +1494,8 @@ index 0000000..7cb288f
 +import java.util.Set;
 +import org.junit.jupiter.api.Test;
 +import org.keycloak.models.ProtocolMapperModel;
-+import org.keycloak.protocol.oidc.mappers.HardcodedRole;
-+import org.keycloak.protocol.oidc.mappers.UserRealmRoleMappingMapper;
++import org.keycloak.protocol.oidc.mappers.WeaveWorkloadRealmRoleMapper;
++import org.keycloak.representations.AccessToken;
 +import org.keycloak.representations.idm.ClientRepresentation;
 +import org.keycloak.representations.oidc.OIDCClientRepresentation;
 +import org.keycloak.services.clientpolicy.ClientPolicyException;
@@ -1540,21 +1620,19 @@ index 0000000..7cb288f
 +    }
 +
 +    @Test
-+    void ownsExactlyTheThreeOrderedWorkloadTokenProtocolMappers() {
++    void ownsExactlyTheTwoFixedWorkloadTokenProtocolMappers() {
 +        List<ProtocolMapperModel> mappers =
 +                WeaveWorkloadClientRegistrationExecutor.workloadProtocolMappers();
 +
 +        assertEquals(
 +                Set.of(
 +                        "weaver-runtime-client-id",
-+                        "weaver-runtime-role-seed",
 +                        "weaver-runtime-realm-role"),
 +                mappers.stream().map(ProtocolMapperModel::getName).collect(java.util.stream.Collectors.toSet()));
 +        assertEquals(
 +                Set.of(
 +                        "oidc-usersessionmodel-note-mapper",
-+                        "oidc-hardcoded-role-mapper",
-+                        "oidc-usermodel-realm-role-mapper"),
++                        "weave-workload-realm-role-mapper"),
 +                mappers.stream()
 +                        .map(ProtocolMapperModel::getProtocolMapper)
 +                        .collect(java.util.stream.Collectors.toSet()));
@@ -1566,18 +1644,24 @@ index 0000000..7cb288f
 +                .filter(mapper -> "weaver-runtime-realm-role".equals(mapper.getName()))
 +                .findFirst()
 +                .orElseThrow();
-+        ProtocolMapperModel roleSeedMapper = mappers.stream()
-+                .filter(mapper -> "weaver-runtime-role-seed".equals(mapper.getName()))
-+                .findFirst()
-+                .orElseThrow();
 +        assertEquals("client_id", clientIdMapper.getConfig().get("claim.name"));
-+        assertEquals("realm_access.roles", realmRoleMapper.getConfig().get("claim.name"));
-+        assertEquals("true", realmRoleMapper.getConfig().get("multivalued"));
-+        assertEquals("true", realmRoleMapper.getConfig().get("access.token.claim"));
-+        assertEquals("weaver-runtime", roleSeedMapper.getConfig().get("role"));
-+        assertTrue(
-+                new HardcodedRole().getPriority()
-+                        < new UserRealmRoleMappingMapper().getPriority());
++        assertTrue(realmRoleMapper.getConfig().isEmpty());
++    }
++
++    @Test
++    void fixedWorkloadMapperWritesOnlyTheTypedAccessTokenRealmRole() {
++        AccessToken token = new AccessToken();
++
++        new WeaveWorkloadRealmRoleMapper()
++                .transformAccessToken(
++                        token,
++                        WeaveWorkloadRealmRoleMapper.create("weaver-runtime-realm-role"),
++                        null,
++                        null,
++                        null);
++
++        assertEquals(Set.of("weaver-runtime"), token.getRealmAccess().getRoles());
++        assertTrue(token.getOtherClaims().isEmpty());
 +    }
 +
 +    @Test

@@ -58,24 +58,24 @@ assert 'CLIENT_ID_MAPPER = "weaver-runtime-client-id"' in patch_source
 assert 'REALM_ROLE_MAPPER = "weaver-runtime-realm-role"' in patch_source
 assert 'workloadProtocolMappers().forEach(client::addProtocolMapper);' in patch_source
 assert '|| !exactWorkloadProtocolMappers(client))' in patch_source
-assert 'ROLE_SEED_MAPPER = "weaver-runtime-role-seed"' in patch_source
-assert '"weaver-runtime-role-seed",' in patch_source
 assert 'client.addScopeMapping(workloadRole);' in patch_source
 assert 'validateExactScopeRoles(client.getRealm().getId(), directClientScopeRoles);' in patch_source
-assert 'HardcodedRole.create(ROLE_SEED_MAPPER, WORKLOAD_ROLE)' in patch_source
-assert 'UserRealmRoleMappingMapper.create(' in patch_source
-assert '"realm_access.roles"' in patch_source
-assert '"oidc-hardcoded-role-mapper",' in patch_source
-assert '"oidc-usermodel-realm-role-mapper")' in patch_source
-assert 'void ownsExactlyTheThreeOrderedWorkloadTokenProtocolMappers()' in patch_source
+assert 'WeaveWorkloadRealmRoleMapper.create(REALM_ROLE_MAPPER)' in patch_source
+assert 'PROVIDER_ID = "weave-workload-realm-role-mapper"' in patch_source
+assert 'realmAccess.addRole(WORKLOAD_ROLE);' in patch_source
+assert 'void ownsExactlyTheTwoFixedWorkloadTokenProtocolMappers()' in patch_source
+assert 'void fixedWorkloadMapperWritesOnlyTheTypedAccessTokenRealmRole()' in patch_source
+assert 'token.getOtherClaims().isEmpty()' in patch_source
+assert 'HardcodedClaim.create(' not in patch_source
+assert 'HardcodedRole.create(' not in patch_source
 assert module.STOCK_SERVICES_SHA256 == (
     "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
 )
 assert module.PATCH_SHA256 == (
-    "10f641d24581df596d615e5f36bf585f110722705f06f9a935d45a91c1ee880f"
+    "dbd7a8318fa309c4e0088b75caa96f25ae0d69f79eacdf99a0d2bd06a075f122"
 )
 assert module.PATCHED_SERVICES_SHA256 == (
-    "5749a63c80baaa169d21f925c1bdab380d06c4e8c35589b6473f2ccc27d86cef"
+    "61ad0ca8abdcfdd8037c1acc5e7ae3bd6d256de2576bd91520779d598df94692"
 )
 specification_commit, specification_digest = module.specification_pin(repository)
 assert specification_commit == json.loads(
