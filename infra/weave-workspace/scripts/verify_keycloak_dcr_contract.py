@@ -33,6 +33,13 @@ APPROVED_SCOPES = (
     "mcp.tools",
     "files.read",
 )
+WORKLOAD_ROLE = "weaver-runtime"
+ALLOWED_KEYCLOAK_REALM_DEFAULT_ROLES = frozenset(
+    {"default-roles-weave", "offline_access", "uma_authorization"}
+)
+ALLOWED_KEYCLOAK_ACCOUNT_ROLES = frozenset(
+    {"manage-account", "manage-account-links", "view-profile"}
+)
 PRIVATE_JWK_FIELDS = ("kty", "use", "alg", "kid", "n", "e")
 FORBIDDEN_METADATA_FIELDS = (
     "client_secret",
@@ -629,8 +636,21 @@ def workload_token(
         raise ContractError(
             "workload effective-role projection is malformed"
         ) from error
-    if realm_roles != {"weaver-runtime"} or client_roles:
+    if not bounded_workload_role_projection(realm_roles, client_roles):
         raise ContractError("workload effective-role projection is not exact")
+
+
+def bounded_workload_role_projection(
+    realm_roles: set[str], client_roles: dict[str, set[str]]
+) -> bool:
+    allowed_realm_roles = ALLOWED_KEYCLOAK_REALM_DEFAULT_ROLES | {WORKLOAD_ROLE}
+    if WORKLOAD_ROLE not in realm_roles or not realm_roles <= allowed_realm_roles:
+        return False
+    if not client_roles:
+        return True
+    return set(client_roles) == {"account"} and (
+        client_roles["account"] <= ALLOWED_KEYCLOAK_ACCOUNT_ROLES
+    )
 
 
 def atomic_evidence(path: Path, value: dict[str, Any]) -> None:
@@ -1089,6 +1109,7 @@ def run(args: argparse.Namespace) -> None:
             "validRegistration": True,
             "privateKeyJwt": True,
             "effectiveWorkloadRoles": ["weaver-runtime"],
+            "boundedKeycloakDefaultProjection": True,
             "registrationAccessTokenRotation": True,
             "postUpdateFinalStateVerified": True,
             "staleRegistrationAccessTokenRejected": True,

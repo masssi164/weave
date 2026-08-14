@@ -20,6 +20,53 @@ SPEC.loader.exec_module(target)
 
 
 class VerifyKeycloakDcrContractTest(unittest.TestCase):
+    def test_workload_role_projection_accepts_only_bounded_keycloak_defaults(self) -> None:
+        self.assertTrue(
+            target.bounded_workload_role_projection(
+                {
+                    "weaver-runtime",
+                    "default-roles-weave",
+                    "offline_access",
+                    "uma_authorization",
+                },
+                {
+                    "account": {
+                        "manage-account",
+                        "manage-account-links",
+                        "view-profile",
+                    }
+                },
+            )
+        )
+        self.assertTrue(
+            target.bounded_workload_role_projection({"weaver-runtime"}, {})
+        )
+        self.assertTrue(
+            target.bounded_workload_role_projection(
+                {"weaver-runtime"}, {"account": {"view-profile"}}
+            )
+        )
+
+        rejected = (
+            ({"default-roles-weave"}, {}),
+            ({"weaver-runtime", "foreign-realm-role"}, {}),
+            ({"weaver-runtime"}, {"foreign-client": set()}),
+            ({"weaver-runtime"}, {"account": {"foreign-client-role"}}),
+            (
+                {"weaver-runtime"},
+                {"account": {"view-profile"}, "foreign-client": set()},
+            ),
+        )
+        for realm_roles, client_roles in rejected:
+            with self.subTest(
+                realm_count=len(realm_roles), client_count=len(client_roles)
+            ):
+                self.assertFalse(
+                    target.bounded_workload_role_projection(
+                        realm_roles, client_roles
+                    )
+                )
+
     def test_registration_uri_mismatch_reports_only_safe_coordinates(self) -> None:
         expected = (
             "https://auth.weave.test:44443/realms/weave/"

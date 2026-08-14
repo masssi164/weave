@@ -61,14 +61,16 @@ assert '|| !exactWorkloadProtocolMappers(client))' in patch_source
 assert 'Set.of("weaver-runtime-client-id", "weaver-runtime-realm-role")' in patch_source
 assert 'client.addScopeMapping(workloadRole);' in patch_source
 assert 'validateExactScopeRoles(client.getRealm().getId(), directClientScopeRoles);' in patch_source
+assert 'HardcodedRole.create(REALM_ROLE_MAPPER, WORKLOAD_ROLE)' in patch_source
+assert 'Set.of("oidc-usersessionmodel-note-mapper", "oidc-hardcoded-role-mapper")' in patch_source
 assert module.STOCK_SERVICES_SHA256 == (
     "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
 )
 assert module.PATCH_SHA256 == (
-    "248703dc66c3528a299ec4d90836ec0534b92f05f9fafe86db80a2be30f2fefb"
+    "e54caff633f18f95f08d7b8040bb7e4bd84f6b42cc2665077996a09ddde45f4e"
 )
 assert module.PATCHED_SERVICES_SHA256 == (
-    "ffc394f768f01c9d66e6c30af81d47660c81ceaa52af7f1d63c02be7371aa083"
+    "16918bea68777b12dcb699acbdd6f51facd1351bf09c516fa6349c76574e24d3"
 )
 specification_commit, specification_digest = module.specification_pin(repository)
 assert specification_commit == json.loads(
