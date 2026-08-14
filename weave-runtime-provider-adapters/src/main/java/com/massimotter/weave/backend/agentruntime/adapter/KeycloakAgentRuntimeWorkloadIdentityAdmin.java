@@ -66,6 +66,10 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
     private static final Pattern CLIENT_ID =
             Pattern.compile("^weaver-cell-[A-Za-z0-9_-]+$");
+    private static final Set<String> ALLOWED_KEYCLOAK_REALM_DEFAULT_ROLES = Set.of(
+            "default-roles-weave", "offline_access", "uma_authorization");
+    private static final Set<String> ALLOWED_KEYCLOAK_ACCOUNT_ROLES = Set.of(
+            "manage-account", "manage-account-links", "view-profile");
     private static final PSSParameterSpec PS256 = new PSSParameterSpec(
             "SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
 
@@ -1346,13 +1350,14 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         if (projectedRoles.size() != roles.size()) {
             throw malformedWorkloadToken("realm-roles-shape");
         }
-        if (projectedRoles.size() != 1) {
-            throw malformedWorkloadToken("realm-roles-count");
-        }
-        if (!projectedRoles.contains(settings.workloadRole())) {
+        Set<String> allowedRealmRoles = new HashSet<>(ALLOWED_KEYCLOAK_REALM_DEFAULT_ROLES);
+        allowedRealmRoles.add(settings.workloadRole());
+        if (!projectedRoles.contains(settings.workloadRole())
+                || !allowedRealmRoles.containsAll(projectedRoles)) {
             throw malformedWorkloadToken("realm-role-value");
         }
-        if (!claims.path("resource_access").propertyNames().isEmpty()) {
+        JsonNode resourceAccess = claims.get("resource_access");
+        if (resourceAccess != null && !allowedAccountProjection(resourceAccess)) {
             throw malformedWorkloadToken("client-roles");
         }
         String subject = optionalText(claims, "sub");
@@ -1360,6 +1365,26 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             throw malformedWorkloadToken("subject");
         }
         return subject;
+    }
+
+    private static boolean allowedAccountProjection(JsonNode resourceAccess) {
+        if (!resourceAccess.isObject()) {
+            return false;
+        }
+        if (resourceAccess.isEmpty()) {
+            return true;
+        }
+        if (resourceAccess.size() != 1 || !resourceAccess.has("account")) {
+            return false;
+        }
+        JsonNode account = resourceAccess.path("account");
+        if (!account.isObject() || account.size() != 1
+                || !(account.path("roles") instanceof ArrayNode roles)) {
+            return false;
+        }
+        Set<String> projectedRoles = strings(roles);
+        return projectedRoles.size() == roles.size()
+                && ALLOWED_KEYCLOAK_ACCOUNT_ROLES.containsAll(projectedRoles);
     }
 
     private static RuntimeWorkloadIdentityException malformedWorkloadToken(

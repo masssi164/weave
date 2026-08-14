@@ -171,7 +171,26 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
     }
 
     @Test
-    void rejectsAWorkloadTokenWithAnyClientRoleProjection() {
+    void acceptsTheBoundedKeycloakDefaultAndAccountRoleProjection() {
+        transport.nextTokenClaimsMutation = claims -> {
+            claims.withObject("realm_access")
+                    .withArray("roles")
+                    .add("default-roles-weave")
+                    .add("offline_access")
+                    .add("uma_authorization");
+            claims.withObject("resource_access")
+                    .withObject("account")
+                    .putArray("roles")
+                    .add("manage-account")
+                    .add("manage-account-links")
+                    .add("view-profile");
+        };
+
+        assertThat(adapter.ensureBinding(ensure()).subject()).isEqualTo(SUBJECT);
+    }
+
+    @Test
+    void rejectsAWorkloadTokenWithAnUnknownClientRoleProjection() {
         transport.nextTokenClaimsMutation = claims -> claims
                 .withObject("resource_access")
                 .withObject("other-client")
