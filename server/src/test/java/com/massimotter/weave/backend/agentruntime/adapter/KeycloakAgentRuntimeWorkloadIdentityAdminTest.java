@@ -180,7 +180,8 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
 
         assertThatThrownBy(() -> adapter.ensureBinding(ensure()))
                 .isInstanceOf(RuntimeWorkloadIdentityException.class)
-                .hasMessageContaining("malformed workload access token")
+                .hasMessageContaining(
+                        "malformed workload access token [constraint=client-roles]")
                 .hasMessageNotContaining("same-name-or-extra-role");
         assertThat(credentials.registrationHandoff(CLIENT_ID, owner())).isPresent();
     }

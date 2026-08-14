@@ -1322,23 +1322,41 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
     }
 
     private String tokenSubject(String accessToken, String clientId) {
-        try {
-            String[] segments = accessToken.split("\\.");
-            if (segments.length != 3) {
-                throw new IllegalArgumentException();
-            }
-            JsonNode claims = mapper.readTree(Base64.getUrlDecoder().decode(segments[1]));
-            if (!clientId.equals(text(claims, "azp"))
-                    || !Set.of(settings.workloadRole())
-                            .equals(strings(claims.path("realm_access").path("roles")))
-                    || !claims.path("resource_access").propertyNames().isEmpty()) {
-                throw new IllegalArgumentException();
-            }
-            return text(claims, "sub");
-        } catch (RuntimeException failure) {
-            throw new RuntimeWorkloadIdentityException(
-                    "Keycloak returned a malformed workload access token");
+        String[] segments = accessToken.split("\\.");
+        if (segments.length != 3) {
+            throw malformedWorkloadToken("compact-serialization");
         }
+        JsonNode claims;
+        try {
+            claims = mapper.readTree(Base64.getUrlDecoder().decode(segments[1]));
+        } catch (Exception failure) {
+            throw malformedWorkloadToken("claims-encoding");
+        }
+        if (!claims.isObject()) {
+            throw malformedWorkloadToken("claims-shape");
+        }
+        if (!clientId.equals(optionalText(claims, "azp"))) {
+            throw malformedWorkloadToken("client-binding");
+        }
+        if (!Set.of(settings.workloadRole())
+                .equals(strings(claims.path("realm_access").path("roles")))) {
+            throw malformedWorkloadToken("realm-roles");
+        }
+        if (!claims.path("resource_access").propertyNames().isEmpty()) {
+            throw malformedWorkloadToken("client-roles");
+        }
+        String subject = optionalText(claims, "sub");
+        if (subject == null) {
+            throw malformedWorkloadToken("subject");
+        }
+        return subject;
+    }
+
+    private static RuntimeWorkloadIdentityException malformedWorkloadToken(
+            String constraint) {
+        return new RuntimeWorkloadIdentityException(
+                "Keycloak returned a malformed workload access token [constraint="
+                        + constraint + "]");
     }
 
     private RuntimeWorkloadCredentialState requireCredential(
@@ -1427,6 +1445,13 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                     "Keycloak returned an incomplete client-registration response");
         }
         return value.stringValue();
+    }
+
+    private static String optionalText(JsonNode node, String field) {
+        JsonNode value = node == null ? null : node.get(field);
+        return value != null && value.isString() && !value.stringValue().isBlank()
+                ? value.stringValue()
+                : null;
     }
 
     private static Set<String> strings(JsonNode value) {
