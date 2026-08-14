@@ -313,6 +313,11 @@ def recovered_handoff_authority(
         r"[a-z][a-z0-9_]{0,63}", protocol_error
     ):
         violations.append("protocol-" + protocol_error.replace("_", "-"))
+    protocol_description = response.get("error_description")
+    if isinstance(protocol_description, str):
+        constraint = re.search(r"\[constraint=([a-z][a-z0-9-]{0,63})\]", protocol_description)
+        if constraint is not None:
+            violations.append("protocol-constraint-" + constraint.group(1))
     if response.get("client_id") != client_id:
         violations.append("client")
     if response.get("registration_client_uri") != expected_uri:

@@ -264,6 +264,7 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
         invalid["registration_access_token"] = "previous-fixture-authority"
         invalid["subject_digest"] = "invalid"
         invalid["error"] = "invalid_registration_handoff"
+        invalid["error_description"] = "Rejected [constraint=final-state]."
         with self.assertRaises(target.ContractError) as raised:
             target.recovered_handoff_authority(
                 409,
@@ -279,7 +280,8 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
             message,
             "registration handoff recovery violated the exact contract "
             "[operation=rotate,constraints=status-409,"
-            "protocol-invalid-registration-handoff,uri,subject,"
+            "protocol-invalid-registration-handoff,"
+            "protocol-constraint-final-state,uri,subject,"
             "authority-not-rotated]",
         )
         self.assertNotIn("previous-fixture-authority", message)
