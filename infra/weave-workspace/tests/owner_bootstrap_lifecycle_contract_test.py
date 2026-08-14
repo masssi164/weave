@@ -73,7 +73,9 @@ class OwnerBootstrapLifecycleContractTest(unittest.TestCase):
 
     def test_source_has_ephemeral_directory_and_unconditional_canonicalization(self) -> None:
         source = (ROOT / "scripts/compose_runtime.py").read_text(encoding="utf-8")
-        lifecycle = source.split("def owner_bootstrap(", 1)[1].split("\ndef execute(", 1)[0]
+        lifecycle = source.split("def owner_bootstrap(", 1)[1].split(
+            "\ndef _remove_exact_dogfood_resource(", 1
+        )[0]
         self.assertIn('context.environment != "dogfood"', lifecycle)
         self.assertIn('"--no-deps"', lifecycle)
         self.assertIn('"--force-recreate"', lifecycle)

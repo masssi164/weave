@@ -1,6 +1,13 @@
 # Enterprise release foundation
 
-Status: active enterprise dogfood and human-testing release contract.
+Status: historical release-hardening design; superseded for active `dev` and
+`dogfood` development by ADR 0022 in the pinned specification corpus.
+
+The workflow paths and readiness-manifest chain described below are not active
+development gates. The current path is `Full Compose E2E` followed by direct,
+resettable Dogfood Compose and a development-signed in-place iPhone update. This
+page is retained only as input to a future production-hardening ADR; it must not
+be used to block development human testing.
 
 This page defines the professional release spine for Weave. It deliberately separates product validation from admin/control-plane work: **the Fresh product flow is evidence**, not an Admin Portal feature. Admin/operator surfaces own setup, policy, readiness, and support-safe remediation; member journeys stay provider-neutral and are proved through the acceptance contract.
 

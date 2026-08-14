@@ -19,7 +19,6 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import backup_runtime  # noqa: E402
 from compose_env import ContractError  # noqa: E402
-from fresh_start_retired_inventory import load_retired_inventory  # noqa: E402
 
 
 class BackupRuntimeContractTest(unittest.TestCase):
@@ -155,58 +154,6 @@ class BackupRuntimeContractTest(unittest.TestCase):
             list(self.backup_root.iterdir()),
             [],
             "a failed private backup must not leave a partial directory",
-        )
-
-    def test_retired_backup_binds_inventory_digest_and_exact_artifacts(self) -> None:
-        retired = load_retired_inventory(ROOT / "fresh-start-targets.json")
-        running = list(backup_runtime.QUIESCED_SERVICES)
-        inventory = [
-            {
-                "service": service,
-                "authority": "former-state-adoption",
-                "container": retired.containers[service],
-            }
-            for service in running
-        ]
-        with (
-            mock.patch.dict(os.environ, self._environment(), clear=False),
-            mock.patch.object(
-                backup_runtime,
-                "_running_services",
-                return_value=(running, inventory),
-            ),
-            mock.patch.object(backup_runtime, "_stop"),
-            mock.patch.object(backup_runtime, "_start"),
-            mock.patch.object(
-                backup_runtime,
-                "_postgres_dump",
-                side_effect=self._write_postgres,
-            ),
-            mock.patch.object(
-                backup_runtime,
-                "_archive_volume",
-                side_effect=self._write_volume,
-            ),
-            mock.patch.object(
-                backup_runtime,
-                "_archive_private_config",
-                side_effect=self._write_private,
-            ),
-        ):
-            destination = backup_runtime.backup(self.context, retired)
-
-        manifest = json.loads(
-            (destination / "BackupManifest.json").read_text(encoding="utf-8")
-        )
-        self.assertEqual(manifest["composeProject"], retired.namespace)
-        self.assertEqual(manifest["retiredInventoryDigest"], retired.digest)
-        self.assertEqual(
-            {item["path"] for item in manifest["artifacts"]},
-            {
-                "postgres.sql",
-                "private-config-secrets.tgz",
-                *(item.archive for item in retired.backup_volumes),
-            },
         )
 
     def test_volume_archiver_has_only_the_read_capability_required_for_private_provider_data(

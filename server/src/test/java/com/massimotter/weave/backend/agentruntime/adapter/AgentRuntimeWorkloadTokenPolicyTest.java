@@ -32,6 +32,25 @@ class AgentRuntimeWorkloadTokenPolicyTest {
     }
 
     @Test
+    void acceptsOnlyTheBoundedKeycloakDefaultAndAccountRoleProjection() {
+        RuntimeWorkloadPrincipal principal = policy.resolve(token(
+                CLIENT,
+                CLIENT,
+                List.of(RESOURCE),
+                AgentRuntimeWorkloadTokenPolicy.PROFILE_READ_SCOPE,
+                List.of(
+                        AgentRuntimeWorkloadTokenPolicy.WORKLOAD_ROLE,
+                        "default-roles-weave",
+                        "offline_access",
+                        "uma_authorization"),
+                Map.of("account", Map.of("roles", List.of(
+                        "manage-account", "manage-account-links", "view-profile")))));
+
+        assertThat(principal).isEqualTo(new RuntimeWorkloadPrincipal(
+                "https://auth.weave.test/realms/weave", SUBJECT, CLIENT));
+    }
+
+    @Test
     void rejectsPublicGenericAndConflictingClients() {
         assertRejected(token(
                 "weave-app", "weave-app", List.of(RESOURCE),
@@ -73,6 +92,12 @@ class AgentRuntimeWorkloadTokenPolicyTest {
                 AgentRuntimeWorkloadTokenPolicy.PROFILE_READ_SCOPE,
                 List.of(AgentRuntimeWorkloadTokenPolicy.WORKLOAD_ROLE),
                 Map.of("weave-app", Map.of("roles", List.of("member")))),
+                "invalid-client-roles");
+        assertRejected(token(
+                CLIENT, CLIENT, List.of(RESOURCE),
+                AgentRuntimeWorkloadTokenPolicy.PROFILE_READ_SCOPE,
+                List.of(AgentRuntimeWorkloadTokenPolicy.WORKLOAD_ROLE),
+                Map.of("account", Map.of("roles", List.of("delete-account")))),
                 "invalid-client-roles");
     }
 

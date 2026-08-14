@@ -20,6 +20,75 @@ SPEC.loader.exec_module(target)
 
 
 class VerifyKeycloakDcrContractTest(unittest.TestCase):
+    def test_workload_role_projection_accepts_only_bounded_keycloak_defaults(self) -> None:
+        self.assertTrue(
+            target.bounded_workload_role_projection(
+                {
+                    "weaver-runtime",
+                    "default-roles-weave",
+                    "offline_access",
+                    "uma_authorization",
+                },
+                {
+                    "account": {
+                        "manage-account",
+                        "manage-account-links",
+                        "view-profile",
+                    }
+                },
+            )
+        )
+        self.assertTrue(
+            target.bounded_workload_role_projection({"weaver-runtime"}, {})
+        )
+        self.assertTrue(
+            target.bounded_workload_role_projection(
+                {"weaver-runtime"}, {"account": {"view-profile"}}
+            )
+        )
+
+        rejected = (
+            ({"default-roles-weave"}, {}),
+            ({"weaver-runtime", "foreign-realm-role"}, {}),
+            ({"weaver-runtime"}, {"foreign-client": set()}),
+            ({"weaver-runtime"}, {"account": {"foreign-client-role"}}),
+            (
+                {"weaver-runtime"},
+                {"account": {"view-profile"}, "foreign-client": set()},
+            ),
+        )
+        for realm_roles, client_roles in rejected:
+            with self.subTest(
+                realm_count=len(realm_roles), client_count=len(client_roles)
+            ):
+                self.assertFalse(
+                    target.bounded_workload_role_projection(
+                        realm_roles, client_roles
+                    )
+                )
+
+    def test_registration_uri_mismatch_reports_only_safe_coordinates(self) -> None:
+        expected = (
+            "https://auth.weave.test:44443/realms/weave/"
+            "clients-registrations/openid-connect/weaver-cell-test"
+        )
+        observed = (
+            "http://127.0.0.1:48080/realms/weave/"
+            "clients-registrations/openid-connect/foreign-client"
+        )
+
+        self.assertEqual(
+            target.registration_uri_mismatch_constraints(
+                expected, observed, "weaver-cell-test"
+            ),
+            [
+                "registration-uri-scheme",
+                "registration-uri-host",
+                "registration-uri-port",
+                "registration-uri-client",
+            ],
+        )
+
     def test_metadata_contains_only_public_workload_key_material(self) -> None:
         private = {
             "kty": "RSA",
@@ -128,6 +197,60 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
         self.assertEqual(token, "current-rat")
         self.assertEqual(exchange.call_args_list[0].args[0], direct)
 
+    def test_registration_classifies_server_assigned_client_id_without_disclosure(self) -> None:
+        issuer = "https://auth.weave.test/realms/weave"
+        direct = "http://127.0.0.1:18080/realms/weave/clients-registrations/openid-connect"
+        requested = "weaver-cell-test"
+        assigned = "server-assigned-value"
+        private = {
+            "kty": "RSA",
+            "use": "sig",
+            "alg": "PS256",
+            "kid": "test-current",
+            "n": "modulus",
+            "e": "AQAB",
+        }
+        response = target.metadata(requested, private)
+        response.update(
+            {
+                "client_id": assigned,
+                "registration_client_uri": (
+                    issuer + "/clients-registrations/openid-connect/" + assigned
+                ),
+                "registration_access_token": "fixture-rat",
+            }
+        )
+
+        with (
+            mock.patch.object(
+                target,
+                "registration_handoff_headers",
+                return_value={
+                    "Weave-Registration-Handoff": "A" * 43,
+                    "Weave-Registration-Handoff-State": "sha256:" + "a" * 64,
+                    "Weave-Registration-Handoff-Operation": "create",
+                },
+            ),
+            mock.patch.object(target, "exchange", return_value=(201, response)),
+        ):
+            with self.assertRaises(target.ContractError) as raised:
+                target.registration(
+                    direct,
+                    issuer,
+                    "weave",
+                    "fixture-admin-token",
+                    requested,
+                    private,
+                )
+
+        self.assertEqual(
+            str(raised.exception),
+            "valid DCR response did not preserve the exact workload contract "
+            "[constraints=client-id,registration-uri,registration-uri-client,"
+            "registration-uri-matches-response-client]",
+        )
+        self.assertNotIn(assigned, str(raised.exception))
+
     def test_registration_handoff_is_exact_and_candidate_state_bound(self) -> None:
         private = {
             "kty": "RSA",
@@ -187,6 +310,8 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
         invalid["registration_client_uri"] = "https://forbidden.invalid"
         invalid["registration_access_token"] = "previous-fixture-authority"
         invalid["subject_digest"] = "invalid"
+        invalid["error"] = "invalid_registration_handoff"
+        invalid["error_description"] = "Rejected [constraint=final-state]."
         with self.assertRaises(target.ContractError) as raised:
             target.recovered_handoff_authority(
                 409,
@@ -201,7 +326,9 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
         self.assertEqual(
             message,
             "registration handoff recovery violated the exact contract "
-            "[operation=rotate,constraints=status-409,uri,subject,"
+            "[operation=rotate,constraints=status-409,"
+            "protocol-invalid-registration-handoff,"
+            "protocol-constraint-final-state,uri,subject,"
             "authority-not-rotated]",
         )
         self.assertNotIn("previous-fixture-authority", message)
@@ -230,11 +357,41 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
             "fixture-rat",
         )
         response.pop("scope")
-        with self.assertRaisesRegex(
-            target.ContractError,
-            "exact workload contract",
-        ):
+        with self.assertRaises(target.ContractError) as missing_scope:
             target.exact_client_state(response, client_id, private)
+        self.assertIn("constraints=scopes-type", str(missing_scope.exception))
+
+    def test_exact_client_state_reports_all_safe_constraints_without_values(self) -> None:
+        client_id = "weaver-cell-test"
+        private = {
+            "kty": "RSA",
+            "use": "sig",
+            "alg": "PS256",
+            "kid": "test-current",
+            "n": "modulus",
+            "e": "AQAB",
+        }
+        response = target.metadata(client_id, private)
+        response.update(
+            {
+                "client_id": "wrong-client",
+                "client_uri": "https://forbidden.invalid",
+                "grant_types": ["authorization_code"],
+                "registration_access_token": "",
+            }
+        )
+
+        with self.assertRaises(target.ContractError) as raised:
+            target.exact_client_state(response, client_id, private)
+
+        self.assertEqual(
+            str(raised.exception),
+            "Keycloak client state did not preserve the exact workload contract "
+            "[constraints=client-id,grant-types,forbidden-client-uri,"
+            "registration-authority]",
+        )
+        self.assertNotIn("wrong-client", str(raised.exception))
+        self.assertNotIn("forbidden.invalid", str(raised.exception))
         response["scope"] = " ".join(target.APPROVED_SCOPES)
         response["provider_url"] = "https://forbidden.invalid"
         with self.assertRaisesRegex(
@@ -242,6 +399,21 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
             "exact workload contract",
         ):
             target.exact_client_state(response, client_id, private)
+
+        response = target.metadata(client_id, private)
+        response.update(
+            {
+                "client_id": client_id,
+                "registration_access_token": "fixture-rat",
+            }
+        )
+        response["scope"] = target.APPROVED_SCOPES[0] + " extra.scope"
+        with self.assertRaises(target.ContractError) as mismatched_scopes:
+            target.exact_client_state(response, client_id, private)
+        self.assertIn(
+            "constraints=scopes-missing,scopes-unapproved",
+            str(mismatched_scopes.exception),
+        )
 
     def test_evidence_is_owner_only_and_contains_no_credentials(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

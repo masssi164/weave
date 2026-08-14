@@ -171,7 +171,52 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
     }
 
     @Test
-    void rejectsAWorkloadTokenWithAnyClientRoleProjection() {
+    void acceptsTheBoundedKeycloakDefaultAndAccountRoleProjection() {
+        transport.nextTokenClaimsMutation = claims -> {
+            claims.withObject("realm_access")
+                    .withArray("roles")
+                    .add("default-roles-weave")
+                    .add("offline_access")
+                    .add("uma_authorization");
+            claims.withObject("resource_access")
+                    .withObject("account")
+                    .putArray("roles")
+                    .add("manage-account")
+                    .add("manage-account-links")
+                    .add("view-profile");
+        };
+
+        assertThat(adapter.ensureBinding(ensure()).subject()).isEqualTo(SUBJECT);
+    }
+
+    @Test
+    void classifiesAMissingWorkloadRoleWithoutDisclosingTokenClaims() {
+        transport.nextTokenClaimsMutation = claims ->
+                claims.withObject("realm_access").withArray("roles").removeAll();
+
+        assertThatThrownBy(() -> adapter.ensureBinding(ensure()))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining(
+                        "malformed workload access token [constraint=realm-role-required]")
+                .hasMessageNotContaining("realm_access");
+    }
+
+    @Test
+    void classifiesAnUnexpectedRealmRoleWithoutDisclosingItsName() {
+        transport.nextTokenClaimsMutation = claims -> claims
+                .withObject("realm_access")
+                .withArray("roles")
+                .add("same-name-or-extra-role");
+
+        assertThatThrownBy(() -> adapter.ensureBinding(ensure()))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining(
+                        "malformed workload access token [constraint=realm-role-unexpected]")
+                .hasMessageNotContaining("same-name-or-extra-role");
+    }
+
+    @Test
+    void rejectsAWorkloadTokenWithAnUnknownClientRoleProjection() {
         transport.nextTokenClaimsMutation = claims -> claims
                 .withObject("resource_access")
                 .withObject("other-client")
@@ -180,7 +225,8 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
 
         assertThatThrownBy(() -> adapter.ensureBinding(ensure()))
                 .isInstanceOf(RuntimeWorkloadIdentityException.class)
-                .hasMessageContaining("malformed workload access token")
+                .hasMessageContaining(
+                        "malformed workload access token [constraint=client-roles]")
                 .hasMessageNotContaining("same-name-or-extra-role");
         assertThat(credentials.registrationHandoff(CLIENT_ID, owner())).isPresent();
     }

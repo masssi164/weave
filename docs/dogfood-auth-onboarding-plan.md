@@ -17,13 +17,16 @@ Use Mailpit for dogfood-only mail capture. It belongs in `infra/weave-workspace`
 - SMTP remains private on the Docker network and is never routed through Caddy or exposed to the LAN.
 - No production mail path, no public Internet exposure, and no real external delivery.
 - Support-bundle redaction for message bodies unless a future evidence task explicitly stores sanitized fixtures.
-- A bounded SQLite database on `weave_mailpit_data`, retaining the latest 500 messages across ordinary container replacement and excluding that database from support bundles.
+- A bounded SQLite database on `weave_dogfood_mailpit_data`, retaining the latest 500 messages across ordinary container replacement and excluding that database from support bundles.
 
-Destructive live-stack E2E is not allowed to share the persistent dogfood runner or its Compose project, named volumes, desired-state reconciliation authority, or human data. It requires a run-unique disposable project and cleanup boundary; otherwise the workflow fails closed instead of removing the human dogfood identity or inbox.
+Full Compose E2E does not share the dogfood Compose project, its three session
+volumes, or human data. It uses a run-unique disposable project and cleanup
+boundary. `dogfoodReset` is the explicit development action that discards the
+human dogfood identity and inbox when a clean test state is wanted.
 
 This replaces ambiguous "mail catcher/mailkit-style" wording with one concrete local stack component.
 
-## Persistent human dogfood owner
+## Dogfood owner
 
 The initial iPhone tester is established as the first Keycloak organization owner by the bounded
 Server-owned bootstrap. The identity is distinct from disposable automation principals and is not
@@ -31,7 +34,7 @@ part of the static realm baseline. The bootstrap may create the invitation once 
 the same correlated pending invitation; it cannot create a second human and is unavailable after a
 human exists. Routine deployment never receives a human writer or realm-admin credential.
 
-The supported initial path is the protected GitHub **Dogfood Owner Bootstrap** workflow, Safari at
+The supported initial path is the manual GitHub **Dogfood Owner Invitation** workflow, Safari at
 `https://mail.weave.test:44443`, and normal OIDC sign-in in Weave. After activation, the owner uses
 the Admin Console or authenticated Server invitation API for later members. Active-account password
 or passkey recovery stays in Keycloak.
@@ -81,7 +84,7 @@ The Organisation access screen must always expose a functional **Sign in** actio
 - Post-login usability gate: the same dogfood member run must also provide support-safe Chat and Files status evidence through `DOGFOOD_POST_LOGIN_CHAT_FILES_RESULT`. `workspace_ready` alone proves authentication and bootstrap, not that the member can use the first workspace.
 - Physical iPhone candidate check: install over Wi-Fi when device reachability works; if Wi-Fi install is unavailable, install over USB before asking Massimo to test.
 - OpenClaw-facing iPhone entry command: use `tools/dogfood_iphone_entry.sh --check --device-id <paired-iphone-id> --local-ca-trust trusted` to verify toolchain, handoff generation, and device reachability without installing. Use `--dry-run` to print the delegated physical smoke command, and `--run` to generate `build/dogfood/iphone-entry/handoff.json`, build a profile/release app, install/update it, and launch the current deeplink. The command fails with `DEVICE_ID_REQUIRED`, `DEVICE_UNAVAILABLE_OR_LOCKED`, or `PHYSICAL_DEVICE_TLS_PENDING` when the phone is missing, locked, untrusted, or the local CA has not been confirmed.
-- The canonical local defaults separate the app origin (`https://weave.test:44443`) from the API platform-config origin (`https://api.weave.test:44443/api/platform/config`). TestFlight is the preferred human iteration channel; the local profile runner is the engineering fallback.
+- The canonical local defaults separate the app origin (`https://weave.test:44443`) from the API platform-config origin (`https://api.weave.test:44443/api/platform/config`). The active development channel is the development-signed in-place profile update; TestFlight is not part of the dogfood prerequisite.
 - After first successful workspace entry, run `tools/dogfood_ios_session_restore_smoke.sh`. It terminates and relaunches the installed process and emits `DOGFOOD_SESSION_CONTINUITY_RESULT` only after the device-bound session is restored and an authenticated profile-facade request returns the app to `workspace_ready`.
 - Trust stability check: the local TLS CA and leaf certificate fingerprints remain stable across normal stack restart/recreate unless explicit rotation is requested.
 - iOS signing trust check: the dogfood app keeps the same bundle ID `com.massimotter.weave`, provisioning Team ID `KNDHGC2KV6`, developer certificate label `Apple Development: massimo164@me.com (6RUS2Z848X)`, signing identity/profile class, and installed-app trust assumptions across normal update or app-state reset. A normal update/app-state reset must not ask Massimo to trust the developer again.

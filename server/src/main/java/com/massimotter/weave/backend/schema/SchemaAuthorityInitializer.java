@@ -64,6 +64,14 @@ public final class SchemaAuthorityInitializer {
     // Flyway history intentionally fails here instead of being silently baselined.
     var migration = flyway.migrate();
     flyway.validate();
+    String targetSchemaVersion = migration.targetSchemaVersion;
+    if (targetSchemaVersion == null) {
+      var currentMigration = flyway.info().current();
+      targetSchemaVersion =
+          currentMigration == null || currentMigration.getVersion() == null
+              ? null
+              : currentMigration.getVersion().getVersion();
+    }
 
     Map<String, Object> properties = new LinkedHashMap<>();
     properties.put("spring.config.name", "schema-init");
@@ -100,7 +108,7 @@ public final class SchemaAuthorityInitializer {
           receipt,
           candidate,
           migration.migrationsExecuted,
-          migration.targetSchemaVersion == null ? null : migration.targetSchemaVersion,
+          targetSchemaVersion,
           validated);
     }
   }

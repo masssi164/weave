@@ -52,7 +52,11 @@ Environment evidence additionally binds:
 
 A concrete environment `realm.json` is generated deployment output and must never become an independently maintained source.
 
-For a proven-empty Fresh Start or disposable E2E namespace, startup import creates the realm and the bounded FGAP post-import step is authorized by machine-verifiable empty-state evidence. For a genuinely existing non-empty dogfood or production realm, static IAM changes require the explicit versioned migration with private backup and isolated restore rehearsal.
+For resettable dogfood or a disposable E2E namespace, startup import creates the
+realm from the checked-in projection. Dogfood identity state is development
+state and may be recreated by `dogfoodReset`; it does not require a backup or
+versioned migration. Any future production realm lifecycle requires a separate
+production-hardening ADR before it becomes active.
 
 Every qualified migration must finish with semantic readback, an empty second plan, deletion of temporary bootstrap authority, negative readback proving that authority is gone, and support-safe receipt evidence. Ordinary Server startup does not reconcile static IAM.
 
@@ -93,7 +97,12 @@ Readiness states must be support-safe and action-oriented. Audit records should 
 
 ## Infra and bootstrap
 
-Use the profile-driven infra tree for local/single-host bootstrap, smoke checks, backup/restore, rollback, and support-bundle flows. State-destructive operations require explicit operator confirmation and appropriate recovery evidence. Fresh Start and persistent in-place realm migration are separate operations and must not share a permissive fallback.
+Use the profile-driven Compose tree for local/single-host bootstrap, smoke checks,
+and support bundles. `devUp`/`devDown` manage local dependencies;
+`dogfoodUp`/`dogfoodDown` manage the test stack; `dogfoodReset` deliberately
+recreates its three session volumes while preserving host-managed TLS. Backup,
+restore, rollback, and persistent realm migration are future production concerns,
+not development prerequisites.
 
 ## Support bundles
 

@@ -11,6 +11,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 final class McpWorkloadTokenPolicy {
   private static final Pattern CLIENT_ID = Pattern.compile("weaver-cell-[A-Za-z0-9_-]+");
   private static final String WORKLOAD_ROLE = "weaver-runtime";
+  private static final Set<String> ALLOWED_REALM_ROLES =
+      Set.of(WORKLOAD_ROLE, "default-roles-weave", "offline_access", "uma_authorization");
+  private static final Set<String> ALLOWED_ACCOUNT_ROLES =
+      Set.of("manage-account", "manage-account-links", "view-profile");
 
   private final McpWorkloadProperties properties;
 
@@ -48,8 +52,8 @@ final class McpWorkloadTokenPolicy {
     if (!scopes.equals(Set.copyOf(properties.requiredScopes()))) {
       throw new McpAdmissionException(McpAdmissionException.Kind.INSUFFICIENT_SCOPE);
     }
-    requireExactRealmRole(jwt.getClaimAsMap("realm_access"));
-    requireNoClientRoles(jwt.getClaimAsMap("resource_access"));
+    requireAllowedRealmRoles(jwt.getClaimAsMap("realm_access"));
+    requireAllowedClientRoles(jwt.getClaimAsMap("resource_access"));
     if (jwt.getExpiresAt().isAfter(jwt.getIssuedAt().plus(properties.maximumTokenTtl()))) {
       throw forbidden();
     }
@@ -75,28 +79,37 @@ final class McpWorkloadTokenPolicy {
     return Set.copyOf(scopes);
   }
 
-  private static void requireExactRealmRole(Map<String, Object> realmAccess) {
-    if (realmAccess == null
-        || !(realmAccess.get("roles") instanceof Collection<?> roles)
-        || roles.size() != 1
-        || !WORKLOAD_ROLE.equals(roles.iterator().next())) {
+  private static void requireAllowedRealmRoles(Map<String, Object> realmAccess) {
+    if (realmAccess == null || !(realmAccess.get("roles") instanceof Collection<?> roles)) {
+      throw forbidden();
+    }
+    Set<String> actual = stringSet(roles);
+    if (!actual.contains(WORKLOAD_ROLE) || !ALLOWED_REALM_ROLES.containsAll(actual)) {
       throw forbidden();
     }
   }
 
-  private static void requireNoClientRoles(Map<String, Object> resourceAccess) {
+  private static void requireAllowedClientRoles(Map<String, Object> resourceAccess) {
     if (resourceAccess == null || resourceAccess.isEmpty()) {
       return;
     }
-    for (Object access : resourceAccess.values()) {
-      if (!(access instanceof Map<?, ?> clientAccess)) {
-        throw forbidden();
-      }
-      Object roles = clientAccess.get("roles");
-      if (roles != null && (!(roles instanceof Collection<?> values) || !values.isEmpty())) {
+    if (!resourceAccess.keySet().equals(Set.of("account"))
+        || !(resourceAccess.get("account") instanceof Map<?, ?> accountAccess)
+        || !accountAccess.keySet().equals(Set.of("roles"))
+        || !(accountAccess.get("roles") instanceof Collection<?> roles)
+        || !ALLOWED_ACCOUNT_ROLES.containsAll(stringSet(roles))) {
+      throw forbidden();
+    }
+  }
+
+  private static Set<String> stringSet(Collection<?> values) {
+    LinkedHashSet<String> result = new LinkedHashSet<>();
+    for (Object value : values) {
+      if (!(value instanceof String text) || text.isBlank() || !result.add(text)) {
         throw forbidden();
       }
     }
+    return Set.copyOf(result);
   }
 
   private static String stringClaim(Jwt jwt, String claim) {

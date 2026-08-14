@@ -1,102 +1,66 @@
-# iOS dogfood distribution
+# iOS dogfood for active development
 
-Weave uses one stable iOS application identity for engineering builds, TestFlight builds, and later release builds: bundle identifier `com.massimotter.weave`, Apple team `KNDHGC2KV6`, and Keychain application identifier `$(AppIdentifierPrefix)com.massimotter.weave`. A normal app iteration must update in place. It must not delete the installed app, rotate the bundle identifier, or clear the saved Weave profile, OIDC refresh session, Matrix device ID, or Matrix crypto-store passphrase.
+Dogfood is a fast development loop, not a release-distribution system. A commit is ready for human testing when `Full Compose E2E` succeeded for that exact `dogfood` SHA. There is no Candidate Cut, Fresh Start, TestFlight upload, environment approval, or release manifest in this loop.
 
-## Human tester channel
+Run the manual GitHub workflow `Prepare Human Test` with the exact dogfood SHA. It performs the complete handoff on `weave-live-mac-mini`:
 
-TestFlight is the preferred physical-iPhone dogfood channel. Testers install through Apple instead of trusting an Apple Development certificate on the device, and subsequent builds retain the application and Keychain identity. The development-signed profile runner remains an engineering fallback for local deeplink and LAN diagnostics. If that fallback requests repeated Developer App trust after an ordinary update, use TestFlight instead of asking the tester to repeat the trust action.
+1. verify the successful exact-SHA `Full Compose E2E` run;
+2. start the dogfood stack through `./gradlew dogfoodUp`;
+3. start it a second time and prove that the CA and leaf certificate fingerprints did not change;
+4. optionally create or resend the first-owner invitation and leave its activation link only in private Mailpit at `https://mail.weave.test:44443`;
+5. build the exact commit with development signing, install it over the existing app, and launch the handoff on the paired iPhone.
 
-The GitHub `iOS Dogfood` workflow runs after a successful `Test Stack Deploy` for the exact `dogfood` lane commit, or by an explicit manual recovery dispatch that names the candidate and deployment run. It resolves the protected `dev` source commit from deployment evidence and consumes only the isolated Live Stack run URL recorded in that deployment's test-stack manifest; it never selects a merely recent successful run. Candidate-manifest digest and all four immutable runtime image references must agree across deployment, live automation, Simulator, and distribution evidence, while the isolated and persistent Compose namespaces remain deliberately distinct. Before any archive or physical-device installation, a fresh iPhone Simulator runs the five release-required shell tabs plus nested Profile (Home, Chat, Files, Calendar, Settings, and Profile) from that exact source. Simulator output is explicitly recorded as `fixture-ui`; the workflow combines it with the provider-backed Live Stack artifact, and never upgrades fixture repositories into identity, authorization, or provider evidence. Raw Flutter, Xcode and device-install output remains private in both the Simulator and stable-signing fallback lanes; only allowlisted support-safe markers, exact cleanup records and candidate-bound evidence are uploaded. The upload job uses the protected `ios-dogfood` environment.
+The only private workflow value required for the device is `WEAVE_IOS_DEVICE_ID`. The first-owner path additionally uses the existing dogfood member email secret and display-name variable. Apple distribution and App Store Connect secrets are not part of development dogfood.
 
-`Candidate Cut` is the upstream, dispatch-only release step for one exact commit on protected `dev`. It builds the immutable candidate images and manifest that isolated Live Stack E2E, persistent dogfood deployment, and the iOS distribution chain must all reference; an iOS build is not eligible when those candidate identities diverge.
+## Stable device identity
 
-Environment ownership is role-based and must be configured in GitHub:
+Every normal iteration is an update in place. The workflow and installer preserve:
 
-- `dogfood`: Weave release owner or dogfood operator; an approval request expires after 24 hours and is then reported as blocked or superseded.
-- `ios-dogfood`: Weave release owner plus the client/iOS release owner; an approval request expires after 24 hours and is then reported as blocked or superseded.
+- bundle identifier `com.massimotter.weave`;
+- Apple team `KNDHGC2KV6`;
+- Apple Development certificate team `6RUS2Z848X`;
+- the development Keychain application identity;
+- the existing app container and Developer App trust.
 
-Superseded pending iOS candidates are cancelled through workflow concurrency while the newest dogfood candidate is preserved. A waiting review is never distribution success; readiness evidence records the environment, workflow run URL, commit, and required approver role. Configure required reviewers and these environment secrets:
+The installer defaults to `update_in_place`. It may uninstall only when a developer explicitly selects the separate `destructive_uninstall` recovery mode; the human-test workflow never selects that mode. The build embeds the exact commit, the GitHub preparation-run reference, and a positive build number.
 
-- `APPLE_DISTRIBUTION_CERTIFICATE_P12_BASE64`
-- `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD`
-- `APPLE_PROVISIONING_PROFILE_BASE64`
-- `APPLE_PROVISIONING_PROFILE_NAME`
-- `APP_STORE_CONNECT_API_KEY_ID`
-- `APP_STORE_CONNECT_ISSUER_ID`
-- `APP_STORE_CONNECT_API_PRIVATE_KEY_BASE64`
-- `WEAVE_IOS_DEVICE_ID` for the protected development-signed fallback only
+TLS material lives outside Docker at `/Users/flotterotter/.weave/dogfood/generated/tls`. `dogfoodUp`, `dogfoodDown`, and `dogfoodReset` must not delete or rotate it. The Weave Local Development CA therefore normally needs to be installed and trusted on the iPhone only once.
 
-Create the App Store Connect app record and TestFlight tester group once. Configure automatic distribution for the intended internal tester group, or complete Apple's beta review before using an external tester group. The workflow validates the archive bundle/build identity, uploads with Apple's command-line tooling, and emits support-safe evidence without certificate, profile, API key, or member credential material.
+## Before pressing Run
 
-The archive embeds and exposes the source candidate commit, version, build number, bundle identifier, and workflow evidence reference in support-safe Settings diagnostics. Distribution evidence separately records the `dogfood` lane commit and candidate-manifest digest. The physical acceptance gate must verify both identities before testing. Simulator archive or smoke results do not substitute for physical-iPhone VoiceOver acceptance, session continuity, system-browser authentication, or interaction.
+- The iPhone is unlocked, paired with `weave-live-mac-mini`, reachable over the same WLAN, and Developer Mode is enabled.
+- The Weave Local Development CA is still fully trusted.
+- LAN DNS resolves `weave.test` and its subdomains to the dogfood host.
+- `WEAVE_IOS_DEVICE_ID` identifies that physical phone.
+- If the realm already has a human account, dispatch with `bootstrap_owner=false`; otherwise leave the default enabled.
 
-## Tester-confirmed physical protocol
+## What the tester must actually verify
 
-Physical outcomes are recorded only after the tester performs them. The protected
-`Physical iPhone Human Test` workflow accepts a base64-encoded, support-safe
-`weave.physical-iphone-human-submission.v1` document and validates it against the exact successful
-deployment and iOS distribution runs. The submission contains no tester identity, email,
-credential, token, private path, or raw provider identifier; it carries only a hashed tester
-reference, aggregate VoiceOver/session/navigation statuses, and the structured protocol.
+Installation is preparation, not a human-test result. The tester opens the invitation in Mailpit, activates the account in the system browser, and then verifies on the physical iPhone:
 
-The protocol has exactly twenty rows: invitation receipt and open, Keycloak activation, signed app
-launch, Authorization Code with PKCE, normal session, refresh, logout/relogin, Files UI, Calendar
-UI, Calls UI, Weaver grant, MCP discovery, `files.search`, File resource open, revoke, immediate
-rejection, regrant, restored access, and identity continuity. Every row records expected outcome,
-actual outcome, UTC timestamp, status, and a support-safe evidence reference. A missing Calls or
-other required UI capability is recorded as `blocked`; it is never converted into a pass.
+- app launch and Authorization Code with PKCE;
+- normal session, refresh, logout, and login again;
+- Home, Chat, Files, Calendar, Settings, and Profile navigation;
+- native Files search and opening a file resource;
+- native Calendar create/read/update/delete behavior;
+- Chat room/message behavior, including existing encrypted-history continuity where implemented;
+- Weaver/MCP discovery, grant, `files.search`, resource open, revoke with immediate rejection, regrant, and restored access when that surface is available;
+- VoiceOver labels/order, keyboard/focus behavior where applicable, and identity/session continuity after relaunch.
 
-The final `Human Testing Readiness` workflow accepts only the successful physical workflow run ID.
-It downloads the immutable protocol artifact and verifies the entire live → deployment → iOS →
-physical run graph before emitting schema-v3 readiness evidence. It cannot synthesize physical
-outcomes itself.
+A missing Calls or Weaver surface is recorded as `blocked`, never invented as a pass. Human outcomes remain tester statements; automated E2E and installation evidence do not replace them.
 
-The Flutter native-assets hook derives `IPHONEOS_DEPLOYMENT_TARGET` from the iOS target version supplied by Flutter and passes it explicitly to the Matrix Rust bridge build. Keep that value target-derived: Xcode build phases can otherwise replace the Cargo child process deployment target with an older default, producing Rust and C objects that cannot be linked into the app. Non-iOS bridge builds must not receive the iOS variable.
+Contract marker: `HUMAN_TESTING_HAS_NO_MANIFEST_GATE`.
 
-### Development-signed in-place fallback
+## Local equivalent
 
-When TestFlight credentials are unavailable but the stable Weave bundle is already installed on a paired physical iPhone, use the bounded fallback below. It refuses a first install, bundle/team changes, credential-bearing evidence URLs, and non-candidate build numbers. The fallback keeps the production Keychain access group but omits Associated Domains because Apple Personal Development Teams cannot provision that capability. Production and TestFlight builds continue to use `Runner.entitlements` with Associated Domains enabled.
+The physical-device portion can be repeated from the checked-out dogfood commit without TestFlight:
 
 ```sh
 WEAVE_IOS_DEVICE_ID=<paired-device-id> \
-WEAVE_CANDIDATE_COMMIT=<full-candidate-sha> \
-WEAVE_CANDIDATE_EVIDENCE_REF=https://github.com/<owner>/<repo>/pull/<number> \
-WEAVE_BUILD_NUMBER=<positive-unique-build-number> \
-tools/dogfood_ios_development_fallback.sh
+WEAVE_CANDIDATE_COMMIT=<full-dogfood-sha> \
+WEAVE_IOS_BUILD_NUMBER=<positive-build-number> \
+WEAVE_IOS_LOCAL_CA_TRUST_STATUS=trusted \
+tools/dogfood_iphone_entry.sh --run --reset-mode update_in_place --transport wifi
 ```
 
-The command compiles the exact diagnostic identity, signs with `RunnerDevelopment.entitlements`, verifies the signed bundle and Keychain group, installs over `com.massimotter.weave` without uninstall, launches the updated app, and writes `build/dogfood/ios-development-fallback/ios-development-fallback.json`. That artifact records the fallback channel but deliberately leaves session continuity unclaimed; run the session-continuity gate separately after the member reaches `workspace_ready`.
-
-For a deployed dogfood candidate, prefer recording this path through the protected workflow so the same canonical distribution artifact feeds the readiness manifest:
-
-```sh
-gh workflow run ios-dogfood.yml --ref dogfood \
-  -f candidate_sha=<full-candidate-sha> \
-  -f deployment_run_id=<successful-test-stack-run-id> \
-  -f upload_to_testflight=false
-```
-
-The `ios-dogfood` environment must hold `WEAVE_IOS_DEVICE_ID`, and the paired iPhone must be available to `weave-live-mac-mini`. The workflow runs the same fail-closed script, uploads `ios-dogfood-distribution.json` with channel `stable-signing-fallback`, and never converts installation alone into a session-continuity or VoiceOver pass.
-
-## Session continuity gate
-
-After the member has completed SSO and reached `workspace_ready`, run:
-
-```sh
-WEAVE_IOS_DEVICE_ID=<paired-device-id> \
-WEAVE_DOGFOOD_EVIDENCE_DIR=build/dogfood/iphone-session-restore \
-tools/dogfood_ios_session_restore_smoke.sh
-```
-
-The script copies support-safe preferences before launch, terminates and relaunches the installed app, and copies preferences again. The client appends `session_restored` only after the device-bound OIDC session has been restored and the authenticated profile facade succeeds; it then records `workspace_ready`. The checker emits `DOGFOOD_SESSION_CONTINUITY_RESULT` without reading or exporting Keychain contents.
-
-Encrypted Chat continuity adds three device-local values to that contract:
-
-- `matrix_device_identity_v1` stays in the app Keychain and identifies the same Matrix device after relaunch or update.
-- `matrix_crypto_store_passphrase_v1_<profile-hash>` stays in the Keychain and unlocks the Matrix Rust SDK SQLite store under application support.
-- The profile hash binds API origin, Matrix user ID, and Matrix device ID, so an OIDC access-token refresh rebinds the same encrypted store rather than creating a new device.
-- The backend retains only a hash of the OIDC session-to-device binding. The same refreshed session reopens that device, while a revoked session cannot evade revocation by presenting a new Matrix device ID.
-
-Ordinary app close, process termination, token refresh, a temporary network failure, sign-out, and in-place update preserve these values. A rejected OIDC refresh grant clears the unusable network session but does not silently rotate the Matrix device. Explicit account removal is the destructive boundary that deletes the Matrix device ID, passphrase, and encrypted store. Uninstall/reinstall is tested as recovery on a new device, not as session continuity.
-
-Repeat this gate after installing the next TestFlight or development-signed build in place, then open an encrypted room and confirm that previously decrypted history remains readable without a new-device prompt. Record `MATRIX_E2EE_IPHONE_RELAUNCH` only when the same profile, OIDC session, Matrix device, and encrypted store are observed support-safely. A destructive uninstall is a separate recovery test: it may disrupt development trust and is outside the session-continuity guarantee.
+Use `tools/dogfood_ios_session_restore_smoke.sh` after login when support-safe automated evidence of a successful session restore is useful. It does not read or export Keychain secrets.

@@ -43,6 +43,7 @@ COMMANDS = (
     "provider-prepare",
     "up",
     "down",
+    "reset",
     "ps",
     "logs",
     "keycloak-migration-apply",
@@ -95,7 +96,13 @@ RESOURCE_METADATA = {
 
 def active_volume_keys(context: ComposeContext) -> tuple[str, ...]:
     if getattr(context, "environment", context.profile) == "dev":
-        return ("WEAVE_KEYCLOAK_DATA_VOLUME",)
+        return ()
+    if context.environment == "dogfood":
+        return (
+            "WEAVE_DB_DATA_VOLUME",
+            "WEAVE_NATIVE_FILES_DATA_VOLUME",
+            "WEAVE_MAILPIT_DATA_VOLUME",
+        )
     keys = [
         "WEAVE_CADDY_DATA_VOLUME",
         "WEAVE_CADDY_CONFIG_VOLUME",
@@ -110,7 +117,7 @@ def active_volume_keys(context: ComposeContext) -> tuple[str, ...]:
         keys.append("WEAVE_NEXTCLOUD_DATA_VOLUME")
     if "provider-matrix" in profiles:
         keys.extend(("WEAVE_SYNAPSE_DATA_VOLUME", "WEAVE_MATRIX_APPSERVICE_VOLUME"))
-    if context.environment == "dogfood" or "storage-s3" in profiles:
+    if "storage-s3" in profiles:
         keys.append("WEAVE_RUNTIME_STATE_VOLUME")
     return tuple(keys)
 RESOURCE_PROVENANCE_LABEL_PATTERNS = {
@@ -145,6 +152,28 @@ MCP_PROTECTED_SECRET_MARKERS = (
 COLLABORATION_CONTROL_BUDGET_SECONDS = 240
 COLLABORATION_SUBPROCESS_TIMEOUT_SECONDS = 30
 COLLABORATION_HEALTH_POLL_SECONDS = 2
+RETIRED_DOGFOOD_CONTAINERS = (
+    "weave-backend",
+    "weave-db",
+    "weave-keycloak",
+    "weave-mailpit",
+    "weave-mas",
+    "weave-mcp-server",
+    "weave-nextcloud",
+    "weave-proxy",
+    "weave-synapse",
+)
+RETIRED_DOGFOOD_VOLUMES = (
+    "weave_caddy_config",
+    "weave_caddy_data",
+    "weave_db_data",
+    "weave_keycloak_data",
+    "weave_mailpit_data",
+    "weave_matrix_chat_appservice_runtime",
+    "weave_nextcloud_data",
+    "weave_synapse_data",
+)
+RETIRED_DOGFOOD_NETWORK = "weave_network"
 
 
 def script(context: ComposeContext, name: str) -> None:
@@ -238,7 +267,7 @@ def resource_metadata(context: ComposeContext, kind: str, name: str) -> tuple[st
 
 def labels(context: ComposeContext, kind: str, name: str) -> dict[str, str]:
     component, data_class = resource_metadata(context, kind, name)
-    return {
+    values = {
         "com.massimotter.weave.managed": "true",
         "com.massimotter.weave.environment": context.env["WEAVE_RESOURCE_ENVIRONMENT"],
         "com.massimotter.weave.scope": context.env["WEAVE_STACK_SCOPE"],
@@ -255,6 +284,17 @@ def labels(context: ComposeContext, kind: str, name: str) -> dict[str, str]:
             "WEAVE_CANDIDATE_MANIFEST_DIGEST"
         ],
     }
+    if kind == "network":
+        # E2E pre-creates the reviewed isolated network before Compose starts.
+        # These are Compose's own identity labels for the logical `weave`
+        # network, so Compose can safely adopt that exact project network.
+        values.update(
+            {
+                "com.docker.compose.network": "weave",
+                "com.docker.compose.project": context.env["WEAVE_COMPOSE_PROJECT"],
+            }
+        )
+    return values
 
 
 def resource_inventory(context: ComposeContext) -> set[tuple[str, str]]:
@@ -700,9 +740,13 @@ def prepare(context: ComposeContext) -> None:
     model = normalized_config(context, emit=False)
     graph = validate_mount_contract(model)
     preflight_protected_sources(context, model, graph)
-    ensure_resource(context, "network", context.env["WEAVE_DOCKER_NETWORK"])
-    for key in active_volume_keys(context):
-        ensure_resource(context, "volume", context.env[key])
+    # Dev and dogfood use ordinary Compose-owned resources. Keeping creation
+    # in Compose gives their down/reset tasks unsurprising lifecycle behavior.
+    # Production and isolated E2E retain their reviewed resource policy.
+    if context.environment not in {"dev", "dogfood"}:
+        ensure_resource(context, "network", context.env["WEAVE_DOCKER_NETWORK"])
+        for key in active_volume_keys(context):
+            ensure_resource(context, "volume", context.env[key])
     write_native_compose_environment(context)
 
 
@@ -803,9 +847,9 @@ def _write_migration_bootstrap_secret(context: ComposeContext, path: Path) -> No
 
 
 def keycloak_migration_apply(context: ComposeContext) -> None:
-    if context.environment not in {"dogfood", "prod"}:
+    if context.environment != "prod":
         raise ContractError(
-            "keycloak-migration-apply is qualified only for dogfood/prod with a verified private backup"
+            "keycloak-migration-apply is qualified only for production with a verified private backup"
         )
     script(context, "init_secrets.py")
     script(context, "render_config.py")
@@ -1659,6 +1703,144 @@ def owner_bootstrap(context: ComposeContext, extra: list[str]) -> None:
     )
 
 
+def _remove_exact_dogfood_resource(kind: str, name: str) -> None:
+    inspected = subprocess.run(
+        ["docker", kind, "inspect", name],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if inspected.returncode == 0:
+        subprocess.run(["docker", kind, "rm", name], check=True)
+
+
+def _inspect_retired_resource(kind: str, name: str) -> dict[str, Any] | None:
+    inspected = subprocess.run(
+        ["docker", kind, "inspect", name],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    if inspected.returncode != 0:
+        return None
+    payload = json.loads(inspected.stdout)
+    if not isinstance(payload, list) or len(payload) != 1:
+        raise ContractError(f"invalid Docker inspection payload for retired {kind} {name}")
+    return payload[0]
+
+
+def cleanup_retired_dogfood() -> None:
+    """Remove only the one known unlabeled OpenTofu-era dogfood stack."""
+
+    containers: list[str] = []
+    for name in RETIRED_DOGFOOD_CONTAINERS:
+        inspected = _inspect_retired_resource("container", name)
+        if inspected is None:
+            continue
+        labels = inspected.get("Config", {}).get("Labels") or {}
+        if labels.get("com.docker.compose.project"):
+            raise ContractError(f"refusing Compose-owned retired container {name}")
+        networks = set((inspected.get("NetworkSettings", {}).get("Networks") or {}).keys())
+        if networks != {RETIRED_DOGFOOD_NETWORK}:
+            raise ContractError(f"retired container {name} is attached outside weave_network")
+        mounted_volumes = {
+            str(mount.get("Name", ""))
+            for mount in inspected.get("Mounts", [])
+            if mount.get("Type") == "volume"
+        }
+        if not mounted_volumes.issubset(RETIRED_DOGFOOD_VOLUMES):
+            raise ContractError(f"retired container {name} mounts an unknown Docker volume")
+        containers.append(name)
+
+    network = _inspect_retired_resource("network", RETIRED_DOGFOOD_NETWORK)
+    if network is not None:
+        labels = network.get("Labels") or {}
+        if labels.get("com.docker.compose.project"):
+            raise ContractError("refusing Compose-owned retired weave_network")
+        attached = {
+            str(value.get("Name", ""))
+            for value in (network.get("Containers") or {}).values()
+        }
+        if not attached.issubset(RETIRED_DOGFOOD_CONTAINERS):
+            raise ContractError("retired weave_network contains a foreign container")
+
+    volumes: list[str] = []
+    for name in RETIRED_DOGFOOD_VOLUMES:
+        inspected = _inspect_retired_resource("volume", name)
+        if inspected is None:
+            continue
+        labels = inspected.get("Labels") or {}
+        if labels.get("com.docker.compose.project"):
+            raise ContractError(f"refusing Compose-owned retired volume {name}")
+        users = subprocess.run(
+            [
+                "docker",
+                "container",
+                "ls",
+                "--all",
+                "--filter",
+                f"volume={name}",
+                "--format",
+                "{{.Names}}",
+            ],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+        ).stdout.splitlines()
+        if not set(users).issubset(RETIRED_DOGFOOD_CONTAINERS):
+            raise ContractError(f"retired volume {name} is used by a foreign container")
+        volumes.append(name)
+
+    # All ownership checks complete before the first mutation. Bind-mounted
+    # paths, including every historical TLS directory, are deliberately not
+    # removal targets.
+    if containers:
+        subprocess.run(
+            ["docker", "container", "rm", "--force", *containers], check=True
+        )
+    if volumes:
+        subprocess.run(["docker", "volume", "rm", *volumes], check=True)
+    if network is not None:
+        subprocess.run(
+            ["docker", "network", "rm", RETIRED_DOGFOOD_NETWORK], check=True
+        )
+    if containers or volumes or network is not None:
+        print(
+            "WEAVE_DOGFOOD_RETIRED_CLEANUP_RESULT "
+            f"containers={len(containers)} volumes={len(volumes)} "
+            f"network={str(network is not None).lower()} tls=preserved"
+        )
+
+
+def preflight_dogfood_reset(context: ComposeContext) -> None:
+    """Prove configuration, secrets, and stable TLS before any reset mutation."""
+
+    script(context, "init_secrets.py")
+    script(context, "render_config.py")
+    prepare(context)
+
+
+def reset_dogfood(context: ComposeContext) -> None:
+    """Reset only the fixed dogfood project boundary and its session data."""
+
+    if context.environment != "dogfood":
+        raise ContractError("reset is available only for the dogfood environment")
+    if context.env["WEAVE_COMPOSE_PROJECT"] != "weave-dogfood":
+        raise ContractError("dogfood reset requires WEAVE_COMPOSE_PROJECT=weave-dogfood")
+    preflight_dogfood_reset(context)
+    compose(context, "down", "--volumes", "--remove-orphans")
+    cleanup_retired_dogfood()
+    for key in (
+        "WEAVE_DB_DATA_VOLUME",
+        "WEAVE_NATIVE_FILES_DATA_VOLUME",
+        "WEAVE_MAILPIT_DATA_VOLUME",
+    ):
+        _remove_exact_dogfood_resource("volume", context.env[key])
+    _remove_exact_dogfood_resource("network", context.env["WEAVE_DOCKER_NETWORK"])
+    execute(context, "up", [])
+
+
 def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
     if command == "secrets-init":
         script(context, "init_secrets.py")
@@ -1699,7 +1881,8 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         if context.environment != "dev":
             compose(context, "up", "-d", "postgres", "postgres-reconcile")
         compose(context, "up", "-d", "--wait", "--wait-timeout", "600", "keycloak")
-        require_completed_migration(context)
+        if context.environment in {"e2e", "prod"}:
+            require_completed_migration(context)
         compose(
             context,
             "up",
@@ -1722,6 +1905,10 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
                 *HOST_APPLICATION_SERVICES,
             )
         compose(context, "down", *extra)
+    elif command == "reset":
+        if extra:
+            raise ContractError("reset does not accept command arguments")
+        reset_dogfood(context)
     elif command in {"ps", "logs"}:
         compose(context, command, *extra)
     elif command == "persistence-restart-proof":

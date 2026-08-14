@@ -46,17 +46,43 @@ assert module.STOCK_KEYCLOAK_PLATFORM == "linux/amd64"
 assert module.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST == (
     "sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2"
 )
+assert module.STOCK_KEYCLOAK_PLATFORM_REFERENCE == (
+    "quay.io/keycloak/keycloak@"
+    "sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2"
+)
+source = script.read_text(encoding="utf-8")
+assert '"WEAVE_KEYCLOAK_BASE": STOCK_KEYCLOAK_PLATFORM_REFERENCE' in source
+patch_source = (repository / module.PATCH_RELATIVE).read_text(encoding="utf-8")
+assert '+        URI frontendUri = context.getUri(UrlType.FRONTEND).getBaseUri();' in patch_source
+assert 'CLIENT_ID_MAPPER = "weaver-runtime-client-id"' in patch_source
+assert 'REALM_ROLE_MAPPER = "weaver-runtime-realm-role"' in patch_source
+assert 'workloadProtocolMappers().forEach(client::addProtocolMapper);' in patch_source
+assert '|| !exactWorkloadProtocolMappers(client))' in patch_source
+assert 'client.addScopeMapping(workloadRole);' in patch_source
+assert 'validateExactScopeRoles(client.getRealm().getId(), directClientScopeRoles);' in patch_source
+assert 'UserRealmRoleMappingMapper.PROVIDER_ID' in patch_source
+assert 'OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME' in patch_source
+assert '"realm_access.roles"' in patch_source
+assert 'OIDCAttributeMapperHelper.INCLUDE_IN_INTROSPECTION' in patch_source
+assert 'void ownsExactlyTheTwoFixedWorkloadTokenProtocolMappers()' in patch_source
+assert '"oidc-usermodel-realm-role-mapper"' in patch_source
+assert '"introspection.token.claim", "false"' in patch_source
+assert 'HardcodedClaim.create(' not in patch_source
+assert 'HardcodedRole.create(' not in patch_source
+assert 'WeaveWorkloadRealmRoleMapper' not in patch_source
 assert module.STOCK_SERVICES_SHA256 == (
     "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
 )
 assert module.PATCH_SHA256 == (
-    "4409bbf51d352179afec7668475947f3e3446dbaceb324ce282a7e1a5ce0df27"
+    "a160e180afb93fd249129397671134983bd3aea5b112cfeb96e77c3a9493f33f"
 )
 assert module.PATCHED_SERVICES_SHA256 == (
-    "3788d01bc4a97e8c82d0ed27ccd67ff340af80e8492874678eb3bd6887b2f7e9"
+    "ded246ad30ef995a73a4839ecd01b5851dbeceff1898d95d1744c18fa715fe3b"
 )
 specification_commit, specification_digest = module.specification_pin(repository)
-assert specification_commit == "137510af0792e1e31ad6149901857f323ec9ce49"
+assert specification_commit == json.loads(
+    (repository / "specs/weave-specs.lock.json").read_text(encoding="utf-8")
+)["specCorpus"]["gitCommit"]
 assert specification_digest == "sha256:" + hashlib.sha256(
     (repository / "specs/weave-specs.lock.json").read_bytes()
 ).hexdigest()
@@ -306,6 +332,12 @@ assert (
 assert "keycloak-server-spi-private" not in patch_text
 assert "rejectsUnapprovedScopesBeforeDescriptionConversion" in patch_text
 assert "rejectsAnInjectedExtraEffectiveServiceAccountRole" in patch_text
+assert "runAfterRegisterPolicies(" in patch_text
+assert "WeaveWorkloadClientRegistrationExecutor.isWorkloadClient(" in patch_text
+assert "clientModel.getClientId())" in patch_text
+assert "finalizesWorkloadClientPolicyAfterLegacyRegistrationCleanupOnly" in patch_text
+assert "validateMapperFreeWorkloadScope(" in patch_text
+assert "requiresTheWorkloadScopeToRemainMapperFree" in patch_text
 assert "FROM ${WEAVE_KEYCLOAK_BASE} AS builder" in dockerfile_text
 assert "kc.sh build --db=postgres --vault=file" in dockerfile_text
 assert "com.massimotter.weave.keycloak-patch-sha256" in dockerfile_text
