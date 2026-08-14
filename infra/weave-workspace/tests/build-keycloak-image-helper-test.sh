@@ -54,14 +54,19 @@ source = script.read_text(encoding="utf-8")
 assert '"WEAVE_KEYCLOAK_BASE": STOCK_KEYCLOAK_PLATFORM_REFERENCE' in source
 patch_source = (repository / module.PATCH_RELATIVE).read_text(encoding="utf-8")
 assert '+        URI frontendUri = context.getUri(UrlType.FRONTEND).getBaseUri();' in patch_source
+assert 'CLIENT_ID_MAPPER = "weaver-runtime-client-id"' in patch_source
+assert 'REALM_ROLE_MAPPER = "weaver-runtime-realm-role"' in patch_source
+assert 'workloadProtocolMappers().forEach(client::addProtocolMapper);' in patch_source
+assert '|| !exactWorkloadProtocolMappers(client))' in patch_source
+assert 'Set.of("weaver-runtime-client-id", "weaver-runtime-realm-role")' in patch_source
 assert module.STOCK_SERVICES_SHA256 == (
     "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
 )
 assert module.PATCH_SHA256 == (
-    "acd740b6767993daa18818a24dcc516314ee55aaea79ec07373cdbd818d79534"
+    "a86fafbc80cc1491dd78d748e07e2a81f361e47013992dd02478f4f7c2cbfa58"
 )
 assert module.PATCHED_SERVICES_SHA256 == (
-    "9f1176a560678366e2bcf5cf7ab565d485a54dc4c4995139cb8a013ccec7deab"
+    "8f1c48c9bccdbe1bc308dbc7cbbf0aeb1ae815a9523db75658d1042867630aa0"
 )
 specification_commit, specification_digest = module.specification_pin(repository)
 assert specification_commit == json.loads(
