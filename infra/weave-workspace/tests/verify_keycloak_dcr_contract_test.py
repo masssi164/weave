@@ -150,6 +150,60 @@ class VerifyKeycloakDcrContractTest(unittest.TestCase):
         self.assertEqual(token, "current-rat")
         self.assertEqual(exchange.call_args_list[0].args[0], direct)
 
+    def test_registration_classifies_server_assigned_client_id_without_disclosure(self) -> None:
+        issuer = "https://auth.weave.test/realms/weave"
+        direct = "http://127.0.0.1:18080/realms/weave/clients-registrations/openid-connect"
+        requested = "weaver-cell-test"
+        assigned = "server-assigned-value"
+        private = {
+            "kty": "RSA",
+            "use": "sig",
+            "alg": "PS256",
+            "kid": "test-current",
+            "n": "modulus",
+            "e": "AQAB",
+        }
+        response = target.metadata(requested, private)
+        response.update(
+            {
+                "client_id": assigned,
+                "registration_client_uri": (
+                    issuer + "/clients-registrations/openid-connect/" + assigned
+                ),
+                "registration_access_token": "fixture-rat",
+            }
+        )
+
+        with (
+            mock.patch.object(
+                target,
+                "registration_handoff_headers",
+                return_value={
+                    "Weave-Registration-Handoff": "A" * 43,
+                    "Weave-Registration-Handoff-State": "sha256:" + "a" * 64,
+                    "Weave-Registration-Handoff-Operation": "create",
+                },
+            ),
+            mock.patch.object(target, "exchange", return_value=(201, response)),
+        ):
+            with self.assertRaises(target.ContractError) as raised:
+                target.registration(
+                    direct,
+                    issuer,
+                    "weave",
+                    "fixture-admin-token",
+                    requested,
+                    private,
+                )
+
+        self.assertEqual(
+            str(raised.exception),
+            "valid DCR response did not preserve the exact workload contract "
+            "[constraints=client-id,registration-uri,registration-uri-client,"
+            "registration-uri-matches-response-client]",
+        )
+        self.assertNotIn(assigned, str(raised.exception))
+
     def test_registration_handoff_is_exact_and_candidate_state_bound(self) -> None:
         private = {
             "kty": "RSA",

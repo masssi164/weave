@@ -434,6 +434,9 @@ def registration(
     if status not in {200, 201}:
         violations.append(f"status-{status}")
     observed_uri = response.get("registration_client_uri")
+    observed_client_id = response.get("client_id")
+    if observed_client_id != client_id:
+        violations.append("client-id")
     if observed_uri != expected_uri:
         violations.append("registration-uri")
         violations.extend(
@@ -441,6 +444,15 @@ def registration(
                 expected_uri, observed_uri, client_id
             )
         )
+        if (
+            isinstance(observed_client_id, str)
+            and isinstance(observed_uri, str)
+            and urllib.parse.unquote(
+                urllib.parse.urlsplit(observed_uri).path.rpartition("/")[2]
+            )
+            == observed_client_id
+        ):
+            violations.append("registration-uri-matches-response-client")
     if not expected_uri.startswith(
         issuer + "/clients-registrations/openid-connect/"
     ):
