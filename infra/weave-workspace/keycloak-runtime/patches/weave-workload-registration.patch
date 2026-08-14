@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..5c985a8
 --- /dev/null
 +++ b/services/src/main/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutor.java
-@@ -0,0 +1,914 @@
+@@ -0,0 +1,918 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import com.fasterxml.jackson.databind.JsonNode;
@@ -262,6 +262,10 @@ index 0000000..5c985a8
 +                : targetClientId;
 +        if (requested != null && requested.startsWith("weaver-cell-")) {
 +            if (!isWorkloadClient(requested)
++                    || !"private_key_jwt".equals(
++                            representation.getTokenEndpointAuthMethod())
++                    || !Algorithm.PS256.equals(
++                            representation.getTokenEndpointAuthSigningAlg())
 +                    || representation.getSectorIdentifierUri() != null
 +                    || (representation.getSubjectType() != null
 +                            && !"public".equals(representation.getSubjectType()))
@@ -1235,7 +1239,7 @@ new file mode 100644
 index 0000000..8e56e65
 --- /dev/null
 +++ b/services/src/test/java/org/keycloak/services/clientpolicy/executor/WeaveWorkloadClientRegistrationExecutorTest.java
-@@ -0,0 +1,98 @@
+@@ -0,0 +1,112 @@
 +package org.keycloak.services.clientpolicy.executor;
 +
 +import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -1288,6 +1292,18 @@ index 0000000..8e56e65
 +    }
 +
 +    @Test
++    void rejectsWrongRawAuthenticationMethodBeforeDescriptionConversion() {
++        OIDCClientRepresentation representation =
++                representation(CLIENT_ID, APPROVED_SCOPES);
++        representation.setTokenEndpointAuthMethod("client_secret_basic");
++
++        assertThrows(
++                ClientPolicyException.class,
++                () -> WeaveWorkloadClientRegistrationExecutor.validateOidcMetadata(
++                        representation, null));
++    }
++
++    @Test
 +    void rejectsInvalidNamespaceAtTheClientPolicyBoundary() {
 +        ClientRepresentation representation = new ClientRepresentation();
 +        representation.setName("weaver-cell-invalid!");
@@ -1331,6 +1347,8 @@ index 0000000..8e56e65
 +        representation.setClientName(clientName);
 +        representation.setScope(scopes);
 +        representation.setSubjectType("public");
++        representation.setTokenEndpointAuthMethod("private_key_jwt");
++        representation.setTokenEndpointAuthSigningAlg("PS256");
 +        return representation;
 +    }
 +}

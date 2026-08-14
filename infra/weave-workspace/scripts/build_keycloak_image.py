@@ -26,9 +26,9 @@ UPSTREAM_COMMIT = "73f08b397f193712b26d317210dce99898129709"
 UPSTREAM_REPOSITORY = "https://github.com/keycloak/keycloak.git"
 ARCHIVE_SHA256 = "4ef57bbe2d97acf658b0347885a8239543af9cc27337c1bfa6ece50bfb6f9b90"
 STOCK_SERVICES_SHA256 = "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
-PATCH_SHA256 = "4409bbf51d352179afec7668475947f3e3446dbaceb324ce282a7e1a5ce0df27"
+PATCH_SHA256 = "22a7bfeb1912ee995f9b4ff6fb4c8c029cd1dd9160423395d54fb278860344e6"
 PATCHED_SERVICES_SHA256 = (
-    "3788d01bc4a97e8c82d0ed27ccd67ff340af80e8492874678eb3bd6887b2f7e9"
+    "a151b32fa0ba11a82a12e5d1d11a9468f53972cf46d9efc0755ae7999c41f101"
 )
 STOCK_KEYCLOAK_INDEX_DIGEST = (
     "sha256:f1f1f01e472c8a78df40d8f2a49a925274eda4d3d80d5f6edbb5c880ee3c01c6"
@@ -458,7 +458,8 @@ def build_services(
     patched_digest = sha256(services)
     if patched_digest != PATCHED_SERVICES_SHA256:
         raise SystemExit(
-            "WEAVE_KEYCLOAK_BUILD_ERROR patched services JAR digest mismatch"
+            "WEAVE_KEYCLOAK_BUILD_ERROR patched services JAR digest mismatch "
+            f"[actual={patched_digest}]"
         )
     listing = run("jar", "tf", str(services), capture=True)
     required_entries = (

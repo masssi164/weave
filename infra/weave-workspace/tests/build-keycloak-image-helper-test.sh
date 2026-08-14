@@ -56,10 +56,10 @@ assert module.STOCK_SERVICES_SHA256 == (
     "b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83"
 )
 assert module.PATCH_SHA256 == (
-    "4409bbf51d352179afec7668475947f3e3446dbaceb324ce282a7e1a5ce0df27"
+    "22a7bfeb1912ee995f9b4ff6fb4c8c029cd1dd9160423395d54fb278860344e6"
 )
 assert module.PATCHED_SERVICES_SHA256 == (
-    "3788d01bc4a97e8c82d0ed27ccd67ff340af80e8492874678eb3bd6887b2f7e9"
+    "a151b32fa0ba11a82a12e5d1d11a9468f53972cf46d9efc0755ae7999c41f101"
 )
 specification_commit, specification_digest = module.specification_pin(repository)
 assert specification_commit == json.loads(
