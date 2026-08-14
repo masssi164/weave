@@ -13,6 +13,7 @@ import stat
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -432,8 +433,14 @@ def registration(
     violations: list[str] = []
     if status not in {200, 201}:
         violations.append(f"status-{status}")
-    if response.get("registration_client_uri") != expected_uri:
+    observed_uri = response.get("registration_client_uri")
+    if observed_uri != expected_uri:
         violations.append("registration-uri")
+        violations.extend(
+            registration_uri_mismatch_constraints(
+                expected_uri, observed_uri, client_id
+            )
+        )
     if not expected_uri.startswith(
         issuer + "/clients-registrations/openid-connect/"
     ):
@@ -488,6 +495,37 @@ def registration(
         )
     current_rat = exact_client_state(observed, client_id, private_jwk)
     return expected_uri, current_rat
+
+
+def registration_uri_mismatch_constraints(
+    expected: str, observed: Any, client_id: str
+) -> list[str]:
+    if not isinstance(observed, str):
+        return ["registration-uri-type"]
+    try:
+        expected_uri = urllib.parse.urlsplit(expected)
+        observed_uri = urllib.parse.urlsplit(observed)
+        expected_port = expected_uri.port
+        observed_port = observed_uri.port
+    except ValueError:
+        return ["registration-uri-syntax"]
+
+    constraints: list[str] = []
+    if observed_uri.scheme != expected_uri.scheme:
+        constraints.append("registration-uri-scheme")
+    if observed_uri.hostname != expected_uri.hostname:
+        constraints.append("registration-uri-host")
+    if observed_port != expected_port:
+        constraints.append("registration-uri-port")
+    expected_prefix, _, expected_tail = expected_uri.path.rpartition("/")
+    observed_prefix, _, observed_tail = observed_uri.path.rpartition("/")
+    if observed_prefix != expected_prefix:
+        constraints.append("registration-uri-path")
+    if urllib.parse.unquote(observed_tail) != client_id or expected_tail != client_id:
+        constraints.append("registration-uri-client")
+    if observed_uri.query or observed_uri.fragment:
+        constraints.append("registration-uri-suffix")
+    return constraints or ["registration-uri-bytes"]
 
 
 def exact_client_state(

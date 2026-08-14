@@ -20,6 +20,28 @@ SPEC.loader.exec_module(target)
 
 
 class VerifyKeycloakDcrContractTest(unittest.TestCase):
+    def test_registration_uri_mismatch_reports_only_safe_coordinates(self) -> None:
+        expected = (
+            "https://auth.weave.test:44443/realms/weave/"
+            "clients-registrations/openid-connect/weaver-cell-test"
+        )
+        observed = (
+            "http://127.0.0.1:48080/realms/weave/"
+            "clients-registrations/openid-connect/foreign-client"
+        )
+
+        self.assertEqual(
+            target.registration_uri_mismatch_constraints(
+                expected, observed, "weaver-cell-test"
+            ),
+            [
+                "registration-uri-scheme",
+                "registration-uri-host",
+                "registration-uri-port",
+                "registration-uri-client",
+            ],
+        )
+
     def test_metadata_contains_only_public_workload_key_material(self) -> None:
         private = {
             "kty": "RSA",
