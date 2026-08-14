@@ -109,6 +109,8 @@ contains "${LIFECYCLE}" ':weave-product-e2e:productFlow'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_SERVER_IMAGE must be digest-pinned'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_MCP_IMAGE must be digest-pinned'
 contains "${LIFECYCLE}" 'WEAVE_OPENDAL_CLASSIFIER=linux-x86_64'
+[[ "$(grep -Fc -- '--platform linux/amd64' "${LIFECYCLE}")" == 2 ]] ||
+  fail "testApp must build both JVM runtime images for the pinned Linux/AMD64 target"
 contains "${LIFECYCLE}" 'testApp requires a clean worktree'
 contains "${LIFECYCLE}" 'tools/runner_capacity_preflight.py'
 contains "${LIFECYCLE}" '--minimum-free-gib 8'

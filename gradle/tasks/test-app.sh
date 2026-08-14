@@ -222,11 +222,13 @@ if [[ -z "${SERVER_IMAGE}" && -z "${MCP_IMAGE}" ]]; then
     --build-arg "WEAVE_PROVENANCE_REFERENCE=local-test-app-not-published"
   )
   docker build \
+    --platform linux/amd64 \
     "${common_build_args[@]}" \
     --tag "${SERVER_IMAGE}" \
     --file "${REPOSITORY_ROOT}/server/Dockerfile" \
     "${REPOSITORY_ROOT}"
   docker build \
+    --platform linux/amd64 \
     "${common_build_args[@]}" \
     --tag "${MCP_IMAGE}" \
     --file "${REPOSITORY_ROOT}/weave-mcp-server/Dockerfile" \
