@@ -47,6 +47,16 @@ def main() -> int:
     require("name: Full Compose E2E" in e2e, "the E2E workflow has no stable check name")
     require("branches: [dev, dogfood]" in e2e, "E2E must run for dev and dogfood")
     require("name: Full Compose E2E" in e2e, "the required E2E check context is missing")
+    exact_source = "${{ github.event.pull_request.head.sha || github.sha }}"
+    require(
+        e2e.count(exact_source) >= 3
+        and "ref: ${{ env.WEAVE_CANDIDATE_COMMIT }}" in e2e,
+        "PR E2E must run against the exact head SHA instead of the synthetic merge commit",
+    )
+    require(
+        "permissions:\n  actions: read\n  contents: read" in e2e,
+        "the reusable iPhone workflow cannot start without inherited actions:read",
+    )
     ordered(
         e2e,
         (

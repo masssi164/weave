@@ -1,5 +1,5 @@
 name: Full Compose E2E
-run-name: Full Compose E2E ${{ github.sha }}
+run-name: Full Compose E2E ${{ github.event.pull_request.head.sha || github.sha }}
 
 on:
   push:
@@ -11,6 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -25,8 +26,8 @@ jobs:
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
       DOCKER_DEFAULT_PLATFORM: linux/amd64
-      WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
-      WEAVE_IMAGE_SOURCE_COMMIT: ${{ github.sha }}
+      WEAVE_CANDIDATE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      WEAVE_IMAGE_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
       WEAVE_TEST_APP_RUN_ID: e2e-${{ github.run_id }}-${{ github.run_attempt }}
       WEAVE_TEST_APP_OUTPUT_ROOT: ${{ github.workspace }}/weave/build/test-app
 
@@ -42,6 +43,7 @@ jobs:
       - name: Check out exact source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          ref: ${{ env.WEAVE_CANDIDATE_COMMIT }}
           path: weave
           fetch-depth: 0
 
@@ -95,7 +97,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: full-compose-e2e-${{ github.sha }}
+          name: full-compose-e2e-${{ env.WEAVE_CANDIDATE_COMMIT }}
           path: weave/build/test-app/**
           if-no-files-found: warn
           retention-days: 14
