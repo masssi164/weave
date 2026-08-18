@@ -1,0 +1,12 @@
+plugins {
+    id 'java-library'
+}
+
+apply from: "${projectDir}/gradle/scripts/java-and-dependencies.gradle"
+apply from: "${projectDir}/gradle/tasks/verification.gradle"
+
+tasks.register('canonicalDataCi') {
+    group = 'verification'
+    description = 'Run the provider-independent canonical data and transfer kernel contracts.'
+    dependsOn tasks.named('test')
+}
