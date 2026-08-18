@@ -52,6 +52,7 @@ dependencies {
     implementation libs.aws.url.connection.client
 
     implementation project(':weave-application-core')
+    implementation project(':weave-data-core')
     implementation project(':weave-files-core')
     implementation project(':weave-persistence-jpa')
     implementation project(':weave-runtime-provider-adapters')
