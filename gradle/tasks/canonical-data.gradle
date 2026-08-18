@@ -1,0 +1,5 @@
+tasks.register('canonicalDataCi') {
+    group = 'verification'
+    description = 'Compile and test the framework-free canonical data and provider-transfer contracts.'
+    dependsOn ':weave-canonical-transfer:test', ':weave-application-core:test'
+}
