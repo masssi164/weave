@@ -1,0 +1,95 @@
+name: Main Promotion Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  merge_group:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: "Commit SHA that should be eligible for main promotion"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify-current-dev-tree:
+    # Compatibility name retained until the protected-branch rule can be renamed.
+    name: Verify dev → dogfood evidence before main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out candidate history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Resolve candidate and lane
+        id: candidate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref || '' }}
+          DISPATCH_SHA: ${{ inputs.candidate_sha || '' }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            candidate="$DISPATCH_SHA"
+          elif [[ "$EVENT_NAME" == "pull_request" ]]; then
+            candidate="$PR_HEAD_SHA"
+          else
+            candidate="$GITHUB_SHA"
+          fi
+          if [[ ! "$candidate" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Candidate must be one full lowercase commit SHA." >&2
+            exit 1
+          fi
+          lane="promotion"
+          if [[ "$PR_HEAD_REF" == hotfix/* ]]; then
+            lane="hotfix"
+          fi
+          printf 'sha=%s\nlane=%s\n' "$candidate" "$lane" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch protected branch heads
+        run: git fetch origin dev main --prune
+
+      - name: Verify exact current dev tree
+        if: steps.candidate.outputs.lane == 'promotion'
+        env:
+          CANDIDATE: ${{ steps.candidate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if ! git merge-base --is-ancestor origin/dev "$CANDIDATE"; then
+            echo "::error::Main promotion must contain the current protected dev head." >&2
+            exit 1
+          fi
+          if ! git diff --quiet origin/dev "$CANDIDATE" --; then
+            echo "::error::Main promotion must use the exact current dev tree. Put source changes on dev first." >&2
+            git diff --stat origin/dev "$CANDIDATE" --
+            exit 1
+          fi
+          echo "Candidate contains protected dev and is tree-identical to it."
+
+      - name: Verify hotfix ancestry
+        if: steps.candidate.outputs.lane == 'hotfix'
+        env:
+          CANDIDATE: ${{ steps.candidate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if ! git merge-base --is-ancestor origin/main "$CANDIDATE"; then
+            echo "::error::Hotfix must be based on the current protected main head." >&2
+            exit 1
+          fi
+          echo "Hotfix is based on current main; forward-port it to dev after merge."
+
+      - name: Record direct-Compose promotion contract
+        run: |
+          set -euo pipefail
+          echo "Main promotion uses the direct-Compose native-core contract from #1403 and #1407."
+          echo "Candidate Cut, Fresh Start, persistent dogfood promotion and TestFlight are not prerequisites for this development lane."
