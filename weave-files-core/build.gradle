@@ -4,3 +4,9 @@ plugins {
 
 apply from: "${projectDir}/gradle/scripts/java-and-dependencies.gradle"
 apply from: "${projectDir}/gradle/tasks/verification.gradle"
+
+tasks.register('filesCanonicalDataCi') {
+    group = 'verification'
+    description = 'Run canonical Files identity, hierarchy, transfer, and architecture contracts.'
+    dependsOn tasks.named('test')
+}
