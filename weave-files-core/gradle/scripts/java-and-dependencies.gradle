@@ -8,6 +8,8 @@ java {
 }
 
 dependencies {
+    api project(':weave-data-core')
+
     testImplementation platform(libs.spring.boot.bom)
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation libs.archunit.junit5
