@@ -140,4 +140,4 @@ Historical documents are not architecture authority. Superseded entry points red
 
 ## License
 
-See [LICENSE](LICENSE).
+No repository license file is currently present. Add one before making an open-source distribution claim.
