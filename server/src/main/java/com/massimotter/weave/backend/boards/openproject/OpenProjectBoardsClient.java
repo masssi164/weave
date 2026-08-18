@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.boards.openproject;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.massimotter.weave.backend.boards.port.BoardPage;
 import com.massimotter.weave.backend.boards.port.BoardQuery;
 import com.massimotter.weave.backend.boards.port.TaskQuery;
@@ -352,7 +352,7 @@ final class OpenProjectBoardsClient {
     }
 
     private Optional<Long> linkId(JsonNode node, String name) {
-        String href = node.path("_links").path(name).path("href").asText(null);
+        String href = node.path("_links").path(name).path("href").asString(null);
         if (href == null) {
             return Optional.empty();
         }
@@ -379,7 +379,7 @@ final class OpenProjectBoardsClient {
         if (value == null || value.isMissingNode() || value.isNull()) {
             return Optional.empty();
         }
-        return Optional.of(value.asText()).filter(text -> !text.isBlank());
+        return Optional.of(value.asString()).filter(text -> !text.isBlank());
     }
 
     private Optional<Instant> dateOrInstant(String value) {

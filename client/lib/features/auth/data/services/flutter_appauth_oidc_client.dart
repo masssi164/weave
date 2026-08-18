@@ -79,6 +79,12 @@ class FlutterAppAuthOidcClient implements OidcClient {
         scopes: response.scopes,
       );
     } on FlutterAppAuthPlatformException catch (error) {
+      if (_isRejectedRefreshGrant(error)) {
+        throw AuthFailure.sessionRejected(
+          'The saved session is no longer valid. Sign in again.',
+          cause: error,
+        );
+      }
       throw AuthFailure.protocol(
         _messageFromPlatformError(
           error,
@@ -172,6 +178,11 @@ class FlutterAppAuthOidcClient implements OidcClient {
     }
 
     return fallback;
+  }
+
+  bool _isRejectedRefreshGrant(FlutterAppAuthPlatformException error) {
+    return error.platformErrorDetails.error?.trim().toLowerCase() ==
+        FlutterAppAuthOAuthError.invalidGrant;
   }
 
   bool _usesInsecureIssuer(AuthConfiguration configuration) {

@@ -38,7 +38,6 @@ void main() {
         'Channel Work Rooms',
         'Decision Ledger',
         'Meeting Capsule',
-        'Weaver Scout',
         'Provider apply and recovery gates',
         'Member domain provider reality',
       ]) {

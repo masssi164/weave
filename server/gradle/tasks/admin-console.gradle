@@ -1,0 +1,72 @@
+def adminConsoleDirectory = file("${projectDir}/../admin-console")
+def adminConsolePackageLock = file("${adminConsoleDirectory}/package-lock.json")
+def adminConsoleInstalledLock = file("${adminConsoleDirectory}/node_modules/.package-lock.json")
+def adminConsoleDistribution = file("${adminConsoleDirectory}/dist")
+
+tasks.register('installAdminConsoleDependencies', Exec) {
+    group = 'build'
+    description = 'Install the exact Admin Console dependency graph for production packaging.'
+    workingDir adminConsoleDirectory
+    commandLine rootProject.ext.execCommand(['npm', 'ci'])
+    inputs.files(
+            file("${adminConsoleDirectory}/package.json"),
+            adminConsolePackageLock)
+    outputs.file(adminConsoleInstalledLock)
+}
+
+tasks.register('buildAdminConsoleProduction', Exec) {
+    group = 'build'
+    description = 'Build the immutable Admin Console static production artifact.'
+    dependsOn tasks.named('installAdminConsoleDependencies')
+    workingDir adminConsoleDirectory
+    commandLine rootProject.ext.execCommand(['npm', 'run', 'build'])
+    inputs.files(
+            file("${adminConsoleDirectory}/package.json"),
+            adminConsolePackageLock,
+            file("${adminConsoleDirectory}/tsconfig.json"),
+            file("${adminConsoleDirectory}/vite.config.ts"),
+            file("${adminConsoleDirectory}/index.html"))
+    inputs.dir(file("${adminConsoleDirectory}/src"))
+    outputs.dir(adminConsoleDistribution)
+}
+
+tasks.register('verifyAdminConsoleProduction') {
+    group = 'verification'
+    description = 'Fail closed when the production Admin Console bundle violates its static security boundary.'
+    dependsOn tasks.named('buildAdminConsoleProduction')
+    inputs.dir(adminConsoleDistribution)
+    doLast {
+        def indexFile = file("${adminConsoleDistribution}/index.html")
+        if (!indexFile.isFile()) {
+            throw new GradleException('Admin Console production build did not emit dist/index.html')
+        }
+        def index = indexFile.getText('UTF-8')
+        if (index =~ /(?i)<script(?![^>]*\bsrc=)[^>]*>/) {
+            throw new GradleException('Admin Console index contains an inline script and is not CSP-safe')
+        }
+        def forbidden = [
+                '/admin/realms/',
+                'client_secret',
+                'KEYCLOAK_ADMIN_PASSWORD',
+                'WEAVE_IDENTITY_KEYCLOAK_CLIENT_SECRET'
+        ]
+        fileTree(adminConsoleDistribution).matching {
+            include '**/*.html', '**/*.js', '**/*.css', '**/*.json'
+        }.files.each { asset ->
+            def source = asset.getText('UTF-8')
+            def normalizedSource = source.toLowerCase(Locale.ROOT)
+            forbidden.each { marker ->
+                if (normalizedSource.contains(marker.toLowerCase(Locale.ROOT))) {
+                    throw new GradleException("Admin Console production asset ${asset.name} contains forbidden marker ${marker}")
+                }
+            }
+        }
+    }
+}
+
+tasks.named('bootJar') {
+    dependsOn tasks.named('verifyAdminConsoleProduction')
+    from(adminConsoleDistribution) {
+        into 'BOOT-INF/classes/META-INF/resources/admin-console'
+    }
+}

@@ -104,6 +104,18 @@ class ChatController extends Notifier<ChatUiState> {
     }
   }
 
+  Future<ChatConversation> createConversation({required String title}) async {
+    final conversation = await ref
+        .read(chatRepositoryProvider)
+        .createConversation(title: title);
+    final conversations = <ChatConversation>[
+      conversation,
+      ...state.conversations.where((item) => item.id != conversation.id),
+    ];
+    state = ChatUiState.content(conversations);
+    return conversation;
+  }
+
   Future<void> _loadInitial({
     IntegrationInvalidationReason? invalidationReason,
   }) async {

@@ -14,14 +14,14 @@ The lab proves only these facts when `./gradlew providerLabCheck` is green:
 - the Sprint 23 entry scoreboard agrees with the gate output;
 - support-safe evidence omits secrets, credential-bearing URLs, raw provider payloads, message bodies, attachment contents, and private provider identifiers.
 
-The lab does not prove provider interchangeability, production SSO, production-grade file storage, production rollback, migration apply readiness, Weaver availability, per-user PA runtime availability, full history preservation, release readiness, or customer-ready status.
+The lab does not prove provider interchangeability, production SSO, production-grade file storage, production rollback, migration apply readiness, Agent Runtime Control or Weaver availability, full history preservation, release readiness, or customer-ready status. Keycloak and Authentik are topology fixtures for the fixed Keycloak authority and upstream federation boundary; they are not southbound provider manifests.
 
 ## Provider scope
 
-Identity providers:
+Platform identity/federation topology:
 
-- Keycloak for local HTTP-only OIDC, SAML, role, and group mapping foundation. The lab uses `start-dev`; production hostname, TLS/proxy, and external database posture are out of Sprint 22.
-- Authentik for OIDC, SAML, role, and group mapping foundation with PostgreSQL and Redis. SMTP is disabled/dummy, and Docker socket Outposts are intentionally out of scope.
+- Keycloak is the fixed local platform identity authority for OIDC, SAML, role, and group mapping foundations. The lab uses `start-dev`; production hostname, TLS/proxy, and external database posture are out of Sprint 22.
+- Authentik is an optional upstream OIDC/SAML source for Keycloak federation/brokering proof with PostgreSQL and Redis. It never replaces Keycloak in the Weave runtime contract. SMTP is disabled/dummy, and Docker socket Outposts are intentionally out of scope.
 
 Chat providers:
 
@@ -42,9 +42,9 @@ Boards provider:
 
 - OpenProject as a local boards/work-package fixture using the Docker image. The Sprint 22 claim is local lab boot/readiness only, not production deployment or repository integration.
 
-Weaver boundary:
+Agent runtime boundary:
 
-- Docker Runtime boundary only. Sprint 22 does not enable a per-user PA runtime.
+- Agent Runtime Control and Weaver/OpenClaw are outside the provider lab. Runtime lifecycle, workload identity, encrypted state, and disposable orchestration use their dedicated contracts and evidence lanes.
 
 ## Start, inspect, stop, and reset
 
@@ -98,8 +98,8 @@ If a provider container fails to start, inspect only local container status and 
 
 Provider-specific checks should stay honest:
 
-- Keycloak: local `/realms/master` and optional health endpoints if enabled; seeded test realm/client/users only when deterministic scripts exist.
-- Authentik: container health and initial setup/login page; no Docker socket Outposts or external SMTP.
+- Keycloak authority: local `/realms/master` and optional health endpoints if enabled; seeded test realm/client/users only when deterministic scripts exist.
+- Upstream Authentik source: container health and initial setup/login page; no Docker socket Outposts or external SMTP, and no claim that it is a selectable Weave identity provider.
 - Matrix/Synapse: `/_matrix/client/versions` after static config generation; local users/rooms only when seeded with a local registration secret.
 - Zulip: profile starts only after documented bootstrap; organization creation/login is a manual/local fixture until automated evidence exists.
 - Nextcloud: `/status.php`, login page, and optional WebDAV/`occ status`; no silent MinIO primary-storage claim.

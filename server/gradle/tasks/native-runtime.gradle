@@ -1,0 +1,18 @@
+def nativeLibraryFileName = System.getProperty('os.name').toLowerCase().contains('mac')
+        ? 'libweave_matrix_protocol.dylib'
+        : System.getProperty('os.name').toLowerCase().contains('win')
+                ? 'weave_matrix_protocol.dll'
+                : 'libweave_matrix_protocol.so'
+ext.matrixProtocolLibrary = rootProject.file("target/debug/${nativeLibraryFileName}")
+
+tasks.register('buildMatrixRustCoreJni', Exec) {
+    group = 'build'
+    description = 'Build the required Rust/Ruma server protocol JNI library for the permanent Matrix northbound facade.'
+    workingDir rootProject.projectDir
+    commandLine 'cargo', 'build', '-p', 'weave-matrix-protocol', '--features', 'jni'
+    inputs.file(rootProject.file('Cargo.toml'))
+    inputs.file(rootProject.file('Cargo.lock'))
+    inputs.dir(rootProject.file('rust/matrix-protocol/src'))
+    inputs.file(rootProject.file('rust/matrix-protocol/Cargo.toml'))
+    outputs.file(matrixProtocolLibrary)
+}

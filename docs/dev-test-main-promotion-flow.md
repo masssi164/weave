@@ -1,107 +1,74 @@
-# Dev → Dogfood → Main promotion flow
+# Dev → Dogfood development loop
 
-Status: active delivery policy.
+Status: active development policy.
 
-Weave uses three promotion lanes:
+Weave is still in active development with one human developer. `dev` and `dogfood` therefore optimize for short, repeatable feedback rather than production rollout ceremony.
 
-- `dev`: normal integration branch and the base for feature branches. Feature PRs are cut from `dev` and return to `dev` after the review/refactor loop, feature-specific tests, acceptance/Gherkin/Cucumber mappings, docs/evidence, and PR-safe CI/contracts/unit/acceptance/docs gates.
-- `dogfood`: persistent LAN dogfood branch and candidate/test-stack promotion lane. Promotion PRs from `dev` to `dogfood` run the feature-relevant E2E/live/dogfood validation for that candidate; missing feature-relevant Gherkin/Cucumber scenarios or deterministic mappings must be added by this stage at the latest. Advancing this branch deploys or updates the local test stack on the dedicated Mac runner. This branch is named `dogfood` because legacy `test/...` branches already occupy Git's `refs/heads/test/` namespace.
-- `main`: stable/release-capable branch after dogfood validation. A commit may reach `main` only after it has been integrated through `dev`, validated through `dogfood`, and has green dogfood E2E/live evidence plus human-test signoff where the change requires it.
+## Branches
 
-## Why this exists
+- `dev` is the normal integration branch. Feature branches return here through ordinary PR CI.
+- `dogfood` is the current LAN test branch. A normal `dev` → `dogfood` PR runs the same complete isolated E2E flow, and a successful push starts the reviewed local Compose stack.
+- `main` and production release automation are outside this development loop. A future production-hardening ADR must define backup, migration, immutable release-image, approval, and rollback controls before those controls become active again.
 
-`dev` proves that the repository builds and the offline/product-contract gates pass. Feature work belongs here first: branch from `dev`, PR back to `dev`, and add the feature-specific tests, acceptance scenarios, documentation, and evidence while the review/refactor loop is still cheap.
+## One automated gate
 
-`dogfood` is the always-testable LAN stack and candidate validation truth. It is intended for human dogfood, physical iPhone checks, and integration evidence against the same deployed stack instead of one-off local shells. It is not a disposable release-only stack.
+`Full Compose E2E` is the only automated prerequisite for human testing. It runs on PRs and pushes for both `dev` and `dogfood` and executes the authoritative isolated `./gradlew testApp` product flow. That flow proves availability and integrated behavior, then removes its run-owned resources.
 
-`main` must not receive commits that have bypassed either `dev` integration or `dogfood` deployment.
+The workflow does not consume a Candidate Cut, deployment manifest, prebuilt release image, Fresh Start plan, or persistent dogfood state. Smoke checks remain useful diagnostics but are not substitutes for this E2E result.
 
-## Persistent LAN test stack
+## Direct Compose lifecycle
 
-The test stack is deployed by the `Test Stack Deploy` GitHub Actions workflow:
+The supported local commands are:
 
-- workflow file: `.github/workflows/test-stack-deploy.yml`
-- trigger: push to `dogfood` or manual `workflow_dispatch`
-- candidate E2E workflow: `.github/workflows/live-stack-e2e.yml` on promotion PRs targeting `dogfood` and manual dispatch
-- runner: dedicated self-hosted macOS ARM64 runner `weave-live-mac-mini`
-- public local entrypoint: `https://weave.test:44443/`
-- platform config: `https://api.weave.test:44443/api/platform/config`
-- local CA bootstrap: `http://weave.test:44080/weave-local-ca.pem`
+```sh
+./gradlew devUp
+./gradlew devRun
+./gradlew devDown
 
-The workflow uses the repo infrastructure scripts as implementation detail:
+./gradlew dogfoodUp
+./gradlew dogfoodDown
+./gradlew dogfoodReset
+```
 
-- `infra/weave-workspace/install.sh`
-- `infra/weave-workspace/smoke-test.sh`
-- `infra/weave-workspace/operator-check.sh`
+`dogfoodUp` is idempotent and may be run repeatedly. `dogfoodReset` deliberately deletes only the three Compose-managed dogfood session volumes and starts a clean development realm:
 
-Humans should not need to run those directly for normal test-stack use. The visible entrypoint is the `dogfood` branch deployment result and the iPhone app pointed at the dogfood stack.
+- PostgreSQL;
+- native Files blobs;
+- Mailpit messages.
 
-## Update vs reset
+The local CA and leaf certificates live outside Docker at `/Users/flotterotter/.weave/dogfood/generated/tls`. Reset must never remove or rotate them. Reviewed secrets and the reviewed environment file are also outside the reset boundary. Caddy runtime data, Keycloak container data, and optional provider state are not default persistent dogfood volumes.
 
-The persistent test stack defaults to update mode:
+Native Files, Calendar, and Chat are the default product providers. MinIO, Matrix, Nextcloud, ARC, Weaver, and other provider labs are explicit profiles and are not required for a normal `devUp` or `dogfoodUp`. The full isolated E2E profile may still enable the dependencies required by the journey it tests.
 
-- rebuild or pull the backend/MCP runtime images;
-- run `install.sh` idempotently;
-- keep stack data unless a reset is explicitly requested;
-- run smoke/operator checks;
-- upload a support-safe `weave-test-stack-evidence` artifact.
+OpenTofu is not part of the active `dev` or `dogfood` lifecycle. Production infrastructure as code can be reconsidered when a real production target exists.
 
-Destructive reset is manual only through the workflow input `reset_stack=true`. It removes local test-stack data and must not be used as the normal promotion path.
+## Dogfood deployment
 
-## Dogfood candidate validation
+The `deploy-dogfood` job in `.github/workflows/live-stack-e2e.yml` runs only after its exact-SHA `Full Compose E2E` job succeeds on a `dogfood` push. It verifies protected ancestry and runs `./gradlew dogfoodUp` on `weave-live-mac-mini`. Keeping E2E and deployment in one workflow avoids a second default-branch workflow-dispatch dependency.
 
-A promotion PR from `dev` to `dogfood` is the normal place for full or feature-relevant live validation. The `Live Stack E2E` workflow must run against the promotion candidate, generate acceptance-contract evidence from `e2e/features/` and `e2e/scenario_mappings.json`, and upload support-safe artifacts. It may destructively reset its temporary validation stack, but the persistent dogfood stack is updated separately by `Test Stack Deploy` after the candidate lands on `dogfood`.
+There is no environment approval, destructive token, candidate-image resolver, or backup rehearsal in routine development dogfood.
 
-The old pattern of a scheduled destructive full-E2E run from `main` is not the target model. `main` may keep lightweight smoke, release, or tag checks, but it must not be the primary noisy/destructive full-stack reset lane.
+## Prepare the physical iPhone
 
-## Main promotion gate
+After dogfood E2E is green, manually run `Prepare Human Test` with the exact dogfood SHA. It:
 
-The `Main Promotion Gate` workflow enforces the branch order:
+1. verifies the exact successful E2E run;
+2. starts dogfood twice and checks unchanged TLS fingerprints;
+3. optionally creates the first-owner invitation in private Mailpit;
+4. builds the exact SHA with the stable development identity;
+5. installs over `com.massimotter.weave` on the paired iPhone over WLAN and launches it.
 
-1. the candidate commit is contained in `origin/dev`;
-2. the same candidate commit is contained in `origin/dogfood`;
-3. successful dogfood candidate E2E/live evidence exists for that commit;
-4. a successful `Test Stack Deploy` workflow run exists for that commit on branch `dogfood`;
-5. the root contract-authority architecture check still passes.
+The stable Apple team and bundle preserve Developer App trust and app storage. Deinstallation is not part of this workflow. The local CA should need full trust on the iPhone only once.
 
-If any of these checks fail, the candidate is not eligible for `main`.
+The invitation activation link remains only at `https://mail.weave.test:44443`. The human tester performs activation and reports the real outcomes for sign-in/session, navigation, Chat, Files, Calendar, Weaver/MCP when available, accessibility, revoke/regrant, and identity continuity. A missing surface is `blocked`, not passed.
 
-Bootstrap note: GitHub only treats new workflow files as branch-protection candidates after they exist on the protected/default branch. The first rollout of this policy therefore requires one explicitly reviewed bootstrap promotion that installs the workflows on `main`; after that, normal `main` PRs are expected to be guarded by this workflow and repository branch protection.
+## Promotion discipline during development
 
-## Provider model
+Before merging `dev` to `dogfood`:
 
-The persistent `dogfood` stack is a disposable Weave-owned dogfood environment. It should not attach to Massimo's `~/server` services by default.
+- normal PR CI is green;
+- `Full Compose E2E` is green on the latest PR head;
+- the promotion tree matches the intended `dev` tree;
+- no unrelated release-hardening work is mixed into the promotion.
 
-Default local providers:
-
-- Identity/Auth: Keycloak
-- Chat: Matrix/Synapse + MAS
-- Files/Calendar: Nextcloud
-- Reverse proxy/TLS/CA: Caddy
-- Database: Postgres
-- Weave backend and Weave MCP runtime
-- Boards: `local-workspace` by default, with OpenProject gated separately
-
-Attaching to existing home services such as Authentik, Nextcloud, or Forgejo under `~/server` is a later `attach-existing-home` profile. It must start read-only/preflight, must not copy secrets into the repo, and must not mutate household services without explicit approval.
-
-## iPhone dogfood expectation
-
-The desired tester experience is:
-
-1. install/trust the Weave Local Development CA once on the iPhone;
-2. install or open the dogfood app build configured for `https://api.weave.test:44443/api/platform/config`;
-3. sign in once;
-4. later open Weave and return to the same test-stack organization without re-running setup scripts.
-
-Invite/QR handoff remains useful for first enrollment and reset cases, but should not be required every time the app opens. Wording must be precise: the current join/handoff link is a non-secret enrollment handoff, not bearer access. Actual access control is the provisioned account, organization/workspace membership, and identity-provider session.
-
-## Release discipline
-
-A change that affects sign-in, backend facade contracts, OpenAPI consumers, MCP/tool exposure, provider boundaries, local stack topology, or onboarding must normally prove:
-
-- ordinary PR CI on `dev`;
-- generated OpenAPI/admin/client freshness where relevant;
-- MCP/root architecture gates where relevant;
-- promotion PR evidence from `dev` to `dogfood`, including feature-relevant Gherkin/Cucumber scenarios or deterministic mappings;
-- persistent `dogfood` stack deployment;
-- targeted human or automated dogfood evidence before promotion to `main`.
+Before making a future production release, write and accept the production-hardening ADR and add only the controls that the chosen deployment target actually needs.

@@ -1,0 +1,21 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${WEAVE_OIDC_ISSUER_URI}
+          jwk-set-uri: ${WEAVE_OIDC_JWK_SET_URI}
+
+weave:
+  deployment:
+    profile: prod
+  mcp:
+    resource-uri: ${WEAVE_MCP_RESOURCE_URI}
+    resource-metadata-uri: ${WEAVE_MCP_RESOURCE_METADATA_URI}
+    authorization-server: ${WEAVE_MCP_AUTHORIZATION_SERVER}
+    token-uri: ${WEAVE_MCP_TOKEN_URI}
+    backend-resource-uri: ${WEAVE_MCP_BACKEND_RESOURCE_URI}
+    backend-files-uri: ${WEAVE_MCP_BACKEND_FILES_URI}

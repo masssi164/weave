@@ -1,95 +1,40 @@
-# Local/Dev Admin User Activation Helper
+# Dogfood owner and member invitations
 
-The single-host operator path needs a support-safe way for an operator to invite and activate a Weave user without editing Keycloak internals by hand or distributing initial passwords. The helper is intentionally local/dev oriented and maps directly to the current backend product-profile contract:
+Dogfood keeps invitation delivery inside the private deployment through persistent Mailpit. Keycloak
+Organizations owns invitation acceptance and browser activation; Weave Server owns every dynamic
+human-lifecycle mutation.
 
-- MVP realm roles: `owner`, `admin`, `member`, `guest`
-- default role-mapped group claims: `workspace-owners`, `workspace-admins`, `workspace-members`, `workspace-guests`
-- backend verification path: `/api/me` or the app first-run/profile status surfaces
+## Initial owner
 
-## Prerequisites
-
-Run the local stack install first so `weave-workspace/.generated/bootstrap.env` contains the Keycloak admin URL and credentials:
-
-```bash
-cd weave-workspace
-./install.sh
-```
-
-The helper loads `.generated/bootstrap.env` automatically. If you are running it from a different shell, ensure these values are available:
-
-- `TF_VAR_keycloak_admin_username`
-- `TF_VAR_keycloak_admin_password`
-- `TF_VAR_public_scheme`
-- `TF_VAR_tenant_domain`
-- optional `TF_VAR_auth_subdomain`, `TF_VAR_proxy_host_port`, `TF_VAR_caddy_tls_ca_file`, `WEAVE_TLS_CA_FILE`
-
-## Dry-run the activation invite plan
+After a Fresh Start has created the empty realm and the normal Server is healthy, run the protected
+**Dogfood Owner Bootstrap** workflow once. It invokes:
 
 ```bash
-cd weave-workspace
-./activate-user.sh \
-  --dry-run \
-  --username alice \
-  --email alice@example.test \
-  --display-name 'Alice Example' \
-  --role member \
-  --invite-ref activation-alice-home \
-  --evidence-file build/dogfood/activation-alice-home.json
+cd infra/weave-workspace
+./compose.sh dogfood bootstrap-owner \
+  --request-file /absolute/private/owner-request.json \
+  --evidence-file /absolute/private/support-safe-evidence.json
 ```
 
-The dry run prints the realm, username, email, display name, role, role-mapped default group, non-secret invite reference, required action list, and action lifetime. It does not contact Keycloak. When `--evidence-file` is provided, the file stores only support-safe hashes and invite metadata; it does not store the activation URL, password, token, or raw provider payload.
+The request is a mode-0600 JSON file containing exactly `displayName`, `email`, and
+`idempotencyKey`. The command temporarily recreates only Weave Server with a fresh file-mounted
+credential, creates or exactly replays the first owner Organizations invitation, observes only the
+Mailpit recipient summary, and unconditionally restores the canonical Server. Success evidence must
+prove the request anchor exists and the credential, mount, environment value, and bootstrap route
+are absent.
 
-Guests are mapped to `workspace-guests`, not member/admin groups. Override `--workspace-group` only for an intentional local/dev policy test.
+Open the resulting activation message only through the private Mailpit UI at
+`https://mail.weave.test:44443`. Never copy its action URL into logs, artifacts, QR codes, app
+storage, support bundles, or GitHub comments.
 
-## Create an activation invite
+## Later members
 
-```bash
-cd weave-workspace
-./activate-user.sh \
-  --username alice \
-  --email alice@example.test \
-  --display-name 'Alice Example' \
-  --role member \
-  --invite-ref activation-alice-home \
-  --activation-lifespan 900 \
-  --evidence-file build/dogfood/activation-alice-home.json
-```
+Once the owner is active, create, list, resend, or revoke invitations through the Admin Console or
+the authenticated Weave Server `/api/admin/organizations/{organizationId}/invitations` API. Browser
+JavaScript never calls the Keycloak Admin API. Infrastructure has no member writer, no persistent
+realm-admin credential, and no direct subject replacement path.
 
-The helper does not create, accept, or print an initial password. Password-based flags are rejected. The QR/deeplink remains a bootstrap handoff only and may carry the non-secret invite reference, organization/workspace context, route mode, and platform-config URL. Account activation happens in the system browser through the identity provider's one-time required-action link.
-
-For dogfood, Keycloak sends the required-action email to Mailpit. Treat the action URL in the Mailpit message as a secret, one-time, expiring activation artifact. Do not paste it into this repository, the field manual, QR codes, logs, screenshots, support bundles, app preferences, or issue/PR comments.
-
-Successful live creation prints `WEAVE_ACTIVATION_INVITE_CREATED` with only the invite reference, required action names, TTL, and `supportSafe=true`. Dry runs print `WEAVE_ACTIVATION_INVITE_DRY_RUN`.
-
-## What the helper changes
-
-The helper uses the Keycloak admin API to:
-
-1. ensure the selected MVP realm role exists;
-2. ensure the workspace group exists;
-3. create or update the user;
-4. mark the account with required first-login actions such as `VERIFY_EMAIL` and `UPDATE_PASSWORD`;
-5. assign the role and group;
-6. send a short-lived Keycloak required-action email for the system-browser activation path.
-
-It does not create separate Matrix or Nextcloud accounts. Those modules remain behind Weave/Keycloak SSO and the existing provisioning contracts.
-
-## Verify activation
-
-After sign-in, verify the user through the app profile/status screen or backend facade:
-
-```bash
-curl -sS "$WEAVE_API_BASE_URL/me" \
-  -H "Authorization: Bearer <user access token>" | jq .
-```
-
-Expected evidence:
-
-- `roles` includes the selected MVP role;
-- `groups` includes the role-mapped default group (`workspace-guests` for guest, `workspace-members` for member, etc.) unless a different `--workspace-group` was used;
-- profile display name/email match the activated user.
-- `build/dogfood/activation-*.json`, when written, has `qrOrDeeplinkCarriesSecret=false`, `appStoresActivationSecret=false`, `supportSafe=true`, hashed direct identity fields, and the required-action activation metadata.
-
-## Release boundary
-
-This is an operator helper, not the final product admin UI/API. The single-host operator path may use it for local/dev owner/admin activation evidence. A later product admin flow should replace this script for non-technical workspace administrators.
+Expired or pending invitations use the same Server-owned resend/revoke lifecycle. An active account
+uses Keycloak password, passkey, and session recovery. If persistent identity state is lost, restore
+the Keycloak database from an integrity-checked backup or approve a whole-generation Fresh Start;
+do not recreate an individual subject.

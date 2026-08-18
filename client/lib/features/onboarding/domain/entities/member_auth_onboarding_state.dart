@@ -14,6 +14,7 @@ enum MemberAuthOnboardingStage {
   ssoInProgress('sso_in_progress'),
   authenticated('authenticated'),
   workspaceBootstrapLoading('workspace_bootstrap_loading'),
+  sessionRestored('session_restored'),
   workspaceReady('workspace_ready'),
   recoverableError('recoverable_error'),
   terminalSetupError('terminal_setup_error');
@@ -26,26 +27,28 @@ enum MemberAuthOnboardingStage {
 class MemberAuthOnboardingSnapshot {
   const MemberAuthOnboardingSnapshot({
     required this.stage,
-    this.handoff,
+    this.access,
     this.errorCode,
   });
 
   final MemberAuthOnboardingStage stage;
-  final MemberHandoff? handoff;
+  final OrganizationAccess? access;
   final String? errorCode;
 
   Map<String, Object> toSupportSafeJson() {
-    final handoff = this.handoff;
+    final access = this.access;
+    final handoff = access?.handoff;
     return <String, Object>{
       'schemaVersion': 'weave.client.dogfood_auth_state.v1',
       'recordedAt': DateTime.now().toUtc().toIso8601String(),
       'state': stage.serialized,
+      if (access != null)
+        'organizationOriginHost': access.organizationOrigin.host,
       if (handoff != null) ...{
         'handoffRef': handoff.handoffRef,
         'runId': handoff.runId,
         'organizationSlug': handoff.organizationSlug,
         'workspaceSlug': handoff.workspaceSlug,
-        'profile': handoff.profile,
       },
       if (errorCode != null) 'errorCode': errorCode!,
       'supportSafe': true,
@@ -61,12 +64,12 @@ class MemberAuthOnboardingStateRecorder {
 
   Future<void> record(
     MemberAuthOnboardingStage stage, {
-    MemberHandoff? handoff,
+    OrganizationAccess? access,
     String? errorCode,
   }) async {
     final snapshot = MemberAuthOnboardingSnapshot(
       stage: stage,
-      handoff: handoff,
+      access: access,
       errorCode: errorCode,
     ).toSupportSafeJson();
     await _store.setString(dogfoodAuthStateStorageKey, jsonEncode(snapshot));
@@ -91,13 +94,49 @@ class MemberAuthOnboardingStateRecorder {
     );
   }
 
+  Future<void> recordSupportSafeHandoffEvidence(
+    MemberAuthOnboardingStage stage, {
+    required Map<String, Object?> handoffEvidence,
+    String? errorCode,
+  }) async {
+    final snapshot = <String, Object>{
+      'schemaVersion': 'weave.client.dogfood_auth_state.v1',
+      'recordedAt': DateTime.now().toUtc().toIso8601String(),
+      'state': stage.serialized,
+      for (final key in const [
+        'accessKind',
+        'organizationOriginHost',
+        'handoffRef',
+        'runId',
+        'organizationSlug',
+        'workspaceSlug',
+      ])
+        if (handoffEvidence[key] is String) key: handoffEvidence[key] as String,
+      if (errorCode != null) 'errorCode': errorCode,
+      'supportSafe': true,
+    };
+    await _store.setString(dogfoodAuthStateStorageKey, jsonEncode(snapshot));
+    await _appendHistory(snapshot);
+  }
+
   Future<void> recordAuthFailure(
     AuthFailure failure, {
-    MemberHandoff? handoff,
+    OrganizationAccess? access,
   }) {
     return record(
       _failureStage(failure),
-      handoff: handoff,
+      access: access,
+      errorCode: supportSafeAuthOnboardingErrorCode(failure),
+    );
+  }
+
+  Future<void> recordAuthFailureFromHandoffEvidence(
+    AuthFailure failure, {
+    required Map<String, Object?> handoffEvidence,
+  }) {
+    return recordSupportSafeHandoffEvidence(
+      _failureStage(failure),
+      handoffEvidence: handoffEvidence,
       errorCode: supportSafeAuthOnboardingErrorCode(failure),
     );
   }

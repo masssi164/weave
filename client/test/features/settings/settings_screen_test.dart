@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,7 +7,6 @@ import 'package:weave/core/config/feature_flags.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
-import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
@@ -19,7 +16,6 @@ import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/profile/presentation/widgets/profile_summary_card.dart';
-import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/features/shell/data/repositories/shared_preferences_shell_module_preferences_repository.dart';
@@ -110,17 +106,6 @@ AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
   );
 }
 
-const _matrixDiagnostic = MatrixE2eeDiagnostic(
-  e2eeEnabled: false,
-  status: 'not_validated',
-  serverReadableMessageContent: false,
-  messageContentPolicy: 'encrypted_message_bodies_are_client_readable_only',
-  agentParticipation:
-      'blocked_until_explicit_consent_audit_and_matrix_device_trust_are_implemented',
-  connectorWritePolicy:
-      'fail_closed_until_audit_consent_and_matrix_e2ee_client_identity_are_implemented',
-);
-
 const _ownerProfile = UserProfile(
   userId: 'owner-1',
   username: 'owner',
@@ -175,55 +160,6 @@ AsyncValue<WorkspaceCapabilitySnapshot> _workspaceCapabilitySnapshot() {
   );
 }
 
-AsyncValue<WorkspaceCapabilitySnapshot>
-_workspaceCapabilitySnapshotWithWeaver() {
-  return const AsyncData(
-    WorkspaceCapabilitySnapshot(
-      shellAccess: WorkspaceCapabilityState(
-        capability: WorkspaceCapability.shellAccess,
-        readiness: WorkspaceCapabilityReadiness.ready,
-        connectionStatus: IntegrationConnectionStatus.connected,
-        policyState: WorkspaceCapabilityPolicyState.allowed,
-      ),
-      chat: WorkspaceCapabilityState(
-        capability: WorkspaceCapability.chat,
-        readiness: WorkspaceCapabilityReadiness.ready,
-        connectionStatus: IntegrationConnectionStatus.connected,
-        policyState: WorkspaceCapabilityPolicyState.allowed,
-      ),
-      files: WorkspaceCapabilityState(
-        capability: WorkspaceCapability.files,
-        readiness: WorkspaceCapabilityReadiness.ready,
-        connectionStatus: IntegrationConnectionStatus.connected,
-        policyState: WorkspaceCapabilityPolicyState.allowed,
-      ),
-      calendar: WorkspaceCapabilityState(
-        capability: WorkspaceCapability.calendar,
-        readiness: WorkspaceCapabilityReadiness.unavailable,
-      ),
-      boards: WorkspaceCapabilityState(
-        capability: WorkspaceCapability.boards,
-        readiness: WorkspaceCapabilityReadiness.unavailable,
-      ),
-      weaver: WorkspaceCapabilityState(
-        capability: WorkspaceCapability.weaver,
-        readiness: WorkspaceCapabilityReadiness.ready,
-        policyState: WorkspaceCapabilityPolicyState.allowed,
-        memberImpact: 'Mein Weaver follows workspace-approved choices.',
-        grantedCapabilities: [
-          'weaver.enabled',
-          'weaver.model_alias.fast_local',
-          'weaver.model_alias.careful_cloud',
-          'weaver.configure_style',
-          'weaver.configure_memory',
-          'weaver.skill.summarize_notes',
-          'weaver.personal_connection.calendar_import',
-        ],
-      ),
-    ),
-  );
-}
-
 ProviderStatusSnapshot _providerStatus({
   required String module,
   required String providerKey,
@@ -258,7 +194,7 @@ ProviderStatusSnapshot _providerStatus({
 
 void main() {
   group('SettingsScreen', () {
-    testWidgets('workspace health loads the saved configuration and persists edits', (
+    testWidgets('workspace health keeps provider configuration out of the client', (
       tester,
     ) async {
       final store = InMemoryPreferencesStore(buildStoredConfiguration());
@@ -276,9 +212,6 @@ void main() {
           ),
           weaveBackendConnectionStateProvider.overrideWithValue(
             WeaveBackendConnectionState.connected,
-          ),
-          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
-            (ref) async => _matrixDiagnostic,
           ),
           userProfileProvider.overrideWith((ref) async => _ownerProfile),
         ],
@@ -327,92 +260,28 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text('E2EE gate: Not validated', findRichText: true),
-        findsOneWidget,
+        find.textContaining('E2EE gate', findRichText: true),
+        findsNothing,
       );
       expect(
-        find.text('Server-readable bodies: No', findRichText: true),
-        findsOneWidget,
+        find.textContaining('Server-readable bodies', findRichText: true),
+        findsNothing,
       );
       expect(
-        find.text('Agent writes: Blocked/fail-closed', findRichText: true),
-        findsOneWidget,
+        find.textContaining('Agent writes', findRichText: true),
+        findsNothing,
       );
       await tester.drag(find.byType(CustomScrollView), const Offset(0, -900));
       await tester.pumpAndSettle();
-      expect(find.text('AI agent capability governance'), findsOneWidget);
-      expect(
-        find.textContaining('Owners and admins decide which agent packages'),
-        findsOneWidget,
-      );
-      expect(find.text('Personal assistant'), findsOneWidget);
-      expect(find.text('Channel agent'), findsOneWidget);
-      expect(
-        find.text('Management unavailable until admin setup is complete'),
-        findsOneWidget,
-      );
+      expect(find.text('AI agent capability governance'), findsNothing);
+      expect(find.text('Personal assistant'), findsNothing);
+      expect(find.text('Channel agent'), findsNothing);
 
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -900));
-      await tester.pumpAndSettle();
-      expect(find.text('Provider categories'), findsOneWidget);
-      expect(find.text('Identity/IDM'), findsOneWidget);
-      expect(find.text('Chat'), findsWidgets);
-      expect(find.text('Files'), findsWidgets);
-      expect(find.text('Calendar'), findsWidgets);
-      expect(find.text('Boards/tasks'), findsOneWidget);
-      expect(find.text('Meetings/calls'), findsOneWidget);
-      expect(find.text('Documents/collaboration'), findsOneWidget);
-      expect(find.text('Weaver'), findsOneWidget);
-      expect(find.text('Disabled by default'), findsOneWidget);
-      expect(find.textContaining('Keycloak/Auth'), findsOneWidget);
-      expect(find.textContaining('Chat'), findsWidgets);
-      expect(find.textContaining('File storage'), findsOneWidget);
-      expect(find.textContaining('Calendar sync'), findsOneWidget);
-      expect(
-        find.textContaining('OpenProject Boards validation'),
-        findsOneWidget,
-      );
-      expect(find.textContaining('LiveKit Meetings readiness'), findsOneWidget);
-      expect(find.text('Embedded admin/operator manual'), findsOneWidget);
-      expect(
-        find.text('Manual source: docs/admin-operator-handbook.md'),
-        findsOneWidget,
-      );
-      expect(
-        find.text(
-          'Constrained embed: no broad script, camera, microphone, or provider access',
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Server Configuration'), findsOneWidget);
-      expect(find.text('https://auth.home.internal'), findsWidgets);
-      expect(find.text('weave-app'), findsWidgets);
-      expect(find.text('https://api.home.internal/api'), findsWidgets);
-
-      await tester.enterText(
-        _textFieldWithLabel('Nextcloud Base URL'),
-        'https://files-alt.home.internal',
-      );
-      await tester.pump();
-      expect(find.text('https://files-alt.home.internal'), findsWidgets);
-
-      expect(
-        container
-            .read(serverConfigurationFormControllerProvider)
-            .nextcloudBaseUrl,
-        'https://files-alt.home.internal',
-      );
-
-      await container
-          .read(serverConfigurationFormControllerProvider.notifier)
-          .save();
-      await tester.pumpAndSettle();
-
-      final raw = store.rawString(serverConfigurationStorageKey);
-      final json = jsonDecode(raw!) as Map<String, dynamic>;
-
-      expect(json['nextcloudBaseUrl'], 'https://files-alt.home.internal');
-      expect(json['backendApiBaseUrl'], 'https://api.home.internal/api');
+      expect(find.text('Provider categories'), findsNothing);
+      expect(find.text('Server Configuration'), findsNothing);
+      expect(find.text('OIDC Issuer URL'), findsNothing);
+      expect(find.text('OIDC Client ID'), findsNothing);
+      expect(find.text('Nextcloud Base URL'), findsNothing);
     });
 
     testWidgets('hides OIDC and service endpoint setup from members', (
@@ -433,9 +302,6 @@ void main() {
           ),
           weaveBackendConnectionStateProvider.overrideWithValue(
             WeaveBackendConnectionState.connected,
-          ),
-          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
-            (ref) async => _matrixDiagnostic,
           ),
           userProfileProvider.overrideWith((ref) async => _memberProfile),
         ],
@@ -586,161 +452,6 @@ void main() {
       expect(find.text('Profile saved.'), findsOneWidget);
     });
 
-    testWidgets(
-      'shows governed Mein Weaver choices without raw runtime surfaces',
-      (tester) async {
-        final capabilities = _workspaceCapabilitySnapshotWithWeaver();
-        final container = ProviderContainer.test(
-          overrides: [
-            preferencesStoreProvider.overrideWith(
-              (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
-            ),
-            chatSecurityRepositoryProvider.overrideWithValue(
-              FakeChatSecurityRepository(),
-            ),
-            workspaceConnectionStateProvider.overrideWithValue(
-              _workspaceConnectionState(),
-            ),
-            workspaceCapabilitySnapshotProvider.overrideWithValue(capabilities),
-            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
-              (ref) async => capabilities.requireValue,
-            ),
-            weaveBackendConnectionStateProvider.overrideWithValue(
-              WeaveBackendConnectionState.connected,
-            ),
-            weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
-              (ref) async => _matrixDiagnostic,
-            ),
-            userProfileProvider.overrideWith((ref) async => _memberProfile),
-          ],
-        );
-        addTearDown(container.dispose);
-
-        await tester.pumpWidget(
-          UncontrolledProviderScope(
-            container: container,
-            child: const MaterialApp(
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: Scaffold(body: SettingsScreen()),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        await tester.scrollUntilVisible(
-          find.text('Mein Weaver'),
-          300,
-          scrollable: find.byType(Scrollable).first,
-        );
-        expect(find.text('Mein Weaver'), findsOneWidget);
-        expect(find.text('Enabled by policy'), findsOneWidget);
-        expect(find.text('Careful Cloud'), findsOneWidget);
-        expect(find.text('Fast Local'), findsOneWidget);
-        expect(find.text('Style preferences'), findsOneWidget);
-        expect(find.text('Memory controls'), findsOneWidget);
-        expect(find.text('Summarize Notes'), findsOneWidget);
-        expect(find.text('Calendar Import'), findsOneWidget);
-        expect(
-          find.textContaining('members only see policy-approved choices'),
-          findsOneWidget,
-        );
-        expect(find.textContaining('OpenClaw'), findsNothing);
-        expect(find.textContaining('openclaw.json'), findsNothing);
-        expect(find.textContaining('channel tokens'), findsNothing);
-        expect(find.textContaining('provider secrets'), findsNothing);
-        expect(find.textContaining('raw MCP'), findsNothing);
-        expect(find.text('Server Configuration'), findsNothing);
-      },
-    );
-
-    testWidgets('localizes unavailable Mein Weaver copy', (tester) async {
-      tester.view.physicalSize = const Size(1200, 2400);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      const capabilities = AsyncData(
-        WorkspaceCapabilitySnapshot(
-          shellAccess: WorkspaceCapabilityState(
-            capability: WorkspaceCapability.shellAccess,
-            readiness: WorkspaceCapabilityReadiness.ready,
-            policyState: WorkspaceCapabilityPolicyState.allowed,
-          ),
-          chat: WorkspaceCapabilityState(
-            capability: WorkspaceCapability.chat,
-            readiness: WorkspaceCapabilityReadiness.ready,
-            policyState: WorkspaceCapabilityPolicyState.allowed,
-          ),
-          files: WorkspaceCapabilityState(
-            capability: WorkspaceCapability.files,
-            readiness: WorkspaceCapabilityReadiness.ready,
-            policyState: WorkspaceCapabilityPolicyState.allowed,
-          ),
-          calendar: WorkspaceCapabilityState(
-            capability: WorkspaceCapability.calendar,
-            readiness: WorkspaceCapabilityReadiness.unavailable,
-          ),
-          boards: WorkspaceCapabilityState(
-            capability: WorkspaceCapability.boards,
-            readiness: WorkspaceCapabilityReadiness.unavailable,
-          ),
-          weaver: WorkspaceCapabilityState(
-            capability: WorkspaceCapability.weaver,
-            readiness: WorkspaceCapabilityReadiness.unavailable,
-            policyState: WorkspaceCapabilityPolicyState.disabled,
-            memberImpact: 'RAW WEAVER BACKEND MEMBER IMPACT',
-          ),
-        ),
-      );
-      final container = ProviderContainer.test(
-        overrides: [
-          preferencesStoreProvider.overrideWith(
-            (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
-          ),
-          chatSecurityRepositoryProvider.overrideWithValue(
-            FakeChatSecurityRepository(),
-          ),
-          workspaceConnectionStateProvider.overrideWithValue(
-            _workspaceConnectionState(),
-          ),
-          workspaceCapabilitySnapshotProvider.overrideWithValue(capabilities),
-          weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
-            (ref) async => capabilities.requireValue,
-          ),
-          weaveBackendConnectionStateProvider.overrideWithValue(
-            WeaveBackendConnectionState.connected,
-          ),
-          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
-            (ref) async => _matrixDiagnostic,
-          ),
-          userProfileProvider.overrideWith((ref) async => _memberProfile),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: SettingsScreen()),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Weaver unavailable'), findsOneWidget);
-      expect(find.text('RAW WEAVER BACKEND MEMBER IMPACT'), findsNothing);
-      expect(
-        find.textContaining(
-          'Your workspace has not enabled a governed Weaver profile',
-        ),
-        findsOneWidget,
-      );
-    });
-
     testWidgets('keeps provider diagnostics admin-only for members', (
       tester,
     ) async {
@@ -760,9 +471,6 @@ void main() {
           ),
           weaveBackendConnectionStateProvider.overrideWithValue(
             WeaveBackendConnectionState.connected,
-          ),
-          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
-            (ref) async => _matrixDiagnostic,
           ),
           weaveApiProviderStackSnapshotProvider.overrideWith(
             (ref) async => const ProviderStackSnapshot(
@@ -817,60 +525,52 @@ void main() {
       expect(find.textContaining('Flutter provider calls'), findsNothing);
     });
 
-    testWidgets('preserves overridden service URLs when the issuer changes', (
-      tester,
-    ) async {
-      final store = InMemoryPreferencesStore(
-        buildStoredConfiguration(
-          nextcloudBaseUrl: 'https://cloud.custom.internal',
-          backendApiBaseUrl: 'https://backend.custom.internal',
-        ),
-      );
-      final container = ProviderContainer.test(
-        overrides: [
-          preferencesStoreProvider.overrideWith((ref) => store),
-          chatSecurityRepositoryProvider.overrideWithValue(
-            FakeChatSecurityRepository(),
-          ),
-          workspaceConnectionStateProvider.overrideWithValue(
-            _workspaceConnectionState(),
-          ),
-          workspaceCapabilitySnapshotProvider.overrideWithValue(
-            _workspaceCapabilitySnapshot(),
-          ),
-          weaveBackendConnectionStateProvider.overrideWithValue(
-            WeaveBackendConnectionState.connected,
-          ),
-          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
-            (ref) async => _matrixDiagnostic,
-          ),
-          userProfileProvider.overrideWith((ref) async => _ownerProfile),
-        ],
-      );
-      addTearDown(container.dispose);
+    testWidgets(
+      'keeps all editable identity and provider URLs out of workspace health',
+      (tester) async {
+        final store = InMemoryPreferencesStore(buildStoredConfiguration());
+        final container = ProviderContainer.test(
+          overrides: [
+            preferencesStoreProvider.overrideWith((ref) => store),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              FakeChatSecurityRepository(),
+            ),
+            workspaceConnectionStateProvider.overrideWithValue(
+              _workspaceConnectionState(),
+            ),
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              _workspaceCapabilitySnapshot(),
+            ),
+            weaveBackendConnectionStateProvider.overrideWithValue(
+              WeaveBackendConnectionState.connected,
+            ),
+            userProfileProvider.overrideWith((ref) async => _ownerProfile),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: WorkspaceHealthScreen()),
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(body: WorkspaceHealthScreen()),
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      await tester.enterText(
-        _textFieldWithLabel('OIDC Issuer URL'),
-        'https://sso.example.com',
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('https://matrix.example.com'), findsWidgets);
-      expect(find.text('https://cloud.custom.internal'), findsWidgets);
-      expect(find.text('https://backend.custom.internal'), findsWidgets);
-    });
+        expect(find.text('OIDC Issuer URL'), findsNothing);
+        expect(find.text('OIDC Client ID'), findsNothing);
+        expect(find.text('Nextcloud Base URL'), findsNothing);
+        expect(find.text('Weave Matrix Facade URL'), findsNothing);
+        expect(find.text('https://api.example.com'), findsNothing);
+        expect(find.text('https://matrix.home.internal'), findsNothing);
+        expect(find.text('https://cloud.custom.internal'), findsNothing);
+        expect(find.text('https://backend.custom.internal'), findsNothing);
+      },
+    );
 
     testWidgets('persists shell module visibility changes', (tester) async {
       final store = InMemoryPreferencesStore(buildStoredConfiguration());
@@ -888,9 +588,6 @@ void main() {
           ),
           weaveBackendConnectionStateProvider.overrideWithValue(
             WeaveBackendConnectionState.connected,
-          ),
-          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
-            (ref) async => _matrixDiagnostic,
           ),
           userProfileProvider.overrideWith((ref) async => null),
         ],
@@ -910,7 +607,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Shell modules'), findsOneWidget);
-      final recentActivityToggle = find.text('Recent activity quick links');
+      final recentActivityToggle = find.text('Recent workspace activity');
       expect(recentActivityToggle, findsOneWidget);
 
       await tester.ensureVisible(recentActivityToggle);
@@ -962,9 +659,6 @@ void main() {
           weaveBackendConnectionStateProvider.overrideWithValue(
             WeaveBackendConnectionState.connected,
           ),
-          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
-            (ref) async => _matrixDiagnostic,
-          ),
           weaveApiProviderStackSnapshotProvider.overrideWith(
             (ref) async => const ProviderStackSnapshot(
               releaseStatus: 'contract-preview',
@@ -1000,11 +694,12 @@ void main() {
                   },
                 ),
                 ProviderCategoryStatusSnapshot(
-                  category: 'weaver',
-                  label: 'Weaver',
+                  category: 'agent-runtime-control',
+                  label: 'Agent Runtime Control',
                   readiness: ProviderCategoryReadiness.policyBlocked,
                   policyState: 'policy_blocked',
-                  memberImpact: 'Weaver is disabled by workspace policy.',
+                  memberImpact:
+                      'Agent Runtime Control is disabled by workspace policy.',
                   modules: [],
                   providerCandidates: [],
                   diagnostics: {
@@ -1137,7 +832,7 @@ void main() {
       expect(find.text('calendar: degraded'), findsOneWidget);
       expect(find.text('nextcloud-caldav: unconfigured'), findsOneWidget);
       expect(find.text('Unavailable'), findsWidgets);
-      expect(find.text('Weaver: Blocked'), findsOneWidget);
+      expect(find.text('Agent Runtime Control: Blocked'), findsOneWidget);
       expect(find.textContaining('provider-token-123'), findsNothing);
       expect(find.textContaining('https://gitlab.example.test'), findsNothing);
       expect(find.textContaining('https://office.example.test'), findsNothing);
@@ -1163,9 +858,6 @@ void main() {
           weaveBackendConnectionStateProvider.overrideWithValue(
             WeaveBackendConnectionState.connected,
           ),
-          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
-            (ref) async => _matrixDiagnostic,
-          ),
           weaveApiProviderStackSnapshotProvider.overrideWith(
             (ref) async => ProviderStackSnapshot(
               releaseStatus: 'provider-final-coverage',
@@ -1173,14 +865,6 @@ void main() {
               flutterDirectProviderCallsAllowed: false,
               supportSafe: true,
               providers: [
-                _providerStatus(
-                  module: 'identity-realm',
-                  providerKey: 'keycloak-realm',
-                  state: ProviderState.ready,
-                  enabled: true,
-                  configured: true,
-                  readOnly: false,
-                ),
                 _providerStatus(
                   module: 'files',
                   providerKey: 'nextcloud-files',
@@ -1280,7 +964,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Identity realm: ready'), findsOneWidget);
+      expect(find.text('Identity realm: ready'), findsNothing);
       expect(find.text('Files: ready'), findsOneWidget);
       expect(find.text('Calendar: ready'), findsOneWidget);
       expect(find.text('Contacts: unconfigured'), findsOneWidget);
@@ -1312,9 +996,6 @@ void main() {
             ),
             weaveBackendConnectionStateProvider.overrideWithValue(
               WeaveBackendConnectionState.connected,
-            ),
-            weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
-              (ref) async => _matrixDiagnostic,
             ),
             userProfileProvider.overrideWith((ref) async => _ownerProfile),
           ],

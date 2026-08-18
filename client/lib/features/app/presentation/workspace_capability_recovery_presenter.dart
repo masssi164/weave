@@ -42,8 +42,9 @@ WorkspaceCapabilityRecoveryPresentation workspaceCapabilityRecoveryPresentation(
     state: state,
     stateLabel: _stateLabel(l10n, state),
     recovery: _recovery(l10n, state),
-    // #915: replace this fallback when the capability contract carries supportRef.
-    supportReference: l10n.settingsWorkspaceRecoverySupportRefUnavailable,
+    supportReference: capability.supportRef?.trim().isNotEmpty == true
+        ? capability.supportRef!.trim()
+        : l10n.settingsWorkspaceRecoverySupportRefUnavailable,
   );
 }
 
@@ -72,7 +73,6 @@ WorkspaceMemberRecoveryState _unavailableRecoveryState(
   WorkspaceCapability capability,
 ) {
   return switch (capability) {
-    WorkspaceCapability.calendar ||
     WorkspaceCapability.boards ||
     WorkspaceCapability.meetingsCalls ||
     WorkspaceCapability.documentsCollaboration ||
@@ -84,7 +84,9 @@ WorkspaceMemberRecoveryState _unavailableRecoveryState(
     WorkspaceCapability.shellAccess ||
     WorkspaceCapability.chat ||
     WorkspaceCapability.files ||
-    WorkspaceCapability.weaver => WorkspaceMemberRecoveryState.unavailable,
+    WorkspaceCapability.calendar ||
+    WorkspaceCapability.agentRuntimeControl =>
+      WorkspaceMemberRecoveryState.unavailable,
   };
 }
 

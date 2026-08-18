@@ -10,22 +10,26 @@ import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessResponse;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 @Service
 public class WorkspaceHomeService {
 
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final WorkspaceReleaseReadinessService workspaceReleaseReadinessService;
+    private final WorkspaceHomeRecentActivityService recentActivityService;
 
     public WorkspaceHomeService(
             WorkspaceCapabilityService workspaceCapabilityService,
-            WorkspaceReleaseReadinessService workspaceReleaseReadinessService) {
+            WorkspaceReleaseReadinessService workspaceReleaseReadinessService,
+            WorkspaceHomeRecentActivityService recentActivityService) {
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.workspaceReleaseReadinessService = workspaceReleaseReadinessService;
+        this.recentActivityService = recentActivityService;
     }
 
-    public WorkspaceHomeResponse snapshot() {
-        WorkspaceCapabilitiesResponse capabilities = workspaceCapabilityService.snapshot();
+    public WorkspaceHomeResponse snapshot(Jwt jwt) {
+        WorkspaceCapabilitiesResponse capabilities = workspaceCapabilityService.snapshot(jwt);
         WorkspaceReleaseReadinessResponse releaseReadiness = workspaceReleaseReadinessService.supportSafeSnapshot();
 
         List<WorkspaceHomeSectionResponse> sections = List.of(
@@ -67,11 +71,12 @@ public class WorkspaceHomeService {
         List<WorkspaceHomeActionResponse> actions = actions(sections, releaseReadiness);
         WorkspaceCapabilityReadiness readiness = aggregateReadiness(sections);
         return new WorkspaceHomeResponse(
-                1,
+                2,
                 readiness,
                 summary(readiness, actions),
                 sections,
                 actions,
+                recentActivityService.recentActivity(jwt),
                 true);
     }
 

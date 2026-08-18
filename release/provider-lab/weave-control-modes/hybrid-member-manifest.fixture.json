@@ -4,10 +4,10 @@
   "supportSafe": true,
   "mode": "hybrid",
   "domainModes": [
-    {"domain": "identity-idm", "mode": "attach_existing", "mutationBoundary": "no_redeploy_without_separate_approval", "memberState": "available"},
+    {"domain": "platform-identity", "mode": "attach_existing", "mutationBoundary": "fixed_keycloak_authority_no_provider_switch", "memberState": "available"},
     {"domain": "chat", "mode": "deploy_new", "mutationBoundary": "approved_plan_resources_only", "memberState": "available"},
     {"domain": "files", "mode": "attach_existing", "mutationBoundary": "no_destructive_migration_without_separate_approval", "memberState": "degraded"},
-    {"domain": "weaver-governed-pa", "mode": "attach_existing", "mutationBoundary": "policy_only_no_runtime_default", "memberState": "disabled_by_policy"}
+    {"domain": "agent-runtime-control", "mode": "attach_existing", "mutationBoundary": "policy_only_no_runtime_default", "memberState": "disabled_by_policy"}
   ],
   "unsupportedCombinationResult": "unsupported_hybrid_combination",
   "memberManifest": {

@@ -38,12 +38,11 @@ class ServerConfigurationDto {
     return ServerConfigurationDto(
       providerType: json['providerType'] as String,
       oidcIssuerUrl: json['oidcIssuerUrl'] as String,
-      oidcClientRegistrationMode:
-          (json['oidcClientRegistrationMode'] as String?) ?? 'manual',
-      oidcClientId: (json['oidcClientId'] as String?) ?? '',
+      oidcClientRegistrationMode: json['oidcClientRegistrationMode'] as String,
+      oidcClientId: json['oidcClientId'] as String,
       matrixHomeserverUrl: json['matrixHomeserverUrl'] as String,
       nextcloudBaseUrl: json['nextcloudBaseUrl'] as String,
-      backendApiBaseUrl: json['backendApiBaseUrl'] as String?,
+      backendApiBaseUrl: json['backendApiBaseUrl'] as String,
     );
   }
 
@@ -53,15 +52,9 @@ class ServerConfigurationDto {
   final String oidcClientId;
   final String matrixHomeserverUrl;
   final String nextcloudBaseUrl;
-  final String? backendApiBaseUrl;
+  final String backendApiBaseUrl;
 
-  ServerConfiguration toConfiguration({Uri? fallbackBackendApiBaseUrl}) {
-    final resolvedBackendApiBaseUrl =
-        backendApiBaseUrl ?? fallbackBackendApiBaseUrl?.toString();
-    if (resolvedBackendApiBaseUrl == null) {
-      throw const FormatException('Missing backend API base URL.');
-    }
-
+  ServerConfiguration toConfiguration() {
     return ServerConfiguration(
       providerType: OidcProviderType.values.byName(providerType),
       oidcIssuerUrl: Uri.parse(oidcIssuerUrl),
@@ -74,7 +67,7 @@ class ServerConfigurationDto {
       serviceEndpoints: ServiceEndpoints(
         matrixHomeserverUrl: Uri.parse(matrixHomeserverUrl),
         nextcloudBaseUrl: Uri.parse(nextcloudBaseUrl),
-        backendApiBaseUrl: Uri.parse(resolvedBackendApiBaseUrl),
+        backendApiBaseUrl: Uri.parse(backendApiBaseUrl),
       ),
     );
   }

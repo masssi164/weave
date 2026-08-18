@@ -31,6 +31,8 @@ public record OrganizationManifestResponse(
         List<String> adminConsoleResponsibilities,
         @Schema(description = "Stable member-visible capability states keyed by provider-neutral Weave domain. Values are available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later.")
         Map<String, CapabilityManifestState> memberCapabilityStates,
+        @Schema(description = "Support-safe domain access discovery for product APIs, standard-protocol projections, native setup, and governed MCP consumers.")
+        Map<String, ClientAccessDiscoveryResponse> clientAccessDiscovery,
         @Schema(description = "Effective member capability snapshot; provider setup and diagnostics stay out of this contract.")
         WorkspaceCapabilitiesResponse capabilities) {
 
@@ -38,5 +40,6 @@ public record OrganizationManifestResponse(
         clientResponsibilities = clientResponsibilities == null ? List.of() : List.copyOf(clientResponsibilities);
         adminConsoleResponsibilities = adminConsoleResponsibilities == null ? List.of() : List.copyOf(adminConsoleResponsibilities);
         memberCapabilityStates = memberCapabilityStates == null ? Map.of() : Map.copyOf(memberCapabilityStates);
+        clientAccessDiscovery = clientAccessDiscovery == null ? Map.of() : Map.copyOf(clientAccessDiscovery);
     }
 }

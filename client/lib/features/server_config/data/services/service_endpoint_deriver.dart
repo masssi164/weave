@@ -55,6 +55,12 @@ class ServiceEndpointDeriver {
         '$fieldName must not include a query or fragment.',
       );
     }
+    final pathSegments = uri.pathSegments
+        .where((segment) => segment.trim().isNotEmpty)
+        .toList(growable: false);
+    if (pathSegments.isEmpty || pathSegments.last != 'api') {
+      throw AppFailure.validation('$fieldName must end in /api.');
+    }
 
     return uri;
   }
@@ -64,11 +70,20 @@ class ServiceEndpointDeriver {
     final scheme = issuerUrl.scheme;
 
     return ServiceEndpoints(
-      matrixHomeserverUrl: Uri.parse('$scheme://matrix.$baseHost'),
-      nextcloudBaseUrl: Uri.parse('$scheme://files.$baseHost'),
+      matrixHomeserverUrl: Uri.parse('$scheme://api.$baseHost'),
+      nextcloudBaseUrl: Uri.parse('$scheme://api.$baseHost/dav/files'),
       backendApiBaseUrl: Uri.parse('$scheme://api.$baseHost/api'),
     );
   }
+
+  Uri matrixFacadeFromBackendApi(Uri backendApiBaseUrl) => Uri(
+    scheme: backendApiBaseUrl.scheme,
+    host: backendApiBaseUrl.host,
+    port: backendApiBaseUrl.hasPort ? backendApiBaseUrl.port : null,
+  );
+
+  Uri filesFacadeFromBackendApi(Uri backendApiBaseUrl) =>
+      backendApiBaseUrl.replace(path: '/dav/files');
 
   String _deriveWorkspaceBaseHost(String issuerHost) {
     final labels = issuerHost.split('.');

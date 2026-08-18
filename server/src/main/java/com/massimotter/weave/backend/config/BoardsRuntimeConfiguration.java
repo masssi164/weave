@@ -1,14 +1,12 @@
 package com.massimotter.weave.backend.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.audit.AuditEventPublisher;
-import com.massimotter.weave.backend.audit.FileAuditEventPublisher;
 import com.massimotter.weave.backend.boards.local.LocalWorkspaceBoardsRepository;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRepository;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRuntimeGate;
 import com.massimotter.weave.backend.boards.port.BoardsRuntimeGuard;
 import com.massimotter.weave.backend.boards.port.BoardsRepository;
 import java.net.URI;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,11 +14,6 @@ import org.springframework.web.client.RestClient;
 
 @Configuration
 public class BoardsRuntimeConfiguration {
-
-    @Bean
-    RestClient.Builder restClientBuilder() {
-        return RestClient.builder();
-    }
 
     @Bean
     BoardsRuntimeGuard boardsRuntimeGuard(
@@ -40,6 +33,30 @@ public class BoardsRuntimeConfiguration {
             @Value("${weave.boards.openproject.auth-mode:disabled}") String openProjectAuthMode,
             @Value("${weave.boards.openproject.base-url:}") String openProjectBaseUrl,
             @Value("${weave.boards.openproject.api-token:}") String openProjectApiToken,
+            ObjectProvider<RestClient.Builder> restClientBuilderProvider) {
+        return createBoardsRepository(
+                provider,
+                openProjectRuntimeEnabled,
+                openProjectReadSyncEnabled,
+                openProjectContextAuthorizationEnabled,
+                openProjectAuditConsentEnabled,
+                openProjectProviderWritesEnabled,
+                openProjectAuthMode,
+                openProjectBaseUrl,
+                openProjectApiToken,
+                restClientBuilderProvider.getIfAvailable(RestClient::builder));
+    }
+
+    private BoardsRepository createBoardsRepository(
+            String provider,
+            boolean openProjectRuntimeEnabled,
+            boolean openProjectReadSyncEnabled,
+            boolean openProjectContextAuthorizationEnabled,
+            boolean openProjectAuditConsentEnabled,
+            boolean openProjectProviderWritesEnabled,
+            String openProjectAuthMode,
+            String openProjectBaseUrl,
+            String openProjectApiToken,
             RestClient.Builder restClientBuilder) {
         if ("openproject".equalsIgnoreCase(provider)) {
             return new OpenProjectBoardsRepository(
@@ -57,13 +74,6 @@ public class BoardsRuntimeConfiguration {
         return new LocalWorkspaceBoardsRepository();
     }
 
-    @Bean
-    AuditEventPublisher auditEventPublisher(
-            ObjectMapper objectMapper,
-            @Value("${weave.audit.events.storage.path:./data/audit-events.jsonl}") String storagePath) {
-        return new FileAuditEventPublisher(objectMapper, storagePath);
-    }
-
     // Retained for direct unit tests that instantiate this configuration without a Spring RestClient.Builder bean.
     BoardsRepository boardsRepository(
             String provider,
@@ -73,7 +83,7 @@ public class BoardsRuntimeConfiguration {
             boolean openProjectAuditConsentEnabled,
             boolean openProjectProviderWritesEnabled,
             String openProjectAuthMode) {
-        return boardsRepository(
+        return createBoardsRepository(
                 provider,
                 openProjectRuntimeEnabled,
                 openProjectReadSyncEnabled,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provid
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/l10n/app_locale_preference.dart';
 import 'package:weave/core/l10n/app_locale_preference_provider.dart';
+import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/router/app_router.dart';
 import 'package:weave/core/theme/app_theme.dart';
@@ -18,11 +20,11 @@ import 'package:weave/core/theme/app_theme_preference.dart';
 import 'package:weave/core/theme/app_theme_preference_provider.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
-import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
+import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
-import 'package:weave/integrations/nextcloud/data/repositories/secure_nextcloud_session_repository.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 const _pendingDeepLinkKey = 'pending_deep_link_url';
@@ -46,12 +48,27 @@ class WeaveApp extends ConsumerStatefulWidget {
 class _WeaveAppState extends ConsumerState<WeaveApp>
     with WidgetsBindingObserver {
   StreamSubscription<Uri>? _linkSubscription;
+  ProviderSubscription<AsyncValue<UserProfile?>>? _profileSubscription;
   final List<Timer> _pendingDeepLinkTimers = [];
+  late final Future<bool> _workspaceWasReadyAtLaunch;
+  bool _sessionContinuityRecorded = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _workspaceWasReadyAtLaunch = _readWorkspaceReadyAtLaunch();
+    _profileSubscription = ref.listenManual<AsyncValue<UserProfile?>>(
+      userProfileProvider,
+      (_, next) {
+        next.whenData((profile) {
+          if (profile != null) {
+            unawaited(_recordRestoredSession());
+          }
+        });
+      },
+      fireImmediately: true,
+    );
     _linkSubscription = AppLinks().uriLinkStream.listen(
       (uri) => unawaited(_openAppLink(uri)),
       onError: (_) {},
@@ -62,6 +79,7 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _profileSubscription?.close();
     _linkSubscription?.cancel();
     for (final timer in _pendingDeepLinkTimers) {
       timer.cancel();
@@ -116,7 +134,7 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
     final uri = Uri.tryParse(pendingDeepLink);
     if (uri != null) {
       final location = initialLocationForDefaultRoute(uri.toString());
-      if (location != AppRoutes.welcome) {
+      if (location != AppRoutes.organizationAccess) {
         setStartupInitialLocation(location);
       }
       await _openAppLink(uri);
@@ -125,7 +143,7 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
 
   Future<void> _openAppLink(Uri uri) async {
     final location = initialLocationForDefaultRoute(uri.toString());
-    if (location == AppRoutes.welcome || !mounted) {
+    if (location == AppRoutes.organizationAccess || !mounted) {
       return;
     }
     if (await _resetDogfoodAppStateIfRequested(uri)) {
@@ -147,9 +165,9 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
     final preferences = SharedPreferencesAsync();
     for (final key in const [
       serverConfigurationStorageKey,
-      legacySetupCompleteKey,
       lastHandoffConsumedStorageKey,
       dogfoodAuthStateStorageKey,
+      dogfoodAuthStateHistoryStorageKey,
       dogfoodVisibleStateStorageKey,
     ]) {
       try {
@@ -164,10 +182,7 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
         accessibility: KeychainAccessibility.first_unlock_this_device,
       ),
     );
-    for (final key in const [
-      authSessionStorageKey,
-      nextcloudSessionStorageKey,
-    ]) {
+    for (final key in const [authSessionStorageKey]) {
       try {
         await secureStorage.delete(key: key);
       } catch (_) {}
@@ -180,6 +195,53 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
     } catch (_) {}
     _schedulePendingDeepLinkPoll();
     return true;
+  }
+
+  Future<bool> _readWorkspaceReadyAtLaunch() async {
+    try {
+      final raw = await ref
+          .read(preferencesStoreProvider)
+          .getString(dogfoodAuthStateStorageKey);
+      if (raw == null || raw.isEmpty) {
+        return false;
+      }
+      final decoded = jsonDecode(raw);
+      return decoded is Map<String, dynamic> &&
+          decoded['state'] ==
+              MemberAuthOnboardingStage.workspaceReady.serialized &&
+          decoded['supportSafe'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _recordRestoredSession() async {
+    if (_sessionContinuityRecorded || !await _workspaceWasReadyAtLaunch) {
+      return;
+    }
+    _sessionContinuityRecorded = true;
+    final store = ref.read(preferencesStoreProvider);
+    try {
+      final rawHandoff = await store.getString(lastHandoffConsumedStorageKey);
+      if (rawHandoff == null || rawHandoff.isEmpty) {
+        return;
+      }
+      final decoded = jsonDecode(rawHandoff);
+      if (decoded is! Map<String, dynamic> || decoded['supportSafe'] != true) {
+        return;
+      }
+      final recorder = MemberAuthOnboardingStateRecorder(store: store);
+      await recorder.recordSupportSafeHandoffEvidence(
+        MemberAuthOnboardingStage.sessionRestored,
+        handoffEvidence: decoded,
+      );
+      await recorder.recordSupportSafeHandoffEvidence(
+        MemberAuthOnboardingStage.workspaceReady,
+        handoffEvidence: decoded,
+      );
+    } catch (_) {
+      // Session evidence must never interrupt a successful authenticated launch.
+    }
   }
 
   @override

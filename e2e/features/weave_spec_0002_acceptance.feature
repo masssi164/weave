@@ -9,7 +9,7 @@ Feature: WEAVE-SPEC-0002 acceptance
     And the acceptance scenario is mapped to offline spec evidence marker WEAVE_SPEC_0002_WORKFLOW_PREVIEW_CONTEXT
     When the product claim is evaluated for merge
     Then the claim is blocked unless the mapped evidence covers Space context preserved
-    And the catalog records the bounded domains spaces, weaver-governed-pa, decisions-evidence
+    And the catalog records the bounded domains spaces, agent-runtime-control, decisions-evidence
 
   @weave-spec-0002-governed-execution-receipt
   Scenario: Governed workflow execution records receipt drift and compensation state
@@ -17,7 +17,7 @@ Feature: WEAVE-SPEC-0002 acceptance
     And the acceptance scenario is mapped to offline spec evidence marker WEAVE_SPEC_0002_GOVERNED_EXECUTION_RECEIPT
     When the product claim is evaluated for merge
     Then the claim is blocked unless the mapped evidence covers execution receipt
-    And the catalog records the bounded domains weaver-governed-pa, decisions-evidence, admin-health-ops
+    And the catalog records the bounded domains agent-runtime-control, decisions-evidence, admin-health-ops
 
   @weave-spec-0002-intent
   Scenario: Workflow primitive intent keeps context-driven automation bounded

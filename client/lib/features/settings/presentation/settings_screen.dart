@@ -16,14 +16,10 @@ import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
-import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/workspace_capability_recovery_presenter.dart';
-import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
-import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
-import 'package:weave/features/agents/presentation/widgets/agent_capability_policy_card.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/connectors/presentation/providers/connector_preview_provider.dart';
@@ -32,13 +28,9 @@ import 'package:weave/features/guests/presentation/providers/guest_preview_provi
 import 'package:weave/features/guests/presentation/widgets/guest_access_preview_card.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
-import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
-import 'package:weave/features/server_config/presentation/providers/'
-    'server_configuration_form_controller.dart';
-import 'package:weave/features/server_config/presentation/widgets/provider_category_summary.dart';
-import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
 import 'package:weave/features/shell/domain/entities/shell_module.dart';
 import 'package:weave/features/shell/presentation/providers/shell_module_preferences_provider.dart';
+import 'package:weave/features/settings/presentation/widgets/support_diagnostics_card.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -66,13 +58,13 @@ class SettingsScreen extends ConsumerWidget {
               children: [
                 const _SettingsBrandCard(),
                 const SizedBox(height: 32),
+                const SupportDiagnosticsCard(),
+                const SizedBox(height: 32),
                 const _ThemePreferenceSection(),
                 const SizedBox(height: 32),
                 const _LanguagePreferenceSection(),
                 const SizedBox(height: 32),
                 const _ProfileSettingsLinkCard(),
-                const SizedBox(height: 32),
-                const _WeaverMemberSettingsSection(),
                 const SizedBox(height: 32),
                 const _SettingsHelpCard(),
                 const SizedBox(height: 32),
@@ -234,274 +226,15 @@ class _AdminOnlySettingsSections extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final savedConfiguration = ref.watch(savedServerConfigurationProvider);
-
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _WorkspaceReadinessCard(),
-        const SizedBox(height: 32),
-        const _AgentCapabilityPolicySection(),
+        _WorkspaceReadinessCard(),
         if (FeatureFlags.hasFeatureGatedSurfaces) ...[
-          const SizedBox(height: 32),
-          const _FeaturePreviewSurfacesSection(),
+          SizedBox(height: 32),
+          _FeaturePreviewSurfacesSection(),
         ],
-        const SizedBox(height: 32),
-        savedConfiguration.when(
-          loading: () => LoadingState(message: l10n.loadingLabel),
-          error: (error, _) => ErrorState(
-            message: l10n.errorStateLabel,
-            retryLabel: l10n.retryButton,
-            onRetry: () => ref.invalidate(savedServerConfigurationProvider),
-          ),
-          data: (configuration) =>
-              _AdminSetupSection(configuration: configuration),
-        ),
       ],
-    );
-  }
-}
-
-class _AdminSetupSection extends ConsumerWidget {
-  const _AdminSetupSection({required this.configuration});
-
-  final ServerConfiguration? configuration;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(userProfileProvider);
-
-    return switch (profile) {
-      AsyncData(value: final user) =>
-        user != null && user.canAdministerWorkspace
-            ? _AdminSetupConfigurationCard(
-                configuration: configuration,
-                profile: user,
-              )
-            : const _AdminSetupBoundaryCard(),
-      AsyncError() => const _AdminSetupBoundaryCard(showRetry: true),
-      _ => const _AdminSetupLoadingCard(),
-    };
-  }
-}
-
-class _AdminSetupConfigurationCard extends ConsumerWidget {
-  const _AdminSetupConfigurationCard({
-    required this.configuration,
-    required this.profile,
-  });
-
-  final ServerConfiguration? configuration;
-  final UserProfile profile;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-
-    return Card(
-      elevation: 0,
-      color: theme.colorScheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: theme.colorScheme.primary),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Semantics(
-              header: true,
-              child: Text(
-                l10n.settingsAdminSetupTitle,
-                style: theme.textTheme.headlineSmall,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              l10n.settingsAdminSetupDescription,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _AdminPermissionSummary(profile: profile),
-            const SizedBox(height: 16),
-            const ProviderCategorySummary(compact: true),
-            const SizedBox(height: 16),
-            _AdminManualEmbedCard(
-              title: l10n.settingsAdminManualTitle,
-              description: l10n.settingsAdminManualDescription,
-              pathLabel: l10n.helpEmbeddedManualPathLabel,
-              path: 'docs/admin-operator-handbook.md',
-              permissionLabel: l10n.helpEmbeddedManualPermissionLabel,
-              fallbackLabel: l10n.helpEmbeddedManualUnavailableLabel,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              l10n.settingsServerConfigurationTitle,
-              style: theme.textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              l10n.settingsServerConfigurationDescription,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ServerConfigurationForm(
-              layout: ServerConfigurationFormLayout.full,
-              initialConfiguration: configuration,
-              submitLabel: l10n.settingsSaveButton,
-              onSaved: (result) async {
-                await ref
-                    .read(authFlowControllerProvider.notifier)
-                    .handleConfigurationSaved(result);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AdminManualEmbedCard extends StatelessWidget {
-  const _AdminManualEmbedCard({
-    required this.title,
-    required this.description,
-    required this.pathLabel,
-    required this.path,
-    required this.permissionLabel,
-    required this.fallbackLabel,
-  });
-
-  final String title;
-  final String description;
-  final String pathLabel;
-  final String path;
-  final String permissionLabel;
-  final String fallbackLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Semantics(
-      container: true,
-      label: '$title. $permissionLabel',
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.28),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: theme.colorScheme.secondary.withValues(alpha: 0.45),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.menu_book_outlined,
-                    color: theme.colorScheme.secondary,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Semantics(
-                      header: true,
-                      child: Text(title, style: theme.textTheme.titleMedium),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(description, style: theme.textTheme.bodyMedium),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  Chip(label: Text('$pathLabel $path')),
-                  Chip(label: Text(permissionLabel)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                fallbackLabel,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AdminPermissionSummary extends StatelessWidget {
-  const _AdminPermissionSummary({required this.profile});
-
-  final UserProfile profile;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final roles = profile.roles.isEmpty ? '—' : profile.roles.join(', ');
-
-    return Semantics(
-      container: true,
-      label: l10n.settingsAdminPermissionSemantic(roles),
-      child: ExcludeSemantics(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.28),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: theme.colorScheme.primary.withValues(alpha: 0.45),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.admin_panel_settings_outlined,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.settingsAdminPermissionTitle,
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        l10n.settingsAdminPermissionDescription(roles),
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -553,377 +286,6 @@ class _AdminSetupBoundaryCard extends ConsumerWidget {
                   label: Text(l10n.retryButton),
                 ),
               ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AdminSetupLoadingCard extends StatelessWidget {
-  const _AdminSetupLoadingCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: LoadingState(
-          message: l10n.settingsAdminPermissionLoading,
-          icon: Icons.admin_panel_settings_outlined,
-        ),
-      ),
-    );
-  }
-}
-
-class _AgentCapabilityPolicySection extends ConsumerWidget {
-  const _AgentCapabilityPolicySection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final policy = ref.watch(agentCapabilityPolicyProvider);
-
-    return switch (policy) {
-      AsyncData(value: final value) => AgentCapabilityPolicyCard(policy: value),
-      AsyncError() => ErrorState(
-        message: l10n.agentCapabilityPolicyErrorTitle,
-        retryLabel: l10n.retryButton,
-        onRetry: () => ref.invalidate(agentCapabilityPolicyProvider),
-      ),
-      _ => LoadingState(
-        message: l10n.agentCapabilityPolicyLoading,
-        icon: Icons.admin_panel_settings_outlined,
-      ),
-    };
-  }
-}
-
-class _WeaverMemberSettingsSection extends ConsumerWidget {
-  const _WeaverMemberSettingsSection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final policy = ref.watch(agentCapabilityPolicyProvider);
-
-    return switch (policy) {
-      AsyncData(value: final value) => _WeaverMemberSettingsCard(
-        state: value.weaverMemberUx,
-      ),
-      AsyncError() => _WeaverMemberSettingsCard(
-        state: WeaverMemberUxState.blockedState,
-        statusOverride: l10n.weaverMemberStatusUnavailable,
-      ),
-      _ => LoadingState(
-        message: l10n.weaverMemberLoading,
-        icon: Icons.auto_awesome_outlined,
-      ),
-    };
-  }
-}
-
-class _WeaverMemberSettingsCard extends StatelessWidget {
-  const _WeaverMemberSettingsCard({required this.state, this.statusOverride});
-
-  final WeaverMemberUxState state;
-  final String? statusOverride;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final available = state.available;
-    final title = available
-        ? l10n.weaverMemberTitle
-        : l10n.weaverMemberUnavailableTitle;
-    final description = available
-        ? l10n.weaverMemberDescription
-        : l10n.weaverMemberUnavailableDescription;
-
-    return Card(
-      elevation: 0,
-      color: theme.colorScheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Semantics(
-          container: true,
-          explicitChildNodes: true,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    available
-                        ? Icons.auto_awesome_outlined
-                        : Icons.lock_outline,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Semantics(
-                          header: true,
-                          child: Text(title, style: theme.textTheme.titleLarge),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          description,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Chip(
-                    avatar: Icon(
-                      available ? Icons.verified_user_outlined : Icons.policy,
-                      size: 18,
-                    ),
-                    label: Text(
-                      statusOverride ??
-                          (available
-                              ? l10n.weaverMemberStatusAvailable
-                              : state.isBlocked
-                              ? l10n.weaverMemberStatusUnavailable
-                              : l10n.weaverMemberStatusDisabled),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              if (available) ...[
-                _AdminApprovedModelAliasPicker(aliases: state.modelAliases),
-                const SizedBox(height: 16),
-                _WeaverPersonalSettingsList(state: state),
-                const SizedBox(height: 16),
-                _WeaverAllowedItemsWrap(
-                  title: l10n.weaverMemberAllowedSkillsTitle,
-                  emptyLabel: l10n.weaverMemberNoAllowedSkills,
-                  items: state.allowedSkills,
-                ),
-                const SizedBox(height: 12),
-                _WeaverAllowedItemsWrap(
-                  title: l10n.weaverMemberAllowedConnectionsTitle,
-                  emptyLabel: l10n.weaverMemberNoAllowedConnections,
-                  items: state.allowedPersonalConnections,
-                ),
-                const SizedBox(height: 16),
-                _WeaverBoundaryNotice(text: l10n.weaverMemberBoundaryNotice),
-              ] else
-                _WeaverBoundaryNotice(
-                  text: l10n.weaverMemberDisabledBoundaryNotice,
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AdminApprovedModelAliasPicker extends StatefulWidget {
-  const _AdminApprovedModelAliasPicker({required this.aliases});
-
-  final List<String> aliases;
-
-  @override
-  State<_AdminApprovedModelAliasPicker> createState() =>
-      _AdminApprovedModelAliasPickerState();
-}
-
-class _AdminApprovedModelAliasPickerState
-    extends State<_AdminApprovedModelAliasPicker> {
-  String? _selectedAlias;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final aliases = widget.aliases.isEmpty
-        ? <String>[l10n.weaverMemberWorkspaceDefaultAlias]
-        : widget.aliases;
-    _selectedAlias ??= aliases.first;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.weaverMemberModelAliasTitle,
-          style: theme.textTheme.titleMedium,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          l10n.weaverMemberModelAliasDescription,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 8),
-        RadioGroup<String>(
-          groupValue: _selectedAlias,
-          onChanged: (value) => setState(() => _selectedAlias = value),
-          child: Column(
-            children: [
-              for (final alias in aliases)
-                RadioListTile<String>.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: alias,
-                  title: Text(alias),
-                  subtitle: Text(l10n.weaverMemberApprovedByAdmin),
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _WeaverPersonalSettingsList extends StatelessWidget {
-  const _WeaverPersonalSettingsList({required this.state});
-
-  final WeaverMemberUxState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.weaverMemberPersonalSettingsTitle,
-          style: theme.textTheme.titleMedium,
-        ),
-        const SizedBox(height: 8),
-        _WeaverSettingRow(
-          label: l10n.weaverMemberStyleSetting,
-          enabled: state.canConfigureStyle,
-        ),
-        _WeaverSettingRow(
-          label: l10n.weaverMemberMemorySetting,
-          enabled: state.canConfigureMemory,
-        ),
-        _WeaverSettingRow(
-          label: l10n.weaverMemberWorkspaceSetting,
-          enabled: state.canConfigureWorkspace,
-        ),
-      ],
-    );
-  }
-}
-
-class _WeaverSettingRow extends StatelessWidget {
-  const _WeaverSettingRow({required this.label, required this.enabled});
-
-  final String label;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return CheckboxListTile.adaptive(
-      contentPadding: EdgeInsets.zero,
-      value: enabled,
-      onChanged: null,
-      title: Text(label),
-      subtitle: Text(
-        enabled
-            ? l10n.weaverMemberSettingAllowed
-            : l10n.weaverMemberSettingDisabled,
-      ),
-      controlAffinity: ListTileControlAffinity.leading,
-    );
-  }
-}
-
-class _WeaverAllowedItemsWrap extends StatelessWidget {
-  const _WeaverAllowedItemsWrap({
-    required this.title,
-    required this.emptyLabel,
-    required this.items,
-  });
-
-  final String title;
-  final String emptyLabel;
-  final List<String> items;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: theme.textTheme.titleMedium),
-        const SizedBox(height: 8),
-        if (items.isEmpty)
-          Text(
-            emptyLabel,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          )
-        else
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final item in items)
-                Chip(
-                  avatar: const Icon(Icons.check_circle_outline, size: 18),
-                  label: Text(item),
-                ),
-            ],
-          ),
-      ],
-    );
-  }
-}
-
-class _WeaverBoundaryNotice extends StatelessWidget {
-  const _WeaverBoundaryNotice({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return MergeSemantics(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.22),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.privacy_tip_outlined,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 10),
-              Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
             ],
           ),
         ),
@@ -1157,7 +519,9 @@ class _PreviewSurfaceTile extends StatelessWidget {
       title: Text(title),
       subtitle: Text(description),
       trailing: Chip(
-        label: Text(AppLocalizations.of(context).firstRunStateUnavailable),
+        label: Text(
+          AppLocalizations.of(context).settingsWorkspaceRecoveryUnavailable,
+        ),
         side: BorderSide(color: theme.colorScheme.outlineVariant),
       ),
     );
@@ -1515,9 +879,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
           data: (profile) => profile?.canAdministerWorkspace ?? false,
           orElse: () => false,
         );
-    final matrixDiagnostic = canViewWorkspaceHealth
-        ? ref.watch(weaveApiMatrixE2eeDiagnosticProvider).asData?.value
-        : null;
     final providerStackSnapshot = canViewWorkspaceHealth
         ? ref.watch(weaveApiProviderStackSnapshotProvider).asData?.value
         : null;
@@ -1563,7 +924,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                       ref.invalidate(
                         weaveApiWorkspaceCapabilitySnapshotProvider,
                       );
-                      ref.invalidate(weaveApiMatrixE2eeDiagnosticProvider);
                       ref.invalidate(weaveApiProviderStackSnapshotProvider);
                       ref.invalidate(
                         weaveApiOfficeCapabilitiesSnapshotProvider,
@@ -1594,7 +954,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                   label: l10n.settingsWorkspaceChatLabel,
                   capability: capabilitySnapshot.chat,
                   connection: workspaceState.chat,
-                  matrixDiagnostic: matrixDiagnostic,
                 ),
                 const Divider(height: 32),
                 _WorkspaceReadinessRow(
@@ -1618,7 +977,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
               }
               ref.invalidate(appAuthIntegrationConnectionProvider);
               ref.invalidate(weaveApiWorkspaceCapabilitySnapshotProvider);
-              ref.invalidate(weaveApiMatrixE2eeDiagnosticProvider);
               ref.invalidate(weaveApiProviderStackSnapshotProvider);
               ref.invalidate(weaveApiOfficeCapabilitiesSnapshotProvider);
             },
@@ -2275,13 +1633,11 @@ class _WorkspaceReadinessRow extends StatelessWidget {
     required this.label,
     required this.capability,
     this.connection,
-    this.matrixDiagnostic,
   });
 
   final String label;
   final WorkspaceCapabilityState capability;
   final IntegrationConnectionState? connection;
-  final MatrixE2eeDiagnostic? matrixDiagnostic;
 
   @override
   Widget build(BuildContext context) {
@@ -2324,26 +1680,6 @@ class _WorkspaceReadinessRow extends StatelessWidget {
                   label: l10n.settingsWorkspaceLastChangeLabel,
                   value: _invalidationLabel(l10n, invalidation.reason),
                 ),
-              if (matrixDiagnostic case final diagnostic?) ...[
-                _StatusPill(
-                  label: l10n.settingsWorkspaceMatrixE2eeGateLabel,
-                  value: diagnostic.isValidated
-                      ? l10n.settingsWorkspaceMatrixE2eeValidated
-                      : l10n.settingsWorkspaceMatrixE2eeNotValidated,
-                ),
-                _StatusPill(
-                  label: l10n.settingsWorkspaceMatrixServerBodiesLabel,
-                  value: diagnostic.keepsMessageBodiesOpaque
-                      ? l10n.settingsWorkspaceMatrixServerBodiesOpaque
-                      : l10n.settingsWorkspaceMatrixServerBodiesReadable,
-                ),
-                _StatusPill(
-                  label: l10n.settingsWorkspaceMatrixAgentWritesLabel,
-                  value: diagnostic.keepsAgentsAndConnectorsFailClosed
-                      ? l10n.settingsWorkspaceMatrixAgentWritesBlocked
-                      : l10n.settingsWorkspaceMatrixAgentWritesReview,
-                ),
-              ],
             ],
           ),
         ],

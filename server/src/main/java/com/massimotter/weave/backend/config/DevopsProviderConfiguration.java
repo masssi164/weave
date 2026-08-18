@@ -19,18 +19,8 @@ public class DevopsProviderConfiguration {
     }
 
     @Bean
-    SourceControlProvider forgejoSourceControlProvider() {
-        return DisabledDevopsProvider.forgejo(ProviderModule.SOURCE_CONTROL, Set.of("linked-projects", "repository-list", "pull-request-summary"));
-    }
-
-    @Bean
     IssueTrackerProvider gitlabIssueTrackerProvider() {
         return DisabledDevopsProvider.gitlab(ProviderModule.ISSUE_TRACKER, Set.of("open-issues", "labels", "assignees"));
-    }
-
-    @Bean
-    IssueTrackerProvider forgejoIssueTrackerProvider() {
-        return DisabledDevopsProvider.forgejo(ProviderModule.ISSUE_TRACKER, Set.of("open-issues", "labels", "assignees"));
     }
 
     @Bean
@@ -39,17 +29,8 @@ public class DevopsProviderConfiguration {
     }
 
     @Bean
-    CiProvider forgejoCiProvider() {
-        return DisabledDevopsProvider.forgejo(ProviderModule.CI, Set.of("latest-actions-run", "job-summary", "commit-ref-status"));
-    }
-
-    @Bean
     ReleaseProvider gitlabReleaseProvider() {
         return DisabledDevopsProvider.gitlab(ProviderModule.RELEASE, Set.of("release-list", "tag-list"));
     }
 
-    @Bean
-    ReleaseProvider forgejoReleaseProvider() {
-        return DisabledDevopsProvider.forgejo(ProviderModule.RELEASE, Set.of("release-list", "tag-list"));
-    }
 }

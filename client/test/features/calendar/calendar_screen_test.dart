@@ -20,6 +20,7 @@ class _FakeCalendarRepository implements CalendarRepository {
   final bool failCreates;
   final List<CalendarEventDraft> createdDrafts = <CalendarEventDraft>[];
   final List<String> deletedIds = <String>[];
+  final List<String?> updatedEtags = <String?>[];
 
   @override
   Future<CalendarScopeList> loadScopes() async {
@@ -51,10 +52,9 @@ class _FakeCalendarRepository implements CalendarRepository {
       username: 'weave-backend',
       credentialPolicy: 'secret-free-setup-metadata',
       endpoints: CalendarExternalEndpoints(
-        serverUrl: 'https://files.weave.test:44443',
-        caldavDiscoveryUrl: 'https://files.weave.test:44443/remote.php/dav',
-        principalUrl:
-            'https://files.weave.test:44443/remote.php/dav/principals/users/weave-backend/',
+        serverUrl: '/caldav',
+        caldavDiscoveryUrl: '/caldav',
+        principalUrl: '/caldav/principals/users/weave-backend/',
       ),
       options: [],
     );
@@ -87,7 +87,12 @@ class _FakeCalendarRepository implements CalendarRepository {
   }
 
   @override
-  Future<CalendarEvent> updateEvent(String id, CalendarEventDraft draft) async {
+  Future<CalendarEvent> updateEvent(
+    String id,
+    CalendarEventDraft draft, {
+    String? etag,
+  }) async {
+    updatedEtags.add(etag);
     final index = events.indexWhere((event) => event.id == id);
     final event = CalendarEvent(
       id: id,
@@ -98,6 +103,7 @@ class _FakeCalendarRepository implements CalendarRepository {
       timezone: draft.timezone,
       location: draft.location,
       allDay: draft.allDay,
+      etag: etag,
       scope: draft.scope,
     );
     events[index] = event;
@@ -138,6 +144,20 @@ const _readySnapshot = WorkspaceCapabilitySnapshot(
     policyState: WorkspaceCapabilityPolicyState.allowed,
   ),
 );
+
+WorkspaceCapabilitySnapshot _calendarUnavailableSnapshot() {
+  return WorkspaceCapabilitySnapshot(
+    shellAccess: _readySnapshot.shellAccess,
+    chat: _readySnapshot.chat,
+    files: _readySnapshot.files,
+    calendar: const WorkspaceCapabilityState(
+      capability: WorkspaceCapability.calendar,
+      readiness: WorkspaceCapabilityReadiness.unavailable,
+      policyState: WorkspaceCapabilityPolicyState.allowed,
+    ),
+    boards: _readySnapshot.boards,
+  );
+}
 
 void main() {
   group('CalendarScreen', () {
@@ -188,6 +208,41 @@ void main() {
       },
     );
 
+    testWidgets(
+      'contains an unavailable Calendar locally and disables its create action',
+      (tester) async {
+        final repository = _FakeCalendarRepository(events: []);
+
+        await tester.pumpWidget(
+          createTestApp(
+            const CalendarScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWithValue(
+                AsyncData(_calendarUnavailableSnapshot()),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Calendar is unavailable'), findsOneWidget);
+        expect(
+          find.bySemanticsLabel(
+            RegExp(
+              'Calendar.*State: Unavailable.*This capability is not available',
+            ),
+          ),
+          findsOneWidget,
+        );
+        final createButton = tester.widget<IconButton>(
+          find.widgetWithIcon(IconButton, Icons.add),
+        );
+        expect(createButton.onPressed, isNull);
+        expect(repository.createdDrafts, isEmpty);
+      },
+    );
+
     testWidgets('creates and deletes events through the calendar facade', (
       tester,
     ) async {
@@ -221,6 +276,44 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.deletedIds.single, 'created-1');
+    });
+
+    testWidgets('updates an event with its observed concurrency version', (
+      tester,
+    ) async {
+      final repository = _FakeCalendarRepository(
+        events: [
+          CalendarEvent(
+            id: 'event-1',
+            title: 'Design review',
+            startTime: DateTime(2026, 6, 27, 10),
+            endTime: DateTime(2026, 6, 27, 11),
+            etag: '"event-version-1"',
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              const AsyncData(_readySnapshot),
+            ),
+            calendarRepositoryProvider.overrideWithValue(repository),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Edit Design review'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'Updated review');
+      await tester.tap(find.text('Save event'));
+      await tester.pumpAndSettle();
+
+      expect(repository.updatedEtags.single, '"event-version-1"');
+      expect(find.text('Updated review'), findsOneWidget);
     });
 
     testWidgets('keeps the calendar visible when saving an event fails', (

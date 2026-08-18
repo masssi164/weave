@@ -1,317 +1,201 @@
-name: Live Stack E2E
+name: Full Compose E2E
+run-name: Full Compose E2E ${{ github.event.pull_request.head.sha || github.sha }}
 
 on:
+  push:
+    branches: [dev, dogfood]
   pull_request:
-    branches:
-      - dogfood
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
+    branches: [dev, dogfood]
+    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
   workflow_dispatch:
-    inputs:
-      weave_backend_image:
-        description: "Backend image to boot inside the infra stack; ghcr.io/* is pulled, other refs are built from CI-built server JAR artifacts"
-        required: false
-        default: "weave-backend:live-stack-ci"
-      weave_mcp_server_image:
-        description: "MCP server image built from CI-built weave-mcp-server JAR artifacts; ghcr.io/* is pulled"
-        required: false
-        default: "weave-mcp-server:live-stack-ci"
-  workflow_call:
-    inputs:
-      weave_backend_image:
-        type: string
-        required: false
-        default: "weave-backend:live-stack-ci"
-      weave_mcp_server_image:
-        type: string
-        required: false
-        default: "weave-mcp-server:live-stack-ci"
-    secrets:
-      WEAVE_TEST_PASSWORD:
-        required: true
 
 permissions:
+  actions: read
   contents: read
-  packages: read
 
 concurrency:
-  group: weave-live-stack-self-hosted
-  cancel-in-progress: false
+  group: full-compose-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  live-stack-e2e:
-    name: Bootstrap Stack And Run App E2E
-    runs-on:
-      - self-hosted
-      - macOS
-      - ARM64
-    timeout-minutes: 75
+  full-compose-e2e:
+    name: Full Compose E2E
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 90
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
-      WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'weave-backend:live-stack-ci' }}
-      WEAVE_MCP_SERVER_IMAGE: ${{ inputs.weave_mcp_server_image || github.event.inputs.weave_mcp_server_image || 'weave-mcp-server:live-stack-ci' }}
-      WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
-      TF_VAR_test_user_password: ${{ secrets.WEAVE_TEST_PASSWORD }}
-      TF_VAR_db_admin_password: ci-db-admin-password
-      TF_VAR_keycloak_admin_password: ci-keycloak-admin-password
-      TF_VAR_keycloak_db_password: ci-keycloak-db-password
-      TF_VAR_mas_db_password: ci-mas-db-password
-      TF_VAR_synapse_db_password: ci-synapse-db-password
-      TF_VAR_nextcloud_db_password: ci-nextcloud-db-password
-      TF_VAR_nextcloud_admin_password: ci-nextcloud-admin-password
-      TF_VAR_matrix_mas_client_secret: ci-matrix-mas-client-secret
-      TF_VAR_mas_encryption_secret: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-      TF_VAR_mas_matrix_secret: ci-mas-matrix-secret
-      TF_VAR_synapse_registration_shared_secret: ci-synapse-registration-shared-secret
-      TF_VAR_synapse_macaroon_secret_key: ci-synapse-macaroon-secret-key
-      TF_VAR_synapse_form_secret: ci-synapse-form-secret
-      TF_VAR_create_test_user: 'true'
-      TF_VAR_boards_runtime_enabled: 'true'
-      TF_VAR_boards_provider: local-workspace
-      TF_VAR_provider_stack_profile: local-live
-      TF_VAR_provider_stack_readiness: ready
-      TF_VAR_tenant_domain: weave.test
-      TF_VAR_proxy_http_host_port: '44080'
-      TF_VAR_proxy_host_port: '44443'
-      TF_VAR_keycloak_host_port: '48080'
-      TF_VAR_mas_host_port: '48082'
-      TF_VAR_synapse_host_port: '48008'
-      TF_VAR_nextcloud_host_port: '48083'
-      TF_VAR_backend_host_port: '48084'
-      WEAVE_RUNNER_HYGIENE: 'true'
-      WEAVE_REMOVE_VOLUMES: 'true'
-      WEAVE_CONFIRM_DESTRUCTIVE_RESET: weave
-      WEAVE_INTEGRATION_TEST_DEVICE: macos
-
-    defaults:
-      run:
-        shell: bash
+      DOCKER_DEFAULT_PLATFORM: linux/amd64
+      WEAVE_CANDIDATE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      WEAVE_IMAGE_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      WEAVE_TEST_APP_RUN_ID: e2e-${{ github.run_id }}-${{ github.run_attempt }}
+      WEAVE_TEST_APP_OUTPUT_ROOT: ${{ github.workspace }}/weave/build/test-app
 
     steps:
-      - name: Verify dedicated live runner
+      - name: Verify bounded runner
         run: |
           set -euo pipefail
-          echo "runner=${RUNNER_NAME:-unknown}"
-          if [[ "${RUNNER_NAME:-}" != "${EXPECTED_RUNNER_NAME}" ]]; then
-            echo "::error::Live Stack E2E must run only on ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}." >&2
+          [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER_NAME" ]] || {
+            echo "::error::Expected ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}."
             exit 1
-          fi
+          }
 
-      - name: Check out weave
-        uses: actions/checkout@v5
+      - name: Check out exact source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          ref: ${{ env.WEAVE_CANDIDATE_COMMIT }}
           path: weave
+          fetch-depth: 0
 
-      - name: Prepare acceptance evidence directory
+      - name: Verify capacity and Compose runtime
+        working-directory: weave
+        run: >-
+          python3 tools/runner_capacity_preflight.py
+          --path .
+          --minimum-free-gib 20
+          --require-docker
+
+      - name: Resolve pinned specification corpus
+        id: spec
+        working-directory: weave
         run: |
           set -euo pipefail
-          evidence_dir="$RUNNER_TEMP/weave-live-stack-acceptance-evidence"
-          test_log="$RUNNER_TEMP/weave-live-stack-e2e.log"
-          mkdir -p "$evidence_dir"
-          : > "$test_log"
-          echo "WEAVE_ACCEPTANCE_EVIDENCE_DIR=$evidence_dir" >> "$GITHUB_ENV"
-          echo "WEAVE_ACCEPTANCE_TEST_LOG=$test_log" >> "$GITHUB_ENV"
+          commit="$(jq -er '.specCorpus.gitCommit | select(test("^[0-9a-f]{40}$"))' specs/weave-specs.lock.json)"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
-      - name: Configure Docker auth without macOS Keychain
-        env:
-          GHCR_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if [ -z "${DOCKER_HOST:-}" ] && [ -S "$HOME/.orbstack/run/docker.sock" ]; then
-            echo "DOCKER_HOST=unix://$HOME/.orbstack/run/docker.sock" >> "$GITHUB_ENV"
-            export DOCKER_HOST="unix://$HOME/.orbstack/run/docker.sock"
-          fi
-          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
-          mkdir -p "$DOCKER_CONFIG"
-          chmod 700 "$DOCKER_CONFIG"
-          auth_b64="$(printf '%s' "${GITHUB_ACTOR}:${GHCR_TOKEN}" | base64 | tr -d '\n')"
-          cat > "$DOCKER_CONFIG/config.json" <<EOF
-          {"auths":{"ghcr.io":{"auth":"${auth_b64}"}}}
-          EOF
-          chmod 600 "$DOCKER_CONFIG/config.json"
-          echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
-          docker --config "$DOCKER_CONFIG" info >/dev/null
+      - name: Check out pinned Weave Specification Corpus
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: ${{ github.repository_owner }}/weave-specs
+          ref: ${{ steps.spec.outputs.commit }}
+          path: weave-specs
+          ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
+          persist-credentials: false
 
-      - name: Set up Java
-        uses: actions/setup-java@v5
+      - name: Set up Node 24
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: weave/admin-console/package-lock.json
+
+      - name: Set up Java 21
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
+          cache: gradle
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_version: 1.10.6
-          tofu_wrapper: false
-
-      - name: Build Java runtime artifacts
+      - name: Verify exact clean checkout
         working-directory: weave
-        run: ./gradlew --no-daemon --max-workers=1 :server:bootJar :weave-mcp-server:bootJar
-
-      - name: Ensure local Weave hostnames resolve on the runner
         run: |
           set -euo pipefail
-          hosts=(weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test)
-          missing=()
-          for host in "${hosts[@]}"; do
-            if ! dscacheutil -q host -a name "$host" | grep -q 'ip_address:'; then
-              missing+=("$host")
-            fi
-          done
+          [[ "$(git rev-parse HEAD)" == "$WEAVE_CANDIDATE_COMMIT" ]]
+          [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]]
 
-          if (( ${#missing[@]} > 0 )); then
-            line="127.0.0.1 ${missing[*]}"
-            if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-              printf '%s\n' "$line" | sudo tee -a /etc/hosts >/dev/null
-              sudo dscacheutil -flushcache || true
-            else
-              echo "::error::Runner cannot resolve required Weave hostnames and passwordless sudo is unavailable. Configure weave.test DNS for this runner or add this fallback /etc/hosts line before rerunning: $line" >&2
-              exit 1
-            fi
-          fi
+      - name: Run full isolated product flow
+        working-directory: weave
+        run: ./gradlew --no-daemon specCorpusConformance testApp
 
-          for host in "${hosts[@]}"; do
-            resolved="$(dscacheutil -q host -a name "$host" || true)"
-            printf '%s\n' "$resolved"
-            printf '%s\n' "$resolved" | grep -q 'ip_address:' || {
-              echo "::error::Runner still cannot resolve $host" >&2
-              exit 1
-            }
-          done
-
-      - name: Clean up stale stack state before bootstrap
-        working-directory: weave/infra/weave-workspace
-        run: bash ./teardown.sh
-
-      - name: Prepare backend image
-        run: |
-          set -euo pipefail
-          if [[ "${WEAVE_BACKEND_IMAGE}" == ghcr.io/* ]]; then
-            echo "Pulling published backend image for live-stack evidence."
-            docker --config "${DOCKER_CONFIG}" pull "${WEAVE_BACKEND_IMAGE}"
-          else
-            echo "Building backend runtime image from CI-built server JAR artifact."
-            docker buildx build --load -t "${WEAVE_BACKEND_IMAGE}" -f weave/server/Dockerfile weave
-          fi
-
-      - name: Prepare MCP server image
-        run: |
-          set -euo pipefail
-          if [[ "${WEAVE_MCP_SERVER_IMAGE}" == ghcr.io/* ]]; then
-            echo "Pulling published MCP server image for live-stack evidence."
-            docker --config "${DOCKER_CONFIG}" pull "${WEAVE_MCP_SERVER_IMAGE}"
-          else
-            echo "Building MCP server runtime image from CI-built weave-mcp-server JAR artifact."
-            docker buildx build --load -t "${WEAVE_MCP_SERVER_IMAGE}" -f weave/weave-mcp-server/Dockerfile weave
-          fi
-
-      - name: Bootstrap local stack
-        working-directory: weave/infra/weave-workspace
-        env:
-          TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
-        run: ./install.sh
-
-      - name: Verify local test hostnames resolve on the runner
-        run: |
-          set -euo pipefail
-          for host in weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test; do
-            dscacheutil -q host -a name "$host" | grep -q 'ip_address:' || {
-              echo "Runner cannot resolve $host to loopback" >&2
-              exit 1
-            }
-          done
-
-      - name: Verify stack readiness before Flutter work
-        working-directory: weave/infra/weave-workspace
-        run: bash ./operator-check.sh
-
-      - name: Trust local Weave CA for this runner user
-        run: |
-          set -euo pipefail
-          CA_FILE="$GITHUB_WORKSPACE/weave/infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
-          if [ ! -s "$CA_FILE" ]; then
-            echo "::error::Weave local CA certificate not found at $CA_FILE"
-            exit 1
-          fi
-          # The login keychain can prompt/hang on the self-hosted macOS runner. Use
-          # passwordless sudo and the system keychain only; never wait for UI input.
-          if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-            if ! sudo -n security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CA_FILE"; then
-              echo "::warning::Could not add Weave local CA to the system keychain; integration tests may fail TLS validation."
-            fi
-          else
-            echo "::warning::Passwordless sudo is unavailable; skipping non-interactive Weave local CA trust."
-          fi
-
-      - name: Install Flutter dependencies
-        working-directory: weave/client
-        run: flutter pub get
-
-      - name: Generate l10n
-        working-directory: weave/client
-        run: flutter gen-l10n
-
-      - name: Generate code
-        working-directory: weave/client
-        run: dart run build_runner build --delete-conflicting-outputs
-
-      - name: Run live stack integration tests
-        working-directory: weave/client
-        env:
-          WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave/infra/weave-workspace/.generated/bootstrap.env
-        run: |
-          set -euo pipefail
-          make integration-test 2>&1 | tee "$WEAVE_ACCEPTANCE_TEST_LOG"
-
-      - name: Generate live stack acceptance evidence
+      - name: Upload support-safe E2E evidence
         if: always()
-        working-directory: weave/client
-        run: |
-          set -euo pipefail
-          dart run tool/acceptance_contract.dart guard \
-            --root .. \
-            --features e2e/features \
-            --mapping e2e/scenario_mappings.json \
-            --out "$WEAVE_ACCEPTANCE_EVIDENCE_DIR" \
-            --test-log "$WEAVE_ACCEPTANCE_TEST_LOG" \
-            --append-summary "$GITHUB_STEP_SUMMARY" \
-            --source live-stack-e2e \
-            --lane dogfood-candidate-live-evidence \
-            --commit "$GITHUB_SHA" \
-            --run-id "$GITHUB_RUN_ID" \
-            --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-
-      - name: Generate support-safe failure diagnostics
-        if: failure()
-        env:
-          WEAVE_LIVE_STACK_FAILURE_DIAGNOSTICS_DIR: ${{ env.WEAVE_ACCEPTANCE_EVIDENCE_DIR }}/failure-diagnostics
-          WEAVE_LIVE_STACK_SUPPORT_BUNDLE_LOG_LINES: '80'
-        run: |
-          set -euo pipefail
-          bash weave/infra/weave-workspace/live-stack-failure-diagnostics.sh "$WEAVE_LIVE_STACK_FAILURE_DIAGNOSTICS_DIR"
-
-      - name: Destroy stack and scrub stale resources
-        if: always()
-        working-directory: weave/infra/weave-workspace
-        run: bash ./teardown.sh
-
-      - name: Upload live stack acceptance evidence
-        if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: weave-live-stack-acceptance-evidence
-          path: ${{ env.WEAVE_ACCEPTANCE_EVIDENCE_DIR }}
-          if-no-files-found: error
-          retention-days: 30
+          name: full-compose-e2e-${{ env.WEAVE_CANDIDATE_COMMIT }}
+          path: weave/build/test-app/**
+          if-no-files-found: warn
+          retention-days: 14
+
+  deploy-dogfood:
+    name: Deploy dogfood with Compose
+    needs: full-compose-e2e
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dogfood'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 60
+    env:
+      EXPECTED_RUNNER_NAME: weave-live-mac-mini
+      DOGFOOD_COMMIT: ${{ github.sha }}
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
+      WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/weave-specs
+
+    steps:
+      - name: Verify bounded dogfood deployment
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER_NAME" ]]
+          [[ "$DOGFOOD_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${WEAVE_ENV_FILE:-}" == /* && -f "$WEAVE_ENV_FILE" && ! -L "$WEAVE_ENV_FILE" ]]
+
+      - name: Check out exact dogfood commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ env.DOGFOOD_COMMIT }}
+          path: weave
+          fetch-depth: 0
+
+      - name: Verify protected dogfood ancestry
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin '+refs/heads/dogfood:refs/remotes/origin/dogfood'
+          [[ "$(git rev-parse HEAD)" == "$DOGFOOD_COMMIT" ]]
+          git merge-base --is-ancestor "$DOGFOOD_COMMIT" origin/dogfood
+
+      - name: Resolve pinned specification corpus
+        id: spec
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          commit="$(jq -er '.specCorpus.gitCommit | select(test("^[0-9a-f]{40}$"))' specs/weave-specs.lock.json)"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Check out pinned Weave Specification Corpus
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: ${{ github.repository_owner }}/weave-specs
+          ref: ${{ steps.spec.outputs.commit }}
+          path: weave-specs
+          ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
+          persist-credentials: false
+
+      - name: Verify capacity and Compose runtime
+        working-directory: weave
+        run: >-
+          python3 tools/runner_capacity_preflight.py
+          --path .
+          --minimum-free-gib 20
+          --require-docker
+
+      - name: Set up Node 24
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: weave/admin-console/package-lock.json
+
+      - name: Set up Java 21
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Build and start exact dogfood source
+        working-directory: weave
+        run: |
+          ./gradlew --no-daemon dogfoodUp
+          echo "DOGFOOD_COMPOSE_DEPLOY_RESULT status=passed commit=${DOGFOOD_COMMIT}"
+
+      - name: Upload support-safe deployment result
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: dogfood-compose-${{ env.DOGFOOD_COMMIT }}
+          path: weave/build/evidence/dogfood-compose
+          if-no-files-found: warn
+          retention-days: 14

@@ -5,7 +5,10 @@
 
 ## Summary
 
-Add a versioned canonical domain registry and deterministic validator. The registry is the shared contract for Sprint 8/9 domain vocabulary, compatibility aliases, member/admin states, domain capabilities, and portability schema references.
+Add a versioned canonical collaboration-domain registry and deterministic validator.
+The registry is the shared contract for domain vocabulary, compatibility aliases,
+member/admin states, domain capabilities, and portability schema references. Platform
+security is governed separately and cannot be selected through the provider patch panel.
 
 ## Constitution check
 

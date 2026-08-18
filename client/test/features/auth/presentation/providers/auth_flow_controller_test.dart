@@ -9,12 +9,14 @@ import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.da
 import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 
 import '../../../../helpers/auth_test_data.dart';
 import '../../../../helpers/fake_chat_repository.dart';
+import '../../../../helpers/fake_identity_session_port.dart';
 import '../../../../helpers/in_memory_stores.dart';
 import '../../../../helpers/server_config_test_data.dart';
 
@@ -78,6 +80,9 @@ void main() {
           ),
           secureStoreProvider.overrideWithValue(secureStore),
           oidcClientProvider.overrideWithValue(_FakeOidcClient()),
+          identitySessionPortProvider.overrideWithValue(
+            FakeIdentitySessionPort(),
+          ),
           chatRepositoryProvider.overrideWithValue(chatRepository),
         ],
       );

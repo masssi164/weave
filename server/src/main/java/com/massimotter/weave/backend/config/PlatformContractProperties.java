@@ -17,7 +17,7 @@ public record PlatformContractProperties(
         publicBaseUrl = defaultIfBlank(publicBaseUrl, "https://weave.test");
         apiBaseUrl = defaultIfBlank(apiBaseUrl, "https://api.weave.test/api");
         authBaseUrl = defaultIfBlank(authBaseUrl, "https://auth.weave.test");
-        matrixHomeserverUrl = defaultIfBlank(matrixHomeserverUrl, "https://matrix.weave.test");
+        matrixHomeserverUrl = defaultIfBlank(matrixHomeserverUrl, matrixProjectionBaseUrl(apiBaseUrl));
         filesProductUrl = defaultIfBlank(filesProductUrl, "https://weave.test/files");
         calendarProductUrl = defaultIfBlank(calendarProductUrl, "https://weave.test/calendar");
         nextcloudBaseUrl = defaultIfBlank(nextcloudBaseUrl, "https://files.weave.test");
@@ -29,6 +29,24 @@ public record PlatformContractProperties(
             return fallback;
         }
         return value.trim();
+    }
+
+    private static String matrixProjectionBaseUrl(String apiBaseUrl) {
+        String normalized = defaultIfBlank(apiBaseUrl, "https://api.weave.test/api");
+        while (normalized.endsWith("/") && normalized.length() > 1) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized.endsWith("/api")
+                ? normalized.substring(0, normalized.length() - "/api".length())
+                : normalized;
+    }
+
+    public String agentRuntimeControlResource() {
+        String normalized = apiBaseUrl;
+        while (normalized.endsWith("/") && normalized.length() > 1) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized + "/v1/agent-runtime";
     }
 
     public record Targets(boolean mobile, boolean desktop, boolean web) {

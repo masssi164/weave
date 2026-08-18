@@ -1,0 +1,15 @@
+group = 'com.massimotter.weave'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+dependencies {
+    testImplementation platform(libs.spring.boot.bom)
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation libs.archunit.junit5
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}

@@ -5,16 +5,14 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:weave/core/theme/app_theme.dart';
-import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
-import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
@@ -63,9 +61,6 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
-            ),
           ],
         ),
       );
@@ -108,9 +103,6 @@ void main() {
             chatRepositoryProvider.overrideWithValue(repository),
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
-            ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
             ),
           ],
         ),
@@ -216,9 +208,6 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
-            ),
           ],
         ),
       );
@@ -266,9 +255,6 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
-            ),
           ],
         );
         addTearDown(container.dispose);
@@ -302,57 +288,6 @@ void main() {
 
         expect(repository.connectCalls, 0);
         expect(find.text('Connect chat'), findsOneWidget);
-      },
-    );
-
-    testWidgets(
-      'shows a friendly Matrix provisioning notice when rooms failed',
-      (tester) async {
-        final repository = FakeChatRepository(
-          loadConversationsHandler: () async => const <ChatConversation>[],
-        );
-        final securityRepository = buildSecurityRepository();
-
-        await tester.pumpWidget(
-          createTestApp(
-            const ChatScreen(),
-            overrides: [
-              chatRepositoryProvider.overrideWithValue(repository),
-              chatSecurityRepositoryProvider.overrideWithValue(
-                securityRepository,
-              ),
-              firstRunStatusProvider.overrideWith(
-                (ref) async => FirstRunLoadResult.authenticated(
-                  _chatFirstRunStatus(
-                    const FirstRunModuleStatus(
-                      state: FirstRunProvisioningState.failed,
-                      message: 'Internal provider detail should not render.',
-                      action: 'Internal provider action should not render.',
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        expect(find.text('Chat setup needs admin attention'), findsOneWidget);
-        expect(
-          find.text('Internal provider detail should not render.'),
-          findsNothing,
-        );
-        expect(
-          find.text('Internal provider action should not render.'),
-          findsNothing,
-        );
-        expect(
-          find.text(
-            'Ask a workspace admin to inspect support-safe diagnostics.',
-          ),
-          findsOneWidget,
-        );
-        expect(find.text('Retry status'), findsOneWidget);
       },
     );
 
@@ -391,9 +326,6 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
-            ),
           ],
         ),
       );
@@ -420,7 +352,128 @@ void main() {
     });
 
     testWidgets(
-      'groups conversations into favorites, personal messages, channels, and AI chats',
+      'creates an encrypted conversation from the empty state accessibly',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        final repository = FakeChatRepository(
+          loadConversationsHandler: () async => const <ChatConversation>[],
+          createConversationHandler: ({required title}) async =>
+              ChatConversation(
+                id: '!created:home.internal',
+                title: title,
+                previewType: ChatConversationPreviewType.encrypted,
+                unreadCount: 0,
+                isInvite: false,
+                isDirectMessage: false,
+              ),
+          loadRoomTimelineHandler: (roomId) async => ChatRoomTimeline(
+            roomId: roomId,
+            roomTitle: 'Release planning',
+            isInvite: false,
+            canSendMessages: true,
+            messages: const [],
+          ),
+        );
+        final securityRepository = buildSecurityRepository();
+        final router = GoRouter(
+          initialLocation: '/chat',
+          routes: [
+            GoRoute(
+              path: '/chat',
+              builder: (context, state) => const Scaffold(body: ChatScreen()),
+              routes: [
+                GoRoute(
+                  path: 'rooms/:roomId',
+                  builder: (context, state) =>
+                      const Scaffold(body: Text('Created encrypted room')),
+                ),
+              ],
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+
+        await tester.pumpWidget(
+          createTestRouterApp(
+            router,
+            overrides: [
+              chatRepositoryProvider.overrideWithValue(repository),
+              chatSecurityRepositoryProvider.overrideWithValue(
+                securityRepository,
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byTooltip('Start conversation'), findsOneWidget);
+        await tester.tap(find.byTooltip('Start conversation'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Start an encrypted conversation'), findsOneWidget);
+        expect(find.text('Conversation name'), findsOneWidget);
+
+        await tester.tap(find.text('Create conversation'));
+        await tester.pump();
+        expect(
+          find.text('Enter a name between 1 and 200 characters.'),
+          findsOneWidget,
+        );
+
+        await tester.enterText(
+          find.byKey(const Key('chat-create-conversation-name-field')),
+          'Release planning',
+        );
+        await tester.tap(find.text('Create conversation'));
+        await tester.pumpAndSettle();
+
+        expect(repository.createConversationCalls, 1);
+        expect(find.text('Start an encrypted conversation'), findsNothing);
+        expect(find.text('Created encrypted room'), findsOneWidget);
+        semantics.dispose();
+      },
+    );
+
+    testWidgets('keeps conversation creation failures domain local', (
+      tester,
+    ) async {
+      const rawFailure = 'M_WEAVE_E2EE_CREATE_ROOM raw-provider-payload';
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () async => const <ChatConversation>[],
+        createConversationHandler: ({required title}) async {
+          throw const ChatFailure.protocol(rawFailure);
+        },
+      );
+      final securityRepository = buildSecurityRepository();
+
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatScreen(),
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Start conversation'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('chat-create-conversation-name-field')),
+        'Release planning',
+      );
+      await tester.tap(find.text('Create conversation'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('could not be created'), findsOneWidget);
+      expect(find.textContaining(rawFailure), findsNothing);
+      expect(find.text('No conversations yet'), findsOneWidget);
+    });
+
+    testWidgets(
+      'groups conversations into favorites, personal messages, and channels',
       (tester) async {
         final repository = FakeChatRepository(
           loadConversationsHandler: () async => const <ChatConversation>[
@@ -443,16 +496,6 @@ void main() {
               isDirectMessage: false,
               isFavorite: true,
             ),
-            ChatConversation(
-              id: 'agent:release-coach',
-              title: 'Release coach',
-              previewType: ChatConversationPreviewType.text,
-              previewText: 'Ready to prepare notes',
-              unreadCount: 0,
-              isInvite: false,
-              isDirectMessage: true,
-              isAiChat: true,
-            ),
           ],
         );
         final securityRepository = buildSecurityRepository();
@@ -465,9 +508,6 @@ void main() {
               chatSecurityRepositoryProvider.overrideWithValue(
                 securityRepository,
               ),
-              firstRunStatusProvider.overrideWith(
-                (ref) async => const FirstRunLoadResult.signedOut(),
-              ),
             ],
           ),
         );
@@ -478,7 +518,6 @@ void main() {
         expect(find.text('3 unread items'), findsOneWidget);
         expect(find.text('1 channel workspace'), findsOneWidget);
         expect(find.text('1 personal message'), findsOneWidget);
-        expect(find.text('1 governed AI chat'), findsOneWidget);
         expect(find.text('Open next work item'), findsOneWidget);
         expect(find.text('Context for this workspace'), findsNothing);
         expect(find.text('Channel context'), findsNothing);
@@ -498,16 +537,13 @@ void main() {
         expect(find.text('Project channel'), findsNWidgets(2));
         expect(find.text('Sam'), findsOneWidget);
 
-        await tester.ensureVisible(find.text('AI chats'));
-        await tester.pumpAndSettle();
-
-        expect(find.text('AI chats'), findsOneWidget);
-        expect(find.text('Release coach'), findsOneWidget);
+        expect(find.text('AI chats'), findsNothing);
+        expect(find.text('Release coach'), findsNothing);
       },
     );
 
     testWidgets(
-      'keeps favorites and AI areas visible when backend data is not ready',
+      'keeps collaboration sections visible when backend data is not ready',
       (tester) async {
         final repository = FakeChatRepository(
           loadConversationsHandler: () async => const <ChatConversation>[
@@ -541,9 +577,6 @@ void main() {
               chatSecurityRepositoryProvider.overrideWithValue(
                 securityRepository,
               ),
-              firstRunStatusProvider.overrideWith(
-                (ref) async => const FirstRunLoadResult.signedOut(),
-              ),
             ],
           ),
         );
@@ -552,25 +585,15 @@ void main() {
         expect(find.text('No unread work'), findsOneWidget);
         expect(find.text('1 channel workspace'), findsOneWidget);
         expect(find.text('1 personal message'), findsOneWidget);
-        expect(find.text('AI governed by workspace policy'), findsOneWidget);
         expect(find.text('Favorites'), findsOneWidget);
         expect(
           find.text(
-            'No favorites yet. Important direct messages, channels, and AI chats marked as favorites stay here.',
+            'No favorites yet. Important direct messages and channels marked as favorites stay here.',
           ),
           findsOneWidget,
         );
 
-        await tester.ensureVisible(find.text('AI chats'));
-        await tester.pumpAndSettle();
-
-        expect(find.text('AI chats'), findsOneWidget);
-        expect(
-          find.text(
-            'AI chats are not enabled for this workspace. A workspace owner or admin can enable governed assistants after policy, consent, and audit controls are ready.',
-          ),
-          findsOneWidget,
-        );
+        expect(find.text('AI chats'), findsNothing);
       },
     );
 
@@ -627,9 +650,6 @@ void main() {
             chatRepositoryProvider.overrideWithValue(repository),
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
-            ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
             ),
           ],
         ),
@@ -695,9 +715,6 @@ void main() {
         overrides: [
           chatRepositoryProvider.overrideWithValue(repository),
           chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
-          firstRunStatusProvider.overrideWith(
-            (ref) async => const FirstRunLoadResult.signedOut(),
-          ),
         ],
       );
       addTearDown(container.dispose);
@@ -769,9 +786,6 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
-            ),
           ],
         ),
       );
@@ -804,9 +818,6 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
-            ),
           ],
         ),
       );
@@ -814,127 +825,5 @@ void main() {
 
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
     });
-
-    testWidgets('renders bounded Weaver Beta helper states accessibly', (
-      tester,
-    ) async {
-      final repository = FakeChatRepository(
-        loadConversationsHandler: () async => const <ChatConversation>[
-          ChatConversation(
-            id: '!ai:home.internal',
-            title: 'Weaver notes',
-            previewType: ChatConversationPreviewType.text,
-            previewText: 'Structured result ready',
-            unreadCount: 0,
-            isInvite: false,
-            isDirectMessage: false,
-          ),
-        ],
-      );
-      final securityRepository = buildSecurityRepository();
-      await tester.pumpWidget(
-        createTestApp(
-          const ChatScreen(),
-          overrides: [
-            chatRepositoryProvider.overrideWithValue(repository),
-            chatSecurityRepositoryProvider.overrideWithValue(
-              securityRepository,
-            ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
-            ),
-            agentCapabilityPolicyProvider.overrideWithValue(
-              const AsyncData(
-                AgentCapabilityPolicy(
-                  canManageCapabilities: false,
-                  capabilities: <AgentCapabilityState>[
-                    AgentCapabilityState(
-                      capability: AgentCapability.personalAssistant,
-                      enablement: AgentCapabilityEnablement.enabled,
-                      availability:
-                          AgentCapabilityAvailability.adminSetupRequired,
-                    ),
-                    AgentCapabilityState(
-                      capability: AgentCapability.channelAgent,
-                      enablement: AgentCapabilityEnablement.disabled,
-                      availability:
-                          AgentCapabilityAvailability.disabledByPolicy,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Weaver Beta helper'), findsOneWidget);
-      expect(find.text('Connected'), findsOneWidget);
-      expect(find.text('Weaver enabled'), findsOneWidget);
-      expect(find.text('Weaver disabled'), findsOneWidget);
-      expect(
-        find.text('Approval required for sensitive actions'),
-        findsOneWidget,
-      );
-      expect(find.text('Denied or failed safely'), findsOneWidget);
-      expect(find.textContaining('raw provider payloads'), findsOneWidget);
-      expect(find.textContaining('MCP'), findsNothing);
-      expect(find.textContaining('tool catalog'), findsNothing);
-      expect(
-        find.bySemanticsLabel(RegExp('Results are support-safe')),
-        findsOneWidget,
-      );
-    });
   });
-}
-
-FirstRunStatus _chatFirstRunStatus(FirstRunModuleStatus matrixStatus) {
-  return FirstRunStatus(
-    identity: const FirstRunIdentity(
-      userId: 'user-123',
-      username: 'alice',
-      email: 'alice@example.test',
-      emailVerified: true,
-      displayName: 'Alice Example',
-      locale: 'en',
-      timezone: 'Europe/Berlin',
-      roles: ['member'],
-      groups: ['workspace-default'],
-    ),
-    invite: const FirstRunInviteStatus(
-      status: 'active',
-      message: 'The invite is active.',
-    ),
-    access: const FirstRunAccess(
-      primaryRole: 'member',
-      roles: ['member'],
-      groups: ['workspace-default'],
-      canAdministerWorkspace: false,
-      canInviteUsers: false,
-      canUseWorkspaceModules: true,
-    ),
-    profile: const FirstRunProfileStatus(
-      status: 'ready',
-      missing: [],
-      message: 'The profile is ready.',
-    ),
-    moduleProvisioning: FirstRunModuleProvisioning(
-      identity: const FirstRunModuleStatus(
-        state: FirstRunProvisioningState.ready,
-        message: 'Identity is ready.',
-      ),
-      profile: const FirstRunModuleStatus(
-        state: FirstRunProvisioningState.ready,
-        message: 'Profile is ready.',
-      ),
-      matrix: matrixStatus,
-      nextcloud: const FirstRunModuleStatus(
-        state: FirstRunProvisioningState.ready,
-        message: 'Nextcloud is ready.',
-      ),
-    ),
-    firstRunComplete: matrixStatus.isReady,
-    actions: const [],
-  );
 }

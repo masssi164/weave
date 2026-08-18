@@ -32,7 +32,7 @@ REQUIRED_CLAIM_STATES = {
 REQUIRED_TAGS = {
     "@weave-control-plan-preflight-modes",
     "@weave-control-admin-console-client-responsibility-split",
-    "@weave-control-deploy-new-local-forgejo-e2e-boundary",
+    "@weave-control-deploy-new-github-dogfood-e2e-boundary",
     "@weave-control-attach-existing-preflight-boundary",
     "@weave-control-hybrid-domain-separation",
     "@weave-control-member-bootstrap-invariant",
@@ -114,8 +114,8 @@ def main() -> int:
             "dispatch_preflight_only",
             "Flutter or App E2E evidence is collected in a separate client lane against the handoff target",
             "Weave Control, Admin Console, and Client keep separate responsibilities",
-            "Weaver is represented only as a future governed organization capability",
-            "Forgejo deployment lane remains client-free",
+            "Weaver or OpenClaw is represented only as an optional runtime provider behind Agent Runtime Control",
+            "GitHub deployment lane remains client-free",
         ],
     )
 
@@ -144,12 +144,12 @@ def main() -> int:
             fail(f"responsibility surface matrix missing {key}")
     if "app_client_e2e_execution" not in surfaces["weave_control"].get("forbidden", []):
         fail("Weave Control surface must forbid app/client E2E execution")
-    if "future_weaver_governance_controls" not in surfaces["admin_console"].get("owns", []):
-        fail("Admin Console surface must include future Weaver governance controls")
-    if "weaver_runtime_administration" not in surfaces["weave_app_client"].get("forbidden", []):
-        fail("Client surface must forbid Weaver runtime administration")
-    if "v0_1_spec_0001_runtime_claim" not in surfaces["weaver"].get("forbidden", []):
-        fail("Weaver boundary must forbid a v0.1 Spec 0001 runtime claim")
+    if "agent_runtime_control_lifecycle" not in surfaces["admin_console"].get("owns", []):
+        fail("Admin Console surface must include Agent Runtime Control lifecycle controls")
+    if "agent_runtime_control_administration" not in surfaces["weave_app_client"].get("forbidden", []):
+        fail("Client surface must forbid Agent Runtime Control administration")
+    if "domain_authorization_authority" not in surfaces["weaver"].get("forbidden", []):
+        fail("Weaver runtime-provider boundary must not own domain authorization")
     invariant = matrix.get("planPreflightInvariant", {})
     if invariant.get("rawSecretsAccepted") is not False or invariant.get("mutationBeforeApprovalAllowed") is not False:
         fail("plan preflight invariant must fail closed before mutation")
@@ -202,8 +202,8 @@ def main() -> int:
             "| Weave Control |",
             "| Admin Console |",
             "| Weave App / Client |",
-            "future organization capability and governance surface",
-            "WEAVE-SPEC-0001 do not claim Weaver/AI runtime behavior in v0.1",
+            "Agent Runtime Control lifecycle and policy controls",
+            "Weaver/OpenClaw remains an optional organization runtime behind Agent Runtime Control and is disabled by default.",
         ],
     )
     assert_contains(

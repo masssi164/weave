@@ -9,10 +9,6 @@ import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
-import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
-import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 /// The Chat feature screen.
@@ -26,29 +22,55 @@ class ChatScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(chatProvider);
-    final chatProvisioning = switch (ref.watch(
-      chatProvisioningStatusProvider,
-    )) {
-      AsyncData(value: final status) => status,
-      _ => null,
-    };
+
+    Future<void> openConversation(ChatConversation conversation) async {
+      final router = GoRouter.maybeOf(context);
+      if (router != null) {
+        await context.push(
+          AppRoutes.chatRoom(conversation.id),
+          extra: conversation,
+        );
+      } else {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) => ChatRoomScreen(conversation: conversation),
+          ),
+        );
+      }
+      await ref.read(chatProvider.notifier).retry();
+    }
+
+    Future<void> createConversation() async {
+      final conversation = await showDialog<ChatConversation>(
+        context: context,
+        builder: (dialogContext) => _CreateConversationDialog(
+          onCreate: (title) =>
+              ref.read(chatProvider.notifier).createConversation(title: title),
+        ),
+      );
+      if (conversation == null || !context.mounted) {
+        return;
+      }
+      await openConversation(conversation);
+    }
+
+    final canCreateConversation =
+        state.phase == ChatViewPhase.content ||
+        state.phase == ChatViewPhase.empty;
 
     return CustomScrollView(
       slivers: [
-        SliverAppBar.large(title: Text(l10n.chatScreenTitle)),
-        if (chatProvisioning != null && !chatProvisioning.isReady)
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            sliver: SliverToBoxAdapter(
-              child: _ChatProvisioningNotice(
-                status: chatProvisioning,
-                onRefresh: () {
-                  refreshChatProvisioningStatus(ref);
-                  ref.read(chatProvider.notifier).retry();
-                },
-              ),
+        SliverAppBar.large(
+          title: Text(l10n.chatScreenTitle),
+          actions: [
+            IconButton(
+              key: const Key('chat-create-conversation-button'),
+              tooltip: l10n.chatCreateConversationAction,
+              onPressed: canCreateConversation ? createConversation : null,
+              icon: const Icon(Icons.add_comment_outlined),
             ),
-          ),
+          ],
+        ),
         if (state.staleFailure != null)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -106,23 +128,7 @@ class ChatScreen extends ConsumerWidget {
           ),
           ChatViewPhase.content => _ChatOverviewSliver(
             conversations: state.conversations,
-            onOpenConversation: (conversation) async {
-              final router = GoRouter.maybeOf(context);
-              if (router != null) {
-                await context.push(
-                  AppRoutes.chatRoom(conversation.id),
-                  extra: conversation,
-                );
-              } else {
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (context) =>
-                        ChatRoomScreen(conversation: conversation),
-                  ),
-                );
-              }
-              await ref.read(chatProvider.notifier).retry();
-            },
+            onOpenConversation: openConversation,
           ),
         },
       ],
@@ -130,131 +136,130 @@ class ChatScreen extends ConsumerWidget {
   }
 }
 
-class _ChatProvisioningNotice extends StatelessWidget {
-  const _ChatProvisioningNotice({
-    required this.status,
-    required this.onRefresh,
-  });
+class _CreateConversationDialog extends StatefulWidget {
+  const _CreateConversationDialog({required this.onCreate});
 
-  final FirstRunModuleStatus status;
-  final VoidCallback onRefresh;
+  final Future<ChatConversation> Function(String title) onCreate;
+
+  @override
+  State<_CreateConversationDialog> createState() =>
+      _CreateConversationDialogState();
+}
+
+class _CreateConversationDialogState extends State<_CreateConversationDialog> {
+  final _nameController = TextEditingController();
+  bool _submitting = false;
+  bool _nameInvalid = false;
+  bool _creationFailed = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) {
+      return;
+    }
+    final title = _nameController.text.trim();
+    if (title.isEmpty || title.runes.length > 200) {
+      setState(() {
+        _nameInvalid = true;
+        _creationFailed = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _submitting = true;
+      _nameInvalid = false;
+      _creationFailed = false;
+    });
+    try {
+      final conversation = await widget.onCreate(title);
+      if (mounted) {
+        Navigator.of(context).pop(conversation);
+      }
+    } on Object {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _creationFailed = true;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final title = _titleForStatus(l10n, status.state);
-    final message = _messageForStatus(l10n, status.state);
-    final action = _actionForStatus(l10n, status.state);
-
-    return Semantics(
-      container: true,
-      liveRegion: true,
-      label: '$title. $message${action == null ? '' : '. $action'}',
-      child: ExcludeSemantics(
-        child: Card(
-          elevation: 0,
-          color: theme.colorScheme.secondaryContainer,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: theme.colorScheme.secondary),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: theme.colorScheme.onSecondaryContainer,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.onSecondaryContainer,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  message,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSecondaryContainer,
-                  ),
-                ),
-                if (action != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    action,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSecondaryContainer,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: TextButton.icon(
-                    onPressed: onRefresh,
-                    icon: const Icon(Icons.refresh),
-                    label: Text(l10n.chatProvisioningRetryButton),
-                  ),
-                ),
-              ],
+    return AlertDialog(
+      title: Text(l10n.chatCreateConversationTitle),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.chatCreateConversationDescription),
+            const SizedBox(height: 16),
+            TextField(
+              key: const Key('chat-create-conversation-name-field'),
+              controller: _nameController,
+              enabled: !_submitting,
+              autofocus: true,
+              maxLength: 200,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                labelText: l10n.chatCreateConversationNameLabel,
+                hintText: l10n.chatCreateConversationNameHint,
+                errorText: _nameInvalid
+                    ? l10n.chatCreateConversationNameRequired
+                    : null,
+              ),
+              onChanged: (_) {
+                if (_nameInvalid || _creationFailed) {
+                  setState(() {
+                    _nameInvalid = false;
+                    _creationFailed = false;
+                  });
+                }
+              },
+              onSubmitted: (_) => _submit(),
             ),
-          ),
+            if (_creationFailed)
+              Semantics(
+                container: true,
+                liveRegion: true,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    l10n.chatCreateConversationFailure,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+          child: Text(l10n.chatCreateConversationCancel),
+        ),
+        FilledButton(
+          key: const Key('chat-create-conversation-submit-button'),
+          onPressed: _submitting ? null : _submit,
+          child: Text(
+            _submitting
+                ? l10n.chatCreateConversationSubmitting
+                : l10n.chatCreateConversationSubmit,
+          ),
+        ),
+      ],
     );
-  }
-
-  String _titleForStatus(
-    AppLocalizations l10n,
-    FirstRunProvisioningState state,
-  ) {
-    return switch (state) {
-      FirstRunProvisioningState.pending => l10n.chatProvisioningPendingTitle,
-      FirstRunProvisioningState.degraded => l10n.chatProvisioningDegradedTitle,
-      FirstRunProvisioningState.notConfigured ||
-      FirstRunProvisioningState.failed =>
-        l10n.chatProvisioningActionNeededTitle,
-      FirstRunProvisioningState.ready => l10n.chatProvisioningReadyTitle,
-    };
-  }
-
-  String _messageForStatus(
-    AppLocalizations l10n,
-    FirstRunProvisioningState state,
-  ) {
-    return switch (state) {
-      FirstRunProvisioningState.pending => l10n.chatProvisioningPendingGuidance,
-      FirstRunProvisioningState.degraded =>
-        l10n.chatProvisioningDegradedGuidance,
-      FirstRunProvisioningState.notConfigured =>
-        l10n.chatProvisioningUnavailableGuidance,
-      FirstRunProvisioningState.failed => l10n.chatProvisioningFailedGuidance,
-      FirstRunProvisioningState.ready => l10n.chatProvisioningReadyGuidance,
-    };
-  }
-
-  String? _actionForStatus(
-    AppLocalizations l10n,
-    FirstRunProvisioningState state,
-  ) {
-    return switch (state) {
-      FirstRunProvisioningState.pending ||
-      FirstRunProvisioningState.ready => null,
-      FirstRunProvisioningState.degraded ||
-      FirstRunProvisioningState.notConfigured ||
-      FirstRunProvisioningState.failed => l10n.chatProvisioningAdminAction,
-    };
   }
 }
 
@@ -364,6 +369,7 @@ class _ChatErrorState extends StatelessWidget {
       ChatFailureType.sessionRequired => l10n.chatErrorSessionRequiredGuidance,
       ChatFailureType.unsupportedPlatform =>
         l10n.chatErrorUnsupportedPlatformGuidance,
+      ChatFailureType.peerDevicePending ||
       ChatFailureType.protocol ||
       ChatFailureType.storage ||
       ChatFailureType.unknown => l10n.chatErrorRetryGuidance,
@@ -384,16 +390,6 @@ class _ChatOverviewSliver extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final overview = ChatOverview.fromConversations(conversations);
-    final weaverPolicy = ref
-        .watch(agentCapabilityPolicyProvider)
-        .when(
-          data: (value) => value,
-          error: (_, _) =>
-              AgentCapabilityPolicy.failClosed(canManageCapabilities: false),
-          loading: () =>
-              AgentCapabilityPolicy.failClosed(canManageCapabilities: false),
-        );
-
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -455,20 +451,6 @@ class _ChatOverviewSliver extends ConsumerWidget {
               conversations: overview.channels,
               onOpenConversation: onOpenConversation,
             ),
-            const SizedBox(height: 20),
-            _ChatOverviewSection(
-              title: l10n.chatAiChatsSectionTitle,
-              countLabel: l10n.chatOverviewSectionCount(
-                overview.aiChats.length,
-              ),
-              description: l10n.chatAiChatsSectionDescription,
-              emptyMessage: l10n.chatAiChatsSectionEmpty,
-              icon: Icons.smart_toy_outlined,
-              conversations: overview.aiChats,
-              onOpenConversation: onOpenConversation,
-            ),
-            const SizedBox(height: 20),
-            _WeaverBetaCard(policy: weaverPolicy),
           ],
         ),
       ),
@@ -490,10 +472,6 @@ class _ChatHomeHeroCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final nextConversation = overview.nextConversation;
-    final aiMetric = overview.aiChats.isEmpty
-        ? l10n.chatHomeAiMetricDisabled
-        : l10n.chatHomeAiMetricReady(overview.aiChats.length);
-
     return Semantics(
       container: true,
       explicitChildNodes: true,
@@ -560,10 +538,6 @@ class _ChatHomeHeroCard extends StatelessWidget {
                       overview.personalMessages.length,
                     ),
                   ),
-                  _ChatHomeMetricChip(
-                    icon: Icons.smart_toy_outlined,
-                    label: aiMetric,
-                  ),
                 ],
               ),
               if (nextConversation != null) ...[
@@ -616,168 +590,6 @@ class _ChatHomeMetricChip extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _WeaverBetaCard extends StatelessWidget {
-  const _WeaverBetaCard({required this.policy});
-
-  final AgentCapabilityPolicy policy;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final personalAssistant = policy.stateFor(
-      AgentCapability.personalAssistant,
-    );
-    final channelAgent = policy.stateFor(AgentCapability.channelAgent);
-    final personalStatus = _statusFor(l10n, personalAssistant);
-    final channelStatus = _statusFor(l10n, channelAgent);
-    final canStart = personalAssistant.canStart;
-    final semanticLabel = l10n.chatWeaverBetaSemanticLabel(
-      personalStatus.label,
-      channelStatus.label,
-      canStart
-          ? l10n.chatWeaverBetaConnectedState
-          : l10n.chatWeaverBetaUnconnectedState,
-    );
-
-    return Semantics(
-      container: true,
-      liveRegion: true,
-      label: semanticLabel,
-      child: ExcludeSemantics(
-        child: Card(
-          elevation: 0,
-          color: theme.colorScheme.surfaceContainerHighest,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.auto_awesome_outlined,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            l10n.chatWeaverBetaTitle,
-                            style: theme.textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            l10n.chatWeaverBetaDescription,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _WeaverStateChip(
-                      label: canStart
-                          ? l10n.chatWeaverBetaConnectedState
-                          : l10n.chatWeaverBetaUnconnectedState,
-                      icon: canStart ? Icons.link : Icons.link_off,
-                    ),
-                    _WeaverStateChip(
-                      label: personalStatus.label,
-                      icon: personalStatus.icon,
-                    ),
-                    _WeaverStateChip(
-                      label: channelStatus.label,
-                      icon: channelStatus.icon,
-                    ),
-                    _WeaverStateChip(
-                      label: l10n.chatWeaverBetaApprovalRequiredState,
-                      icon: Icons.verified_user_outlined,
-                    ),
-                    _WeaverStateChip(
-                      label: l10n.chatWeaverBetaDeniedFailedState,
-                      icon: Icons.report_gmailerrorred_outlined,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  l10n.chatWeaverBetaSupportSafeResult,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  _WeaverStatus _statusFor(AppLocalizations l10n, AgentCapabilityState state) {
-    if (state.canStart) {
-      return _WeaverStatus(
-        l10n.chatWeaverBetaEnabledState,
-        Icons.check_circle_outline,
-      );
-    }
-    return switch (state.availability) {
-      AgentCapabilityAvailability.disabledByPolicy => _WeaverStatus(
-        l10n.chatWeaverBetaDisabledState,
-        Icons.policy_outlined,
-      ),
-      AgentCapabilityAvailability.adminSetupRequired => _WeaverStatus(
-        l10n.chatWeaverBetaCapabilityUnavailableState,
-        Icons.info_outline,
-      ),
-      AgentCapabilityAvailability.blocked => _WeaverStatus(
-        l10n.chatWeaverBetaDeniedFailedState,
-        Icons.report_gmailerrorred_outlined,
-      ),
-    };
-  }
-}
-
-class _WeaverStatus {
-  const _WeaverStatus(this.label, this.icon);
-
-  final String label;
-  final IconData icon;
-}
-
-class _WeaverStateChip extends StatelessWidget {
-  const _WeaverStateChip({required this.label, required this.icon});
-
-  final String label;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Chip(
-      avatar: Icon(icon, size: 18),
-      label: Text(label),
-      backgroundColor: theme.colorScheme.surface,
-      side: BorderSide(color: theme.colorScheme.outlineVariant),
     );
   }
 }
@@ -945,7 +757,7 @@ class _ConversationTile extends StatelessWidget {
       unreadLabel,
       if (conversation.isInvite) l10n.chatConversationInviteLabel,
       if (conversation.isDirectMessage) l10n.chatConversationDirectMessageLabel,
-      if (!conversation.isDirectMessage && !conversation.isAiChat)
+      if (!conversation.isDirectMessage)
         l10n.chatConversationOpensChannelWorkspaceLabel,
     ].join('. ');
 

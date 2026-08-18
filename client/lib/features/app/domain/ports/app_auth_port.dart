@@ -6,6 +6,8 @@ abstract interface class AppAuthPort {
 
   Future<AuthState> signIn(AuthConfiguration configuration);
 
+  Future<AuthState> refreshSession(AuthConfiguration configuration);
+
   Future<void> signOut(AuthConfiguration configuration);
 
   Future<void> clearLocalSession();

@@ -37,9 +37,9 @@ Blocked until a dedicated access model is implemented:
 - `WEAVE_NEXTCLOUD_BASE_URL` should point to the technical Nextcloud host (`https://files...`), not the Weave product `/calendar` route.
 - Backend CalDAV adapter variables should target the backend actor workspace calendar fallback while team/channel scopes are implemented:
   - `WEAVE_CALDAV_BASE_URL=$WEAVE_NEXTCLOUD_BASE_URL`
-  - `WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE=/remote.php/dav/calendars/<backend-actor>/personal/`
+  - `WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE=/remote.php/dav/calendars/<backend-actor>/weave-workspace/`
   - `WEAVE_CALDAV_AUTH_MODE=BASIC` (or `BEARER` only when explicitly tested)
-- Generated no-secret app config must not include `WEAVE_CALDAV_BACKEND_TOKEN`, `WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN`, or `TF_VAR_nextcloud_backend_actor_token`.
+- Generated no-secret app config must not include backend actor credentials, bearer tokens, app passwords, or SecretRef values.
 
 ## Backend metadata contract
 

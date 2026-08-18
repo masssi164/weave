@@ -1,6 +1,6 @@
 # Local bootstrap and app contract
 
-This guide contains the local/dev provider-stack implementation path that used to make the top-level README intimidating: ports, TLS trust, generated env files, integration test inputs, and the native app/backend contract. It is not the canonical product bootstrap entrypoint; that boundary lives in `../../docs/bootstrap-foundation-contract.md` and deploys the Control Plane first, with infra selected only by profile. The canonical CLI bridge is `tools/weavectl bootstrap plan/apply`; when a local shell plan is explicitly executed with an approval ref, it dispatches this `install.sh` path instead of asking the operator to discover it manually.
+This guide contains the local/dev infrastructure path that used to make the top-level README intimidating: ports, TLS trust, generated env files, integration test inputs, and the native app/backend contract. It is not the canonical product bootstrap entrypoint; that boundary lives in `../../docs/bootstrap-foundation-contract.md` and deploys the Control Plane first, with infra selected only by an explicit environment. The canonical CLI bridge is `tools/weavectl bootstrap plan/apply`; when a local shell plan is explicitly executed with an approval ref, it dispatches this `install.sh` path instead of asking the operator to discover it manually.
 
 ## Hostnames
 
@@ -18,34 +18,38 @@ make dev-hosts
 
 MAS is served behind the matrix hostname; no separate `mas.<tenant_domain>` entry is needed.
 
-## Port modes
+## Environment and port modes
 
-There are two supported local port modes:
+Environment selection is explicit: `dev`, `dogfood`, `prod`, or `e2e`. A branch name never selects
+or changes the environment. The checked-in/default port blocks are:
 
-- canonical single-stack ports: `80`, `443`, `8080`, `8082`, `8008`, `8083`, `8084`
-- shared-host isolation block: `44080`, `44443`, `48080`, `48082`, `48008`, `48083`, `48084`
+- `dev`: `58080/59000` Keycloak. Normal `docker compose --env-file .env.dev up -d` starts Keycloak only;
+  Server, MCP, and Admin Console run on the host. A private dev environment may set
+  `COMPOSE_PROFILES=dev,dev-tools` to add Mailpit; other checked-in dev ports are reserved for
+  transitional/provider-specific diagnostics and are not started by the normal lifecycle;
+- `dogfood`: `44080/44443`, `48080/49000`, `48025`, and
+  `48082/48008/48083/48084/48085`;
+- `prod`: public `80/443`; service management ports remain loopback-bound and operator-reviewed.
+- `e2e`: dynamically assigned host ports and a namespace derived from the explicit run ID.
 
-Use canonical ports only when Weave owns the machine's standard local ports. On a shared Docker host or self-hosted runner, use the isolated block. `install.sh` defaults to the isolated block, and `.env.example` shows both modes explicitly.
+The host Spring process in `dev` listens on `127.0.0.1:8080`; the Compose backend service is not
+started in that environment. Dogfood keeps persistent Mailpit for initial invitation capture;
+production uses reviewed external SMTP and does not start Mailpit. E2E owns its application,
+Keycloak, Mailpit, and RuntimeState settings directly and never inherits the persistent dogfood
+overlay.
 
-If you need a clean non-destructive rerun on a shared host:
+Prepare once and use native Compose for a non-destructive rerun:
 
 ```bash
-cd weave-workspace
-WEAVE_RUNNER_HYGIENE=true ./install.sh
-# or
-bash ./teardown.sh
+cd infra/weave-workspace
+./compose.sh dev configure
+docker compose --env-file .env.dev up -d
+docker compose --env-file .env.dev down
 ```
 
-A destructive reset requires explicit opt-in and the tenant/workspace slug. For the default local tenant, read [operator-runbook.md#5-backup-expectations](operator-runbook.md#5-backup-expectations) first, then run only if data loss is intended:
-
-```bash
-cd weave-workspace
-WEAVE_REMOVE_VOLUMES=true \
-WEAVE_CONFIRM_DESTRUCTIVE_RESET=weave \
-bash ./teardown.sh
-```
-
-Before deleting volumes, the helper lists the affected data domains: Keycloak identity/session data, backend/Postgres data, Matrix/Synapse database and media, Nextcloud database/files/calendar data, Caddy/TLS state, and exact Docker volumes. Generated `.generated/` secrets/config are not removed by the helper; back them up or delete them manually only when intended.
+`down` preserves named volumes and SecretRefs. Destructive cleanup is available only to an exact
+isolated-E2E namespace carrying matching ownership labels and candidate/run evidence; there is no
+generic persistent reset command.
 
 ## TLS setup
 
@@ -61,64 +65,81 @@ The public local contract is HTTPS on these hostnames:
 Generated-CA flow:
 
 1. Add the host entries shown above to `/etc/hosts`.
-2. Run `cd weave-workspace && ./install.sh`.
-3. Trust `weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem` in the host operating system or browser trust store.
+2. Run `./gradlew composeDevDependenciesReady`.
+3. Trust `infra/weave-workspace/.generated/dev/tls/ca.pem` in the host operating system or browser trust store.
 4. Reopen the browser after trusting the CA.
 
 mkcert flow:
 
 ```bash
-cd weave-workspace
-mkdir -p 01-infrastructure/.generated/caddy/certs
+cd infra/weave-workspace
+mkdir -p .generated/dev/tls
 mkcert -install
 mkcert \
-  -cert-file 01-infrastructure/.generated/caddy/certs/weave.test.pem \
-  -key-file 01-infrastructure/.generated/caddy/certs/weave.test-key.pem \
+  -cert-file .generated/dev/tls/cert.pem \
+  -key-file .generated/dev/tls/key.pem \
   weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test
-cp "$(mkcert -CAROOT)/rootCA.pem" 01-infrastructure/.generated/caddy/certs/weave-local-ca.pem
-./install.sh
+cp "$(mkcert -CAROOT)/rootCA.pem" .generated/dev/tls/ca.pem
+cd ../..
+./gradlew composeDevDependenciesReady
 ```
 
-Caddy is managed by the OpenTofu infrastructure stage. `weave-workspace/docker-compose.yml` mirrors the same Caddy service and mounts the generated Caddyfile plus cert directory for proxy-only iteration against an existing `weave_network`.
+Caddy is declared once in `compose.yaml`, but is not part of normal dev startup. The generated dev
+TLS material remains available for an explicitly selected gateway/provider diagnostic; normal
+host Server and Admin Console development uses their host-local entry points.
 
 ## Generated local env files
 
-`install.sh` writes two generated env files:
+Rendering writes deterministic service configuration below `.generated/dev` and a public host-server
+coordinate file at `.generated/dev/backend/host.env`. Credentials are separate mode-0600 files
+below `.generated/dev/secrets`; TLS lives below `.generated/dev/tls`. The host coordinate file
+selects `SPRING_PROFILES_ACTIVE=dev`, imports only generated provider coordinates, and deliberately
+contains no `SPRING_DATASOURCE_URL`, so `application-dev.yml` remains the H2 authority.
 
-- `weave-workspace/.generated/bootstrap.env`: private local bootstrap values and secrets. Use only for local backend/server-side runs that need those secrets.
-- `weave-workspace/.generated/app-config.env`: no-secrets app/runtime summary. It includes product gateway, backend API, auth issuer, Matrix homeserver, Weave product files/calendar routes, and a clearly labeled `WEAVE_NEXTCLOUD_TECHNICAL_BASE_URL` for raw Nextcloud admin/protocol fallback only.
+Never attach the generated, secret, or TLS roots to support issues. `support-bundle.sh dev` has a
+strict allowlist and excludes them.
 
-Do not attach `bootstrap.env` to support issues or logs.
+## Disposable Fresh product E2E
+
+`./gradlew testApp` creates one private, run-scoped Compose `e2e` context. Owner
+and member identities are created only through Weave invitations, Mailpit
+activation links, Keycloak required actions, and Authorization Code with PKCE.
+The proof then exercises WebDAV, governed Agent Runtime Control,
+`private_key_jwt`, OAuth token exchange, and MCP `files.search`.
+
+Passwords, activation links, bearer tokens, and private keys stay in the
+bounded test process or their mounted SecretRefs. The only retained artifacts
+are allowlisted support-safe product-flow and teardown evidence. The cleanup
+accepts only the deterministic `weave-e2e-<sha256(run-id)[:16]>` namespace,
+verifies ownership labels, removes its external volumes and network, and
+removes its exact generated SecretRef tree.
+
+The domain-local failure-containment fixture is also isolated-only. Run `isolated-e2e-calendar-outage.sh begin` before checking that Calendar alone becomes unavailable, then always run `isolated-e2e-calendar-outage.sh restore`. `begin` deletes only the backend actor's disposable `weave-workspace` calendar and waits for cached Calendar status `0` while cached Files remains `2`; `restore` recreates that exact calendar and waits for cached status `2`. A failed `begin` trap recreates the calendar automatically. The documented recovery command is safe to repeat:
+
+```bash
+WEAVE_E2E_STACK_SCOPE=isolated \
+  bash infra/weave-workspace/isolated-e2e-calendar-outage.sh restore
+```
 
 ## Integration tests
 
-Integration tests should call the backend through the Caddy proxy URL, not the direct backend container port. For the default local stack:
+Use the dedicated Gradle lanes:
 
 ```bash
-export WEAVE_API_BASE_URL=https://api.weave.test/api
-export WEAVE_BASE_URL=https://api.weave.test/api
-export WEAVE_OIDC_ISSUER_URL=https://auth.weave.test/realms/weave
-export WEAVE_OIDC_CLIENT_ID=weave-app
-export WEAVE_TEST_USERNAME=test@weave.test
-export WEAVE_TEST_PASSWORD='<generated — see install.sh output or bootstrap.env>'
+./gradlew serverDevH2Test
+./gradlew serverDevHostSmoke
+./gradlew serverPostgresIntegrationTest
 ```
 
-`WEAVE_API_BASE_URL` (mirrored as legacy-compatible `WEAVE_BASE_URL`) must match the canonical Caddy API route under `api.<tenant_domain>/api`. `WEAVE_OIDC_ISSUER_URL` must match the public Keycloak issuer used in access tokens. When `TF_VAR_create_test_user=true`, `install.sh` also writes these `WEAVE_*` values to `weave-workspace/.generated/bootstrap.env`.
+`serverDevH2Test` proves Flyway and Hibernate mappings on fresh H2 PostgreSQL mode.
+`serverDevHostSmoke` starts the host server against live Compose provider dependencies and checks
+readiness. `serverPostgresIntegrationTest` uses disposable PostgreSQL/Testcontainers for migration,
+repository, transaction, and concurrency claims. The production boot JAR gate separately proves
+that the H2 driver is absent.
 
-The test user is disabled by default. Enable it only for local integration testing and smoke validation:
-
-```bash
-cd weave-workspace
-TF_VAR_create_test_user=true ./install.sh
-./smoke-test.sh
-```
-
-Or from the repository root:
-
-```bash
-TF_VAR_create_test_user=true bash weave-workspace/install.sh
-make smoke
-```
+Full identity/authz E2E never enables a shared static user or password grant. The isolated workflow
+creates run-owned author/collaborator/outsider identities, uses Authorization Code + PKCE or its
+explicit test automation boundary, and destroys only that namespace.
 
 ## Native app contract
 
@@ -129,7 +150,7 @@ The default Keycloak client contract for the Weave mobile app is:
 - sign-in redirect URI: `com.massimotter.weave:/oauthredirect`
 - post-logout redirect URI: `com.massimotter.weave:/logout`
 - default API scope: `weave:workspace`
-- Resource Owner Password Grant: disabled by default, enabled only when `TF_VAR_create_test_user=true`
+- Resource Owner Password Grant: disabled with no environment override
 
 The backend resource server contract is:
 
@@ -138,6 +159,7 @@ The backend resource server contract is:
 - required audience: `weave-app`
 - expected client ID / authorized party: `weave-app`
 - public readiness endpoint: `https://api.weave.test/api/health/ready`
-- direct readiness endpoint: `http://127.0.0.1:8084/api/health/ready`
+- host-dev direct readiness endpoint: `http://127.0.0.1:8080/api/health/ready`
+- dogfood/e2e/prod container readiness endpoint: the loopback-bound `WEAVE_BACKEND_HOST_PORT`
 
 See [../KEYCLOAK_CONTRACT.md](../KEYCLOAK_CONTRACT.md) for the full realm, client, scope, claim, and audience contract.

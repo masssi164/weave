@@ -1,86 +1,146 @@
 # Weave
 
-<p align="center">
-  <img src="client/assets/images/weave_logo.png" alt="Weave logo, an interlaced blue and teal knot" width="180">
-</p>
+Weave gives organizations control over their collaboration data.
 
-Provider-neutral collaboration for organizations that need control, portability, and governed assistance.
+It provides provider-independent **Files**, **Calendar**, and **Chat** domains, exposes them through open standards, persists a canonical Weave representation, and connects external providers through replaceable import/export adapters.
 
-Weave is a provider-neutral collaboration suite and governed workspace for organizations that want collaboration to stay portable, reviewable, and under their own rules.
+Weave is under active core reconstruction. It is not yet presented as a finished production collaboration server.
 
-It gives members one place for chat, files, calendars, tasks, decisions, meetings, help, and workspace context, while giving admins and operators a controlled way to connect providers, review readiness, keep evidence support-safe, and change direction without pretending provider changes are risk-free.
+## What Weave is
 
-Weaver, the AI assistance layer, follows that product order: optional, policy-bound, auditable, and disabled until an organization chooses to enable it.
+Weave separates three concerns that historically became mixed together:
 
-## Enterprise Workflow
+1. Open client protocols.
+2. Canonical collaboration data and application behavior.
+3. Storage technologies and external providers.
 
-1. **Buyer and transformation lead** align the collaboration domains that matter: identity, chat, files, calendar, boards/tasks, meetings, decisions, and governed assistance.
-2. **Admin and operator** prepare the organization through one control path: connect provider categories, review readiness, preview policy impact, and keep diagnostics and evidence support-safe before member go-live.
-3. **Member** enters through an organization URL, invite link, or deep link, lands in Weave without raw provider setup, and works through stable Weave surfaces for daily collaboration.
-4. **Governance and change** stay explicit: provider changes are reviewed through dry-run evidence, approvals, audit, and member-impact boundaries before they become rollout decisions.
+The product authority is the canonical Weave state. A provider may be an import source, export target, or synchronized projection, but its IDs, URLs, DTOs, and database schema are not the Weave contract.
 
-## Product Screenshots
+The current core intentionally covers only:
 
-These checked-in visuals are support-safe proof assets for the current dogfood path. They show what Weave can demonstrate today for setup, member work, and workspace governance. The evidence manifest is [docs/assets/screenshot-evidence.json](docs/assets/screenshot-evidence.json).
+- Files;
+- Calendar;
+- Chat.
 
-- [Admin setup start](docs/assets/marketing/01-setup-start.svg): guided workspace setup for admins preparing a Weave organization.
-- [Service review](docs/assets/marketing/02-review-service-endpoints.svg): support-safe provider endpoint review before setup completion.
-- [Chat room](docs/assets/marketing/03-chat-room.svg): member chat with message history, workspace context, and a send action.
-- [Files and documents](docs/assets/marketing/04-files-documents.svg): document and folder surface with accessible file actions.
-- [Settings](docs/assets/marketing/05-settings.svg): account session controls and configured workspace services.
+Provider-specific production migration, Home-core integration, Calls, broad UI work, and public release operations come later.
 
-<p align="center">
-  <a href="docs/assets/marketing/01-setup-start.svg"><img src="docs/assets/marketing/01-setup-start.svg" alt="Guided Weave workspace setup screen for admins preparing a workspace." width="420"></a>
-  <a href="docs/assets/marketing/03-chat-room.svg"><img src="docs/assets/marketing/03-chat-room.svg" alt="Weave chat room with message history, workspace context, and a send action." width="420"></a>
-</p>
+## Core architecture
 
-## What Works Today
+```text
+Northbound projections
+  WebDAV          CalDAV/iCalendar          Matrix Client-Server
+      \                  |                         /
+             canonical application use cases
+                Files | Calendar | Chat
+                         |
+              canonical data authority
+       IDs | revisions | provenance | tombstones
+       mappings | journals | transfer checkpoints
+                 /                     \
+Persistence adapters                Provider connectors
+JPA/Flyway/PostgreSQL               import/export/reconcile
+BlobStore/OpenDAL                   external provider APIs
+```
 
-- The current frontdoor proves a provider-neutral member path with guided setup, service review, chat, files, and settings visuals backed by checked-in evidence.
-- Weave treats admin/operator readiness as part of the product: provider categories, policy boundaries, evidence, and support-safe diagnostics belong in the control plane, not in member setup.
-- The release track already carries product-level proof for dogfood collaboration, governed assistance boundaries, portability dry-runs, operator recovery guardrails, and release-claim control.
+Textual equivalent: clients call Weave-owned WebDAV, CalDAV, or Matrix endpoints. Those protocol adapters call canonical application services. The services own identity, authorization, lifecycle, revisions, synchronization, and transfer rules. JPA/Flyway and BlobStore adapters persist canonical state. External providers remain behind separate source and target connector ports.
 
-## What Is Guarded
+### Northbound standards
 
-Weave is in active dogfood and does not claim public production readiness. The portability promise is no unaccounted data loss; perfect lossless migration is not claimed. Provider changes remain a governed dry-run and review path, so universal provider interchangeability is not claimed. Weaver remains optional and policy-bound, and unrestricted autonomous agents are not part of the current public claim.
+- Files: WebDAV.
+- Calendar: CalDAV and iCalendar.
+- Chat: a bounded Matrix Client-Server profile.
 
-The detailed boundary lives in the [product trust claim matrix](docs/product-trust-provider-choice-claim-matrix.md), the [provider portability docs](docs/architecture/provider-portability.md), and the [roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md).
+OpenAPI may remain for derived control, discovery, status, or generated convenience. It is not the Files, Calendar, Chat, portability, or MCP data-plane authority.
 
-## For Members
+### Native operation
 
-Members should experience Weave as one workspace instead of a tour through provider setup. The current product path starts with an organization entry point, then moves into Weave-owned collaboration surfaces and clear capability states such as `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, `coming_later`, or `unsupported`.
+`weave-native` means that Weave serves the canonical state directly from its own persistence adapters. It is boot composition, not a second Files, Calendar, or Chat implementation.
 
-Start with the [user handbook](docs/user-handbook.md) and the [v0.1 golden path](docs/v0.1-golden-path.md).
+OpenDAL is a BlobStore technology. iCal4j is calendar syntax and recurrence infrastructure. Ruma/JNI is Matrix protocol infrastructure. None of them defines a provider-independent domain.
 
-## For Admins And Operators
+### MCP and Weaver
 
-Admins and operators use Weave as the governance layer for provider choice, readiness, policy, evidence, and change control. The [Bootstrap foundation](docs/bootstrap-foundation-contract.md) explains how the control plane is staged, while the admin/operator docs explain readiness, evidence handling, and support-safe operations.
+The separate Weave MCP Server supports **Files and Calendar only**.
 
-Start with the [admin/operator handbook](docs/admin-operator-handbook.md), [Bootstrap foundation](docs/bootstrap-foundation-contract.md), [quality and evidence guide](docs/quality-and-evidence.md), and [provider portability](docs/architecture/provider-portability.md).
+It exposes semantic tools and resources and reaches Weave Server through typed WebDAV and CalDAV clients. It has no JPA repository, DataSource, provider adapter, or Chat catalog.
 
-## For Developers
+Weaver/OpenClaw communicates conversationally through the Weave Matrix facade using the OpenClaw Matrix plugin. Chat is therefore not duplicated as MCP tools.
 
-Developers should treat this repository as implementation and evidence truth, with product/domain truth pinned through the spec corpus. The shortest path in is the [developer handbook](docs/developer-handbook.md), followed by the [PR workflow](docs/gitflow-pr-workflow.md), the [operating model](docs/weave-operating-model.md), and [spec-driven development](docs/spec-driven-development.md).
+## Current status
 
-## Release Notes
+The development line already contains substantial historical implementation, but several layers remain mixed and are being corrected before the current tree becomes `main`.
 
-The frontdoor keeps the current release track visible here; the full chronology stays in the versioned release notes and evidence docs.
+Foundation now being established:
 
-- **Published prerelease, 2026-06-01:** [`v0.1.0-rc.3`](docs/release-v0.1-rc3-evidence.md) added the provider-neutral suite foundation, Admin/Workspace Health readiness boundary, first governed Weaver slice, and green CI plus Live Stack evidence for that candidate.
-- **Guarded Beta slice, refreshed 2026-06-18:** the [Sprint 32 closure report](docs/sprint-32-closure-report.md) captures Admin readiness preview, adapter-continuity dry-run, approval-required Weaver actions, member Client + Weaver flow, and Admin + User + Weaver E2E/accessibility smoke. It is ready for #836 review, not an overall Sprint 32 completion claim.
-- **Active dogfood stream:** [Unreleased](docs/release-notes/unreleased.md) tracks current merged highlights, including free-provider lab coverage, provider-switch contract gates, human validation gates, commercial-adapter readiness guards, operator recovery guardrails, and refreshed Beta evidence.
+- executable architecture boundaries for domain, application, projection, persistence, and provider code;
+- provider-independent canonical IDs and transfer envelopes;
+- resumable checkpoints, deterministic idempotency keys, and explicit loss accounting;
+- Flyway/JPA as persistence adapters rather than domain authority;
+- concise core CI and documentation entry points.
 
-<!-- WEAVE_RELEASE_NOTES_START -->
-- Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
-- Latest release index: [Release notes](docs/release-notes/index.md)
-<!-- WEAVE_RELEASE_NOTES_END -->
+Still incomplete:
 
-## Release Evidence
+- complete canonical Files application and WebDAV conformance;
+- complete canonical Calendar application and CalDAV conformance;
+- complete canonical Chat ledger and Matrix profile;
+- Files/Calendar MCP equivalence;
+- PostgreSQL-backed transfer checkpoints;
+- provider connector conformance for all three domains;
+- exact-commit restart and backup/restore E2E.
 
-Every public claim in this README is supposed to terminate in a support-safe artifact, release note, or claim-boundary document. Release evidence stays separate from marketing copy so the frontdoor can stay readable while reviewers still have a precise path to the underlying proof.
+No current statement implies named-provider cutover readiness, Matrix federation, complete client E2EE, Home-core replacement, or public production readiness.
 
-<!-- WEAVE_RELEASE_NOTES:START -->
-- Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
-- Offline release-note fixture review artifact: `build/release-notes/unreleased.md`
-- Release evidence check: deterministic CI/local gate for README markers, release-note structure, label policy, and release evidence fixtures.
-<!-- WEAVE_RELEASE_NOTES:END -->
+## Ordered roadmap
+
+The binding roadmap is [issue #1299](https://github.com/masssi164/weave/issues/1299).
+
+1. [#1024](https://github.com/masssi164/weave/issues/1024): enforce architecture boundaries.
+2. [#1012](https://github.com/masssi164/weave/issues/1012): canonical data and transfer kernel.
+3. [#1320](https://github.com/masssi164/weave/issues/1320): Flyway/JPA persistence adapters.
+4. [#1326](https://github.com/masssi164/weave/issues/1326): Files and WebDAV reference vertical.
+5. [#1301](https://github.com/masssi164/weave/issues/1301): Calendar and CalDAV/iCalendar.
+6. [#1302](https://github.com/masssi164/weave/issues/1302): Chat and Matrix Client-Server.
+7. [#1263](https://github.com/masssi164/weave/issues/1263) and [#1415](https://github.com/masssi164/weave/issues/1415): Files/Calendar MCP.
+8. [#1014](https://github.com/masssi164/weave/issues/1014): executable provider connector conformance.
+9. [#1304](https://github.com/masssi164/weave/issues/1304) and [#1306](https://github.com/masssi164/weave/issues/1306): minimal standalone topology.
+10. [#1412](https://github.com/masssi164/weave/issues/1412): complete system E2E.
+11. [#1307](https://github.com/masssi164/weave/issues/1307): active CI and DevOps truth.
+12. [#1416](https://github.com/masssi164/weave/issues/1416): documentation truth.
+
+The single `dev` to `main` convergence path is [PR #1413](https://github.com/masssi164/weave/pull/1413).
+
+## Develop and test
+
+Use Java 21. Container tooling is required only for PostgreSQL, IAM, protocol, or full-system tests that actually start infrastructure.
+
+Current foundation commands:
+
+```bash
+./gradlew coreArchitectureCi
+./gradlew canonicalDataCi
+./gradlew postgresPersistenceCi
+./gradlew protocolFacadeFoundationCi
+./gradlew mcpFoundationCi
+./gradlew coreDocsCheck
+./gradlew coreCheck
+```
+
+Focused `protocolFacadeCi`, `providerConnectorCi`, `mcpFilesCalendarCi`, and `coreSystemE2e` are introduced by their owning issues when their full executable contracts exist.
+
+Do not require Flutter, Node, MkDocs, Xcode, TestFlight, screenshots, or manual release evidence for unrelated Server/Data/MCP changes.
+
+## Documentation
+
+- [Data-sovereignty architecture](docs/architecture/data-sovereignty-core.md)
+- [Package and dependency boundaries](docs/architecture/core-package-boundaries.md)
+- [Canonical transfer kernel](docs/architecture/canonical-transfer-kernel.md)
+- [Core development workflow](docs/development/core-workflow.md)
+- [Workflow disposition](docs/development/workflow-disposition.md)
+- [Core test strategy](docs/testing/core-test-strategy.md)
+- [Documentation audit](docs/documentation-audit.md)
+
+Historical documents are not architecture authority. Superseded entry points redirect to the active documents above.
+
+## License
+
+No repository license file is currently present. Add one before making an open-source distribution claim.

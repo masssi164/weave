@@ -20,15 +20,23 @@ Feature: Weave v0.1 dogfood production release
     And provider diagnostics stay in admin/operator health surfaces
     And removed Calendar and Deck member routes are absent instead of hidden behind redirects
 
-  @weave-v01-dogfood-member-invite-activation
-  Scenario: Dogfood member invite activation reaches the workspace
-    Given an admin has provisioned a dogfood member invite without passwords, bearer tokens, provider payloads, or raw secrets
-    When the member opens the current invite deeplink on an update-in-place or trust-preserving app-state-reset iOS install
-    And the member taps Sign In, completes first-login activation, sets their password, and returns to Weave
+  @weave-v01-dogfood-owner-invite-activation
+  Scenario: Dogfood first-owner invite activation reaches the workspace
+    Given the bounded Weave Server bootstrap has provisioned a first-owner Organizations invitation without passwords, bearer tokens, provider payloads, or raw secrets
+    And the persistent human dogfood owner is separate from the disposable automation user
+    And the identity provider sends the initial credential setup mail into the local dogfood Mailpit inbox
+    When the member completes Keycloak activation in the system browser
+    And opens the same secret-free organization access through the email completion link, QR code, or server URI
+    And the Organisation access screen offers Sign In
+    And the member taps Sign In, completes OIDC Authorization Code with PKCE, and returns to Weave
     Then Weave records support-safe handoff_ready, ready_for_sso, sso_in_progress, authenticated, workspace_bootstrap_loading, and workspace_ready evidence
+    And the same dogfood owner evidence proves Chat and Files are usable after login
     And the authenticated session is restored after force-quit and reopen
     And trust-preserving app-state reset plus manual sign-in from the saved organization configuration reaches the workspace
-    And Mailpit captures dogfood identity mail locally without external delivery
+    And Mailpit is reachable on the iPhone through the private HTTPS dogfood URL and captures identity mail without external delivery
+    And a routine repeated dogfood deployment preserves the same active Keycloak subject without re-inviting or mutating it
+    And ordinary Mailpit container replacement preserves captured dogfood mail
+    And disposable live-stack E2E cannot remove the persistent dogfood identity or inbox
     And dogfood trust evidence proves stable local TLS certificates, stable iOS signing/provisioning, and no repeated Developer App trust prompt after normal update or app-state reset
     And no member-visible state leaks raw provider errors, setup internals, tokens, credentials, or secret references
 
@@ -36,14 +44,14 @@ Feature: Weave v0.1 dogfood production release
   Scenario: Admin sees provider categories before member use
     Given an owner or admin opens Workspace Health before inviting members
     When provider readiness and policy are reviewed
-    Then identity/IDM, chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver are shown as provider categories
+    Then Keycloak platform identity readiness is shown separately from chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver provider categories
     And current dogfood defaults map to category readiness without becoming member-facing product names
     And Weaver is disabled by default until admin policy explicitly enables it
     And normal members never configure raw providers, service endpoints, provider secrets, or diagnostics
 
   @weave-v01-org-manifest-client-admin-split
   Scenario: Organization manifest keeps member client separate from admin console
-    Given an organization has chosen identity, provider categories, capability profiles, and whitelists in the Admin Console
+    Given an organization has configured Keycloak federation, provider categories, capability profiles, and whitelists in the Admin Console
     When a member opens Weave with an organization auth URL, invite link, or deep link and completes SSO
     Then the Weave Client receives a support-safe organization manifest and effective capability states
     And member-visible states are only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later
@@ -56,7 +64,7 @@ Feature: Weave v0.1 dogfood production release
     Then Workspace Health returns overall posture, support-safe category readiness, next actions, and evidence for available, disabled_by_policy, not_configured, degraded, unavailable, coming_later, and misconfigured states
     And feature capabilities are separated from default and external provider adapters
     And members receive only provider-neutral capability states without raw provider setup
-    And member API writes are denied when IDM capability policy does not grant the required category capability
+    And member API writes are denied when Keycloak-derived capability policy does not grant the required category capability
     And Weaver remains disabled by default unless governed organization policy explicitly enables it
 
   @weave-v01-org-control-plane-provider-facade
@@ -70,13 +78,14 @@ Feature: Weave v0.1 dogfood production release
 
   @weave-v01-canonical-provider-neutral-models
   Scenario: Self-hosted and external providers map to the same Weave feature models
-    Given an organization compares self-hosted identity with Teams or Slack chat, SharePoint files, and OpenProject or Planner boards
+    Given an organization compares Teams or Slack chat, SharePoint files, and OpenProject or Planner boards while Keycloak remains the platform identity authority
     When the backend provider registry maps each selected provider into Weave feature facades
     Then Matrix or Slack-like chat maps to the same Space, Conversation, Message, Thread, Reaction, Attachment, Membership, and Presence model
     And Nextcloud or SharePoint-like files map to the same Drive, Node, Folder, File, Version, Share, Permission, Lock, and EditSession model
     And CalDAV or Microsoft Graph-like calendar and LiveKit or Teams-like meetings map to the same Calendar, Event, Attendee, Recurrence, Availability, Resource, Meeting, Participant, Recording, Captions, and MediaSession model
     And OpenProject or Planner-like tasks map to the same Board, List, Task, Status, Assignee, Comment, Attachment, Dependency, and CustomField model
-    And Keycloak or Entra-like identity maps to the same Organization, User, Group, Role, ProviderConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent model
+    And Keycloak remains the identity authority while upstream LDAP, Active Directory, OIDC, and SAML identities are federated or brokered through it
+    And Weave stores actor references and audit evidence without duplicating Keycloak users, memberships, groups, or roles
 
   @weave-v01-member-provider-neutral-states
   Scenario: Member client sees stable feature states without raw provider details
@@ -95,33 +104,33 @@ Feature: Weave v0.1 dogfood production release
     And provider access happens only after the backend has authorized the canonical Weave capability operation
 
 
-  @weave-v01-idm-rbac-capability-policy
-  Scenario: IDM roles and groups decide capability profiles before Weaver runtime
-    Given an owner has selected an IDM provider for the organization
+  @weave-v01-keycloak-rbac-capability-policy
+  Scenario: Keycloak roles and groups decide capability profiles before Weaver runtime
+    Given an owner has configured Keycloak federation and organization access
     When role and group claims are mapped into workspace capability profiles
-    Then Keycloak is the self-hosted default while OIDC and SAML adapters stay provider-neutral
+    Then Keycloak is the identity authority and upstream OIDC SAML LDAP or Active Directory sources remain behind it
     And capability profiles grant category-level capabilities deny-by-default
     And admins/operators can inspect support-safe policy state
     And members only see available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later impact states
     And Weaver capability placeholders stay disabled by default until a governed runtime policy exists
 
-  @weave-v01-governed-weaver-runtime-policy
-  Scenario: Weaver runtime profiles are generated from organization policy
-    Given an admin has enabled the Weaver provider category after IDM/RBAC policy is ready
-    When a member with an explicit Weaver runtime group requests their runtime profile
-    Then Weave generates a per-user Dockerized Weaver/OpenClaw-derived profile from workspace capability policy
-    And the profile contains only admin-whitelisted capabilities and provider adapter tools
-    And exec and elevated surfaces are disabled unless explicitly constrained by admin policy
-    And runtime profile generation is audited and disabled_by_policy by default for everyone else
+  @weave-v01-agent-runtime-control-policy
+  Scenario: Runtime cells derive from current organization entitlement and policy
+    Given an admin has enabled Agent Runtime Control after Keycloak entitlement and signing trust are ready
+    When an entitled person is provisioned through the organization-bound administrative API
+    Then ARC binds one disposable cell and dedicated Keycloak workload client to the immutable person identity
+    And ARC signs a short-lived RuntimeProfile v2 containing references and maximum capabilities only
+    And portable workspace content and encrypted runtime state remain in authorities outside the zero-durable-byte cell
+    And missing entitlement, stale profile, cross-cell access, or incomplete restore state fails closed
 
-  @weave-v01-governed-weaver-tool-registry
-  Scenario: Weaver discovers and invokes only approved domain tools
-    Given an admin has approved Weaver tools by domain capability
-    When a member runtime discovers tools and requests a write-like tool invocation
-    Then the runtime sees only domain-scoped tools granted by its signed profile and same-user lookup
-    And blocked tools, revoked profiles, expired runtime tokens, missing consent, and overbroad grants are denied with support-safe audit evidence
-    And write, delete, external-send, and provider-switch actions require approval receipts before invocation
-    And bounded assistance results may cite Space, Decision, and Board canonical refs without raw provider payloads or private content
+  @weave-v01-mcp-workload-boundary
+  Scenario: MCP admits only a current entitled workload and advertises the guarded Files read slice
+    Given an ARC-bound cell has an exact-audience Keycloak workload token
+    When the cell negotiates the MCP Client Credentials extension over Spring AI Streamable HTTP
+    Then the MCP edge exchanges rather than relays the workload token and resolves current backend cell context
+    And human tokens, generic service accounts, stale profiles, and upscope attempts are denied
+    And domain tool resource and prompt catalogs remain empty until current authorization and evidence gates are executable
+    And a future domain side effect still requires independent domain authorization and single-use decision evidence
 
   @weave-v01-channel-workspace
   Scenario: A Space control room is the primary workspace surface
@@ -134,10 +143,11 @@ Feature: Weave v0.1 dogfood production release
   @weave-v01-chat-domain-facade
   Scenario: Chat uses a canonical backend domain facade
     Given a workspace member has chat.read and chat.send capability in a channel context
-    When they list conversations, read messages, and send a message through Weave Chat
-    Then the backend uses canonical conversation, message, membership, history-policy, and attachment-policy vocabulary
+    When they synchronize rooms, read messages, and send a message through the OIDC-gated Weave Matrix facade
+    Then the backend projects Matrix Client-Server shapes over canonical conversation, message, membership, history-policy, and attachment-policy vocabulary
     And capability policy and Context/Space authorization run before provider access
     And chat writes produce support-safe audit evidence
+    And deprecated REST conversation and message routes remain unavailable
     And provider replacement dry-runs redact raw provider identifiers, credentials, URLs, and downstream errors
 
   @weave-v01-board-write-audit

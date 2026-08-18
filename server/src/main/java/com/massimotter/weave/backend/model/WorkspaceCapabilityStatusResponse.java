@@ -15,8 +15,20 @@ public record WorkspaceCapabilityStatusResponse(
         String profileKey,
         @Schema(description = "Member-safe impact or fallback copy for this capability.")
         String memberImpact,
+        @Schema(description = "Support-safe reference for this capability state. Does not expose provider internals.")
+        String supportRef,
         @Schema(description = "Category-level capability identifiers granted to the authenticated principal.")
         List<String> grantedCapabilities) {
+
+    public WorkspaceCapabilityStatusResponse(
+            boolean enabled,
+            WorkspaceCapabilityReadiness readiness,
+            WorkspaceCapabilityPolicyState policyState,
+            String profileKey,
+            String memberImpact,
+            List<String> grantedCapabilities) {
+        this(enabled, readiness, policyState, profileKey, memberImpact, null, grantedCapabilities);
+    }
 
     public WorkspaceCapabilityStatusResponse {
         grantedCapabilities = grantedCapabilities == null ? List.of() : List.copyOf(grantedCapabilities);

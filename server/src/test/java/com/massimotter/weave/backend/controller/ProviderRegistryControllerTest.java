@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
@@ -24,9 +26,9 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -64,11 +66,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
-        "weave.meetings.livekit.enabled=true",
-        "weave.meetings.livekit.url=",
-        "weave.meetings.livekit.api-key=",
-        "weave.meetings.livekit.api-secret=",
-        "weave.meetings.livekit.token-endpoint="
+        "weave.calls.sfu.livekit.enabled=true",
+        "weave.calls.sfu.livekit.url=",
+        "weave.calls.sfu.livekit.api-key=",
+        "weave.calls.sfu.livekit.api-secret=",
+        "weave.calls.sfu.livekit.token-endpoint="
 })
 class ProviderRegistryControllerTest {
 
@@ -77,10 +79,10 @@ class ProviderRegistryControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockBean
+    @MockitoBean
     private WorkspaceCapabilityService workspaceCapabilityService;
 
     @Autowired
@@ -104,9 +106,8 @@ class ProviderRegistryControllerTest {
             org.springframework.security.oauth2.jwt.Jwt jwt = invocation.getArgument(0);
             List<String> roles = jwt == null
                     ? List.of()
-                    : jwt.getClaimAsMap("realm_access").getOrDefault("roles", List.of()) instanceof List<?> roleValues
-                            ? roleValues.stream().filter(String.class::isInstance).map(String.class::cast).toList()
-                            : List.of();
+                    : com.massimotter.weave.backend.security.NativeOrganizationClaims
+                            .clientRoles(jwt, "weave-app");
             boolean allowed = roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin") || role.equals("operator"));
             if (!allowed) {
                 throw new ApiErrorException(
@@ -120,7 +121,6 @@ class ProviderRegistryControllerTest {
     }
 
     private void selectDefaultProviders() {
-        providerSelectionRepository.save(selection("identity-idm", "keycloak-realm", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("chat", "synapse-homeserver", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("files", "nextcloud-files", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("calendar", "nextcloud-caldav", "recommended_self_hosted_default"));
@@ -173,7 +173,8 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.canonicalDomainRegistry.registryVersion").value("canonical-domain-registry-v1"))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.providerNamesInMemberContractsAllowed").value(false))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.domains[*].key", hasItems(
-                        "identity", "people", "spaces", "chat", "files", "documents", "calendar", "boards", "calls", "decisions", "notifications", "health", "weaver")))
+                        "people", "spaces", "chat", "files", "documents", "calendar", "boards", "calls", "decisions", "notifications", "health", "agent-runtime-control")))
+                .andExpect(jsonPath("$.canonicalDomainRegistry.domains[?(@.key == 'identity')]").isEmpty())
                 .andExpect(jsonPath("$.canonicalDomainRegistry.memberStates[*]", hasItems("available", "disabled_by_policy", "not_configured", "degraded", "unavailable", "coming_later")))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.adminStates[*]", hasItems("provider_not_configured", "dry_run_required", "lossy_mapping_pending", "apply_blocked", "migration_ready")))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.lossClasses[*]", hasItems("lossless_canonical", "lossy_with_report", "blocked_nonportable", "provider_unexportable")))
@@ -186,16 +187,9 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.domainAdapterRegistry.domains[?(@.domain == 'chat')].activeAdapter", hasItems("synapse-homeserver")))
                 .andExpect(jsonPath("$.domainAdapterRegistry.domains[?(@.domain == 'chat')].candidates[*].diagnostics.secretsReturned", hasItems(false)))
                 .andExpect(jsonPath("$.categories[*].category", hasItems(
-                        "identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "decisions-evidence", "manuals-help", "release-evidence", "admin-control-plane", "weaver")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].readiness", hasItems("ready")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].selectedByAdmin", hasItems(true)))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].bootstrapSuggestionOnly", hasItems(false)))
-                .andExpect(jsonPath("$.selectedProviderMappings[*].providerKey", hasItems("keycloak-realm", "synapse-homeserver", "openproject-primary")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].contract.defaultAdapters[*]", hasItems("keycloak-realm")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].contract.externalAdapters[*]", hasItems("entra-id", "generic-oidc")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].contract.choiceModels[*].choiceModel", hasItems("recommended_self_hosted_default", "external_existing_provider", "managed_cloud_provider")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].contract.choiceModels[?(@.choiceModel == 'recommended_self_hosted_default')].recommended", hasItems(true)))
-                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].contract.choiceModels[?(@.choiceModel == 'managed_cloud_provider')].adminRiskNotes[*]", hasItems(containsString("privacy"))))
+                        "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "decisions-evidence", "manuals-help", "release-evidence", "admin-control-plane", "agent-runtime-control")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')]").isEmpty())
+                .andExpect(jsonPath("$.selectedProviderMappings[*].providerKey", hasItems("synapse-homeserver", "openproject-primary")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'calendar')].readiness", hasItems("degraded")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'boards-tasks')].readiness", hasItems("policy_blocked")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'meetings-calls')].readiness", hasItems("misconfigured")))
@@ -206,26 +200,26 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.categories[?(@.category == 'manuals-help')].contract.defaultAdapters[*]", hasItems("mkdocs-material-embedded")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'release-evidence')].contract.defaultAdapters[*]", hasItems("release-evidence")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'admin-control-plane')].contract.defaultAdapters[*]", hasItems("weave-health-facade")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].readiness", hasItems("disabled")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'agent-runtime-control')].readiness", hasItems("disabled")))
                 .andExpect(jsonPath("$.categories[*].contract.stableMemberImpactStates[*]", hasItems(
                         "available", "disabled_by_policy", "not_configured", "degraded", "unavailable", "coming_later")))
                 .andExpect(jsonPath("$.categories[*].contract.normalMembersConfigureProviders", hasItems(false)))
-                .andExpect(jsonPath("$.categories[?(@.category == 'chat')].contract.defaultAdapters[*]", hasItems("synapse-homeserver")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'chat')].contract.defaultAdapters[*]", hasItems("weave-native")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'chat')].contract.externalAdapters[*]", hasItems("microsoft-teams", "slack")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'files')].contract.externalAdapters[*]", hasItems("sharepoint", "onedrive", "smb")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'files')].contract.defaultAdapters[*]", hasItems("weave-native")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'boards-tasks')].contract.defaultAdapters[*]", hasItems("openproject-primary")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'boards-tasks')].contract.externalAdapters[*]", hasItems("microsoft-planner", "jira")))
                 .andExpect(jsonPath("$.categories[*].diagnostics.secretsReturned", hasItems(false)))
                 .andExpect(jsonPath("$.categories[*].diagnostics.rawProviderErrorsReturned", hasItems(false)))
                 .andExpect(jsonPath("$.providers[*].module", hasItems(
-                        "identity-realm", "matrix", "matrix-auth", "files", "office", "calendar", "contacts", "forms", "boards",
+                        "matrix", "files", "office", "calendar", "contacts", "forms", "boards",
                         "meetings", "source-control", "ci", "issue-tracker", "release")))
-                .andExpect(jsonPath("$.providers[?(@.module == 'matrix')].providerKey", hasItems("synapse-homeserver")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'identity-realm')]").isEmpty())
+                .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')]").isEmpty())
+                .andExpect(jsonPath("$.providers[?(@.module == 'matrix')].providerKey", hasItems("weave-native")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'matrix')].failClosed", hasItems(true)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'matrix')].supportSafe", hasItems(true)))
-                .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].providerKey", hasItems("matrix-authentication-service")))
-                .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].failClosed", hasItems(true)))
-                .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].supportSafe", hasItems(true)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].providerKey", hasItems("onlyoffice")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].supportedCapabilities[0]").isEmpty())
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].diagnostics.providerRealityLevel", hasItems("contract_only")))
@@ -241,12 +235,12 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].configured", hasItems(false)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].failClosed", hasItems(true)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].supportSafe", hasItems(true)))
-                .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].diagnostics.activeProvider", hasItems("livekit")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].diagnostics.activeSfuAdapter", hasItems("livekit")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].diagnostics.apiKeyConfigured", hasItems(false)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].diagnostics.apiSecretConfigured", hasItems(false)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].diagnostics.tokenEndpointConfigured", hasItems(false)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'contacts')].providerKey", hasItems("nextcloud-carddav")))
-                .andExpect(jsonPath("$.providers[?(@.module == 'source-control')].providerKey", hasItems("gitlab-ce-foss", "forgejo")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'source-control')].providerKey", hasItems("gitlab-ce-foss")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'forms')].diagnostics.dependency", hasItems("weave-backend#104")))
                 .andExpect(content().string(not(containsString("matrix-meetings"))))
                 .andExpect(content().string(not(containsString("WEAVE_LIVEKIT_API_KEY=secret"))))
@@ -272,7 +266,7 @@ class ProviderRegistryControllerTest {
         return jwt().jwt(jwt -> jwt
                         .subject("admin-123")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("admin"))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("admin")))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                         new SimpleGrantedAuthority("ROLE_ADMIN"));
@@ -282,7 +276,7 @@ class ProviderRegistryControllerTest {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member"))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

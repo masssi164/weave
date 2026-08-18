@@ -1,37 +1,37 @@
 @weave-spec-0011
 Feature: WEAVE-SPEC-0011 Weaver governed PA target acceptance
 
-  Governed per-user Weaver assistance with group eligibility, policy, memory isolation, domain-first tools, approvals, audit, heartbeat, and fallback.
+  Historical implementation evidence for governed per-user Weaver conformance to Agent Runtime Control.
 
   @weave-spec-0011-group-policy-gating
-  Scenario: Weaver provisioning is gated by organization policy and weaver-group membership
-    Given WEAVE-SPEC-0011 is the source of truth
+  Scenario: Agent runtime provisioning is gated by authoritative Keycloak entitlement
+    Given the pinned Agent Runtime Control corpus contract is the source of truth
     And the acceptance scenario is mapped to offline spec evidence marker WEAVE_SPEC_0011_GROUP_POLICY_GATING
-    And Weave Control previews Weaver policy enablement and required weaver-group eligibility before rollout
-    When a member lacks policy approval or weaver-group membership
-    Then no Weaver runtime profile tool grants memory or automation are provisioned
-    And the catalog records the bounded domains weaver-governed-pa, identity-idm, admin-health-ops
+    And Weave Control reports the configured Keycloak group and derived agent-runtime.entitled capability before rollout
+    When a member lacks policy approval or the authoritative entitlement group
+    Then no runtime cell workload identity RuntimeProfile or MCP access is provisioned
+    And the catalog records the bounded domains agent-runtime-control, admin-health-ops, admin-health-ops
 
   @weave-spec-0011-memory-isolation
-  Scenario: Weaver memory is isolated per user
-    Given WEAVE-SPEC-0011 is the source of truth
+  Scenario: Runtime state is external encrypted and isolated per cell
+    Given the pinned Agent Runtime Control corpus contract is the source of truth
     And the acceptance scenario is mapped to offline spec evidence marker WEAVE_SPEC_0011_MEMORY_ISOLATION
-    When two Weaver Users store personal context
-    Then each user memory remains isolated and governed by export delete retention privacy and audit rules
-    And the catalog records the bounded domains weaver-governed-pa, identity-idm, decisions-evidence
+    When two entitled cells checkpoint runtime-internal state
+    Then each cell has zero durable local bytes and separate encrypted fenced generations with deletion retention privacy and audit rules
+    And the catalog records the bounded domains agent-runtime-control, admin-health-ops, decisions-evidence
 
   @weave-spec-0011-domain-tool-approval
-  Scenario: Weaver uses domain-first tools with approval receipts
-    Given WEAVE-SPEC-0011 is the source of truth
+  Scenario: Workload MCP stays empty until domain tools have current action evidence contracts
+    Given the pinned Agent Runtime Control corpus contract is the source of truth
     And the acceptance scenario is mapped to offline spec evidence marker WEAVE_SPEC_0011_DOMAIN_TOOL_APPROVAL
-    When Weaver performs a risky write external-send provider-change or administrative action
-    Then execution requires a current approval receipt matching policy profile tool contract and user scope
-    And the catalog records the bounded domains weaver-governed-pa, provider-portability, decisions-evidence
+    When an entitled cell connects with its per-cell Keycloak service account
+    Then MCP admits only the exact workload audience and current cell binding and publishes no domain tools from RuntimeProfile content
+    And the catalog records the bounded domains agent-runtime-control, provider-portability, decisions-evidence
 
   @weave-spec-0011-heartbeat-fallback-audit
-  Scenario: Weaver automation heartbeat fails closed with support-safe audit and fallback
-    Given WEAVE-SPEC-0011 is the source of truth
+  Scenario: Runtime wake processing fails closed with support-safe audit and fallback
+    Given the pinned Agent Runtime Control corpus contract is the source of truth
     And the acceptance scenario is mapped to offline spec evidence marker WEAVE_SPEC_0011_HEARTBEAT_FALLBACK_AUDIT
-    When Weaver lacks authority evidence or a current runtime profile during heartbeat automation
-    Then it explains the block asks only necessary follow-up questions offers safe fallback and records support-safe audit
-    And the catalog records the bounded domains weaver-governed-pa, admin-health-ops, decisions-evidence
+    When a cell lacks current entitlement workload identity or RuntimeProfile v2 during wake processing
+    Then Agent Runtime Control blocks the wake offers the operator a safe recovery action and records support-safe audit correlation
+    And the catalog records the bounded domains agent-runtime-control, admin-health-ops, decisions-evidence

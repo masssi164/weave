@@ -49,7 +49,7 @@ final class ServerConfigurationFormControllerProvider
 }
 
 String _$serverConfigurationFormControllerHash() =>
-    r'b1f3576fa379cc506fb0aa5d09bb00eb8a07e0b6';
+    r'1b9a4b45bb1193b974e1973de3e1a193f59db1a2';
 
 abstract class _$ServerConfigurationFormController
     extends $Notifier<ServerConfigurationFormState> {

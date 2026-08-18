@@ -1,7 +1,10 @@
-name: CI
+name: Core CI
 
 on:
   push:
+    branches:
+      - dev
+      - main
   pull_request:
     types:
       - opened
@@ -10,125 +13,138 @@ on:
       - ready_for_review
       - labeled
       - unlabeled
+  merge_group:
   workflow_dispatch:
-    inputs:
-      capture_marketing_screenshots:
-        description: "Upload deterministic README/marketing screenshots produced by ./gradlew ci"
-        required: false
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
 
 permissions:
   contents: read
   pull-requests: read
 
-env:
-  WEAVE_DOCS_VENV: build/docs-venv
+concurrency:
+  group: core-ci-${{ github.event.pull_request.number || github.ref }}-${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && 'labels' || 'core' }}
+  cancel-in-progress: true
 
 jobs:
-  gradle-ci:
-    name: Gradle CI
+  core_architecture:
+    name: Core architecture
     if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
           java-version: '21'
-      - uses: subosito/flutter-action@v2
+      - run: ./gradlew --no-daemon --stacktrace coreArchitectureCi
+
+  canonical_data:
+    name: Canonical data
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
-          channel: stable
-      - uses: actions/setup-node@v5
+          distribution: temurin
+          java-version: '21'
+      - run: ./gradlew --no-daemon --stacktrace canonicalDataCi
+
+  postgres_persistence:
+    name: PostgreSQL persistence
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: admin-console/package-lock.json
-      - uses: actions/setup-python@v5
+          distribution: temurin
+          java-version: '21'
+      - run: ./gradlew --no-daemon --stacktrace postgresPersistenceCi
+
+  protocol_foundation:
+    name: Server protocol foundation
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: ./gradlew --no-daemon --stacktrace protocolFacadeFoundationCi
+
+  mcp_foundation:
+    name: MCP foundation
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: ./gradlew --no-daemon --stacktrace mcpFoundationCi
+
+  core_docs:
+    name: Core documentation
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.13'
-          cache: pip
-          cache-dependency-path: docs/requirements.txt
-      - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_version: 1.10.6
-          tofu_wrapper: false
-      - name: Install pinned dependencies
-        run: |
-          python -m venv "$WEAVE_DOCS_VENV"
-          "$WEAVE_DOCS_VENV/bin/python" -m pip install -r docs/requirements.txt
-          npm ci --prefix admin-console
-          (cd client && flutter pub get)
-      - name: Run root Gradle CI
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || '' }}
-          PR_ACTION: ${{ github.event_name == 'pull_request' && github.event.action || '' }}
-          PR_LABELS_JSON: ${{ github.event_name == 'pull_request' && toJson(github.event.pull_request.labels.*.name) || '' }}
-        run: |
-          labels_json="$PR_LABELS_JSON"
-          if [ -n "$PR_NUMBER" ]; then
-            labels_json="$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name]')"
-            if [ "$PR_ACTION" = "opened" ] && [ "$labels_json" = "[]" ]; then
-              # `gh pr create --label ...` can emit the opened event before the label
-              # is visible to the workflow. Give GitHub a short propagation window,
-              # then validate the live PR labels instead of the stale event payload.
-              for _ in 1 2 3; do
-                sleep 10
-                labels_json="$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name]')"
-                [ "$labels_json" != "[]" ] && break
-              done
-            fi
-          fi
-          PR_LABELS_JSON="$labels_json" ./gradlew ci
-      - name: Upload sanitized CI evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: weave-ci-evidence
-          path: |
-            build/evidence
-            build/docs
-          if-no-files-found: warn
-      - name: Upload marketing screenshots
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.capture_marketing_screenshots == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: weave-marketing-screenshots
-          path: |
-            docs/assets/marketing
-            docs/assets/roadmap
-          if-no-files-found: error
+      - run: python3 tools/core_docs_check.py
 
-  release-notes-label-check:
+  gradle_ci:
+    name: Gradle CI
+    if: always() && (github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled'))
+    needs:
+      - core_architecture
+      - canonical_data
+      - postgres_persistence
+      - protocol_foundation
+      - mcp_foundation
+      - core_docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every real core foundation job
+        run: |
+          for result in \
+            '${{ needs.core_architecture.result }}' \
+            '${{ needs.canonical_data.result }}' \
+            '${{ needs.postgres_persistence.result }}' \
+            '${{ needs.protocol_foundation.result }}' \
+            '${{ needs.mcp_foundation.result }}' \
+            '${{ needs.core_docs.result }}'; do
+            if [ "$result" != 'success' ]; then
+              echo "A required core foundation job finished as: $result" >&2
+              exit 1
+            fi
+          done
+
+  release_notes_label_check:
     name: Release Notes Label Check
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
           java-version: '21'
-      - name: Validate release notes label through Gradle
+      - name: Validate temporary release-notes label context
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_ACTION: ${{ github.event.action }}
         run: |
           labels_json="$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name]')"
-          if [ "$PR_ACTION" = "opened" ] && [ "$labels_json" = "[]" ]; then
-            # `gh pr create --label ...` can emit the opened event before the label
-            # is visible to the workflow. Give GitHub a short propagation window,
-            # then validate the live PR labels instead of the stale event payload.
-            for _ in 1 2 3; do
-              sleep 10
-              labels_json="$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name]')"
-              [ "$labels_json" != "[]" ] && break
-            done
-          fi
-          PR_LABELS_JSON="$labels_json" ./gradlew releaseNotesLabelCheck
+          PR_LABELS_JSON="$labels_json" ./gradlew --no-daemon releaseNotesLabelCheck

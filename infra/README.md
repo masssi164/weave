@@ -2,70 +2,59 @@
 
 **Repeatable self-hosted Weave stack for operators.**
 
-`infra/` provisions the Docker/OpenTofu foundation for a self-hosted Weave deployment: identity, chat, files/calendar storage, backend API routing, local HTTPS, provider-readiness checks, backups, restore smoke, and support diagnostics.
+`infra/` owns the Docker Compose foundation for a self-hosted Weave deployment: identity, native collaboration services, backend API routing, local HTTPS, provider-readiness checks, backups, restore rehearsal, migration evidence, and support diagnostics. Executable OpenTofu/Terraform and its state have been retired.
 
-This directory is the provider-stack implementation layer inside the Weave monorepo. The canonical product bootstrap boundary is `../docs/bootstrap-foundation-contract.md`: bootstrap deploys the Control Plane first and activates this infra/provider-stack implementation only when the selected profile requires deploy-new self-hosted providers. The daily user experience lives in `../client`, product contracts and provider facades live in `../server`, and this layer makes the stack verifiable and recoverable without exposing secrets.
+This directory is the provider-stack implementation layer inside the Weave monorepo. The canonical product bootstrap boundary is `../docs/bootstrap-foundation-contract.md`; the canonical Keycloak ownership and migration model is `../docs/architecture/keycloak-realm-lifecycle.md`.
 
 ## What it provisions
 
-- Caddy as the HTTPS gateway.
-- Keycloak realm, clients, scopes, roles, and first-party Weave app contract.
-- Matrix/Synapse with Matrix Authentication Service delegated auth.
-- Nextcloud as the technical/admin/protocol backing service for files and calendar.
+- Caddy as HTTPS gateway.
+- Keycloak as fixed platform identity authority.
+- Environment-specific, secret-free Keycloak realm deployment artifacts rendered from one semantic candidate definition.
 - `weave-backend` behind the canonical API route.
+- `weave-mcp-server` as the workload-only Spring AI MCP projection.
 - PostgreSQL databases and persisted Docker volumes.
-- Default Matrix workspace space/rooms for local/dev and smoke evidence.
-- Optional provider-stack config for OpenProject, ONLYOFFICE/Collabora, DevOps candidates, and other guarded seams.
-- Install, teardown, release verification, operator checks, backup/restore smoke, and support-bundle scripts.
+- Native Weave Files, Calendar, and Chat defaults.
+- Optional explicitly selected southbound provider profiles.
+- Install, verify, migration, teardown, backup/restore, and support-bundle scripts.
 
-## What it does not claim yet
+## Identity lifecycle
 
-- Multi-host high availability.
-- Managed SaaS installer behavior.
-- Automatic offsite backups.
-- A complete Slack/Teams replacement.
-- Production connector/provider writes.
-- Completed Matrix E2EE product readiness.
-- LiveKit is the active meeting/video-call provider contract; TURN/SFU hardening and recording/caption policy remain promotion gates.
-- Agent/automation runtime.
+Keycloak static IAM is deployment-owned. `infra/weave-workspace/keycloak` contains the canonical semantic source and versioned migration definition. Each environment renders its own public URLs, organization presentation metadata, SMTP coordinates, and public JWKS.
 
-Those are later product or operations tracks and must stay behind explicit contracts and evidence.
+A generated `realm.json` is an environment deployment artifact, not source control authority.
 
-## Quick start: local/dev provider-stack implementation
+- Proven-empty Fresh Start: startup import creates the realm; the bounded FGAP operation is authorized by Fresh-Start plan/apply evidence.
+- Disposable E2E: the same operation is allowed only after exact run-owned namespace absence is proven before resource creation.
+- Existing non-empty dogfood/prod realm: static IAM changes require explicit versioned migration, private backup, and isolated restore rehearsal.
 
-This is the concrete local provider-stack implementation path, not the canonical product bootstrap entrypoint. Use it when the approved bootstrap profile selects local/self-hosted provider deployment.
+Normal Server runtime never reconciles static realm structure.
 
-Add local host entries before opening browser-facing URLs:
+## Local/dev path
 
-```text
-127.0.0.1 weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test
-```
-
-Bootstrap the stack:
+For normal local development:
 
 ```bash
-cd weave-workspace
-./install.sh
+./gradlew :infra:composeDevDependenciesReady
+./gradlew :server:serverDevBoot
 ```
 
-`install.sh` defaults to a shared-host-safe isolated port block, runs preflight checks, generates missing local secrets and TLS material, applies both OpenTofu stages, waits for backend readiness, and bootstraps the Nextcloud `user_oidc` app. Generated local inputs are persisted in `weave-workspace/.generated/bootstrap.env`; a no-secrets app summary is written to `weave-workspace/.generated/app-config.env`.
+The dev renderer produces the environment-specific realm from the same semantic source used by every other environment. Dev does not inherit the persistent dogfood/prod backup contract; persistent-realm recovery gates apply only when an existing non-empty persistent realm is being mutated.
 
-For TLS trust, port modes, smoke-test inputs, and native app contracts, see [Local bootstrap](docs/local-bootstrap.md).
+Use `./gradlew testApp` for the disposable Fresh product proof. The E2E path must prove its exact namespace is absent before it creates resources and may not infer Fresh eligibility from the profile name alone.
 
 ## Single-host operator path
 
-For a real single-host deployment, start here:
+For a real single-host deployment, start with:
 
-- [Single-host operator guide](docs/single-host-operator-guide.md): target shape, public contract, required inputs, TLS/image/persistence expectations, and verify flow.
-- [release.env.example](weave-workspace/release.env.example): operator-facing environment template.
-- [Operator runbook](docs/operator-runbook.md): install/upgrade, rotation, backup, restore, destructive reset, and triage guidance.
-- [CalDAV/CardDAV external clients](docs/calendar-caldav-external-clients.md): DAV discovery, safe external-client credential path, and blocked private calendar/addressbook/profile flows.
-- [Connector runtime guardrails](docs/connector-runtime-guardrails.md): disabled-by-default connector runtime, callback, secret, and support-bundle boundaries.
-- [Weaver runtime lifecycle](docs/weaver-runtime-lifecycle.md): signed RuntimeProfile input, one active per-user runtime container boundary, internal-only network, reload/restart/rollback/revocation gates, and support-safe evidence; execution remains disabled by default.
-- [Weave MCP tool contract](docs/weave-mcp-tool-contract.md): disabled-by-default design foundation for future FastMCP-style governed Weave domain tools under infra, with backend authority and support-safe outputs only.
-- [OpenProject Boards runtime](docs/openproject-boards-runtime.md): optional provider-backed validation setup and live E2E gate; off by default.
+- [Single-host operator guide](docs/single-host-operator-guide.md)
+- [Operator runbook](docs/operator-runbook.md)
+- [Native platform Compose](docs/native-platform-compose.md)
+- [Identity environment parity](docs/identity-environment-parity.md)
+- [Keycloak authority contract](KEYCLOAK_CONTRACT.md)
+- [Canonical realm lifecycle](../docs/architecture/keycloak-realm-lifecycle.md)
 
-After installation, verify public and host-local state:
+After installation:
 
 ```bash
 bash weave-workspace/release-verify.sh
@@ -76,89 +65,50 @@ bash weave-workspace/operator-check.sh
 
 Default local names resolve to loopback; non-local installs derive the same pattern from `<tenant_domain>`:
 
-- `https://<tenant_domain>`: Weave product gateway, including `/files` and `/calendar` product routes.
+- `https://<tenant_domain>`: Weave product gateway.
 - `https://api.<tenant_domain>/api`: canonical backend API origin.
 - `https://auth.<tenant_domain>`: Keycloak.
-- `https://matrix.<tenant_domain>`: Matrix/Synapse/MAS behind the matrix hostname.
-- `https://files.<tenant_domain>`: raw Nextcloud technical/admin/protocol fallback.
+- `https://mail.<tenant_domain>`: dogfood/dev Mailpit where configured.
 
-Product clients should prefer Weave routes and backend APIs where they exist. Raw Nextcloud remains a technical/admin/protocol fallback, not the customer-facing files/calendar UX.
+Raw external provider routes are optional southbound/admin surfaces and are not the normal member-facing product contract.
 
-## Provider-stack posture
+## Provider posture
 
-Optional providers are fail-closed by default:
+Weave-native is the default for canonical collaboration domains. External providers are explicit adapters and must stay fail-closed when unconfigured. Missing provider credentials produce support-safe unavailable/not-configured readiness rather than insecure fallback behavior.
 
-- OpenProject is an optional provider-backed Boards validation path behind the backend workspace facade, not a visible product UX or direct client dependency.
-- ONLYOFFICE/Collabora are optional office candidates behind backend-owned capabilities and launch checks.
-- DevOps providers such as GitLab/Forgejo stay disabled unless an explicit runtime contract configures them.
-- Missing provider credentials must produce support-safe unavailable/not-configured readiness, not insecure fallback behavior.
-- Support bundles redact tokens, cookies, app passwords, signing keys, provider URLs, raw provider errors, and generated secrets.
-- Nextcloud Contacts/CardDAV and Forms seams are visible to the backend but stay disabled/fail-closed until the backend contracts are merged and live-validated.
-- Private personal calendar/addressbook access is blocked unless a later contract adds explicit sharing, provisioning, or delegated-token behavior.
+Support bundles redact tokens, cookies, passwords, signing keys, private JWK material, provider URLs where unsafe, raw provider errors, and generated secrets.
 
 ## Repo compass
 
-- `README.md`: operator overview and entry points.
-- `AGENTS.md`: repository navigation notes for maintainers.
-- `Makefile`: local helper targets such as `make dev-hosts` and `make smoke`.
-- `../.github/workflows/ci.yml`: OpenTofu/shell validation plus manual full-stack smoke.
-- `KEYCLOAK_CONTRACT.md`: realm, client, scope, claim, and audience contract.
-- `docs/local-bootstrap.md`: local port modes, TLS trust, integration test inputs, and native app contract.
-- `docs/single-host-operator-guide.md`: single-host deployment target.
-- `docs/operator-runbook.md`: operations, backup/restore, rotation, and triage.
-- `docs/matrix-default-workspace.md`: default Matrix space/room provisioning.
-- `docs/matrix-e2ee-posture.md`: current honest E2EE posture.
-- `docs/calendar-caldav-external-clients.md`: CalDAV/CardDAV discovery, revocable client credentials, and fail-closed profile boundaries.
-- `docs/openproject-boards-runtime.md`: optional OpenProject provider-backed setup and promotion gates.
-- `weave-workspace/install.sh`: end-to-end bootstrap for local and single-host runs.
-- `weave-workspace/teardown.sh`: non-destructive cleanup by default; destructive volume reset requires explicit confirmation.
-- `weave-workspace/release-verify.sh`: public endpoint verification for non-local single-host installs.
-- `weave-workspace/operator-check.sh`: host-local container and health checks.
-- `weave-workspace/backup.sh`, `restore-smoke.sh`, `support-bundle.sh`: operator support and recovery helpers.
-- `weave-workspace/weave-mcp-tool-contract.json`: support-safe canonical domain tool contract for future governed MCP gateway proof slices.
-- `weave-workspace/01-infrastructure`: Docker runtime, generated config, and service modules.
-- `weave-workspace/02-keycloak-setup`: Keycloak tenant configuration stage.
+- `KEYCLOAK_CONTRACT.md`: Keycloak authority and migration boundary.
+- `weave-workspace/keycloak/`: semantic realm projection, migration definition, renderer, and verification helpers.
+- `weave-workspace/compose.sh`: closed environment lifecycle and bounded migration interface.
+- `weave-workspace/install.sh`: idempotent environment preparation/apply wrapper.
+- `weave-workspace/teardown.sh`: exact isolated-E2E cleanup only.
+- `weave-workspace/backup.sh`: private consistency backup for persistent recovery paths.
+- `weave-workspace/support-bundle.sh`: support-safe diagnostics, not backup material.
+- `../gradle/tasks/test-app.sh`: disposable invitation/activation/PKCE/ARC/MCP/product proof.
 
 ## Validation
 
-Repository-safe validation used by CI:
+Repository-safe validation:
 
 ```bash
-tofu -chdir=weave-workspace/01-infrastructure validate
-tofu -chdir=weave-workspace/02-keycloak-setup validate
-tofu -chdir=weave-workspace/01-infrastructure plan -refresh=false
-bash -n weave-workspace/install.sh
+./gradlew infraStatic
+./gradlew :infra:composeDevConfig
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env ./gradlew :infra:composeDogfoodConfig
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-prod.env ./gradlew :infra:composeProdConfig
+WEAVE_E2E_STACK_SCOPE=isolated WEAVE_E2E_RUN_ID=<unique-run-id> \
+  WEAVE_ENV_FILE=/absolute/path/to/reviewed-e2e.env ./gradlew :infra:composeE2eConfig
 ```
 
-Local/full-stack validation when Docker and the optional test user flow are available:
+The environment is explicit and independent of Git branch. `dogfood` and `prod` are persistent; `e2e` is disposable and run-unique. Environment files provide reviewed non-secret coordinates; SecretRefs and private keys remain outside generated support-safe artifacts.
 
-```bash
-TF_VAR_create_test_user=true bash weave-workspace/install.sh
-bash weave-workspace/smoke-test.sh
-```
-
-GitHub Actions runs deterministic repository checks on pushes and pull requests. Docker-backed full-stack smoke is manual-only and asks the dispatcher to confirm power/storage budget before it starts.
+Compose remains the lifecycle engine. `compose.sh <environment> up/down` owns SecretRef permissions, provenance labels, resource ownership checks, static migration completion checks, and exact isolated cleanup. It does not perform general identity reconciliation or select an environment from a branch.
 
 ## Operator safety
 
-- `teardown.sh` is non-destructive by default: it removes Weave containers/network but preserves persistent Docker volumes and generated local secrets/config.
-- Destructive local reset requires both `WEAVE_REMOVE_VOLUMES=true` and `WEAVE_CONFIRM_DESTRUCTIVE_RESET=<tenant/workspace slug>`.
-- Create an operator-owned backup before destructive maintenance:
-
-```sh
-bash weave-workspace/backup.sh /var/backups/weave
-```
-
-- Run restore smoke after restoring or reprovisioning from backup artifacts:
-
-```sh
-bash weave-workspace/restore-smoke.sh /var/backups/weave/<weave-backup-timestamp>
-```
-
-- Create a redacted diagnostics bundle before sharing logs manually:
-
-```sh
-bash weave-workspace/support-bundle.sh
-```
-
-Support bundles are not backups. Keep backup artifacts private; they contain databases, volume archives, and generated config/secrets.
+- `compose.sh <environment> down` stops without deleting persistent volumes or SecretRefs.
+- Destructive cleanup exists only for exact isolated E2E, or through an explicitly approved Fresh Start operation.
+- Existing persistent realm upgrades require private backup and restore rehearsal before static IAM mutation.
+- Support bundles are not backups; keep database dumps, private config, and recovery archives private.

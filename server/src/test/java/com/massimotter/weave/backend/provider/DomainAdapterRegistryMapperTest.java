@@ -15,10 +15,9 @@ class DomainAdapterRegistryMapperTest {
             "files", List.of("WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef"),
             "calendar", List.of("WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef"),
             "boards-tasks", List.of("Board", "List", "Task", "Status", "Assignee", "Comment", "AttachmentRef", "Dependency", "CustomField"),
-            "meetings-calls", List.of("Meeting", "MediaSession", "Participant", "TokenGrant", "Recording", "Caption", "ConsentRecord"));
+            "meetings-calls", List.of("Meeting", "MatrixRtcSlot", "MatrixRtcMember", "DeviceBinding", "MediaSession", "RtcAuthorization", "Recording", "Caption", "ConsentRecord"));
 
     private static final Map<String, List<String>> MIXED_PROVIDER_POSTURE = Map.of(
-            "identity-idm", List.of("keycloak-realm", "entra-id", "generic-oidc", "generic-saml"),
             "chat", List.of("synapse-homeserver", "microsoft-teams", "slack"),
             "files", List.of("nextcloud-files", "sharepoint"),
             "boards-tasks", List.of("openproject-primary", "microsoft-planner"));
@@ -123,7 +122,7 @@ class DomainAdapterRegistryMapperTest {
         assertThat(contract.canonicalObjects()).contains("WeaveConversation", "WeaveMessage", "WeaveMembership");
         assertThat(contract.externalAdapters()).contains("microsoft-teams", "slack");
         assertThat(contract.lossyMappingRisks()).contains("Slack broadcast/thread semantics", "Teams channel permissions");
-        assertThat(contract.sourceOfTruth()).contains("selected chat provider owns message history");
+        assertThat(contract.sourceOfTruth()).contains("Weave owns canonical Chat history");
         assertThat(contract.replacementRequirement()).contains("dry-run");
         assertThat(contract.choiceModels()).extracting(ProviderChoiceModelResponse::choiceModel).contains("hybrid_composite");
     }
@@ -157,7 +156,6 @@ class DomainAdapterRegistryMapperTest {
     @Test
     void providerRegistryAdapterFitSupportsMixedProviderPostureWithoutMemberProviderIds() {
         var domains = DomainAdapterRegistryMapper.fromCategories(List.of(
-                category("identity-idm", ProviderCategoryReadiness.READY, ProviderModule.IDENTITY_REALM),
                 category("chat", ProviderCategoryReadiness.READY, ProviderModule.MATRIX),
                 category("files", ProviderCategoryReadiness.READY, ProviderModule.FILES),
                 category("calendar", ProviderCategoryReadiness.READY, ProviderModule.CALENDAR),
@@ -187,8 +185,14 @@ class DomainAdapterRegistryMapperTest {
 
     @Test
     void providerCapabilityContractsUseCanonicalRegistryCandidateKeys() {
+        assertThat(ProviderCapabilityContracts.contract("files", Set.of(ProviderModule.FILES)).defaultAdapters())
+                .containsExactly("weave-native");
+        assertThat(ProviderCapabilityContracts.contract("files", Set.of(ProviderModule.FILES)).externalAdapters())
+                .contains("nextcloud-files");
+        assertThat(ProviderCapabilityContracts.contract("calendar", Set.of(ProviderModule.CALENDAR)).defaultAdapters())
+                .containsExactly("weave-native");
         assertThat(ProviderCapabilityContracts.contract("calendar", Set.of(ProviderModule.CALENDAR)).externalAdapters())
-                .contains("weave-calendar")
+                .contains("nextcloud-caldav")
                 .doesNotContain("workspace-calendar", "team-channel-calendar");
         assertThat(ProviderCapabilityContracts.contract("documents-collaboration", Set.of(ProviderModule.OFFICE)).defaultAdapters())
                 .containsExactly("onlyoffice");

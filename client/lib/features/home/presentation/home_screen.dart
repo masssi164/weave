@@ -5,9 +5,9 @@ import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
+import 'package:weave/features/home/presentation/home_recent_activity.dart';
 import 'package:weave/features/shell/domain/entities/shell_module.dart';
 import 'package:weave/features/shell/presentation/providers/shell_module_preferences_provider.dart';
-import 'package:weave/features/shell/presentation/shell_recent_activity.dart';
 import 'package:weave/features/shell/presentation/shell_workspace_status.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -27,6 +27,7 @@ class HomeScreen extends ConsumerWidget {
         .toList(growable: false);
 
     return Scaffold(
+      key: const ValueKey('weave.workspace.home'),
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -57,7 +58,7 @@ class HomeScreen extends ConsumerWidget {
               _HomeSection(
                 title: _HomeCopy.of(context).continueTitle,
                 description: _HomeCopy.of(context).continueDescription,
-                child: const ShellRecentActivity(),
+                child: const HomeRecentActivity(),
               ),
             if (visibleModules.contains(ShellModule.workspaceStatus))
               _HomeSection(
@@ -434,7 +435,8 @@ class _HomeCopy {
     todayTitle: 'Today',
     todayDescription: 'Calendar signals and near-term work for this workspace.',
     continueTitle: 'Continue',
-    continueDescription: 'Recent conversations and files you can resume.',
+    continueDescription:
+        'Completed workspace activity that you are allowed to see.',
     workspaceTitle: 'Workspace status',
     workspaceDescription:
         'What is ready, degraded, or waiting for setup in member language.',
@@ -463,7 +465,7 @@ class _HomeCopy {
         'Kalendersignale und kurzfristige Arbeit für diesen Workspace.',
     continueTitle: 'Weiterarbeiten',
     continueDescription:
-        'Aktuelle Unterhaltungen und Dateien, die du fortsetzen kannst.',
+        'Abgeschlossene Workspace-Aktivität, die du sehen darfst.',
     workspaceTitle: 'Workspace-Status',
     workspaceDescription:
         'Was bereit, eingeschränkt oder noch einzurichten ist - in verständlicher Sprache.',

@@ -1,5 +1,5 @@
 @northstar @spec-kit @claim-control
-# Evidence markers: NORTHSTAR_CLAIM_CONTROL NORTHSTAR_IDENTITY_RBAC_SWITCH NORTHSTAR_WEAVER_APPROVAL_RECEIPT NORTHSTAR_DOMAIN_FIRST_MCP NORTHSTAR_SPEC_COVERAGE_MATRIX NORTHSTAR_DOMAIN_REGISTRY_REALITY NORTHSTAR_SPACE_ANCHOR_CONTEXT NORTHSTAR_LOCAL_DOGFOOD_REALITY NORTHSTAR_WORKFLOW_GOVERNANCE_RECEIPT NORTHSTAR_MEETING_CONSENT_BOUNDARY NORTHSTAR_PORTABILITY_NO_UNACCOUNTED_LOSS
+# Evidence markers: NORTHSTAR_CLAIM_CONTROL NORTHSTAR_PLATFORM_IDENTITY_FEDERATION NORTHSTAR_WEAVER_APPROVAL_RECEIPT NORTHSTAR_DOMAIN_FIRST_MCP NORTHSTAR_SPEC_COVERAGE_MATRIX NORTHSTAR_DOMAIN_REGISTRY_REALITY NORTHSTAR_SPACE_ANCHOR_CONTEXT NORTHSTAR_LOCAL_DOGFOOD_REALITY NORTHSTAR_WORKFLOW_GOVERNANCE_RECEIPT NORTHSTAR_MEETING_CONSENT_BOUNDARY NORTHSTAR_PORTABILITY_NO_UNACCOUNTED_LOSS
 Feature: Northstar Spec Kit decision gates
   Northstar decisions are encoded before implementation claims are promoted.
 
@@ -11,19 +11,19 @@ Feature: Northstar Spec Kit decision gates
     Then customer-ready and release-ready claims are rejected
     And the evidence names the missing blocker or signoff item
 
-  @northstar-identity-rbac-provider-switch
-  Scenario: Identity/RBAC is the first provider-switch proof
-    Given an admin prepares an Identity/RBAC provider switch
-    When the dry-run is produced
-    Then it includes principal continuity, group and role mappings, token and claim parity, SCIM or SSO lifecycle limits, rollback refs, and orphan/trust-artifact cleanup
-    And every unsupported or lossy mapping is classified so there is no unaccounted data loss
+  @northstar-platform-identity-federation
+  Scenario: Platform identity keeps Keycloak authoritative while upstream sources remain federated
+    Given an admin prepares an upstream OIDC SAML or LDAP federation readiness dry-run
+    When the support-safe dry-run is produced
+    Then it keeps the Keycloak issuer and subject authoritative and includes group and role mappings, claim parity, lifecycle limits, rollback refs, and orphan or trust-artifact cleanup
+    And it rejects any runtime-selectable identity-provider switch
 
   @northstar-weaver-approval-receipts
-  Scenario: Weaver approvals are product-domain grants, not OpenClaw exec permissions
+  Scenario: Weaver approval decisions are evidence not domain grants or OpenClaw exec permissions
     Given Weaver is enabled for an opted-in user by organization policy
     When a write-like domain tool requests approval
-    Then the approval receipt is scoped to the Weave domain, capability, tool, action, policy version, runtime profile, expiry or revocation state, and audit correlation id
-    And it does not grant generic local exec, filesystem, provider-admin, or raw OpenClaw configuration permission
+    Then signed single-use decision evidence is bound to the authenticated resolver exact action arguments policy runtime profile expiry and audit correlation id
+    And it grants neither domain authority nor generic local exec filesystem provider-admin or raw OpenClaw configuration permission
 
   @northstar-domain-first-mcp-hard-gate
   Scenario: Domain-first MCP naming is a hard gate
@@ -57,8 +57,8 @@ Feature: Northstar Spec Kit decision gates
   Scenario: Executable workflows require governed receipts and drift checks
     Given a context-driven workflow moves beyond preview-only evidence
     When the workflow proposes a write, destructive, external-send, provider-switch, or release-affecting action
-    Then the workflow instance records the policy decision, action preview, required approval receipt, execution outcome, rollback or compensation reference, and support-safe audit correlation id
-    And execution fails closed when the workflow definition, policy version, approval receipt, tool contract, runtime profile, or referenced context node has drifted since approval
+    Then the workflow instance records the policy decision action preview required decision evidence execution outcome rollback or compensation reference and support-safe audit correlation id
+    And execution fails closed when the workflow definition policy version decision evidence tool contract runtime profile or referenced context node has drifted since approval
 
   @northstar-meeting-consent-boundary
   Scenario: Meeting join and transcript claims stay blocked without consent and boundary evidence
@@ -69,9 +69,9 @@ Feature: Northstar Spec Kit decision gates
 
   @northstar-portability-no-unaccounted-loss
   Scenario: Provider portability rejects unaccounted-loss and broad lossless claims
-    Given a provider replacement dry-run is prepared for Identity/RBAC or another canonical domain
+    Given a provider replacement dry-run is prepared for a collaboration domain
     When preflight, dry-run, apply or cutover, rollback, and post-cutover receipts are evaluated
-    Then every source object, target mapping, token or claim parity result, SCIM lifecycle limit, SSO staleness limit, orphan identity, and trust artifact is classified as supported, lossy, unsupported, manual-review, rollback-only, or archived
+    Then every source object, target mapping, provider capability, lifecycle limit, stale mapping, orphan reference, and trust artifact is classified as supported, lossy, unsupported, manual-review, rollback-only, or archived
     And lossless, full-history, provider-interchangeable, customer-ready, or release-ready wording is rejected unless named release evidence proves it for that scope
 
   @northstar-local-dogfood-reality

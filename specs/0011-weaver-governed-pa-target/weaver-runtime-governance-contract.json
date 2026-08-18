@@ -1,11 +1,13 @@
 {
   "contractId": "WEAVE-SPEC-0011-weaver-runtime-governance",
   "sourceSpec": "specs/0011-weaver-governed-pa-target/spec.md",
-  "status": "target-contract-fixture",
+  "status": "deprecated-conformance-fixture",
+  "canonicalDomain": "agent-runtime-control",
   "eligibility": {
     "requiresOrganizationPolicy": true,
-    "requiresGroup": "weaver-group",
-    "ineligibleProvisioning": "deny-runtime-profile-tool-grants-memory-automation"
+    "requiresGroup": "/capabilities/weaver",
+    "derivedCapability": "agent-runtime.entitled",
+    "ineligibleProvisioning": "deny-runtime-cell-profile-workload-identity-and-mcp-access"
   },
   "runtimeProfile": {
     "subject": "per-user",
@@ -14,14 +16,18 @@
     "staleProfileBehavior": "deny-with-support-safe-audit"
   },
   "memoryScope": {
-    "isolation": "per-user",
-    "requiredControls": ["export", "delete", "retention", "privacy", "audit"]
+    "cellLocalDurableBytes": 0,
+    "stateStore": "encrypted-external-runtime-state",
+    "requiredControls": ["fencing", "generation-cas", "delete-runtime-state-only", "retention", "privacy", "audit"]
   },
   "toolExecution": {
+    "activeCatalog": "empty",
     "discovery": "domain-first-mcp-tools",
     "providerAccess": "facade-only",
-    "riskyActionsRequireApprovalReceipt": true,
-    "approvalReceiptChecks": ["current-policy-version", "profile-hash", "tool-contract", "user-scope"]
+    "guardedActionsRequireSignedDecisionEvidence": true,
+    "decisionEvidenceChecks": ["single-use-jti", "current-policy-version", "profile-hash", "tool-contract", "action-argument-digest", "user-scope"],
+    "independentDomainAuthorizationRequired": true,
+    "finalEvidence": "immutable-action-evidence"
   },
   "heartbeatAutomation": {
     "missingAuthority": "fail-closed",

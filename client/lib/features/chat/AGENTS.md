@@ -1,15 +1,14 @@
 # Chat Feature Instructions
 
-`chat` owns Matrix integration boundaries. Raw Matrix SDK rooms, events, and sync payloads must be mapped inside this feature before presentation consumes them.
+`chat` owns Matrix integration boundaries. Matrix Client-Server payloads from the Weave northbound facade must be mapped inside this feature before presentation consumes them.
 
 Rules:
 - keep Matrix event mapping in `data/` and chat-facing entities/view models in `domain/` or presentation-facing adapters
-- do not leak raw Matrix SDK objects into widgets or into other features
-- keep E2EE, device/session state, and decrypted-content handling inside chat internals
-- presentation code must not bypass Matrix SDK crypto or sync rules
-- keep Matrix crypto bootstrap, recovery, and verification flows behind the chat-owned `MatrixClient` and `ChatSecurityRepository` boundaries
-- use `Client.getCryptoIdentityState()` as the first source of truth for whether the current device is initialized vs connected to the existing crypto identity
-- if Matrix verification enters the SDK `askSSSS` state, surface it as a chat-owned recovery/unlock step instead of exposing raw SDK state names in UI
+- do not leak raw Matrix JSON objects into widgets or into other features
+- keep E2EE, device/session state, and decrypted-content handling behind the shared Rust Matrix core and chat-owned repository boundaries
+- presentation code must not call a raw Matrix homeserver or a third-party Matrix SDK
+- keep Matrix crypto bootstrap, recovery, and verification flows behind `ChatSecurityRepository`; fail closed until the Rust Matrix core Flutter bridge implements them
+- if a future Matrix verification state requires secret storage or recovery, surface it as a chat-owned recovery/unlock step instead of exposing raw protocol or SDK state names in UI
 - keep recovery keys and passphrases user-held; do not imply app-local storage is sufficient across reinstall or device-restore scenarios
 
 Sync and offline behavior:

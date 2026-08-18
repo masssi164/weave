@@ -17,8 +17,8 @@
       "issue": 651,
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
-      "commands": ["./gradlew adminCicdOrchestrationCheck", "./gradlew adminCi"],
-      "evidence": ["docs/evidence/local-cicd-bootstrapper.md", "docs/evidence/local-forgejo-runner-readiness.md"]
+      "commands": ["./gradlew bootstrapFoundationCheck", "./gradlew adminCi"],
+      "evidence": ["docs/bootstrap-foundation-contract.md", ".github/workflows/test-stack-deploy.yml"]
     },
     {
       "id": "user-login",
@@ -85,36 +85,43 @@
       "evidence": ["specs/0006-portability-contract/provider-portability-v2-calendar-dry-run.json"]
     },
     {
-      "id": "weaver-runtime",
+      "id": "agent-runtime-control",
       "issue": 651,
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
-      "commands": ["./gradlew weaverRuntimeFactoryCheck"],
-      "evidence": ["docs/evidence/weaver-runtime-factory-report.md", "release/provider-lab/weaver-runtime"]
+      "commands": ["./gradlew :server:test --tests 'com.massimotter.weave.backend.agentruntime.*'"],
+      "evidence": ["docs/evidence/weaver-security-privacy-accessibility-report.md", "infra/docs/weaver-runtime-lifecycle.md"]
     },
     {
-      "id": "weaver-customization",
+      "id": "runtime-external-state",
       "issue": 651,
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
-      "commands": ["./gradlew weaverCustomizationCheck"],
-      "evidence": ["docs/evidence/weaver-customization-report.md", "release/provider-lab/weaver-runtime/sprint-25-scoreboard.json"]
+      "commands": [
+        "./gradlew :server:test --tests 'com.massimotter.weave.backend.agentruntime.adapter.S3EncryptedRuntimeStateStoreTest'",
+        "./gradlew :server:postgresJpaTest --tests 'com.massimotter.weave.backend.schema.SchemaAuthorityInitializerPostgresTest'"
+      ],
+      "evidence": [
+        "server/src/test/java/com/massimotter/weave/backend/agentruntime/adapter/S3EncryptedRuntimeStateStoreTest.java",
+        "server/src/test/java/com/massimotter/weave/backend/schema/SchemaAuthorityInitializerPostgresTest.java",
+        "docs/evidence/weaver-security-privacy-accessibility-report.md"
+      ]
     },
     {
-      "id": "weaver-approval",
+      "id": "mcp-workload-identity",
       "issue": 651,
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
-      "commands": ["./gradlew weaverCustomizationCheck"],
-      "evidence": ["release/provider-lab/weaver-runtime/sprint-25-claim-gate.fixture.json"]
+      "commands": ["./gradlew mcpCi"],
+      "evidence": ["docs/weave-mcp-projection.md", "infra/docs/weave-mcp-tool-contract.md"]
     },
     {
-      "id": "weaver-revoke",
+      "id": "runtime-revoke-delete",
       "issue": 651,
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
-      "commands": ["./gradlew weaverRuntimeFactoryCheck", "./gradlew weaverCustomizationCheck"],
-      "evidence": ["docs/evidence/weaver-runtime-factory-report.md", "docs/evidence/weaver-customization-report.md"]
+      "commands": ["bash infra/weave-workspace/tests/weaver-runtime-lifecycle-contract-test.sh"],
+      "evidence": ["infra/weave-workspace/weaver-runtime-lifecycle.contract.json", "infra/docs/weaver-runtime-lifecycle.md"]
     },
     {
       "id": "backup-restore",

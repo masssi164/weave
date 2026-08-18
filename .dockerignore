@@ -1,4 +1,11 @@
 **
+!Cargo.toml
+!Cargo.lock
+!rust/
+!rust/matrix-core/
+!rust/matrix-core/Cargo.toml
+!rust/matrix-core/src/
+!rust/matrix-core/src/**
 !server/
 !server/build/
 !server/build/libs/
@@ -7,3 +14,7 @@
 !weave-mcp-server/build/
 !weave-mcp-server/build/libs/
 !weave-mcp-server/build/libs/*.jar
+!infra/
+!infra/identity-ops/
+!infra/identity-ops/**
+!infra/weave-workspace/

@@ -1,20 +1,23 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
-import 'package:weave/features/chat/data/repositories/backend_chat_repository.dart';
+import 'package:weave/features/chat/data/repositories/weave_matrix_facade_chat_repository.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
-import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
+import 'package:weave/integrations/rust_matrix_core/presentation/providers/matrix_crypto_session_provider.dart';
 
-/// Release chat flows always use the backend-owned product facade.
+/// Release chat flows use the Matrix Client-Server projection as the chat data plane.
 ///
-/// Direct Matrix clients may exist only in explicitly scoped legacy/debug tests;
-/// normal member/release code must not instantiate them.
+/// `/api/chat/**` remains a control/product facade for readiness, migration,
+/// decisions, and meetings; normal message sync/send
+/// does not treat OpenAPI/REST or a direct Matrix SDK as the Chat data plane.
 final chatRepositoryProvider = Provider<ChatRepository>((ref) {
-  return BackendChatRepository(
+  return WeaveMatrixFacadeChatRepository(
     serverConfigurationRepository: ref.watch(
       serverConfigurationRepositoryProvider,
     ),
     authSessionRepository: ref.watch(authSessionRepositoryProvider),
-    httpClient: ref.watch(weaveApiHttpClientProvider),
+    matrixCryptoSessionCoordinator: ref.watch(
+      matrixCryptoSessionCoordinatorProvider,
+    ),
   );
 });

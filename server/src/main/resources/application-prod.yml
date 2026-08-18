@@ -1,0 +1,47 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${WEAVE_OIDC_ISSUER_URI}
+          jwk-set-uri: ${WEAVE_OIDC_JWK_SET_URI}
+
+weave:
+  deployment:
+    profile: prod
+  platform:
+    public-base-url: ${WEAVE_PUBLIC_BASE_URL}
+    api-base-url: ${WEAVE_API_BASE_URL}
+    auth-base-url: ${WEAVE_AUTH_BASE_URL}
+    release-posture: prod
+  security:
+    required-audience: ${WEAVE_OIDC_REQUIRED_AUDIENCE}
+  files:
+    provider: ${WEAVE_FILES_PROVIDER:weave-native}
+    native:
+      blob-store: ${WEAVE_FILES_NATIVE_BLOB_STORE:filesystem}
+      filesystem-root: ${WEAVE_FILES_NATIVE_FILESYSTEM_ROOT:/var/lib/weave/files/blobs}
+  chat:
+    provider: ${WEAVE_CHAT_PROVIDER:weave-native}
+  calendar:
+    provider: ${WEAVE_CALENDAR_PROVIDER:weave-native}
+  identity:
+    invitations:
+      keycloak:
+        base-url: ${WEAVE_IDENTITY_KEYCLOAK_BASE_URL}
+        realm: weave
+        organization-alias: ${WEAVE_ORGANIZATION_ALIAS}
+        admin-client-id: weave-identity-admin
+        admin-credential-ref: credentialref://weave/keycloak/weave-identity-admin
+        admin-private-jwk-file: /run/secrets/identity-admin/weave-identity-admin-private-jwk.json
+        private-key-jwt-audience: ${WEAVE_OIDC_ISSUER_URI}
+        reference-hmac-secret-file: /run/secrets/identity-reference-hmac-key

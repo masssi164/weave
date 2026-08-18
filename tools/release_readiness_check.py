@@ -13,11 +13,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from human_testing_readiness_manifest import ManifestError, evaluate_manifest
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LIVE_EVIDENCE_DIR = ROOT / "weave-live-stack-acceptance-evidence"
 DEFAULT_CI_SUMMARY = ROOT / "build" / "evidence" / "ci-summary.json"
 DEFAULT_BLOCKERS = ROOT / "build" / "evidence" / "release-blockers.json"
 DEFAULT_GENERATED_CI_SUMMARY = ROOT / "build" / "evidence" / "rc-readiness" / "ci-summary.generated.json"
+DEFAULT_HUMAN_TESTING_READINESS = ROOT / "build" / "evidence" / "human-testing-readiness.json"
 REQUIRED_RELEASE_NOTE_HEADINGS = (
     "Added",
     "Changed",
@@ -360,6 +363,55 @@ def check_blockers(path: Path, candidate_commit: str, candidate_tag: str, waiver
     return Check("release-blockers", "pass", "no open release-blocker issues in supplied summary", [rel(path)])
 
 
+def check_human_testing_readiness(path: Path, candidate_commit: str) -> Check:
+    if not path.exists():
+        return Check(
+            "human-testing-readiness",
+            "fail",
+            "missing exact-candidate human-testing readiness manifest",
+            [rel(path)],
+        )
+    try:
+        manifest = load_json(path)
+        if not isinstance(manifest, dict):
+            raise ManifestError("manifest root must be an object")
+        evaluation = evaluate_manifest(
+            manifest,
+            max_provider_age_seconds=180,
+            provider_age_reference="generated-at",
+        )
+    except (json.JSONDecodeError, ManifestError) as error:
+        return Check(
+            "human-testing-readiness",
+            "fail",
+            f"invalid human-testing readiness manifest: {error}",
+            [rel(path)],
+        )
+    failures: list[str] = []
+    if str(manifest.get("candidateCommit", "")).lower() != candidate_commit.lower():
+        failures.append("candidateCommit does not match the release candidate")
+    if manifest.get("state") != evaluation.state:
+        failures.append("declared state does not match evaluated gates")
+    if manifest.get("humanTestingReady") is not evaluation.human_testing_ready:
+        failures.append("declared humanTestingReady does not match evaluated gates")
+    if not evaluation.human_testing_ready:
+        failures.extend(evaluation.failed_reasons)
+        failures.extend(evaluation.blocked_reasons)
+    if failures:
+        return Check(
+            "human-testing-readiness",
+            "fail",
+            "; ".join(failures),
+            [rel(path)],
+        )
+    return Check(
+        "human-testing-readiness",
+        "pass",
+        "all current-surface, collaboration, deployment, distribution, upgrade, and physical VoiceOver gates passed",
+        [rel(path)],
+    )
+
+
 def load_waiver(path: Path | None) -> tuple[dict[str, Any] | None, Check | None]:
     if path is None:
         return None, None
@@ -411,6 +463,7 @@ def build_result(args: argparse.Namespace) -> dict[str, Any]:
         [
             check_live_e2e(manifest_path, commit, tag, waiver),
             check_blockers(args.blockers_json, commit, tag, waiver),
+            check_human_testing_readiness(args.human_testing_readiness_manifest, commit),
             check_support_safe(
                 [
                     args.release_notes,
@@ -418,6 +471,7 @@ def build_result(args: argparse.Namespace) -> dict[str, Any]:
                     args.release_gates,
                     manifest_path,
                     args.blockers_json,
+                    args.human_testing_readiness_manifest,
                     *( [args.waiver] if args.waiver else [] ),
                 ]
             ),
@@ -454,6 +508,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--release-notes", type=Path, default=ROOT / "docs" / "release-notes" / "unreleased.md")
     parser.add_argument("--release-gates", type=Path, default=ROOT / "release" / "enterprise-release-gates.json")
     parser.add_argument("--blockers-json", type=Path, default=DEFAULT_BLOCKERS, help="Support-safe GitHub release-blocker issue summary")
+    parser.add_argument(
+        "--human-testing-readiness-manifest",
+        type=Path,
+        default=DEFAULT_HUMAN_TESTING_READINESS,
+        help="Exact-candidate human-testing readiness manifest; this gate cannot be waived",
+    )
     parser.add_argument("--waiver", type=Path, help="Explicit release-owner waiver marker JSON")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON to stdout")
     parser.add_argument("--write-json", type=Path, help="Also write machine-readable JSON to this path")

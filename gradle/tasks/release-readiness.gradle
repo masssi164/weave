@@ -1,0 +1,29 @@
+tasks.register('releaseReadinessCheck', Exec) {
+    group = 'verification'
+    description = 'Validate local release-candidate readiness evidence without publishing a release. Override with -PcandidateVersion, -PcandidateTag, -PcandidateCommit, -PciSummary, -PliveEvidenceDir, -PliveManifest, -PblockersJson, -Pwaiver, and -Pjson=true.'
+    workingDir projectDir
+    def candidateVersion = providers.gradleProperty('candidateVersion').orElse('0.1.0-rc.1').get().toString()
+    def defaultCandidateTag = "v${candidateVersion.startsWith('v') ? candidateVersion.substring(1) : candidateVersion}"
+    def candidateTag = providers.gradleProperty('candidateTag').orElse(defaultCandidateTag).get().toString()
+    def args = ['python3', 'tools/release_readiness_check.py', '--candidate-version', candidateVersion, '--candidate-tag', candidateTag]
+    [
+        candidateCommit: '--candidate-commit',
+        ciSummary: '--ci-summary',
+        liveEvidenceDir: '--live-evidence-dir',
+        liveManifest: '--live-manifest',
+        blockersJson: '--blockers-json',
+        humanTestingReadinessManifest: '--human-testing-readiness-manifest',
+        waiver: '--waiver'
+    ].each { propertyName, flag ->
+        def propertyValue = providers.gradleProperty(propertyName.toString()).orNull
+        if (propertyValue != null) {
+            args.add(flag)
+            args.add(propertyValue.toString())
+        }
+    }
+    if (providers.gradleProperty('json').orElse('false').get().toString().toBoolean()) {
+        args.add('--json')
+    }
+    commandLine execCommand(args)
+    outputs.upToDateWhen { false }
+}

@@ -97,6 +97,30 @@ void main() {
       expect(secureStore.rawValue(authSessionStorageKey), contains('access-1'));
     });
 
+    test('a new repository instance restores the persisted session', () async {
+      oidcClient.authorizeHandler = (configuration) async {
+        return OidcTokenBundle(
+          accessToken: 'access-before-process-close',
+          refreshToken: 'refresh-after-process-close',
+          idToken: 'id-after-process-close',
+          expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+          tokenType: 'Bearer',
+          scopes: const ['openid', 'offline_access'],
+        );
+      };
+      await repository.signIn(configuration);
+
+      final relaunchedRepository = OidcAuthSessionRepository(
+        secureStore: secureStore,
+        oidcClient: _FakeOidcClient(),
+      );
+      final restored = await relaunchedRepository.restoreSession(configuration);
+
+      expect(restored.status, AuthStatus.authenticated);
+      expect(restored.session?.accessToken, 'access-before-process-close');
+      expect(restored.session?.refreshToken, 'refresh-after-process-close');
+    });
+
     test('restoreSession clears mismatched issuer or client ids', () async {
       final mismatchedSession = buildTestAuthSession(clientId: 'other-client');
       await secureStore.write(
@@ -138,6 +162,60 @@ void main() {
         await secureStore.read(authSessionStorageKey),
         contains('access-2'),
       );
+    });
+
+    test(
+      'temporary refresh failure preserves the device-bound session',
+      () async {
+        final expiredSession = buildTestAuthSession(
+          expiresAt: DateTime.now().toUtc().subtract(
+            const Duration(minutes: 5),
+          ),
+        );
+        await secureStore.write(
+          authSessionStorageKey,
+          AuthSessionDto.fromSession(expiredSession).encode(),
+        );
+        oidcClient.refreshHandler = (configuration, refreshToken) async {
+          throw const AuthFailure.unknown('Identity service is unreachable.');
+        };
+
+        await expectLater(
+          repository.restoreSession(configuration),
+          throwsA(
+            isA<AuthFailure>().having(
+              (failure) => failure.type,
+              'type',
+              AuthFailureType.unknown,
+            ),
+          ),
+        );
+
+        expect(
+          await secureStore.read(authSessionStorageKey),
+          contains('refresh-token'),
+        );
+      },
+    );
+
+    test('rejected refresh grant clears the unusable local session', () async {
+      final expiredSession = buildTestAuthSession(
+        expiresAt: DateTime.now().toUtc().subtract(const Duration(minutes: 5)),
+      );
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(expiredSession).encode(),
+      );
+      oidcClient.refreshHandler = (configuration, refreshToken) async {
+        throw const AuthFailure.sessionRejected(
+          'The saved session is no longer valid.',
+        );
+      };
+
+      final state = await repository.restoreSession(configuration);
+
+      expect(state.status, AuthStatus.signedOut);
+      expect(await secureStore.read(authSessionStorageKey), isNull);
     });
 
     test('signOut clears local tokens even when end-session fails', () async {

@@ -1,91 +1,84 @@
 {
-  "artifactKind": "weave-backup-manifest-v1",
-  "issue": 639,
-  "relatedGateIssue": 642,
-  "supportSafe": false,
-  "createdAt": "2026-06-04T05:49:03Z",
-  "backupId": "disposable-restore-proof-issue-642-local-proof",
-  "scope": {
-    "environment": "disposable-stack-rehearsal",
-    "domains": [
-      "identity-idm",
-      "chat",
-      "files",
-      "calendar",
-      "health"
-    ],
-    "artifactsContainSecretsOrMemberData": true,
-    "shareExternally": false,
-    "disposableOnly": true
-  },
+  "schemaVersion": "weave.compose-private-backup.v3",
+  "backupId": "weave-dogfood-20260726T191852Z-4f25fb17725c",
+  "createdAt": "2026-07-26T19:18:52Z",
+  "candidateCommit": "4f25fb17725c1bd6eac38927dca081e3c61cbd94",
+  "candidateManifestDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "profile": "dogfood",
+  "composeProject": "weave-disposable-proof",
+  "databaseFingerprint": "sha256:edd90df7047b4600e20a0bba39b456f595c8364beab8d8c63c134edb2596ba1c",
+  "postgresDumpClientImage": "postgres@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "postgresDatabases": [
+    "postgres",
+    "weave_backend",
+    "weave_keycloak",
+    "weave_nextcloud",
+    "weave_synapse"
+  ],
+  "postgresDatabaseInventoryDigest": "sha256:59da6125993f65307c8f998621d14ec959e2cc388bbdb0ce1d6258afd4166861",
+  "quiescedServices": [
+    "backend",
+    "synapse",
+    "nextcloud",
+    "keycloak"
+  ],
+  "runtimeInventory": [
+    {
+      "service": "provider-fixtures",
+      "authority": "isolated-disposable-proof",
+      "container": "none"
+    }
+  ],
   "artifacts": [
     {
-      "path": "MANIFEST.txt",
-      "kind": "text-manifest",
-      "description": "Disposable proof manifest",
-      "sha256": "3328ead5065d4c7cb09e4e537d7ab6dce4cf5352efacfc30cfa32813eeb2c0f7",
-      "bytes": 126,
-      "requiredForRestore": true
-    },
-    {
-      "path": "postgres.sql",
-      "kind": "postgres-dump",
-      "description": "PostgreSQL domain object fixture dump",
-      "sha256": "edd90df7047b4600e20a0bba39b456f595c8364beab8d8c63c134edb2596ba1c",
-      "bytes": 501,
-      "requiredForRestore": true
-    },
-    {
-      "path": "nextcloud-data.tgz",
-      "kind": "docker-volume-archive",
-      "description": "Restored files/calendar fixture archive",
-      "sha256": "93009b4ad59e13efe85a54e8475ed864fe8e708401ccbfcc18894f1b9666c484",
-      "bytes": 320,
-      "requiredForRestore": true
-    },
-    {
-      "path": "matrix-synapse-data.tgz",
-      "kind": "docker-volume-archive",
-      "description": "Restored chat/media fixture archive",
-      "sha256": "6af5f7099265d36f44911013b975a0ece6eb0fa8fa727f35598f13b810d097b2",
-      "bytes": 292,
-      "requiredForRestore": true
+      "path": "caddy-config.tgz",
+      "kind": "gateway-config-state",
+      "sha256": "c294b773738912899321c5ef4c914d83b62ad0cc1697343e2e5e966bf99b63c5",
+      "bytes": 174
     },
     {
       "path": "caddy-data.tgz",
-      "kind": "docker-volume-archive",
-      "description": "Restored Caddy runtime fixture archive",
-      "sha256": "27193338e2d2eb483e02f6bc736eef1ff4b63a056b1c498df8e72f57fa2a8f97",
-      "bytes": 162,
-      "requiredForRestore": true
-    },
-    {
-      "path": "caddy-config.tgz",
-      "kind": "docker-volume-archive",
-      "description": "Restored Caddy config fixture archive",
-      "sha256": "62fa80cab8faebc7518e54bc21a5ad86b08ba259815bd5c325bdc8699e6de5ad",
-      "bytes": 171,
-      "requiredForRestore": true
+      "kind": "gateway-runtime-state",
+      "sha256": "6f55b919977b094dc66694b09156b95fe626c9f335b5b85b0949267efb82d4ef",
+      "bytes": 164
     },
     {
       "path": "keycloak-data.tgz",
-      "kind": "docker-volume-archive",
-      "description": "Restored identity fixture archive",
-      "sha256": "f4e5ee719cf3296d912b9ed7074cd1c1cd7e3c80e92d326389ed4aed8ac4b13c",
-      "bytes": 198,
-      "requiredForRestore": true
+      "kind": "keycloak-runtime-state",
+      "sha256": "21a3bd486310c4bbabd8775a15b7f7ddc53ca759c8d5f58918b8d257040d4565",
+      "bytes": 203
     },
     {
-      "path": "generated-config-secrets.tgz",
-      "kind": "generated-config-secrets",
-      "description": "Generated config fixture archive",
-      "sha256": "576709510976955670aed4f9e79f2b0835b7b80ad63715cf86c7f22cbae42723",
-      "bytes": 318,
-      "requiredForRestore": true
+      "path": "matrix-appservice.tgz",
+      "kind": "matrix-appservice-runtime",
+      "sha256": "7410fba1759b88b18cc9b3a46bfcc7c446fec359121130f23db22aef854ef1a0",
+      "bytes": 180
+    },
+    {
+      "path": "nextcloud-data.tgz",
+      "kind": "files-calendar-provider-data",
+      "sha256": "3cec7dea68e215b8aa3388111f2ee1bdcf83a72ba5866d54a372e75d73386670",
+      "bytes": 322
+    },
+    {
+      "path": "postgres.sql",
+      "kind": "postgres-consistency-dump",
+      "sha256": "edd90df7047b4600e20a0bba39b456f595c8364beab8d8c63c134edb2596ba1c",
+      "bytes": 501
+    },
+    {
+      "path": "private-config-secrets.tgz",
+      "kind": "private-config-secretrefs",
+      "sha256": "79ab0f531e8dc94fe1c16393528ffa7186a49ec3814db4c48f0ea65c8ab4a14d",
+      "bytes": 483
+    },
+    {
+      "path": "synapse-data.tgz",
+      "kind": "matrix-media-and-local-state",
+      "sha256": "f25b57a3fcbcf7f845b84aa7b12ae7e044118c32a9df102e87523f0c7879ffc5",
+      "bytes": 297
     }
   ],
-  "limitations": [
-    "This manifest was generated from support-safe disposable fixture data, not production data.",
-    "It proves the destroy/restore validation path for fixture domain data; production restore still requires operator approval and private evidence."
-  ]
+  "supportSafe": false,
+  "containsSecretsOrMemberData": true
 }

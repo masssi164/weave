@@ -19,7 +19,6 @@
     "domain": {
       "type": "string",
       "enum": [
-        "identity",
         "people",
         "spaces",
         "chat",
@@ -31,7 +30,7 @@
         "decisions",
         "notifications",
         "health",
-        "weaver"
+        "agent-runtime-control"
       ]
     },
     "run_id": {

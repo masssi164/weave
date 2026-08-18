@@ -27,11 +27,11 @@ Feature: Sprint 12 provider portability and lifecycle readiness
     And destructive removal is blocked until ownership transfer and audit retention are modeled
 
   @weave-sprint12-weaver-preflight-disabled
-  Scenario: Weaver runtime and tools remain preflight-only
-    Given Weaver runtime execution is disabled by default
-    When an admin reviews sandbox, registry, SecretRef, and OAuth evidence
-    Then unsigned, overbroad, undeclared-egress, or raw-secret manifests are rejected
-    And no marketplace or broad third-party execution is implied
+  Scenario: Agent runtime remains guarded and workload-only
+    Given Agent Runtime Control has no current authoritative entitlement or cell binding
+    When an admin reviews profile trust, workload identity, external state, and egress evidence
+    Then provisioning and MCP admission fail closed
+    And human tokens, raw secrets, durable cell-local state, and arbitrary marketplace execution are rejected
 
   @weave-sprint12-release-ops-a11y
   Scenario: Release promotion requires accessibility and restore evidence

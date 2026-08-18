@@ -1,9 +1,9 @@
 ---
 id: WEAVE-SPEC-0003
-title: Encrypted contextual meetings contract
-version: 0.1.0
-status: proposed
-domain: product-core
+title: Historical contextual Calls conformance projection
+version: 0.2.0
+status: deprecated
+domain: meetings-calls
 owner: weave-co-leader
 github_issue: 216
 supersedes: []
@@ -17,11 +17,11 @@ evidence_gates:
 - flutter test test/features/chat/channel_workspace_test.dart test/architecture/meetings_contract_test.dart
 ---
 
-# Feature specification: Encrypted contextual meetings contract
+# Historical contextual Calls conformance projection
 
 ## Intent
 
-Define Weave's meeting architecture and product boundaries before enabling video/audio calls. Meetings must attach to Weave context, fail closed without backend/media evidence, and be honest about encryption boundaries for signaling, media, captions, transcripts, recordings, and metadata.
+Preserve repository conformance evidence for the canonical Meetings/Calls corpus. Matrix v1.19 plus the pinned MatrixRTC Profile 0 is the only member signaling contract; calls fail closed without independent RTC authorization and media evidence, and encryption claims distinguish signaling, media, captions, transcripts, recordings, and metadata.
 
 2026-06-12 Northstar amendment: the first meeting proof must cover join/start plus captions/transcript, but privacy and participant-visible consent come first. Captions/transcripts are disabled unless policy, retention, storage, redaction, accessibility, and consent evidence are complete for the named scope.
 
@@ -31,7 +31,7 @@ Define Weave's meeting architecture and product boundaries before enabling video
 ### In scope
 
 - Provider-neutral meeting capability contract for channels, calendar events, and threads.
-- Architecture decision record preserving LiveKit as the active meetings/video-call provider contract and comparing MatrixRTC/Element Call only as a future option.
+- MatrixRTC Profile 0 signaling with MAS-to-Keycloak Native OAuth, independent RTC authorization, and a replaceable SFU adapter.
 - Explicit encryption/evidence boundaries for signaling, media, captions, transcripts, recordings, and metadata.
 - UX/accessibility contract for device selection, join preview, mute/camera state, participant list, errors, and recovery.
 - Recording/transcription defaults and consent requirements.
@@ -43,10 +43,12 @@ Define Weave's meeting architecture and product boundaries before enabling video
 - Provider-specific meeting links as the primary Weave meeting model.
 - Recording, transcription, or captions without explicit consent and storage/retention evidence.
 - Member UI exposure of provider URLs, room media tokens, SFU internals, credentials, or raw diagnostics.
+- Member Calls REST APIs, proprietary join grants, legacy MatrixRTC shapes, or identity-only SFU token minting.
 
 ### Non-negotiable constraints
 
 - Weave remains provider-neutral; member surfaces speak Weave meeting concepts, not provider setup language.
+- LiveKit is only the first southbound SFU adapter; it does not own signaling, membership, authorization, consent, or the member contract.
 - Join/start controls must fail closed until capability, policy, and evidence are ready.
 - Encryption claims must name their exact boundary and evidence.
 - Group calls must document SFU/client key handling before they are described as confidential.
@@ -94,7 +96,7 @@ Define Weave's meeting architecture and product boundaries before enabling video
 
 - **FR-001**: Weave MUST model meeting attach points for channel, calendar event, and thread contexts.
 - **FR-002**: Weave MUST keep meeting join/start controls disabled until backend media capability, policy, and evidence are ready.
-- **FR-003**: Weave MUST document LiveKit as the current active meetings provider contract and MatrixRTC/Element Call as a future comparison option unless backend registry, runtime docs, acceptance tests, and readiness contracts are migrated together.
+- **FR-003**: Weave MUST use Matrix v1.19 plus pinned MatrixRTC Profile 0 as the only member signaling contract and LiveKit only as the first replaceable southbound SFU adapter.
 - **FR-004**: Weave MUST define encryption/evidence boundaries for Matrix signaling, media streams, captions, transcripts, recordings, and metadata.
 - **FR-005**: Weave MUST NOT describe metadata as end-to-end encrypted.
 - **FR-006**: Recording and transcription MUST be off by default and require explicit participant-visible consent before enablement.
@@ -109,8 +111,8 @@ Define Weave's meeting architecture and product boundaries before enabling video
 ## Domain model and contracts
 
 - Canonical Weave entities affected: ChannelMeetingPreview, ChannelMeetingAttachPoint, ChannelMeetingEncryptionBoundary, ChannelMeetingUxRequirement, ChannelMeetingControl.
-- Provider/category contracts affected: LiveKit-backed meeting backend facade readiness, optional future MatrixRTC/Element Call comparison only after coordinated provider-contract migration.
-- API/event contracts affected: future capability endpoint must expose Weave meeting readiness, not provider internals.
+- Provider/category contracts affected: MatrixRTC Profile 0 signaling, MAS/Keycloak identity, internal RTC Authorizer, and replaceable SFU readiness.
+- API/event contracts affected: member Calls REST and proprietary join-grant shapes are forbidden; readiness remains admin/control-plane only.
 - Policy/RBAC/capability keys affected: meeting join/start, recording, transcription, captions, participant management.
 - Audit/support evidence affected: capability state, encryption boundary evidence, consent state, metadata inventory, support-safe diagnostics.
 
@@ -131,8 +133,6 @@ Define Weave's meeting architecture and product boundaries before enabling video
 - Rollback/reversibility: remove meeting contract fields/UI references without provider data migration.
 - Release-notes label expected: `release-notes-feature`
 
-## Open questions
+## Resolved boundary
 
-- [ ] Which backend facade owns LiveKit room/session readiness and token issuance?
-- [ ] Which policy keys govern recording, transcription, captions, and participant management?
-- [ ] Which acceptance feature should cover first live join/start flow after backend capability exists?
+The canonical corpus owns future evolution. The internal RTC Authorizer is the only component that may issue a short-lived SFU token after independently checking current room, slot/member, device, role, policy, nonce, audience, and expiry. The old member Calls facade is not a migration path.

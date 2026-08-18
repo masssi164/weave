@@ -1,0 +1,46 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: jdbc:h2:mem:weave-dev;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://auth.weave.test/realms/weave
+          jwk-set-uri: http://127.0.0.1:${WEAVE_KEYCLOAK_HOST_PORT:48080}/realms/weave/protocol/openid-connect/certs
+
+weave:
+  deployment:
+    profile: dev
+  platform:
+    public-base-url: https://weave.test
+    api-base-url: https://api.weave.test/api
+    auth-base-url: https://auth.weave.test
+    release-posture: dev
+  security:
+    required-audience: https://api.weave.test/api
+  files:
+    provider: weave-native
+    native:
+      blob-store: filesystem
+      filesystem-root: .weave/files/blobs
+  chat:
+    provider: weave-native
+  calendar:
+    provider: weave-native
+  identity:
+    invitations:
+      keycloak:
+        base-url: http://127.0.0.1:${WEAVE_KEYCLOAK_HOST_PORT:48080}
+        realm: weave
+        organization-alias: weave
+        admin-client-id: weave-identity-admin
+        admin-credential-ref: credentialref://weave/keycloak/weave-identity-admin
+        private-key-jwt-audience: https://auth.weave.test/realms/weave

@@ -8,7 +8,6 @@
     "scenarioMappings": "e2e/scenario_mappings.json"
   },
   "requiredDomains": [
-    "identity-idm",
     "spaces",
     "chat",
     "files",
@@ -18,7 +17,7 @@
     "meetings-calls",
     "decisions-evidence",
     "admin-health-ops",
-    "weaver-governed-pa",
+    "agent-runtime-control",
     "provider-portability",
     "operator-release"
   ],
@@ -27,8 +26,8 @@
       "id": "member-live-critical-path",
       "name": "Member live-stack critical path",
       "evidenceMode": "live-runtime",
-      "executionLane": "credentialed-live-stack",
-      "description": "Sparse release-grade runtime proof for sign-in, shell restoration, provider-owned facades, and critical member work surfaces.",
+      "executionLane": "governed-live-product-evidence",
+      "description": "Release-grade runtime proof from automated testApp and explicitly separated physical-device evidence; no credential-injected Flutter lane.",
       "scenarios": []
     },
     {
@@ -53,14 +52,6 @@
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
       "description": "Admin dry-runs, provider replacement truthfulness, identity lifecycle, WOPI posture, Weaver preflight, and release-gate supportability.",
-      "scenarios": []
-    },
-    {
-      "id": "operator-ci-cd-and-local-e2e-readiness",
-      "name": "Operator CI/CD and local E2E readiness",
-      "evidenceMode": "offline-spec",
-      "executionLane": "operator-fixture-contract",
-      "description": "Forgejo pipeline/runner/bootstrap/deployed-stack handoff readiness with support-safe evidence and no persisted GitHub secrets.",
       "scenarios": []
     },
     {
@@ -92,7 +83,7 @@
       "name": "Northstar Spec Kit decision gates",
       "evidenceMode": "offline-spec",
       "executionLane": "spec-contract",
-      "description": "Repo-local Spec Kit projections for claim-control, Identity/RBAC portability, governed Weaver approvals, and domain-first MCP naming.",
+      "description": "Repo-local Spec Kit projections for claim control, identity/RBAC portability, RuntimeProfile desired-state limits, and workload-only MCP admission.",
       "scenarios": []
     },
     {
@@ -145,10 +136,10 @@
     },
     {
       "id": "spec-0007-governed-weaver-runtime",
-      "name": "Spec 0007 governed Weaver runtime acceptance",
+      "name": "Spec 0007 historical Agent Runtime Control conformance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Weaver runtime profiles, approved tool registry, consent receipts, and fail-closed policy drift.",
+      "description": "Current entitlement, signed RuntimeProfile v2 desired state, the approved read-only Files MCP slice, guarded remaining domain catalogs, signed decision evidence, and fail-closed policy drift.",
       "scenarios": []
     },
     {
@@ -228,7 +219,7 @@
       "name": "WEAVE-SPEC-0007 requirement coverage",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Requirement-category scenarios proving Governed Weaver runtime and tool approval contract is not only linked but covered.",
+      "description": "Requirement-category scenarios proving Agent Runtime Control lifecycle, external state, per-cell workload identity, the approved Files read catalog, and guarded-by-default remaining MCP catalog boundaries.",
       "scenarios": []
     },
     {
@@ -256,11 +247,27 @@
       "scenarios": []
     },
     {
-      "id": "spec-0011-weaver-governed-pa-target",
-      "name": "Spec 0011 Weaver governed PA target acceptance",
+      "id": "spec-0011-agent-runtime-control-conformance",
+      "name": "Spec 0011 Agent Runtime Control conformance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Weaver group gating, policy, per-user memory, domain-first tools, approvals, heartbeat, fallback, and audit acceptance.",
+      "description": "Keycloak entitlement, zero-local-state cells, RuntimeProfile v2, workload-only MCP, revocation, wake recovery, and support-safe audit conformance.",
+      "scenarios": []
+    },
+    {
+      "id": "enterprise-target-architecture-spine",
+      "name": "Enterprise target architecture evidence spine",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-architecture-contract",
+      "description": "Decision-lock, boundary-gate, and support-safe evidence exclusions for the Enterprise Hard Plan delivery DAG.",
+      "scenarios": []
+    },
+    {
+      "id": "open-standards-gateway-archive-target",
+      "name": "Open standards gateway archive target",
+      "evidenceMode": "offline-spec",
+      "executionLane": "archive-gap-contract",
+      "description": "Full northbound Files, Calendar, Chat, Calls, native OS, MCP, and protocol credential target imported from the July 2026 archive with explicit incomplete-gap evidence.",
       "scenarios": []
     }
   ],
@@ -272,117 +279,130 @@
         "member"
       ],
       "domains": [
-        "identity-idm",
         "spaces",
         "admin-health-ops"
       ],
       "testLevel": "live-e2e",
       "assertionFocus": [
-        "authenticated shell restore",
-        "profile facade",
-        "support-safe evidence"
+        "Keycloak activation",
+        "system-browser Authorization Code with PKCE",
+        "workspace restoration",
+        "refresh-session continuity",
+        "no credential build arguments"
       ]
     },
     {
-      "tag": "@weave-live-chat-content",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member"
-      ],
-      "domains": [
-        "chat",
-        "spaces"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "canonical chat facade",
-        "send/read message",
-        "backend chat boundary"
-      ]
-    },
-    {
-      "tag": "@weave-live-matrix-e2ee",
+      "tag": "@files-webdav-read-list-download",
       "suiteId": "product-e2e-scenario-layer",
       "personas": [
-        "admin",
+        "member",
         "operator"
       ],
       "domains": [
-        "chat"
+        "files",
+        "provider-portability",
+        "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "honest E2EE posture",
-        "non-decorative security state"
+        "WebDAV northbound data plane",
+        "OpenAPI control-plane boundary",
+        "support-safe file read/list/download"
       ]
     },
     {
-      "tag": "@weave-live-files-boundary",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member"
-      ],
-      "domains": [
-        "files"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "upload/list/download/cleanup",
-        "Weave-owned files boundary"
-      ]
-    },
-    {
-      "tag": "@weave-live-provider-stack-readiness",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member",
-        "admin"
-      ],
-      "domains": [
-        "admin-health-ops",
-        "provider-portability"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "backend-owned readiness",
-        "member forbidden from provider registry",
-        "redacted diagnostics"
-      ]
-    },
-    {
-      "tag": "@weave-live-workspace-loop",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member"
-      ],
-      "domains": [
-        "spaces",
-        "chat",
-        "files",
-        "decisions-evidence"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "one Space identity across domains",
-        "capability states",
-        "sanitized evidence"
-      ]
-    },
-    {
-      "tag": "@weave-live-provider-reality-vertical",
-      "suiteId": "member-live-critical-path",
+      "tag": "@files-webdav-write-mvp",
+      "suiteId": "product-e2e-scenario-layer",
       "personas": [
         "member",
         "operator"
       ],
       "domains": [
-        "admin-health-ops",
+        "files",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "PUT/MKCOL/DELETE WebDAV write behavior",
+        "ETag and conditional preconditions",
+        "support-safe mutation audit",
+        "no OpenAPI data-plane fallback"
+      ]
+    },
+    {
+      "tag": "@files-mcp-facade-no-provider-bypass",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "weaver_user",
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "agent-runtime-control",
         "provider-portability"
       ],
-      "testLevel": "live-e2e",
+      "testLevel": "offline-contract",
       "assertionFocus": [
-        "honest provider availability",
-        "release evidence boundaries"
+        "MCP Files facade projection",
+        "canonical file references",
+        "raw provider bypass rejection"
+      ]
+    },
+    {
+      "tag": "@target-standards-webdav-files-current-proof",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "WebDAV read/write evidence",
+        "Flutter WebDAV read/download path",
+        "remaining client/native cutover debt"
+      ]
+    },
+    {
+      "tag": "@target-standards-caldav-calendar-server-mvp",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "calendar",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "CalDAV server projection supports REPORT and event methods",
+        "Calendar REST event CRUD is deprecated while compatibility remains",
+        "native Calendar setup stays Weave-owned",
+        "no complete native Calendar parity claim"
+      ]
+    },
+    {
+      "tag": "@target-standards-matrix-chat-server-mvp",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "chat",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Matrix projection syncs and sends through Chat facade",
+        "Flutter Chat avoids REST as normal data plane",
+        "Chat REST conversations/messages are deprecated while compatibility remains",
+        "no complete API retirement or raw homeserver cutover claim"
       ]
     },
     {
@@ -411,7 +431,6 @@
         "member"
       ],
       "domains": [
-        "identity-idm",
         "spaces"
       ],
       "testLevel": "offline-contract",
@@ -421,14 +440,13 @@
       ]
     },
     {
-      "tag": "@weave-v01-dogfood-member-invite-activation",
+      "tag": "@weave-v01-dogfood-owner-invite-activation",
       "suiteId": "member-live-critical-path",
       "personas": [
-        "member",
+        "admin",
         "operator"
       ],
       "domains": [
-        "identity-idm",
         "spaces",
         "admin-health-ops",
         "operator-release"
@@ -466,7 +484,6 @@
         "admin"
       ],
       "domains": [
-        "identity-idm",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -563,15 +580,14 @@
       ]
     },
     {
-      "tag": "@weave-v01-idm-rbac-capability-policy",
+      "tag": "@weave-v01-keycloak-rbac-capability-policy",
       "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
         "admin"
       ],
       "domains": [
-        "identity-idm",
         "admin-health-ops",
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -580,37 +596,37 @@
       ]
     },
     {
-      "tag": "@weave-v01-governed-weaver-runtime-policy",
+      "tag": "@weave-v01-agent-runtime-control-policy",
       "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
         "admin",
         "member"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "runtime generated from policy",
-        "disabled by default"
+        "current Keycloak entitlement and signed RuntimeProfile v2",
+        "zero durable cell-local state"
       ]
     },
     {
-      "tag": "@weave-v01-governed-weaver-tool-registry",
+      "tag": "@weave-v01-mcp-workload-boundary",
       "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
         "admin",
         "member"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "approved domain tools only",
-        "organization whitelist"
+        "current ARC-bound workload only",
+        "empty tool resource and prompt catalogs"
       ]
     },
     {
@@ -658,7 +674,6 @@
       ],
       "domains": [
         "boards-tasks",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -743,7 +758,6 @@
       ],
       "domains": [
         "admin-health-ops",
-        "identity-idm",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
@@ -776,7 +790,6 @@
         "member"
       ],
       "domains": [
-        "identity-idm",
         "spaces"
       ],
       "testLevel": "offline-contract",
@@ -809,7 +822,6 @@
       ],
       "domains": [
         "admin-health-ops",
-        "identity-idm",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
@@ -843,7 +855,7 @@
         "member"
       ],
       "domains": [
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -860,7 +872,6 @@
       ],
       "domains": [
         "admin-health-ops",
-        "identity-idm",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
@@ -880,9 +891,8 @@
       ],
       "domains": [
         "admin-health-ops",
-        "identity-idm",
         "provider-portability",
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -931,7 +941,6 @@
         "operator"
       ],
       "domains": [
-        "identity-idm",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -947,13 +956,13 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "preflight-only Weaver",
-        "disabled runtime/tools"
+        "guarded Agent Runtime Control",
+        "workload-only MCP and empty catalogs"
       ]
     },
     {
@@ -972,100 +981,6 @@
         "accessibility evidence",
         "restore evidence",
         "release promotion"
-      ]
-    },
-    {
-      "tag": "@sprint26-admin-cicd-setup",
-      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
-      "personas": [
-        "admin",
-        "operator"
-      ],
-      "domains": [
-        "operator-release",
-        "admin-health-ops"
-      ],
-      "testLevel": "offline-contract",
-      "assertionFocus": [
-        "runner missing state",
-        "pipeline dispatch gated"
-      ]
-    },
-    {
-      "tag": "@sprint27-local-cicd-bootstrapper",
-      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
-      "personas": [
-        "operator"
-      ],
-      "domains": [
-        "operator-release"
-      ],
-      "testLevel": "offline-contract",
-      "assertionFocus": [
-        "Forgejo selection",
-        "no persisted GitHub secrets"
-      ]
-    },
-    {
-      "tag": "@sprint27-local-forgejo-runner-readiness",
-      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
-      "personas": [
-        "operator"
-      ],
-      "domains": [
-        "operator-release"
-      ],
-      "testLevel": "offline-contract",
-      "assertionFocus": [
-        "local runner readiness",
-        "dispatch gated"
-      ]
-    },
-    {
-      "tag": "@sprint27-local-forgejo-e2e-handoff",
-      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
-      "personas": [
-        "operator"
-      ],
-      "domains": [
-        "operator-release"
-      ],
-      "testLevel": "offline-contract",
-      "assertionFocus": [
-        "blocked handoff honesty",
-        "deployment handoff and separate client-lane signal requirements"
-      ]
-    },
-    {
-      "tag": "@sprint27-local-domain-adapter-plan",
-      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
-      "personas": [
-        "operator",
-        "admin"
-      ],
-      "domains": [
-        "operator-release",
-        "provider-portability"
-      ],
-      "testLevel": "offline-contract",
-      "assertionFocus": [
-        "support-safe deployable plan",
-        "domain choices"
-      ]
-    },
-    {
-      "tag": "@sprint27-local-forgejo-pipeline-provider",
-      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
-      "personas": [
-        "operator"
-      ],
-      "domains": [
-        "operator-release"
-      ],
-      "testLevel": "offline-contract",
-      "assertionFocus": [
-        "PipelineProvider dispatch gates",
-        "support-safe run status"
       ]
     },
     {
@@ -1101,13 +1016,12 @@
       ]
     },
     {
-      "tag": "@sprint27-identity-provider-boundary",
+      "tag": "@sprint27-platform-identity-federation-boundary",
       "suiteId": "cross-domain-provider-proof",
       "personas": [
         "admin"
       ],
       "domains": [
-        "identity-idm",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
@@ -1158,7 +1072,6 @@
         "admin"
       ],
       "domains": [
-        "identity-idm",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -1196,7 +1109,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -1287,7 +1199,6 @@
       "domains": [
         "provider-portability",
         "admin-health-ops",
-        "identity-idm",
         "spaces"
       ],
       "testLevel": "offline-contract",
@@ -1305,14 +1216,14 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops",
         "spaces"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
         "user consent",
-        "approval receipt",
+        "signed single-use decision evidence and independent domain authorization",
         "user-rights organization-whitelisted capabilities",
         "audit and revocation"
       ]
@@ -1344,14 +1255,13 @@
       ],
       "domains": [
         "admin-health-ops",
-        "identity-idm",
         "chat",
         "files",
         "calendar",
         "boards-tasks",
         "meetings-calls",
         "documents-office",
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -1372,8 +1282,7 @@
       "domains": [
         "admin-health-ops",
         "provider-portability",
-        "identity-idm",
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -1385,7 +1294,7 @@
       "scenario": "Weave Control, Admin Console, and Client keep separate responsibilities"
     },
     {
-      "tag": "@weave-control-deploy-new-local-forgejo-e2e-boundary",
+      "tag": "@weave-control-deploy-new-github-dogfood-e2e-boundary",
       "suiteId": "weave-control-setup-modes",
       "personas": [
         "admin",
@@ -1398,12 +1307,12 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "deploy_new local Forgejo deployment handoff boundary",
+        "deploy_new protected GitHub dogfood deployment handoff boundary",
         "pipeline_terminal_success",
         "server_infra_readiness_passed",
         "weave_control_ready",
         "client_bootstrap_handoff_ready",
-        "separate client E2E evidence is not collected on the Forgejo deployment runner"
+        "separate client E2E evidence is not collected in the GitHub deployment job"
       ],
       "scenario": "Deploy-new proof requires pipeline, server/infra readiness, Weave Control, and client-bootstrap handoff"
     },
@@ -1417,7 +1326,6 @@
       "domains": [
         "provider-portability",
         "admin-health-ops",
-        "identity-idm",
         "chat",
         "files"
       ],
@@ -1440,10 +1348,9 @@
       "domains": [
         "provider-portability",
         "admin-health-ops",
-        "identity-idm",
         "chat",
         "files",
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -1462,7 +1369,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "admin-health-ops",
         "provider-portability"
       ],
@@ -1495,7 +1401,7 @@
       ]
     },
     {
-      "tag": "@northstar-identity-rbac-provider-switch",
+      "tag": "@northstar-platform-identity-federation",
       "suiteId": "northstar-spec-decisions",
       "personas": [
         "admin",
@@ -1503,13 +1409,12 @@
         "member"
       ],
       "domains": [
-        "identity-idm",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "Identity/RBAC provider-switch proof",
-        "no unaccounted data loss"
+        "fixed Keycloak authority",
+        "upstream federation readiness"
       ]
     },
     {
@@ -1521,12 +1426,12 @@
         "member"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "scoped approval receipts",
+        "signed single-use decision evidence",
         "OpenClaw exec permission separation"
       ]
     },
@@ -1539,7 +1444,7 @@
         "member"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -1572,8 +1477,7 @@
       ],
       "domains": [
         "provider-portability",
-        "admin-health-ops",
-        "identity-idm"
+        "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -1594,7 +1498,7 @@
         "calendar",
         "boards-tasks",
         "decisions-evidence",
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -1610,7 +1514,7 @@
         "member"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "admin-health-ops"
       ],
@@ -1651,13 +1555,12 @@
       ],
       "domains": [
         "provider-portability",
-        "identity-idm",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
         "no-unaccounted-data-loss classification",
-        "Identity/RBAC parity and lifecycle limits",
+        "collaboration provider lifecycle limits",
         "broad lossless/customer-ready wording rejection"
       ]
     },
@@ -1718,7 +1621,7 @@
       ],
       "domains": [
         "spaces",
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -1735,7 +1638,7 @@
         "operator"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "admin-health-ops"
       ],
@@ -1753,7 +1656,6 @@
       ],
       "domains": [
         "meetings-calls",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -1842,7 +1744,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -1892,14 +1793,13 @@
         "weaver_user"
       ],
       "domains": [
-        "weaver-governed-pa",
-        "identity-idm",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "runtime profile from policy",
-        "role-derived grants"
+        "runtime profile from current entitlement and policy",
+        "signed desired state is not an authorization grant"
       ]
     },
     {
@@ -1910,13 +1810,13 @@
         "operator"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "approval receipt",
-        "fail closed drift"
+        "signed decision and immutable action evidence",
+        "independent authorization and fail-closed drift"
       ]
     },
     {
@@ -1961,7 +1861,7 @@
         "operator"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -1978,8 +1878,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
-        "identity-idm",
+        "agent-runtime-control",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2150,7 +2049,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2168,7 +2067,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2186,7 +2085,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2204,7 +2103,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2222,7 +2121,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2240,7 +2139,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2258,7 +2157,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2467,7 +2366,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2485,7 +2383,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2503,7 +2400,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2521,7 +2417,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2606,8 +2501,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
-        "identity-idm",
+        "agent-runtime-control",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2624,8 +2518,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
-        "identity-idm",
+        "agent-runtime-control",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2642,8 +2535,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
-        "identity-idm",
+        "agent-runtime-control",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2660,8 +2552,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
-        "identity-idm",
+        "agent-runtime-control",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2694,7 +2585,7 @@
         "operator"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -2831,7 +2722,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2849,7 +2740,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2902,7 +2793,6 @@
       ],
       "domains": [
         "spaces",
-        "identity-idm",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -2929,20 +2819,19 @@
       ]
     },
     {
-      "tag": "@weave-spec-0007-initial-tool-set",
+      "tag": "@weave-spec-0007-mcp-catalog-boundary",
       "suiteId": "spec-0007-requirement-coverage",
       "personas": [
         "weaver_user",
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
-        "identity-idm",
+        "agent-runtime-control",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "Initial tool set",
+        "MCP catalog boundary",
         "explicit scenario coverage"
       ]
     },
@@ -2954,7 +2843,6 @@
         "operator"
       ],
       "domains": [
-        "identity-idm",
         "spaces",
         "admin-health-ops",
         "provider-portability"
@@ -3022,106 +2910,1710 @@
     },
     {
       "tag": "@weave-spec-0011-group-policy-gating",
-      "suiteId": "spec-0011-weaver-governed-pa-target",
+      "suiteId": "spec-0011-agent-runtime-control-conformance",
       "personas": [
         "admin",
         "weaver_user"
       ],
       "domains": [
-        "weaver-governed-pa",
-        "identity-idm",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "weaver-group gating",
-        "policy controlled provisioning"
+        "Keycloak entitlement gating",
+        "fail-closed cell provisioning"
       ]
     },
     {
       "tag": "@weave-spec-0011-memory-isolation",
-      "suiteId": "spec-0011-weaver-governed-pa-target",
+      "suiteId": "spec-0011-agent-runtime-control-conformance",
       "personas": [
         "weaver_user",
         "operator"
       ],
       "domains": [
-        "weaver-governed-pa",
-        "identity-idm",
+        "agent-runtime-control",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "per-user memory isolation",
-        "export delete retention privacy"
+        "zero durable cell-local bytes",
+        "encrypted external state deletion retention privacy"
       ]
     },
     {
       "tag": "@weave-spec-0011-domain-tool-approval",
-      "suiteId": "spec-0011-weaver-governed-pa-target",
+      "suiteId": "spec-0011-agent-runtime-control-conformance",
       "personas": [
         "weaver_user",
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "provider-portability",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "domain-first tools",
-        "approval receipt validation"
+        "empty workload-only MCP catalog",
+        "current per-cell service-account binding"
       ]
     },
     {
       "tag": "@weave-spec-0011-heartbeat-fallback-audit",
-      "suiteId": "spec-0011-weaver-governed-pa-target",
+      "suiteId": "spec-0011-agent-runtime-control-conformance",
       "personas": [
         "weaver_user",
         "operator"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "heartbeat scope enforcement",
-        "safe fallback audit"
+        "wake scope enforcement",
+        "safe recovery audit"
       ]
     },
     {
-      "tag": "@sprint32-beta-admin-user-weaver-path",
+      "tag": "@enterprise-target-decision-lock",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "admin",
+        "operator"
+      ],
       "domains": [
-        "identity-idm",
+        "admin-health-ops",
+        "provider-portability",
+        "operator-release",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "hard-plan decision lock",
+        "bounded issue DAG"
+      ]
+    },
+    {
+      "tag": "@enterprise-target-open-standard-northbound",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "member",
+        "admin",
+        "operator",
+        "weaver_user"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls",
+        "agent-runtime-control",
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "open-standard northbound projections",
+        "provider adapters stay southbound",
+        "canonical domains remain provider-neutral",
+        "CalDAV and Matrix projection skeletons fail closed without provider leakage"
+      ]
+    },
+    {
+      "tag": "@enterprise-target-openapi-control-plane-only",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "OpenAPI demotion",
+        "control-plane-only REST",
+        "standard data-plane ownership",
+        "Flutter Chat uses Matrix Client-Server projection instead of REST as message data plane"
+      ]
+    },
+    {
+      "tag": "@enterprise-target-no-transitional-compatibility",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "admin",
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "agent-runtime-control",
+        "provider-portability",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "no strategic legacy compatibility contract",
+        "fixture-fenced historical paths",
+        "target projection ownership",
+        "People-domain CardDAV boundary"
+      ]
+    },
+    {
+      "tag": "@enterprise-target-boundary-gate",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "agent-runtime-control",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "server dependency boundaries",
+        "provider adapter isolation",
+        "CalDAV and Matrix projection controllers route through facades or fail closed"
+      ]
+    },
+    {
+      "tag": "@enterprise-target-e2e-spine",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "admin",
+        "operator",
+        "member",
+        "weaver_user"
+      ],
+      "domains": [
+        "spaces",
         "chat",
         "files",
         "calendar",
         "boards-tasks",
         "meetings-calls",
+        "documents-office",
         "admin-health-ops",
-        "weaver-governed-pa",
+        "agent-runtime-control",
+        "provider-portability",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "coherent target architecture evidence",
+        "support-safe evidence exclusions"
+      ]
+    },
+    {
+      "tag": "@enterprise-target-persistence-foundation",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
         "provider-portability",
         "decisions-evidence"
       ],
+      "testLevel": "offline-contract",
       "assertionFocus": [
-        "coherent Beta evaluator path",
-        "Admin readiness and Weaver enablement",
-        "member workspace Weaver use",
-        "governed runtime/tool execution",
-        "adapter-continuity accounting",
-        "support-safe audit evidence"
-      ],
-      "suiteId": "product-e2e-scenario-layer",
+        "gated relational persistence",
+        "provider selection parity",
+        "product profile override parity",
+        "restart recovery without production-readiness overclaim"
+      ]
+    },
+    {
+      "tag": "@enterprise-target-audit-persistence-foundation",
+      "suiteId": "enterprise-target-architecture-spine",
       "personas": [
         "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "gated audit-event persistence",
+        "single JPA audit authority without file fallback",
+        "retry-safe idempotency",
+        "support-safe database failure handling"
+      ]
+    },
+    {
+      "tag": "@enterprise-target-migration-evidence-persistence-foundation",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "gated migration-run evidence persistence",
+        "single JPA migration-evidence authority without file fallback",
+        "provider-switch evidence restart recovery",
+        "expiration and support-safe database failure handling"
+      ]
+    },
+    {
+      "tag": "@enterprise-target-provider-switch-no-drift-foundation",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "provider-switch no-drift dry-run",
+        "persisted baseline snapshot",
+        "support-safe audit and migration evidence",
+        "provider-neutral northbound read-model comparison",
+        "apply and production default changes remain blocked"
+      ]
+    },
+    {
+      "tag": "@open-standards-manifest",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
         "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "OpenAPI stays setup/readiness/revoke/manifest/admin/generated convenience",
+        "transitional Chat and Calendar REST data-plane routes are deprecated with cleanup issue evidence",
+        "Files REST data-plane routes remain absent"
+      ]
+    },
+    {
+      "tag": "@openapi-control-only",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "OIDC bearer authentication gates the Matrix facade",
+        "versions and whoami are shaped by the shared Rust core",
+        "provider credentials and southbound URLs are absent"
+      ]
+    },
+    {
+      "tag": "@support-safe-capability-states",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "canonical conversations project to stable Matrix room identifiers",
+        "room state and memberships stay provider-neutral",
+        "Flutter sync consumes the same northbound facade"
+      ]
+    },
+    {
+      "tag": "@oidc-protocol-access",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "one OIDC bearer reaches all Weave protocol facades",
+        "platform config points Chat at the Matrix facade",
+        "provider material stays absent"
+      ]
+    },
+    {
+      "tag": "@matrix-openclaw-stock-channel",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user",
+        "member"
+      ],
+      "domains": [
+        "chat",
+        "agent-runtime-control"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "signed RuntimeProfile projects stock channels.matrix",
+        "OpenClaw startup and approval calls are supported by the Weave facade",
+        "the retired custom weave-chat plugin is not a runtime dependency"
+      ]
+    },
+    {
+      "tag": "@matrix-read-receipt",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Flutter validates its Matrix identity through Rust",
+        "read receipts use the northbound Matrix facade",
+        "canonical Chat stores actor conversation event and timestamp"
+      ]
+    },
+    {
+      "tag": "@oidc-revoked-token",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "invalid or revoked bearer denial",
+        "support-safe errors",
+        "no provider diagnostics"
+      ]
+    },
+    {
+      "tag": "@spring-ai-mcp-transport",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
         "weaver_user",
         "operator"
       ],
-      "testLevel": "offline-contract"
+      "domains": [
+        "agent-runtime-control",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Spring AI 2.0 owns stateful Streamable HTTP protocol handling",
+        "extension-negotiated sessions admit only bound cell workloads",
+        "the handwritten Java JSON-RPC controller is absent",
+        "the Python and FastMCP runtime is absent"
+      ]
+    },
+    {
+      "tag": "@spring-ai-mcp-oidc",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user",
+        "operator"
+      ],
+      "domains": [
+        "agent-runtime-control"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "issuer exact audience expiry and RFC 9068 at+jwt validation are configured",
+        "weave:mcp scope and the exact MCP audience are required",
+        "the client_id and azp must match the current per-cell confidential client",
+        "human and unbound service-account requests fail before MCP dispatch"
+      ]
+    },
+    {
+      "tag": "@mcp-runtime-approved-discovery",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user"
+      ],
+      "domains": [
+        "agent-runtime-control",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "backend current ARC context is revalidated after token exchange",
+        "RuntimeProfile contents do not create or authorize tools",
+        "tool resource and prompt catalogs remain empty"
+      ]
+    },
+    {
+      "tag": "@mcp-approval-ownership-boundary",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user",
+        "member"
+      ],
+      "domains": [
+        "agent-runtime-control",
+        "calendar",
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "OpenClaw owns approval presentation and decision state",
+        "caller-supplied elicitation evidence cannot mint Weave authority",
+        "write tools remain undiscoverable and fail closed until trusted evidence and current domain authorization are both validated"
+      ]
+    },
+    {
+      "tag": "@webdav-device-credential",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "one-time Weave device secret",
+        "WebDAV-only scope",
+        "revocation denial"
+      ]
+    },
+    {
+      "tag": "@caldav-device-credential",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "one-time Weave device secret",
+        "CalDAV-only scope",
+        "revocation denial"
+      ]
+    },
+    {
+      "tag": "@no-provider-credentials",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "credential list redaction",
+        "provider credentials absent",
+        "support-safe runtime evidence"
+      ]
+    },
+    {
+      "tag": "@files-webdav-propfind",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-get-head",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-put-create",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-put-stale",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-mkcol",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-delete",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-move",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-copy",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-lock-unlock",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-quota",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-flutter-webdav",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-discovery",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-home",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-calendar-query",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-calendar-multiget",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-get-put-delete",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-sync",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-freebusy",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-recurrence-dst",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-canonical-thread",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar",
+        "spaces",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "northbound iCalendar carries canonical context channel and meeting-thread identifiers",
+        "the meeting-thread identifier is stable across event reads and updates",
+        "southbound provider serialization contains no Weave projection metadata"
+      ]
+    },
+    {
+      "tag": "@calendar-flutter-caldav",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-connect",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-spaces-rooms",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-message",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-native-core",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Matrix wire parsing and projection are implemented once in the shared Rust and Ruma core",
+        "Spring Boot reaches the core through required JNI linkage",
+        "Flutter reaches the same core through generated flutter_rust_bridge bindings"
+      ]
+    },
+    {
+      "tag": "@matrix-idempotent-send",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Matrix transaction identifiers enter the canonical chat command",
+        "a retried send returns the same canonical message",
+        "the provider change stream records one mutation"
+      ]
+    },
+    {
+      "tag": "@matrix-provider-port",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "admin",
+        "member"
+      ],
+      "domains": [
+        "chat",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Matrix identifiers are projected from canonical Weave identifiers",
+        "chat conformance declares portable, archive-only, and unsupported semantics",
+        "provider replacement cannot leak provider identifiers northbound"
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-state",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-slack-bridge-no-leak",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-teams-bridge-no-leak",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-revoke",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@flutter-matrix-boundary",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-matrixrtc-discovery",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-rtc-authorization",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-flutter-livekit",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-media",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-expired-sfu-token",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-revoke-participant",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-audit",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-provider-error-redaction",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-reject-legacy",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@mcp-files-facade",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user"
+      ],
+      "domains": [
+        "agent-runtime-control",
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Files remains authoritative for content and authorization",
+        "the Files MCP catalog stays empty until a complete domain action contract exists",
+        "raw provider URLs and credentials are excluded"
+      ]
+    },
+    {
+      "tag": "@mcp-calendar-facade",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user"
+      ],
+      "domains": [
+        "agent-runtime-control",
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Calendar remains authoritative for events and authorization",
+        "the Calendar MCP catalog stays empty until a complete domain action contract exists",
+        "raw CalDAV and provider payloads are excluded"
+      ]
+    },
+    {
+      "tag": "@mcp-chat-facade",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user"
+      ],
+      "domains": [
+        "agent-runtime-control",
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Chat and Matrix remain authoritative for conversation authorization",
+        "the Chat MCP catalog stays empty until a complete domain action contract exists",
+        "raw provider clients and provider-shaped references remain forbidden"
+      ]
+    },
+    {
+      "tag": "@mcp-calls-facade",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user"
+      ],
+      "domains": [
+        "agent-runtime-control",
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@mcp-no-provider-leakage",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user"
+      ],
+      "domains": [
+        "agent-runtime-control",
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "protocol metadata is support-safe while tools resources and prompts remain empty",
+        "runtime token and CredentialRef values are excluded",
+        "backend failures are mapped to support-safe MCP results"
+      ]
+    },
+    {
+      "tag": "@member-protocol-no-leakage",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@flutter-error-no-leakage",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@native-setup-no-leakage",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@mcp-output-no-leakage",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@support-diagnostics-redacted",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@flutter-files-webdav",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@flutter-calendar-caldav",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@flutter-chat-matrix",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@flutter-calls-livekit",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@flutter-openapi-control-only",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@native-files-webdav",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@native-calendar-caldav",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@native-revoke",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@native-accessibility",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-provider-switch",
+      "suiteId": "admin-provider-portability-lifecycle",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "chat",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "encrypted history fidelity is classified explicitly",
+        "unsupported migration blocks apply",
+        "server-side decryption is not a portability fallback"
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-fail-closed-client",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "member",
+        "weaver_user"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "E2EE-incapable clients are denied",
+        "no plaintext compatibility room is created",
+        "denial remains member-safe and support-safe"
+      ]
+    },
+    {
+      "tag": "@human-ready-native-collaboration",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "chat",
+        "files",
+        "calendar",
+        "operator-release"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "weave-native provider selection",
+        "Matrix WebDAV and CalDAV northbound facades",
+        "PostgreSQL and backend restart continuity",
+        "no external provider runtime dependency"
+      ]
+    },
+    {
+      "tag": "@human-ready-dogfood-deployment",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "operator-release",
+        "admin-health-ops"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "two non-destructive installs",
+        "OpenTofu idempotence",
+        "cached provider health",
+        "persistent state invariants"
+      ]
+    },
+    {
+      "tag": "@human-ready-ios-distribution",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "operator-release"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "exact-candidate TestFlight build",
+        "in-place upgrade",
+        "protected approval",
+        "blocked waiting state"
+      ]
+    },
+    {
+      "tag": "@human-ready-physical-voiceover",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "chat",
+        "files",
+        "calendar"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "physical iPhone",
+        "VoiceOver",
+        "Dynamic Type",
+        "touch targets",
+        "session upgrade"
+      ]
+    },
+    {
+      "tag": "@human-ready-manifest",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "operator-release",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "no candidate manifest gate",
+        "exact dogfood source",
+        "full Compose E2E prerequisite",
+        "no automatic release publication"
+      ]
     }
   ]
 }

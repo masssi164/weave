@@ -1,0 +1,21 @@
+{
+  "services": {
+    "backend": {
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/fixture/agent-runtime",
+          "target": "/run/secrets/agent-runtime",
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "/fixture/keycloak-weave-agent-runtime-admin",
+          "target": "/run/secrets/agent-runtime/workloads/weave/keycloak/weave-agent-runtime-admin",
+          "read_only": true
+        }
+      ]
+    }
+  }
+}

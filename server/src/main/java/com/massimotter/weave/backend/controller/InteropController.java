@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.model.ApiErrorResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.model.interop.CanonicalBridgeEventResponse;
 import com.massimotter.weave.backend.model.interop.InteropStatusResponse;
 import com.massimotter.weave.backend.model.interop.SlackEventRequest;
@@ -46,7 +46,7 @@ public class InteropController {
     }
 
     @GetMapping("/api/interop/status")
-    @Operation(summary = "Get support-safe interop gateway status")
+    @Operation(operationId = "getInteropStatus", summary = "Get support-safe interop gateway status")
     public InteropStatusResponse status() {
         return interopGatewayService.status();
     }
@@ -73,7 +73,7 @@ public class InteropController {
             @RequestBody String rawBody,
             @RequestHeader(name = "X-Slack-Request-Timestamp", required = false) String requestTimestamp,
             @RequestHeader(name = "X-Slack-Signature", required = false) String requestSignature)
-            throws com.fasterxml.jackson.core.JsonProcessingException {
+            throws tools.jackson.core.JacksonException {
         SlackEventRequest request = objectMapper.readValue(rawBody, SlackEventRequest.class);
         return interopGatewayService.ingestSlackEvent(request, rawBody, requestTimestamp, requestSignature);
     }

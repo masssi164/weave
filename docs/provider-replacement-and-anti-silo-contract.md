@@ -8,6 +8,8 @@ Provider neutrality is not proven by listing adapters. It is proven when an orga
 
 Weave must remain an operating layer, not a new lock-in silo.
 
+Platform identity/security is deliberately excluded from the southbound provider-replacement model. Keycloak is Weave's fixed identity authority and owns local users, organizations, roles, groups, sessions, invitations, required actions, and workload clients. Entra ID, Auth0, Authentik, other OIDC/SAML systems, and LDAP/AD attach upstream through Keycloak federation or brokering. They never become a runtime-selectable identity adapter in the provider patch panel.
+
 ## Anti-silo guarantees
 
 Every provider-backed capability must define:
@@ -30,8 +32,7 @@ Stable Weave IDs are acceptable only with provenance, export, delete/deprovision
 
 | Capability | Canonical objects | Dogfood/default provider examples | External/cloud provider examples | Required anti-silo evidence |
 | --- | --- | --- | --- | --- |
-| Identity/IDM | Organization, UserAccount, Person, Group, Role, IdentitySource, CapabilityPolicy | Keycloak, Authentik | Entra ID, Okta, Auth0, SAML/OIDC, LDAP/AD bridge | immutable IDs, SCIM/deprovisioning, group/role mapping, guest/service-principal model, effective-policy explanation |
-| Chat | Space, Conversation, Message, Thread, Reaction, Attachment, Membership, Presence | Matrix/Synapse as the current real release provider path | Teams, Slack, Nextcloud Talk as contract-only/coming-later targets until adapter evidence promotes them | thread/message mapping, membership/retention source, attachment provenance, E2EE/retention caveats, export path |
+| Chat | Space, Conversation, Message, Thread, Reaction, Attachment, Membership, Presence | Weave-native canonical JPA state | Matrix/Synapse interoperability, Teams, Slack, and Nextcloud Talk; each requires adapter evidence before release claims | thread/message mapping, membership/retention source, attachment provenance, E2EE/retention caveats, export path |
 | Files/docs | Drive, Node, Folder, File, Version, Share, Permission, Lock, EditSession | Nextcloud/WebDAV/WOPI-capable editor | SharePoint/OneDrive, S3, CMIS repository | permissions/share mapping, versioning, locks, external link risk, export/delete behavior |
 | Calendar | Calendar, Event, Attendee, Recurrence, Availability, Resource | backend/shared calendar facade, CalDAV-compatible backing | Microsoft Graph calendars, Google/other enterprise calendars where supported | RRULE/time-zone fidelity, attendee semantics, resource booking, conflict/loss notes |
 | Boards/tasks | Board, List, Task, Status, Assignee, Comment, Attachment, Dependency, CustomField | OpenProject | Planner, Jira-like providers | workflow/status mapping, custom fields, comments, dependencies, multi-assignee fidelity, lossy report |
@@ -158,7 +159,7 @@ Examples:
 
 - Entra ID + Teams chat + SharePoint files + OpenProject tasks + Weave admin/readiness.
 - Keycloak + Matrix chat + SharePoint files + Planner-like tasks.
-- LDAP/AD via Authentik + Slack chat + Nextcloud files + LiveKit meetings.
+- LDAP/AD via Authentik + Slack chat + Nextcloud files + MatrixRTC Calls with a LiveKit SFU adapter.
 - New organization starts with self-hosted defaults, later moves files to SharePoint while keeping Matrix chat and OpenProject tasks.
 
 Member UX must stay Weave-owned across those deployments. Provider names may appear only where they matter for admin/operator decisions, risk notes, support, or external launch context.

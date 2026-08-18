@@ -4,29 +4,9 @@
   "@appTitle": {
     "description": "Application title shown in the app bar and system task switcher"
   },
-  "welcomeTitle": "Welcome to Weave",
-  "@welcomeTitle": {
-    "description": "Main heading on the welcome screen"
-  },
-  "welcomeSubtitle": "Join your organization through an invite or sign-in handoff. Provider setup stays with your admins.",
-  "@welcomeSubtitle": {
-    "description": "Subtitle text below the welcome heading"
-  },
-  "continueButton": "Join your organization",
-  "@continueButton": {
-    "description": "Label for the primary CTA on the welcome screen"
-  },
-  "setupTitle": "Join Weave",
+  "setupTitle": "Organization access",
   "@setupTitle": {
     "description": "Title for the setup flow screen"
-  },
-  "setupProviderStepTitle": "Configure provider categories",
-  "@setupProviderStepTitle": {
-    "description": "Title for the setup provider and issuer step"
-  },
-  "setupProviderStepDescription": "Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.",
-  "@setupProviderStepDescription": {
-    "description": "Description shown in the setup provider step"
   },
   "setupServicesStepTitle": "Review Backend API",
   "@setupServicesStepTitle": {
@@ -40,7 +20,7 @@
   "@providerCategorySummaryTitle": {
     "description": "Title for the provider category summary shown to admins during setup and workspace health"
   },
-  "providerCategorySummaryDescription": "Weave tracks collaboration categories first. Provider names below are current dogfood choices for admins/operators, not member-facing product names.",
+  "providerCategorySummaryDescription": "Keycloak is the fixed platform identity authority. The remaining rows are collaboration categories whose provider names are admin/operator choices, not member-facing product names.",
   "@providerCategorySummaryDescription": {
     "description": "Description explaining provider categories and dogfood defaults"
   },
@@ -52,6 +32,10 @@
   "@providerCategoryStatusCurrentDefault": {
     "description": "Status pill for a provider category using the current dogfood provider choice"
   },
+  "platformIdentityStatusFixedAuthority": "Fixed platform authority",
+  "@platformIdentityStatusFixedAuthority": {
+    "description": "Status pill for the non-selectable Keycloak platform identity boundary"
+  },
   "providerCategoryStatusAdminSetupRequired": "Admin setup required",
   "@providerCategoryStatusAdminSetupRequired": {
     "description": "Status pill for a provider category that requires admin setup before member use"
@@ -60,13 +44,13 @@
   "@providerCategoryStatusDisabledByDefault": {
     "description": "Status pill for a provider category disabled by default"
   },
-  "providerCategoryIdentityTitle": "Identity/IDM",
-  "@providerCategoryIdentityTitle": {
-    "description": "Provider category title for identity and IDM"
+  "platformIdentityTitle": "Platform identity",
+  "@platformIdentityTitle": {
+    "description": "Title for the fixed platform identity and security boundary"
   },
-  "providerCategoryIdentityDetail": "Keycloak/Auth is the current dogfood choice; Entra ID, Authentik, or another OIDC/SAML source can map to this category.",
-  "@providerCategoryIdentityDetail": {
-    "description": "Provider category detail for identity and IDM"
+  "platformIdentityDetail": "Keycloak/Auth is the platform authority. Entra ID, Authentik/Auth0, other OIDC/SAML sources, or LDAP/AD integrate upstream through Keycloak federation or brokering.",
+  "@platformIdentityDetail": {
+    "description": "Detail for the fixed Keycloak platform identity boundary"
   },
   "providerCategoryChatTitle": "Chat",
   "@providerCategoryChatTitle": {
@@ -104,7 +88,7 @@
   "@providerCategoryMeetingsTitle": {
     "description": "Provider category title for meetings and calls"
   },
-  "providerCategoryMeetingsDetail": "LiveKit Meetings readiness is tracked behind the token facade before members can start or join calls.",
+  "providerCategoryMeetingsDetail": "MatrixRTC Profile 0 is the signaling boundary; a replaceable SFU carries media only after current RTC authorization.",
   "@providerCategoryMeetingsDetail": {
     "description": "Provider category detail for meetings and calls"
   },
@@ -116,13 +100,13 @@
   "@providerCategoryDocumentsDetail": {
     "description": "Provider category detail for documents and collaboration"
   },
-  "providerCategoryWeaverTitle": "Weaver",
-  "@providerCategoryWeaverTitle": {
-    "description": "Provider category title for Weaver"
+  "providerCategoryAgentRuntimeControlTitle": "Agent Runtime Control",
+  "@providerCategoryAgentRuntimeControlTitle": {
+    "description": "Product category title for Agent Runtime Control"
   },
-  "providerCategoryWeaverDetail": "Weaver stays disabled by default until governed per-user PA policy, whitelisting, consent, and audit are accepted.",
-  "@providerCategoryWeaverDetail": {
-    "description": "Provider category detail for Weaver"
+  "providerCategoryAgentRuntimeControlDetail": "Agent Runtime Control stays disabled without current Keycloak entitlement, signed RuntimeProfile v2, encrypted external state, and cell-bound workload identity.",
+  "@providerCategoryAgentRuntimeControlDetail": {
+    "description": "Product category detail for Agent Runtime Control"
   },
   "setupLanguageStepTitle": "Your Language",
   "@setupLanguageStepTitle": {
@@ -212,53 +196,48 @@
   "@shellRecentActivityTitle": {
     "description": "Title for the compact recent activity card in the app shell"
   },
-  "shellRecentActivityDescription": "Quick links to recent rooms and file changes.",
-  "@shellRecentActivityDescription": {
-    "description": "Description for the recent activity card in the app shell"
-  },
-  "shellRecentActivitySemanticLabel": "Recent activity quick links",
+  "shellRecentActivitySemanticLabel": "Authorized recent workspace activity",
   "@shellRecentActivitySemanticLabel": {
     "description": "Semantic label for the recent activity card"
   },
-  "shellRecentRoomsTitle": "Rooms",
-  "@shellRecentRoomsTitle": {
-    "description": "Section title for recent room quick links in the app shell"
+  "homeRecentActivityLoading": "Loading recent workspace activity…",
+  "@homeRecentActivityLoading": {
+    "description": "Loading state for the authorized Home recent-activity projection"
   },
-  "shellRecentFilesTitle": "Files",
-  "@shellRecentFilesTitle": {
-    "description": "Section title for recent file quick links in the app shell"
+  "homeRecentActivityUnavailable": "Recent workspace activity is unavailable right now.",
+  "@homeRecentActivityUnavailable": {
+    "description": "Support-safe unavailable state for Home recent activity"
   },
-  "shellRecentRoomsLoading": "Loading recent rooms…",
-  "@shellRecentRoomsLoading": {
-    "description": "Loading label for recent room quick links"
+  "homeRecentActivityEmpty": "No completed workspace activity is visible yet.",
+  "@homeRecentActivityEmpty": {
+    "description": "Empty state for the authorized Home recent-activity projection"
   },
-  "shellRecentRoomsEmpty": "No recent rooms yet.",
-  "@shellRecentRoomsEmpty": {
-    "description": "Empty state for recent room quick links"
+  "homeRecentActivityCurrentMemberFilesCompleted": "You completed a Files change",
+  "@homeRecentActivityCurrentMemberFilesCompleted": {
+    "description": "Generic Home activity label for the current member's completed Files mutation"
   },
-  "shellRecentRoomsUnavailable": "Recent rooms are unavailable until chat is connected.",
-  "@shellRecentRoomsUnavailable": {
-    "description": "Unavailable/error state for recent room quick links"
+  "homeRecentActivityOtherMemberFilesCompleted": "A workspace member completed a Files change",
+  "@homeRecentActivityOtherMemberFilesCompleted": {
+    "description": "Generic Home activity label for another authorized member's completed Files mutation"
   },
-  "shellRecentFilesLoading": "Loading recent file changes…",
-  "@shellRecentFilesLoading": {
-    "description": "Loading label for recent file quick links"
+  "homeRecentActivityWorkspaceVisibility": "Shared workspace activity",
+  "@homeRecentActivityWorkspaceVisibility": {
+    "description": "Generic visibility label that does not expose a Context identifier"
   },
-  "shellRecentFilesEmpty": "No recent file changes yet.",
-  "@shellRecentFilesEmpty": {
-    "description": "Empty state for recent file quick links"
-  },
-  "shellRecentFilesError": "Recent file changes could not be loaded.",
-  "@shellRecentFilesError": {
-    "description": "Error state for recent file quick links"
-  },
-  "shellRecentFilesUnavailable": "Recent files are unavailable until files are connected.",
-  "@shellRecentFilesUnavailable": {
-    "description": "Unavailable state for recent file quick links"
-  },
-  "shellRecentActivityUnknownRecency": "recent",
-  "@shellRecentActivityUnknownRecency": {
-    "description": "Fallback recency hint for activity items without a timestamp"
+  "homeRecentActivityItemSemantic": "{activity}. {visibility}. {recency}.",
+  "@homeRecentActivityItemSemantic": {
+    "description": "Screen-reader summary for one generic support-safe Home activity",
+    "placeholders": {
+      "activity": {
+        "type": "String"
+      },
+      "visibility": {
+        "type": "String"
+      },
+      "recency": {
+        "type": "String"
+      }
+    }
   },
   "shellRecentActivityNow": "now",
   "@shellRecentActivityNow": {
@@ -280,47 +259,6 @@
   "shellRecentActivityYesterday": "yesterday",
   "@shellRecentActivityYesterday": {
     "description": "Recency hint for activity from yesterday"
-  },
-  "shellRecentRoomItemSemantic": "Open room {roomName}. Latest activity: {preview}. {recency}.",
-  "@shellRecentRoomItemSemantic": {
-    "description": "Semantic label for a recent room quick link",
-    "placeholders": {
-      "roomName": {
-        "type": "String"
-      },
-      "preview": {
-        "type": "String"
-      },
-      "recency": {
-        "type": "String"
-      }
-    }
-  },
-  "shellRecentFileItemSemantic": "Open {itemType} {itemName} in {path}. Changed {recency}.",
-  "@shellRecentFileItemSemantic": {
-    "description": "Semantic label for a recent file quick link",
-    "placeholders": {
-      "itemType": {
-        "type": "String"
-      },
-      "itemName": {
-        "type": "String"
-      },
-      "path": {
-        "type": "String"
-      },
-      "recency": {
-        "type": "String"
-      }
-    }
-  },
-  "shellRecentFileFolderType": "folder",
-  "@shellRecentFileFolderType": {
-    "description": "File activity type label for folders"
-  },
-  "shellRecentFileFileType": "file",
-  "@shellRecentFileFileType": {
-    "description": "File activity type label for files"
   },
   "emptyStateLabel": "Nothing here yet",
   "@emptyStateLabel": {
@@ -370,60 +308,6 @@
   "@semanticWeaveLogo": {
     "description": "Semantic label for the Weave brand logo image"
   },
-  "firstRunAppBarTitle": "First-run status",
-  "firstRunLoadingLabel": "Checking your Weave workspace…",
-  "firstRunLoadingHint": "Loading your profile, role, and module readiness from the Weave backend.",
-  "firstRunLoadFailure": "We could not load your first-run status from the Weave backend.",
-  "firstRunLoadFailureGuidance": "Check your connection and try again. If this keeps happening, ask an admin to confirm the backend is reachable.",
-  "firstRunSignedOutMessage": "Sign in to view your Weave first-run status.",
-  "firstRunSignedOutGuidance": "We need an active Weave SSO session before we can check your profile, role, and module readiness.",
-  "firstRunSignInAction": "Go to sign in",
-  "firstRunSignedOutSemanticLabel": "Sign in to view your Weave first-run status. We need an active Weave SSO session before we can check your profile, role, and module readiness. Action: Go to sign in",
-  "firstRunReadyTitle": "Your Weave workspace is ready",
-  "firstRunNeedsAttentionTitle": "Your Weave workspace is being prepared",
-  "firstRunDescription": "You signed in once with Weave SSO. Weave is checking your profile and collaboration modules; no separate Chat, Files, or Calendar credentials are needed.",
-  "firstRunIdentitySectionTitle": "Your Weave identity",
-  "firstRunIdentitySectionDescription": "This profile and role come from the Weave backend contract after SSO.",
-  "firstRunDisplayNameLabel": "Name",
-  "firstRunUsernameLabel": "Username",
-  "firstRunEmailLabel": "Email",
-  "firstRunRoleLabel": "Role",
-  "firstRunInviteStatusLabel": "Invite",
-  "firstRunRoleOwner": "Owner",
-  "firstRunRoleAdmin": "Admin",
-  "firstRunRoleOperator": "Operator",
-  "firstRunRoleMember": "Member",
-  "firstRunRoleGuest": "Guest",
-  "firstRunRoleUnknown": "Workspace role",
-  "firstRunInviteAccepted": "Accepted",
-  "firstRunInvitePending": "Pending",
-  "firstRunInviteExpired": "Expired",
-  "firstRunInviteUnavailable": "Unavailable",
-  "firstRunModuleSectionTitle": "Module readiness",
-  "firstRunProfileModuleTitle": "Profile",
-  "firstRunChatModuleTitle": "Chat",
-  "firstRunFilesModuleTitle": "Files",
-  "firstRunCalendarModuleTitle": "Calendar",
-  "firstRunStateReady": "Ready",
-  "firstRunStatePending": "Pending",
-  "firstRunStateUnavailable": "Unavailable",
-  "firstRunStateDegraded": "Degraded",
-  "firstRunStateActionNeeded": "Action needed",
-  "firstRunNextStepsTitle": "Next steps",
-  "firstRunProfileReadyGuidance": "Your profile is ready for Weave.",
-  "firstRunProfilePendingGuidance": "Your profile is still being prepared.",
-  "firstRunChatReadyGuidance": "Chat is ready for this workspace.",
-  "firstRunChatPendingGuidance": "Chat is still being prepared.",
-  "firstRunFilesReadyGuidance": "Files are ready for this workspace.",
-  "firstRunFilesPendingGuidance": "Files are still being prepared.",
-  "firstRunCalendarReadyGuidance": "Calendar is ready for this workspace.",
-  "firstRunCalendarPendingGuidance": "Calendar is still being prepared.",
-  "firstRunModuleUnavailableGuidance": "This Weave capability is not available for this workspace yet.",
-  "firstRunModuleDegradedGuidance": "This Weave capability is available with limited functionality.",
-  "firstRunModuleActionNeededGuidance": "Workspace setup needs admin attention.",
-  "firstRunNextStepAdminAttention": "Workspace setup needs admin attention before every capability is ready.",
-  "firstRunRefreshButton": "Refresh status",
-  "firstRunContinueButton": "Continue to chat",
   "chatProvisioningReadyTitle": "Chat is ready",
   "chatProvisioningPendingTitle": "Chat rooms are still being prepared",
   "chatProvisioningDegradedTitle": "Chat is available with degraded setup",
@@ -477,11 +361,51 @@
   "@chatScreenTitle": {
     "description": "Title for the chat screen app bar"
   },
+  "chatCreateConversationAction": "Start conversation",
+  "@chatCreateConversationAction": {
+    "description": "Accessible action for opening the encrypted conversation creation dialog"
+  },
+  "chatCreateConversationTitle": "Start an encrypted conversation",
+  "@chatCreateConversationTitle": {
+    "description": "Title for the encrypted conversation creation dialog"
+  },
+  "chatCreateConversationDescription": "Give this workspace conversation a clear name. Weave creates it through the organization Chat facade and enables encryption from the first event.",
+  "@chatCreateConversationDescription": {
+    "description": "Provider-neutral guidance in the encrypted conversation creation dialog"
+  },
+  "chatCreateConversationNameLabel": "Conversation name",
+  "@chatCreateConversationNameLabel": {
+    "description": "Label for the new conversation name field"
+  },
+  "chatCreateConversationNameHint": "For example, Release planning",
+  "@chatCreateConversationNameHint": {
+    "description": "Example hint for the new conversation name field"
+  },
+  "chatCreateConversationNameRequired": "Enter a name between 1 and 200 characters.",
+  "@chatCreateConversationNameRequired": {
+    "description": "Validation message for an empty or oversized conversation name"
+  },
+  "chatCreateConversationCancel": "Cancel",
+  "@chatCreateConversationCancel": {
+    "description": "Cancel action in the encrypted conversation creation dialog"
+  },
+  "chatCreateConversationSubmit": "Create conversation",
+  "@chatCreateConversationSubmit": {
+    "description": "Submit action in the encrypted conversation creation dialog"
+  },
+  "chatCreateConversationSubmitting": "Creating…",
+  "@chatCreateConversationSubmitting": {
+    "description": "Progress label while an encrypted conversation is being created"
+  },
+  "chatCreateConversationFailure": "The encrypted conversation could not be created. Your other Chat areas remain available; try again when the connection is back.",
+  "@chatCreateConversationFailure": {
+    "description": "Support-safe local error shown when conversation creation fails"
+  },
   "chatOverviewTitle": "Weave Home",
   "@chatOverviewTitle": {
     "description": "Title for the chat overview/home surface"
   },
-  "chatOverviewDescription": "Your personal messages, favorites, channels, and AI chats are grouped here so the workspace starts from intent instead of a flat room list.",
+  "chatOverviewDescription": "Your personal messages, favorites, and channels are grouped here so the workspace starts from intent instead of a flat room list.",
   "@chatOverviewDescription": {
     "description": "Description for the chat overview/home surface"
   },
@@ -489,7 +413,7 @@
   "@chatHomeHeroTitle": {
     "description": "Title for the professional Weave Home cockpit card"
   },
-  "chatHomeHeroDescription": "Start with messages, channel workspaces, and governed AI areas that are actually available to you.",
+  "chatHomeHeroDescription": "Start with messages and channel workspaces that are actually available to you.",
   "@chatHomeHeroDescription": {
     "description": "Description for the professional Weave Home cockpit card"
   },
@@ -520,19 +444,6 @@
       }
     }
   },
-  "chatHomeAiMetricReady": "{count, plural, =1 {1 governed AI chat} other {{count} governed AI chats}}",
-  "@chatHomeAiMetricReady": {
-    "description": "Metric summarizing governed AI chats when available in Weave Home",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "chatHomeAiMetricDisabled": "AI governed by workspace policy",
-  "@chatHomeAiMetricDisabled": {
-    "description": "Metric copy for AI chats when no governed AI chat is available"
-  },
   "chatHomeContinueButton": "Open next work item",
   "@chatHomeContinueButton": {
     "description": "Button that opens the highest-priority available conversation from Weave Home"
@@ -550,11 +461,11 @@
   "@chatFavoritesSectionTitle": {
     "description": "Title for the favorites section in the chat overview"
   },
-  "chatFavoritesSectionDescription": "Pinned people, channels, and AI chats you want to reach first.",
+  "chatFavoritesSectionDescription": "Pinned people and channels you want to reach first.",
   "@chatFavoritesSectionDescription": {
     "description": "Description for the favorites section in the chat overview"
   },
-  "chatFavoritesSectionEmpty": "No favorites yet. Important direct messages, channels, and AI chats marked as favorites stay here.",
+  "chatFavoritesSectionEmpty": "No favorites yet. Important direct messages and channels marked as favorites stay here.",
   "@chatFavoritesSectionEmpty": {
     "description": "Empty state for the favorites section in the chat overview"
   },
@@ -581,106 +492,6 @@
   "chatChannelsSectionEmpty": "No channels are available yet.",
   "@chatChannelsSectionEmpty": {
     "description": "Empty state for the channel section in the chat overview"
-  },
-  "chatAiChatsSectionTitle": "AI chats",
-  "@chatAiChatsSectionTitle": {
-    "description": "Title for the AI chats section in the chat overview"
-  },
-  "chatAiChatsSectionDescription": "Specialized assistant and agent chats live in their own area.",
-  "@chatAiChatsSectionDescription": {
-    "description": "Description for the AI chats section in the chat overview"
-  },
-  "chatAiChatsSectionEmpty": "AI chats are not enabled for this workspace. A workspace owner or admin can enable governed assistants after policy, consent, and audit controls are ready.",
-  "@chatAiChatsSectionEmpty": {
-    "description": "Empty state for the AI chats section in the chat overview"
-  },
-  "chatAgentGovernanceTitle": "Agent chats are governed by your workspace",
-  "@chatAgentGovernanceTitle": {
-    "description": "Title for the governed agent chat preview panel"
-  },
-  "chatAgentGovernanceDescription": "Agents can help inside Weave only after an owner or admin enables a package, chooses scopes, and keeps consent and audit visible.",
-  "@chatAgentGovernanceDescription": {
-    "description": "Description for the governed agent chat preview panel"
-  },
-  "chatAgentContextPackTitle": "Context pack before action",
-  "@chatAgentContextPackTitle": {
-    "description": "Title for the agent context pack explanation card"
-  },
-  "chatAgentContextPackDescription": "When an agent is available, Weave will show what context is sent for this request before the agent uses it.",
-  "@chatAgentContextPackDescription": {
-    "description": "Description for the agent context pack explanation card"
-  },
-  "chatAgentContextPackScopedBullet": "Context is scoped to a selected chat, file, calendar event, board, or explicit workspace source.",
-  "@chatAgentContextPackScopedBullet": {
-    "description": "Bullet explaining scoped agent context"
-  },
-  "chatAgentContextPackConsentBullet": "You will see permission hints before starting or approving an agent action.",
-  "@chatAgentContextPackConsentBullet": {
-    "description": "Bullet explaining consent and permission hints for agent context"
-  },
-  "chatAgentContextPackNoSurveillanceBullet": "Agents do not continuously read rooms in the background.",
-  "@chatAgentContextPackNoSurveillanceBullet": {
-    "description": "Bullet explaining that agents are not surveillance-aware"
-  },
-  "chatAgentGovernanceAuditNote": "Agent creation, context access, tool/action execution, approval, and revocation must be audit-ready before runtime enablement.",
-  "@chatAgentGovernanceAuditNote": {
-    "description": "Audit and approval note for the governed agent chat preview panel"
-  },
-  "chatAgentAvailabilityPreview": "Disabled by policy",
-  "@chatAgentAvailabilityPreview": {
-    "description": "Agent availability label for a gated agent"
-  },
-  "chatAgentAvailabilityAdminSetup": "Admin setup required",
-  "@chatAgentAvailabilityAdminSetup": {
-    "description": "Agent availability label when setup must be done by an admin"
-  },
-  "chatAgentAvailabilityBlocked": "Blocked by policy",
-  "@chatAgentAvailabilityBlocked": {
-    "description": "Agent availability label when policy blocks an agent"
-  },
-  "chatAgentPersonalAssistantTitle": "Personal assistant",
-  "@chatAgentPersonalAssistantTitle": {
-    "description": "Title for the personal assistant preview tile"
-  },
-  "chatAgentPersonalAssistantDescription": "A private assistant chat for drafting, summaries, and reminders can be enabled only after workspace policy, consent, and audit controls are ready.",
-  "@chatAgentPersonalAssistantDescription": {
-    "description": "Description for the personal assistant preview tile"
-  },
-  "chatAgentChannelAgentTitle": "Channel agent",
-  "@chatAgentChannelAgentTitle": {
-    "description": "Title for the channel agent preview tile"
-  },
-  "chatAgentChannelAgentDescription": "A helper for a channel or project space can be enabled only through an admin-approved package.",
-  "@chatAgentChannelAgentDescription": {
-    "description": "Description for the channel agent preview tile"
-  },
-  "chatAgentPersonalScope": "Uses only context you choose for the current request; workspace policy decides which skills are available.",
-  "@chatAgentPersonalScope": {
-    "description": "Scope explanation for personal assistant preview"
-  },
-  "chatAgentPersonalBoundary": "No continuous room reading; a context pack is assembled only after you start or approve a request.",
-  "@chatAgentPersonalBoundary": {
-    "description": "Boundary explanation for personal assistant preview"
-  },
-  "chatAgentPersonalAudit": "Creation, context access, tool use, and permission changes will be auditable before runtime use.",
-  "@chatAgentPersonalAudit": {
-    "description": "Audit explanation for personal assistant preview"
-  },
-  "chatAgentChannelScope": "An owner or admin must enable the package and choose allowed chat, files, calendar, and board scopes.",
-  "@chatAgentChannelScope": {
-    "description": "Scope explanation for channel agent preview"
-  },
-  "chatAgentChannelBoundary": "The agent sees named spaces and explicit context packs, not every message in the workspace.",
-  "@chatAgentChannelBoundary": {
-    "description": "Boundary explanation for channel agent preview"
-  },
-  "chatAgentChannelAudit": "Approvals, revocations, and action attempts stay visible to admins without exposing secrets to the app.",
-  "@chatAgentChannelAudit": {
-    "description": "Audit explanation for channel agent preview"
-  },
-  "chatAgentStartDisabledButton": "Unavailable until enabled",
-  "@chatAgentStartDisabledButton": {
-    "description": "Disabled action label for preview agent chats"
   },
   "chatLoadingLabel": "Loading conversations…",
   "@chatLoadingLabel": {
@@ -1334,6 +1145,62 @@
   "@settingsBrandSectionDescription": {
     "description": "Subtle branded copy shown in the settings header card"
   },
+  "settingsSupportDiagnosticsTitle": "Support diagnostics",
+  "@settingsSupportDiagnosticsTitle": {
+    "description": "Settings section title for support-safe server and installed build identity"
+  },
+  "settingsSupportDiagnosticsDescription": "Use these values to confirm which server and immutable app candidate are installed. They contain no session tokens or provider credentials.",
+  "@settingsSupportDiagnosticsDescription": {
+    "description": "Description of the support-safe build diagnostics card"
+  },
+  "settingsSupportServerLabel": "Workspace server",
+  "@settingsSupportServerLabel": {
+    "description": "Label for the support-safe workspace server origin"
+  },
+  "settingsSupportCandidateCommitLabel": "Candidate commit",
+  "@settingsSupportCandidateCommitLabel": {
+    "description": "Label for the embedded candidate source commit"
+  },
+  "settingsSupportVersionLabel": "Version and build",
+  "@settingsSupportVersionLabel": {
+    "description": "Label for installed application version and build number"
+  },
+  "settingsSupportBundleIdentifierLabel": "Application identifier",
+  "@settingsSupportBundleIdentifierLabel": {
+    "description": "Label for the installed application bundle identifier"
+  },
+  "settingsSupportEvidenceReferenceLabel": "Evidence reference",
+  "@settingsSupportEvidenceReferenceLabel": {
+    "description": "Label for the embedded immutable candidate evidence reference"
+  },
+  "settingsSupportIdentityComplete": "Candidate identity is complete",
+  "@settingsSupportIdentityComplete": {
+    "description": "Status shown when all candidate identity fields are available"
+  },
+  "settingsSupportIdentityIncomplete": "Candidate metadata is incomplete; this build cannot satisfy the installed-candidate gate.",
+  "@settingsSupportIdentityIncomplete": {
+    "description": "Fail-closed status shown when candidate identity fields are absent"
+  },
+  "settingsSupportValueLoading": "Loading…",
+  "@settingsSupportValueLoading": {
+    "description": "Value shown while support diagnostics are loading"
+  },
+  "settingsSupportValueUnavailable": "Not embedded in this build",
+  "@settingsSupportValueUnavailable": {
+    "description": "Value shown when immutable candidate metadata is unavailable"
+  },
+  "settingsSupportVersionValue": "{version} ({buildNumber})",
+  "@settingsSupportVersionValue": {
+    "description": "Formatted installed version and build number",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "buildNumber": {
+        "type": "String"
+      }
+    }
+  },
   "settingsThemeTitle": "Appearance",
   "@settingsThemeTitle": {
     "description": "Settings section title for personal theme selection"
@@ -1590,11 +1457,11 @@
       }
     }
   },
-  "settingsShellRecentActivityToggleTitle": "Recent activity quick links",
+  "settingsShellRecentActivityToggleTitle": "Recent workspace activity",
   "@settingsShellRecentActivityToggleTitle": {
     "description": "Switch title for the recent activity shell module visibility preference"
   },
-  "settingsShellRecentActivityToggleDescription": "Show recent rooms and file changes above the bottom navigation.",
+  "settingsShellRecentActivityToggleDescription": "Show generic completed activity that your workspace permissions allow you to view.",
   "@settingsShellRecentActivityToggleDescription": {
     "description": "Switch description for the recent activity shell module visibility preference"
   },
@@ -2102,18 +1969,6 @@
   "settingsWorkspaceMatrixServerBodiesReadable": "Review",
   "@settingsWorkspaceMatrixServerBodiesReadable": {
     "description": "Value shown if backend diagnostics claim Matrix message bodies are server-readable"
-  },
-  "settingsWorkspaceMatrixAgentWritesLabel": "Agent writes",
-  "@settingsWorkspaceMatrixAgentWritesLabel": {
-    "description": "Label for bot, assistant, or connector write policy in Matrix readiness"
-  },
-  "settingsWorkspaceMatrixAgentWritesBlocked": "Blocked/fail-closed",
-  "@settingsWorkspaceMatrixAgentWritesBlocked": {
-    "description": "Value when Matrix bot/connector writes are blocked or fail closed"
-  },
-  "settingsWorkspaceMatrixAgentWritesReview": "Review policy",
-  "@settingsWorkspaceMatrixAgentWritesReview": {
-    "description": "Value shown when Matrix bot/connector write policy is not clearly fail-closed"
   },
   "settingsWorkspaceCapabilityReady": "Ready",
   "@settingsWorkspaceCapabilityReady": {
@@ -2851,54 +2706,6 @@
   "@chatRoomArchivedEmptyGuidance": {
     "description": "Guidance shown when all loaded messages are archived from the active timeline"
   },
-  "chatRoomContextPackTitle": "Context for this room",
-  "@chatRoomContextPackTitle": {
-    "description": "Heading for the explicit context preview shown in a chat room"
-  },
-  "chatRoomContextPackDescription": "Weave will only include scoped context that you can see here, such as this room, selected files, linked tasks, and recent decisions.",
-  "@chatRoomContextPackDescription": {
-    "description": "Description for the explicit context preview shown in a chat room"
-  },
-  "chatRoomContextPackCounts": "{includedCount, plural, =0 {No sources included} =1 {1 source included} other {{includedCount} sources included}}. {availableCount, plural, =0 {No optional sources available} =1 {1 optional source available} other {{availableCount} optional sources available}}.",
-  "@chatRoomContextPackCounts": {
-    "description": "Accessibility summary of included and available context sources in a room",
-    "placeholders": {
-      "includedCount": {
-        "type": "int"
-      },
-      "availableCount": {
-        "type": "int"
-      }
-    }
-  },
-  "chatRoomContextPackNoBackgroundReading": "No agent is reading this room in the background.",
-  "@chatRoomContextPackNoBackgroundReading": {
-    "description": "Safety note for the explicit context preview in a chat room"
-  },
-  "chatRoomContextCurrentRoomLabel": "Current room",
-  "@chatRoomContextCurrentRoomLabel": {
-    "description": "Context chip label for the currently opened chat room"
-  },
-  "chatRoomContextSelectedFilesLabel": "Selected files",
-  "@chatRoomContextSelectedFilesLabel": {
-    "description": "Context chip label for files explicitly selected by the user"
-  },
-  "chatRoomContextLinkedTasksLabel": "Linked tasks",
-  "@chatRoomContextLinkedTasksLabel": {
-    "description": "Context chip label for tasks linked to a room"
-  },
-  "chatRoomContextRecentDecisionsLabel": "Recent decisions",
-  "@chatRoomContextRecentDecisionsLabel": {
-    "description": "Context chip label for recent decisions linked to a room"
-  },
-  "chatRoomContextIncludedStatus": "Included",
-  "@chatRoomContextIncludedStatus": {
-    "description": "Accessibility status for context that is included in the preview"
-  },
-  "chatRoomContextAvailableStatus": "Available when selected",
-  "@chatRoomContextAvailableStatus": {
-    "description": "Accessibility status for optional context that is not included yet"
-  },
   "chatDecisionEvidencePanelTitle": "Decisions, risks, questions, and evidence",
   "@chatDecisionEvidencePanelTitle": {
     "description": "Heading for the room decision and evidence snapshot panel"
@@ -3085,110 +2892,6 @@
   "@chatDecisionEvidenceCaptureEvidenceAction": {
     "description": "Message menu action to capture a message as evidence"
   },
-  "chatWeaverScoutPanelTitle": "Weaver scout",
-  "@chatWeaverScoutPanelTitle": {
-    "description": "Title for the governed read-only Weaver scout panel"
-  },
-  "chatWeaverScoutPanelDescription": "Ask for channel context from allowed sources only. Sprint 4 Weaver is read-only and proposal-first; it cannot change room data silently.",
-  "@chatWeaverScoutPanelDescription": {
-    "description": "Description for the governed read-only Weaver scout panel"
-  },
-  "chatWeaverScoutReadOnlyStatus": "Read-only",
-  "@chatWeaverScoutReadOnlyStatus": {
-    "description": "Status chip for the Weaver scout read-only mode"
-  },
-  "chatWeaverScoutProposalOnlyStatus": "Proposal only",
-  "@chatWeaverScoutProposalOnlyStatus": {
-    "description": "Status chip for the Weaver scout proposal-only mode"
-  },
-  "chatWeaverScoutReceiptStatus": "Receipt required",
-  "@chatWeaverScoutReceiptStatus": {
-    "description": "Status chip for approval receipts required by Weaver scout"
-  },
-  "chatWeaverScoutCapabilitiesTitle": "What Weaver may do",
-  "@chatWeaverScoutCapabilitiesTitle": {
-    "description": "Heading for Weaver scout allowed capabilities"
-  },
-  "chatWeaverScoutSourcesTitle": "Allowed sources",
-  "@chatWeaverScoutSourcesTitle": {
-    "description": "Heading for Weaver scout allowed source references"
-  },
-  "chatWeaverScoutApprovalReceiptsRequired": "Any future write or team-room mutation must create an approval receipt with actor, requested action, approved action, target, timestamp, and result category.",
-  "@chatWeaverScoutApprovalReceiptsRequired": {
-    "description": "Governance note for Weaver scout approval receipts"
-  },
-  "chatWeaverScoutSummarizeCapability": "Summarize allowed context",
-  "@chatWeaverScoutSummarizeCapability": {
-    "description": "Weaver scout capability label for summarizing allowed context"
-  },
-  "chatWeaverScoutCiteSourcesCapability": "Cite sources",
-  "@chatWeaverScoutCiteSourcesCapability": {
-    "description": "Weaver scout capability label for citing sources"
-  },
-  "chatWeaverScoutProposeOnlyCapability": "Draft proposals only",
-  "@chatWeaverScoutProposeOnlyCapability": {
-    "description": "Weaver scout capability label for proposal-only actions"
-  },
-  "chatWeaverScoutApprovalReceiptCapability": "Require approval receipts",
-  "@chatWeaverScoutApprovalReceiptCapability": {
-    "description": "Weaver scout capability label for approval receipt requirement"
-  },
-  "chatWeaverScoutSummarizeDescription": "Summarize only explicitly allowed channel context.",
-  "@chatWeaverScoutSummarizeDescription": {
-    "description": "Weaver scout capability description for summarizing allowed context"
-  },
-  "chatWeaverScoutCiteSourcesDescription": "Cite messages, files, tasks, meetings, and decisions.",
-  "@chatWeaverScoutCiteSourcesDescription": {
-    "description": "Weaver scout capability description for citing allowed sources"
-  },
-  "chatWeaverScoutProposeOnlyDescription": "Draft or propose actions without mutating team data.",
-  "@chatWeaverScoutProposeOnlyDescription": {
-    "description": "Weaver scout capability description for proposal-only actions"
-  },
-  "chatWeaverScoutApprovalReceiptDescription": "Require approval receipts for any future write path.",
-  "@chatWeaverScoutApprovalReceiptDescription": {
-    "description": "Weaver scout capability description for approval receipts"
-  },
-  "chatWeaverScoutMessageSourceLabel": "Explicit channel messages",
-  "@chatWeaverScoutMessageSourceLabel": {
-    "description": "Weaver scout source label for explicit channel messages"
-  },
-  "chatWeaverScoutMessageSourceExcerpt": "Messages selected or allowed by the member context policy.",
-  "@chatWeaverScoutMessageSourceExcerpt": {
-    "description": "Weaver scout source excerpt for explicit channel messages"
-  },
-  "chatWeaverScoutDecisionSourceLabel": "Decision ledger",
-  "@chatWeaverScoutDecisionSourceLabel": {
-    "description": "Weaver scout source label for decision ledger entries"
-  },
-  "chatWeaverScoutDecisionSourceExcerpt": "Captured decisions with source references.",
-  "@chatWeaverScoutDecisionSourceExcerpt": {
-    "description": "Weaver scout source excerpt for decision ledger entries"
-  },
-  "chatWeaverScoutFileSourceLabel": "Shared files",
-  "@chatWeaverScoutFileSourceLabel": {
-    "description": "Weaver scout source label for shared files"
-  },
-  "chatWeaverScoutFileSourceExcerpt": "File names and support-safe metadata visible to the member.",
-  "@chatWeaverScoutFileSourceExcerpt": {
-    "description": "Weaver scout source excerpt for shared files"
-  },
-  "chatWeaverScoutTaskSourceLabel": "Open tasks",
-  "@chatWeaverScoutTaskSourceLabel": {
-    "description": "Weaver scout source label for open tasks"
-  },
-  "chatWeaverScoutTaskSourceExcerpt": "Task status and follow-up links visible to the member.",
-  "@chatWeaverScoutTaskSourceExcerpt": {
-    "description": "Weaver scout source excerpt for open tasks"
-  },
-  "chatWeaverScoutMeetingSourceLabel": "Meeting capsules",
-  "@chatWeaverScoutMeetingSourceLabel": {
-    "description": "Weaver scout source label for meeting capsules"
-  },
-  "chatWeaverScoutMeetingSourceExcerpt": "Agenda and follow-up references, not recordings or transcripts.",
-  "@chatWeaverScoutMeetingSourceExcerpt": {
-    "description": "Weaver scout source excerpt for meeting capsules"
-  },
   "filesEmptyMessage": "No files yet",
   "@filesEmptyMessage": {
     "description": "Empty state message for the files screen"
@@ -3265,7 +2968,7 @@
   "@serverConfigurationServicesLabel": {
     "description": "Section title for derived service endpoints"
   },
-  "serverConfigurationServicesHelper": "Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.",
+  "serverConfigurationServicesHelper": "The Matrix facade is fixed to the backend API origin. Files and backend product endpoints are derived from the issuer host.",
   "@serverConfigurationServicesHelper": {
     "description": "Helper text for the service endpoints section"
   },
@@ -3281,9 +2984,9 @@
   "@serverConfigurationIdentityEndpointHelper": {
     "description": "Helper text for the identity endpoint section in setup and settings"
   },
-  "serverConfigurationMatrixLabel": "Matrix Homeserver URL",
+  "serverConfigurationMatrixLabel": "Weave Matrix Facade URL",
   "@serverConfigurationMatrixLabel": {
-    "description": "Label for the Matrix homeserver URL field"
+    "description": "Label for the Weave-owned Matrix facade URL field"
   },
   "serverConfigurationNextcloudLabel": "Nextcloud Base URL",
   "@serverConfigurationNextcloudLabel": {
@@ -4058,7 +3761,7 @@
   "@boardsWorkspaceBackendFedChip": {
     "description": "Chip label indicating the workspace snapshot came from the backend facade"
   },
-  "boardsWorkspaceProviderBlockedChip": "Provider runtime blocked",
+  "boardsWorkspaceProviderBlockedChip": "Boards unavailable",
   "@boardsWorkspaceProviderBlockedChip": {
     "description": "Chip label indicating the backend provider runtime is blocked/unavailable"
   },
@@ -4224,174 +3927,6 @@
   "chatContextAgentHintDescription": "Assistants receive only the scoped pack for the request, mention, or schedule.",
   "@chatContextAgentHintDescription": {
     "description": "Context hint body for scoped agent context packs"
-  },
-  "firstRunAdminSetupTitle": "Owner/admin setup responsibilities",
-  "@firstRunAdminSetupTitle": {
-    "description": "Title for first-run admin setup guidance"
-  },
-  "firstRunAdminSetupDescription": "Your role can manage workspace setup. Use admin settings for organization access, invitations, capability readiness, and recovery tasks; normal members should only need one Weave sign-in.",
-  "@firstRunAdminSetupDescription": {
-    "description": "First-run guidance for owner/admin users"
-  },
-  "agentCapabilityPolicyTitle": "AI agent capability governance",
-  "@agentCapabilityPolicyTitle": {
-    "description": "Settings card title for AI agent capability governance"
-  },
-  "agentCapabilityPolicyAdminDescription": "Owners and admins decide which agent packages and connectors can be used. This capability stays off until permission, consent, and audit controls are connected.",
-  "@agentCapabilityPolicyAdminDescription": {
-    "description": "Admin-facing description for AI agent capability governance"
-  },
-  "agentCapabilityPolicyUserDescription": "AI agent chats are not enabled for this workspace yet. You can keep using Weave normally; an owner or admin must turn this on first.",
-  "@agentCapabilityPolicyUserDescription": {
-    "description": "Member-facing description for AI agent capability governance"
-  },
-  "agentCapabilityPolicyFailClosedNotice": "Agent capabilities are blocked until Weave can confirm your role and the workspace policy.",
-  "@agentCapabilityPolicyFailClosedNotice": {
-    "description": "Fail-closed notice when policy cannot be trusted"
-  },
-  "agentCapabilityPolicyManageDisabledButton": "Management unavailable until admin setup is complete",
-  "@agentCapabilityPolicyManageDisabledButton": {
-    "description": "Disabled button label for future agent capability management"
-  },
-  "agentCapabilityPolicyAskAdminHint": "Need an agent for your team? Ask a workspace owner or admin to review agent capabilities when they are available.",
-  "@agentCapabilityPolicyAskAdminHint": {
-    "description": "Hint for non-admin users"
-  },
-  "agentCapabilityPolicyAdminStateHint": "Current state: disabled by policy. Owner/admin review is required before users can start an agent.",
-  "@agentCapabilityPolicyAdminStateHint": {
-    "description": "Admin state hint for disabled agent capabilities"
-  },
-  "agentCapabilityPersonalAssistantTitle": "Personal assistant",
-  "@agentCapabilityPersonalAssistantTitle": {
-    "description": "Agent capability title for personal assistant"
-  },
-  "agentCapabilityPersonalAssistantDescription": "Will only use context you choose for a request, after your workspace enables the capability.",
-  "@agentCapabilityPersonalAssistantDescription": {
-    "description": "Agent capability description for personal assistant"
-  },
-  "agentCapabilityChannelAgentTitle": "Channel agent",
-  "@agentCapabilityChannelAgentTitle": {
-    "description": "Agent capability title for channel agent"
-  },
-  "agentCapabilityChannelAgentDescription": "Requires an owner or admin to choose which channels, files, calendar items, or boards the agent may use.",
-  "@agentCapabilityChannelAgentDescription": {
-    "description": "Agent capability description for channel agent"
-  },
-  "agentCapabilityAvailabilityPreviewOnly": "Admin setup required",
-  "@agentCapabilityAvailabilityPreviewOnly": {
-    "description": "Agent capability availability label when admin setup is required"
-  },
-  "agentCapabilityAvailabilityAdminSetupRequired": "Admin setup required",
-  "@agentCapabilityAvailabilityAdminSetupRequired": {
-    "description": "Agent capability availability label when admin setup is required"
-  },
-  "agentCapabilityAvailabilityBlocked": "Blocked",
-  "@agentCapabilityAvailabilityBlocked": {
-    "description": "Agent capability availability label for blocked state"
-  },
-  "agentCapabilityPolicyErrorTitle": "Agent capability policy is unavailable.",
-  "@agentCapabilityPolicyErrorTitle": {
-    "description": "Error message for AI agent capability policy settings section"
-  },
-  "agentCapabilityPolicyLoading": "Checking agent capability policy…",
-  "@agentCapabilityPolicyLoading": {
-    "description": "Loading message for AI agent capability policy settings section"
-  },
-  "weaverMemberTitle": "Mein Weaver",
-  "@weaverMemberTitle": {
-    "description": "Title for the governed member Weaver settings entry point"
-  },
-  "weaverMemberUnavailableTitle": "Weaver unavailable",
-  "@weaverMemberUnavailableTitle": {
-    "description": "Title when the governed Weaver member settings entry point is unavailable"
-  },
-  "weaverMemberDescription": "Choose from admin-approved model aliases and review the personal settings your workspace policy allows.",
-  "@weaverMemberDescription": {
-    "description": "Description for available governed Weaver member settings"
-  },
-  "weaverMemberUnavailableDescription": "Your workspace has not enabled a governed Weaver profile for this account.",
-  "@weaverMemberUnavailableDescription": {
-    "description": "Description when Weaver is unavailable for the member"
-  },
-  "weaverMemberStatusAvailable": "Enabled by policy",
-  "@weaverMemberStatusAvailable": {
-    "description": "Status chip for available Weaver member settings"
-  },
-  "weaverMemberStatusDisabled": "Disabled by policy",
-  "@weaverMemberStatusDisabled": {
-    "description": "Status chip for disabled Weaver member settings"
-  },
-  "weaverMemberStatusUnavailable": "Unavailable",
-  "@weaverMemberStatusUnavailable": {
-    "description": "Status chip for unavailable Weaver member settings"
-  },
-  "weaverMemberLoading": "Checking Weaver policy…",
-  "@weaverMemberLoading": {
-    "description": "Loading message for Weaver member policy"
-  },
-  "weaverMemberModelAliasTitle": "Model alias",
-  "@weaverMemberModelAliasTitle": {
-    "description": "Title for choosing a Weaver model alias"
-  },
-  "weaverMemberModelAliasDescription": "Only aliases approved by your workspace policy are shown here.",
-  "@weaverMemberModelAliasDescription": {
-    "description": "Description for admin-approved model alias choices"
-  },
-  "weaverMemberWorkspaceDefaultAlias": "Workspace default",
-  "@weaverMemberWorkspaceDefaultAlias": {
-    "description": "Fallback model alias label when no explicit alias names are exposed"
-  },
-  "weaverMemberApprovedByAdmin": "Approved by workspace policy",
-  "@weaverMemberApprovedByAdmin": {
-    "description": "Subtitle for an approved Weaver setting"
-  },
-  "weaverMemberPersonalSettingsTitle": "Personal settings",
-  "@weaverMemberPersonalSettingsTitle": {
-    "description": "Title for personal Weaver settings"
-  },
-  "weaverMemberStyleSetting": "Style preferences",
-  "@weaverMemberStyleSetting": {
-    "description": "Weaver style preference setting label"
-  },
-  "weaverMemberMemorySetting": "Memory controls",
-  "@weaverMemberMemorySetting": {
-    "description": "Weaver memory control setting label"
-  },
-  "weaverMemberWorkspaceSetting": "Workspace personalization",
-  "@weaverMemberWorkspaceSetting": {
-    "description": "Weaver workspace personalization setting label"
-  },
-  "weaverMemberSettingAllowed": "Allowed for your profile",
-  "@weaverMemberSettingAllowed": {
-    "description": "Subtitle for an allowed Weaver personal setting"
-  },
-  "weaverMemberSettingDisabled": "Not enabled for your profile",
-  "@weaverMemberSettingDisabled": {
-    "description": "Subtitle for a disabled Weaver personal setting"
-  },
-  "weaverMemberAllowedSkillsTitle": "Allowed skills",
-  "@weaverMemberAllowedSkillsTitle": {
-    "description": "Title for allowed Weaver skills"
-  },
-  "weaverMemberNoAllowedSkills": "No optional skills are enabled for your profile.",
-  "@weaverMemberNoAllowedSkills": {
-    "description": "Empty state for allowed Weaver skills"
-  },
-  "weaverMemberAllowedConnectionsTitle": "Allowed personal connections",
-  "@weaverMemberAllowedConnectionsTitle": {
-    "description": "Title for approved personal Weaver connections"
-  },
-  "weaverMemberNoAllowedConnections": "No personal connection flows are enabled for your profile.",
-  "@weaverMemberNoAllowedConnections": {
-    "description": "Empty state for allowed Weaver personal connections"
-  },
-  "weaverMemberBoundaryNotice": "Administration of providers, credentials, connector setup, and runtime files stays outside member settings; members only see policy-approved choices.",
-  "@weaverMemberBoundaryNotice": {
-    "description": "Boundary notice for available Weaver member settings"
-  },
-  "weaverMemberDisabledBoundaryNotice": "No provider secrets or runtime configuration are exposed. Contact your workspace owner if you expected Weaver access.",
-  "@weaverMemberDisabledBoundaryNotice": {
-    "description": "Boundary notice when Weaver is disabled for a member"
   },
   "workflowPreviewTitle": "Active workflows",
   "@workflowPreviewTitle": {
@@ -4816,72 +4351,33 @@
   "@channelWorkspaceStatusDegraded": {
     "description": "Status chip for a degraded channel workspace surface"
   },
-  "agentCapabilityAvailabilityDisabledByPolicy": "Disabled by policy",
-  "@agentCapabilityAvailabilityDisabledByPolicy": {
-    "description": "Availability chip for an agent capability disabled by workspace policy"
-  },
-  "chatWeaverBetaTitle": "Weaver Beta helper",
-  "@chatWeaverBetaTitle": {
-    "description": "Title for the bounded Weaver helper card in chat home"
-  },
-  "chatWeaverBetaDescription": "Weaver stays inside this Weave workspace and can only use approved capabilities. Members see approved Weave actions, not internal runtime catalogs.",
-  "@chatWeaverBetaDescription": {
-    "description": "Description for bounded Weaver helper card"
-  },
-  "chatWeaverBetaConnectedState": "Connected",
-  "@chatWeaverBetaConnectedState": {
-    "description": "Weaver connection state label"
-  },
-  "chatWeaverBetaUnconnectedState": "Unconnected",
-  "@chatWeaverBetaUnconnectedState": {
-    "description": "Weaver connection state label"
-  },
-  "chatWeaverBetaEnabledState": "Weaver enabled",
-  "@chatWeaverBetaEnabledState": {
-    "description": "Weaver enabled state label"
-  },
-  "chatWeaverBetaDisabledState": "Weaver disabled",
-  "@chatWeaverBetaDisabledState": {
-    "description": "Weaver disabled state label"
-  },
-  "chatWeaverBetaCapabilityUnavailableState": "Capability unavailable",
-  "@chatWeaverBetaCapabilityUnavailableState": {
-    "description": "Weaver capability unavailable state label"
-  },
-  "chatWeaverBetaApprovalRequiredState": "Approval required for sensitive actions",
-  "@chatWeaverBetaApprovalRequiredState": {
-    "description": "Weaver approval state label"
-  },
-  "chatWeaverBetaDeniedFailedState": "Denied or failed safely",
-  "@chatWeaverBetaDeniedFailedState": {
-    "description": "Weaver denied/failed state label"
-  },
-  "chatWeaverBetaSupportSafeResult": "Results show a summary, status, and audit reference only; secrets and raw provider payloads stay out of the member view.",
-  "@chatWeaverBetaSupportSafeResult": {
-    "description": "Support-safe result note for Weaver helper"
-  },
-  "chatWeaverBetaSemanticLabel": "Weaver Beta helper. Personal helper: {personalState}. Channel helper: {channelState}. Workspace connection: {connectionState}. Results are support-safe and do not expose secrets or raw provider payloads.",
-  "@chatWeaverBetaSemanticLabel": {
-    "description": "Accessibility label for Weaver helper card",
-    "placeholders": {
-      "personalState": {
-        "type": "String"
-      },
-      "channelState": {
-        "type": "String"
-      },
-      "connectionState": {
-        "type": "String"
-      }
-    }
-  },
   "setupMemberHandoffTitle": "Join from an invite or organization sign-in",
   "@setupMemberHandoffTitle": {
     "description": "Title for the normal member handoff-first setup screen"
   },
-  "setupMemberHandoffDescription": "Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.",
+  "setupMemberHandoffDescription": "Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you for technical service settings.",
   "@setupMemberHandoffDescription": {
     "description": "Description for the normal member handoff-first setup screen"
+  },
+  "setupOrganizationUriLabel": "Server URI, invitation link, or QR payload",
+  "@setupOrganizationUriLabel": {
+    "description": "Organization access input label"
+  },
+  "setupOrganizationUriHelper": "Paste the link from your email or QR code, or enter your organization's Weave address.",
+  "@setupOrganizationUriHelper": {
+    "description": "Organization access input help"
+  },
+  "setupOrganizationUriError": "Enter a secure Weave server URI or invitation link without embedded credentials.",
+  "@setupOrganizationUriError": {
+    "description": "Invalid organization access input"
+  },
+  "setupOrganizationContinueButton": "Continue to organization",
+  "@setupOrganizationContinueButton": {
+    "description": "Resolve organization access action"
+  },
+  "setupOrganizationAccessHelp": "Your invitation email and organization QR code contain the same Weave address. After it is verified, the next screen always offers Sign in.",
+  "@setupOrganizationAccessHelp": {
+    "description": "Explains equivalent organization access methods"
   },
   "setupMemberHandoffPrimaryAction": "I have an invite or sign-in link",
   "@setupMemberHandoffPrimaryAction": {
@@ -4938,6 +4434,10 @@
   "memberHandoffErrorGuidance": "The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.",
   "@memberHandoffErrorGuidance": {
     "description": "Support-safe guidance when member handoff consumption fails"
+  },
+  "memberHandoffSignInRetryGuidance": "Sign-in did not complete. Try again in the system browser or ask your workspace admin to verify your access.",
+  "@memberHandoffSignInRetryGuidance": {
+    "description": "Support-safe guidance after sign-in from a consumed member handoff fails"
   },
   "memberHandoffTlsErrorGuidance": "Weave could not reach the workspace start configuration over trusted TLS. For local dogfood, install and fully trust the Weave Local Development CA on this iPhone, or ask your admin for a publicly trusted organization sign-in link.",
   "@memberHandoffTlsErrorGuidance": {

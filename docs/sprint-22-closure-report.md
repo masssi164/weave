@@ -21,7 +21,7 @@ All work is intentionally safe for local and CI validation. Live Docker provider
 
 ## Files and artifacts changed
 
-- `infra/provider-lab/docker-compose.yml` — local Docker Compose topology for Keycloak, Authentik, Matrix/Synapse, Zulip, Nextcloud, MinIO, Radicale, OpenProject, and Docker Runtime boundary.
+- `infra/provider-lab/docker-compose.yml` — historical local provider topology for Keycloak, Authentik, Matrix/Synapse, Zulip, Nextcloud, MinIO, Radicale, and OpenProject. The obsolete Docker runtime placeholder was removed when Agent Runtime Control became the binding architecture.
 - `infra/provider-lab/.env.example` — local-only environment variable template.
 - `infra/provider-lab/scripts/lab.sh` — start, stop, reset, inspect, health, and verify wrapper.
 - `release/provider-lab/manifests/*.json` — provider manifests with one reality level, rollback honesty, history honesty, secret boundary, and redacted support evidence.

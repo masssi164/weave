@@ -7,9 +7,11 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.PlatformConfigResponse;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -20,6 +22,9 @@ public class PlatformContractService {
     private final MatrixChatProperties matrixProperties;
     private final WeaveSecurityProperties securityProperties;
     private final WorkspaceCapabilityProperties workspaceProperties;
+
+    @Value("${weave.platform.release-posture:dogfood}")
+    private String releasePosture = "dogfood";
 
     public PlatformContractService(
             OAuth2ResourceServerProperties resourceServerProperties,
@@ -36,25 +41,52 @@ public class PlatformContractService {
 
     public PlatformConfigResponse config() {
         return new PlatformConfigResponse(
+                1,
                 platformProperties.publicBaseUrl(),
                 platformProperties.apiBaseUrl(),
-                platformProperties.authBaseUrl(),
-                oidcIssuerUrl(),
-                securityProperties.clientId(),
-                platformProperties.matrixHomeserverUrl(),
-                platformProperties.filesProductUrl(),
-                platformProperties.calendarProductUrl(),
-                platformProperties.nextcloudBaseUrl(),
-                new PlatformConfigResponse.Targets(
-                        platformProperties.targets().mobile(),
-                        platformProperties.targets().desktop(),
-                        platformProperties.targets().web()),
-                new PlatformConfigResponse.Features(
-                        workspaceProperties.chat().enabled(),
-                        workspaceProperties.chat().enabled() && matrixProperties.e2ee().fullyValidated(),
-                        matrixProperties.federationEnabled(),
-                        workspaceProperties.files().enabled(),
-                        workspaceProperties.calendar().enabled()));
+                new PlatformConfigResponse.Oidc(oidcIssuerUrl(), securityProperties.clientId()),
+                new PlatformConfigResponse.Protocols(
+                        platformProperties.matrixHomeserverUrl(),
+                        joinUrlPath(apiOrigin(), "/dav/files"),
+                        joinUrlPath(apiOrigin(), "/caldav")),
+                releasePosture(),
+                List.of(
+                        domain("platform-identity", true, List.of(
+                                "identity.sign_in", "identity.groups", "identity.roles",
+                                "policy.read", "policy.manage")),
+                        domain("chat", workspaceProperties.chat().enabled(), List.of(
+                                "chat.read", "chat.send", "chat.channels", "chat.moderate")),
+                        domain("files", workspaceProperties.files().enabled(), List.of(
+                                "files.read", "files.upload", "files.download", "files.delete", "files.share")),
+                        domain("calendar", workspaceProperties.calendar().enabled(), List.of(
+                                "calendar.read", "calendar.manage_events", "calendar.thread_refs")),
+                        domain("boards", workspaceProperties.boards().enabled(), List.of(
+                                "boards.read", "boards.update_task", "boards.sync_workspace", "boards.link_decision")),
+                        domain("health", true, List.of(
+                                "health.read", "health.run_diagnostic", "health.export_support_bundle",
+                                "backup.restore.verify"))),
+                List.of());
+    }
+
+    private String releasePosture() {
+        String normalized = releasePosture == null
+                ? "dogfood"
+                : releasePosture.trim().toLowerCase(java.util.Locale.ROOT);
+        return switch (normalized) {
+            case "development", "dogfood", "release_candidate", "stable" -> normalized;
+            default -> throw new IllegalStateException("Unsupported Weave release posture");
+        };
+    }
+
+    private PlatformConfigResponse.DomainCapability domain(
+            String domain,
+            boolean enabled,
+            List<String> capabilities) {
+        return new PlatformConfigResponse.DomainCapability(
+                domain,
+                enabled ? "available" : "not_configured",
+                enabled ? capabilities : List.of(),
+                null);
     }
 
     private String oidcIssuerUrl() {
@@ -63,6 +95,17 @@ public class PlatformContractService {
             return configuredIssuer;
         }
         return joinUrlPath(platformProperties.authBaseUrl(), "/realms/weave");
+    }
+
+    private String apiOrigin() {
+        URI apiBaseUrl = URI.create(platformProperties.apiBaseUrl());
+        String scheme = apiBaseUrl.getScheme();
+        if ((scheme == null
+                        || (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https")))
+                || apiBaseUrl.getHost() == null) {
+            throw new IllegalStateException("weave.platform.api-base-url must be an absolute HTTP(S) URL");
+        }
+        return scheme + "://" + apiBaseUrl.getRawAuthority();
     }
 
     private String joinUrlPath(String baseUrl, String path) {
@@ -157,7 +200,7 @@ public class PlatformContractService {
                 "Matrix chat",
                 workspaceProperties.chat(),
                 auth,
-                "Set WEAVE_MATRIX_HOMESERVER_URL to the public Matrix base URL, for example https://matrix.weave.test.",
+                "Set WEAVE_MATRIX_BASE_URL to the southbound Matrix provider URL; clients receive the Weave facade from the API origin.",
                 "Enable WEAVE_WORKSPACE_CHAT_ENABLED when chat should be available.");
         return new PlatformStatusResponse.MatrixStatus(
                 status.status(),

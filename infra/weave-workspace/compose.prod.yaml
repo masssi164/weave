@@ -1,0 +1,31 @@
+services:
+  keycloak:
+    command:
+      - start
+      - --optimized
+      - --import-realm
+    environment:
+      KC_VAULT_DIR: /opt/keycloak/vault
+    secrets:
+      - source: smtp-password
+        target: /opt/keycloak/vault/weave_smtp-password
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "0"
+        mode: 0400
+
+  backend:
+    environment:
+      WEAVE_RELEASE_POSTURE: stable
+
+# Production retains its separately reviewed externally managed persistence
+# policy. The resettable Compose ownership contract applies only to dogfood.
+volumes:
+  db-data: !override
+    external: true
+    name: ${WEAVE_DB_DATA_VOLUME:-weave_db_data}
+  mailpit-data: !override
+    external: true
+    name: ${WEAVE_MAILPIT_DATA_VOLUME:-weave_mailpit_data}
+  native-files-data: !override
+    external: true
+    name: ${WEAVE_NATIVE_FILES_DATA_VOLUME:-weave_native_files_data}

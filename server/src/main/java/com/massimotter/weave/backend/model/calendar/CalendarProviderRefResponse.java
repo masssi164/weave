@@ -3,23 +3,23 @@ package com.massimotter.weave.backend.model.calendar;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.OffsetDateTime;
 
-@Schema(description = "Safe provider reference for a calendar event. Raw provider paths, URLs, and credentials are deliberately not exposed.")
+@Schema(description = "Safe Weave calendar storage reference. Raw provider paths, URLs, and credentials are deliberately not exposed.")
 public record CalendarProviderRefResponse(
-        @Schema(description = "Provider family behind the facade.", example = "nextcloud-caldav")
+        @Schema(description = "Weave calendar projection family behind the facade.", example = "weave-calendar-facade")
         String provider,
-        @Schema(description = "Provider object kind.", example = "calendar-event")
+        @Schema(description = "Weave projection object kind.", example = "calendar-event")
         String objectKind,
-        @Schema(description = "Opaque Weave facade identifier for the provider object.")
+        @Schema(description = "Opaque Weave facade identifier for the storage object.")
         String opaqueId,
         @Schema(description = "Opaque revision token when available.")
         String etag,
-        @Schema(description = "Last known provider synchronization/update timestamp when available.")
+        @Schema(description = "Last known storage synchronization/update timestamp when available.")
         OffsetDateTime lastSyncedAt,
-        @Schema(description = "Always false for public Calendar API responses; raw provider paths must not be exposed.", example = "false")
+        @Schema(description = "Always false for public Calendar API responses; raw storage paths must not be exposed.", example = "false")
         boolean rawProviderPathExposed) {
 
     public CalendarProviderRefResponse {
-        provider = provider == null || provider.isBlank() ? "nextcloud-caldav" : provider.trim();
+        provider = provider == null || provider.isBlank() ? "weave-calendar-facade" : provider.trim();
         objectKind = objectKind == null || objectKind.isBlank() ? "calendar-event" : objectKind.trim();
         opaqueId = opaqueId == null || opaqueId.isBlank() ? null : opaqueId.trim();
         etag = etag == null || etag.isBlank() ? null : etag.trim();
@@ -27,6 +27,6 @@ public record CalendarProviderRefResponse(
     }
 
     public static CalendarProviderRefResponse caldavEvent(String opaqueId, String etag, OffsetDateTime lastSyncedAt) {
-        return new CalendarProviderRefResponse("nextcloud-caldav", "calendar-event", opaqueId, etag, lastSyncedAt, false);
+        return new CalendarProviderRefResponse("weave-calendar-facade", "calendar-event", opaqueId, etag, lastSyncedAt, false);
     }
 }

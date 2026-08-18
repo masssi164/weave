@@ -4,10 +4,10 @@ Feature: Sprint 8 domain control-plane evidence
   boundaries are executable product contracts, not provider-specific intent.
 
   @weave-sprint8-domain-control-plane-evidence
-  Scenario: Admin validates domains, dry-runs identity, checks portability, and members see provider-neutral states
+  Scenario: Admin validates domains, reviews Keycloak baseline readiness, checks portability, and members see provider-neutral states
     Given an organization admin opens the Admin Console
     When the admin reviews canonical domain setup
-    And runs a Keycloak desired-state dry-run
+    And reviews support-safe Keycloak realm import and bounded migration evidence
     And reviews domain-first readiness states
     And attempts provider switch without dry-run evidence
     Then the provider switch is blocked

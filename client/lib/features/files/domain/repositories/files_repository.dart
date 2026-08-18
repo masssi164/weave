@@ -32,3 +32,17 @@ abstract interface class FilesEntryMutationRepository {
 
   Future<void> deleteEntry(FileEntry entry);
 }
+
+abstract interface class FilesRelocationRepository {
+  Future<FileEntry> copyEntry(
+    FileEntry source, {
+    required String destinationPath,
+    bool overwrite = false,
+  });
+
+  Future<FileEntry> moveEntry(
+    FileEntry source, {
+    required String destinationPath,
+    bool overwrite = false,
+  });
+}

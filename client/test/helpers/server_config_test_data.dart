@@ -7,11 +7,11 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
 
 ServerConfiguration buildTestConfiguration({
-  OidcProviderType providerType = OidcProviderType.authentik,
+  OidcProviderType providerType = OidcProviderType.oidc,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
-  String matrixHomeserverUrl = 'https://matrix.home.internal',
-  String nextcloudBaseUrl = 'https://files.home.internal',
+  String matrixHomeserverUrl = 'https://api.home.internal',
+  String nextcloudBaseUrl = 'https://api.home.internal/dav/files',
   String backendApiBaseUrl = 'https://api.home.internal/api',
 }) {
   return ServerConfiguration(
@@ -27,11 +27,11 @@ ServerConfiguration buildTestConfiguration({
 }
 
 String encodeTestConfiguration({
-  OidcProviderType providerType = OidcProviderType.authentik,
+  OidcProviderType providerType = OidcProviderType.oidc,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
-  String matrixHomeserverUrl = 'https://matrix.home.internal',
-  String nextcloudBaseUrl = 'https://files.home.internal',
+  String matrixHomeserverUrl = 'https://api.home.internal',
+  String nextcloudBaseUrl = 'https://api.home.internal/dav/files',
   String? backendApiBaseUrl = 'https://api.home.internal/api',
 }) {
   final json = <String, Object?>{
@@ -49,11 +49,11 @@ String encodeTestConfiguration({
 }
 
 Map<String, Object> buildStoredConfiguration({
-  OidcProviderType providerType = OidcProviderType.authentik,
+  OidcProviderType providerType = OidcProviderType.oidc,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
-  String matrixHomeserverUrl = 'https://matrix.home.internal',
-  String nextcloudBaseUrl = 'https://files.home.internal',
+  String matrixHomeserverUrl = 'https://api.home.internal',
+  String nextcloudBaseUrl = 'https://api.home.internal/dav/files',
   String? backendApiBaseUrl = 'https://api.home.internal/api',
 }) {
   return {

@@ -5,9 +5,9 @@ import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -19,7 +19,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave"
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
+        "weave.identity.invitations.bootstrap-owner.enabled=true",
+        "weave.identity.invitations.bootstrap-owner.token-file=/openapi-export/owner-bootstrap-token"
 })
 @AutoConfigureMockMvc
 class OpenApiDocumentationTest {
@@ -27,7 +29,7 @@ class OpenApiDocumentationTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @Test
@@ -41,7 +43,8 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/health/ready']").exists())
                 .andExpect(jsonPath("$.paths['/api/platform/config']").exists())
                 .andExpect(jsonPath("$.paths['/api/platform/status']").exists())
-                .andExpect(jsonPath("$.paths['/api/onboarding/status']").exists())
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation'].post.operationId")
+                        .value("bootstrapOwnerInvitation"))
                 .andExpect(jsonPath("$.paths['/api/profile']").exists())
                 .andExpect(jsonPath("$.paths['/api/profile'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/profile'].get.operationId").value("getProductProfile"))
@@ -49,38 +52,45 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/profile'].patch.operationId").value("updateProductProfile"))
                 .andExpect(jsonPath("$.paths['/api/profile/sync-status']").exists())
                 .andExpect(jsonPath("$.paths['/api/profile/sync-status'].get.operationId").value("getProductProfileSyncStatus"))
-                .andExpect(jsonPath("$.paths['/api/files']").exists())
-                .andExpect(jsonPath("$.paths['/api/files'].get.operationId").value("listFiles"))
-                .andExpect(jsonPath("$.paths['/api/files/upload']").exists())
-                .andExpect(jsonPath("$.paths['/api/files/upload'].post.operationId").value("uploadFile"))
-                .andExpect(jsonPath("$.paths['/api/files/folders']").exists())
-                .andExpect(jsonPath("$.paths['/api/files/folders'].post.operationId").value("createFilesFolder"))
+                .andExpect(jsonPath("$.paths['/api/files']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/upload']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/folders']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/files/readiness']").exists())
                 .andExpect(jsonPath("$.paths['/api/files/readiness'].get.operationId").value("getFilesReadiness"))
                 .andExpect(jsonPath("$.paths['/api/files/readiness'].get.responses['200'].content['*/*'].schema['$ref']")
                         .value("#/components/schemas/WorkspaceCapabilityStatusResponse"))
-                .andExpect(jsonPath("$.paths['/api/files/{id}/download']").exists())
-                .andExpect(jsonPath("$.paths['/api/files/{id}/download'].get.operationId").value("downloadFile"))
-                .andExpect(jsonPath("$.paths['/api/files/{id}/download'].get.responses['200'].content['*/*'].schema.type")
-                        .value("string"))
-                .andExpect(jsonPath("$.paths['/api/files/{id}/download'].get.responses['200'].content['*/*'].schema.format")
-                        .value("binary"))
-                .andExpect(jsonPath("$.paths['/api/files/{id}']").exists())
-                .andExpect(jsonPath("$.paths['/api/files/{id}'].delete.operationId").value("deleteFile"))
-                .andExpect(jsonPath("$.paths['/api/files/{id}'].delete.responses['204']").exists())
-                .andExpect(jsonPath("$.paths['/api/calendar/events']").exists())
+                .andExpect(jsonPath("$.paths['/api/files/native-provider-setup']").exists())
+                .andExpect(jsonPath("$.paths['/api/files/native-provider-setup'].get.operationId")
+                        .value("getFilesNativeProviderSetup"))
+                .andExpect(jsonPath("$.paths['/api/files/native-provider-setup'].get.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/FileNativeProviderSetupResponse"))
+                .andExpect(jsonPath("$.paths['/api/files/client-setup/credentials']").exists())
+                .andExpect(jsonPath("$.paths['/api/files/client-setup/credentials/{credentialId}']").exists())
+                .andExpect(jsonPath("$.paths['/api/files/{id}/download']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/files/{id}']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/calendar/events']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/client-setup']").exists())
+                .andExpect(jsonPath("$.paths['/api/calendar/native-sync-setup']").exists())
+                .andExpect(jsonPath("$.paths['/api/calendar/native-sync-setup'].get.operationId")
+                        .value("getCalendarNativeSyncSetup"))
+                .andExpect(jsonPath("$.paths['/api/calendar/native-sync-setup'].get.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/CalendarNativeSyncSetupResponse"))
                 .andExpect(jsonPath("$.paths['/api/calendar/access-policy']").exists())
                 .andExpect(jsonPath("$.paths['/api/calendar/client-setup/credentials']").exists())
                 .andExpect(jsonPath("$.paths['/api/calendar/client-setup/credentials/{credentialId}']").exists())
                 .andExpect(jsonPath("$.paths['/api/calendar/client-setup/apple.mobileconfig']").exists())
-                .andExpect(jsonPath("$.paths['/api/calendar/events/{id}']").exists())
-                .andExpect(jsonPath("$.paths['/api/calendar/events/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/calendar/events/{id}']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/calls']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/calls/native-boundary-setup']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/calls/{id}']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/calls/{id}/join']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/workspace/capabilities']").exists())
+                .andExpect(jsonPath("$.paths['/api/workspace/home'].get.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/WorkspaceHomeResponse"))
                 .andExpect(jsonPath("$.paths['/api/workspace/release-readiness']").exists())
                 .andExpect(jsonPath("$.paths['/api/providers/status']").exists())
-                .andExpect(jsonPath("$.paths['/api/v1/workspace/capabilities']").exists())
-                .andExpect(jsonPath("$.paths['/api/v1/workspace/release-readiness']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/workspace/capabilities']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/workspace/release-readiness']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/interop/status']").exists())
                 .andExpect(jsonPath("$.paths['/api/interop/slack/status']").exists())
                 .andExpect(jsonPath("$.paths['/api/interop/slack/oauth/callback']").exists())
@@ -95,11 +105,14 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/admin/policies/capability-whitelist'].get.operationId").value("getCapabilityWhitelist"))
                 .andExpect(jsonPath("$.paths['/api/admin/policies/capability-whitelist'].patch.operationId").value("updateCapabilityWhitelist"))
                 .andExpect(jsonPath("$.paths['/api/admin/providers/readiness-tests'].post.operationId").value("testProviderReadiness"))
+                .andExpect(jsonPath("$.paths['/api/admin/provider-capability-health'].get.operationId")
+                        .value("getProviderCapabilityHealth"))
                 .andExpect(jsonPath("$.paths['/api/admin/providers/replacements/dry-run'].post.operationId").value("dryRunProviderReplacement"))
-                .andExpect(jsonPath("$.paths['/api/chat/conversations'].get.operationId").value("listChatConversations"))
-                .andExpect(jsonPath("$.paths['/api/chat/conversations/{conversationId}/messages'].get.operationId").value("listChatMessages"))
-                .andExpect(jsonPath("$.paths['/api/chat/conversations/{conversationId}/messages'].post.operationId").value("sendChatMessage"))
-                .andExpect(jsonPath("$.paths['/api/chat/conversations/{conversationId}/weaver/scout/summaries'].post.operationId").value("createWeaverScoutSummary"))
+                .andExpect(jsonPath("$.paths['/api/chat/conversations']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/chat/conversations/{conversationId}/messages']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/chat/conversations/{conversationId}/weaver/scout/summaries']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/workspace/weaver/runtime-profile']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/workspace/weaver/mcp/servers/{serverKey}/tools']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/admin/chat/readiness'].get.operationId").value("getAdminChatReadiness"))
                 .andExpect(jsonPath("$.paths['/api/admin/chat/provider-replacements/dry-run'].post.operationId").value("dryRunChatProviderReplacement"))
                 .andExpect(jsonPath("$.paths['/api/connectors/boundary']").exists())
@@ -115,6 +128,27 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.requestId.type").value("string"))
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.supportRef.type").value("string"))
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.memberImpact.type").value("string"))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceCapabilityStatusResponse.properties.supportRef.type").value("string"))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeResponse.properties.recentActivity.type")
+                        .value("array"))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeResponse.properties.recentActivity.items['$ref']")
+                        .value("#/components/schemas/WorkspaceHomeRecentActivityResponse"))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeRecentActivityResponse.properties.activityRef.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeRecentActivityResponse.properties.domain.enum[0]")
+                        .value("files"))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeRecentActivityResponse.properties.action.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeRecentActivityResponse.properties.occurredAt.format")
+                        .value("date-time"))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeRecentActivityResponse.properties.visibility.enum[0]")
+                        .value("workspace"))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeRecentActivityResponse.properties.actorRefHash.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeRecentActivityResponse.properties.actorIsCurrentUser.type")
+                        .value("boolean"))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceHomeRecentActivityResponse.properties.supportSafe.type")
+                        .value("boolean"))
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.required", hasItems(
                         "code",
                         "message",
@@ -123,6 +157,7 @@ class OpenApiDocumentationTest {
                         "supportRef")))
                 .andExpect(jsonPath("$.components.responses.UnauthorizedError.description").value("Missing or invalid bearer token."))
                 .andExpect(jsonPath("$.components.securitySchemes['bearer-jwt'].type").value("http"))
+                .andExpect(jsonPath("$.components.securitySchemes['owner-bootstrap-token'].type").value("apiKey"))
                 .andReturn();
 
         String exportPath = System.getProperty("weave.openapi.export.path");

@@ -9,7 +9,7 @@ Feature: WEAVE-SPEC-0010 full product target acceptance
     And the acceptance scenario is mapped to offline spec evidence marker WEAVE_SPEC_0010_SETUP_GOVERNANCE
     When an admin configures organization identity spaces provider mappings policies and evidence baseline
     Then members see stable Weave capabilities rather than provider setup mechanics
-    And the catalog records the bounded domains identity-idm, spaces, admin-health-ops, provider-portability
+    And the catalog records the bounded domains admin-health-ops, spaces, admin-health-ops, provider-portability
 
   @weave-spec-0010-space-work
   Scenario: Space work joins context across domains
