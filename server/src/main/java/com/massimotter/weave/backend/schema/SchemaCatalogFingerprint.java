@@ -13,11 +13,24 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 import org.erdtman.jcs.JsonCanonicalizer;
 import tools.jackson.databind.ObjectMapper;
 
 /** Fixed-shape PostgreSQL catalog projection used only by the schema authority boundary. */
 final class SchemaCatalogFingerprint {
+
+  static final String FORMAT = "weave.schema-catalog/v2";
+
+  private static final Pattern STRING_LITERAL_TEXT_CAST =
+      Pattern.compile(
+          "((?:[eE])?'(?:''|[^'])*')::(?:character varying|varchar|text)",
+          Pattern.CASE_INSENSITIVE);
+  private static final Pattern ARRAY_TEXT_CAST =
+      Pattern.compile(
+          "(ARRAY\\[[^\\]]*])::(?:character varying|varchar|text)\\[\\]",
+          Pattern.CASE_INSENSITIVE);
+  private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
   private SchemaCatalogFingerprint() {}
 
@@ -40,6 +53,7 @@ final class SchemaCatalogFingerprint {
       }
     }
     Map<String, Object> projection = new LinkedHashMap<>();
+    projection.put("format", FORMAT);
     projection.put("schema", schema);
     projection.put("tables", tables);
     byte[] canonical =
@@ -117,7 +131,7 @@ final class SchemaCatalogFingerprint {
         while (rows.next()) {
           checks.add(Map.of(
               "name", rows.getString("constraint_name"),
-              "definition", rows.getString("definition")));
+              "definition", normalizeConstraintDefinition(rows.getString("definition"))));
         }
       }
     }
@@ -144,7 +158,7 @@ final class SchemaCatalogFingerprint {
           constraints.add(
               Map.of(
                   "name", rows.getString("constraint_name"),
-                  "definition", rows.getString("definition")));
+                  "definition", normalizeSql(rows.getString("definition"))));
         }
       }
     }
@@ -172,11 +186,31 @@ final class SchemaCatalogFingerprint {
         while (rows.next()) {
           indexes.add(Map.of(
               "name", rows.getString("index_name"),
-              "definition", rows.getString("definition")));
+              "definition", normalizeSql(rows.getString("definition"))));
         }
       }
     }
     return indexes;
+  }
+
+  /**
+   * PostgreSQL may redistribute redundant text casts while pg_dump/pg_restore reparses a
+   * check expression. For example, an array-level {@code ::text[]} cast can become identical
+   * element-level {@code ::varchar::text} casts. Remove casts only from string literals and
+   * literal text arrays; casts on columns and expressions remain part of the fingerprint.
+   */
+  private static String normalizeConstraintDefinition(String value) {
+    String normalized = normalizeSql(value);
+    String previous;
+    do {
+      previous = normalized;
+      normalized = STRING_LITERAL_TEXT_CAST.matcher(normalized).replaceAll("$1");
+    } while (!previous.equals(normalized));
+    return ARRAY_TEXT_CAST.matcher(normalized).replaceAll("$1");
+  }
+
+  private static String normalizeSql(String value) {
+    return WHITESPACE.matcher(safe(value).strip()).replaceAll(" ");
   }
 
   private static String normalizeType(String value) {

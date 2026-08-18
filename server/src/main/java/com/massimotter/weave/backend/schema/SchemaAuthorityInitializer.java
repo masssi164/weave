@@ -23,6 +23,7 @@ public final class SchemaAuthorityInitializer {
 
   public static final String EPOCH = "weave-flyway-v1";
   public static final String MODEL_ID = "WEAVE-ARCH-RELATIONAL-CORE-MODEL";
+  public static final String RECEIPT_FORMAT = "weave.schema-init-receipt/v4";
   private static final Pattern COMMIT = Pattern.compile("[0-9a-f]{40}");
   private static final String MIGRATION_LOCATION = "classpath:db/migration";
   private static final int INITIALIZATION_LOCK_TIMEOUT_SECONDS = 60;
@@ -163,7 +164,7 @@ public final class SchemaAuthorityInitializer {
       throw new IllegalStateException("schema receipt parent directory is unavailable");
     }
     Map<String, Object> value = new LinkedHashMap<>();
-    value.put("schemaVersion", "weave.schema-init-receipt/v3");
+    value.put("schemaVersion", RECEIPT_FORMAT);
     value.put("supportSafe", true);
     value.put("authority", "flyway");
     value.put("epoch", EPOCH);
@@ -171,6 +172,7 @@ public final class SchemaAuthorityInitializer {
     value.put("candidateCommit", candidate);
     value.put("migrationsExecuted", migrationsExecuted);
     value.put("targetSchemaVersion", targetSchemaVersion);
+    value.put("catalogFingerprintFormat", SchemaCatalogFingerprint.FORMAT);
     value.put("catalogFingerprint", snapshot.sha256());
     value.put("tableCount", snapshot.tables().size());
     value.put("tables", snapshot.tables());

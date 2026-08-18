@@ -34,6 +34,16 @@ The advisory lock covers migration, Hibernate validation, marker mutation, finge
 
 The normal Server process does not own schema evolution. Deployment fails closed before application traffic when migration, checksum, mapping, catalog, marker, or receipt validation fails.
 
+## Catalog fingerprint
+
+The support-safe catalog projection is explicitly versioned as `weave.schema-catalog/v2`; the matching receipt is `weave.schema-init-receipt/v4`.
+
+The fingerprint contains tables, ordered columns, nullability, defaults, primary and foreign keys, check and unique constraints, and explicit indexes. It excludes row data, secrets, Flyway history rows, object ownership, privileges, and provider databases.
+
+PostgreSQL reparses check expressions during dump/restore and can move redundant casts between a literal text array and its string elements. The projection normalizes only those redundant casts on string literals and literal text arrays. Casts on columns and computed expressions remain fingerprinted, as do constraint names and literal values. Therefore semantically identical restored checks remain stable while real constraint drift still fails closed.
+
+There is no backward-compatibility promise for receipts or authority markers produced by the historical unreleased fingerprint format. A clean initialization or same-version backup/restore is required for this core-development line.
+
 ## Migration policy
 
 Migration files under `server/src/main/resources/db/migration` are immutable once accepted on the current mainline. Changes are forward-only. Destructive evolution uses explicit expansion/contraction migrations and restart-safe data backfills where required.
@@ -57,6 +67,7 @@ The active PostgreSQL contract proves:
 - two concurrent initializers serialize across the complete one-shot operation;
 - one authority marker and no duplicate successful migration version after concurrency;
 - a private custom-format PostgreSQL dump restores into a separate empty PostgreSQL instance;
+- source and restored semantic catalog fingerprints are equal despite PostgreSQL's redundant-cast redistribution;
 - restored Flyway history, schema fingerprint, and authority receipt validate without new migrations;
 - a canonical transfer checkpoint and fidelity outcome survive restore;
 - the restored canonical transfer resumes and completes through `TransferRunRepository`;

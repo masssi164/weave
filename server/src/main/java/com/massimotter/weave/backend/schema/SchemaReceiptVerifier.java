@@ -54,6 +54,7 @@ public final class SchemaReceiptVerifier {
     List<String> sortedTables = tables.stream().sorted().toList();
     JsonNode catalogProjection = value.path("catalogProjection");
     String observedFingerprint = "";
+    String observedFingerprintFormat = "";
     List<String> projectionTables = new ArrayList<>();
     if (catalogProjection.isObject()) {
       byte[] canonical =
@@ -62,6 +63,7 @@ public final class SchemaReceiptVerifier {
           java.util.HexFormat.of()
               .formatHex(MessageDigest.getInstance("SHA-256").digest(canonical));
       java.util.Arrays.fill(canonical, (byte) 0);
+      observedFingerprintFormat = catalogProjection.path("format").asText();
       catalogProjection
           .path("tables")
           .properties()
@@ -74,7 +76,7 @@ public final class SchemaReceiptVerifier {
             && tables.stream().allMatch(name -> TABLE.matcher(name).matches())
             && tables.contains("weave_schema_authority")
             && tables.equals(projectionTables);
-    if (!"weave.schema-init-receipt/v3".equals(value.path("schemaVersion").asText())
+    if (!SchemaAuthorityInitializer.RECEIPT_FORMAT.equals(value.path("schemaVersion").asText())
         || !value.path("supportSafe").asBoolean(false)
         || !"flyway".equals(value.path("authority").asText())
         || !SchemaAuthorityInitializer.EPOCH.equals(value.path("epoch").asText())
@@ -82,6 +84,9 @@ public final class SchemaReceiptVerifier {
         || !candidate.equals(value.path("candidateCommit").asText())
         || value.path("migrationsExecuted").asInt(-1) < 0
         || value.path("targetSchemaVersion").asText().isBlank()
+        || !SchemaCatalogFingerprint.FORMAT.equals(
+            value.path("catalogFingerprintFormat").asText())
+        || !SchemaCatalogFingerprint.FORMAT.equals(observedFingerprintFormat)
         || !value.path("catalogFingerprint").asText().matches("[0-9a-f]{64}")
         || !value.path("catalogFingerprint").asText().equals(observedFingerprint)
         || value.path("tableCount").asInt() != tables.size()

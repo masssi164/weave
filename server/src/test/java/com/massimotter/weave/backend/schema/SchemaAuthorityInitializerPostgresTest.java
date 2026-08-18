@@ -45,7 +45,12 @@ class SchemaAuthorityInitializerPostgresTest {
 
     SchemaAuthorityInitializer.run(environment.values());
     var first = receipt(environment);
-    assertThat(first.path("schemaVersion").asText()).isEqualTo("weave.schema-init-receipt/v3");
+    assertThat(first.path("schemaVersion").asText())
+        .isEqualTo(SchemaAuthorityInitializer.RECEIPT_FORMAT);
+    assertThat(first.path("catalogFingerprintFormat").asText())
+        .isEqualTo(SchemaCatalogFingerprint.FORMAT);
+    assertThat(first.path("catalogProjection").path("format").asText())
+        .isEqualTo(SchemaCatalogFingerprint.FORMAT);
     assertThat(first.path("candidateCommit").asText()).isEqualTo(CANDIDATE);
     assertThat(first.path("catalogFingerprint").asText()).matches("[0-9a-f]{64}");
     assertThat(first.path("tableCount").asInt()).isEqualTo(first.path("tables").size());
