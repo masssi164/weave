@@ -22,13 +22,23 @@ final class SchemaCatalogFingerprint {
 
   static final String FORMAT = "weave.schema-catalog/v2";
 
+  private static final String TEXT_TYPE = "(?:character varying|varchar|text)";
+  private static final String STRING_LITERAL = "(?:[eE])?'(?:''|[^'])*'";
+  private static final Pattern PARENTHESIZED_STRING_LITERAL_TEXT_CAST =
+      Pattern.compile(
+          "\\((" + STRING_LITERAL + ")::" + TEXT_TYPE + "\\)::" + TEXT_TYPE,
+          Pattern.CASE_INSENSITIVE);
   private static final Pattern STRING_LITERAL_TEXT_CAST =
       Pattern.compile(
-          "((?:[eE])?'(?:''|[^'])*')::(?:character varying|varchar|text)",
+          "(" + STRING_LITERAL + ")::" + TEXT_TYPE,
+          Pattern.CASE_INSENSITIVE);
+  private static final Pattern PARENTHESIZED_ARRAY_TEXT_CAST =
+      Pattern.compile(
+          "\\((ARRAY\\[[^\\]]*])\\)::" + TEXT_TYPE + "\\[\\]",
           Pattern.CASE_INSENSITIVE);
   private static final Pattern ARRAY_TEXT_CAST =
       Pattern.compile(
-          "(ARRAY\\[[^\\]]*])::(?:character varying|varchar|text)\\[\\]",
+          "(ARRAY\\[[^\\]]*])::" + TEXT_TYPE + "\\[\\]",
           Pattern.CASE_INSENSITIVE);
   private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
@@ -131,7 +141,7 @@ final class SchemaCatalogFingerprint {
         while (rows.next()) {
           checks.add(Map.of(
               "name", rows.getString("constraint_name"),
-              "definition", normalizeConstraintDefinition(rows.getString("definition"))));
+              "definition", normalizeRestoreStableSql(rows.getString("definition"))));
         }
       }
     }
@@ -158,7 +168,7 @@ final class SchemaCatalogFingerprint {
           constraints.add(
               Map.of(
                   "name", rows.getString("constraint_name"),
-                  "definition", normalizeSql(rows.getString("definition"))));
+                  "definition", normalizeRestoreStableSql(rows.getString("definition"))));
         }
       }
     }
@@ -186,7 +196,7 @@ final class SchemaCatalogFingerprint {
         while (rows.next()) {
           indexes.add(Map.of(
               "name", rows.getString("index_name"),
-              "definition", normalizeSql(rows.getString("definition"))));
+              "definition", normalizeRestoreStableSql(rows.getString("definition"))));
         }
       }
     }
@@ -194,19 +204,24 @@ final class SchemaCatalogFingerprint {
   }
 
   /**
-   * PostgreSQL may redistribute redundant text casts while pg_dump/pg_restore reparses a
-   * check expression. For example, an array-level {@code ::text[]} cast can become identical
-   * element-level {@code ::varchar::text} casts. Remove casts only from string literals and
-   * literal text arrays; casts on columns and expressions remain part of the fingerprint.
+   * PostgreSQL may redistribute redundant text casts while pg_dump/pg_restore reparses
+   * check expressions, partial-index predicates, and defaults. Remove casts only from
+   * string literals and literal text arrays, including the parenthesized form emitted by
+   * PostgreSQL after restore. Casts on columns and computed expressions remain part of the
+   * fingerprint.
    */
-  private static String normalizeConstraintDefinition(String value) {
+  private static String normalizeRestoreStableSql(String value) {
     String normalized = normalizeSql(value);
     String previous;
     do {
       previous = normalized;
+      normalized =
+          PARENTHESIZED_STRING_LITERAL_TEXT_CAST.matcher(normalized).replaceAll("$1");
       normalized = STRING_LITERAL_TEXT_CAST.matcher(normalized).replaceAll("$1");
+      normalized = PARENTHESIZED_ARRAY_TEXT_CAST.matcher(normalized).replaceAll("$1");
+      normalized = ARRAY_TEXT_CAST.matcher(normalized).replaceAll("$1");
     } while (!previous.equals(normalized));
-    return ARRAY_TEXT_CAST.matcher(normalized).replaceAll("$1");
+    return normalized;
   }
 
   private static String normalizeSql(String value) {
@@ -218,7 +233,7 @@ final class SchemaCatalogFingerprint {
   }
 
   private static String normalizeDefault(String value) {
-    return value == null ? "" : value.strip();
+    return value == null ? "" : normalizeRestoreStableSql(value);
   }
 
   private static String safe(String value) {
