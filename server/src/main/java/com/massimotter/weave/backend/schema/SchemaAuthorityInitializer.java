@@ -25,6 +25,7 @@ public final class SchemaAuthorityInitializer {
   public static final String MODEL_ID = "WEAVE-ARCH-RELATIONAL-CORE-MODEL";
   private static final Pattern COMMIT = Pattern.compile("[0-9a-f]{40}");
   private static final String MIGRATION_LOCATION = "classpath:db/migration";
+  private static final int INITIALIZATION_LOCK_TIMEOUT_SECONDS = 60;
 
   private SchemaAuthorityInitializer() {}
 
@@ -53,6 +54,21 @@ public final class SchemaAuthorityInitializer {
         .toAbsolutePath()
         .normalize();
 
+    // Flyway serializes migration DDL, but the authority marker, Hibernate validation,
+    // fingerprint and receipt happen afterwards. Hold one schema-scoped session lock over
+    // the complete one-shot operation so two initializers cannot race outside Flyway.
+    try (Connection lockConnection = DriverManager.getConnection(url, username, password)) {
+      acquireSchemaInitializationLock(lockConnection);
+      runLocked(url, username, password, candidate, receipt);
+    }
+  }
+
+  private static void runLocked(
+      String url,
+      String username,
+      String password,
+      String candidate,
+      Path receipt) throws Exception {
     Flyway flyway = Flyway.configure()
         .dataSource(url, username, password)
         .locations(MIGRATION_LOCATION)
@@ -60,7 +76,7 @@ public final class SchemaAuthorityInitializer {
         .cleanDisabled(true)
         .load();
 
-    // Flyway owns DDL and its PostgreSQL lock/history. A non-empty schema without
+    // Flyway owns DDL and its PostgreSQL history/checksums. A non-empty schema without
     // Flyway history intentionally fails here instead of being silently baselined.
     var migration = flyway.migrate();
     flyway.validate();
@@ -111,6 +127,21 @@ public final class SchemaAuthorityInitializer {
           targetSchemaVersion,
           validated);
     }
+  }
+
+  private static void acquireSchemaInitializationLock(Connection connection) throws Exception {
+    try (var statement = connection.createStatement()) {
+      statement.setQueryTimeout(INITIALIZATION_LOCK_TIMEOUT_SECONDS);
+      try (var rows = statement.executeQuery(
+          "select pg_advisory_lock(" +
+              "hashtext(current_database()), " +
+              "hashtext(coalesce(current_schema(), 'public')))")) {
+        if (!rows.next()) {
+          throw new IllegalStateException("schema initialization lock was not acquired");
+        }
+      }
+    }
+    // PostgreSQL releases this session advisory lock when lockConnection closes.
   }
 
   private static SpringApplication application(Map<String, Object> properties) {
