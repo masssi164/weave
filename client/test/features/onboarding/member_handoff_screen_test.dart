@@ -14,34 +14,38 @@ import 'package:weave/features/app/domain/use_cases/resolve_app_bootstrap.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
-import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
-import '../../helpers/first_run_status_fixture.dart';
 import '../../helpers/in_memory_stores.dart';
 
-class _ThrowingConsumeMemberHandoff implements ConsumeMemberHandoff {
-  const _ThrowingConsumeMemberHandoff(this.error);
+class _ThrowingDiscoverOrganizationAccess
+    implements DiscoverOrganizationAccess {
+  const _ThrowingDiscoverOrganizationAccess(this.error);
 
   final Object error;
 
   @override
-  Future<MemberHandoff> call(Uri uri) async {
+  Future<OrganizationAccess> call(Uri uri) async {
     throw error;
   }
 }
 
-class _SuccessfulConsumeMemberHandoff implements ConsumeMemberHandoff {
-  const _SuccessfulConsumeMemberHandoff(this.handoff);
+class _SuccessfulDiscoverOrganizationAccess
+    implements DiscoverOrganizationAccess {
+  _SuccessfulDiscoverOrganizationAccess(MemberHandoff handoff)
+    : access = OrganizationAccess(
+        organizationOrigin: handoff.productBaseUrl,
+        platformConfigUrl: handoff.platformConfigUrl,
+        handoff: handoff,
+      );
 
-  final MemberHandoff handoff;
+  final OrganizationAccess access;
 
   @override
-  Future<MemberHandoff> call(Uri uri) async => handoff;
+  Future<OrganizationAccess> call(Uri uri) async => access;
 }
 
 class _RecordingSignInWithOidc implements SignInWithOidc {
@@ -86,11 +90,10 @@ void main() {
         final container = ProviderContainer.test(
           overrides: [
             preferencesStoreProvider.overrideWith((ref) => preferencesStore),
-            consumeMemberHandoffProvider.overrideWithValue(
-              _SuccessfulConsumeMemberHandoff(
+            discoverOrganizationAccessProvider.overrideWithValue(
+              _SuccessfulDiscoverOrganizationAccess(
                 MemberHandoff(
                   handoffRef: 'handoff-s32-massimo-dogfood-home',
-                  profile: 'local-lan-dogfood',
                   runId: 's32-massimo-dogfood',
                   organizationSlug: 'massimo-dogfood',
                   workspaceSlug: 'home',
@@ -113,7 +116,7 @@ void main() {
               supportedLocales: AppLocalizations.supportedLocales,
               home: MemberHandoffScreen(
                 uri: Uri.parse(
-                  'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+                  'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
                 ),
               ),
             ),
@@ -123,7 +126,7 @@ void main() {
         await tester.pump();
 
         expect(find.text('Workspace ready for sign-in'), findsOneWidget);
-        expect(find.textContaining('massimo-dogfood/home'), findsOneWidget);
+        expect(find.textContaining('massimo-dogfood'), findsOneWidget);
         expect(find.text('Sign In'), findsOneWidget);
 
         final rawVisibleState = preferencesStore.rawString(
@@ -153,11 +156,10 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           preferencesStoreProvider.overrideWith((ref) => preferencesStore),
-          consumeMemberHandoffProvider.overrideWithValue(
-            _SuccessfulConsumeMemberHandoff(
+          discoverOrganizationAccessProvider.overrideWithValue(
+            _SuccessfulDiscoverOrganizationAccess(
               MemberHandoff(
                 handoffRef: 'handoff-s32-massimo-dogfood-home',
-                profile: 'local-lan-dogfood',
                 runId: 's32-massimo-dogfood',
                 organizationSlug: 'massimo-dogfood',
                 workspaceSlug: 'home',
@@ -181,7 +183,7 @@ void main() {
             supportedLocales: AppLocalizations.supportedLocales,
             home: MemberHandoffScreen(
               uri: Uri.parse(
-                'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+                'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
               ),
             ),
           ),
@@ -218,25 +220,24 @@ void main() {
               path: '/join',
               builder: (context, state) => MemberHandoffScreen(
                 uri: Uri.parse(
-                  'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+                  'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
                 ),
               ),
             ),
             GoRoute(
-              path: AppRoutes.firstRun,
+              path: AppRoutes.home,
               builder: (context, state) =>
-                  const Scaffold(body: Text('First run workspace shell')),
+                  const Scaffold(body: Text('Authenticated workspace shell')),
             ),
           ],
         );
         final container = ProviderContainer.test(
           overrides: [
             preferencesStoreProvider.overrideWith((ref) => preferencesStore),
-            consumeMemberHandoffProvider.overrideWithValue(
-              _SuccessfulConsumeMemberHandoff(
+            discoverOrganizationAccessProvider.overrideWithValue(
+              _SuccessfulDiscoverOrganizationAccess(
                 MemberHandoff(
                   handoffRef: 'handoff-s32-massimo-dogfood-home',
-                  profile: 'local-lan-dogfood',
                   runId: 's32-massimo-dogfood',
                   organizationSlug: 'massimo-dogfood',
                   workspaceSlug: 'home',
@@ -250,10 +251,6 @@ void main() {
             signInWithOidcProvider.overrideWithValue(signIn),
             resolveAppBootstrapProvider.overrideWithValue(
               const _ReadyResolveAppBootstrap(),
-            ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async =>
-                  FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
             ),
           ],
         );
@@ -277,7 +274,7 @@ void main() {
         signIn.completer.complete();
         await tester.pumpAndSettle();
 
-        expect(find.text('First run workspace shell'), findsOneWidget);
+        expect(find.text('Authenticated workspace shell'), findsOneWidget);
 
         final rawAuthState = preferencesStore.rawString(
           dogfoodAuthStateStorageKey,
@@ -315,11 +312,10 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           preferencesStoreProvider.overrideWith((ref) => preferencesStore),
-          consumeMemberHandoffProvider.overrideWithValue(
-            _SuccessfulConsumeMemberHandoff(
+          discoverOrganizationAccessProvider.overrideWithValue(
+            _SuccessfulDiscoverOrganizationAccess(
               MemberHandoff(
                 handoffRef: 'handoff-s32-massimo-dogfood-home',
-                profile: 'local-lan-dogfood',
                 runId: 's32-massimo-dogfood',
                 organizationSlug: 'massimo-dogfood',
                 workspaceSlug: 'home',
@@ -349,7 +345,7 @@ void main() {
             supportedLocales: AppLocalizations.supportedLocales,
             home: MemberHandoffScreen(
               uri: Uri.parse(
-                'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+                'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
               ),
             ),
           ),
@@ -385,8 +381,8 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           preferencesStoreProvider.overrideWith((ref) => preferencesStore),
-          consumeMemberHandoffProvider.overrideWithValue(
-            const _ThrowingConsumeMemberHandoff(
+          discoverOrganizationAccessProvider.overrideWithValue(
+            const _ThrowingDiscoverOrganizationAccess(
               AppFailure.bootstrap(
                 'WEAVE-APP-START-TLS-FAILED: The workspace start configuration could not be reached.',
               ),
@@ -404,7 +400,7 @@ void main() {
             supportedLocales: AppLocalizations.supportedLocales,
             home: MemberHandoffScreen(
               uri: Uri.parse(
-                'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fapi.weave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+                'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fapi.weave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
               ),
             ),
           ),

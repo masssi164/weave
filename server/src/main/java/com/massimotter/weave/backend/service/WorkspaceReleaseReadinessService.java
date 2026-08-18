@@ -8,7 +8,7 @@ import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessCheckRespons
 import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessResponse;
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
@@ -103,7 +103,7 @@ public class WorkspaceReleaseReadinessService {
                     "Matrix chat route",
                     readiness,
                     "Chat is enabled but no Matrix route is configured yet.",
-                    "Set WEAVE_MATRIX_HOMESERVER_URL to the public Matrix base URL, for example https://matrix.weave.test.");
+                    "Set WEAVE_MATRIX_BASE_URL to the southbound Matrix provider URL; clients receive the Weave facade from the API origin.");
             case BLOCKED -> new WorkspaceReleaseReadinessCheckResponse(
                     "chat",
                     "Matrix chat route",

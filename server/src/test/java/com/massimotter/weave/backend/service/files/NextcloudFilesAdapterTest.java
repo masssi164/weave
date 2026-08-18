@@ -2,10 +2,16 @@ package com.massimotter.weave.backend.service.files;
 
 import com.massimotter.weave.backend.config.NextcloudFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
-import com.massimotter.weave.backend.model.files.CreateFolderRequest;
-import com.massimotter.weave.backend.model.files.FileListResponse;
-import com.massimotter.weave.backend.model.files.FileUploadResponse;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
+import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
+import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
+import com.sun.net.httpserver.HttpServer;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,7 +19,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -37,7 +42,7 @@ class NextcloudFilesAdapterTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        adapter = new NextcloudFilesAdapter(configuredProperties(), builder);
+        adapter = new NextcloudFilesAdapter(configuredProperties(), builder.build());
     }
 
     @Test
@@ -51,7 +56,73 @@ class NextcloudFilesAdapterTest {
                         ""),
                 RestClient.builder());
 
-        assertThat(unconfigured.isConfigured()).isFalse();
+        assertThat(unconfigured.configured()).isFalse();
+        assertThat(unconfigured.healthProbe().state().value()).isEqualTo("unavailable");
+    }
+
+    @Test
+    void runtimeClientSupportsWebdavMethodsIndependentOfClasspathHttpFactories() throws Exception {
+        HttpServer davServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        davServer.createContext("/remote.php/dav/files/weave-service/", exchange -> {
+            byte[] response = """
+                    <?xml version="1.0" encoding="utf-8" ?>
+                    <d:multistatus xmlns:d="DAV:">
+                      <d:response>
+                        <d:href>/remote.php/dav/files/weave-service/</d:href>
+                        <d:propstat><d:prop>
+                          <d:resourcetype><d:collection /></d:resourcetype>
+                          <d:getetag>"etag-root"</d:getetag>
+                        </d:prop></d:propstat>
+                      </d:response>
+                    </d:multistatus>
+                    """.getBytes(StandardCharsets.UTF_8);
+            if (!"PROPFIND".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(HttpStatus.METHOD_NOT_ALLOWED.value(), -1);
+            } else {
+                exchange.getResponseHeaders().set(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_XML_VALUE);
+                exchange.sendResponseHeaders(HttpStatus.MULTI_STATUS.value(), response.length);
+                exchange.getResponseBody().write(response);
+            }
+            exchange.close();
+        });
+        davServer.start();
+        try {
+            NextcloudFilesAdapter runtimeAdapter = new NextcloudFilesAdapter(
+                    new NextcloudFilesProperties(
+                            "http://127.0.0.1:" + davServer.getAddress().getPort(),
+                            "/remote.php/dav/files",
+                            "backend-service-account",
+                            "weave-service",
+                            "app-password"),
+                    RestClient.builder());
+
+            assertThat(runtimeAdapter.list(new FilePath("/")).requestedVersion().value())
+                    .isEqualTo("\"etag-root\"");
+        } finally {
+            davServer.stop(0);
+        }
+    }
+
+    @Test
+    void healthProbeNormalizesRateLimitingAndHonorsRetryAfterWithoutLeakingTheResponse() {
+        server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/"))
+                .andExpect(method(HttpMethod.valueOf("PROPFIND")))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, AUTH_HEADER))
+                .andExpect(header("Depth", "0"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                        .header(HttpHeaders.RETRY_AFTER, "180")
+                        .body("blocked actor weave-service using app-password at https://files.example.test"));
+
+        var result = adapter.healthProbe();
+
+        assertThat(result.state().value()).isEqualTo("degraded");
+        assertThat(result.supportSafeCode()).isEqualTo("files-storage-rate-limited");
+        assertThat(result.retryAfter()).isEqualTo(Duration.ofSeconds(180));
+        assertThat(result.toString())
+                .doesNotContain("weave-service")
+                .doesNotContain("app-password")
+                .doesNotContain("files.example.test");
+        server.verify();
     }
 
     @Test
@@ -78,6 +149,7 @@ class NextcloudFilesAdapterTest {
                                     <d:propstat><d:prop>
                                       <d:resourcetype><d:collection /></d:resourcetype>
                                       <d:getlastmodified>Sun, 26 Apr 2026 08:00:00 GMT</d:getlastmodified>
+                                      <d:getetag>\"etag-design\"</d:getetag>
                                     </d:prop></d:propstat>
                                   </d:response>
                                   <d:response>
@@ -87,25 +159,92 @@ class NextcloudFilesAdapterTest {
                                       <d:getcontentlength>12</d:getcontentlength>
                                       <d:getcontenttype>text/markdown</d:getcontenttype>
                                       <d:getlastmodified>Sun, 26 Apr 2026 08:01:00 GMT</d:getlastmodified>
+                                      <d:getetag>\"etag-readme\"</d:getetag>
                                     </d:prop></d:propstat>
                                   </d:response>
                                 </d:multistatus>
                                 """));
 
-        FileListResponse response = adapter.list("/Team/");
+        var response = adapter.list(new FilePath("/Team/")).listing();
 
-        assertThat(response.path()).isEqualTo("/Team");
+        assertThat(response.requestedPath().value()).isEqualTo("/Team");
         assertThat(response.quota().usedBytes()).isEqualTo(10);
-        assertThat(response.quota().totalBytes()).isEqualTo(100);
-        assertThat(response.items()).hasSize(2);
-        assertThat(response.items().get(0).type()).isEqualTo("folder");
-        assertThat(response.items().get(0).path()).isEqualTo("/Team/Design");
-        assertThat(response.items().get(0).downloadable()).isFalse();
-        assertThat(response.items().get(1).type()).isEqualTo("file");
-        assertThat(response.items().get(1).name()).isEqualTo("readme one.md");
-        assertThat(response.items().get(1).mimeType()).isEqualTo("text/markdown");
-        assertThat(response.items().get(1).size()).isEqualTo(12);
-        assertThat(response.items().get(1).id()).startsWith("files:");
+        assertThat(response.quota().availableBytes()).isEqualTo(90);
+        assertThat(response.children()).hasSize(2);
+        assertThat(response.children().get(0).kind()).isEqualTo(Kind.COLLECTION);
+        assertThat(response.children().get(0).path().value()).isEqualTo("/Team/Design");
+        assertThat(response.children().get(1).kind()).isEqualTo(Kind.FILE);
+        assertThat(response.children().get(1).name()).isEqualTo("readme one.md");
+        assertThat(response.children().get(1).mediaType()).isEqualTo("text/markdown");
+        assertThat(response.children().get(1).size()).isEqualTo(12);
+        assertThat(response.children().get(1).id().value()).startsWith("files:");
+        server.verify();
+    }
+
+    @Test
+    void normalizesNextcloudNonFiniteQuotaSentinelsAtTheAdapterBoundary() {
+        for (String sentinel : new String[] {"-1", "-2", "-3"}) {
+            server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/"))
+                    .andExpect(method(HttpMethod.valueOf("PROPFIND")))
+                    .andExpect(header("Depth", "1"))
+                    .andRespond(withStatus(HttpStatus.MULTI_STATUS)
+                            .contentType(MediaType.APPLICATION_XML)
+                            .body("""
+                                    <?xml version="1.0" encoding="utf-8" ?>
+                                    <d:multistatus xmlns:d="DAV:">
+                                      <d:response>
+                                        <d:href>/remote.php/dav/files/weave-service/</d:href>
+                                        <d:propstat><d:prop>
+                                          <d:resourcetype><d:collection /></d:resourcetype>
+                                          <d:quota-used-bytes>10</d:quota-used-bytes>
+                                          <d:quota-available-bytes>%s</d:quota-available-bytes>
+                                        </d:prop></d:propstat>
+                                      </d:response>
+                                    </d:multistatus>
+                                    """.formatted(sentinel)));
+        }
+
+        for (int index = 0; index < 3; index++) {
+            var quota = adapter.list(new FilePath("/")).listing().quota();
+
+            assertThat(quota.usedBytes()).isEqualTo(10);
+            assertThat(quota.availableBytes()).isNull();
+        }
+        server.verify();
+    }
+
+    @Test
+    void exposesVersionTokensFromTheSameWebdavPropfindResponse() {
+        server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/Team"))
+                .andExpect(method(HttpMethod.valueOf("PROPFIND")))
+                .andExpect(header("Depth", "1"))
+                .andRespond(withStatus(HttpStatus.MULTI_STATUS)
+                        .contentType(MediaType.APPLICATION_XML)
+                        .body("""
+                                <?xml version=\"1.0\" encoding=\"utf-8\" ?>
+                                <d:multistatus xmlns:d=\"DAV:\">
+                                  <d:response>
+                                    <d:href>/remote.php/dav/files/weave-service/Team/</d:href>
+                                    <d:propstat><d:prop>
+                                      <d:resourcetype><d:collection /></d:resourcetype>
+                                      <d:getetag>\"etag-team\"</d:getetag>
+                                    </d:prop></d:propstat>
+                                  </d:response>
+                                  <d:response>
+                                    <d:href>/remote.php/dav/files/weave-service/Team/readme.md</d:href>
+                                    <d:propstat><d:prop>
+                                      <d:resourcetype />
+                                      <d:getetag>\"etag-readme\"</d:getetag>
+                                    </d:prop></d:propstat>
+                                  </d:response>
+                                </d:multistatus>
+                                """));
+
+        VersionedListing response = adapter.list(new FilePath("/Team/"));
+
+        assertThat(response.requestedVersion().value()).isEqualTo("\"etag-team\"");
+        assertThat(response.childVersions())
+                .containsEntry(new FilePath("/Team/readme.md"), new FileVersion("\"etag-readme\""));
         server.verify();
     }
 
@@ -128,20 +267,22 @@ class NextcloudFilesAdapterTest {
                 .andExpect(header(HttpHeaders.AUTHORIZATION, AUTH_HEADER))
                 .andRespond(withStatus(HttpStatus.NO_CONTENT));
 
-        assertThat(adapter.createFolder(new CreateFolderRequest("/Team", "Design")).path())
+        assertThat(adapter.createCollection(new FilePath("/Team/Design")).path().value())
                 .isEqualTo("/Team/Design");
-        FileUploadResponse upload = adapter.upload("/Team", new MockMultipartFile(
-                "file", "readme.md", "text/markdown", "hello".getBytes(StandardCharsets.UTF_8)));
-        assertThat(upload.item().path()).isEqualTo("/Team/readme.md");
-        assertThat(upload.item().downloadable()).isTrue();
+        var upload = adapter.write(new FileWrite(
+                new FilePath("/Team/readme.md"),
+                "hello".getBytes(StandardCharsets.UTF_8),
+                "text/markdown"));
+        assertThat(upload.path().value()).isEqualTo("/Team/readme.md");
+        assertThat(upload.kind()).isEqualTo(Kind.FILE);
 
         String fileId = FilePathCodec.toId("/Team/readme.md");
-        DownloadedFile download = adapter.download(fileId);
-        assertThat(download.filename()).isEqualTo("readme.md");
-        assertThat(download.mimeType()).isEqualTo("text/plain");
-        assertThat(download.content()).isEqualTo("hello".getBytes(StandardCharsets.UTF_8));
+        var download = adapter.read(new FileId(fileId));
+        assertThat(download.item().name()).isEqualTo("readme.md");
+        assertThat(download.item().mediaType()).isEqualTo("text/plain");
+        assertThat(download.bytes()).isEqualTo("hello".getBytes(StandardCharsets.UTF_8));
 
-        adapter.delete(fileId);
+        adapter.delete(new FilePath("/Team/readme.md"), FileVersion.unknown());
         server.verify();
     }
 
@@ -151,7 +292,7 @@ class NextcloudFilesAdapterTest {
                 .andExpect(method(HttpMethod.valueOf("PROPFIND")))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND));
 
-        assertThatThrownBy(() -> adapter.list("/Missing"))
+        assertThatThrownBy(() -> adapter.list(new FilePath("/Missing")))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(HttpStatus.NOT_FOUND);
                     assertThat(exception.code()).isEqualTo("file-not-found");
@@ -162,12 +303,9 @@ class NextcloudFilesAdapterTest {
 
     @Test
     void rejectsTraversalBeforeWebdavRequestLeavesBackend() {
-        assertThatThrownBy(() -> adapter.list("/Team/../Secrets"))
-                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
-                    assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST);
-                    assertThat(exception.code()).isEqualTo("invalid-file-path");
-                    assertSupportSafe(exception);
-                });
+        assertThatThrownBy(() -> adapter.list(new FilePath("/Team/../Secrets")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("file path contains an unsafe segment");
         server.verify();
     }
 
@@ -182,8 +320,8 @@ class NextcloudFilesAdapterTest {
                 .andRespond(withStatus(HttpStatus.INSUFFICIENT_STORAGE)
                         .body("quota exceeded on /remote.php/dav/files/weave-service"));
 
-        assertThatThrownBy(() -> adapter.upload("/", new MockMultipartFile(
-                "file", "Team", "application/octet-stream", new byte[] {1})))
+        assertThatThrownBy(() -> adapter.write(new FileWrite(
+                new FilePath("/Team"), new byte[] {1}, "application/octet-stream")))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
                     assertThat(exception.code()).isEqualTo("nextcloud-auth-failed");
@@ -191,8 +329,8 @@ class NextcloudFilesAdapterTest {
                     assertSupportSafe(exception);
                 });
 
-        assertThatThrownBy(() -> adapter.upload("/Team", new MockMultipartFile(
-                "file", "large.bin", "application/octet-stream", new byte[1024 * 1024])))
+        assertThatThrownBy(() -> adapter.write(new FileWrite(
+                new FilePath("/Team/large.bin"), new byte[1024 * 1024], "application/octet-stream")))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(HttpStatus.INSUFFICIENT_STORAGE);
                     assertThat(exception.code()).isEqualTo("files-quota-exceeded");
@@ -204,7 +342,6 @@ class NextcloudFilesAdapterTest {
 
     @Test
     void mapsPermissionAndDeletionConflictsToStableProductErrors() {
-        String lockedFileId = FilePathCodec.toId("/Team/locked.md");
         server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/Team/private.md"))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withStatus(HttpStatus.FORBIDDEN).body("raw provider permission body"));
@@ -212,13 +349,13 @@ class NextcloudFilesAdapterTest {
                 .andExpect(method(HttpMethod.DELETE))
                 .andRespond(withStatus(HttpStatus.LOCKED).body("locked by downstream provider"));
 
-        assertThatThrownBy(() -> adapter.download(FilePathCodec.toId("/Team/private.md")))
+        assertThatThrownBy(() -> adapter.read(new FileId(FilePathCodec.toId("/Team/private.md"))))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(HttpStatus.FORBIDDEN);
                     assertThat(exception.code()).isEqualTo("files-permission-denied");
                     assertSupportSafe(exception);
                 });
-        assertThatThrownBy(() -> adapter.delete(lockedFileId))
+        assertThatThrownBy(() -> adapter.delete(new FilePath("/Team/locked.md"), FileVersion.unknown()))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(HttpStatus.CONFLICT);
                     assertThat(exception.code()).isEqualTo("file-conflict");

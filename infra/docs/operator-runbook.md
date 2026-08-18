@@ -7,142 +7,183 @@ It is meant to remove the remaining tribal knowledge around install, verify, rec
 
 Prepare these explicitly:
 
-- DNS for `<tenant_domain>` for the Weave product gateway
-- DNS for `auth.<tenant_domain>`
-- DNS for `matrix.<tenant_domain>`
-- DNS for `files.<tenant_domain>` as the raw Nextcloud technical/admin/protocol fallback
-- a filled, private copy of `weave-workspace/release.env.example`
-- pinned image references, especially `TF_VAR_weave_backend_image`
-- TLS certificate and key readable by the operator account
-- backup location for Postgres dumps and Nextcloud data exports
+- LAN DNS for the reviewed product, API, auth, and native Files endpoints;
+- a private reviewed copy of `weave-workspace/environments/dogfood.env.example`,
+  `e2e.env.example`, or `prod.env.example`, stored outside the checkout;
+- exact digest references for production images; dogfood may use exact local image IDs built from
+  the clean checked-out commit;
+- absolute `WEAVE_GENERATED_ROOT`, `WEAVE_SECRET_ROOT`, and `WEAVE_TLS_ROOT` paths;
+- TLS certificate/key material in the stable operator-owned `WEAVE_TLS_ROOT` outside Compose
+  volumes. A dogfood reset must not rotate or remove it.
 
 Recommended file permissions on the host:
 
-- release env file: `chmod 600`
-- TLS private key: `chmod 600`
-- backup exports: operator-readable only
+- reviewed public environment file: root-owned mode `0444` or `0644`;
+- every credential/SecretRef file below `WEAVE_SECRET_ROOT`: mode `0600`;
+- generated, secret, TLS, and backup roots: mode `0700`;
+- TLS private keys and private backup artifacts: mode `0600`.
+
+The reviewed environment contains public coordinates only. It must not contain passwords,
+tokens, private keys, assertions, client secrets, or any other credential-shaped value.
 
 ## 2. Secrets inventory and rotation
 
-Single-host operator secrets are file-managed, not generated on the fly.
-At minimum track ownership and rotation dates for:
+Single-host credentials are individual named files below `WEAVE_SECRET_ROOT`. The checked-in
+`scripts/init_secrets.py` inventory is the canonical filename set. Track owner, creation,
+rotation, consumers, and expiry for database credentials; MAS/Matrix secrets and signing keys;
+the Nextcloud actor credential; OIDC client credentials; Matrix Application Service tokens;
+RuntimeProfile signing and RuntimeState wrapping keys; ARC administration credentials; and
+per-cell workload private keys.
 
-- `TF_VAR_db_admin_password`
-- `TF_VAR_keycloak_admin_password`
-- `TF_VAR_keycloak_db_password`
-- `TF_VAR_mas_db_password`
-- `TF_VAR_synapse_db_password`
-- `TF_VAR_nextcloud_db_password`
-- `TF_VAR_nextcloud_admin_password`
-- `TF_VAR_nextcloud_backend_actor_token`
-- `TF_VAR_matrix_mas_client_secret`
-- `TF_VAR_mas_encryption_secret`
-- `TF_VAR_mas_signing_key_pem`
-- `TF_VAR_mas_matrix_secret`
-- `TF_VAR_synapse_registration_shared_secret`
-- `TF_VAR_synapse_macaroon_secret_key`
-- `TF_VAR_synapse_form_secret`
+Repeated `secrets-init`, `prepare`, and install operations preserve an existing valid generation.
+A missing, symlinked, empty, over-readable, or ambiguous SecretRef fails closed. Dogfood/e2e/prod do
+not invent a replacement credential during ordinary deployment.
 
 Rotation guidance:
 
-1. update the private env file
-2. re-export the `TF_VAR_*` values
-3. run `bash weave-workspace/install.sh`
-4. run `bash weave-workspace/release-verify.sh`
-5. if the rotated secret affects sign-in, also test a fresh login manually
+1. create the new SecretRef generation under the operator's protected rotation procedure;
+2. take a candidate-bound private backup and complete an isolated restore rehearsal;
+3. rotate through overlap where the protocol supports it;
+4. run the protected Keycloak/Nextcloud reconciliation and read-back verification;
+5. verify fresh login, token revocation, provider access, and affected workload identities;
+6. delete the retired generation only after every retained consumer and backup reference permits it.
 
-Treat `TF_VAR_mas_signing_key_pem` as a durable signing secret. Rotating it is possible, but it is a higher-risk maintenance event and should be paired with a recovery window and explicit client revalidation.
+Treat MAS signing keys, the RuntimeProfile signing key ring, and the RuntimeState
+wrapping key ring as durable trust roots. Rotate through overlap and pair the change with a private
+backup, restore rehearsal, reconciliation, and explicit consumer validation. Never remove a
+wrapping key while a retained state generation still references it. Normal backend startup must
+not invent a missing trust root.
 
-## 3. Install and upgrade flow
+## 3. Development and dogfood lifecycle
 
 ```bash
-cd weave/infra
-set -a
-source ./weave-workspace/release.env.private
-set +a
-bash weave-workspace/install.sh
-bash weave-workspace/release-verify.sh
-bash weave-workspace/operator-check.sh
+cd weave
+export WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env
+./gradlew dogfoodUp
 ```
 
 Notes:
 
-- `install.sh` is the supported apply path for both first install and repeat apply
-- keep `TF_VAR_create_test_user=false` for release environments
-- use pinned images, not `:latest`
-- after a backend image change, verify `/api/health/ready` and the backend-owned Nextcloud actor checks through both `release-verify.sh` and `operator-check.sh`
+- `compose.yaml` plus the selected `compose.dev.yaml`, `compose.dogfood.yaml`,
+  `compose.prod.yaml`, or `compose.e2e.yaml` overlays is the only deployment model;
+- `dogfoodUp` requires a clean exact checkout, builds backend and MCP from that commit, prepares
+  the canonical Compose model, waits for readiness, and starts no alternate deployment engine;
+- repeated `dogfoodUp` preserves the PostgreSQL, native Files, and Mailpit session volumes;
+- `dogfoodDown` stops the stack and preserves those volumes and the external TLS directory;
+- `dogfoodReset` removes only the fixed dogfood project and the three session volumes, performs
+  the bounded one-time cleanup of the known unlabeled legacy Weave stack when present, and starts
+  an empty stack. It needs no backup, receipt, deletion plan, issue comment, or approval token;
+- Matrix, Nextcloud, MinIO, and Weaver are absent from the default dogfood profile;
+- the direct backend/MCP host ports are loopback-bound. Public `/actuator` is denied;
+  `/api/health/live` and `/api/health/ready` remain the public operational contract.
+
+Production migration, backup, and restore policy remains separate and must not be copied into the
+resettable dogfood feedback loop.
+
+For development, run provider dependencies separately from the host server:
+
+```bash
+./gradlew devUp
+./gradlew devRun
+# In another shell after development:
+./gradlew devDown
+```
+
+Only this `dev` host process uses H2. Flyway still owns its schema and Hibernate still uses
+`ddl-auto=validate`. PostgreSQL remains mandatory for providers, integration tests, dogfood,
+e2e, prod, backup/recovery, and every release claim.
 
 ## 4. Routine verification
 
-Use these in order:
+Use these in order for the default dogfood stack:
 
-1. `bash weave-workspace/release-verify.sh`
-2. `bash weave-workspace/operator-check.sh`
-3. `docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep '^weave-'`
+1. `./gradlew dogfoodUp`
+2. `WEAVE_ENV_FILE=<reviewed-env> infra/weave-workspace/compose.sh dogfood ps`
+3. run the full isolated E2E task before handing the same commit to a human tester.
 
-What `operator-check.sh` adds beyond `release-verify.sh`:
+Provider-specific operator checks apply only when their explicit optional profile is selected; they
+must not make Matrix, Nextcloud, object storage, or Weaver a default dogfood prerequisite.
 
-- confirms the core containers exist and are running
-- checks loopback health endpoints for Keycloak, MAS, Synapse, and backend
-- checks the public product, backend, auth, Matrix, and raw Nextcloud fallback routes through the configured release URLs
-- checks that the default Matrix workspace aliases resolve (`#weave-workspace`, `#announcements`, `#general`, and `#help` on the configured Matrix homeserver)
-- checks that `weave-backend` has the required server-side Files/Calendar Nextcloud actor env and that the actor user exists in Nextcloud
-- treats the actor's own `personal` CalDAV collection as the temporary Weave-managed workspace calendar fallback while team/channel scopes are implemented; private personal calendars require later explicit sharing/provisioning before they are safe to expose through the backend facade
+## 5. Production backup boundary
 
-The default Matrix workspace is provisioned by `weave-workspace/provision-matrix-default-workspace.sh` during install. See `docs/matrix-default-workspace.md` for aliases, the owner/admin-limited `announcements` policy, and current member/guest automation limits.
+Backups are not required before `dogfoodReset`. The three dogfood volumes are development-session
+convenience and carry no durability promise. The repository's backup and restore helpers belong to
+the separately reviewed production/recovery boundary described below.
 
-## 5. Backup expectations
-
-The single-host baseline does not ship scheduled backup jobs, but it does provide a manually runnable backup helper for operator-owned backup storage:
+The repository does not schedule or export backups. The operator supplies a mode-0700 location
+outside the checkout and binds every private consistency set to the exact candidate:
 
 ```bash
-bash weave-workspace/backup.sh /var/backups/weave
+WEAVE_CANDIDATE_COMMIT=<exact-sha> \
+WEAVE_BACKUP_ROOT=/var/backups/weave \
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-prod.env \
+bash weave-workspace/backup.sh prod
 ```
 
-The helper writes one timestamped directory and sets restrictive file permissions. Treat that directory as secret production data, not as a support artifact. It includes:
+The helper quiesces the application/provider writers, writes the consistency set, and restarts
+only the services it observed running. A successful directory is named
+`weave-<profile>-<UTC timestamp>-<candidate prefix>` and contains exactly:
 
-- `postgres.sql`: PostgreSQL-backed service data for Keycloak, MAS, Synapse, Nextcloud, and Weave backend databases from container `weave-db`
-- `nextcloud-data.tgz`: Nextcloud files/calendar application data from Docker volume `weave_nextcloud_data`
-- `matrix-synapse-data.tgz`: Matrix/Synapse media and local data from Docker volume `weave_synapse_data`
-- `caddy-data.tgz` and `caddy-config.tgz`: Caddy ACME/TLS state and runtime config when local Caddy owns certificates
-- `keycloak-data.tgz`: Keycloak container-side runtime data from Docker volume `weave_keycloak_data`
-- `generated-config-secrets.tgz`: generated bootstrap env, no-secret app config, TLS material, and generated OpenTofu service config needed to restore or reprovision without inventing credentials
-- `MANIFEST.txt`: artifact list and restore-smoke reminder
+- `postgres.sql`;
+- `nextcloud-data.tgz`, `synapse-data.tgz`, `keycloak-data.tgz`;
+- `caddy-data.tgz` and `caddy-config.tgz`;
+- `matrix-appservice.tgz`;
+- `private-config-secrets.tgz`, containing the generated, SecretRef, and TLS consistency roots;
+- `BackupManifest.json`, using only `weave.compose-private-backup.v3` and binding the candidate,
+  candidate manifest, profile, Compose project, database fingerprint, the immutable PostgreSQL
+  dump-client image, exact non-template database inventory and its support-safe digest, quiesced
+  services, runtime inventory, byte counts, and SHA-256 hashes.
 
-Support bundles are **not** backups. `support-bundle.sh` deliberately excludes raw databases, Matrix media, Nextcloud files/calendar data, Caddy ACME state, and generated secrets.
+Every listed artifact and the manifest are private and must never be uploaded as support evidence.
+Backup creation uses an owner-only staging directory and publishes the completed consistency set
+with one atomic rename. A failed backup removes only its exact staging directory after the
+quiesced services have been restarted.
+Support bundles are not backups and exclude database content, provider/member content, raw logs,
+credentials, signed assertions, and private configuration.
 
-Minimum expectation before calling the stack release-ready:
+The backup remains bound to `WEAVE_CANDIDATE_COMMIT`, the lane authority, and to
+`WEAVE_CANDIDATE_MANIFEST_DIGEST`. Image provenance is a separate support-safe mapping from that
+lane commit to `WEAVE_IMAGE_SOURCE_COMMIT` and the four immutable image IDs; do not relabel a
+lane-built image or substitute the source commit in backup receipts.
+
+Minimum expectation before calling a future production stack release-ready:
 
 - backups run on a schedule owned by the operator
 - at least one recent backup is stored off-host or on snapshot-backed storage
-- one restore rehearsal has been performed and written down
-- the restore rehearsal ends with `bash weave-workspace/restore-smoke.sh <backup-dir>`
+- one isolated restore/adoption rehearsal has verified every archive and service database;
+- one current support-safe restore receipt is bound to the manifest hash and candidate.
 
 ## 6. Restore outline and smoke
 
-For a host-level restore or failed upgrade rollback:
+The repository currently exposes only a non-mutating v3 integrity preflight:
 
-1. stop further writes to the stack
-2. restore the release env file, generated config/secrets, and TLS material from `generated-config-secrets.tgz`
-3. restore the Postgres dump from `postgres.sql`
-4. restore `weave_nextcloud_data`, `weave_synapse_data`, Caddy volumes, and Keycloak runtime volume from their `.tgz` archives when those volumes are part of the deployment
-5. run `bash weave-workspace/install.sh` to reconcile containers and generated config
-6. run `bash weave-workspace/restore-smoke.sh <backup-dir>`
+```bash
+WEAVE_RESTORE_PREFLIGHT_ONLY=true \
+  bash weave-workspace/restore-private-backup.sh <private-backup-dir>
+```
 
-`restore-smoke.sh` is safe to run after a restore or clean reprovisioning rehearsal. It never deletes volumes and does not perform the restore itself. When a backup directory is provided it first checks for the expected backup artifacts, then reuses `operator-check.sh` to verify backend readiness, Keycloak discovery, Matrix client versions and MAS discovery, default Matrix room aliases, and raw Nextcloud readiness. If the restored Matrix database is intentionally empty but generated Matrix bootstrap secrets are available, run:
+The validator rejects the retired v1 schema, compatibility variants, path traversal, unsafe links,
+special archive members, missing artifacts, and any size/hash mismatch. Direct persistent restore
+apply remains `Guarded`; `restore-private-backup.sh` has no mutating code path. A reviewed
+Compose/control-store restore workflow must prove an isolated destructive rehearsal, exact named
+resources, credential continuity, database/volume reconciliation, rollback, and post-restore
+identity/session/provider readiness before apply can be enabled.
+
+The former unlabeled development runtime is not adopted. The first `dogfoodReset` validates and
+removes only the closed legacy Weave container, volume, and network names before Compose starts
+the new native stack. Bind mounts and the external TLS directory are never cleanup targets.
+
+`restore-smoke.sh` does not restore or delete data. After a separately approved restore/rehearsal it
+revalidates the v3 consistency set, runs `operator-check.sh`, and verifies Matrix Application Service
+mounts plus Agent Runtime trust/readiness. It emits `weave.compose-restore-receipt.v2` with only a
+manifest hash, backup-ID hash, exact candidate/profile/project binding, and support-safe outcomes.
+If a deliberately empty disposable Matrix database must be reprovisioned, use:
 
 ```bash
 WEAVE_RESTORE_SMOKE_REPROVISION_MATRIX=true bash weave-workspace/restore-smoke.sh <backup-dir>
 ```
 
-That option re-runs the idempotent default Matrix workspace provisioner before the checks. If the deployment is badly wedged but data is safe, prefer a clean host plus restored data over ad-hoc container surgery.
-
-For single-host operator evidence on the dedicated runner, manually dispatch the `CI` workflow with:
-
-- `confirm_power_budget_ok=true`
-- `run_restore_smoke=true`
-
-The workflow then bootstraps the stack, runs full-stack smoke, creates a private backup artifact set under the runner temp directory, and runs `restore-smoke.sh` against that artifact set. The backup artifacts contain secrets and are intentionally not uploaded; the workflow log is the shareable evidence. This CI path is a recovery-readiness gate, not an off-host restore substitute, so an operator-owned clean-host restore rehearsal should still be written down before production data is considered protected.
+That option reruns only the idempotent default Matrix workspace projection before the checks.
 
 For artifact-only preflight without touching a live stack, use:
 
@@ -150,21 +191,40 @@ For artifact-only preflight without touching a live stack, use:
 WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true bash weave-workspace/restore-smoke.sh <backup-dir>
 ```
 
-Artifact-only mode validates the backup directory shape and then exits with an explicit note that service readiness was not checked.
+Artifact-only mode performs full manifest/hash/archive integrity verification, emits a non-release
+receipt, and explicitly records that no restore or service readiness was proven.
+
+### Lost or expired pending identity
+
+Use Keycloak's normal invitation resend/revoke lifecycle first. An expired email link is not a
+reason to delete or replace the user. After a successful OIDC sign-in, the provider-neutral
+session-reconciliation use case updates native organization entitlement and the client performs at
+most one standard refresh-token grant before workspace bootstrap.
+
+The former `Dogfood Pending Identity Recovery` mutation path is deliberately guarded. Its root
+supervisor, sanitizer image, custom provider JAR, direct member helper, and runtime-profile
+assumptions are retired authorities. The workflow refuses execution and cannot emit readiness.
+A future destructive retirement path must run against an isolated `e2e` clone of the dogfood
+identity topology, prove current private backup and isolated restore rehearsal, bind an exact
+subject and tombstone, run through the Server identity boundary, and remain unable to delete active
+or ambiguous identities. It must never use the persistent dogfood namespace as its test fixture.
+
+Physical-iPhone readiness requires the normal user to complete the invitation, perform a normal
+OIDC sign-in, and test the exact dogfood commit after full integrated E2E is green.
 
 ## 7. Stop, clean rebuild, and destructive reset
 
-Use the least destructive action that solves the problem:
+Use the task matching the intended session behavior:
 
-1. **Stop/restart containers:** use normal Docker or OpenTofu apply workflows when you only need a service restart. Persistent Docker volumes and generated secrets stay intact.
-2. **Clean rebuild:** run `bash weave-workspace/teardown.sh`, then `bash weave-workspace/install.sh`. This removes Weave containers and the Docker network so OpenTofu can recreate them, but it preserves persistent volumes and `.generated/` secrets/config by default.
-3. **Destructive local reset:** only after a backup, run `WEAVE_REMOVE_VOLUMES=true WEAVE_CONFIRM_DESTRUCTIVE_RESET=<tenant_slug> bash weave-workspace/teardown.sh`. For the default local tenant, `<tenant_slug>` is `weave`.
+1. **Start/update:** `./gradlew dogfoodUp`; existing session volumes and TLS remain.
+2. **Stop:** `./gradlew dogfoodDown`; existing session volumes and TLS remain.
+3. **Empty development session:** `./gradlew dogfoodReset`; exactly the fixed project, its network,
+   and its PostgreSQL/native Files/Mailpit volumes are replaced. TLS remains.
+4. **Isolated E2E cleanup:** `teardown.sh e2e --isolated` requires the deterministic run
+   namespace, exact ownership labels, exact candidate, identity evidence, and explicit volume-removal
+   confirmation. It refuses persistent resources and any label mismatch.
 
-The destructive path prints the backup guidance, affected data domains, and exact Docker volumes before deleting anything. It deletes persistent Docker volumes for Keycloak identity/session data, backend/Postgres data, Matrix/Synapse database and media, Nextcloud database/files/calendar data, shared Postgres databases, and Caddy/TLS state. It does not delete `.generated/` files; copy or remove those intentionally as a separate operator step.
-
-The old `WEAVE_CONFIRM_REMOVE_VOLUMES=weave-delete-local-data` token is deliberately rejected so operators type the tenant/workspace slug instead of copying a generic phrase.
-
-When destructive volume cleanup removes `weave_synapse_data`, the helper also forgets the matching OpenTofu Synapse volume and permission-provisioner state. The next `install.sh` run must recreate the Weave-local volume through OpenTofu and rerun the ownership/writability guard instead of trusting stale state or a Docker-created root-owned volume.
+`dogfoodReset` never applies to production and never accepts arbitrary project or volume names.
 
 ## 8. Minimum observability and triage
 
@@ -173,23 +233,40 @@ Useful commands:
 ```bash
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 docker logs --tail=100 weave-backend
+docker logs --tail=100 weave-mcp-server
 docker logs --tail=100 weave-keycloak
-docker logs --tail=100 weave-mas
-docker logs --tail=100 weave-synapse
-docker logs --tail=100 weave-nextcloud
-bash weave-workspace/operator-check.sh
-bash weave-workspace/release-verify.sh
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
+  infra/weave-workspace/compose.sh dogfood ps
 ```
-
-`operator-check.sh` starts by diagnosing the Weave-local `weave_synapse_data` volume for `weave-synapse`: expected owner `991:991`, mode `0750` on `/data` and `/data/media_store`, and write access for the Matrix signing-key path. This check is intentionally scoped to `weave-synapse` and must not be used as evidence about any separate `homelab-synapse` service.
 
 For support requests, prefer a redacted support bundle over hand-copying raw logs:
 
 ```bash
-bash weave-workspace/support-bundle.sh
+WEAVE_ENV_FILE=<reviewed-env> bash weave-workspace/support-bundle.sh dogfood
 ```
 
-Set `WEAVE_SUPPORT_BUNDLE_RUN_CHECKS=true` when you want the bundle to include fresh `operator-check.sh` and `release-verify.sh` output. The bundle includes public URL/config summaries, container status, recent service logs, disk/volume summaries, and recent smoke/operator/verify artifacts found under `.generated`. It is a diagnostics artifact only: it is **not** a backup and cannot restore Postgres databases, Matrix media, Nextcloud files/calendar data, Caddy ACME state, or generated secrets. Review the archive before sharing externally.
+To include the backend's cached provider capability health, pass a short-lived owner/admin/operator bearer token with `admin_control_plane.readiness_read`; the bundle calls only the authenticated `/api/admin/provider-capability-health` route and strict-allowlists its support-safe schema. A workflow may instead stage either that exact response or the support-safe `weave.provider-health-metrics-summary.v1` emitted from loopback-only cached Actuator gauges in `WEAVE_PROVIDER_HEALTH_EVIDENCE_FILE`. The two schemas have independent exact-field allowlists; a raw Actuator response, unknown field, inconsistent overall state, probe-triggering source, or raw metric payload is rejected.
+
+When Nextcloud authentication throttling is suspected, run:
+
+```bash
+bash weave-workspace/nextcloud-auth-security-audit.sh --output /tmp/nextcloud-auth-audit.json
+```
+
+The audit is read-only. It groups recent invalid-authentication and throttle events by salted source hash, classifies known Caddy/backend container addresses, and reports only canonical method/route classes plus aggregate configured-backend-actor attribution. It never prints raw addresses, actors, URLs, messages, or provider payloads, and never changes protection or resets counters.
+
+Protected deployment automation may read cached Micrometer measurements directly from
+`http://127.0.0.1:${WEAVE_BACKEND_HOST_PORT}/actuator/metrics`. These host-local reads do not
+execute provider probes. Do not publish or proxy this endpoint; use the authenticated admin
+provider-capability-health facade for product/control-plane access.
+
+Routine persistent deployment must preserve the existing PostgreSQL, Mailpit, Caddy, and native
+Files volumes and the public TLS CA/leaf fingerprints while converging the same Compose model a
+second time. Deployment automation must not obtain a realm-admin credential merely to inspect a
+human subject or session. Human continuity is instead proven by the activated owner through normal
+OIDC/session evidence; identity recovery uses the Keycloak database backup, not user recreation.
+
+Set `WEAVE_SUPPORT_BUNDLE_RUN_CHECKS=true` when you want the bundle to include fresh `operator-check.sh` and `release-verify.sh` output. The bundle includes public URL/config summaries, container status, disk/volume summaries, strict cached provider-health evidence, the sanitized Nextcloud authentication-source audit, and only a count/content-set hash for recent smoke/operator/verify artifacts found under `.generated`. Raw service/provider logs and raw prior diagnostic artifacts are deliberately excluded because generic redaction cannot prove removal of actor/content identifiers. It is a diagnostics artifact only: it is **not** a backup and cannot restore Postgres databases, Matrix media, Nextcloud files/calendar data, Caddy ACME state, or generated secrets. Review the archive before sharing externally.
 
 Escalate quickly when any of these fail:
 
@@ -197,6 +274,9 @@ Escalate quickly when any of these fail:
 - backend readiness is not `up`
 - Nextcloud `status.php` is not installed/healthy
 - Matrix delegated auth discovery, client versions, or `/authorize` is unavailable
+- MCP protected-resource metadata or loopback readiness is unavailable
+- Agent Runtime signing/wrapping trust is missing, a per-cell Keycloak client is ambiguous, or
+  RuntimeState readiness reports a storage/key failure
 
 ## 9. Known single-host limits
 
@@ -204,6 +284,9 @@ These are still intentionally out of scope for this repo slice:
 
 - automated backup scheduling
 - secret manager integration
+- external KMS/secret-manager custody for RuntimeState wrapping keys (the mounted file-key adapter
+  is dogfood-only)
+- production Weaver cell scheduling and cross-node checkpoint reconstruction
 - connector runtime enablement, including reviewed provider callback exposure and revocable provider secret references
 - HA or zero-downtime upgrades
 - centralized metrics or alert routing

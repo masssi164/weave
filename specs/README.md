@@ -9,6 +9,13 @@ Canonical specification truth lives in the pinned Weave Specification Corpus ref
 
 This implementation repository is the **conformance and evidence truth**. It contains code, tests, CI gates, release evidence, generated projections, and historical repo-local specs that must conform to the pinned spec corpus.
 
+For PR #1043 and later open-standards gateway work, repo-local packets that still describe OpenAPI/REST as a normal member data plane for Files, Calendar events, or Chat conversations/messages are obsolete. The canonical northbound collaboration data planes are:
+
+- Files: Weave WebDAV at `/dav/files/**`.
+- Calendar: Weave CalDAV/iCalendar at `/caldav/**`.
+- Chat: Weave Matrix Client-Server facade at `/_matrix/client/**`.
+- OpenAPI: control plane only for readiness, setup, credentials, revoke, admin/provider decisions, generated convenience models, and support-safe evidence.
+
 ## Truth boundary
 
 - Specification truth: the corpus at the lockfile `specCorpus.localPath` (default `../weave-specs`), pinned by `specs/weave-specs.lock.json`.

@@ -6,6 +6,7 @@ import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
 import 'package:weave/integrations/weave_api/data/services/weave_api_client.dart';
 
 class _RecordingHttpClient extends http.BaseClient {
@@ -29,6 +30,32 @@ http.StreamedResponse _jsonResponse(
     statusCode,
     headers: {'content-type': 'application/json'},
   );
+}
+
+Map<String, Object?> _workspaceHomeActivityJson({
+  String? activityRef,
+  String activityHash =
+      'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+  String domain = 'files',
+  String action = 'files.webdav_write.completed',
+  String occurredAt = '2026-07-12T10:00:00Z',
+  String visibility = 'workspace',
+  String? actorRefHash,
+  String actorHash =
+      'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+  bool actorIsCurrentUser = false,
+  bool supportSafe = true,
+}) {
+  return <String, Object?>{
+    'activityRef': activityRef ?? 'activity:sha256:$activityHash',
+    'domain': domain,
+    'action': action,
+    'occurredAt': occurredAt,
+    'visibility': visibility,
+    'actorRefHash': actorRefHash ?? 'sha256:$actorHash',
+    'actorIsCurrentUser': actorIsCurrentUser,
+    'supportSafe': supportSafe,
+  };
 }
 
 Map<String, Object?> _capability({
@@ -72,7 +99,7 @@ Map<String, Object?> _workspaceCapabilitiesJson({
     'manualsHelp': _capability(enabled: true, readiness: 'ready'),
     'releaseEvidence': _capability(enabled: true, readiness: 'ready'),
     'adminControlPlane': _capability(enabled: true, readiness: 'ready'),
-    'weaver': _capability(
+    'agentRuntimeControl': _capability(
       enabled: false,
       readiness: 'unavailable',
       policyState: 'disabled',
@@ -99,20 +126,20 @@ Map<String, Object?> _organizationManifestJson({
     'whitelistingOwner': 'organization-admin-console',
     'clientResponsibilities': [
       'accept organization auth URL, invite link, or deep link',
-      'complete SSO with the selected identity provider',
+      'complete OIDC Authorization Code with PKCE through the organization authority',
       'consume effective organization manifest and capability states',
       'render only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later member states',
     ],
     'adminConsoleResponsibilities': [
       'create and bootstrap organizations',
-      'select and configure identity providers and category providers',
+      'manage Keycloak identity, upstream federation, and selectable category providers',
       'manage provider endpoint URLs, rotation, readiness, and support-safe diagnostics',
       'manage users, groups, roles, capability profiles, and deny-by-default policy',
       'own provider, tool, and agent whitelisting plus privacy/compliance risk notes',
       'audit organization-wide defaults and administrative changes',
     ],
     'memberCapabilityStates': {
-      'idm-rbac': 'available',
+      'platform-identity': 'available',
       'chat-channels': 'available',
       'files-docs': 'available',
       'calendar-events': 'degraded',
@@ -135,6 +162,60 @@ Map<String, Object?> _organizationManifestJson({
 
 void main() {
   group('HttpWeaveApiClient', () {
+    test('reconciles identity access without sending provider input', () async {
+      late http.BaseRequest capturedRequest;
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          capturedRequest = request;
+          return _jsonResponse({
+            'state': 'access_updated',
+            'reauthorizationRequired': true,
+          });
+        }),
+      );
+
+      final result = await client.reconcileIdentitySession(
+        baseUrl: Uri.parse('https://api.home.internal/api'),
+        accessToken: 'token-123',
+      );
+
+      expect(result, IdentitySessionReconcileResult.reauthorizationRequired);
+      expect(capturedRequest.method, 'POST');
+      expect(
+        capturedRequest.url.toString(),
+        'https://api.home.internal/api/v1/identity/session/reconcile',
+      );
+      expect(capturedRequest.headers['Accept'], 'application/json');
+      expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
+      expect(capturedRequest.headers['Content-Type'], isNull);
+      expect((capturedRequest as http.Request).body, isEmpty);
+    });
+
+    test('rejects inconsistent identity reconciliation results', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          return _jsonResponse({
+            'state': 'unchanged',
+            'reauthorizationRequired': true,
+          });
+        }),
+      );
+
+      await expectLater(
+        () => client.reconcileIdentitySession(
+          baseUrl: Uri.parse('https://api.home.internal/api'),
+          accessToken: 'token-123',
+        ),
+        throwsA(
+          isA<AppFailure>().having(
+            (failure) => failure.message,
+            'message',
+            contains('inconsistent identity-session'),
+          ),
+        ),
+      );
+    });
+
     test('fetches workspace capabilities with a bearer token', () async {
       late http.BaseRequest capturedRequest;
       final client = HttpWeaveApiClient(
@@ -167,7 +248,7 @@ void main() {
 
       expect(
         capturedRequest.url.toString(),
-        'https://api.home.internal/api/v1/workspace/capabilities',
+        'https://api.home.internal/api/workspace/capabilities',
       );
       expect(capturedRequest.headers['Accept'], 'application/json');
       expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
@@ -201,7 +282,7 @@ void main() {
 
         expect(
           capturedRequest.url.toString(),
-          'https://api.weave.test/api/v1/organization/manifest',
+          'https://api.weave.test/api/organization/manifest',
         );
         expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
         expect(snapshot.safeForMemberClient, isTrue);
@@ -327,7 +408,7 @@ void main() {
         httpClient: _RecordingHttpClient((request) async {
           capturedRequest = request;
           return _jsonResponse({
-            'version': 1,
+            'version': 2,
             'readiness': 'degraded',
             'summary': 'Weave Home is usable, with setup actions remaining.',
             'supportSafe': true,
@@ -359,6 +440,15 @@ void main() {
                 'reason': 'Board writes stay gated behind audit.',
               },
             ],
+            'recentActivity': [
+              _workspaceHomeActivityJson(
+                actorIsCurrentUser: true,
+                activityHash:
+                    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                actorHash:
+                    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+              ),
+            ],
           });
         }),
       );
@@ -370,13 +460,23 @@ void main() {
 
       expect(
         capturedRequest.url.toString(),
-        'https://api.weave.test/api/v1/workspace/home',
+        'https://api.weave.test/api/workspace/home',
       );
       expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
       expect(snapshot.supportSafe, isTrue);
       expect(snapshot.sections.first.key, 'recent-channels');
       expect(snapshot.sections.first.productRoute, 'weave://home/channels');
       expect(snapshot.actions.single.productRoute, 'weave://home/tasks');
+      expect(snapshot.recentActivity.single.supportSafe, isTrue);
+      expect(
+        snapshot.recentActivity.single.domain,
+        WorkspaceHomeActivityDomain.files,
+      );
+      expect(
+        snapshot.recentActivity.single.action,
+        WorkspaceHomeActivityAction.filesWebDavWriteCompleted,
+      );
+      expect(snapshot.recentActivity.single.actorIsCurrentUser, isTrue);
       expect(snapshot.hasActionableWork, isTrue);
     });
 
@@ -384,12 +484,13 @@ void main() {
       final client = HttpWeaveApiClient(
         httpClient: _RecordingHttpClient((request) async {
           return _jsonResponse({
-            'version': 1,
+            'version': 2,
             'readiness': 'ready',
             'summary': 'Raw provider URL https://provider.example leaked.',
-            'supportSafe': false,
+            'supportSafe': true,
             'sections': [],
             'actions': [],
+            'recentActivity': [],
           });
         }),
       );
@@ -403,28 +504,82 @@ void main() {
       );
     });
 
-    test(
-      'preserves a base path when building the workspace endpoint',
-      () async {
-        late http.BaseRequest capturedRequest;
+    test('rejects unsafe or unknown Weave Home activity fields', () async {
+      final unsafeActivities = <Map<String, Object?>>[
+        _workspaceHomeActivityJson(activityRef: 'provider:file-123'),
+        _workspaceHomeActivityJson(actorRefHash: 'user:member@example.test'),
+        _workspaceHomeActivityJson(action: 'files.unknown.completed'),
+        _workspaceHomeActivityJson(domain: 'provider-files'),
+        _workspaceHomeActivityJson(visibility: 'context:private-id'),
+        _workspaceHomeActivityJson(occurredAt: '2026-07-12T10:00:00'),
+        _workspaceHomeActivityJson(supportSafe: false),
+      ];
+
+      for (final activity in unsafeActivities) {
         final client = HttpWeaveApiClient(
           httpClient: _RecordingHttpClient((request) async {
-            capturedRequest = request;
-            return _jsonResponse(_workspaceCapabilitiesJson());
+            return _jsonResponse({
+              'version': 2,
+              'readiness': 'ready',
+              'summary': 'Weave Home is ready.',
+              'supportSafe': true,
+              'sections': [],
+              'actions': [],
+              'recentActivity': [activity],
+            });
           }),
         );
 
-        await client.fetchWorkspaceCapabilities(
+        await expectLater(
+          () => client.fetchWorkspaceHome(
+            baseUrl: Uri.parse('https://api.weave.test/api'),
+            accessToken: 'token-123',
+          ),
+          throwsA(isA<AppFailure>()),
+        );
+      }
+    });
+
+    test('rejects duplicate Weave Home activity references', () async {
+      final activity = _workspaceHomeActivityJson();
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          return _jsonResponse({
+            'version': 2,
+            'readiness': 'ready',
+            'summary': 'Weave Home is ready.',
+            'supportSafe': true,
+            'sections': [],
+            'actions': [],
+            'recentActivity': [activity, activity],
+          });
+        }),
+      );
+
+      await expectLater(
+        () => client.fetchWorkspaceHome(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accessToken: 'token-123',
+        ),
+        throwsA(isA<AppFailure>()),
+      );
+    });
+
+    test('rejects a non-canonical backend base path', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient(
+          (request) async => _jsonResponse(_workspaceCapabilitiesJson()),
+        ),
+      );
+
+      await expectLater(
+        client.fetchWorkspaceCapabilities(
           baseUrl: Uri.parse('https://home.internal/service/root'),
           accessToken: 'token-123',
-        );
-
-        expect(
-          capturedRequest.url.toString(),
-          'https://home.internal/service/root/api/v1/workspace/capabilities',
-        );
-      },
-    );
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
 
     test(
       'does not duplicate the api segment for canonical API bases',
@@ -444,7 +599,7 @@ void main() {
 
         expect(
           capturedRequest.url.toString(),
-          'https://api.weave.test/api/v1/workspace/capabilities',
+          'https://api.weave.test/api/workspace/capabilities',
         );
       },
     );
@@ -528,20 +683,17 @@ void main() {
               'supportSafe': true,
               'categories': [
                 {
-                  'category': 'identity-idm',
-                  'label': 'identity/IDM',
+                  'category': 'chat',
+                  'label': 'Chat',
                   'contract': {
-                    'category': 'identity-idm',
-                    'featureCapabilities': [
-                      'identity.sign_in',
-                      'identity.groups',
-                    ],
-                    'defaultAdapters': ['keycloak-realm'],
-                    'externalAdapters': ['entra-id', 'generic-oidc'],
+                    'category': 'chat',
+                    'featureCapabilities': ['chat.read', 'chat.send'],
+                    'defaultAdapters': ['matrix-chat'],
+                    'externalAdapters': ['zulip-chat'],
                     'choiceModels': [
                       {
                         'choiceModel': 'recommended_self_hosted_default',
-                        'adapters': ['keycloak-realm'],
+                        'adapters': ['matrix-chat'],
                         'adminRiskNotes': [
                           'recommended sovereign/default posture',
                         ],
@@ -549,14 +701,14 @@ void main() {
                       },
                       {
                         'choiceModel': 'external_existing_provider',
-                        'adapters': ['entra-id'],
+                        'adapters': ['zulip-chat'],
                         'adminRiskNotes': [
                           'admin records privacy and compliance risk outside member UX',
                         ],
                         'recommended': false,
                       },
                     ],
-                    'adapterModules': ['identity-realm', 'matrix-auth'],
+                    'adapterModules': ['chat'],
                     'stableMemberImpactStates': [
                       'available',
                       'disabled_by_policy',
@@ -574,18 +726,18 @@ void main() {
                   'realityLevelRemediation':
                       'Release-ready provider: keep evidence current.',
                   'policyState': 'allowed',
-                  'memberImpact': 'Sign-in is available.',
-                  'modules': ['identity-realm', 'matrix-auth'],
-                  'providerCandidates': ['keycloak', 'oidc'],
-                  'selectedProviderKey': 'keycloak-realm',
+                  'memberImpact': 'Chat is available.',
+                  'modules': ['chat'],
+                  'providerCandidates': ['matrix-chat', 'zulip-chat'],
+                  'selectedProviderKey': 'matrix-chat',
                   'choiceModel': 'recommended_self_hosted_default',
                   'selectedByAdmin': true,
                   'bootstrapSuggestionOnly': false,
                   'lossyMappingNotes': [],
                   'adapterEvidence': [
                     {
-                      'domain': 'identity-idm',
-                      'adapterKey': 'keycloak-realm',
+                      'domain': 'chat',
+                      'adapterKey': 'matrix-chat',
                       'configured': true,
                       'reachable': true,
                       'health': 'ready',
@@ -610,17 +762,17 @@ void main() {
                   },
                 },
                 {
-                  'category': 'weaver',
-                  'label': 'Weaver',
+                  'category': 'agent-runtime-control',
+                  'label': 'Agent Runtime Control',
                   'contract': {
-                    'category': 'weaver',
-                    'featureCapabilities': ['weaver.enabled'],
-                    'defaultAdapters': ['weaver-runtime-disabled'],
-                    'externalAdapters': ['openclaw-governed-runtime'],
+                    'category': 'agent-runtime-control',
+                    'featureCapabilities': ['agent-runtime.entitled'],
+                    'defaultAdapters': ['weaver-openclaw'],
+                    'externalAdapters': [],
                     'choiceModels': [
                       {
                         'choiceModel': 'recommended_self_hosted_default',
-                        'adapters': ['weaver-runtime-disabled'],
+                        'adapters': ['weaver-openclaw'],
                         'adminRiskNotes': ['disabled by default'],
                         'recommended': true,
                       },
@@ -643,7 +795,8 @@ void main() {
                   'realityLevelRemediation':
                       'Contract-only candidate remains unavailable.',
                   'policyState': 'policy_blocked',
-                  'memberImpact': 'Weaver is disabled by workspace policy.',
+                  'memberImpact':
+                      'Agent Runtime Control is disabled by workspace policy.',
                   'modules': [],
                   'providerCandidates': [],
                   'selectedProviderKey': 'awaiting_admin_selection',
@@ -690,15 +843,15 @@ void main() {
                   'failClosed': true,
                   'supportSafe': true,
                   'paidFeaturesRequired': false,
-                  'summary': 'LiveKit readiness is fail-closed.',
-                  'supportedCapabilities': ['join-token-broker'],
+                  'summary': 'LiveKit SFU readiness is fail-closed.',
+                  'supportedCapabilities': ['sfu-configuration-readiness'],
                   'unsupportedOperations': ['livekit-api-secret-exposure'],
-                  'supportSafeErrorCodes': ['meetings-token-unavailable'],
+                  'supportSafeErrorCodes': ['rtc-authorization-required'],
                   'redactionPolicy': 'booleans only',
                   'candidates': ['livekit'],
                   'providerRealityLevel': 'rollback_ready',
                   'diagnostics': {
-                    'activeProvider': 'livekit',
+                    'activeSfuAdapter': 'livekit',
                     'livekitUrlConfigured': true,
                     'apiKeyConfigured': true,
                     'apiSecretConfigured': true,
@@ -731,18 +884,18 @@ void main() {
         expect(snapshot.bootstrapDefaultsAreSuggestionsOnly, isTrue);
         expect(snapshot.adminSelectedMappingsRequired, isTrue);
         expect(snapshot.categories, hasLength(2));
-        expect(snapshot.categories.first.category, 'identity-idm');
+        expect(snapshot.categories.first.category, 'chat');
         expect(
           snapshot.categories.first.contract.featureCapabilities,
-          containsAll(['identity.sign_in', 'identity.groups']),
+          containsAll(['chat.read', 'chat.send']),
         );
         expect(
           snapshot.categories.first.contract.defaultAdapters,
-          contains('keycloak-realm'),
+          contains('matrix-chat'),
         );
         expect(
           snapshot.categories.first.contract.externalAdapters,
-          containsAll(['entra-id', 'generic-oidc']),
+          contains('zulip-chat'),
         );
         expect(
           snapshot.categories.first.contract.keepsMemberSemanticsStable,
@@ -776,13 +929,13 @@ void main() {
         );
         expect(snapshot.categories.first.memberCapabilityState, 'available');
         expect(snapshot.categories.first.memberAvailable, isTrue);
-        expect(snapshot.categories.first.selectedProviderKey, 'keycloak-realm');
+        expect(snapshot.categories.first.selectedProviderKey, 'matrix-chat');
         expect(snapshot.categories.first.selectedByAdmin, isTrue);
         expect(snapshot.categories.first.bootstrapSuggestionOnly, isFalse);
         expect(snapshot.categories.first.supportSafe, isTrue);
         expect(
           snapshot.categories.first.adapterEvidence.single.adapterKey,
-          'keycloak-realm',
+          'matrix-chat',
         );
         expect(
           snapshot.categories.first.adapterEvidence.single.configured,
@@ -805,7 +958,7 @@ void main() {
               .supportSafeDiagnostics,
           isNot(contains('rawProviderError')),
         );
-        expect(snapshot.categories.last.category, 'weaver');
+        expect(snapshot.categories.last.category, 'agent-runtime-control');
         expect(
           snapshot.categories.last.readiness,
           ProviderCategoryReadiness.policyBlocked,

@@ -104,41 +104,11 @@ abstract class AppLocalizations {
   /// **'Weave'**
   String get appTitle;
 
-  /// Main heading on the welcome screen
-  ///
-  /// In en, this message translates to:
-  /// **'Welcome to Weave'**
-  String get welcomeTitle;
-
-  /// Subtitle text below the welcome heading
-  ///
-  /// In en, this message translates to:
-  /// **'Join your organization through an invite or sign-in handoff. Provider setup stays with your admins.'**
-  String get welcomeSubtitle;
-
-  /// Label for the primary CTA on the welcome screen
-  ///
-  /// In en, this message translates to:
-  /// **'Join your organization'**
-  String get continueButton;
-
   /// Title for the setup flow screen
   ///
   /// In en, this message translates to:
-  /// **'Join Weave'**
+  /// **'Organization access'**
   String get setupTitle;
-
-  /// Title for the setup provider and issuer step
-  ///
-  /// In en, this message translates to:
-  /// **'Configure provider categories'**
-  String get setupProviderStepTitle;
-
-  /// Description shown in the setup provider step
-  ///
-  /// In en, this message translates to:
-  /// **'Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.'**
-  String get setupProviderStepDescription;
 
   /// Title for the setup services step
   ///
@@ -161,7 +131,7 @@ abstract class AppLocalizations {
   /// Description explaining provider categories and dogfood defaults
   ///
   /// In en, this message translates to:
-  /// **'Weave tracks collaboration categories first. Provider names below are current dogfood choices for admins/operators, not member-facing product names.'**
+  /// **'Keycloak is the fixed platform identity authority. The remaining rows are collaboration categories whose provider names are admin/operator choices, not member-facing product names.'**
   String get providerCategorySummaryDescription;
 
   /// Accessibility label for the provider category summary
@@ -176,6 +146,12 @@ abstract class AppLocalizations {
   /// **'Current dogfood choice'**
   String get providerCategoryStatusCurrentDefault;
 
+  /// Status pill for the non-selectable Keycloak platform identity boundary
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed platform authority'**
+  String get platformIdentityStatusFixedAuthority;
+
   /// Status pill for a provider category that requires admin setup before member use
   ///
   /// In en, this message translates to:
@@ -188,17 +164,17 @@ abstract class AppLocalizations {
   /// **'Disabled by default'**
   String get providerCategoryStatusDisabledByDefault;
 
-  /// Provider category title for identity and IDM
+  /// Title for the fixed platform identity and security boundary
   ///
   /// In en, this message translates to:
-  /// **'Identity/IDM'**
-  String get providerCategoryIdentityTitle;
+  /// **'Platform identity'**
+  String get platformIdentityTitle;
 
-  /// Provider category detail for identity and IDM
+  /// Detail for the fixed Keycloak platform identity boundary
   ///
   /// In en, this message translates to:
-  /// **'Keycloak/Auth is the current dogfood choice; Entra ID, Authentik, or another OIDC/SAML source can map to this category.'**
-  String get providerCategoryIdentityDetail;
+  /// **'Keycloak/Auth is the platform authority. Entra ID, Authentik/Auth0, other OIDC/SAML sources, or LDAP/AD integrate upstream through Keycloak federation or brokering.'**
+  String get platformIdentityDetail;
 
   /// Provider category title for chat
   ///
@@ -257,7 +233,7 @@ abstract class AppLocalizations {
   /// Provider category detail for meetings and calls
   ///
   /// In en, this message translates to:
-  /// **'LiveKit Meetings readiness is tracked behind the token facade before members can start or join calls.'**
+  /// **'MatrixRTC Profile 0 is the signaling boundary; a replaceable SFU carries media only after current RTC authorization.'**
   String get providerCategoryMeetingsDetail;
 
   /// Provider category title for documents and collaboration
@@ -272,17 +248,17 @@ abstract class AppLocalizations {
   /// **'Document collaboration is a provider adapter category and stays admin setup required until a backend-owned launch path is configured.'**
   String get providerCategoryDocumentsDetail;
 
-  /// Provider category title for Weaver
+  /// Product category title for Agent Runtime Control
   ///
   /// In en, this message translates to:
-  /// **'Weaver'**
-  String get providerCategoryWeaverTitle;
+  /// **'Agent Runtime Control'**
+  String get providerCategoryAgentRuntimeControlTitle;
 
-  /// Provider category detail for Weaver
+  /// Product category detail for Agent Runtime Control
   ///
   /// In en, this message translates to:
-  /// **'Weaver stays disabled by default until governed per-user PA policy, whitelisting, consent, and audit are accepted.'**
-  String get providerCategoryWeaverDetail;
+  /// **'Agent Runtime Control stays disabled without current Keycloak entitlement, signed RuntimeProfile v2, encrypted external state, and cell-bound workload identity.'**
+  String get providerCategoryAgentRuntimeControlDetail;
 
   /// Title for the language preference step
   ///
@@ -404,77 +380,57 @@ abstract class AppLocalizations {
   /// **'Recent activity'**
   String get shellRecentActivityTitle;
 
-  /// Description for the recent activity card in the app shell
-  ///
-  /// In en, this message translates to:
-  /// **'Quick links to recent rooms and file changes.'**
-  String get shellRecentActivityDescription;
-
   /// Semantic label for the recent activity card
   ///
   /// In en, this message translates to:
-  /// **'Recent activity quick links'**
+  /// **'Authorized recent workspace activity'**
   String get shellRecentActivitySemanticLabel;
 
-  /// Section title for recent room quick links in the app shell
+  /// Loading state for the authorized Home recent-activity projection
   ///
   /// In en, this message translates to:
-  /// **'Rooms'**
-  String get shellRecentRoomsTitle;
+  /// **'Loading recent workspace activity…'**
+  String get homeRecentActivityLoading;
 
-  /// Section title for recent file quick links in the app shell
+  /// Support-safe unavailable state for Home recent activity
   ///
   /// In en, this message translates to:
-  /// **'Files'**
-  String get shellRecentFilesTitle;
+  /// **'Recent workspace activity is unavailable right now.'**
+  String get homeRecentActivityUnavailable;
 
-  /// Loading label for recent room quick links
+  /// Empty state for the authorized Home recent-activity projection
   ///
   /// In en, this message translates to:
-  /// **'Loading recent rooms…'**
-  String get shellRecentRoomsLoading;
+  /// **'No completed workspace activity is visible yet.'**
+  String get homeRecentActivityEmpty;
 
-  /// Empty state for recent room quick links
+  /// Generic Home activity label for the current member's completed Files mutation
   ///
   /// In en, this message translates to:
-  /// **'No recent rooms yet.'**
-  String get shellRecentRoomsEmpty;
+  /// **'You completed a Files change'**
+  String get homeRecentActivityCurrentMemberFilesCompleted;
 
-  /// Unavailable/error state for recent room quick links
+  /// Generic Home activity label for another authorized member's completed Files mutation
   ///
   /// In en, this message translates to:
-  /// **'Recent rooms are unavailable until chat is connected.'**
-  String get shellRecentRoomsUnavailable;
+  /// **'A workspace member completed a Files change'**
+  String get homeRecentActivityOtherMemberFilesCompleted;
 
-  /// Loading label for recent file quick links
+  /// Generic visibility label that does not expose a Context identifier
   ///
   /// In en, this message translates to:
-  /// **'Loading recent file changes…'**
-  String get shellRecentFilesLoading;
+  /// **'Shared workspace activity'**
+  String get homeRecentActivityWorkspaceVisibility;
 
-  /// Empty state for recent file quick links
+  /// Screen-reader summary for one generic support-safe Home activity
   ///
   /// In en, this message translates to:
-  /// **'No recent file changes yet.'**
-  String get shellRecentFilesEmpty;
-
-  /// Error state for recent file quick links
-  ///
-  /// In en, this message translates to:
-  /// **'Recent file changes could not be loaded.'**
-  String get shellRecentFilesError;
-
-  /// Unavailable state for recent file quick links
-  ///
-  /// In en, this message translates to:
-  /// **'Recent files are unavailable until files are connected.'**
-  String get shellRecentFilesUnavailable;
-
-  /// Fallback recency hint for activity items without a timestamp
-  ///
-  /// In en, this message translates to:
-  /// **'recent'**
-  String get shellRecentActivityUnknownRecency;
+  /// **'{activity}. {visibility}. {recency}.'**
+  String homeRecentActivityItemSemantic(
+    String activity,
+    String visibility,
+    String recency,
+  );
 
   /// Recency hint for activity that just happened
   ///
@@ -499,39 +455,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'yesterday'**
   String get shellRecentActivityYesterday;
-
-  /// Semantic label for a recent room quick link
-  ///
-  /// In en, this message translates to:
-  /// **'Open room {roomName}. Latest activity: {preview}. {recency}.'**
-  String shellRecentRoomItemSemantic(
-    String roomName,
-    String preview,
-    String recency,
-  );
-
-  /// Semantic label for a recent file quick link
-  ///
-  /// In en, this message translates to:
-  /// **'Open {itemType} {itemName} in {path}. Changed {recency}.'**
-  String shellRecentFileItemSemantic(
-    String itemType,
-    String itemName,
-    String path,
-    String recency,
-  );
-
-  /// File activity type label for folders
-  ///
-  /// In en, this message translates to:
-  /// **'folder'**
-  String get shellRecentFileFolderType;
-
-  /// File activity type label for files
-  ///
-  /// In en, this message translates to:
-  /// **'file'**
-  String get shellRecentFileFileType;
 
   /// Message shown when a list has no items
   ///
@@ -604,330 +527,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Weave logo'**
   String get semanticWeaveLogo;
-
-  /// No description provided for @firstRunAppBarTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'First-run status'**
-  String get firstRunAppBarTitle;
-
-  /// No description provided for @firstRunLoadingLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Checking your Weave workspace…'**
-  String get firstRunLoadingLabel;
-
-  /// No description provided for @firstRunLoadingHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Loading your profile, role, and module readiness from the Weave backend.'**
-  String get firstRunLoadingHint;
-
-  /// No description provided for @firstRunLoadFailure.
-  ///
-  /// In en, this message translates to:
-  /// **'We could not load your first-run status from the Weave backend.'**
-  String get firstRunLoadFailure;
-
-  /// No description provided for @firstRunLoadFailureGuidance.
-  ///
-  /// In en, this message translates to:
-  /// **'Check your connection and try again. If this keeps happening, ask an admin to confirm the backend is reachable.'**
-  String get firstRunLoadFailureGuidance;
-
-  /// No description provided for @firstRunSignedOutMessage.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in to view your Weave first-run status.'**
-  String get firstRunSignedOutMessage;
-
-  /// No description provided for @firstRunSignedOutGuidance.
-  ///
-  /// In en, this message translates to:
-  /// **'We need an active Weave SSO session before we can check your profile, role, and module readiness.'**
-  String get firstRunSignedOutGuidance;
-
-  /// No description provided for @firstRunSignInAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Go to sign in'**
-  String get firstRunSignInAction;
-
-  /// No description provided for @firstRunSignedOutSemanticLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in to view your Weave first-run status. We need an active Weave SSO session before we can check your profile, role, and module readiness. Action: Go to sign in'**
-  String get firstRunSignedOutSemanticLabel;
-
-  /// No description provided for @firstRunReadyTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Your Weave workspace is ready'**
-  String get firstRunReadyTitle;
-
-  /// No description provided for @firstRunNeedsAttentionTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Your Weave workspace is being prepared'**
-  String get firstRunNeedsAttentionTitle;
-
-  /// No description provided for @firstRunDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'You signed in once with Weave SSO. Weave is checking your profile and collaboration modules; no separate Chat, Files, or Calendar credentials are needed.'**
-  String get firstRunDescription;
-
-  /// No description provided for @firstRunIdentitySectionTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Your Weave identity'**
-  String get firstRunIdentitySectionTitle;
-
-  /// No description provided for @firstRunIdentitySectionDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'This profile and role come from the Weave backend contract after SSO.'**
-  String get firstRunIdentitySectionDescription;
-
-  /// No description provided for @firstRunDisplayNameLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Name'**
-  String get firstRunDisplayNameLabel;
-
-  /// No description provided for @firstRunUsernameLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Username'**
-  String get firstRunUsernameLabel;
-
-  /// No description provided for @firstRunEmailLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Email'**
-  String get firstRunEmailLabel;
-
-  /// No description provided for @firstRunRoleLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Role'**
-  String get firstRunRoleLabel;
-
-  /// No description provided for @firstRunInviteStatusLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Invite'**
-  String get firstRunInviteStatusLabel;
-
-  /// No description provided for @firstRunRoleOwner.
-  ///
-  /// In en, this message translates to:
-  /// **'Owner'**
-  String get firstRunRoleOwner;
-
-  /// No description provided for @firstRunRoleAdmin.
-  ///
-  /// In en, this message translates to:
-  /// **'Admin'**
-  String get firstRunRoleAdmin;
-
-  /// No description provided for @firstRunRoleOperator.
-  ///
-  /// In en, this message translates to:
-  /// **'Operator'**
-  String get firstRunRoleOperator;
-
-  /// No description provided for @firstRunRoleMember.
-  ///
-  /// In en, this message translates to:
-  /// **'Member'**
-  String get firstRunRoleMember;
-
-  /// No description provided for @firstRunRoleGuest.
-  ///
-  /// In en, this message translates to:
-  /// **'Guest'**
-  String get firstRunRoleGuest;
-
-  /// No description provided for @firstRunRoleUnknown.
-  ///
-  /// In en, this message translates to:
-  /// **'Workspace role'**
-  String get firstRunRoleUnknown;
-
-  /// No description provided for @firstRunInviteAccepted.
-  ///
-  /// In en, this message translates to:
-  /// **'Accepted'**
-  String get firstRunInviteAccepted;
-
-  /// No description provided for @firstRunInvitePending.
-  ///
-  /// In en, this message translates to:
-  /// **'Pending'**
-  String get firstRunInvitePending;
-
-  /// No description provided for @firstRunInviteExpired.
-  ///
-  /// In en, this message translates to:
-  /// **'Expired'**
-  String get firstRunInviteExpired;
-
-  /// No description provided for @firstRunInviteUnavailable.
-  ///
-  /// In en, this message translates to:
-  /// **'Unavailable'**
-  String get firstRunInviteUnavailable;
-
-  /// No description provided for @firstRunModuleSectionTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Module readiness'**
-  String get firstRunModuleSectionTitle;
-
-  /// No description provided for @firstRunProfileModuleTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Profile'**
-  String get firstRunProfileModuleTitle;
-
-  /// No description provided for @firstRunChatModuleTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Chat'**
-  String get firstRunChatModuleTitle;
-
-  /// No description provided for @firstRunFilesModuleTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Files'**
-  String get firstRunFilesModuleTitle;
-
-  /// No description provided for @firstRunCalendarModuleTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Calendar'**
-  String get firstRunCalendarModuleTitle;
-
-  /// No description provided for @firstRunStateReady.
-  ///
-  /// In en, this message translates to:
-  /// **'Ready'**
-  String get firstRunStateReady;
-
-  /// No description provided for @firstRunStatePending.
-  ///
-  /// In en, this message translates to:
-  /// **'Pending'**
-  String get firstRunStatePending;
-
-  /// No description provided for @firstRunStateUnavailable.
-  ///
-  /// In en, this message translates to:
-  /// **'Unavailable'**
-  String get firstRunStateUnavailable;
-
-  /// No description provided for @firstRunStateDegraded.
-  ///
-  /// In en, this message translates to:
-  /// **'Degraded'**
-  String get firstRunStateDegraded;
-
-  /// No description provided for @firstRunStateActionNeeded.
-  ///
-  /// In en, this message translates to:
-  /// **'Action needed'**
-  String get firstRunStateActionNeeded;
-
-  /// No description provided for @firstRunNextStepsTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Next steps'**
-  String get firstRunNextStepsTitle;
-
-  /// No description provided for @firstRunProfileReadyGuidance.
-  ///
-  /// In en, this message translates to:
-  /// **'Your profile is ready for Weave.'**
-  String get firstRunProfileReadyGuidance;
-
-  /// No description provided for @firstRunProfilePendingGuidance.
-  ///
-  /// In en, this message translates to:
-  /// **'Your profile is still being prepared.'**
-  String get firstRunProfilePendingGuidance;
-
-  /// No description provided for @firstRunChatReadyGuidance.
-  ///
-  /// In en, this message translates to:
-  /// **'Chat is ready for this workspace.'**
-  String get firstRunChatReadyGuidance;
-
-  /// No description provided for @firstRunChatPendingGuidance.
-  ///
-  /// In en, this message translates to:
-  /// **'Chat is still being prepared.'**
-  String get firstRunChatPendingGuidance;
-
-  /// No description provided for @firstRunFilesReadyGuidance.
-  ///
-  /// In en, this message translates to:
-  /// **'Files are ready for this workspace.'**
-  String get firstRunFilesReadyGuidance;
-
-  /// No description provided for @firstRunFilesPendingGuidance.
-  ///
-  /// In en, this message translates to:
-  /// **'Files are still being prepared.'**
-  String get firstRunFilesPendingGuidance;
-
-  /// No description provided for @firstRunCalendarReadyGuidance.
-  ///
-  /// In en, this message translates to:
-  /// **'Calendar is ready for this workspace.'**
-  String get firstRunCalendarReadyGuidance;
-
-  /// No description provided for @firstRunCalendarPendingGuidance.
-  ///
-  /// In en, this message translates to:
-  /// **'Calendar is still being prepared.'**
-  String get firstRunCalendarPendingGuidance;
-
-  /// No description provided for @firstRunModuleUnavailableGuidance.
-  ///
-  /// In en, this message translates to:
-  /// **'This Weave capability is not available for this workspace yet.'**
-  String get firstRunModuleUnavailableGuidance;
-
-  /// No description provided for @firstRunModuleDegradedGuidance.
-  ///
-  /// In en, this message translates to:
-  /// **'This Weave capability is available with limited functionality.'**
-  String get firstRunModuleDegradedGuidance;
-
-  /// No description provided for @firstRunModuleActionNeededGuidance.
-  ///
-  /// In en, this message translates to:
-  /// **'Workspace setup needs admin attention.'**
-  String get firstRunModuleActionNeededGuidance;
-
-  /// No description provided for @firstRunNextStepAdminAttention.
-  ///
-  /// In en, this message translates to:
-  /// **'Workspace setup needs admin attention before every capability is ready.'**
-  String get firstRunNextStepAdminAttention;
-
-  /// No description provided for @firstRunRefreshButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh status'**
-  String get firstRunRefreshButton;
-
-  /// No description provided for @firstRunContinueButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Continue to chat'**
-  String get firstRunContinueButton;
 
   /// No description provided for @chatProvisioningReadyTitle.
   ///
@@ -1031,6 +630,66 @@ abstract class AppLocalizations {
   /// **'Chat'**
   String get chatScreenTitle;
 
+  /// Accessible action for opening the encrypted conversation creation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Start conversation'**
+  String get chatCreateConversationAction;
+
+  /// Title for the encrypted conversation creation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Start an encrypted conversation'**
+  String get chatCreateConversationTitle;
+
+  /// Provider-neutral guidance in the encrypted conversation creation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Give this workspace conversation a clear name. Weave creates it through the organization Chat facade and enables encryption from the first event.'**
+  String get chatCreateConversationDescription;
+
+  /// Label for the new conversation name field
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation name'**
+  String get chatCreateConversationNameLabel;
+
+  /// Example hint for the new conversation name field
+  ///
+  /// In en, this message translates to:
+  /// **'For example, Release planning'**
+  String get chatCreateConversationNameHint;
+
+  /// Validation message for an empty or oversized conversation name
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a name between 1 and 200 characters.'**
+  String get chatCreateConversationNameRequired;
+
+  /// Cancel action in the encrypted conversation creation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get chatCreateConversationCancel;
+
+  /// Submit action in the encrypted conversation creation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Create conversation'**
+  String get chatCreateConversationSubmit;
+
+  /// Progress label while an encrypted conversation is being created
+  ///
+  /// In en, this message translates to:
+  /// **'Creating…'**
+  String get chatCreateConversationSubmitting;
+
+  /// Support-safe local error shown when conversation creation fails
+  ///
+  /// In en, this message translates to:
+  /// **'The encrypted conversation could not be created. Your other Chat areas remain available; try again when the connection is back.'**
+  String get chatCreateConversationFailure;
+
   /// Title for the chat overview/home surface
   ///
   /// In en, this message translates to:
@@ -1040,7 +699,7 @@ abstract class AppLocalizations {
   /// Description for the chat overview/home surface
   ///
   /// In en, this message translates to:
-  /// **'Your personal messages, favorites, channels, and AI chats are grouped here so the workspace starts from intent instead of a flat room list.'**
+  /// **'Your personal messages, favorites, and channels are grouped here so the workspace starts from intent instead of a flat room list.'**
   String get chatOverviewDescription;
 
   /// Title for the professional Weave Home cockpit card
@@ -1052,7 +711,7 @@ abstract class AppLocalizations {
   /// Description for the professional Weave Home cockpit card
   ///
   /// In en, this message translates to:
-  /// **'Start with messages, channel workspaces, and governed AI areas that are actually available to you.'**
+  /// **'Start with messages and channel workspaces that are actually available to you.'**
   String get chatHomeHeroDescription;
 
   /// Metric summarizing unread work in Weave Home
@@ -1072,18 +731,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =0 {No personal messages} =1 {1 personal message} other {{count} personal messages}}'**
   String chatHomePeopleMetric(int count);
-
-  /// Metric summarizing governed AI chats when available in Weave Home
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1 {1 governed AI chat} other {{count} governed AI chats}}'**
-  String chatHomeAiMetricReady(int count);
-
-  /// Metric copy for AI chats when no governed AI chat is available
-  ///
-  /// In en, this message translates to:
-  /// **'AI governed by workspace policy'**
-  String get chatHomeAiMetricDisabled;
 
   /// Button that opens the highest-priority available conversation from Weave Home
   ///
@@ -1106,13 +753,13 @@ abstract class AppLocalizations {
   /// Description for the favorites section in the chat overview
   ///
   /// In en, this message translates to:
-  /// **'Pinned people, channels, and AI chats you want to reach first.'**
+  /// **'Pinned people and channels you want to reach first.'**
   String get chatFavoritesSectionDescription;
 
   /// Empty state for the favorites section in the chat overview
   ///
   /// In en, this message translates to:
-  /// **'No favorites yet. Important direct messages, channels, and AI chats marked as favorites stay here.'**
+  /// **'No favorites yet. Important direct messages and channels marked as favorites stay here.'**
   String get chatFavoritesSectionEmpty;
 
   /// Title for the personal messages section in the chat overview
@@ -1150,156 +797,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No channels are available yet.'**
   String get chatChannelsSectionEmpty;
-
-  /// Title for the AI chats section in the chat overview
-  ///
-  /// In en, this message translates to:
-  /// **'AI chats'**
-  String get chatAiChatsSectionTitle;
-
-  /// Description for the AI chats section in the chat overview
-  ///
-  /// In en, this message translates to:
-  /// **'Specialized assistant and agent chats live in their own area.'**
-  String get chatAiChatsSectionDescription;
-
-  /// Empty state for the AI chats section in the chat overview
-  ///
-  /// In en, this message translates to:
-  /// **'AI chats are not enabled for this workspace. A workspace owner or admin can enable governed assistants after policy, consent, and audit controls are ready.'**
-  String get chatAiChatsSectionEmpty;
-
-  /// Title for the governed agent chat preview panel
-  ///
-  /// In en, this message translates to:
-  /// **'Agent chats are governed by your workspace'**
-  String get chatAgentGovernanceTitle;
-
-  /// Description for the governed agent chat preview panel
-  ///
-  /// In en, this message translates to:
-  /// **'Agents can help inside Weave only after an owner or admin enables a package, chooses scopes, and keeps consent and audit visible.'**
-  String get chatAgentGovernanceDescription;
-
-  /// Title for the agent context pack explanation card
-  ///
-  /// In en, this message translates to:
-  /// **'Context pack before action'**
-  String get chatAgentContextPackTitle;
-
-  /// Description for the agent context pack explanation card
-  ///
-  /// In en, this message translates to:
-  /// **'When an agent is available, Weave will show what context is sent for this request before the agent uses it.'**
-  String get chatAgentContextPackDescription;
-
-  /// Bullet explaining scoped agent context
-  ///
-  /// In en, this message translates to:
-  /// **'Context is scoped to a selected chat, file, calendar event, board, or explicit workspace source.'**
-  String get chatAgentContextPackScopedBullet;
-
-  /// Bullet explaining consent and permission hints for agent context
-  ///
-  /// In en, this message translates to:
-  /// **'You will see permission hints before starting or approving an agent action.'**
-  String get chatAgentContextPackConsentBullet;
-
-  /// Bullet explaining that agents are not surveillance-aware
-  ///
-  /// In en, this message translates to:
-  /// **'Agents do not continuously read rooms in the background.'**
-  String get chatAgentContextPackNoSurveillanceBullet;
-
-  /// Audit and approval note for the governed agent chat preview panel
-  ///
-  /// In en, this message translates to:
-  /// **'Agent creation, context access, tool/action execution, approval, and revocation must be audit-ready before runtime enablement.'**
-  String get chatAgentGovernanceAuditNote;
-
-  /// Agent availability label for a gated agent
-  ///
-  /// In en, this message translates to:
-  /// **'Disabled by policy'**
-  String get chatAgentAvailabilityPreview;
-
-  /// Agent availability label when setup must be done by an admin
-  ///
-  /// In en, this message translates to:
-  /// **'Admin setup required'**
-  String get chatAgentAvailabilityAdminSetup;
-
-  /// Agent availability label when policy blocks an agent
-  ///
-  /// In en, this message translates to:
-  /// **'Blocked by policy'**
-  String get chatAgentAvailabilityBlocked;
-
-  /// Title for the personal assistant preview tile
-  ///
-  /// In en, this message translates to:
-  /// **'Personal assistant'**
-  String get chatAgentPersonalAssistantTitle;
-
-  /// Description for the personal assistant preview tile
-  ///
-  /// In en, this message translates to:
-  /// **'A private assistant chat for drafting, summaries, and reminders can be enabled only after workspace policy, consent, and audit controls are ready.'**
-  String get chatAgentPersonalAssistantDescription;
-
-  /// Title for the channel agent preview tile
-  ///
-  /// In en, this message translates to:
-  /// **'Channel agent'**
-  String get chatAgentChannelAgentTitle;
-
-  /// Description for the channel agent preview tile
-  ///
-  /// In en, this message translates to:
-  /// **'A helper for a channel or project space can be enabled only through an admin-approved package.'**
-  String get chatAgentChannelAgentDescription;
-
-  /// Scope explanation for personal assistant preview
-  ///
-  /// In en, this message translates to:
-  /// **'Uses only context you choose for the current request; workspace policy decides which skills are available.'**
-  String get chatAgentPersonalScope;
-
-  /// Boundary explanation for personal assistant preview
-  ///
-  /// In en, this message translates to:
-  /// **'No continuous room reading; a context pack is assembled only after you start or approve a request.'**
-  String get chatAgentPersonalBoundary;
-
-  /// Audit explanation for personal assistant preview
-  ///
-  /// In en, this message translates to:
-  /// **'Creation, context access, tool use, and permission changes will be auditable before runtime use.'**
-  String get chatAgentPersonalAudit;
-
-  /// Scope explanation for channel agent preview
-  ///
-  /// In en, this message translates to:
-  /// **'An owner or admin must enable the package and choose allowed chat, files, calendar, and board scopes.'**
-  String get chatAgentChannelScope;
-
-  /// Boundary explanation for channel agent preview
-  ///
-  /// In en, this message translates to:
-  /// **'The agent sees named spaces and explicit context packs, not every message in the workspace.'**
-  String get chatAgentChannelBoundary;
-
-  /// Audit explanation for channel agent preview
-  ///
-  /// In en, this message translates to:
-  /// **'Approvals, revocations, and action attempts stay visible to admins without exposing secrets to the app.'**
-  String get chatAgentChannelAudit;
-
-  /// Disabled action label for preview agent chats
-  ///
-  /// In en, this message translates to:
-  /// **'Unavailable until enabled'**
-  String get chatAgentStartDisabledButton;
 
   /// Message shown while the chat room list is loading
   ///
@@ -2051,6 +1548,78 @@ abstract class AppLocalizations {
   /// **'Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.'**
   String get settingsBrandSectionDescription;
 
+  /// Settings section title for support-safe server and installed build identity
+  ///
+  /// In en, this message translates to:
+  /// **'Support diagnostics'**
+  String get settingsSupportDiagnosticsTitle;
+
+  /// Description of the support-safe build diagnostics card
+  ///
+  /// In en, this message translates to:
+  /// **'Use these values to confirm which server and immutable app candidate are installed. They contain no session tokens or provider credentials.'**
+  String get settingsSupportDiagnosticsDescription;
+
+  /// Label for the support-safe workspace server origin
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace server'**
+  String get settingsSupportServerLabel;
+
+  /// Label for the embedded candidate source commit
+  ///
+  /// In en, this message translates to:
+  /// **'Candidate commit'**
+  String get settingsSupportCandidateCommitLabel;
+
+  /// Label for installed application version and build number
+  ///
+  /// In en, this message translates to:
+  /// **'Version and build'**
+  String get settingsSupportVersionLabel;
+
+  /// Label for the installed application bundle identifier
+  ///
+  /// In en, this message translates to:
+  /// **'Application identifier'**
+  String get settingsSupportBundleIdentifierLabel;
+
+  /// Label for the embedded immutable candidate evidence reference
+  ///
+  /// In en, this message translates to:
+  /// **'Evidence reference'**
+  String get settingsSupportEvidenceReferenceLabel;
+
+  /// Status shown when all candidate identity fields are available
+  ///
+  /// In en, this message translates to:
+  /// **'Candidate identity is complete'**
+  String get settingsSupportIdentityComplete;
+
+  /// Fail-closed status shown when candidate identity fields are absent
+  ///
+  /// In en, this message translates to:
+  /// **'Candidate metadata is incomplete; this build cannot satisfy the installed-candidate gate.'**
+  String get settingsSupportIdentityIncomplete;
+
+  /// Value shown while support diagnostics are loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading…'**
+  String get settingsSupportValueLoading;
+
+  /// Value shown when immutable candidate metadata is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Not embedded in this build'**
+  String get settingsSupportValueUnavailable;
+
+  /// Formatted installed version and build number
+  ///
+  /// In en, this message translates to:
+  /// **'{version} ({buildNumber})'**
+  String settingsSupportVersionValue(String version, String buildNumber);
+
   /// Settings section title for personal theme selection
   ///
   /// In en, this message translates to:
@@ -2414,13 +1983,13 @@ abstract class AppLocalizations {
   /// Switch title for the recent activity shell module visibility preference
   ///
   /// In en, this message translates to:
-  /// **'Recent activity quick links'**
+  /// **'Recent workspace activity'**
   String get settingsShellRecentActivityToggleTitle;
 
   /// Switch description for the recent activity shell module visibility preference
   ///
   /// In en, this message translates to:
-  /// **'Show recent rooms and file changes above the bottom navigation.'**
+  /// **'Show generic completed activity that your workspace permissions allow you to view.'**
   String get settingsShellRecentActivityToggleDescription;
 
   /// Loading state for shell module visibility settings
@@ -3172,24 +2741,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Review'**
   String get settingsWorkspaceMatrixServerBodiesReadable;
-
-  /// Label for bot, assistant, or connector write policy in Matrix readiness
-  ///
-  /// In en, this message translates to:
-  /// **'Agent writes'**
-  String get settingsWorkspaceMatrixAgentWritesLabel;
-
-  /// Value when Matrix bot/connector writes are blocked or fail closed
-  ///
-  /// In en, this message translates to:
-  /// **'Blocked/fail-closed'**
-  String get settingsWorkspaceMatrixAgentWritesBlocked;
-
-  /// Value shown when Matrix bot/connector write policy is not clearly fail-closed
-  ///
-  /// In en, this message translates to:
-  /// **'Review policy'**
-  String get settingsWorkspaceMatrixAgentWritesReview;
 
   /// Readiness label for a ready capability
   ///
@@ -4226,66 +3777,6 @@ abstract class AppLocalizations {
   /// **'Review archived messages to restore one, or wait here for new messages.'**
   String get chatRoomArchivedEmptyGuidance;
 
-  /// Heading for the explicit context preview shown in a chat room
-  ///
-  /// In en, this message translates to:
-  /// **'Context for this room'**
-  String get chatRoomContextPackTitle;
-
-  /// Description for the explicit context preview shown in a chat room
-  ///
-  /// In en, this message translates to:
-  /// **'Weave will only include scoped context that you can see here, such as this room, selected files, linked tasks, and recent decisions.'**
-  String get chatRoomContextPackDescription;
-
-  /// Accessibility summary of included and available context sources in a room
-  ///
-  /// In en, this message translates to:
-  /// **'{includedCount, plural, =0 {No sources included} =1 {1 source included} other {{includedCount} sources included}}. {availableCount, plural, =0 {No optional sources available} =1 {1 optional source available} other {{availableCount} optional sources available}}.'**
-  String chatRoomContextPackCounts(int includedCount, int availableCount);
-
-  /// Safety note for the explicit context preview in a chat room
-  ///
-  /// In en, this message translates to:
-  /// **'No agent is reading this room in the background.'**
-  String get chatRoomContextPackNoBackgroundReading;
-
-  /// Context chip label for the currently opened chat room
-  ///
-  /// In en, this message translates to:
-  /// **'Current room'**
-  String get chatRoomContextCurrentRoomLabel;
-
-  /// Context chip label for files explicitly selected by the user
-  ///
-  /// In en, this message translates to:
-  /// **'Selected files'**
-  String get chatRoomContextSelectedFilesLabel;
-
-  /// Context chip label for tasks linked to a room
-  ///
-  /// In en, this message translates to:
-  /// **'Linked tasks'**
-  String get chatRoomContextLinkedTasksLabel;
-
-  /// Context chip label for recent decisions linked to a room
-  ///
-  /// In en, this message translates to:
-  /// **'Recent decisions'**
-  String get chatRoomContextRecentDecisionsLabel;
-
-  /// Accessibility status for context that is included in the preview
-  ///
-  /// In en, this message translates to:
-  /// **'Included'**
-  String get chatRoomContextIncludedStatus;
-
-  /// Accessibility status for optional context that is not included yet
-  ///
-  /// In en, this message translates to:
-  /// **'Available when selected'**
-  String get chatRoomContextAvailableStatus;
-
   /// Heading for the room decision and evidence snapshot panel
   ///
   /// In en, this message translates to:
@@ -4498,162 +3989,6 @@ abstract class AppLocalizations {
   /// **'Capture as evidence'**
   String get chatDecisionEvidenceCaptureEvidenceAction;
 
-  /// Title for the governed read-only Weaver scout panel
-  ///
-  /// In en, this message translates to:
-  /// **'Weaver scout'**
-  String get chatWeaverScoutPanelTitle;
-
-  /// Description for the governed read-only Weaver scout panel
-  ///
-  /// In en, this message translates to:
-  /// **'Ask for channel context from allowed sources only. Sprint 4 Weaver is read-only and proposal-first; it cannot change room data silently.'**
-  String get chatWeaverScoutPanelDescription;
-
-  /// Status chip for the Weaver scout read-only mode
-  ///
-  /// In en, this message translates to:
-  /// **'Read-only'**
-  String get chatWeaverScoutReadOnlyStatus;
-
-  /// Status chip for the Weaver scout proposal-only mode
-  ///
-  /// In en, this message translates to:
-  /// **'Proposal only'**
-  String get chatWeaverScoutProposalOnlyStatus;
-
-  /// Status chip for approval receipts required by Weaver scout
-  ///
-  /// In en, this message translates to:
-  /// **'Receipt required'**
-  String get chatWeaverScoutReceiptStatus;
-
-  /// Heading for Weaver scout allowed capabilities
-  ///
-  /// In en, this message translates to:
-  /// **'What Weaver may do'**
-  String get chatWeaverScoutCapabilitiesTitle;
-
-  /// Heading for Weaver scout allowed source references
-  ///
-  /// In en, this message translates to:
-  /// **'Allowed sources'**
-  String get chatWeaverScoutSourcesTitle;
-
-  /// Governance note for Weaver scout approval receipts
-  ///
-  /// In en, this message translates to:
-  /// **'Any future write or team-room mutation must create an approval receipt with actor, requested action, approved action, target, timestamp, and result category.'**
-  String get chatWeaverScoutApprovalReceiptsRequired;
-
-  /// Weaver scout capability label for summarizing allowed context
-  ///
-  /// In en, this message translates to:
-  /// **'Summarize allowed context'**
-  String get chatWeaverScoutSummarizeCapability;
-
-  /// Weaver scout capability label for citing sources
-  ///
-  /// In en, this message translates to:
-  /// **'Cite sources'**
-  String get chatWeaverScoutCiteSourcesCapability;
-
-  /// Weaver scout capability label for proposal-only actions
-  ///
-  /// In en, this message translates to:
-  /// **'Draft proposals only'**
-  String get chatWeaverScoutProposeOnlyCapability;
-
-  /// Weaver scout capability label for approval receipt requirement
-  ///
-  /// In en, this message translates to:
-  /// **'Require approval receipts'**
-  String get chatWeaverScoutApprovalReceiptCapability;
-
-  /// Weaver scout capability description for summarizing allowed context
-  ///
-  /// In en, this message translates to:
-  /// **'Summarize only explicitly allowed channel context.'**
-  String get chatWeaverScoutSummarizeDescription;
-
-  /// Weaver scout capability description for citing allowed sources
-  ///
-  /// In en, this message translates to:
-  /// **'Cite messages, files, tasks, meetings, and decisions.'**
-  String get chatWeaverScoutCiteSourcesDescription;
-
-  /// Weaver scout capability description for proposal-only actions
-  ///
-  /// In en, this message translates to:
-  /// **'Draft or propose actions without mutating team data.'**
-  String get chatWeaverScoutProposeOnlyDescription;
-
-  /// Weaver scout capability description for approval receipts
-  ///
-  /// In en, this message translates to:
-  /// **'Require approval receipts for any future write path.'**
-  String get chatWeaverScoutApprovalReceiptDescription;
-
-  /// Weaver scout source label for explicit channel messages
-  ///
-  /// In en, this message translates to:
-  /// **'Explicit channel messages'**
-  String get chatWeaverScoutMessageSourceLabel;
-
-  /// Weaver scout source excerpt for explicit channel messages
-  ///
-  /// In en, this message translates to:
-  /// **'Messages selected or allowed by the member context policy.'**
-  String get chatWeaverScoutMessageSourceExcerpt;
-
-  /// Weaver scout source label for decision ledger entries
-  ///
-  /// In en, this message translates to:
-  /// **'Decision ledger'**
-  String get chatWeaverScoutDecisionSourceLabel;
-
-  /// Weaver scout source excerpt for decision ledger entries
-  ///
-  /// In en, this message translates to:
-  /// **'Captured decisions with source references.'**
-  String get chatWeaverScoutDecisionSourceExcerpt;
-
-  /// Weaver scout source label for shared files
-  ///
-  /// In en, this message translates to:
-  /// **'Shared files'**
-  String get chatWeaverScoutFileSourceLabel;
-
-  /// Weaver scout source excerpt for shared files
-  ///
-  /// In en, this message translates to:
-  /// **'File names and support-safe metadata visible to the member.'**
-  String get chatWeaverScoutFileSourceExcerpt;
-
-  /// Weaver scout source label for open tasks
-  ///
-  /// In en, this message translates to:
-  /// **'Open tasks'**
-  String get chatWeaverScoutTaskSourceLabel;
-
-  /// Weaver scout source excerpt for open tasks
-  ///
-  /// In en, this message translates to:
-  /// **'Task status and follow-up links visible to the member.'**
-  String get chatWeaverScoutTaskSourceExcerpt;
-
-  /// Weaver scout source label for meeting capsules
-  ///
-  /// In en, this message translates to:
-  /// **'Meeting capsules'**
-  String get chatWeaverScoutMeetingSourceLabel;
-
-  /// Weaver scout source excerpt for meeting capsules
-  ///
-  /// In en, this message translates to:
-  /// **'Agenda and follow-up references, not recordings or transcripts.'**
-  String get chatWeaverScoutMeetingSourceExcerpt;
-
   /// Empty state message for the files screen
   ///
   /// In en, this message translates to:
@@ -4771,7 +4106,7 @@ abstract class AppLocalizations {
   /// Helper text for the service endpoints section
   ///
   /// In en, this message translates to:
-  /// **'Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.'**
+  /// **'The Matrix facade is fixed to the backend API origin. Files and backend product endpoints are derived from the issuer host.'**
   String get serverConfigurationServicesHelper;
 
   /// Helper text for backend API-only member handoff/recovery configuration
@@ -4792,10 +4127,10 @@ abstract class AppLocalizations {
   /// **'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.'**
   String get serverConfigurationIdentityEndpointHelper;
 
-  /// Label for the Matrix homeserver URL field
+  /// Label for the Weave-owned Matrix facade URL field
   ///
   /// In en, this message translates to:
-  /// **'Matrix Homeserver URL'**
+  /// **'Weave Matrix Facade URL'**
   String get serverConfigurationMatrixLabel;
 
   /// Label for the Nextcloud base URL field
@@ -5724,7 +5059,7 @@ abstract class AppLocalizations {
   /// Chip label indicating the backend provider runtime is blocked/unavailable
   ///
   /// In en, this message translates to:
-  /// **'Provider runtime blocked'**
+  /// **'Boards unavailable'**
   String get boardsWorkspaceProviderBlockedChip;
 
   /// Chip label indicating the workspace is still using local fixtures
@@ -5948,258 +5283,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Assistants receive only the scoped pack for the request, mention, or schedule.'**
   String get chatContextAgentHintDescription;
-
-  /// Title for first-run admin setup guidance
-  ///
-  /// In en, this message translates to:
-  /// **'Owner/admin setup responsibilities'**
-  String get firstRunAdminSetupTitle;
-
-  /// First-run guidance for owner/admin users
-  ///
-  /// In en, this message translates to:
-  /// **'Your role can manage workspace setup. Use admin settings for organization access, invitations, capability readiness, and recovery tasks; normal members should only need one Weave sign-in.'**
-  String get firstRunAdminSetupDescription;
-
-  /// Settings card title for AI agent capability governance
-  ///
-  /// In en, this message translates to:
-  /// **'AI agent capability governance'**
-  String get agentCapabilityPolicyTitle;
-
-  /// Admin-facing description for AI agent capability governance
-  ///
-  /// In en, this message translates to:
-  /// **'Owners and admins decide which agent packages and connectors can be used. This capability stays off until permission, consent, and audit controls are connected.'**
-  String get agentCapabilityPolicyAdminDescription;
-
-  /// Member-facing description for AI agent capability governance
-  ///
-  /// In en, this message translates to:
-  /// **'AI agent chats are not enabled for this workspace yet. You can keep using Weave normally; an owner or admin must turn this on first.'**
-  String get agentCapabilityPolicyUserDescription;
-
-  /// Fail-closed notice when policy cannot be trusted
-  ///
-  /// In en, this message translates to:
-  /// **'Agent capabilities are blocked until Weave can confirm your role and the workspace policy.'**
-  String get agentCapabilityPolicyFailClosedNotice;
-
-  /// Disabled button label for future agent capability management
-  ///
-  /// In en, this message translates to:
-  /// **'Management unavailable until admin setup is complete'**
-  String get agentCapabilityPolicyManageDisabledButton;
-
-  /// Hint for non-admin users
-  ///
-  /// In en, this message translates to:
-  /// **'Need an agent for your team? Ask a workspace owner or admin to review agent capabilities when they are available.'**
-  String get agentCapabilityPolicyAskAdminHint;
-
-  /// Admin state hint for disabled agent capabilities
-  ///
-  /// In en, this message translates to:
-  /// **'Current state: disabled by policy. Owner/admin review is required before users can start an agent.'**
-  String get agentCapabilityPolicyAdminStateHint;
-
-  /// Agent capability title for personal assistant
-  ///
-  /// In en, this message translates to:
-  /// **'Personal assistant'**
-  String get agentCapabilityPersonalAssistantTitle;
-
-  /// Agent capability description for personal assistant
-  ///
-  /// In en, this message translates to:
-  /// **'Will only use context you choose for a request, after your workspace enables the capability.'**
-  String get agentCapabilityPersonalAssistantDescription;
-
-  /// Agent capability title for channel agent
-  ///
-  /// In en, this message translates to:
-  /// **'Channel agent'**
-  String get agentCapabilityChannelAgentTitle;
-
-  /// Agent capability description for channel agent
-  ///
-  /// In en, this message translates to:
-  /// **'Requires an owner or admin to choose which channels, files, calendar items, or boards the agent may use.'**
-  String get agentCapabilityChannelAgentDescription;
-
-  /// Agent capability availability label when admin setup is required
-  ///
-  /// In en, this message translates to:
-  /// **'Admin setup required'**
-  String get agentCapabilityAvailabilityPreviewOnly;
-
-  /// Agent capability availability label when admin setup is required
-  ///
-  /// In en, this message translates to:
-  /// **'Admin setup required'**
-  String get agentCapabilityAvailabilityAdminSetupRequired;
-
-  /// Agent capability availability label for blocked state
-  ///
-  /// In en, this message translates to:
-  /// **'Blocked'**
-  String get agentCapabilityAvailabilityBlocked;
-
-  /// Error message for AI agent capability policy settings section
-  ///
-  /// In en, this message translates to:
-  /// **'Agent capability policy is unavailable.'**
-  String get agentCapabilityPolicyErrorTitle;
-
-  /// Loading message for AI agent capability policy settings section
-  ///
-  /// In en, this message translates to:
-  /// **'Checking agent capability policy…'**
-  String get agentCapabilityPolicyLoading;
-
-  /// Title for the governed member Weaver settings entry point
-  ///
-  /// In en, this message translates to:
-  /// **'Mein Weaver'**
-  String get weaverMemberTitle;
-
-  /// Title when the governed Weaver member settings entry point is unavailable
-  ///
-  /// In en, this message translates to:
-  /// **'Weaver unavailable'**
-  String get weaverMemberUnavailableTitle;
-
-  /// Description for available governed Weaver member settings
-  ///
-  /// In en, this message translates to:
-  /// **'Choose from admin-approved model aliases and review the personal settings your workspace policy allows.'**
-  String get weaverMemberDescription;
-
-  /// Description when Weaver is unavailable for the member
-  ///
-  /// In en, this message translates to:
-  /// **'Your workspace has not enabled a governed Weaver profile for this account.'**
-  String get weaverMemberUnavailableDescription;
-
-  /// Status chip for available Weaver member settings
-  ///
-  /// In en, this message translates to:
-  /// **'Enabled by policy'**
-  String get weaverMemberStatusAvailable;
-
-  /// Status chip for disabled Weaver member settings
-  ///
-  /// In en, this message translates to:
-  /// **'Disabled by policy'**
-  String get weaverMemberStatusDisabled;
-
-  /// Status chip for unavailable Weaver member settings
-  ///
-  /// In en, this message translates to:
-  /// **'Unavailable'**
-  String get weaverMemberStatusUnavailable;
-
-  /// Loading message for Weaver member policy
-  ///
-  /// In en, this message translates to:
-  /// **'Checking Weaver policy…'**
-  String get weaverMemberLoading;
-
-  /// Title for choosing a Weaver model alias
-  ///
-  /// In en, this message translates to:
-  /// **'Model alias'**
-  String get weaverMemberModelAliasTitle;
-
-  /// Description for admin-approved model alias choices
-  ///
-  /// In en, this message translates to:
-  /// **'Only aliases approved by your workspace policy are shown here.'**
-  String get weaverMemberModelAliasDescription;
-
-  /// Fallback model alias label when no explicit alias names are exposed
-  ///
-  /// In en, this message translates to:
-  /// **'Workspace default'**
-  String get weaverMemberWorkspaceDefaultAlias;
-
-  /// Subtitle for an approved Weaver setting
-  ///
-  /// In en, this message translates to:
-  /// **'Approved by workspace policy'**
-  String get weaverMemberApprovedByAdmin;
-
-  /// Title for personal Weaver settings
-  ///
-  /// In en, this message translates to:
-  /// **'Personal settings'**
-  String get weaverMemberPersonalSettingsTitle;
-
-  /// Weaver style preference setting label
-  ///
-  /// In en, this message translates to:
-  /// **'Style preferences'**
-  String get weaverMemberStyleSetting;
-
-  /// Weaver memory control setting label
-  ///
-  /// In en, this message translates to:
-  /// **'Memory controls'**
-  String get weaverMemberMemorySetting;
-
-  /// Weaver workspace personalization setting label
-  ///
-  /// In en, this message translates to:
-  /// **'Workspace personalization'**
-  String get weaverMemberWorkspaceSetting;
-
-  /// Subtitle for an allowed Weaver personal setting
-  ///
-  /// In en, this message translates to:
-  /// **'Allowed for your profile'**
-  String get weaverMemberSettingAllowed;
-
-  /// Subtitle for a disabled Weaver personal setting
-  ///
-  /// In en, this message translates to:
-  /// **'Not enabled for your profile'**
-  String get weaverMemberSettingDisabled;
-
-  /// Title for allowed Weaver skills
-  ///
-  /// In en, this message translates to:
-  /// **'Allowed skills'**
-  String get weaverMemberAllowedSkillsTitle;
-
-  /// Empty state for allowed Weaver skills
-  ///
-  /// In en, this message translates to:
-  /// **'No optional skills are enabled for your profile.'**
-  String get weaverMemberNoAllowedSkills;
-
-  /// Title for approved personal Weaver connections
-  ///
-  /// In en, this message translates to:
-  /// **'Allowed personal connections'**
-  String get weaverMemberAllowedConnectionsTitle;
-
-  /// Empty state for allowed Weaver personal connections
-  ///
-  /// In en, this message translates to:
-  /// **'No personal connection flows are enabled for your profile.'**
-  String get weaverMemberNoAllowedConnections;
-
-  /// Boundary notice for available Weaver member settings
-  ///
-  /// In en, this message translates to:
-  /// **'Administration of providers, credentials, connector setup, and runtime files stays outside member settings; members only see policy-approved choices.'**
-  String get weaverMemberBoundaryNotice;
-
-  /// Boundary notice when Weaver is disabled for a member
-  ///
-  /// In en, this message translates to:
-  /// **'No provider secrets or runtime configuration are exposed. Contact your workspace owner if you expected Weaver access.'**
-  String get weaverMemberDisabledBoundaryNotice;
 
   /// Title for the context-driven workflow preview panel
   ///
@@ -6632,82 +5715,6 @@ abstract class AppLocalizations {
   /// **'degraded'**
   String get channelWorkspaceStatusDegraded;
 
-  /// Availability chip for an agent capability disabled by workspace policy
-  ///
-  /// In en, this message translates to:
-  /// **'Disabled by policy'**
-  String get agentCapabilityAvailabilityDisabledByPolicy;
-
-  /// Title for the bounded Weaver helper card in chat home
-  ///
-  /// In en, this message translates to:
-  /// **'Weaver Beta helper'**
-  String get chatWeaverBetaTitle;
-
-  /// Description for bounded Weaver helper card
-  ///
-  /// In en, this message translates to:
-  /// **'Weaver stays inside this Weave workspace and can only use approved capabilities. Members see approved Weave actions, not internal runtime catalogs.'**
-  String get chatWeaverBetaDescription;
-
-  /// Weaver connection state label
-  ///
-  /// In en, this message translates to:
-  /// **'Connected'**
-  String get chatWeaverBetaConnectedState;
-
-  /// Weaver connection state label
-  ///
-  /// In en, this message translates to:
-  /// **'Unconnected'**
-  String get chatWeaverBetaUnconnectedState;
-
-  /// Weaver enabled state label
-  ///
-  /// In en, this message translates to:
-  /// **'Weaver enabled'**
-  String get chatWeaverBetaEnabledState;
-
-  /// Weaver disabled state label
-  ///
-  /// In en, this message translates to:
-  /// **'Weaver disabled'**
-  String get chatWeaverBetaDisabledState;
-
-  /// Weaver capability unavailable state label
-  ///
-  /// In en, this message translates to:
-  /// **'Capability unavailable'**
-  String get chatWeaverBetaCapabilityUnavailableState;
-
-  /// Weaver approval state label
-  ///
-  /// In en, this message translates to:
-  /// **'Approval required for sensitive actions'**
-  String get chatWeaverBetaApprovalRequiredState;
-
-  /// Weaver denied/failed state label
-  ///
-  /// In en, this message translates to:
-  /// **'Denied or failed safely'**
-  String get chatWeaverBetaDeniedFailedState;
-
-  /// Support-safe result note for Weaver helper
-  ///
-  /// In en, this message translates to:
-  /// **'Results show a summary, status, and audit reference only; secrets and raw provider payloads stay out of the member view.'**
-  String get chatWeaverBetaSupportSafeResult;
-
-  /// Accessibility label for Weaver helper card
-  ///
-  /// In en, this message translates to:
-  /// **'Weaver Beta helper. Personal helper: {personalState}. Channel helper: {channelState}. Workspace connection: {connectionState}. Results are support-safe and do not expose secrets or raw provider payloads.'**
-  String chatWeaverBetaSemanticLabel(
-    String personalState,
-    String channelState,
-    String connectionState,
-  );
-
   /// Title for the normal member handoff-first setup screen
   ///
   /// In en, this message translates to:
@@ -6717,8 +5724,38 @@ abstract class AppLocalizations {
   /// Description for the normal member handoff-first setup screen
   ///
   /// In en, this message translates to:
-  /// **'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.'**
+  /// **'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you for technical service settings.'**
   String get setupMemberHandoffDescription;
+
+  /// Organization access input label
+  ///
+  /// In en, this message translates to:
+  /// **'Server URI, invitation link, or QR payload'**
+  String get setupOrganizationUriLabel;
+
+  /// Organization access input help
+  ///
+  /// In en, this message translates to:
+  /// **'Paste the link from your email or QR code, or enter your organization\'s Weave address.'**
+  String get setupOrganizationUriHelper;
+
+  /// Invalid organization access input
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a secure Weave server URI or invitation link without embedded credentials.'**
+  String get setupOrganizationUriError;
+
+  /// Resolve organization access action
+  ///
+  /// In en, this message translates to:
+  /// **'Continue to organization'**
+  String get setupOrganizationContinueButton;
+
+  /// Explains equivalent organization access methods
+  ///
+  /// In en, this message translates to:
+  /// **'Your invitation email and organization QR code contain the same Weave address. After it is verified, the next screen always offers Sign in.'**
+  String get setupOrganizationAccessHelp;
 
   /// Primary action label for handoff-first setup
   ///
@@ -6791,6 +5828,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.'**
   String get memberHandoffErrorGuidance;
+
+  /// Support-safe guidance after sign-in from a consumed member handoff fails
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in did not complete. Try again in the system browser or ask your workspace admin to verify your access.'**
+  String get memberHandoffSignInRetryGuidance;
 
   /// Support-safe guidance when member handoff consumption fails because platform config TLS trust is missing
   ///

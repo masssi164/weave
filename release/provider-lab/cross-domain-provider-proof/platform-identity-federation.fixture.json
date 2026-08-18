@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 2,
+  "artifactKind": "weave-sprint-27-platform-identity-federation-proof-v2",
+  "issue": 645,
+  "supportSafe": true,
+  "domain": "platform-identity",
+  "platformAuthority": "keycloak",
+  "upstreamSourceKind": "authentik-oidc",
+  "operation": "federation-readiness-dry-run",
+  "providerSwitchAllowed": false,
+  "realityLevel": "readiness_dry_run",
+  "canonicalObjects": [
+    "Organization",
+    "UserAccount",
+    "Person",
+    "Group",
+    "Role",
+    "IdentitySource",
+    "CapabilityPolicy",
+    "UpstreamIdentitySourceRef"
+  ],
+  "fixtureRef": "identity-fixture-sprint-27-redacted",
+  "preservedFields": [
+    "UserAccount.stableSubjectHash",
+    "Person.displayName",
+    "Person.primaryEmailHash",
+    "Group.externalGroupHash",
+    "Role.weaveRoleKey",
+    "IdentitySource.protocol",
+    "CapabilityPolicy.effectivePolicyRef",
+    "UpstreamIdentitySourceRef.sourceKind"
+  ],
+  "federationRisks": [
+    {
+      "field": "UserAccount.sessionContinuity",
+      "source": "upstream-authentik-session",
+      "target": "keycloak-brokered-session",
+      "classification": "unsupported",
+      "adminImpact": "Upstream and Keycloak sessions remain distinct; no cross-system session portability claim is made."
+    },
+    {
+      "field": "Role.providerCompositeRoleExpression",
+      "source": "authentik-group-policy-expression",
+      "target": "keycloak-role-and-group-mapping",
+      "classification": "partially_preserved",
+      "adminImpact": "Effective Weave roles remain Keycloak-owned; upstream expressions require explicit mapper review."
+    },
+    {
+      "field": "IdentitySource.samlNameIdFormatOverride",
+      "source": "authentik-oidc-claim",
+      "target": "keycloak-identity-provider-mapper",
+      "classification": "metadata_only",
+      "adminImpact": "Non-standard upstream claims are recorded as mapper metadata and must be confirmed before enablement."
+    }
+  ],
+  "authEvidenceBoundary": {
+    "containsSecrets": false,
+    "containsRawAssertions": false,
+    "containsBearerTokens": false,
+    "redactedRefsOnly": true
+  },
+  "protocolCoverage": {
+    "oidc": "mapped",
+    "saml": "supported_by_keycloak_boundary_not_this_fixture",
+    "roles": "keycloak_owned_mapped_with_review",
+    "groups": "keycloak_owned_mapped",
+    "rollback": "not_ready"
+  },
+  "rollbackBoundary": {
+    "rollbackReady": false,
+    "reason": "Sprint 27 proves only support-safe upstream federation readiness without replacing or mutating the Keycloak platform authority."
+  },
+  "evidenceMarkers": ["SPRINT27_PLATFORM_IDENTITY_FEDERATION_PROOF"]
+}

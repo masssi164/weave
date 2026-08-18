@@ -10,19 +10,19 @@ Normal organization members land in an admin-provisioned workspace. They sign in
 
 Normal members must not configure OIDC, realms, provider URLs, service endpoints, backup/restore, policy, or infrastructure readiness. They must not see provider setup diagnostics, raw provider errors, scaffold cards, roadmap cards, preview cards, or coming-soon setup explanations in the normal product path.
 
-Admins and operators provision identity, domains, provider stack, policy, backup/restore, support bundles, and release readiness before inviting normal users. Workspace Health is the admin/operator control plane for setup, readiness, degraded services, and support-safe diagnostics.
+Admins and operators provision the Keycloak platform-identity boundary, collaboration domains, provider stack, policy, backup/restore, support bundles, and release readiness before inviting normal users. Workspace Health is the admin/operator control plane for setup, readiness, degraded services, and support-safe diagnostics.
 
 ## Client/Admin Console split
 
 Members enter or open only an organization auth URL, invite link, or deep link. After SSO, the Weave Client consumes the support-safe organization manifest and effective capability states, then renders member work surfaces. Member-visible manifest states are limited to `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. The deploy-new, attach-existing, and hybrid bootstrap modes are Weave Control concepts only; they must not become member setup choices.
 
-The Admin Console owns organization creation/bootstrap, IDM/provider setup, guided setup assistant, per-domain readiness dashboard, provider/category selection, endpoint URL management and rotation, readiness and diagnostics, users/groups/roles, RBAC/capability profiles, deny-by-default policy, org-wide defaults, audit logs, and privacy/compliance/risk notes. Whitelisting belongs to the Admin Console: provider, tool, and agent allowlists are configured there, while the client only consumes effective policy/capabilities.
+The Admin Console owns organization creation/bootstrap, Keycloak federation and user lifecycle setup, guided setup assistant, per-domain readiness dashboard, collaboration-provider selection, endpoint URL management and rotation, readiness and diagnostics, users/groups/roles, RBAC/capability profiles, deny-by-default policy, org-wide defaults, audit logs, and privacy/compliance/risk notes. Whitelisting belongs to the Admin Console: provider, tool, and agent allowlists are configured there, while the client only consumes effective policy/capabilities.
 
 ## Provider-category admin boundary
 
 Provider setup is category-first, not vendor-first. Workspace Health and admin setup must model these product/admin categories before member use:
 
-- identity/IDM;
+- platform identity and security (fixed Keycloak authority, not a selectable provider category);
 - chat;
 - files;
 - calendar;
@@ -31,7 +31,7 @@ Provider setup is category-first, not vendor-first. Workspace Health and admin s
 - documents/collaboration;
 - Weaver, disabled by default until a later admin policy enables the governed per-user PA runtime.
 
-The current dogfood defaults map into those categories as provider selections and readiness signals: Keycloak/Auth for identity/IDM, Matrix for chat, Nextcloud for files and calendar backing, OpenProject for boards/tasks validation, and LiveKit for meetings readiness. These names belong in admin/operator setup, readiness, support-safe diagnostics, and documentation. They must not become the normal member-facing product model.
+The current dogfood platform authority is Keycloak/Auth. Collaboration defaults map into selectable domain categories and readiness signals: Matrix for chat, Nextcloud for files and calendar backing, OpenProject for boards/tasks validation, and LiveKit for meetings readiness. These names belong in admin/operator setup, readiness, support-safe diagnostics, and documentation. They must not become the normal member-facing product model.
 
 Normal members never configure raw providers, service endpoints, OIDC clients, provider secrets, backup/restore paths, or provider diagnostics. Members see ready Weave capabilities or short impact/fallback states. Admins/operators see support-safe readiness and next actions without secret values, bearer tokens, credential-bearing URLs, raw downstream error bodies, or provider internals that are not needed for remediation.
 
@@ -41,13 +41,13 @@ v0.1 keeps the compact role vocabulary below, while the strategy contract sharpe
 
 | Role | First-use experience | Setup and health scope |
 | --- | --- | --- |
-| `owner` | Can enter the workspace and administer release readiness. | Full Workspace Health, identity/provider setup, invite activation, policy, backup/restore, support-bundle actions, domain ownership, and break-glass governance. |
+| `owner` | Can enter the workspace and administer release readiness. | Full Workspace Health, Keycloak federation/user lifecycle, collaboration-provider setup, invite activation, policy, backup/restore, support-bundle actions, domain ownership, and break-glass governance. |
 | `admin` | Can enter the workspace and administer delegated readiness. | Workspace Health, provider readiness, user activation, policy, and support diagnostics allowed by owner policy. |
 | `operator` | Can enter the workspace to execute delegated operational readiness. | Workspace Health diagnostics, provider/service readiness verification, backup/restore/support-bundle actions, and support-safe remediation delegated by owner/admin policy; not automatic user or policy administration. |
 | `member` | Lands in the ready workspace after invite/activation. | No OIDC/provider/infra setup. Sees only complete capabilities or simple impact/fallback states such as “Calendar is unavailable; ask an admin.” |
 | `guest` | Lands only in explicitly permitted guest scopes. | No workspace setup, provider diagnostics, or member/admin affordances. |
 
-The current realm/role generator contract lives in `infra/KEYCLOAK_CONTRACT.md`, `infra/weave-workspace/02-keycloak-setup`, and the local/dev activation helper documented in `infra/docs/admin-user-activation.md`. The helper creates a one-time required-action activation invite and rejects initial-password distribution. Those operator paths are not normal-user help.
+The current realm/role desired-state contract lives in `infra/KEYCLOAK_CONTRACT.md` and the checked-in `infra/weave-workspace/keycloak/` baseline. The protected persistent-member helper documented in `infra/docs/admin-user-activation.md` creates one normal dogfood member, can resend only while activation is pending, and rejects initial-password distribution or active-account mutation. Human users are deliberately excluded from the fixed baseline, and those operator paths are not normal-user help.
 
 ## Capability state taxonomy
 
@@ -76,7 +76,7 @@ A newly invited `member` must be able to:
 
 An `owner`, `admin`, or operator must be able to:
 
-- provision identity, OIDC realm/client/roles/groups, domains, providers, policies, backup/restore, and release readiness before member first use;
+- provision the Keycloak realm/client/roles/groups and optional upstream federation, domains, collaboration providers, policies, backup/restore, and release readiness before member first use;
 - inspect Workspace Health as the admin/operator control plane for auth, Matrix, files, calendar, boards, meetings, E2EE posture, backup/restore, support-bundle safety, and latest smoke/E2E state;
 - see exact next actions for not_configured, degraded, disabled_by_policy, unavailable, or coming_later services without leaking secrets, bearer tokens, credential-bearing URLs, room tokens, or raw downstream errors;
 - understand what members can currently do before inviting them;
@@ -94,18 +94,27 @@ Future work on first-use, settings, navigation, or Workspace Health must include
 
 The fast guard is `client/test/architecture/admin_provisioned_first_use_contract_test.dart`; role-specific widget assertions also live under `client/test/features/`.
 
-## IDM/RBAC capability profiles
+## Keycloak/RBAC capability profiles
 
-Admins/operators configure the selected IDM adapter and map roles/groups into Weave capability profiles before inviting members. Keycloak is the self-hosted default, while Entra ID, Authentik, Auth0, and other OIDC/SAML providers remain adapter-compatible choices.
+Admins/operators configure Keycloak federation/brokering when an upstream
+directory is required and map Keycloak roles/groups into Weave capability
+profiles before inviting members. Keycloak remains the platform authority;
+Entra ID, LDAP/Active Directory, Authentik, Auth0, and other OIDC/SAML sources
+stay behind that boundary.
 
-Admins/operators see support-safe effective policy state: IDM category, profile keys, role/group-derived grants, deny-by-default posture, provider readiness, and how policy/readiness maps to member states such as `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. They do not need secret values in normal health views.
+Admins/operators see support-safe effective policy state: platform-identity readiness, profile keys, role/group-derived grants, deny-by-default posture, collaboration-provider readiness, and how policy/readiness maps to member states such as `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. They do not need secret values in normal health views.
 
-Members only see provider-neutral manifest states: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. They never see raw provider setup, OIDC/SAML wiring, service endpoints, provider secrets, or diagnostics. Weaver appears only as a disabled-by-policy placeholder until a later governed per-user runtime policy exists.
+Members only see provider-neutral manifest states: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. They never see raw provider setup, OIDC/SAML wiring, service endpoints, provider secrets, or diagnostics. Agent Runtime Control appears as a capability state; lifecycle and workload controls remain admin/operator-only.
 
-## Governed Weaver runtime policy
+## Agent Runtime Control policy
 
-Weaver follows the same admin-provisioned boundary as every other provider category. User-rights, organization-whitelisted capabilities is the rule: a personal assistant may only receive the normal user's rights through capability channels the organization has explicitly enabled.
+Weaver/OpenClaw is an optional product runtime behind Agent Runtime Control. Exact native Keycloak Organization membership `/capabilities/weaver` is the sole self-hosted coarse entitlement source; collaboration domains still authorize every content operation under their own contracts. The workload-only `weaver-runtime` realm role never entitles a human.
 
-Admins/operators control the Weaver category, the runtime generator, the groups that may receive `weaver.enabled`, and the capability/tool allowlist. Normal members do not configure Docker, OpenClaw plugins, provider adapters, service endpoints, or secrets. They either receive an available governed profile or an impact-only disabled_by_policy/not_configured state.
+Admins/operators control entitlement mapping and the provision/start/stop/suspend/reconcile/revoke/delete-state lifecycle. Normal members do not configure containers, OpenClaw plugins, OIDC clients, provider adapters, service endpoints, or secrets. Human roles do not imply `agent-runtime.entitled`.
 
-The generated runtime profile is support-safe and runtime profile generation is audited. It includes per-user Docker isolation metadata, plugin/tool allowlists, and allowed capability keys, while exec and elevated surfaces remain disabled by default unless a later constrained admin profile explicitly enables them.
+RuntimeProfile v2 is signed desired state and profile generation is audited; it cannot authorize
+tools. Each cell uses a unique Keycloak workload client and zero durable local bytes. The active
+read-only catalog is limited to `files.search` and the canonical file resource over Weave
+WebDAV; current RuntimeProfile, workload, person and Files authorization are revalidated for
+every call. Calendar, Chat and write catalogs remain absent. Writes additionally require their
+explicit domain contract plus signed approval/action evidence.

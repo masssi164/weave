@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
@@ -10,6 +10,7 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyDenyResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
+import com.massimotter.weave.backend.model.admin.ProviderCapabilityHealthResponse;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -18,13 +19,15 @@ import java.util.Set;
 import java.util.stream.Stream;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
 @Service
 public class WorkspaceCapabilityService {
 
+    private static final String WEAVER_CAPABILITY_GROUP_PATH = "/capabilities/weaver";
     private static final List<String> OWNER_ADMIN_CAPABILITIES = List.of(
             "chat.read",
             "chat.send",
@@ -46,15 +49,7 @@ public class WorkspaceCapabilityService {
             "release_evidence.manage",
             "admin_control_plane.readiness_read",
             "admin.policy.edit",
-            "admin.provider.configure",
-            "weaver.exec_disabled");
-    private static final List<String> OPERATOR_CAPABILITIES = List.of(
-            "admin_control_plane.readiness_read",
-            "operator.support_bundle.create",
-            "release_evidence.read",
-            "manuals.admin",
-            "manuals.read",
-            "weaver.exec_disabled");
+            "admin.provider.configure");
     private static final List<String> MEMBER_CAPABILITIES = List.of(
             "chat.read",
             "chat.send",
@@ -66,21 +61,13 @@ public class WorkspaceCapabilityService {
             "documents.view",
             "decisions.read",
             "manuals.read",
-            "release_evidence.read",
-            "weaver.exec_disabled");
-    private static final Map<String, List<String>> GROUP_CAPABILITIES = Map.of(
-            "weave-calendar-editors", List.of("calendar.manage_events", "weaver.calendar_read", "weaver.calendar_create_event"),
-            "weave-board-editors", List.of("boards.update_task"),
-            "weave-meeting-hosts", List.of("meetings.host"),
-            "weave-document-editors", List.of("documents.edit"),
-            "weave-decision-recorders", List.of("decisions.record"),
-            "weave-weaver-pilot", List.of("weaver.files_read", "weaver.exec_disabled"),
-            "weave-weaver-calendar", List.of("calendar.read", "calendar.manage_events", "weaver.exec_disabled"));
-
+            "release_evidence.read");
     private final OAuth2ResourceServerProperties resourceServerProperties;
     private final WeaveSecurityProperties weaveSecurityProperties;
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
-    private final WeaverRuntimeProperties weaverRuntimeProperties;
+    private final AgentRuntimeEntitlementProperties runtimeEntitlementProperties;
+    private final ProviderCapabilityHealthService providerHealthService;
+    private final OrganizationIdentityContextResolver identityContexts;
 
     public WorkspaceCapabilityService(
             OAuth2ResourceServerProperties resourceServerProperties,
@@ -90,7 +77,9 @@ public class WorkspaceCapabilityService {
                 resourceServerProperties,
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
-                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false));
+                AgentRuntimeEntitlementProperties.disabled(),
+                (ProviderCapabilityHealthService) null,
+                OrganizationIdentityContextResolver.defaults());
     }
 
     @Autowired
@@ -98,11 +87,75 @@ public class WorkspaceCapabilityService {
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
-            WeaverRuntimeProperties weaverRuntimeProperties) {
+            AgentRuntimeEntitlementProperties runtimeEntitlementProperties,
+            ObjectProvider<ProviderCapabilityHealthService> providerHealthServiceProvider,
+            OrganizationIdentityContextResolver identityContexts) {
+        this(
+                resourceServerProperties,
+                weaveSecurityProperties,
+                workspaceCapabilityProperties,
+                runtimeEntitlementProperties,
+                providerHealthServiceProvider == null
+                        ? null
+                        : providerHealthServiceProvider.getIfAvailable(),
+                identityContexts);
+    }
+
+    public WorkspaceCapabilityService(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            AgentRuntimeEntitlementProperties runtimeEntitlementProperties) {
+        this(
+                resourceServerProperties,
+                weaveSecurityProperties,
+                workspaceCapabilityProperties,
+                runtimeEntitlementProperties,
+                (ProviderCapabilityHealthService) null,
+                OrganizationIdentityContextResolver.defaults());
+    }
+
+    WorkspaceCapabilityService(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            AgentRuntimeEntitlementProperties runtimeEntitlementProperties,
+            ProviderCapabilityHealthService providerHealthService) {
+        this(
+                resourceServerProperties,
+                weaveSecurityProperties,
+                workspaceCapabilityProperties,
+                runtimeEntitlementProperties,
+                providerHealthService,
+                OrganizationIdentityContextResolver.defaults());
+    }
+
+    WorkspaceCapabilityService(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            AgentRuntimeEntitlementProperties runtimeEntitlementProperties,
+            ProviderCapabilityHealthService providerHealthService,
+            OrganizationIdentityContextResolver identityContexts) {
         this.resourceServerProperties = resourceServerProperties;
         this.weaveSecurityProperties = weaveSecurityProperties;
         this.workspaceCapabilityProperties = workspaceCapabilityProperties;
-        this.weaverRuntimeProperties = weaverRuntimeProperties;
+        this.runtimeEntitlementProperties = runtimeEntitlementProperties;
+        this.providerHealthService = providerHealthService;
+        this.identityContexts = identityContexts;
+    }
+
+    WorkspaceCapabilityService(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            ProviderCapabilityHealthService providerHealthService) {
+        this(
+                resourceServerProperties,
+                weaveSecurityProperties,
+                workspaceCapabilityProperties,
+                AgentRuntimeEntitlementProperties.disabled(),
+                providerHealthService);
     }
 
     public WorkspaceCapabilitiesResponse snapshot() {
@@ -116,7 +169,7 @@ public class WorkspaceCapabilityService {
                 status(
                         workspaceCapabilityProperties.shellAccess(),
                         shellAccessReadiness,
-                        "identity/IDM",
+                        "platform identity",
                         List.of(),
                         policy,
                         "Weave SSO shell access is available."),
@@ -134,7 +187,7 @@ public class WorkspaceCapabilityService {
                         List.of("files.read", "files.upload"),
                         policy,
                         "Files are available through Weave."),
-                standaloneStatus(
+                providerBackedStatus(
                         workspaceCapabilityProperties.calendar(),
                         WorkspaceCapabilityReadiness.UNAVAILABLE,
                         "calendar",
@@ -191,31 +244,31 @@ public class WorkspaceCapabilityService {
                         policy,
                         "Workspace Health exposes support-safe admin readiness without provider credentials."),
                 standaloneStatus(
-                        workspaceCapabilityProperties.weaver(),
+                        workspaceCapabilityProperties.agentRuntimeControl(),
                         WorkspaceCapabilityReadiness.UNAVAILABLE,
-                        "Weaver",
-                        List.of("weaver.enabled", "weaver.files_read", "weaver.exec_disabled"),
+                        "Agent Runtime Control",
+                        List.of("agent-runtime.entitled"),
                         policy,
-                        "Weaver is disabled by default until an admin enables a governed runtime profile."));
+                        "Agent Runtime Control is optional and requires a current Keycloak entitlement."));
     }
 
     public WorkspaceCapabilityPolicyResponse policySnapshot(Jwt jwt) {
         requireCapability(jwt, "admin_control_plane.readiness_read", "workspace-capability-policy", "read");
         EffectivePolicy policy = effectivePolicy(jwt);
         return new WorkspaceCapabilityPolicyResponse(
-                "identity/IDM",
-                "OIDC/SAML selected IDM",
-                "OIDC/SAML adapter contract; Keycloak is only the dogfood default, not product truth",
-                "OIDC role claims plus group claims from the selected IDM",
+                "platform identity and security",
+                "Keycloak",
+                "Keycloak federation and brokering contract for upstream LDAP, Active Directory, OIDC, and SAML sources",
+                "issuer, subject, role, and group claims issued by Keycloak",
                 policy.roles(),
                 policy.groups(),
                 policy.profileKeys(),
                 policy.capabilities().stream().sorted().toList(),
                 true,
                 true,
-                weaverRuntimeProperties.enabled()
-                        ? "governed per-user Dockerized Weaver profiles are generated only when org policy grants weaver.enabled"
-                        : "disabled-by-default; per-user Dockerized Weaver runtime may only be generated from org policy later");
+                runtimeEntitlementProperties.enabled()
+                        ? "ARC entitlement is derived from the configured Keycloak group; profile and cell authority remain server-owned"
+                        : "disabled-by-default; Agent Runtime Control requires explicit Keycloak entitlement configuration");
     }
 
     public List<String> grantedCapabilities(Jwt jwt) {
@@ -223,7 +276,7 @@ public class WorkspaceCapabilityService {
     }
 
     public EffectivePolicyResponse effectivePolicySnapshot(Jwt jwt, String context) {
-        OrganizationIdentityContext identity = jwt == null ? null : OrganizationIdentityContextFactory.fromJwt(jwt);
+        OrganizationIdentityContext identity = jwt == null ? null : identityContexts.resolve(jwt);
         EffectivePolicy policy = effectivePolicy(identity);
         String subject = identity == null ? "system" : identity.subject();
         String organization = identity == null ? "weave-dogfood" : identity.organizationId();
@@ -232,7 +285,7 @@ public class WorkspaceCapabilityService {
         List<String> denies = List.of(
                 "admin.policy.edit",
                 "admin.provider.configure",
-                "weaver.enabled").stream()
+                "agent-runtime.entitled").stream()
                 .filter(capability -> !policy.capabilities().contains(capability))
                 .toList();
         return new EffectivePolicyResponse(
@@ -267,7 +320,12 @@ public class WorkspaceCapabilityService {
                     "Authentication is required.",
                     Map.of("module", module, "operation", operation));
         }
-        if (!effectivePolicy(jwt).capabilities().contains(capability)) {
+        Set<String> grantedCapabilities = "device_credential".equals(jwt.getClaimAsString("weave_auth_method"))
+                ? Set.copyOf(jwt.getClaimAsStringList("weave_capabilities") == null
+                        ? List.of()
+                        : jwt.getClaimAsStringList("weave_capabilities"))
+                : effectivePolicy(jwt).capabilities();
+        if (!grantedCapabilities.contains(capability)) {
             throw new ApiErrorException(
                     HttpStatus.FORBIDDEN,
                     "capability-policy-blocked",
@@ -295,6 +353,28 @@ public class WorkspaceCapabilityService {
         if (shellAccessReadiness == WorkspaceCapabilityReadiness.BLOCKED) {
             return status(capability, WorkspaceCapabilityReadiness.BLOCKED, category, requiredCapabilities, policy,
                     "Sign-in or workspace SSO must be ready before this capability can be used.");
+        }
+        if ("files".equals(category) || "chat".equals(category)) {
+            ProviderCapabilityHealthResponse.CapabilityHealth providerHealth = cachedProviderHealth(category);
+            if (providerHealth != null) {
+                WorkspaceCapabilityReadiness readiness = effectiveProviderReadiness(
+                        capability.readiness(),
+                        providerReadiness(providerHealth.state()));
+                String providerAttention = "files".equals(category)
+                        ? "Files need admin attention before members can use them reliably. "
+                        : "Chat needs admin attention before members can use it reliably. ";
+                String memberImpact = readiness == WorkspaceCapabilityReadiness.READY
+                        ? readyImpact
+                        : providerAttention + "Ask an admin to inspect Workspace Health.";
+                return status(
+                        capability,
+                        readiness,
+                        category,
+                        requiredCapabilities,
+                        policy,
+                        memberImpact,
+                        providerHealth.supportSafeCode());
+            }
         }
         if (capability.readiness() != null) {
             return status(capability, capability.readiness(), category, requiredCapabilities, policy, readyImpact);
@@ -326,6 +406,78 @@ public class WorkspaceCapabilityService {
                         : readyImpact);
     }
 
+    private WorkspaceCapabilityStatusResponse providerBackedStatus(
+            WorkspaceCapabilityProperties.Capability capability,
+            WorkspaceCapabilityReadiness defaultReadiness,
+            String category,
+            List<String> requiredCapabilities,
+            EffectivePolicy policy,
+            String readyImpact) {
+        if (!capability.enabled()) {
+            return standaloneStatus(
+                    capability,
+                    defaultReadiness,
+                    category,
+                    requiredCapabilities,
+                    policy,
+                    readyImpact);
+        }
+        ProviderCapabilityHealthResponse.CapabilityHealth providerHealth = cachedProviderHealth(category);
+        if (providerHealth == null) {
+            return standaloneStatus(
+                    capability,
+                    defaultReadiness,
+                    category,
+                    requiredCapabilities,
+                    policy,
+                    readyImpact);
+        }
+        WorkspaceCapabilityReadiness readiness = effectiveProviderReadiness(
+                capability.readiness(),
+                providerReadiness(providerHealth.state()));
+        String memberImpact = readiness == WorkspaceCapabilityReadiness.READY
+                ? readyImpact
+                : "This capability needs admin attention. Other workspace areas remain available while it recovers.";
+        return status(
+                capability,
+                readiness,
+                category,
+                requiredCapabilities,
+                policy,
+                memberImpact,
+                providerHealth.supportSafeCode());
+    }
+
+    private WorkspaceCapabilityReadiness effectiveProviderReadiness(
+            WorkspaceCapabilityReadiness configuredReadiness,
+            WorkspaceCapabilityReadiness providerReadiness) {
+        if (configuredReadiness == WorkspaceCapabilityReadiness.BLOCKED
+                || configuredReadiness == WorkspaceCapabilityReadiness.UNAVAILABLE) {
+            return configuredReadiness;
+        }
+        if (configuredReadiness == WorkspaceCapabilityReadiness.DEGRADED) {
+            return providerReadiness == WorkspaceCapabilityReadiness.UNAVAILABLE
+                    ? WorkspaceCapabilityReadiness.UNAVAILABLE
+                    : WorkspaceCapabilityReadiness.DEGRADED;
+        }
+        return providerReadiness;
+    }
+
+    private ProviderCapabilityHealthResponse.CapabilityHealth cachedProviderHealth(String capability) {
+        if (providerHealthService == null) {
+            return null;
+        }
+        return providerHealthService.cached(capability).orElse(null);
+    }
+
+    private WorkspaceCapabilityReadiness providerReadiness(String state) {
+        return switch (state == null ? "" : state) {
+            case "available" -> WorkspaceCapabilityReadiness.READY;
+            case "unavailable" -> WorkspaceCapabilityReadiness.UNAVAILABLE;
+            default -> WorkspaceCapabilityReadiness.DEGRADED;
+        };
+    }
+
     private WorkspaceCapabilityReadiness shellAccessReadiness() {
         if (!workspaceCapabilityProperties.shellAccess().enabled()) {
             return WorkspaceCapabilityReadiness.UNAVAILABLE;
@@ -345,6 +497,17 @@ public class WorkspaceCapabilityService {
             List<String> requiredCapabilities,
             EffectivePolicy policy,
             String defaultImpact) {
+        return status(capability, readiness, category, requiredCapabilities, policy, defaultImpact, null);
+    }
+
+    private WorkspaceCapabilityStatusResponse status(
+            WorkspaceCapabilityProperties.Capability capability,
+            WorkspaceCapabilityReadiness readiness,
+            String category,
+            List<String> requiredCapabilities,
+            EffectivePolicy policy,
+            String defaultImpact,
+            String supportSafeCode) {
         List<String> granted = requiredCapabilities.stream()
                 .filter(policy.capabilities()::contains)
                 .toList();
@@ -372,17 +535,31 @@ public class WorkspaceCapabilityService {
                 policyState,
                 policy.profileKeyFor(category),
                 memberImpact,
+                supportRef(category, effectiveReadiness, policyState, supportSafeCode),
                 granted);
     }
 
+    private String supportRef(
+            String category,
+            WorkspaceCapabilityReadiness readiness,
+            WorkspaceCapabilityPolicyState policyState,
+            String supportSafeCode) {
+        String safeCategory = category == null ? "workspace" : category.replaceAll("[^a-zA-Z0-9-]+", "-").toLowerCase();
+        String base = "support:workspace-capability:" + safeCategory + ":" + readiness.value() + ":" + policyState.value();
+        if (supportSafeCode == null || supportSafeCode.isBlank()) {
+            return base;
+        }
+        String safeCode = supportSafeCode.trim().replaceAll("[^a-zA-Z0-9-]+", "-").toLowerCase();
+        return base + ":" + safeCode;
+    }
+
     private EffectivePolicy effectivePolicy(Jwt jwt) {
-        return effectivePolicy(jwt == null ? null : OrganizationIdentityContextFactory.fromJwt(jwt));
+        return effectivePolicy(jwt == null ? null : identityContexts.resolve(jwt));
     }
 
     private EffectivePolicy effectivePolicy(OrganizationIdentityContext identity) {
         if (identity == null) {
             LinkedHashSet<String> systemCapabilities = new LinkedHashSet<>(OWNER_ADMIN_CAPABILITIES);
-            systemCapabilities.remove("weaver.enabled");
             return new EffectivePolicy(
                     List.of("system"),
                     List.of(),
@@ -399,10 +576,6 @@ public class WorkspaceCapabilityService {
             capabilities.addAll(OWNER_ADMIN_CAPABILITIES);
             profileKeys.add("workspace-admin");
         }
-        if (roles.contains("operator")) {
-            capabilities.addAll(OPERATOR_CAPABILITIES);
-            profileKeys.add("workspace-operator");
-        }
         if (roles.contains("member")) {
             capabilities.addAll(MEMBER_CAPABILITIES);
             profileKeys.add("member-default");
@@ -411,24 +584,18 @@ public class WorkspaceCapabilityService {
             profileKeys.add("guest-deny-default");
         }
         for (String group : groups) {
-            List<String> groupCapabilities = GROUP_CAPABILITIES.get(group);
-            if (groupCapabilities != null) {
-                capabilities.addAll(groupCapabilities);
+            if (WEAVER_CAPABILITY_GROUP_PATH.equals(group)) {
                 profileKeys.add("group:" + group);
-            }
-            if (weaverRuntimeProperties.enabledGroups().contains(group)) {
-                profileKeys.add("group:" + group);
-                if (weaverRuntimeProperties.enabled()) {
-                    capabilities.add("weaver.enabled");
+                if (runtimeEntitlementProperties.enabled()) {
+                    capabilities.add("agent-runtime.entitled");
                 }
             }
         }
         if (profileKeys.isEmpty()) {
             profileKeys.add("deny-by-default");
         }
-        // Weaver runtime enablement is deliberately absent from built-in role profiles.
-        // Only explicit admin runtime policy groups may carry weaver.enabled, and only when
-        // the runtime generator is enabled in organization configuration.
+        // This is a member-visible policy projection only. ARC independently re-reads
+        // the exact native Organization group before provisioning or reconciliation.
         return new EffectivePolicy(
                 roles,
                 groups,
@@ -448,11 +615,8 @@ public class WorkspaceCapabilityService {
     }
 
     private String denyReason(EffectivePolicy policy, String capability) {
-        if (capability.equals("weaver.enabled")) {
-            return "weaver runtime is disabled unless an organization policy group explicitly grants it";
-        }
-        if (policy.roles().contains("operator")) {
-            return "operator role does not automatically grant user, provider, or policy administration";
+        if (capability.equals("agent-runtime.entitled")) {
+            return "Agent Runtime Control requires current /capabilities/weaver organization membership";
         }
         return "missing mapped org role, context role, or group capability";
     }

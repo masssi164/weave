@@ -38,7 +38,7 @@ class ServerConfigurationFormState {
   const ServerConfigurationFormState.initial()
     : initialized = false,
       isSaving = false,
-      providerType = OidcProviderType.authentik,
+      providerType = OidcProviderType.oidc,
       issuerUrl = '',
       clientId = oidcDefaultClientId,
       matrixHomeserverUrl = '',
@@ -353,18 +353,12 @@ class ServerConfigurationFormController
     try {
       final issuerUrl = deriver.parseIssuerUrl(state.issuerUrl);
       final clientId = _validateClientId(state.clientId);
-      final matrixUrl = deriver.parseServiceUrl(
-        state.matrixHomeserverUrl,
-        fieldName: 'the Matrix homeserver URL',
-      );
-      final nextcloudUrl = deriver.parseServiceUrl(
-        state.nextcloudBaseUrl,
-        fieldName: 'the Nextcloud URL',
-      );
       final backendApiUrl = deriver.parseServiceUrl(
         state.backendApiBaseUrl,
         fieldName: 'the backend API URL',
       );
+      final matrixUrl = deriver.matrixFacadeFromBackendApi(backendApiUrl);
+      final nextcloudUrl = deriver.filesFacadeFromBackendApi(backendApiUrl);
 
       state = state.copyWith(
         isSaving: true,

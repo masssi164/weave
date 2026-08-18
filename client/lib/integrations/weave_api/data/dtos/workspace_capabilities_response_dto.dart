@@ -62,12 +62,12 @@ extension WorkspaceCapabilitiesResponseMapper
         readiness: 'ready',
         policyState: 'allowed',
       ).toCapabilityState(WorkspaceCapability.adminControlPlane),
-      weaver: _optionalCapability(
-        weaver,
+      agentRuntimeControl: _optionalCapability(
+        agentRuntimeControl,
         enabled: false,
         readiness: 'unavailable',
         policyState: 'disabled',
-      ).toCapabilityState(WorkspaceCapability.weaver),
+      ).toCapabilityState(WorkspaceCapability.agentRuntimeControl),
     );
   }
 }
@@ -111,6 +111,8 @@ extension WorkspaceCapabilityStatusResponseMapper
         policyState ?? ((enabled ?? false) ? 'allowed' : 'disabled'),
       ),
       profileKey: profileKey,
+      memberImpact: memberImpact,
+      supportRef: supportRef,
       grantedCapabilities: grantedCapabilities ?? const <String>[],
     );
   }

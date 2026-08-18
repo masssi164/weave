@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-08-08",
+  "policy": "Every external GitHub Action is pinned by immutable commit and must use Node.js 24 or a reviewed composite runtime.",
+  "actions": [
+    {
+      "action": "actions/checkout",
+      "commit": "fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+      "release": "v5.1.0",
+      "runtime": "node24",
+      "source": "https://github.com/actions/checkout"
+    },
+    {
+      "action": "actions/setup-java",
+      "commit": "03ad4de0992f5dab5e18fcb136590ce7c4a0ac95",
+      "release": "v5.6.0",
+      "runtime": "node24",
+      "source": "https://github.com/actions/setup-java"
+    },
+    {
+      "action": "actions/setup-node",
+      "commit": "a0853c24544627f65ddf259abe73b1d18a591444",
+      "release": "v5.0.0",
+      "runtime": "node24",
+      "source": "https://github.com/actions/setup-node"
+    },
+    {
+      "action": "actions/setup-python",
+      "commit": "ece7cb06caefa5fff74198d8649806c4678c61a1",
+      "release": "v6.3.0",
+      "runtime": "node24",
+      "source": "https://github.com/actions/setup-python"
+    },
+    {
+      "action": "actions/upload-artifact",
+      "commit": "b7c566a772e6b6bfb58ed0dc250532a479d7789f",
+      "release": "v6.0.0",
+      "runtime": "node24",
+      "source": "https://github.com/actions/upload-artifact"
+    },
+    {
+      "action": "astral-sh/setup-uv",
+      "commit": "c771a70e6277c0a99b617c7a806ffedaca235ff9",
+      "release": "v9.0.0",
+      "runtime": "node24",
+      "source": "https://github.com/astral-sh/setup-uv"
+    },
+    {
+      "action": "gradle/actions/setup-gradle",
+      "commit": "9c971963bec38e04b3d30dcc455b5382be2fdbfb",
+      "release": "v6.3.0",
+      "runtime": "node24",
+      "source": "https://github.com/gradle/actions"
+    },
+    {
+      "action": "subosito/flutter-action",
+      "commit": "1a449444c387b1966244ae4d4f8c696479add0b2",
+      "release": "v2.23.0",
+      "runtime": "composite-shell",
+      "source": "https://github.com/subosito/flutter-action"
+    }
+  ]
+}

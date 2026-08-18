@@ -1,0 +1,5 @@
+.generated/
+.env.dev
+.env.dogfood
+.env.prod
+.env.e2e

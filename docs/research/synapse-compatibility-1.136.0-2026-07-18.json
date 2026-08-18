@@ -1,0 +1,17 @@
+{
+  "contractVersion": "synapse-compatibility-probe-v1",
+  "targetVersion": "1.136.0",
+  "reportedVersion": "1.136.0",
+  "matrixRoomVersion": "10",
+  "applicationServiceRegistrationProfile": "exclusive-user-alias-namespaces-rooms-empty-receive-ephemeral-false-v1",
+  "transactionRetryObserved": true,
+  "sameTransactionSemanticSet": true,
+  "canonicalAliasStateObserved": true,
+  "stateKeyPresenceObserved": true,
+  "unknownValidStateObserved": true,
+  "plaintextInEncryptedRoomObserved": true,
+  "supportSafe": true,
+  "observedAt": "2026-07-18T06:03:32.401448Z",
+  "status": "passed",
+  "signatureSha256": "4d2bd6b8ada774fa01ab2663f856339c65a4ccd36d5b2ceb4c178d4c8a98b82a"
+}

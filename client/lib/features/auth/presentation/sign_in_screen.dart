@@ -9,9 +9,11 @@ import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
+import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/presentation/auth_failure_message.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
-import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
+import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -78,7 +80,7 @@ class SignInScreen extends ConsumerWidget {
                                   .read(authFlowControllerProvider.notifier)
                                   .restartSetup();
                               if (context.mounted) {
-                                context.go(AppRoutes.setup);
+                                context.go(AppRoutes.organizationAccess);
                               }
                             },
                           ),
@@ -151,14 +153,51 @@ class SignInScreen extends ConsumerWidget {
                         ],
                         const SizedBox(height: 24),
                         AccessibleButton(
+                          key: const ValueKey('weave.auth.sign-in'),
                           onPressed: authState.isBusy
                               ? null
                               : () async {
+                                  final handoffEvidence = lastHandoff.value;
+                                  await _recordAuthStage(
+                                    ref,
+                                    handoffEvidence,
+                                    MemberAuthOnboardingStage.ssoInProgress,
+                                  );
                                   final signedIn = await ref
                                       .read(authFlowControllerProvider.notifier)
                                       .signIn();
                                   if (signedIn && context.mounted) {
-                                    context.go(AppRoutes.firstRun);
+                                    await _recordAuthStage(
+                                      ref,
+                                      handoffEvidence,
+                                      MemberAuthOnboardingStage.authenticated,
+                                    );
+                                    await _recordAuthStage(
+                                      ref,
+                                      handoffEvidence,
+                                      MemberAuthOnboardingStage
+                                          .workspaceBootstrapLoading,
+                                    );
+                                    await _recordAuthStage(
+                                      ref,
+                                      handoffEvidence,
+                                      MemberAuthOnboardingStage.workspaceReady,
+                                    );
+                                    if (!context.mounted) {
+                                      return;
+                                    }
+                                    context.go(AppRoutes.home);
+                                  } else {
+                                    final failure = ref
+                                        .read(authFlowControllerProvider)
+                                        .failure;
+                                    if (failure != null) {
+                                      await _recordAuthFailure(
+                                        ref,
+                                        handoffEvidence,
+                                        failure,
+                                      );
+                                    }
                                   }
                                 },
                           semanticLabel: l10n.signInButton,
@@ -178,7 +217,7 @@ class SignInScreen extends ConsumerWidget {
                                       .read(authFlowControllerProvider.notifier)
                                       .restartSetup();
                                   if (context.mounted) {
-                                    context.go(AppRoutes.setup);
+                                    context.go(AppRoutes.organizationAccess);
                                   }
                                 },
                           semanticLabel: l10n.signInBackToSetupButton,
@@ -195,6 +234,51 @@ class SignInScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+Future<void> _recordAuthStage(
+  WidgetRef ref,
+  Map<String, Object?>? handoffEvidence,
+  MemberAuthOnboardingStage stage,
+) async {
+  if (!_hasSupportSafeSavedHandoff(handoffEvidence)) {
+    return;
+  }
+  await MemberAuthOnboardingStateRecorder(
+    store: ref.read(preferencesStoreProvider),
+  ).recordSupportSafeHandoffEvidence(stage, handoffEvidence: handoffEvidence!);
+}
+
+Future<void> _recordAuthFailure(
+  WidgetRef ref,
+  Map<String, Object?>? handoffEvidence,
+  AuthFailure failure,
+) async {
+  if (!_hasSupportSafeSavedHandoff(handoffEvidence)) {
+    return;
+  }
+  await MemberAuthOnboardingStateRecorder(
+    store: ref.read(preferencesStoreProvider),
+  ).recordAuthFailureFromHandoffEvidence(
+    failure,
+    handoffEvidence: handoffEvidence!,
+  );
+}
+
+bool _hasSupportSafeSavedHandoff(Map<String, Object?>? handoffEvidence) {
+  if (handoffEvidence == null || handoffEvidence['supportSafe'] != true) {
+    return false;
+  }
+  final organizationOriginHost = handoffEvidence['organizationOriginHost'];
+  if (organizationOriginHost is String && organizationOriginHost.isNotEmpty) {
+    return true;
+  }
+  final handoffRef = handoffEvidence['handoffRef'];
+  final runId = handoffEvidence['runId'];
+  return handoffRef is String &&
+      handoffRef.isNotEmpty &&
+      runId is String &&
+      runId.isNotEmpty;
 }
 
 class _HandoffReadyCard extends StatelessWidget {

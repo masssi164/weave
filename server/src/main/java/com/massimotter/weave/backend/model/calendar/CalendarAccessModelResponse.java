@@ -7,7 +7,7 @@ import java.util.List;
 public record CalendarAccessModelResponse(
         @Schema(description = "Stable access model identifier.", example = "workspace-calendar")
         String type,
-        @Schema(description = "Product calendar scope served by /api/calendar/events.", example = "workspace")
+        @Schema(description = "Product calendar scope served by the Weave CalDAV facade.", example = "workspace")
         String productScope,
         @Schema(description = "Whether private per-user calendars are available through the product facade.", example = "false")
         boolean privateUserCalendarsAvailable,

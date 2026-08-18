@@ -94,13 +94,13 @@
       }
     },
     {
-      "id": "governed-weaver-approval-revocation",
+      "id": "agent-runtime-control-admin-lifecycle",
       "requiredEvidence": [
         "manual-at",
         "screenreader",
         "keyboard",
         "text-scale",
-        "audit-receipt"
+        "audit-correlation"
       ],
       "releaseBlocking": true,
       "historicalBlocker": {
@@ -108,7 +108,7 @@
         "status": "closed_not_planned",
         "artifact": "docs/evidence/accessibility/sprint-18-manual-at-blocker.md",
         "closed": "2026-06-13",
-        "summary": "Historical Sprint 18 manual AT blocker accounting is closed; broad Weaver availability and autonomous team writes remain unsupported without current governed evidence."
+        "summary": "Historical Sprint 18 manual AT blocker accounting is closed; current ARC admin lifecycle accessibility evidence is required before release claims, while member approval UI and broad autonomous writes remain unsupported."
       }
     }
   ],

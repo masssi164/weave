@@ -11,7 +11,7 @@ Required:
 Optional:
 
 - `WEAVE_OIDC_JWK_SET_URI`: internal JWKS URL when the backend cannot use the issuer metadata endpoint directly
-- `WEAVE_OIDC_REQUIRED_AUDIENCE`: required audience in Weave access tokens, defaults to `weave-app`
+- `WEAVE_OIDC_REQUIRED_AUDIENCE`: exact Weave API audience required in member access tokens, defaults to `https://api.weave.test/api`
 - `WEAVE_CLIENT_ID`: required first-party client identifier in `azp` and/or `client_id`, defaults to `weave-app`
 - `WEAVE_PUBLIC_BASE_URL`: public product entrypoint, defaults to `https://weave.test`
 - `WEAVE_API_BASE_URL`: public backend API base URL, defaults to `https://api.weave.test/api`
@@ -21,9 +21,6 @@ Optional:
 - `WEAVE_CALENDAR_PRODUCT_URL`: public calendar product surface, defaults to `https://weave.test/calendar`
 - `WEAVE_NEXTCLOUD_PUBLIC_BASE_URL`: support-safe public Nextcloud technical/admin/protocol fallback exposed in platform config, defaults to `WEAVE_NEXTCLOUD_BASE_URL` or `https://files.weave.test`
 - `WEAVE_NEXTCLOUD_BASE_URL`: backend-internal Nextcloud adapter origin for WebDAV/CalDAV calls, defaults to `https://files.weave.test` outside container stacks
-- `WEAVE_ONBOARDING_MATRIX_PROVISIONING_STATE`: optional first-run Matrix provisioning override (`not_configured`, `pending`, `ready`, `degraded`, `failed`); blank derives status from the chat capability
-- `WEAVE_ONBOARDING_NEXTCLOUD_PROVISIONING_STATE`: optional first-run Nextcloud provisioning override (`not_configured`, `pending`, `ready`, `degraded`, `failed`); blank derives status from files/calendar capability and Nextcloud route configuration
-- `WEAVE_PROFILE_STORAGE_PATH`: durable JSON file path for mutable profile overrides accepted by `PATCH /api/profile`, defaults to `./data/profile-overrides.json`
 - `PORT`: HTTP listen port, defaults to `8080`
 
 For the complete environment-variable reference, including Files/Calendar adapter credentials and capability toggles, see [runtime-configuration.md](runtime-configuration.md).
@@ -62,13 +59,11 @@ Protected endpoints return a stable JSON error envelope on auth failures and inc
 
 Use `401` for missing or invalid tokens. Use `403` when the token is authenticated but does not include `weave:workspace`.
 
-`GET /api/profile`, `PATCH /api/profile`, and `GET /api/profile/sync-status` are the authenticated product profile facade. `PATCH /api/profile` supports partial updates to `displayName`, `avatar`, `locale`, `timezone`, `accessibilityPreferences`, and `profileVisibility`; validation errors use the same stable JSON error envelope. Mutable profile overrides are persisted in the configured `WEAVE_PROFILE_STORAGE_PATH` file and survive service/repository recreation when that path is on durable storage. Matrix/Nextcloud profile sync still reports `not_configured` until module propagation is implemented.
-
-`/api/onboarding/status` is the authenticated first-run user snapshot. It returns identity, role/group routing data, invite status, profile completeness, and frontend-safe provisioning states for identity, profile, Matrix, and Nextcloud. Matrix/Nextcloud states are `not_configured`, `pending`, `ready`, `degraded`, or `failed`; response messages must remain support-safe and must not expose downstream stack traces, secrets, tokens, or raw infrastructure errors.
+`GET /api/profile`, `PATCH /api/profile`, and `GET /api/profile/sync-status` are the authenticated product profile facade. `PATCH /api/profile` supports partial updates to `displayName`, `avatar`, `locale`, `timezone`, `accessibilityPreferences`, and `profileVisibility`; validation errors use the same stable JSON error envelope. Mutable profile overrides use the same code-first JPA authority as the other server domains: H2 in the host-only `dev` environment and PostgreSQL with one-shot schema initialization plus serving validation in `dogfood`, `prod`, and `e2e`. Spring's `test` profile remains test-fixture configuration only and is not an operator environment. There is no production JSON/file fallback. Matrix/Nextcloud profile sync still reports `not_configured` until module propagation is implemented.
 
 `/api/workspace/release-readiness` is the backend-owned operator snapshot for the core workspace. It rolls auth, Matrix chat, and Nextcloud files into one response and lists the exact remaining setup actions when the workspace is still degraded or blocked.
 
-The older `/api/v1/workspace/capabilities` and `/api/v1/workspace/release-readiness` paths remain compatibility aliases while clients migrate to the canonical non-versioned workspace routes.
+Only the canonical `/api/workspace/capabilities` and `/api/workspace/release-readiness` paths exist after the Fresh Start; no alternate versioned application routes are retained.
 
 ## Minimum operator checks
 
@@ -79,7 +74,6 @@ The older `/api/v1/workspace/capabilities` and `/api/v1/workspace/release-readin
 - `GET /api/me` with a valid first-party token should return caller claims
 - `GET /api/profile` and `PATCH /api/profile` with a valid first-party token should return the product profile facade and updated mutable profile fields
 - `GET /api/profile/sync-status` with a valid first-party token should return frontend-safe Matrix/Nextcloud profile sync state
-- `GET /api/onboarding/status` with a valid first-party token should return first-run invite, role/group, profile, Matrix, and Nextcloud provisioning status
 - `GET /api/workspace/capabilities` with a valid first-party token should return the client-facing capability snapshot
 - `GET /api/workspace/release-readiness` with a valid first-party token should return operator-facing workspace setup status and remaining actions
 

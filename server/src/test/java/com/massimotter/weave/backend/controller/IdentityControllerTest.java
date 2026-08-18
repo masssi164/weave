@@ -1,18 +1,21 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.service.ProductProfileOverrideRepository;
 import com.massimotter.weave.backend.service.ProductProfileService;
+import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -28,7 +31,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(
         controllers = IdentityController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
-@Import({SecurityConfig.class, ApiAuthenticationEntryPoint.class, ApiAccessDeniedHandler.class, ApiErrorResponseWriter.class, ProductProfileService.class})
+@Import({
+        OrganizationIdentityContextResolver.class,
+        SecurityConfig.class,
+        ApiAuthenticationEntryPoint.class,
+        ApiAccessDeniedHandler.class,
+        ApiErrorResponseWriter.class,
+        ProductProfileService.class
+})
 @org.springframework.test.context.TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave"
 })
@@ -37,10 +47,10 @@ class IdentityControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockBean
+    @MockitoBean
     private ProductProfileOverrideRepository profileRepository;
 
     @Test
@@ -48,7 +58,7 @@ class IdentityControllerTest {
         mockMvc.perform(get("/api/me").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
-                        .claim("weave_tenant", "acme-prod")
+                        .claim("weave_tenant_id", "acme-prod")
                         .claim("preferred_username", "alice")
                         .claim("name", "Alice Example")
                         .claim("email", "alice@example.com")
@@ -57,8 +67,12 @@ class IdentityControllerTest {
                         .claim("timezone", "Europe/Berlin")
                         .claim("azp", "weave-app")
                         .claim("aud", List.of("weave-app", "account"))
-                        .claim("realm_access", Map.of("roles", List.of("member", "admin")))
-                        .claim("groups", List.of("team-alpha", "team-beta"))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRolesAndGroups(
+                                                List.of("admin"),
+                                                List.of("team-alpha", "team-beta")))
                         .claim("weave_context_roles", List.of("channel-admin")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
@@ -88,7 +102,11 @@ class IdentityControllerTest {
                         .claim("preferred_username", "alice")
                         .claim("name", "Alice Example")
                         .claim("email", "alice@example.com")
-                        .claim("aud", List.of("weave-app")))
+                        .claim("aud", List.of("weave-app"))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId", startsWith("acct_")))
@@ -98,17 +116,22 @@ class IdentityControllerTest {
     }
 
     @Test
-    void includesOperatorAsAProductRole() throws Exception {
+    void ignoresOperatorAsAMemberProductRole() throws Exception {
         mockMvc.perform(get("/api/me").with(jwt().jwt(jwt -> jwt
                         .subject("operator-123")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "ops")
-                        .claim("realm_access", Map.of("roles", List.of("operator")))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRoles(
+                                                List.of("member", "operator")))
                         .claim("aud", List.of("weave-app")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.roles[0]").value("operator"))
-                .andExpect(jsonPath("$.providerRoleMappings[0]").value("role_claim:operator"));
+                .andExpect(jsonPath("$.roles[0]").value("member"))
+                .andExpect(jsonPath("$.roles.length()").value(1))
+                .andExpect(jsonPath("$.providerRoleMappings[1]").value("role_claim:member"));
     }
 
     @Test
@@ -118,7 +141,7 @@ class IdentityControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("email", "alice.renamed@example.com")
                         .claim("preferred_username", "alice")
-                        .claim("realm_access", Map.of("roles", List.of("member")))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                         .claim("aud", List.of("weave-app")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
@@ -140,7 +163,11 @@ class IdentityControllerTest {
                         .subject("user-123")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("client_id", "weave-app")
-                        .claim("aud", List.of("weave-app")))
+                        .claim("aud", List.of("weave-app"))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.issuedFor").value("weave-app"));

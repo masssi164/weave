@@ -1,0 +1,1 @@
+rust/vendor/patches/**/*.patch whitespace=-blank-at-eol

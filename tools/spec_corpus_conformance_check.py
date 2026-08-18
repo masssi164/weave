@@ -9,6 +9,7 @@ This check enforces the truth split:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -26,10 +27,10 @@ REQUIRED_CORPUS_FILES = [
     "steering/provider-portability-principles.md",
     "steering/devops-conformance.md",
     "steering/openclaw-orchestrator-pattern.md",
+    "platform/identity-security/spec.md",
     "generated/manifest.json",
 ]
 REQUIRED_DOMAIN_DIRS = [
-    "identity-idm",
     "spaces",
     "chat",
     "files",
@@ -39,7 +40,7 @@ REQUIRED_DOMAIN_DIRS = [
     "meetings-calls",
     "decisions-evidence",
     "admin-health-ops",
-    "weaver-governed-pa",
+    "agent-runtime-control",
 ]
 IMPLEMENTATION_TRUTH_BOUNDARY_FILES = [
     "AGENTS.md",
@@ -130,7 +131,14 @@ def main() -> None:
     if "must not redefine" not in str(lock.get("generatedProjectionPolicy", "")):
         fail("lock generatedProjectionPolicy must state that repo projections do not redefine corpus truth")
 
-    corpus_root = (ROOT / local_path).resolve()
+    corpus_override = os.environ.get("WEAVE_SPEC_CORPUS_ROOT", "")
+    if corpus_override and not Path(corpus_override).is_absolute():
+        fail("WEAVE_SPEC_CORPUS_ROOT must be an absolute Git worktree path")
+    corpus_root = (
+        Path(corpus_override).resolve()
+        if corpus_override
+        else (ROOT / local_path).resolve()
+    )
     if not corpus_root.exists():
         fail(f"spec corpus path not found: {corpus_root}")
     if not (corpus_root / ".git").exists():
@@ -178,9 +186,17 @@ def main() -> None:
         "WEAVE-STEERING-PRODUCT-CONSTITUTION",
         "WEAVE-STEERING-SDD-FRAMEWORK",
         "WEAVE-STEERING-DEVOPS-CONFORMANCE",
-        "WEAVE-DOMAIN-IDENTITY-IDM",
+        "WEAVE-PLATFORM-IDENTITY-SECURITY",
         "WEAVE-DOMAIN-DOCUMENTS-OFFICE",
-        "WEAVE-DOMAIN-WEAVER-GOVERNED-PA",
+        "WEAVE-DOMAIN-AGENT-RUNTIME-CONTROL",
+        "WEAVE-DOMAIN-MEETINGS-CALLS",
+        "WEAVE-DOMAIN-BOARDS-TASKS",
+        "WEAVE-ACCEPTANCE-AGENT_RUNTIME_ACTION_AUTHORIZATION",
+        "WEAVE-ACCEPTANCE-WORKLOAD_IDENTITY_TOKEN_EXCHANGE",
+        "WEAVE-CONTRACT-ACTION_EVIDENCE_SCHEMA",
+        "WEAVE-CONTRACT-SIGNED_RUNTIME_PROFILE_SCHEMA",
+        "WEAVE-CONTRACT-APPROVAL_DECISION_EVIDENCE_SCHEMA",
+        "WEAVE-CONTRACT-SIGNED_APPROVAL_DECISION_EVIDENCE_SCHEMA",
     }
     missing = sorted(required_ids - ids)
     if missing:

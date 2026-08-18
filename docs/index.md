@@ -36,7 +36,7 @@ Start with:
 2. [Admin-Suite readiness and setup contract](admin-suite-readiness-setup-contract.md) — guided setup assistant, readiness dashboard, action boundary, and support-safe evidence.
 3. [Admin-provisioned first use](admin-provisioned-first-use.md) — member/admin boundary and setup acceptance.
 4. [Meeting architecture decision record](meeting-architecture-decision.md) — contextual meeting attach points, E2EE boundaries, consent defaults, and fail-closed readiness.
-5. [Organization embedding contract](organization-embedding-contract.md) — identity, tenant, roles/groups, non-human identities, and future Weaver category boundaries.
+5. [Organization embedding contract](organization-embedding-contract.md) — identity, tenant, roles/groups, non-human identities, and Agent Runtime Control workload boundaries.
 6. [Identity provisioning strategy](identity-provisioning-strategy.md) — LDAP/AD/OIDC/SAML/SCIM-oriented identity planning.
 
 ### Operator
@@ -60,10 +60,10 @@ Start with:
 5. [AI-assisted delivery orchestration](agent-team-orchestration.md) — repo-safe roles, handoff briefs, runtime-boundary guardrails, and optimization loop.
 6. [Canonical domains](architecture/canonical-domains.md) — product-owned domain registry for identity, people, spaces, chat, files, documents, calendar, boards, calls, decisions, notifications, health, and Weaver.
 7. [Provider portability contract](architecture/provider-portability.md) — adapter manifests, mapping tables, reports, and no-unaccounted-data-loss rules.
-8. [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md) — future optional PA runtime foundation and blockers.
+8. [Weaver/OpenClaw runtime projection](architecture/weaver-openclaw-profile.md) — RuntimeProfile v2, disposable-cell authorities, workload identity, MCP, and remaining promotion gates.
 9. [Canonical feature models](canonical-feature-models.md) — provider-neutral domain vocabulary.
 10. [Accessible workflow context contract](workflow-context-contract.md) — linear workflow primitives, context references, agent dry-run rules, and the MVP slice before a visual builder.
-11. [Architecture](architecture.md) and [Diagrams](diagrams/index.md) — facades, data flow, and domain diagrams.
+11. [Architecture](architecture.md), [JVM module and bean contract](architecture/jvm-module-and-bean-contract.md), and [Diagrams](diagrams/index.md) — facades, module dependencies, runtime beans, data flow, and domain diagrams.
 
 ### Security / compliance reviewer
 
@@ -133,7 +133,7 @@ Historical/context docs:
 
 The canonical product/domain truth is the pinned Weave Specification Corpus referenced by `specs/weave-specs.lock.json`. This repo projects the active direction through [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md): Weave is product-first and provider-neutral. Admin/provider setup, IDM/RBAC, readiness, whitelisting, and support-safe diagnostics come before optional Weaver personal-assistant runtime work.
 
-Weaver remains optional, governed, auditable, support-safe, and disabled by default. Any future per-user PA runtime must be generated from Weave organization policy as an isolated OpenClaw-derived profile and follow the rule: user-rights, organization-whitelisted capabilities. See [Governed Weaver runtime security contract](governed-weaver-runtime-security-contract.md) for the runtime/model/tool-provider split, approval receipts, and support-safe evidence boundary.
+Weaver remains optional, governed, auditable, support-safe, and disabled by default. Each entitled cell consumes a signed RuntimeProfile v2 projected from current Weave policy and follows the rule: user-rights, organization-whitelisted capabilities. OpenClaw owns its native approval lifecycle; Weave owns fresh domain authorization plus argument-bound decision and action evidence. See [Weaver/OpenClaw runtime projection](architecture/weaver-openclaw-profile.md) and [MCP projection boundary](weave-mcp-projection.md).
 
 v0.1 is a dogfood-ready review baseline, not a general production release claim or scaffold preview. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration or provider secrets. The shortest status summary for reviewers is [v0.1 Golden Path readiness](v0.1-golden-path.md). The latest published prerelease audit is [v0.1.0-rc.3 release evidence](release-v0.1-rc3-evidence.md); current post-publication release readiness still blocks on #591 manual assistive-technology evidence.
 

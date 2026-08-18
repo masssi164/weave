@@ -1,0 +1,122 @@
+def requiredProperty = { String name ->
+    def value = providers.gradleProperty(name).orNull
+    if (value == null || value.toString().trim().isEmpty()) {
+        throw new GradleException("Missing required -P${name}=... property.")
+    }
+    value.toString()
+}
+
+tasks.register('devUp', Exec) {
+    group = 'application'
+    description = 'Converge the dev provider stack and leave Server/MCP ports ready for host processes.'
+    workingDir rootProject.projectDir
+    commandLine 'bash', 'gradle/tasks/dev-up.sh'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('devRun', Exec) {
+    group = 'application'
+    description = 'Run Weave Server and MCP as separate host processes against the converged dev providers.'
+    dependsOn 'devUp'
+    workingDir rootProject.projectDir
+    commandLine 'bash', 'gradle/tasks/dev-run.sh'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('devDown', Exec) {
+    group = 'application'
+    description = 'Stop the dev topology while preserving provider data volumes.'
+    workingDir rootProject.projectDir
+    commandLine 'bash', 'gradle/tasks/dev-down.sh'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('dogfoodUp', Exec) {
+    group = 'application'
+    description = 'Build the current checkout and converge the lean dogfood Compose stack while preserving session data.'
+    dependsOn ':server:bootJar', ':weave-mcp-server:bootJar'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'up', '--root', 'infra/weave-workspace'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('dogfoodDown', Exec) {
+    group = 'application'
+    description = 'Stop the dogfood Compose stack while preserving its three session volumes and external TLS files.'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'down', '--root', 'infra/weave-workspace'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('dogfoodReset', Exec) {
+    group = 'application'
+    description = 'Delete only the dogfood project and its three session volumes, then recreate an empty stack.'
+    dependsOn ':server:bootJar', ':weave-mcp-server:bootJar'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'reset', '--root', 'infra/weave-workspace'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('testApp', Exec) {
+    group = 'verification'
+    description = 'Prove invitation, browser activation, PKCE, WebDAV, ARC, MCP, revocation, and exact cleanup in one disposable stack.'
+    workingDir rootProject.projectDir
+    commandLine 'bash', 'gradle/tasks/test-app.sh'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('testAppContract') {
+    group = 'verification'
+    description = 'Compile and test the framework-free testApp product-flow proof without starting a stack.'
+    dependsOn ':weave-product-e2e:test'
+}
+
+tasks.register('dogfoodCandidateCheck', Exec) {
+    group = 'verification'
+    description = 'Validate one exact candidate manifest and its digest-pinned runtime images.'
+    workingDir rootProject.projectDir
+    outputs.upToDateWhen { false }
+    doFirst {
+        commandLine(
+            'python3',
+            'gradle/tasks/candidate-manifest-check.py',
+            '--manifest', requiredProperty('candidateManifest')
+        )
+    }
+}
+
+tasks.register('createCandidateManifest', Exec) {
+    group = 'weave release'
+    description = 'Create and validate one immutable candidate manifest from semantic realm identities, digest-pinned images, and attestations.'
+    workingDir rootProject.projectDir
+    outputs.upToDateWhen { false }
+    doFirst {
+        commandLine(
+            'python3',
+            'gradle/tasks/candidate-manifest-create.py',
+            '--commit', requiredProperty('candidateCommit'),
+            '--specification-commit', requiredProperty('specificationCommit'),
+            '--spec-digest', requiredProperty('specDigest'),
+            '--build-evidence-ref', requiredProperty('buildEvidenceRef'),
+            '--keycloak-build-evidence-digest', requiredProperty('keycloakRuntimeBuildEvidenceDigest'),
+            '--semantic-realm-source-digest', requiredProperty('semanticRealmSourceDigest'),
+            '--realm-migration-definition-digest', requiredProperty('realmMigrationDefinitionDigest'),
+            '--image',
+            'server',
+            requiredProperty('serverImage'),
+            requiredProperty('serverSbomDigest'),
+            requiredProperty('serverProvenanceDigest'),
+            '--image',
+            'mcp-server',
+            requiredProperty('mcpServerImage'),
+            requiredProperty('mcpServerSbomDigest'),
+            requiredProperty('mcpServerProvenanceDigest'),
+            '--image',
+            'keycloak-runtime',
+            requiredProperty('keycloakRuntimeImage'),
+            requiredProperty('keycloakRuntimeSbomDigest'),
+            requiredProperty('keycloakRuntimeProvenanceDigest'),
+            '--output', requiredProperty('candidateManifest')
+        )
+    }
+}

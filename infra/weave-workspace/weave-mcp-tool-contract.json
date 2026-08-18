@@ -1,21 +1,28 @@
 {
-  "schema": "weave-mcp-tool-contract-v1",
-  "status": "design-foundation-disabled",
+  "schema": "weave-mcp-workload-contract-v2",
+  "status": "guarded-workload-boundary-active",
   "placement": {
     "contractArea": "infra/weave-workspace",
-    "futureServerPackage": "infra/weave-mcp",
-    "implementationHint": "FastMCP Python @tool is an implementation candidate under infra/weave-mcp, not product API authority",
-    "architecturePrinciple": "MCP = governed tool projection over Weave APIs"
+    "runtimeModule": "weave-mcp-server",
+    "runtimeInfrastructureModule": "infra/weave-workspace/compose.yaml#mcp",
+    "implementation": "Spring AI 2.0 stateful Streamable HTTP admitted only after RFC 9068 workload validation, server-owned cell binding, token exchange, and backend context revalidation",
+    "retiredRuntime": "infra/weave-mcp Python and FastMCP gateway",
+    "architecturePrinciple": "MCP is a workload-only Weaver boundary; humans never access MCP"
   },
   "authorityBoundary": {
     "productAuthority": "weave-backend",
-    "mcpRole": "infra glue exposing governed Weave domain actions to approved runtimes",
+    "mcpRole": "workload-only protocol projection; the active Files read slice consumes the existing Weave WebDAV facade",
     "canonicalApiRemainsAuthoritative": true,
     "runtimeDirectProviderAccessAllowed": false,
-    "memberMayConfigureProvidersThroughMcp": false
+    "memberMayConfigureProvidersThroughMcp": false,
+    "humanAccessAllowed": false,
+    "unboundServiceAccountAccessAllowed": false
   },
   "globalControls": {
     "defaultExposeTools": false,
+    "protocolCatalogIsCanonicalCapabilityCeiling": true,
+    "runtimeProfileGrantRequiredForInvocation": true,
+    "staticCatalogDoesNotAuthorizeInvocation": true,
     "denyUnknownTools": true,
     "supportSafeOutputsOnly": true,
     "secretRefOnly": true,
@@ -23,87 +30,206 @@
     "rawProviderInternalsReturned": false,
     "rawProviderPayloadsReturned": false,
     "credentialBearingUrlsReturned": false,
-    "authorizationSource": "Generated Weave RuntimeProfile projection carrying the capability-policy intersection; caller-supplied capability headers are ignored",
     "auditRequiredForEveryToolCall": true,
-    "approvalReceiptRequiredForWriteDeleteExternalSendProviderSwitch": true,
-    "approvalAuthority": "user_openclaw_runtime_for_member_tool_actions",
     "serverApprovalOracleAllowed": false,
-    "approvalFatigueControl": "approval receipts are required only for write/delete/external-send/provider-switch/admin-risk actions; read-only granted tools do not prompt by default"
+    "runtimeProfileVersion": "v2",
+    "workloadClientConvention": "weaver-cell-{cellId}",
+    "serverOwnedBindingRequired": true,
+    "humanTokensForbidden": true,
+    "genericServiceAccountsForbidden": true,
+    "v1ReadersAllowed": false,
+    "approvalDecisionEvidenceVersion": "v2",
+    "actionEvidenceVersion": "v2",
+    "evidenceReferenceAloneAuthorizes": false,
+    "approvalDecisionEvidenceRequiredForWriteDeleteExternalSendProviderSwitch": true
   },
   "canonicalDomains": [
     {
       "key": "calendar",
       "label": "Calendar",
-      "toolFamilies": ["calendar.crud", "calendar.availability", "calendar.invite_rsvp", "calendar.recurrence", "calendar.provider_source_mapping"],
-      "allowedProofTools": ["calendar.search_events", "calendar.read_event"],
-      "writeToolsRequireApproval": ["calendar.create_event", "calendar.update_event", "calendar.delete_event", "calendar.invite_attendee"],
-      "forbiddenOutputs": ["privateCalendarTokens", "providerNativeCredentials", "rawCalDavPayloads"]
+      "toolFamilies": [
+        "calendar.crud",
+        "calendar.availability",
+        "calendar.invite_rsvp",
+        "calendar.recurrence",
+        "calendar.provider_source_mapping"
+      ],
+      "allowedProofTools": [
+        "calendar.search_events",
+        "calendar.read_event"
+      ],
+      "writeToolsRequireApproval": [
+        "calendar.create_event",
+        "calendar.update_event",
+        "calendar.delete_event",
+        "calendar.invite_attendee"
+      ],
+      "forbiddenOutputs": [
+        "privateCalendarTokens",
+        "providerNativeCredentials",
+        "rawCalDavPayloads"
+      ]
     },
     {
       "key": "files_documents",
       "label": "Files and documents",
-      "toolFamilies": ["files.crud", "files.search", "files.metadata", "files.version_content", "files.permissions", "documents.actions"],
-      "allowedProofTools": ["files.search", "files.read_metadata"],
-      "writeToolsRequireApproval": ["files.upload", "files.delete", "files.share_link", "documents.request_edit_session"],
-      "forbiddenOutputs": ["providerNativeShareSecret", "rawStorageCredentials", "credentialBearingDownloadUrl"]
-    },
-    {
-      "key": "boards_tasks",
-      "label": "Boards and tasks",
-      "toolFamilies": ["boards.crud", "tasks.crud", "tasks.assignment", "tasks.labels_status_due_dates", "comments.activity"],
-      "allowedProofTools": ["boards.search_tasks", "boards.read_task"],
-      "writeToolsRequireApproval": ["boards.create_task", "boards.move_task", "boards.comment", "boards.update_status"],
-      "forbiddenOutputs": ["rawProjectAdminPayload", "providerWorkflowMutationBody"]
+      "toolFamilies": [
+        "files.crud",
+        "files.search",
+        "files.metadata",
+        "files.version_content",
+        "files.permissions",
+        "documents.actions"
+      ],
+      "allowedProofTools": [
+        "files.search",
+        "files.read_metadata"
+      ],
+      "writeToolsRequireApproval": [
+        "files.upload",
+        "files.delete",
+        "files.share_link",
+        "documents.request_edit_session"
+      ],
+      "dataPlaneAuthority": "weave-webdav-facade",
+      "facadePath": "/dav/files",
+      "openApiRole": "control-discovery-readiness-revoke-generated-models",
+      "writePolicyBlocker": "https://github.com/masssi164/weave/issues/1007",
+      "forbiddenOutputs": [
+        "providerNativeShareSecret",
+        "rawStorageCredentials",
+        "credentialBearingDownloadUrl",
+        "rawProviderUrl",
+        "rawWebDavProviderPayload"
+      ]
     },
     {
       "key": "chat_comms",
       "label": "Chat and communications",
-      "toolFamilies": ["channels.rooms", "messages", "membership", "send_read_search"],
-      "allowedProofTools": ["chat.search_messages", "chat.read_channel_summary"],
-      "writeToolsRequireApproval": ["chat.send_message", "chat.invite_member", "chat.create_channel"],
-      "forbiddenOutputs": ["rawRoomIds", "rawEventIds", "mxcUris", "homeserverTokens", "rawMatrixBodies"]
+      "toolFamilies": [
+        "channels.rooms",
+        "messages",
+        "membership",
+        "send_read_search"
+      ],
+      "allowedProofTools": [
+        "chat.search_messages",
+        "chat.read_channel_summary"
+      ],
+      "writeToolsRequireApproval": [
+        "chat.send_message",
+        "chat.invite_member",
+        "chat.create_channel"
+      ],
+      "forbiddenOutputs": [
+        "rawRoomIds",
+        "rawEventIds",
+        "mxcUris",
+        "homeserverTokens",
+        "rawMatrixBodies"
+      ]
     },
     {
       "key": "people_identity_org",
       "label": "People, identity, and organization",
-      "toolFamilies": ["users", "groups", "roles", "org_units", "effective_rights", "readiness"],
-      "allowedProofTools": ["people.search", "identity.read_effective_rights"],
-      "writeToolsRequireApproval": ["identity.assign_role", "identity.deprovision_user", "identity.update_group"],
-      "forbiddenOutputs": ["rawClaimsDump", "idmTokens", "credentialExport"]
+      "toolFamilies": [
+        "users",
+        "groups",
+        "roles",
+        "org_units",
+        "effective_rights",
+        "readiness"
+      ],
+      "allowedProofTools": [
+        "people.search",
+        "identity.read_effective_rights"
+      ],
+      "writeToolsRequireApproval": [
+        "identity.assign_role",
+        "identity.deprovision_user",
+        "identity.update_group"
+      ],
+      "forbiddenOutputs": [
+        "rawClaimsDump",
+        "idmTokens",
+        "credentialExport"
+      ]
     },
     {
       "key": "admin_setup_providers",
       "label": "Admin setup and providers",
-      "toolFamilies": ["provider_registry", "category_mapping", "readiness_checks", "dry_run", "capability_mapping", "secret_ref_refs"],
-      "allowedProofTools": ["admin.providers.list_categories", "admin.providers.readiness_summary"],
-      "writeToolsRequireApproval": ["admin.providers.select_provider", "admin.providers.run_replacement_dry_run", "admin.providers.apply_mapping"],
-      "forbiddenOutputs": ["SecretRefValues", "providerAdminTokens", "rawDownstreamErrors"]
+      "toolFamilies": [
+        "provider_registry",
+        "category_mapping",
+        "readiness_checks",
+        "dry_run",
+        "capability_mapping",
+        "secret_ref_refs"
+      ],
+      "allowedProofTools": [
+        "admin.providers.list_categories",
+        "admin.providers.readiness_summary"
+      ],
+      "writeToolsRequireApproval": [
+        "admin.providers.select_provider",
+        "admin.providers.run_replacement_dry_run",
+        "admin.providers.apply_mapping"
+      ],
+      "forbiddenOutputs": [
+        "SecretRefValues",
+        "providerAdminTokens",
+        "rawDownstreamErrors"
+      ]
     },
     {
       "key": "audit_policy",
       "label": "Audit and policy",
-      "toolFamilies": ["audit_events", "redaction_views", "policy_simulation", "permission_scopes"],
-      "allowedProofTools": ["audit.search_support_safe", "policy.simulate_effective_rights"],
-      "writeToolsRequireApproval": ["policy.update_profile", "policy.grant_capability", "policy.revoke_capability"],
-      "forbiddenOutputs": ["unredactedAuditPayload", "memberPrivateMemory", "rawProviderDiagnostics"]
-    },
-    {
-      "key": "weaver_runtime_governance",
-      "label": "Weaver runtime and governance",
-      "toolFamilies": ["tool_allowlists", "capability_bundles", "consent_policy", "sandbox_package_projection", "runtime_audit_handoff"],
-      "allowedProofTools": ["weaver.runtime_profile.preview", "weaver.tools.list_granted"],
-      "writeToolsRequireApproval": ["weaver.enable_for_group", "weaver.revoke_runtime", "weaver.approve_tool_bundle"],
-      "forbiddenOutputs": ["openclaw.json", "runtimeTokens", "rawMcpServerConfig", "execPolicyBypass"]
+      "toolFamilies": [
+        "audit_events",
+        "redaction_views",
+        "policy_simulation",
+        "permission_scopes"
+      ],
+      "allowedProofTools": [
+        "audit.search_support_safe",
+        "policy.simulate_effective_rights"
+      ],
+      "writeToolsRequireApproval": [
+        "policy.update_profile",
+        "policy.grant_capability",
+        "policy.revoke_capability"
+      ],
+      "forbiddenOutputs": [
+        "unredactedAuditPayload",
+        "memberPrivateMemory",
+        "rawProviderDiagnostics"
+      ]
     }
   ],
-  "sprint16ProofSlice": {
-    "implementAllAdapters": false,
-    "preferredEvidence": [
-      "contract schema",
-      "support-safe mock/in-memory facade responses",
-      "server-owned readiness projection",
-      "disabled-by-default runtime profile preview"
+  "activeRuntimeEvidence": {
+    "transport": "stateful-streamable-http-workload-active",
+    "endpoint": "/mcp",
+    "oidcGatekeeper": "spring-security-oauth2-resource-server",
+    "accessTokenType": "at+jwt",
+    "protectedResourceMetadata": "/.well-known/oauth-protected-resource/mcp",
+    "clientCredentialsExtension": "io.modelcontextprotocol/oauth-client-credentials",
+    "backendContext": "standard-token-exchange-v2-and-current-arc-binding",
+    "tools": [
+      "files.search"
     ],
-    "allowedProofAdaptersMax": 2
+    "resources": [
+      "weave://files/{canonicalFileId}"
+    ],
+    "prompts": [],
+    "filesDataPlane": {
+      "standard": "WebDAV RFC 5323 bounded basicsearch",
+      "facade": "/dav/files",
+      "canonicalIdProperty": "{urn:weave:files}canonical-id",
+      "toolSpecificBackendEndpoint": false
+    },
+    "pythonFastMcpRemoved": true,
+    "handwrittenJsonRpcRemoved": true,
+    "enabled": true,
+    "security": "bound-cell-only-rfc9068-exact-audience-and-current-arc-context"
   }
 }

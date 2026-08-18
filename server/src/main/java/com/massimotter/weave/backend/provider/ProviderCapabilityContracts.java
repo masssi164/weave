@@ -15,28 +15,19 @@ public final class ProviderCapabilityContracts {
             "coming_later");
 
     private static final Map<String, Definition> DEFINITIONS = Map.ofEntries(
-            Map.entry("identity-idm", new Definition(
-                    List.of("identity.sign_in", "identity.groups", "identity.roles"),
-                    List.of("keycloak-realm", "matrix-authentication-service"),
-                    List.of("entra-id", "authentik", "auth0", "generic-oidc", "generic-saml", "scim-ldap"),
-                    List.of("Subject", "IdentitySource", "Group", "Role", "CapabilityProfile", "LoginSession"),
-                    "authoritative IdP/provisioning source owns lifecycle and groups; Weave owns capability policy mappings",
-                    List.of("email rename", "nested groups", "guest identity", "deleted/recreated account", "service principal"),
-                    "SCIM or provider API deactivation first; content retention/reassignment follows org policy",
-                    "identity replacement requires immutable-ID mapping, conflict quarantine, last-admin guard, and dry-run")),
             Map.entry("chat", new Definition(
                     List.of("chat.read", "chat.send", "chat.channels"),
-                    List.of("matrix-chat", "synapse-homeserver"),
-                    List.of("microsoft-teams", "slack", "nextcloud-talk"),
+                    List.of("weave-native"),
+                    List.of("matrix-synapse", "synapse-homeserver", "microsoft-teams", "slack", "nextcloud-talk"),
                     List.of("WeaveSpace", "WeaveConversation", "WeaveMessage", "WeaveThread", "WeaveReaction", "WeaveAttachment", "WeaveMembership", "WeaveHistoryPolicy", "ProviderRef", "MigrationReceipt", "RollbackReceipt", "LossyFieldReport"),
-                    "selected chat provider owns message history; Matrix Chat is the current real release provider path and non-Matrix chat providers remain contract-only until promoted by adapter evidence",
+                    "Weave owns canonical Chat history; optional southbound providers remain private adapters and require their own conformance evidence",
                     List.of("Slack broadcast/thread semantics", "Teams channel permissions", "Matrix E2EE recovery", "rich cards/adaptive blocks", "attachment retention"),
                     "export conversation/message/attachment provenance or document provider export boundary; delete/deprovision follows provider and retention policy",
                     "chat replacement requires preflight, dry-run, membership/history/attachment loss report, and rollback/retention note")),
             Map.entry("files", new Definition(
                     List.of("files.read", "files.upload", "files.download", "files.delete"),
-                    List.of("nextcloud-files"),
-                    List.of("sharepoint", "onedrive", "s3-compatible", "smb"),
+                    List.of("weave-native"),
+                    List.of("nextcloud-files", "sharepoint", "onedrive", "s3-compatible", "smb"),
                     List.of("WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef"),
                     "selected storage provider owns file bytes and native permissions; Weave owns canonical references and member impact states",
                     List.of("public links", "provider-specific shares", "version history", "locks", "external users", "storage quotas"),
@@ -44,8 +35,8 @@ public final class ProviderCapabilityContracts {
                     "files replacement requires dry-run for permissions, versions, links, storage quota, and binary transfer feasibility")),
             Map.entry("calendar", new Definition(
                     List.of("calendar.read", "calendar.manage_events", "calendar.thread_refs"),
-                    List.of("nextcloud-caldav"),
-                    List.of("microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav", "weave-calendar"),
+                    List.of("weave-native"),
+                    List.of("nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"),
                     List.of("WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef"),
                     "workspace/team/channel calendar source is selected by admin; private personal calendars are not the default product source",
                     List.of("RRULE fidelity", "time zones", "resource booking", "attendee response semantics", "online meeting links"),
@@ -63,12 +54,12 @@ public final class ProviderCapabilityContracts {
             Map.entry("meetings-calls", new Definition(
                     List.of("meetings.join", "meetings.host", "meetings.recording_policy"),
                     List.of("livekit"),
-                    List.of("jitsi", "zoom", "microsoft-teams-meetings", "google-meet", "external-meeting-link"),
-                    List.of("Meeting", "MediaSession", "Participant", "TokenGrant", "Recording", "Caption", "ConsentRecord"),
-                    "meeting provider owns media session; Weave owns token facade, calendar/context binding, and consent/readiness state",
-                    List.of("recording retention", "captions", "external join links", "lobby/guest semantics", "provider consent"),
-                    "export recording/caption metadata where available; media deletion follows provider retention policy",
-                    "meeting replacement requires token/recording/consent dry-run and clear E2EE/media-boundary note")),
+                    List.of("generic-webrtc-sfu", "microsoft-teams-meeting-link", "google-meet-link"),
+                    List.of("Meeting", "MatrixRtcSlot", "MatrixRtcMember", "DeviceBinding", "MediaSession", "RtcAuthorization", "Recording", "Caption", "ConsentRecord"),
+                    "MatrixRTC owns member signaling; Weave owns RTC authorization, consent, and artifacts; the selected SFU carries media only",
+                    List.of("media E2EE", "TURN/reconnect", "recording consent and retention", "captions", "external meeting links", "device revocation"),
+                    "export and delete governed artifact metadata under retention policy; active media sessions are never live-migrated",
+                    "SFU replacement requires a dry-run covering Profile 0 interoperability, RTC Authorizer, media-E2EE, revocation, TURN, consent/artifact, accessibility, and rollback evidence")),
             Map.entry("documents-collaboration", new Definition(
                     List.of("documents.view", "documents.edit", "documents.comment", "documents.collaborate"),
                     List.of("onlyoffice"),
@@ -114,15 +105,15 @@ public final class ProviderCapabilityContracts {
                     List.of("redaction vs usefulness", "ticket synchronization", "delegated operator scope"),
                     "export support-safe readiness/audit records; delete follows audit retention policy",
                     "admin tooling replacement requires policy/readiness/audit dry-run and delegated-scope review")),
-            Map.entry("weaver", new Definition(
-                    List.of("weaver.enabled", "weaver.files_read", "weaver.exec_disabled"),
-                    List.of("openclaw-derived-profile"),
+            Map.entry("agent-runtime-control", new Definition(
+                    List.of("agent-runtime.entitled", "agent-runtime.profile.read", "agent-runtime.lifecycle.write", "agent-runtime.wake", "agent-runtime.approval.attest"),
+                    List.of("weaver-openclaw"),
                     List.of(),
-                    List.of("WeaverRuntimeProfile", "WeaverRuntimeInstance", "WeaverUserWorkspace", "WeaverToolGrant", "WeaverApprovalReceipt", "WeaverAuditEvent", "WeaverCustomizationProfile"),
-                    "organization policy owns runtime/tool allowlist; user rights constrain every Weaver action",
-                    List.of("tool scope", "secret handling", "sandboxing", "group-chat consent", "step-up approvals"),
-                    "export runtime profile and audit receipts; delete runtime workspace per retention policy",
-                    "Weaver enablement requires policy dry-run, sandbox profile, and audit/receipt proof")),
+                    List.of("RuntimeEntitlementRef", "RuntimeProfile", "ApprovalChallenge", "RuntimeCell", "WorkspaceRevision", "RuntimeRevocation", "RuntimeAuditCorrelation"),
+                    "Keycloak owns entitlement; ARC owns profile/cell bindings and external-state lifecycle; collaboration domains retain content and authorization",
+                    List.of("cross-cell state", "stale entitlement/profile", "workload credential exposure", "durable cell residue", "unreconciled restore"),
+                    "export support-safe ARC bindings/evidence; delete only through explicit retention-scoped operations",
+                    "runtime-provider replacement requires current entitlement, signed profile trust, external-state portability, kill/recreate, and cross-cell denial proof")),
             Map.entry("model", new Definition(
                     List.of("model.chat_completion", "model.embedding", "model.admin_select"),
                     List.of("lmstudio", "lmstudio-openai-compatible"),
@@ -158,9 +149,10 @@ public final class ProviderCapabilityContracts {
 
     public static ProviderRealityLevel defaultRealityLevel(String category) {
         return switch (category) {
-            case "identity-idm", "chat", "files", "calendar", "boards-tasks", "admin-control-plane", "release-evidence", "manuals-help", "decisions-evidence" -> ProviderRealityLevel.RELEASE_READY;
+            case "files", "calendar", "boards-tasks", "admin-control-plane", "release-evidence", "manuals-help", "decisions-evidence" -> ProviderRealityLevel.RELEASE_READY;
+            case "chat" -> ProviderRealityLevel.LIVE_WRITE;
             case "meetings-calls", "model" -> ProviderRealityLevel.CONFIGURED;
-            case "documents-collaboration", "weaver" -> ProviderRealityLevel.CONTRACT_ONLY;
+            case "documents-collaboration", "agent-runtime-control" -> ProviderRealityLevel.CONTRACT_ONLY;
             default -> ProviderRealityLevel.CONTRACT_ONLY;
         };
     }

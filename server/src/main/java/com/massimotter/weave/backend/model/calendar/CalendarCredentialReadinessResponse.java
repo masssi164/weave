@@ -5,13 +5,13 @@ import java.util.List;
 
 @Schema(description = "Safety readiness for downloadable profiles, external credentials, and read-only feeds.")
 public record CalendarCredentialReadinessResponse(
-        @Schema(description = "Stable machine-readable readiness status.", example = "blocked_until_revocable_credentials")
+        @Schema(description = "Stable machine-readable readiness status.", example = "revocable_credentials_ready")
         String status,
         @Schema(description = "Whether a signed Apple .mobileconfig download is available.", example = "false")
         boolean appleProfileSigned,
         @Schema(description = "Whether generated Apple profiles include a password or token.", example = "false")
         boolean appleProfilePasswordIncluded,
-        @Schema(description = "Whether Weave can issue/revoke per-client CalDAV credentials.", example = "false")
+        @Schema(description = "Whether Weave can issue/revoke per-client CalDAV credentials.", example = "true")
         boolean revocableCredentialsAvailable,
         @Schema(description = "Whether read-only ICS/webcal feed tokens are available.", example = "false")
         boolean readOnlySubscriptionTokensAvailable,

@@ -1,10 +1,15 @@
 # Sprint 4 plan: accessible work rooms and governed Weaver scout
 
-Status: superseded by closure evidence, 2026-05-26. See [Sprint 4 closure report](sprint-4-closure-report.md).
+Status: historical and superseded. The former Flutter AI-chat/Weaver-scout direction is retired;
+the current target keeps Flutter on the normal OIDC and collaboration-standard client surfaces
+and exposes Weaver through the separate workload-only MCP process. See
+[Sprint 4 closure report](sprint-4-closure-report.md).
 
 ## Product intent
 
-Sprint 4 turns the Sprint 3 provider-neutral foundation into a usable work-room experience. A normal member should open Weave, find the right workspace/channel, understand active decisions and meetings, and ask a governed Weaver scout for read-only context without triggering silent writes.
+The historical Sprint 4 intent turned the Sprint 3 provider-neutral foundation into a usable
+work-room experience. Its embedded Flutter Weaver-scout proposal is not part of the current
+architecture.
 
 ## Milestone and issue graph
 
@@ -14,7 +19,8 @@ Primary Sprint 4 issues:
 
 - #323 — Sprint 4 umbrella.
 - #324 — finalize Sprint 3 report and seed Sprint 4 plan.
-- #325 — Weave Home for DMs, favorites, channels, and AI chats.
+- #325 — historical Weave Home proposal; the current Home contains favorites, personal messages,
+  and channels, while Weaver is not a Flutter chat category.
 - #326 — accessible channel work-room tabs.
 - #327 — channel Decision Ledger MVP.
 - #328 — channel Meeting Capsule MVP.
@@ -51,7 +57,7 @@ Goal: make Weave feel like a real workspace, not a provider setup shell.
 
 Scope:
 
-- Weave Home groups DMs, favorites, channels, and AI/Weaver chats.
+- Weave Home groups favorites, personal messages, and channels.
 - Channel Work Room exposes Chat, Files, Boards/Tasks, Calendar/Events, and future Decisions/Meetings/Weaver context through accessible tabs or sections.
 - Member UX uses Weave domain vocabulary and safe capability states, not provider setup copy.
 - Product acceptance flows and scenario mappings cover Home and channel navigation.

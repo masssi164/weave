@@ -1,14 +1,22 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.boards.domain.BoardProviderCapabilities;
+import com.massimotter.weave.backend.boards.domain.ProviderKind;
+import com.massimotter.weave.backend.boards.port.BoardsRepository;
+import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
+import com.massimotter.weave.backend.chat.port.ChatProviderPort;
+import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.provider.ProviderModule;
 import com.massimotter.weave.backend.provider.ProviderPort;
 import com.massimotter.weave.backend.provider.ProviderRealityLevel;
+import com.massimotter.weave.backend.provider.RuntimeProviderStatus;
 import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.provider.StaticProviderPort;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,63 +24,73 @@ import org.springframework.context.annotation.Configuration;
 public class ProviderCoreConfiguration {
 
     @Bean
-    ProviderPort identityRealmProviderRegistrySeam() {
-        return StaticProviderPort.pending(
-                ProviderModule.IDENTITY_REALM,
-                "keycloak-realm",
-                "Identity realm provider seam is reserved for the Keycloak dry-run/readiness contract from backend PR #103.",
-                Set.of("realm-readiness", "realm-dry-run", "client-scope-diff", "role-diff"),
-                Set.of("direct-frontend-keycloak-admin", "secret-export", "live-realm-mutation-without-audit"),
-                List.of("keycloak", "entra-id", "authentik", "auth0", "generic-oidc", "generic-saml", "scim-ldap"),
-                Map.of("dependency", "weave-backend#103", "compatibleSeam", true));
-    }
-
-    @Bean
-    ProviderPort matrixProviderRegistrySeam() {
+    ProviderPort chatProviderRegistrySeam(ObjectProvider<ChatProviderPort> chatProviderPort) {
+        ChatProviderPort runtime = chatProviderPort.getIfAvailable();
+        if (runtime != null) {
+            return chatProviderRegistrySeamFor(runtime);
+        }
         return StaticProviderPort.pending(
                 ProviderModule.MATRIX,
-                "synapse-homeserver",
-                "Matrix/Synapse is the chat and room substrate; provider status stays support-safe and does not expose room keys or raw homeserver errors.",
+                "weave-native",
+                "No Chat runtime adapter is bound; the canonical Chat and Matrix protocol facades remain fail-closed.",
                 Set.of("workspace-room-readiness", "message-sync-readiness", "e2ee-status-readiness", "homeserver-discovery"),
                 Set.of("room-key-export", "raw-homeserver-errors", "direct-flutter-admin-api", "credential-exposure"),
-                List.of("synapse-homeserver", "matrix", "synapse", "slack", "microsoft-teams"),
-                Map.of("substrate", "matrix", "chatE2eeBoundary", "matrix-chat-only", "mediaCallsCovered", false));
+                List.of("weave-native", "matrix-synapse", "synapse-homeserver", "slack", "microsoft-teams"),
+                Map.of("canonicalDomain", "chat", "facade", "/_matrix/client", "mediaCallsCovered", false));
+    }
+
+    ProviderPort chatProviderRegistrySeamFor(ChatProviderPort runtime) {
+        return RuntimeProviderStatus.fromConformancePort(
+                ProviderModule.MATRIX,
+                runtime.providerKey(),
+                runtime.configured(),
+                runtime.conformanceProfile(),
+                "The selected Chat adapter is bound behind the canonical Chat port; runtime reachability is reported by cached capability health.",
+                List.of("weave-native", "matrix-synapse", "synapse-homeserver", "slack", "microsoft-teams"));
     }
 
     @Bean
-    ProviderPort matrixAuthProviderRegistrySeam() {
-        return StaticProviderPort.pending(
-                ProviderModule.MATRIX_AUTH,
-                "matrix-authentication-service",
-                "Matrix Authentication Service is the Matrix auth bridge seam; status is fail-closed and support-safe.",
-                Set.of("oidc-bridge-readiness", "client-registration-readiness", "session-policy-readiness"),
-                Set.of("client-secret-export", "raw-mas-errors", "direct-flutter-admin-api", "credential-exposure"),
-                List.of("matrix-authentication-service"),
-                Map.of("substrate", "matrix", "authBridge", true, "compatibleSeam", true));
-    }
-
-    @Bean
-    ProviderPort filesProviderRegistrySeam() {
-        return StaticProviderPort.pending(
+    ProviderPort filesProviderRegistrySeam(ObjectProvider<FilesProviderPort> filesProviderPort) {
+        FilesProviderPort runtime = filesProviderPort.getIfAvailable();
+        if (runtime == null) {
+            return StaticProviderPort.pending(
+                    ProviderModule.FILES,
+                    "weave-native",
+                    "No Files runtime adapter is bound; the canonical Files facade remains fail-closed.",
+                    Set.of("list", "read", "write", "create-collection", "delete", "copy", "move"),
+                    Set.of("direct-member-provider-api", "credential-exposure", "raw-provider-errors"),
+                    List.of("weave-native", "nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"),
+                    Map.of("runtimeBindingObserved", false, "facade", "/dav/files"));
+        }
+        return RuntimeProviderStatus.fromConformancePort(
                 ProviderModule.FILES,
-                "nextcloud-files",
-                "Files facade is backend-owned and backed by Nextcloud WebDAV/OCS when configured.",
-                Set.of("list", "upload", "download", "create-folder", "delete", "quota-status"),
-                Set.of("direct-flutter-webdav", "html-scraping", "credential-exposure", "public-links-by-default"),
-                List.of("nextcloud-files", "nextcloud", "webdav", "sharepoint", "onedrive", "microsoft-graph-files", "s3", "s3-compatible", "smb"),
-                Map.of("facade", "/api/files", "rawProviderUiIsProductSurface", false));
+                runtime.conformanceProfile().adapterKey(),
+                runtime.configured(),
+                runtime.conformanceProfile(),
+                "The selected Files adapter is bound behind the canonical Files port and the /dav/files projection.",
+                List.of("weave-native", "nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"));
     }
 
     @Bean
-    ProviderPort calendarProviderRegistrySeam() {
-        return StaticProviderPort.pending(
+    ProviderPort calendarProviderRegistrySeam(ObjectProvider<CalendarProviderPort> calendarProviderPort) {
+        CalendarProviderPort runtime = calendarProviderPort.getIfAvailable();
+        if (runtime == null) {
+            return StaticProviderPort.pending(
+                    ProviderModule.CALENDAR,
+                    "weave-native",
+                    "No Calendar runtime adapter is bound; the canonical Calendar facade remains fail-closed.",
+                    Set.of("query", "read", "create", "update", "delete", "free-busy"),
+                    Set.of("direct-member-provider-api", "credential-exposure", "raw-provider-errors"),
+                    List.of("weave-native", "nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"),
+                    Map.of("runtimeBindingObserved", false, "facade", "/caldav"));
+        }
+        return RuntimeProviderStatus.fromConformancePort(
                 ProviderModule.CALENDAR,
-                "nextcloud-caldav",
-                "Calendar facade is backend-owned and maps workspace/team/channel scopes to CalDAV when configured.",
-                Set.of("list-events", "read-event", "create-event", "update-event", "delete-event", "client-setup-metadata"),
-                Set.of("private-user-calendar-ingestion", "credential-export", "direct-flutter-caldav"),
-                List.of("nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav", "weave-calendar"),
-                Map.of("facade", "/api/calendar", "scopeModel", "workspace/team/channel"));
+                runtime.conformanceProfile().adapterKey(),
+                runtime.configured(),
+                runtime.conformanceProfile(),
+                "The selected Calendar adapter is bound behind the canonical Calendar port and the /caldav projection.",
+                List.of("weave-native", "nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"));
     }
 
     @Bean
@@ -100,19 +118,54 @@ public class ProviderCoreConfiguration {
     }
 
     @Bean
-    ProviderPort boardsProviderRegistrySeam() {
-        return StaticProviderPort.pending(
+    ProviderPort boardsProviderRegistrySeam(ObjectProvider<BoardsRepository> boardsRepository) {
+        BoardsRepository runtime = boardsRepository.getIfAvailable();
+        if (runtime == null) {
+            return StaticProviderPort.pending(
+                    ProviderModule.BOARDS,
+                    "local-workspace",
+                    "No Boards runtime adapter is bound; the canonical Boards facade remains fail-closed.",
+                    Set.of("project-list", "board-list", "task-list", "task-create", "task-move", "task-complete"),
+                    Set.of("direct-member-provider-api", "provider-writes-without-audit", "raw-provider-errors"),
+                    List.of("local-workspace", "openproject-primary", "microsoft-planner", "jira", "vikunja", "nextcloud-deck"),
+                    Map.of("runtimeBindingObserved", false, "facade", "/api/boards/workspace"));
+        }
+        return boardsProviderRegistrySeamFor(runtime);
+    }
+
+    ProviderPort boardsProviderRegistrySeamFor(BoardsRepository runtime) {
+        BoardProviderCapabilities capabilities = runtime.capabilities();
+        String providerKey = boardsProviderKey(capabilities.provider());
+        return RuntimeProviderStatus.fixed(
                 ProviderModule.BOARDS,
-                "openproject-primary",
-                "Boards/PM facade remains provider-neutral; OpenProject is the primary workspace-sync provider, Deck stays optional.",
-                Set.of("project-list", "board-list", "task-list", "task-create-local-workspace", "task-move-local-workspace", "task-complete-local-workspace", "workspace-sync"),
-                Set.of("raw-openproject-ui-as-product", "provider-writes-without-audit", "direct-flutter-provider-api"),
-                List.of("openproject-primary", "openproject", "microsoft-planner", "jira", "vikunja", "nextcloud-deck"),
-                Map.of("primaryProvider", "openproject", "optionalProvider", "nextcloud-deck", "facade", "/api/boards/workspace"));
+                providerKey,
+                capabilities.enabled(),
+                "The selected Boards adapter is bound behind the canonical Boards repository and workspace facade.",
+                capabilities.supported().stream()
+                        .map(capability -> capability.name().toLowerCase(java.util.Locale.ROOT).replace('_', '-'))
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet()),
+                capabilities.unsupported().stream()
+                        .map(capability -> capability.name().toLowerCase(java.util.Locale.ROOT).replace('_', '-'))
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet()),
+                List.of("local-workspace", "openproject-primary", "microsoft-planner", "jira", "vikunja", "nextcloud-deck"),
+                capabilities.enabled() ? ProviderRealityLevel.CONFIGURED : ProviderRealityLevel.CONTRACT_ONLY,
+                Map.of(
+                        "canonicalDomain", "boards-tasks",
+                        "runtimeAdapterKind", providerKey,
+                        "facade", "/api/boards/workspace",
+                        "supportSafeSummary", capabilities.supportSafeSummary()));
+    }
+
+    private String boardsProviderKey(ProviderKind provider) {
+        return switch (provider) {
+            case IN_MEMORY -> "local-workspace";
+            case OPEN_PROJECT -> "openproject-primary";
+            default -> provider.contractName();
+        };
     }
 
     @Bean
-    ProviderPort liveKitMeetingsProviderRegistrySeam(LiveKitMeetingsProviderProperties liveKit) {
+    ProviderPort liveKitSfuProviderRegistrySeam(LiveKitSfuProviderProperties liveKit) {
         ProviderState state = liveKit.enabled()
                 ? liveKit.configured() ? ProviderState.CONFIGURED : ProviderState.NOT_CONFIGURED
                 : ProviderState.DISABLED;
@@ -131,26 +184,27 @@ public class ProviderCoreConfiguration {
                 true,
                 true,
                 false,
-                "LiveKit is the active meetings/video-call provider contract; room/session access stays behind a backend-owned token facade and fails closed until configured.",
+                "LiveKit is a replaceable southbound SFU adapter for MatrixRTC Profile 0; signaling, membership, authorization, consent, and member APIs remain Weave/Matrix-owned.",
                 Set.of(
-                        "room-readiness",
-                        "join-token-broker",
-                        "server-url-discovery",
-                        "calendar-thread-binding",
-                        "recording-policy-readiness"),
+                        "sfu-configuration-readiness",
+                        "matrixrtc-profile-0-target",
+                        "media-e2ee-readiness",
+                        "turn-readiness"),
                 Set.of(
-                        "non-livekit-meetings-provider",
+                        "member-calls-rest-api",
+                        "proprietary-join-grant",
+                        "identity-only-sfu-token",
                         "direct-flutter-livekit-admin-api",
                         "livekit-api-key-exposure",
                         "livekit-api-secret-exposure",
                         "credential-bearing-join-url",
                         "raw-provider-errors"),
-                List.of("meetings-provider-not-configured", "meetings-provider-disabled", "meetings-provider-unavailable", "meetings-token-unavailable"),
+                List.of("calls-sfu-not-configured", "calls-sfu-disabled", "calls-sfu-unavailable", "rtc-authorization-required"),
                 "support-safe: no LiveKit API keys, API secrets, bearer tokens, room tokens, credential-bearing URLs, or raw provider errors",
-                List.of("livekit", "jitsi", "zoom", "microsoft-teams-meetings", "google-meet", "external-meeting-link"),
+                List.of("livekit", "generic-webrtc-sfu"),
                 ProviderRealityLevel.CONFIGURED,
                 Map.of(
-                        "activeProvider", "livekit",
+                        "activeSfuAdapter", "livekit",
                         "livekitUrlConfigured", liveKit.urlConfigured(),
                         "apiKeyConfigured", liveKit.apiKeyConfigured(),
                         "apiSecretConfigured", liveKit.apiSecretConfigured(),

@@ -62,9 +62,9 @@ class ProviderCategorySummary extends StatelessWidget {
   List<_ProviderCategory> _categories(AppLocalizations l10n) {
     return [
       _ProviderCategory(
-        title: l10n.providerCategoryIdentityTitle,
-        state: l10n.providerCategoryStatusCurrentDefault,
-        detail: l10n.providerCategoryIdentityDetail,
+        title: l10n.platformIdentityTitle,
+        state: l10n.platformIdentityStatusFixedAuthority,
+        detail: l10n.platformIdentityDetail,
       ),
       _ProviderCategory(
         title: l10n.providerCategoryChatTitle,
@@ -97,9 +97,9 @@ class ProviderCategorySummary extends StatelessWidget {
         detail: l10n.providerCategoryDocumentsDetail,
       ),
       _ProviderCategory(
-        title: l10n.providerCategoryWeaverTitle,
+        title: l10n.providerCategoryAgentRuntimeControlTitle,
         state: l10n.providerCategoryStatusDisabledByDefault,
-        detail: l10n.providerCategoryWeaverDetail,
+        detail: l10n.providerCategoryAgentRuntimeControlDetail,
       ),
     ];
   }

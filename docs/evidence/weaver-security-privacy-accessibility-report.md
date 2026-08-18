@@ -1,55 +1,62 @@
-# Weaver security, privacy, accessibility, and support-safe evidence report
+# Agent Runtime Control security, privacy, and accessibility evidence
 
-Status: Sprint 8/9 contract evidence seed for issues #446-#449.
+Status: active v2 implementation evidence. The earlier fixture-only Weaver
+Runtime Factory and synthetic MCP customization claims are retired.
 
-## Security
+## Security boundary
 
-| Requirement | Evidence |
-| --- | --- |
-| Provider switching threat covered | Provider switching remains admin/operator-only and approval-gated; see `docs/admin-suite-readiness-setup-contract.md` and `@weave-v01-provider-switch-portability`. |
-| OpenClaw runtime isolation covered | `docs/governed-weaver-runtime-security-contract.md` defines per-user workspace, memory, session, and no-cross-user isolation; Sprint 24 adds provider-lab runtime factory evidence in `docs/evidence/weaver-runtime-factory-report.md`. |
-| Weaver tools and approvals covered | `WeaverToolRegistryTest` proves grant-filtered discovery, signed same-user profile enforcement, revoked/expired-token/missing-consent/overbroad-grant denials, scoped tool grants, approval-required writes, canonical Space/Decision/Board refs, redaction, and audit. |
-| No raw provider tokens | Runtime profile exposes `secretrefs-only-no-raw-provider-tokens`; tool results redact raw provider payloads. |
-| SecretRefs everywhere | Product contract requires SecretRefs only for runtime profile, support bundles, logs, docs, and release evidence. |
-| RBAC control-plane actions | Runtime profile generation intersects IDM/RBAC capability policy with admin allowlists and remains disabled by default. |
+- Keycloak is the entitlement and workload-identity authority. A runtime cell
+  receives one confidential OIDC client using `private_key_jwt`; human tokens
+  and shared service accounts are rejected by the MCP boundary.
+- RuntimeProfile v2 is a short-lived, signed desired-state projection. It is not
+  an authorization grant and there is no v1 reader.
+- MCP accepts only RFC 9068 access tokens with the exact MCP audience and
+  service-account binding, performs Standard Token Exchange v2, and asks the
+  backend to revalidate the current cell/profile/entitlement context.
+- The active MCP catalog contains only `files.search` and the canonical file
+  resource over the existing Weave WebDAV projection. RuntimeProfile content,
+  provider configuration, and historical fixtures cannot manufacture
+  additional tools.
+- Agent Runtime Control owns cell lifecycle, fenced reconciliation, workload
+  credential revocation, and support-safe audit correlation. Collaboration
+  domains retain content authority and fine-grained authorization.
 
-## Privacy
+## State and privacy boundary
 
-| Requirement | Evidence |
-| --- | --- |
-| Weaver memory policy documented | Governed contract records per-user memory store and admin metadata-only visibility. |
-| Member private memory hidden from admins by default | Admins see policy/audit metadata only unless an explicit audited support authorization exists. |
-| Export/delete expectations | Memory export/delete follows member rights and domain export/delete policies; raw memory is excluded from support bundles by default. |
-| Support bundle redaction | Release evidence records only image digest, SBOM/scan refs, policy version, and support-safe approval proof; Sprint 24 fixture evidence excludes Weaver memory, raw `openclaw.json`, provider secrets, tokens, and raw provider payloads. |
+- Cells have zero durable local bytes. Runtime-internal state is stored in
+  PostgreSQL as AES-256-GCM encrypted, content-addressed chunks and generations;
+  data-encryption keys are wrapped by an operator-mounted AES-KWP key.
+- Generation commits use compare-and-swap and a fencing epoch. Restore verifies
+  authenticated metadata and chunk hashes before returning plaintext.
+- `DELETE_RUNTIME_STATE_ONLY` removes external runtime state, the per-cell
+  Keycloak client, and its private credential. It deliberately does not delete
+  canonical WebDAV/Files content.
+- Support and admin projections use opaque `personRef`, cell/profile/workspace
+  references, stable states, and audit refs. They omit raw Keycloak objects,
+  tokens, private keys, plaintext state, provider payloads, and `openclaw.json`.
 
-## Accessibility
+## Accessibility evidence
 
-| Surface | Evidence expectation |
-| --- | --- |
-| Admin setup path | Admin Console remains keyboard reachable with headings, forms, and status text. |
-| Provider switching/report review | Existing provider switch portability scenario requires support-safe risks, conflicts, and recovery actions before irreversible action. |
-| Calls controls | Existing accessibility release gate covers join/leave/mute/camera/error states. |
-| Weaver approval flow | Approval requests must expose action, scope, risk, expiry, approve/deny controls, and receipt status to screen readers without color-only state. |
-| Member capability states | Member surfaces use the stable capability vocabulary only. |
+- The Organization/Admin Console exposes Agent Runtime Control as a labelled
+  region with a level-two heading, labelled person reference and reason fields,
+  text state chips, keyboard-operable lifecycle buttons, and an explicit
+  confirmation checkbox for runtime-state deletion.
+- Destructive and revocation actions are not color-only: button text, warning
+  copy, desired/observed states, and the audit reference remain available to
+  assistive technology.
+- Operator mode may inspect support-safe state but cannot invoke mutation
+  controls. Normal members receive only provider-neutral capability states.
 
-## Support-safe release evidence bundle contents
+## Executable evidence
 
-Before release readiness is claimed, the bundle must include:
+- `./gradlew :server:test`
+- `./gradlew :weave-mcp-server:test`
+- `cd admin-console && npm run ci`
+- `bash infra/weave-workspace/tests/weaver-runtime-lifecycle-contract-test.sh`
+- `bash infra/weave-workspace/tests/weave-mcp-tool-contract-test.sh`
+- `python3 tools/domain_registry_check.py`
 
-- canonical domain registry version;
-- migration/provider-switch contract version;
-- Keycloak dry-run sample reference;
-- Calls/LiveKit readiness artifact reference;
-- OpenClaw-derived fork URL, pinned upstream commit/tag, image digest, SBOM ref, and scan refs;
-- Weaver bounded-assistance approval proof showing signed profile version/hash, policy version, consent/scope decision, receipt ref, audit ref, canonical Space/Decision/Board refs, and redacted tool/result payload.
-- Sprint 24 runtime factory refs for per-user runtime lifecycle, desired-state reconciliation, isolation, support-bundle redaction, revoke, and claim-gate outcomes: `release/provider-lab/weaver-runtime/*.json`.
-
-Current PR evidence:
-
-- `server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java`
-- `server/src/test/java/com/massimotter/weave/backend/weaver/WeaverToolRegistryTest.java`
-- `tools/weaver_runtime_factory_check.py`
-- `docs/evidence/weaver-runtime-factory-report.md`
-- `docs/governed-weaver-runtime-security-contract.md`
-- `e2e/features/v0_1_dogfood_release.feature`
-- `e2e/scenario_mappings.json`
+Live local-stack evidence must additionally prove per-cell client creation,
+positive token exchange/current-context admission, negative human/shared-client
+rejection, runtime-state deletion, client revocation, and convergent Compose plus desired-state
+apply. A green contract fixture alone is not a release-ready runtime claim.

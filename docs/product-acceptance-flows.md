@@ -34,7 +34,8 @@ flowchart TD
 
 ## Flow 1: Sign-in and workspace shell boot
 
-Purpose: prove one login restores the Weave product shell and canonical profile identity.
+Purpose: prove activation and one login restore the Weave product shell and
+that the production OIDC session can refresh.
 
 ```mermaid
 flowchart TD
@@ -42,16 +43,17 @@ flowchart TD
   B --> C[Derive issuer, API, Matrix, Nextcloud endpoints]
   C --> D[Show sign-in affordance]
   D --> E[OIDC sign-in]
-  E --> F[Store first-party app session]
+  E --> F[System browser returns Authorization Code + PKCE result]
   F --> G[Restore authenticated backend session]
-  G --> H[GET /api/me and profile facade]
-  H --> I[Workspace shell visible]
+  G --> H[Workspace shell visible]
+  H --> I[Refresh session through production AppAuth]
 ```
 
 Acceptance evidence:
 - `e2e/features/live_stack_app.feature` scenario `@weave-live-auth-shell`.
-- `e2e/scenario_mappings.json` maps the scenario to `AUTH_RESULT` and `PROFILE_RESULT`.
-- `client/integration_test/live_stack_app_e2e_test.dart` prints the mapped markers and verifies profile load/update/reload/restore.
+- `e2e/scenario_mappings.json` maps the scenario to `PHYSICAL_AUTH_SESSION_RESULT`.
+- `client/integration_test/system_browser_auth_e2e_test.dart` uses the production `WeaveApp`, AppAuth session repository, system browser, workspace route, and refresh path without credential build arguments.
+- `./gradlew testApp` separately proves automatic invitation, browser activation, PKCE, WebDAV, workload OAuth, MCP, revocation, and cleanup.
 - `client/test/live_stack_feature_mapping_test.dart` prevents the readable scenario from drifting away from executable evidence.
 
 ## Flow 2: Workspace/team/channel and Context/Space selection
@@ -118,7 +120,7 @@ Acceptance evidence:
 
 ## Flow 5: Calendar workspace/team/channel event and meeting-thread reference
 
-Purpose: channel events round-trip through Weave and keep a stable meeting-thread reference for future chat/meeting linkage.
+Purpose: channel events round-trip through the CalDAV/iCalendar facade and keep a stable canonical meeting-thread reference for later concrete chat/meeting linkage.
 
 ```mermaid
 flowchart TD

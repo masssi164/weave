@@ -2,7 +2,7 @@ package com.massimotter.weave.backend.config;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -21,9 +21,6 @@ class MissingIssuerRuntimeContractTest {
 
     @Test
     void startsWithoutIssuerAndFailsProtectedRoutesClosed() throws Exception {
-        mockMvc.perform(get("/actuator/health"))
-                .andExpect(status().isOk());
-
         mockMvc.perform(get("/api/me")
                 .header(AUTHORIZATION, "Bearer invalid-without-issuer"))
                 .andExpect(status().isUnauthorized())

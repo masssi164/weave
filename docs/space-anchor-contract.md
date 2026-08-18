@@ -2,7 +2,7 @@
 
 `spaces` is the cross-domain organization context anchor. A Space represents a stable team, project, working room, or organizational context even when the provider containers attached to that context change.
 
-A Space is product-owned. Matrix rooms, Nextcloud folders, OpenProject projects, CalDAV calendars, LiveKit rooms, decision ledgers, and future Weaver context attach as domain bindings; they do not define the product boundary.
+A Space is product-owned. Matrix rooms, Nextcloud folders, OpenProject projects, CalDAV calendars, MatrixRTC slots/media sessions, decision ledgers, and optional ARC context attach as domain bindings; they do not define the product boundary.
 
 ## Canonical objects
 
@@ -42,4 +42,4 @@ Space membership is provider-neutral and resolves through Weave people/identity 
 
 ## Weaver context
 
-Future Weaver runtime profiles may reference a Space as context only through Weave domain tools and user/org policy. A Weaver profile must not use a Space binding to bypass Weave facades or call raw provider APIs directly.
+RuntimeProfile v2 may reference a Space as desired context only. It does not create a domain tool or authorization grant, and an ARC-bound runtime must not use a Space binding to bypass Weave facades or call raw provider APIs directly.

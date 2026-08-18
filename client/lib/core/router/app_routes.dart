@@ -2,11 +2,9 @@
 ///
 /// Centralising paths avoids typos and makes refactoring easier.
 abstract final class AppRoutes {
-  static const welcome = '/welcome';
-  static const setup = '/setup';
+  static const organizationAccess = '/organization-access';
   static const signIn = '/sign-in';
   static const join = '/join';
-  static const firstRun = '/first-run';
   static const home = '/home';
   static const chat = '/chat';
   static const chatRoomRelative = 'rooms/:roomId';

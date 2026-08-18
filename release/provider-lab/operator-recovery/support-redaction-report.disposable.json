@@ -2,8 +2,8 @@
   "artifactKind": "weave-support-bundle-redaction-report-v1",
   "issue": 640,
   "supportSafe": true,
-  "createdAt": "2026-06-04T05:49:03Z",
-  "bundleId": "disposable-restore-proof-issue-642-local-proof",
+  "createdAt": "2026-07-26T19:18:52Z",
+  "bundleId": "disposable-restore-proof-architecture-hard-cut",
   "unsafeContentDetected": false,
   "checks": [
     {

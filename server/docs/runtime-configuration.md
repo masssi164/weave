@@ -64,8 +64,8 @@ Capability readiness is intentionally conservative:
 
 Boards remains a Weave product facade. OpenProject is the first provider-backed workspace-sync engine, not the visible product UX. Runtime defaults are fail-closed and local-workspace unless explicitly configured by infra/operator env.
 
-- `WEAVE_BOARDS_RUNTIME_ENABLED`: enables authenticated Boards workspace routes, defaults to `false`; `WEAVE_BOARDS_WORKSPACE_RUNTIME_ENABLED` is accepted only as a workspace-name compatibility alias.
-- `WEAVE_BOARDS_PROVIDER`: backend provider, defaults to `local-workspace`; `WEAVE_BOARDS_WORKSPACE_PROVIDER` is accepted only as a workspace-name compatibility alias. Legacy preview env names are not runtime fallbacks.
+- `WEAVE_BOARDS_RUNTIME_ENABLED`: enables authenticated Boards workspace routes and defaults to `false`.
+- `WEAVE_BOARDS_PROVIDER`: selects the backend provider and defaults to `local-workspace`.
 - `WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED`: OpenProject provider runtime gate, defaults to `false`.
 - `WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED`: OpenProject workspace-sync gate, defaults to `false`.
 - `WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED`: Context/Space authorization gate for provider references, defaults to `false`; must be `true` before OpenProject workspace-sync is reachable.
@@ -77,17 +77,17 @@ Boards remains a Weave product facade. OpenProject is the first provider-backed 
 
 OpenProject workspace-sync requires provider `openproject`, runtime enabled, read-sync enabled, Context/Space authorization enabled, `service-token` auth, a base URL, and a backend-held API token. Local workspace user writes are in v0.1 scope when authenticated, authorized, explicit, and audited; OpenProject provider writes still fail closed unless the future write, audit/consent, and Context/Space gates are all promoted. The OpenProject webhook signature verifier is available for the future ingress seam, but no runtime webhook route is published here; webhook handling remains normalization-only and does not enable agent/team writes or live audit publication.
 
-## Meetings/LiveKit provider contract
+## Calls/LiveKit SFU readiness
 
-LiveKit is the active meetings/video-call provider key in the provider registry. The backend exposes only support-safe readiness for meetings and keeps actual room/session tokens behind a backend-owned facade. Matrix is not advertised as the generic meetings provider.
+Matrix v1.19 plus pinned MatrixRTC Profile 0 is the only member signaling contract. LiveKit is the first replaceable southbound SFU adapter and exposes only support-safe configuration readiness in the provider registry. It does not own signaling, room membership, RTC authorization, consent, or a member Calls API.
 
-- `WEAVE_LIVEKIT_ENABLED`: exposes the LiveKit meetings provider contract, defaults to `true` while failing closed when not configured.
+- `WEAVE_LIVEKIT_ENABLED`: enables LiveKit SFU configuration readiness, defaults to `false`, and does not enable member join/start.
 - `WEAVE_LIVEKIT_URL`: LiveKit server URL. Blank keeps direct credential mode and token-endpoint mode unconfigured.
-- `WEAVE_LIVEKIT_API_KEY`: backend-held LiveKit API key for future token minting. Blank keeps direct credential mode unconfigured. Never expose this value to Flutter, platform config, support logs, or support bundles.
-- `WEAVE_LIVEKIT_API_SECRET`: backend-held LiveKit API secret for future token minting. Blank keeps direct credential mode unconfigured. Never expose this value to Flutter, platform config, support logs, or support bundles.
-- `WEAVE_LIVEKIT_TOKEN_ENDPOINT`: optional backend/internal token endpoint alternative when token minting is delegated. Blank keeps token-endpoint mode unconfigured.
+- `WEAVE_LIVEKIT_API_KEY`: backend-held LiveKit API key reserved for the future RTC Authorizer. Blank keeps direct credential mode unconfigured. Never expose this value to Flutter, platform config, support logs, or support bundles.
+- `WEAVE_LIVEKIT_API_SECRET`: backend-held LiveKit API secret reserved for the future RTC Authorizer. Blank keeps direct credential mode unconfigured. Never expose this value to Flutter, platform config, support logs, or support bundles.
+- `WEAVE_LIVEKIT_TOKEN_ENDPOINT`: optional internal SFU token endpoint that only the RTC Authorizer may call after current-context validation. Blank keeps token-endpoint mode unconfigured.
 
-Provider readiness is `configured` only when LiveKit is enabled and either `WEAVE_LIVEKIT_URL` + `WEAVE_LIVEKIT_API_KEY` + `WEAVE_LIVEKIT_API_SECRET`, or `WEAVE_LIVEKIT_URL` + `WEAVE_LIVEKIT_TOKEN_ENDPOINT`, are present. `/api/providers/status` reports booleans such as `livekitUrlConfigured`, `apiKeyConfigured`, `apiSecretConfigured`, and `tokenEndpointConfigured`; it must not return raw keys, secrets, endpoint credentials, room tokens, credential-bearing join URLs, or raw LiveKit errors.
+Provider readiness is `configured` only when LiveKit is enabled and either `WEAVE_LIVEKIT_URL` + `WEAVE_LIVEKIT_API_KEY` + `WEAVE_LIVEKIT_API_SECRET`, or `WEAVE_LIVEKIT_URL` + `WEAVE_LIVEKIT_TOKEN_ENDPOINT`, are present. This proves configuration presence only; RTC Authorizer, TURN, media E2EE, revocation, consent/artifacts, interoperability, and physical-device evidence remain separate gates. `/api/providers/status` reports booleans such as `livekitUrlConfigured`, `apiKeyConfigured`, `apiSecretConfigured`, and `tokenEndpointConfigured`; it must not return raw keys, secrets, endpoint credentials, room tokens, credential-bearing join URLs, or raw LiveKit errors.
 
 ## Files facade and Nextcloud WebDAV adapter
 
@@ -96,14 +96,14 @@ The app never sends raw Nextcloud credentials to this backend. Files operations 
 - `WEAVE_NEXTCLOUD_FILES_ACTOR_MODEL`: backend-to-Nextcloud token model, currently only `backend-service-account`; other values fail closed until implemented.
 - `WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME`: backend-owned Nextcloud actor username for WebDAV calls. Blank keeps the facade unavailable.
 - `WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN`: backend-owned Nextcloud app password/token for WebDAV calls. Blank keeps the facade unavailable.
-- `WEAVE_NEXTCLOUD_FILES_APP_PASSWORD`: compatibility alias used when `WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN` is blank.
+- `WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN`: provider actor token supplied through the canonical SecretRef wiring.
 - `WEAVE_NEXTCLOUD_FILES_WEBDAV_ROOT_PATH`: Nextcloud WebDAV files root path, defaults to `/remote.php/dav/files`.
 
-If the actor model, username, or token is missing, files endpoints fail closed with `nextcloud-adapter-not-configured`. Implemented WebDAV operations are folder listing with quota when returned by Nextcloud, folder creation, upload, download, and delete. Move/share remain unsupported until product policy and endpoint contracts are specified.
+If the actor model, username, or token is missing, files endpoints fail closed with `nextcloud-adapter-not-configured`. The northbound WebDAV facade implements listing with quota, folder creation, upload, download, delete, guarded copy/move, and lock/unlock behavior. Provider-native sharing is not part of that member data plane.
 
 ## Calendar facade and CalDAV adapter
 
-Calendar product operations stay on `/api`; this backend is the only component that talks to Nextcloud CalDAV.
+Normal member event operations use the OIDC-gated CalDAV/iCalendar facade under `/caldav/**`. `/api/calendar/**` is retained only for scopes, readiness, setup, scoped credential lifecycle, and other control-plane metadata. Only the backend adapter talks to the selected southbound calendar provider.
 
 - `WEAVE_CALDAV_BASE_URL`: Nextcloud origin used by the backend CalDAV adapter, defaults to `WEAVE_NEXTCLOUD_BASE_URL` or `https://files.weave.test`.
 - `WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE`: CalDAV calendar collection path for the backend-owned workspace calendar, defaults to `/remote.php/dav/calendars/${WEAVE_CALDAV_BACKEND_USERNAME:-weave-backend}/personal/`. Optional scope placeholders `{scopeId}`, `{scopeType}`, `{team}`, and `{channel}` can be used by operators who provision explicit workspace/team/channel collections.
@@ -112,19 +112,13 @@ Calendar product operations stay on `/api`; this backend is the only component t
 - `WEAVE_CALDAV_BACKEND_TOKEN`: backend actor app password/token or bearer token; required for the CalDAV adapter to call Nextcloud.
 - `WEAVE_CALDAV_REQUEST_TIMEOUT_SECONDS`: CalDAV request timeout, defaults to `10`.
 
-The active Calendar facade stores Weave workspace/team/channel scopes in backend-actor CalDAV collections. With the default path template, workspace events use the configured collection, while team and channel scopes derive sibling backend-owned collections such as `weave-team-engineering` and `weave-channel-engineering-general` to avoid cross-scope event leakage. `WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE` values containing `{user}` are treated as private-personal calendar targets and fail closed with `nextcloud-adapter-not-configured` until a reviewed provisioning/sharing/delegated-token model is specified. Facade responses include `scope` and `contextId` metadata so clients do not present this as a private per-user calendar.
+The active Calendar facade stores Weave workspace/team/channel scopes in backend-actor CalDAV collections. With the default path template, workspace events use the configured collection, while team and channel scopes derive sibling backend-owned collections such as `weave-team-engineering` and `weave-channel-engineering-general` to avoid cross-scope event leakage. `WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE` values containing `{user}` are private-personal calendar targets and fail closed because private calendar ingestion is not a current product goal. Northbound `VEVENT` responses carry canonical `X-WEAVE-CONTEXT-ID`, `X-WEAVE-CHANNEL-ID` where applicable, and a stable `X-WEAVE-MEETING-THREAD-ID`; those fields are never written to the southbound provider.
 
-When required actor credentials are missing or an unsafe private-personal template is configured, calendar operations fail closed with `nextcloud-adapter-not-configured`. Recurrence creation, editing, reading, and expansion are deferred: the current DTO has no RRULE contract, and the adapter does not expose raw recurrence fields. Recurring events returned by CalDAV are blocked with the support-safe reason `recurrence-not-yet-supported` until a later product/API spec defines full recurrence UX.
+When required actor credentials are missing or a private-personal template is configured, calendar operations fail closed with `nextcloud-adapter-not-configured`. The CalDAV/iCalendar data plane accepts bounded `DAILY` and `WEEKLY` RRULEs using `COUNT` or `UNTIL`, plus `RDATE` and `EXDATE`, and preserves local wall-clock intent across DST transitions. Unsupported or unbounded recurrence fails closed with `caldav-recurrence-unsupported`. The Flutter Calendar UI does not yet provide a recurrence authoring form.
 
-## Profile and onboarding variables
+## Profile persistence
 
-- `WEAVE_PROFILE_STORAGE_PATH`: durable JSON file path for mutable `PATCH /api/profile` overrides, defaults to `./data/profile-overrides.json`.
-- `WEAVE_ONBOARDING_MATRIX_PROVISIONING_STATE`: optional first-run Matrix provisioning override (`not_configured`, `pending`, `ready`, `degraded`, `failed`); blank derives status from chat capability.
-- `WEAVE_ONBOARDING_NEXTCLOUD_PROVISIONING_STATE`: optional first-run Nextcloud provisioning override (`not_configured`, `pending`, `ready`, `degraded`, `failed`); blank derives status from files/calendar capability and Nextcloud route configuration.
-
-Profile facade endpoints are protected by the same first-party bearer-token contract as `/api/me`. `PATCH /api/profile` accepts partial updates for `displayName`, `avatar`, `locale`, `timezone`, `accessibilityPreferences`, and `profileVisibility`. Set `WEAVE_PROFILE_STORAGE_PATH` to mounted durable storage for containerized runs.
-
-Onboarding status returns identity, roles, groups, invite status, profile completeness, and module provisioning states. Downstream states must remain frontend-safe and must not expose stack traces, tokens, secrets, or raw service errors.
+Profile facade endpoints are protected by the same first-party bearer-token contract as `/api/me`. `PATCH /api/profile` accepts partial updates for `displayName`, `avatar`, `locale`, `timezone`, `accessibilityPreferences`, and `profileVisibility`. Mutable profile state is persisted through the code-first JPA composition: the host-only `dev` environment may use H2 in PostgreSQL compatibility mode, while `dogfood`, `prod`, and `e2e` require PostgreSQL schema initialization from the exact Server image followed by serving validation. Spring's `test` profile is reserved for automated tests and is not an operator environment. No file-path storage variable or production JSON fallback is supported.
 
 ## Interop gateway, Slack on-ramp, guests, and migration previews
 

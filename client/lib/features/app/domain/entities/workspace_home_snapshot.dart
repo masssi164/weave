@@ -7,6 +7,7 @@ class WorkspaceHomeSnapshot {
     required this.summary,
     required this.sections,
     required this.actions,
+    required this.recentActivity,
     required this.supportSafe,
   });
 
@@ -15,10 +16,53 @@ class WorkspaceHomeSnapshot {
   final String summary;
   final List<WorkspaceHomeSection> sections;
   final List<WorkspaceHomeAction> actions;
+  final List<WorkspaceHomeActivity> recentActivity;
   final bool supportSafe;
 
   bool get hasActionableWork =>
       actions.isNotEmpty || sections.any((section) => section.itemCount > 0);
+
+  /// Whether the current Home surface can be rendered for a member.
+  ///
+  /// The aggregate may be degraded by product-line sections that are not
+  /// current AppShell destinations. Human-testing readiness still requires
+  /// independent navigation and item-level activity evidence.
+  bool get isMemberSurfaceAvailable =>
+      readiness == WorkspaceCapabilityReadiness.ready ||
+      readiness == WorkspaceCapabilityReadiness.degraded;
+}
+
+enum WorkspaceHomeActivityDomain { files }
+
+enum WorkspaceHomeActivityAction { filesWebDavWriteCompleted }
+
+enum WorkspaceHomeActivityVisibility { workspace }
+
+/// One support-safe, authorization-filtered activity projected by Weave Home.
+///
+/// Opaque references remain available for deterministic evidence comparison,
+/// but presentation code must never display them or infer member identity from
+/// [actorRefHash].
+class WorkspaceHomeActivity {
+  const WorkspaceHomeActivity({
+    required this.activityRef,
+    required this.domain,
+    required this.action,
+    required this.occurredAt,
+    required this.visibility,
+    required this.actorRefHash,
+    required this.actorIsCurrentUser,
+    required this.supportSafe,
+  });
+
+  final String activityRef;
+  final WorkspaceHomeActivityDomain domain;
+  final WorkspaceHomeActivityAction action;
+  final DateTime occurredAt;
+  final WorkspaceHomeActivityVisibility visibility;
+  final String actorRefHash;
+  final bool actorIsCurrentUser;
+  final bool supportSafe;
 }
 
 class WorkspaceHomeSection {

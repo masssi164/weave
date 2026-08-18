@@ -8,7 +8,6 @@ provider vocabulary instead of Weave domain vocabulary.
 
 from __future__ import annotations
 
-import ast
 import json
 import re
 import sys
@@ -28,8 +27,8 @@ DOMAIN_FIRST_PREFIXES = {
     "identity",
     "people",
     "policy",
+    "registry",
     "tasks",
-    "weaver",
 }
 
 ADAPTER_FIRST_PREFIXES = {
@@ -57,11 +56,7 @@ ADAPTER_TOKEN_RE = re.compile(
 TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9_]*)+$")
 
 SOURCES = [
-    ROOT / "infra/weave-mcp/src/weave_mcp/tools/registry.py",
-    ROOT / "infra/weave-mcp/src/weave_mcp/fastmcp_app.py",
     ROOT / "infra/weave-workspace/weave-mcp-tool-contract.json",
-    ROOT / "release/provider-lab/weaver-runtime/sprint-32-weaver-mcp-tool-execution.fixture.json",
-    ROOT / "release/provider-lab/weaver-runtime/tool-approval-gate-proof.fixture.json",
 ]
 
 
@@ -70,14 +65,23 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
-def py_strings(path: Path) -> Iterable[tuple[str, str]]:
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            yield node.value, f"{path.relative_to(ROOT)}:{node.lineno}"
+JAVA_STRING_RE = re.compile(r'"((?:\\.|[^"\\])*)"')
 
 
-JSON_TOOL_KEYS = {"allowedProofTools", "writeToolsRequireApproval", "grantedTools", "tool", "toolName"}
+def java_strings(path: Path) -> Iterable[tuple[str, str]]:
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        for match in JAVA_STRING_RE.finditer(line):
+            yield bytes(match.group(1), "utf-8").decode("unicode_escape"), f"{path.relative_to(ROOT)}:{line_number}"
+
+
+JSON_TOOL_KEYS = {
+    "allowedProofTools",
+    "writeToolsRequireApproval",
+    "grantedTools",
+    "tools",
+    "tool",
+    "toolName",
+}
 
 
 def json_strings(value: Any, path: Path, pointer: str = "$", active: bool = False) -> Iterable[tuple[str, str]]:
@@ -93,8 +97,8 @@ def json_strings(value: Any, path: Path, pointer: str = "$", active: bool = Fals
 
 
 def candidate_tool_names(path: Path) -> Iterable[tuple[str, str]]:
-    if path.suffix == ".py":
-        yield from py_strings(path)
+    if path.suffix == ".java":
+        yield from java_strings(path)
         return
     data = json.loads(path.read_text(encoding="utf-8"))
     yield from json_strings(data, path)

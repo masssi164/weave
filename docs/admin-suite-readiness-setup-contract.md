@@ -12,7 +12,7 @@ This contract extends the [Admin-provisioned first use boundary](admin-provision
 
 The Admin-Suite setup assistant must lead an owner/admin through these steps before member go-live:
 
-1. Choose or confirm WEAVE-SPEC-0001 provider domains: IDM/RBAC, Chat/Channels, Files/Docs, Boards/Tasks, Calendar/Events, Meetings, Forms/Contacts, and optional governed Weaver.
+1. Choose or confirm WEAVE-SPEC-0001 product domains: IDM/RBAC, Chat/Channels, Files/Docs, Boards/Tasks, Calendar/Events, Calls, Forms/Contacts, and optional Agent Runtime Control. Weaver/OpenClaw is selected only as an ARC runtime provider.
 2. Select the setup mode for each domain: `deploy_new`, `attach_existing`, or `hybrid` aggregate. The selected mode is admin/operator-only and must not appear as a normal-member setup choice.
 3. Bind the selected adapter through backend admin APIs only; never call provider admin APIs directly from the browser client.
 4. Keep secrets as `SecretRef` handles and reject raw secrets, bearer tokens, credential-bearing URLs, raw downstream payloads, or provider diagnostics in form fields and evidence.
@@ -57,7 +57,7 @@ Bind, unbind, switch, and detach are admin-side actions. They must be unavailabl
 
 For #586 and `WEAVE-RC-GATE`, the guided setup surface must include one RC go-live decision summary instead of scattering release readiness across separate checklists. The summary is owner/admin/operator-only and must join:
 
-- identity/provider setup, SecretRef/CredentialRef posture, policy preview, suite readiness, governed Weaver/MCP posture, support-bundle posture, and release blockers;
+- identity/provider setup, SecretRef/CredentialRef posture, policy preview, suite readiness, Agent Runtime Control/workload-MCP posture, support-bundle posture, and release blockers;
 - pinned spec corpus reference, conformance/acceptance gate evidence, generated release-notes source, support-safe bundle ref, accessibility evidence ref, unresolved Veto/blockers, audit refs, freshness, and next actions;
 - explicit release-claim control: any missing, stale, sample-only, or unresolved release-blocking gate blocks RC or production claims until a release owner records evidence or an accepted blocker.
 

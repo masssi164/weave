@@ -83,9 +83,11 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
       if (failure.type == AuthFailureType.storage) {
         rethrow;
       }
-
-      await clearLocalSession();
-      return const AuthState.signedOut();
+      if (failure.invalidatesSavedSession) {
+        await clearLocalSession();
+        return const AuthState.signedOut();
+      }
+      rethrow;
     }
   }
 

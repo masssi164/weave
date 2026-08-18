@@ -2,19 +2,19 @@ package com.massimotter.weave.backend.domainregistry;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.Test;
 
 class CanonicalDomainRegistryContractTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final List<String> CANONICAL_DOMAINS = List.of(
-            "identity",
             "people",
             "spaces",
             "chat",
@@ -26,7 +26,7 @@ class CanonicalDomainRegistryContractTest {
             "decisions",
             "notifications",
             "health",
-            "weaver");
+            "agent-runtime-control");
 
     @Test
     void registryDefinesCanonicalDomainsStatesAliasesAndPortabilityMetadata() {
@@ -68,13 +68,17 @@ class CanonicalDomainRegistryContractTest {
         assertThat(registry.domains()).extracting(CanonicalDomainRegistryEntryResponse::key)
                 .containsExactlyElementsOf(CANONICAL_DOMAINS);
         assertThat(registry.compatibilityAliases())
-                .containsEntry("identity-idm", "identity")
                 .containsEntry("boards-tasks", "boards")
                 .containsEntry("meetings-calls", "calls")
                 .containsEntry("documents-collaboration", "documents");
+        assertThat(registry.compatibilityAliases()).doesNotContainKey("identity-idm");
+        assertThat(registry.domains())
+                .extracting(CanonicalDomainRegistryEntryResponse::key)
+                .doesNotContain("identity");
         assertThat(registry.providerNamesInMemberContractsAllowed()).isFalse();
         assertThat(providerRealityLevels(registry, "calendar"))
-                .containsEntry("weave-calendar", "contract_only")
+                .containsEntry("weave-native", "live_write")
+                .containsEntry("nextcloud-caldav", "release_ready")
                 .doesNotContainKeys("workspace-calendar", "team-channel-calendar");
         assertThat(providerRealityLevels(registry, "documents"))
                 .containsEntry("onlyoffice", "contract_only")
@@ -84,12 +88,22 @@ class CanonicalDomainRegistryContractTest {
         registry.domains().forEach(domain -> {
             assertThat(domain.version()).isEqualTo(1);
             assertThat(domain.canonicalObjects()).isNotEmpty();
-            assertThat(domain.capabilityKeys()).contains(
-                    domain.key() + ".read",
-                    domain.key() + ".export",
-                    domain.key() + ".dryRun",
-                    domain.key() + ".apply",
-                    domain.key() + ".adminConfigure");
+            if (domain.key().equals("agent-runtime-control")) {
+                assertThat(domain.capabilityKeys()).contains(
+                        "agent-runtime.entitled",
+                        "agent-runtime.profile.read",
+                        "agent-runtime.lifecycle.write",
+                        "agent-runtime.wake",
+                        "agent-runtime.approval.attest",
+                        "agent-runtime.admin");
+            } else {
+                assertThat(domain.capabilityKeys()).contains(
+                        domain.key() + ".read",
+                        domain.key() + ".export",
+                        domain.key() + ".dryRun",
+                        domain.key() + ".apply",
+                        domain.key() + ".adminConfigure");
+            }
             assertThat(domain.memberStates()).containsExactlyElementsOf(registry.memberStates());
             assertThat(domain.adminStates()).containsExactlyElementsOf(registry.adminStates());
             assertThat(domain.sourceOfTruthModes()).contains("weave_owned", "selected_provider_owned", "hybrid_composite");
@@ -123,20 +137,27 @@ class CanonicalDomainRegistryContractTest {
         assertThat(objects(registry, "files")).contains("WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef");
         assertThat(objects(registry, "documents")).contains("Document", "EditSession", "Comment", "Suggestion", "CoauthorPresence", "Version", "Export");
         assertThat(objects(registry, "calendar")).contains("WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef");
-        assertThat(objects(registry, "weaver")).contains("WeaverRuntimeProfile", "WeaverRuntimeInstance", "WeaverUserWorkspace", "WeaverToolGrant", "WeaverApprovalReceipt", "WeaverAuditEvent", "WeaverCustomizationProfile");
+        assertThat(objects(registry, "agent-runtime-control")).contains(
+                "RuntimeEntitlementRef", "RuntimeProfile", "ApprovalChallenge", "RuntimeCell",
+                "WorkspaceRevision", "RuntimeRevocation", "RuntimeAuditCorrelation");
         assertThat(objects(registry, "boards")).contains("Board", "List", "Task", "Status", "Assignee", "Comment", "AttachmentRef", "Dependency", "CustomField");
-        assertThat(objects(registry, "calls")).contains("Meeting", "MediaSession", "Participant", "TokenGrant", "Recording", "Caption", "ConsentRecord");
+        assertThat(objects(registry, "calls")).contains(
+                "Meeting", "MatrixRtcSlot", "MatrixRtcMember", "DeviceBinding", "MediaSession",
+                "RtcAuthorization", "Recording", "Caption", "ConsentRecord");
     }
 
     @Test
     void machineReadableRegistryResourceMatchesRuntimeRegistry() throws Exception {
         JsonNode registry = readContract("canonical-domain-registry.v1.json");
 
-        assertThat(registry.path("registry_version").asText()).isEqualTo(CanonicalDomainRegistry.REGISTRY_VERSION);
+        assertThat(registry.path("registry_version").asString()).isEqualTo(CanonicalDomainRegistry.REGISTRY_VERSION);
         assertThat(registry.path("domains")).hasSize(CANONICAL_DOMAINS.size());
-        assertThat(registry.path("domains").findValuesAsText("key")).containsExactlyElementsOf(CANONICAL_DOMAINS);
-        assertThat(registry.path("compatibility_aliases").path("boards-tasks").asText()).isEqualTo("boards");
-        assertThat(registry.path("compatibility_aliases").path("meetings-calls").asText()).isEqualTo("calls");
+        assertThat(StreamSupport.stream(registry.path("domains").spliterator(), false)
+                        .map(domain -> domain.path("key").asString())
+                        .toList())
+                .containsExactlyElementsOf(CANONICAL_DOMAINS);
+        assertThat(registry.path("compatibility_aliases").path("boards-tasks").asString()).isEqualTo("boards");
+        assertThat(registry.path("compatibility_aliases").path("meetings-calls").asString()).isEqualTo("calls");
         assertThat(registry.toString()).doesNotContain("secretref://", "Bearer ", "access_token", "client-secret");
     }
 
@@ -153,7 +174,7 @@ class CanonicalDomainRegistryContractTest {
 
         for (String schemaName : schemas) {
             JsonNode schema = readContract(schemaName);
-            assertThat(schema.path("$schema").asText()).isEqualTo("https://json-schema.org/draft/2020-12/schema");
+            assertThat(schema.path("$schema").asString()).isEqualTo("https://json-schema.org/draft/2020-12/schema");
             assertThat(schema.toString()).contains("support_safe_diagnostics");
             assertThat(schema.toString()).contains("secrets_returned");
             assertThat(schema.toString()).contains("raw_provider_payloads_returned");

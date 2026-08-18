@@ -24,8 +24,11 @@ public record ProviderReplacementDryRunResponse(
         NoUnaccountedDataLossReport noUnaccountedDataLossReport,
         BoundedApplyCutoverRollbackProof boundedProof,
         List<CrossDomainImpactItem> crossDomainImpact,
+        BaselineSnapshot baselineSnapshot,
+        ReadModelComparison readModelComparison,
         List<String> cutoverGates,
         List<String> memberImpactStates,
+        List<String> evidenceRefs,
         boolean supportSafe,
         boolean providerDiagnosticsRedacted,
         List<String> auditRefs) {
@@ -33,7 +36,35 @@ public record ProviderReplacementDryRunResponse(
         crossDomainImpact = crossDomainImpact == null ? List.of() : List.copyOf(crossDomainImpact);
         cutoverGates = cutoverGates == null ? List.of() : List.copyOf(cutoverGates);
         memberImpactStates = memberImpactStates == null ? List.of() : List.copyOf(memberImpactStates);
+        evidenceRefs = evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs);
         auditRefs = auditRefs == null ? List.of() : List.copyOf(auditRefs);
+    }
+
+    public record BaselineSnapshot(
+            String category,
+            String persistedProviderKey,
+            String persistedChoiceModel,
+            String providerSelectionPersistencePosture,
+            boolean persistedSelectionMatchesRequest,
+            String profileOverridePersistencePosture,
+            boolean profileOverridePresent,
+            List<String> stableMemberImpactStates,
+            List<String> evidenceRefs) {
+        public BaselineSnapshot {
+            stableMemberImpactStates = stableMemberImpactStates == null ? List.of() : List.copyOf(stableMemberImpactStates);
+            evidenceRefs = evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs);
+        }
+    }
+
+    public record ReadModelComparison(
+            boolean northboundContractUnchanged,
+            boolean providerSemanticsLeakedToMembers,
+            boolean memberImpactStatesProviderNeutral,
+            boolean migrationEvidenceRecorded,
+            List<String> findings) {
+        public ReadModelComparison {
+            findings = findings == null ? List.of() : List.copyOf(findings);
+        }
     }
 
     @Schema(description = "Support-safe cross-domain provider impact item with canonical portability class.")

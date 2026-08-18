@@ -12,11 +12,11 @@ void main() {
 
       expect(
         endpoints.matrixHomeserverUrl.toString(),
-        'https://matrix.home.internal',
+        'https://api.home.internal',
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'https://files.home.internal',
+        'https://api.home.internal/dav/files',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
@@ -30,11 +30,11 @@ void main() {
 
       expect(
         endpoints.matrixHomeserverUrl.toString(),
-        'https://matrix.example.com',
+        'https://api.example.com',
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'https://files.example.com',
+        'https://api.example.com/dav/files',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
@@ -52,11 +52,11 @@ void main() {
 
         expect(
           endpoints.matrixHomeserverUrl.toString(),
-          'https://matrix.workspace.example.com',
+          'https://api.workspace.example.com',
         );
         expect(
           endpoints.nextcloudBaseUrl.toString(),
-          'https://files.workspace.example.com',
+          'https://api.workspace.example.com/dav/files',
         );
         expect(
           endpoints.backendApiBaseUrl.toString(),
@@ -71,11 +71,11 @@ void main() {
 
       expect(
         endpoints.matrixHomeserverUrl.toString(),
-        'http://matrix.home.internal',
+        'http://api.home.internal',
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'http://files.home.internal',
+        'http://api.home.internal/dav/files',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
@@ -104,6 +104,23 @@ void main() {
       );
       expect(
         () => deriver.parseIssuerUrl('https://auth.home.internal#test'),
+        throwsA(isA<AppFailure>()),
+      );
+    });
+
+    test('accepts only the canonical backend api base path', () {
+      expect(
+        deriver.parseServiceUrl(
+          'https://api.home.internal/api',
+          fieldName: 'the backend API URL',
+        ),
+        Uri.parse('https://api.home.internal/api'),
+      );
+      expect(
+        () => deriver.parseServiceUrl(
+          'https://api.home.internal',
+          fieldName: 'the backend API URL',
+        ),
         throwsA(isA<AppFailure>()),
       );
     });

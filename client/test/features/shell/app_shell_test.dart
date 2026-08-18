@@ -9,21 +9,18 @@ import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/auth/data/services/oidc_client.dart';
-import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
-import 'package:weave/features/chat/domain/entities/chat_message.dart';
-import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
+import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -39,7 +36,7 @@ import '../../helpers/auth_test_data.dart';
 import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/fake_chat_security_repository.dart';
 import '../../helpers/fake_files_repository.dart';
-import '../../helpers/first_run_status_fixture.dart';
+import '../../helpers/fake_identity_session_port.dart';
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
 
@@ -99,6 +96,7 @@ void main() {
       FakeChatRepository? chatRepository,
       FakeFilesRepository? filesRepository,
       InMemoryPreferencesStore? preferencesStore,
+      WorkspaceHomeSnapshot? homeSnapshot,
     }) {
       final secureStore = InMemorySecureStore({
         authSessionStorageKey: AuthSessionDto.fromSession(
@@ -118,6 +116,9 @@ void main() {
           ),
           secureStoreProvider.overrideWithValue(secureStore),
           oidcClientProvider.overrideWithValue(_FakeOidcClient()),
+          identitySessionPortProvider.overrideWithValue(
+            FakeIdentitySessionPort(),
+          ),
           chatRepositoryProvider.overrideWithValue(
             chatRepository ?? FakeChatRepository(),
           ),
@@ -125,15 +126,14 @@ void main() {
             FakeChatSecurityRepository(),
           ),
           userProfileProvider.overrideWith((ref) async => _memberProfile),
-          firstRunStatusProvider.overrideWith(
-            (ref) async =>
-                FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
-          ),
           filesRepositoryProvider.overrideWithValue(
             filesRepository ??
                 FakeFilesRepository(
                   connectionState: const FilesConnectionState.disconnected(),
                 ),
+          ),
+          weaveApiWorkspaceHomeProvider.overrideWith(
+            (ref) async => homeSnapshot,
           ),
         ],
         child: const WeaveApp(),
@@ -145,16 +145,17 @@ void main() {
       FakeChatRepository? chatRepository,
       FakeFilesRepository? filesRepository,
       InMemoryPreferencesStore? preferencesStore,
+      WorkspaceHomeSnapshot? homeSnapshot,
     }) async {
       await tester.pumpWidget(
         buildApp(
           chatRepository: chatRepository,
           filesRepository: filesRepository,
           preferencesStore: preferencesStore,
+          homeSnapshot: homeSnapshot,
         ),
       );
       await tester.pumpAndSettle();
-      await _continueFirstRunIfPresent(tester);
     }
 
     testWidgets('renders the core bottom navigation destinations', (
@@ -217,6 +218,58 @@ void main() {
         find.descendant(of: navigationBar, matching: find.text('Settings')),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+      'keeps every current destination labeled and at least 48 by 48',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        await pumpReadyShell(tester);
+
+        const destinationLabels = [
+          'Home',
+          'Chat',
+          'Files',
+          'Calendar',
+          'Settings',
+        ];
+        expect(
+          find.byType(NavigationDestination),
+          findsNWidgets(destinationLabels.length),
+        );
+        for (var index = 0; index < destinationLabels.length; index++) {
+          final destination = find.byType(NavigationDestination).at(index);
+          final size = tester.getSize(destination);
+          expect(size.width, greaterThanOrEqualTo(48));
+          expect(size.height, greaterThanOrEqualTo(48));
+          expect(
+            find.bySemanticsLabel(RegExp(destinationLabels[index])),
+            findsWidgets,
+          );
+        }
+        semantics.dispose();
+      },
+    );
+
+    testWidgets('keeps the current shell usable at large Dynamic Type', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      await pumpReadyShell(tester);
+
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Chat'), findsOneWidget);
+      expect(find.text('Files'), findsOneWidget);
+      expect(find.text('Calendar'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('applies the persisted personal theme across the shell', (
@@ -391,7 +444,7 @@ void main() {
       expect(find.text('RAW SHELL BACKEND MEMBER IMPACT'), findsNothing);
       expect(find.widgetWithText(Chip, 'Chat: Limited'), findsOneWidget);
       expect(
-        find.widgetWithText(Chip, 'Calendar: Coming later'),
+        find.widgetWithText(Chip, 'Calendar: Unavailable'),
         findsOneWidget,
       );
       expect(
@@ -411,211 +464,87 @@ void main() {
       );
     });
 
-    testWidgets('shows recent room and file quick links in the shell', (
+    testWidgets(
+      'shows generic authorized activity without content or opaque references',
+      (tester) async {
+        final chatRepository = FakeChatRepository();
+        final filesRepository = FakeFilesRepository(
+          connectionState: FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://api.weave.test/api'),
+            accountLabel: 'Weave files',
+          ),
+        );
+        final home = WorkspaceHomeSnapshot(
+          version: 2,
+          readiness: WorkspaceCapabilityReadiness.ready,
+          summary: 'Weave Home is ready.',
+          sections: const [],
+          actions: const [],
+          recentActivity: [
+            WorkspaceHomeActivity(
+              activityRef:
+                  'activity:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+              domain: WorkspaceHomeActivityDomain.files,
+              action: WorkspaceHomeActivityAction.filesWebDavWriteCompleted,
+              occurredAt: DateTime.now().toUtc(),
+              visibility: WorkspaceHomeActivityVisibility.workspace,
+              actorRefHash:
+                  'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+              actorIsCurrentUser: false,
+              supportSafe: true,
+            ),
+          ],
+          supportSafe: true,
+        );
+
+        await pumpReadyShell(
+          tester,
+          chatRepository: chatRepository,
+          filesRepository: filesRepository,
+          homeSnapshot: home,
+        );
+
+        expect(find.text('Recent activity'), findsOneWidget);
+        expect(
+          find.text('A workspace member completed a Files change'),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsLabel(
+            RegExp(
+              'A workspace member completed a Files change.*Shared workspace activity',
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('sha256:'), findsNothing);
+        expect(find.textContaining('Roadmap.md'), findsNothing);
+        expect(find.textContaining('Standup notes'), findsNothing);
+        expect(chatRepository.connectCalls, 0);
+        expect(filesRepository.requestedPaths, isEmpty);
+      },
+    );
+
+    testWidgets('shows a generic empty state for an empty projection', (
       tester,
     ) async {
-      final chatRepository = FakeChatRepository(
-        loadConversationsHandler: () async => [
-          ChatConversation(
-            id: '!general:weave.test',
-            title: 'General',
-            previewType: ChatConversationPreviewType.text,
-            previewText: 'Standup notes are ready',
-            lastActivityAt: DateTime.now().subtract(const Duration(minutes: 5)),
-            unreadCount: 0,
-            isInvite: false,
-            isDirectMessage: false,
-          ),
-        ],
-      );
-      final filesRepository = FakeFilesRepository(
-        connectionState: FilesConnectionState.connected(
-          baseUrl: Uri.parse('https://api.weave.test/api'),
-          accountLabel: 'Weave files',
-        ),
-        listings: {
-          '/': DirectoryListing(
-            path: '/',
-            entries: [
-              FileEntry(
-                id: 'file-1',
-                name: 'Roadmap.md',
-                path: '/Planning/Roadmap.md',
-                isDirectory: false,
-                modifiedAt: DateTime.now().subtract(const Duration(minutes: 3)),
-              ),
-            ],
-          ),
-        },
-      );
-
       await pumpReadyShell(
         tester,
-        chatRepository: chatRepository,
-        filesRepository: filesRepository,
+        homeSnapshot: const WorkspaceHomeSnapshot(
+          version: 2,
+          readiness: WorkspaceCapabilityReadiness.ready,
+          summary: 'Weave Home is ready.',
+          sections: [],
+          actions: [],
+          recentActivity: [],
+          supportSafe: true,
+        ),
       );
 
-      expect(find.text('Recent activity'), findsOneWidget);
-      expect(find.widgetWithText(ActionChip, 'General'), findsOneWidget);
-      expect(find.widgetWithText(ActionChip, 'Roadmap.md'), findsOneWidget);
-
       expect(
-        find.ancestor(
-          of: find.widgetWithText(ActionChip, 'General'),
-          matching: find.byWidgetPredicate(
-            (widget) =>
-                widget is Semantics &&
-                (widget.properties.label?.contains('Open room General') ??
-                    false) &&
-                (widget.properties.label?.contains('Standup notes are ready') ??
-                    false),
-          ),
-        ),
+        find.text('No completed workspace activity is visible yet.'),
         findsOneWidget,
       );
     });
-
-    testWidgets('prioritizes unread rooms in recent activity quick links', (
-      tester,
-    ) async {
-      final now = DateTime(2026, 5, 29, 12);
-      final chatRepository = FakeChatRepository(
-        loadConversationsHandler: () async => [
-          ChatConversation(
-            id: '!quiet-latest:weave.test',
-            title: 'Quiet latest',
-            previewType: ChatConversationPreviewType.text,
-            previewText: 'Latest quiet update',
-            lastActivityAt: now.subtract(const Duration(minutes: 1)),
-            unreadCount: 0,
-            isInvite: false,
-            isDirectMessage: false,
-          ),
-          const ChatConversation(
-            id: '!unread-older:weave.test',
-            title: 'Unread older',
-            previewType: ChatConversationPreviewType.text,
-            previewText: 'Still unread',
-            unreadCount: 1,
-            isInvite: false,
-            isDirectMessage: false,
-          ),
-        ],
-      );
-
-      await pumpReadyShell(tester, chatRepository: chatRepository);
-
-      expect(find.widgetWithText(ActionChip, 'Unread older'), findsOneWidget);
-      expect(find.widgetWithText(ActionChip, 'Quiet latest'), findsOneWidget);
-      expect(
-        tester.getTopLeft(find.widgetWithText(ActionChip, 'Unread older')).dx,
-        lessThan(
-          tester.getTopLeft(find.widgetWithText(ActionChip, 'Quiet latest')).dx,
-        ),
-      );
-    });
-
-    testWidgets('opens a recent room quick link with the app route', (
-      tester,
-    ) async {
-      final conversation = ChatConversation(
-        id: '!general:weave.test',
-        title: 'General',
-        previewType: ChatConversationPreviewType.text,
-        previewText: 'Standup notes are ready',
-        lastActivityAt: DateTime.now().subtract(const Duration(minutes: 5)),
-        unreadCount: 0,
-        isInvite: false,
-        isDirectMessage: false,
-      );
-      final chatRepository = FakeChatRepository(
-        loadConversationsHandler: () async => [conversation],
-        loadRoomTimelineHandler: (roomId) async => ChatRoomTimeline(
-          roomId: roomId,
-          roomTitle: 'General',
-          isInvite: false,
-          canSendMessages: true,
-          messages: [
-            ChatMessage(
-              id: 'message-1',
-              senderId: '@alice:weave.test',
-              senderDisplayName: 'Alice',
-              sentAt: DateTime.now().subtract(const Duration(minutes: 5)),
-              isMine: false,
-              deliveryState: ChatMessageDeliveryState.sent,
-              contentType: ChatMessageContentType.text,
-              text: 'Standup notes are ready',
-            ),
-          ],
-        ),
-      );
-
-      await pumpReadyShell(tester, chatRepository: chatRepository);
-
-      await tester.tap(find.widgetWithText(ActionChip, 'General'));
-      await tester.pumpAndSettle();
-
-      expect(chatRepository.loadRoomTimelineCalls, 1);
-    });
-
-    testWidgets('opens a recent file quick link at its folder context', (
-      tester,
-    ) async {
-      final filesRepository = FakeFilesRepository(
-        connectionState: FilesConnectionState.connected(
-          baseUrl: Uri.parse('https://api.weave.test/api'),
-          accountLabel: 'Weave files',
-        ),
-        listings: {
-          '/': DirectoryListing(
-            path: '/',
-            entries: [
-              FileEntry(
-                id: 'file-1',
-                name: 'Roadmap.md',
-                path: '/Planning/Roadmap.md',
-                isDirectory: false,
-                modifiedAt: DateTime.now().subtract(const Duration(minutes: 3)),
-              ),
-            ],
-          ),
-          '/Planning': const DirectoryListing(
-            path: '/Planning',
-            entries: [
-              FileEntry(
-                id: 'file-1',
-                name: 'Roadmap.md',
-                path: '/Planning/Roadmap.md',
-                isDirectory: false,
-              ),
-            ],
-          ),
-        },
-      );
-
-      await pumpReadyShell(tester, filesRepository: filesRepository);
-
-      final roadmapChip = find.widgetWithText(ActionChip, 'Roadmap.md');
-      await tester.ensureVisible(roadmapChip);
-      await tester.drag(find.byType(ListView).first, const Offset(0, -160));
-      await tester.pumpAndSettle();
-      await tester.tap(roadmapChip);
-      await tester.pumpAndSettle();
-
-      expect(filesRepository.requestedPaths, contains('/Planning'));
-      expect(find.text('/Planning'), findsWidgets);
-    });
   });
-}
-
-Future<void> _continueFirstRunIfPresent(WidgetTester tester) async {
-  final continueButton = find.text('Continue to chat');
-  if (continueButton.evaluate().isEmpty) {
-    return;
-  }
-
-  await tester.ensureVisible(continueButton);
-  await tester.pumpAndSettle();
-  await tester.tap(continueButton);
-  await tester.pumpAndSettle();
 }

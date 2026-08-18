@@ -1,0 +1,54 @@
+server:
+  port: ${WEAVE_MCP_PORT:8091}
+
+spring:
+  application:
+    name: weave-mcp-server
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${WEAVE_OIDC_ISSUER_URI:https://auth.weave.test/realms/weave}
+          jwk-set-uri: ${WEAVE_OIDC_JWK_SET_URI:https://auth.weave.test/realms/weave/protocol/openid-connect/certs}
+  ai:
+    mcp:
+      server:
+        enabled: true
+        protocol: STREAMABLE
+        type: SYNC
+        name: weave-workload-tools
+        version: 0.3.0
+        instructions: Workload-only semantic Files tools; every call requires a current Agent Runtime Control cell binding and domain authorization.
+        tool-callback-converter: true
+        annotation-scanner:
+          enabled: true
+        capabilities:
+          tool: true
+          resource: true
+          prompt: false
+          completion: false
+        streamable-http:
+          mcp-endpoint: /mcp
+          disallow-delete: true
+
+weave:
+  mcp:
+    resource-uri: ${WEAVE_MCP_RESOURCE_URI:https://api.weave.test/mcp}
+    resource-metadata-uri: ${WEAVE_MCP_RESOURCE_METADATA_URI:https://api.weave.test/.well-known/oauth-protected-resource/mcp}
+    authorization-server: ${WEAVE_MCP_AUTHORIZATION_SERVER:https://auth.weave.test/realms/weave}
+    required-scopes: ${WEAVE_MCP_REQUIRED_SCOPES:mcp.tools,files.read}
+    token-uri: ${WEAVE_MCP_TOKEN_URI:https://auth.weave.test/realms/weave/protocol/openid-connect/token}
+    exchange-client-id: ${WEAVE_MCP_EXCHANGE_CLIENT_ID:weave-mcp-server}
+    exchange-client-jwk-file: ${WEAVE_MCP_EXCHANGE_CLIENT_JWK_FILE:/run/secrets/weave/mcp-private-jwk.json}
+    backend-resource-uri: ${WEAVE_MCP_BACKEND_RESOURCE_URI:https://api.weave.test/api}
+    backend-files-uri: ${WEAVE_MCP_BACKEND_FILES_URI:https://api.weave.test/dav/files}
+    exchange-scopes: ${WEAVE_MCP_EXCHANGE_SCOPES:files.read}
+    request-timeout: ${WEAVE_MCP_REQUEST_TIMEOUT:10s}
+    maximum-token-ttl: ${WEAVE_MCP_MAXIMUM_TOKEN_TTL:60s}
+    maximum-request-bytes: ${WEAVE_MCP_MAXIMUM_REQUEST_BYTES:1048576}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

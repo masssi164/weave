@@ -12,12 +12,8 @@ import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/home/presentation/home_screen.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
-import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
-import 'package:weave/features/onboarding/presentation/setup_flow.dart';
-import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
+import 'package:weave/features/onboarding/presentation/organization_access_screen.dart';
 import 'package:weave/features/profile/presentation/profile_screen.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/features/shell/presentation/app_shell.dart';
@@ -58,53 +54,33 @@ GoRouter appRouter(Ref ref) {
       final normalizedLocation = initialLocationForDefaultRoute(
         state.uri.toString(),
       );
-      if (normalizedLocation != AppRoutes.welcome) {
+      if (normalizedLocation != AppRoutes.organizationAccess) {
         router.go(normalizedLocation);
       }
     },
     redirect: (context, state) async {
-      final onOnboarding =
-          state.matchedLocation == AppRoutes.welcome ||
-          state.matchedLocation == AppRoutes.setup;
+      final onOrganizationAccess =
+          state.matchedLocation == AppRoutes.organizationAccess;
       final onSignIn = state.matchedLocation == AppRoutes.signIn;
       final onJoin = state.matchedLocation == AppRoutes.join;
-      final onFirstRun = state.matchedLocation == AppRoutes.firstRun;
       switch (bootstrapState.phase) {
         case BootstrapPhase.loading:
         case BootstrapPhase.error:
           return null;
         case BootstrapPhase.needsSetup:
-          return (onOnboarding || onJoin) ? null : AppRoutes.welcome;
+          return (onOrganizationAccess || onJoin)
+              ? null
+              : AppRoutes.organizationAccess;
         case BootstrapPhase.needsSignIn:
           return (onSignIn || onJoin) ? null : AppRoutes.signIn;
         case BootstrapPhase.ready:
-          try {
-            final result = await ref.read(firstRunStatusProvider.future);
-            return switch (result) {
-              FirstRunAuthenticated(:final status) =>
-                !status.firstRunComplete
-                    ? (onFirstRun ? null : AppRoutes.firstRun)
-                    : (onOnboarding || onSignIn || onFirstRun
-                          ? AppRoutes.home
-                          : null),
-              FirstRunSignedOut() ||
-              FirstRunUnauthorized() => onSignIn ? null : AppRoutes.signIn,
-              FirstRunBackendUnavailable() || FirstRunInvalidPayload() =>
-                onFirstRun ? null : AppRoutes.firstRun,
-            };
-          } catch (_) {
-            return onFirstRun ? null : AppRoutes.firstRun;
-          }
+          return (onOrganizationAccess || onSignIn) ? AppRoutes.home : null;
       }
     },
     routes: [
       GoRoute(
-        path: AppRoutes.welcome,
-        builder: (context, state) => const WelcomeScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.setup,
-        builder: (context, state) => const SetupFlow(),
+        path: AppRoutes.organizationAccess,
+        builder: (context, state) => const OrganizationAccessScreen(),
       ),
       GoRoute(
         path: AppRoutes.signIn,
@@ -113,10 +89,6 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.join,
         builder: (context, state) => MemberHandoffScreen(uri: state.uri),
-      ),
-      GoRoute(
-        path: AppRoutes.firstRun,
-        builder: (context, state) => const FirstRunScreen(),
       ),
       GoRoute(
         path: AppRoutes.help,
@@ -197,12 +169,12 @@ GoRouter appRouter(Ref ref) {
 
 String initialLocationForDefaultRoute(String defaultRouteName) {
   if (defaultRouteName.isEmpty || defaultRouteName == '/') {
-    return AppRoutes.welcome;
+    return AppRoutes.organizationAccess;
   }
 
   final uri = Uri.tryParse(defaultRouteName);
   if (uri == null) {
-    return AppRoutes.welcome;
+    return AppRoutes.organizationAccess;
   }
 
   final normalizedJoinLocation = normalizedJoinRouteLocation(uri);
@@ -210,7 +182,7 @@ String initialLocationForDefaultRoute(String defaultRouteName) {
     return normalizedJoinLocation;
   }
 
-  return AppRoutes.welcome;
+  return AppRoutes.organizationAccess;
 }
 
 String? normalizedJoinRouteLocation(Uri uri) {

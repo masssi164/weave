@@ -1,43 +1,15 @@
 plugins {
-    id 'org.springframework.boot' version '3.2.2'
-    id 'io.spring.dependency-management' version '1.1.2'
+    alias(libs.plugins.spring.boot)
+    alias(libs.plugins.spring.dependency.management)
     id 'java'
 }
 
 group = 'com.massimotter.weave'
 version = '0.1.0'
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
-}
-
-dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-api:2.5.0'
-    implementation project(':weave-contract')
-
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.security:spring-security-test'
-    testImplementation 'io.cucumber:cucumber-java:7.18.1'
-    testImplementation 'io.cucumber:cucumber-spring:7.18.1'
-    testImplementation 'org.junit.platform:junit-platform-suite'
-    testRuntimeOnly 'io.cucumber:cucumber-junit-platform-engine:7.18.1'
-}
-
-tasks.named('test') {
-    useJUnitPlatform()
-    if (System.getProperty('weave.openapi.export.path') != null) {
-        systemProperty 'weave.openapi.export.path', System.getProperty('weave.openapi.export.path')
-    }
-}
-
-tasks.matching { it.name == 'wrapper' }.configureEach {
-    gradleVersion = '8.7'
-    distributionType = Wrapper.DistributionType.ALL
-}
+apply from: "${projectDir}/gradle/scripts/java-and-dependencies.gradle"
+apply from: "${projectDir}/gradle/tasks/native-runtime.gradle"
+apply from: "${projectDir}/gradle/tasks/development.gradle"
+apply from: "${projectDir}/gradle/tasks/admin-console.gradle"
+apply from: "${projectDir}/gradle/tasks/verification.gradle"
+apply from: "${projectDir}/gradle/tasks/operations.gradle"

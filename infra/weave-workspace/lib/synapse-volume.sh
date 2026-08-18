@@ -3,11 +3,8 @@
 
 # Shared guardrails for the local/dev Synapse data volume. These helpers are
 # sourced by install.sh and operator-check.sh; they intentionally scope all
-# checks to the Weave-local `weave-synapse` container and `weave_synapse_data`
-# volume, never to any unrelated homelab Synapse instance.
-
-: "${WEAVE_IAC_BIN:=tofu}"
-export WEAVE_IAC_BIN
+# checks to the selected Weave namespace, never to any unrelated homelab
+# Synapse instance.
 
 synapse_volume_log() {
   if declare -F log >/dev/null 2>&1; then
@@ -26,27 +23,37 @@ synapse_volume_fail() {
 }
 
 synapse_volume_name() {
-  printf '%s\n' "${TF_VAR_synapse_volume_name:-weave_synapse_data}"
+  if declare -F weave_volume_name >/dev/null 2>&1; then
+    weave_volume_name synapse_data
+    printf '\n'
+    return
+  fi
+  printf 'weave_synapse_data\n'
 }
 
 synapse_container_name() {
-  printf '%s\n' "${TF_VAR_synapse_container_name:-weave-synapse}"
+  if declare -F weave_container_name >/dev/null 2>&1; then
+    weave_container_name synapse
+    printf '\n'
+    return
+  fi
+  printf 'weave-synapse\n'
 }
 
 synapse_image_name() {
-  printf '%s\n' "${TF_VAR_synapse_image:-matrixdotorg/synapse:v1.136.0}"
+  printf '%s\n' "${WEAVE_SYNAPSE_IMAGE:-matrixdotorg/synapse:v1.136.0}"
 }
 
 synapse_uid() {
-  printf '%s\n' "${TF_VAR_synapse_uid:-991}"
+  printf '%s\n' "${WEAVE_SYNAPSE_UID:-991}"
 }
 
 synapse_gid() {
-  printf '%s\n' "${TF_VAR_synapse_gid:-991}"
+  printf '%s\n' "${WEAVE_SYNAPSE_GID:-991}"
 }
 
 synapse_matrix_public_host() {
-  printf '%s.%s\n' "${TF_VAR_matrix_subdomain:-matrix}" "${TF_VAR_tenant_domain:-weave.test}"
+  printf '%s.%s\n' "${WEAVE_MATRIX_SUBDOMAIN:-matrix}" "${WEAVE_TENANT_DOMAIN:-weave.test}"
 }
 
 synapse_signing_key_path() {
@@ -55,45 +62,6 @@ synapse_signing_key_path() {
 
 synapse_docker_volume_exists() {
   docker volume inspect "$(synapse_volume_name)" >/dev/null 2>&1
-}
-
-synapse_terraform_state_has() {
-  local address="$1"
-  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" state show "${address}" >/dev/null 2>&1
-}
-
-synapse_terraform_state_rm_if_present() {
-  local address="$1"
-
-  if synapse_terraform_state_has "${address}"; then
-    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" state rm "${address}" >/dev/null
-  fi
-}
-
-synapse_reconcile_terraform_state() {
-  local volume
-  volume="$(synapse_volume_name)"
-
-  [[ -n "${INFRA_DIR:-}" ]] || synapse_volume_fail "Synapse volume guard requires INFRA_DIR to point at the OpenTofu infrastructure stage."
-
-  if synapse_docker_volume_exists; then
-    if ! synapse_terraform_state_has module.matrix.docker_volume.synapse_data; then
-      synapse_volume_log "Importing existing Docker volume ${volume} into OpenTofu state before bootstrap..."
-      "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" import -input=false module.matrix.docker_volume.synapse_data "${volume}"
-      # The existing volume may have been Docker-created outside Terraform. Force
-      # the permission provisioner to run on the next apply instead of trusting
-      # any stale provisioner state.
-      synapse_terraform_state_rm_if_present module.matrix.terraform_data.synapse_volume_permissions
-    fi
-    return
-  fi
-
-  if synapse_terraform_state_has module.matrix.docker_volume.synapse_data || \
-    synapse_terraform_state_has module.matrix.terraform_data.synapse_volume_permissions; then
-    synapse_volume_log "Synapse Docker volume ${volume} is missing while OpenTofu state still records it; removing stale state so OpenTofu recreates it and reruns the permission guard."
-    synapse_terraform_state_rm_if_present module.matrix.terraform_data.synapse_volume_permissions
-    synapse_terraform_state_rm_if_present module.matrix.docker_volume.synapse_data
-  fi
 }
 
 synapse_repair_volume_permissions() {
@@ -105,7 +73,7 @@ synapse_repair_volume_permissions() {
   signing_key="$(synapse_signing_key_path)"
 
   if ! synapse_docker_volume_exists; then
-    synapse_volume_log "Synapse Docker volume ${volume} does not exist yet; OpenTofu will create it during infrastructure apply."
+    synapse_volume_log "Synapse Docker volume ${volume} does not exist yet; Compose prepare will create the owned volume."
     return
   fi
 
@@ -151,7 +119,7 @@ synapse_verify_volume_writable() {
         test -w /data/media_store
         : > "${SYNAPSE_SIGNING_KEY_CHECK}"
         rm -f "${SYNAPSE_SIGNING_KEY_CHECK}"' || \
-    synapse_volume_fail "Operator check failed: ${volume} is not writable by weave-synapse uid:gid ${uid}:${gid}, so Synapse cannot create/update $(synapse_signing_key_path). This check only targets weave-synapse, not homelab-synapse. Run ./install.sh to reconcile stale OpenTofu state and repair the volume before restarting Synapse."
+    synapse_volume_fail "Operator check failed: ${volume} is not writable by weave-synapse uid:gid ${uid}:${gid}, so Synapse cannot create/update $(synapse_signing_key_path). This check only targets weave-synapse, not homelab-synapse. Run ./install.sh to reconcile the Compose-owned volume before restarting Synapse."
 }
 
 synapse_print_volume_metadata() {

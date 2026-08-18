@@ -76,7 +76,8 @@ void main() {
         isEmpty,
         reason:
             'Normal member providers/screens must depend on Weave facades, not '
-            'Nextcloud, Matrix, provider status, or platform diagnostic seams. '
+            'Nextcloud, provider status, or platform diagnostic seams. Matrix '
+            'Client-Server projection wiring is allowed for the Chat data plane. '
             'Diagnostic/admin exceptions require an allowlist expiry issue.',
       );
     });
@@ -122,7 +123,6 @@ const _openApiCoveredResponsePrefixes = <String>{
   'Devops',
   'File',
   'Office',
-  'OnboardingStatus',
   'Organization',
   'Platform',
   'ProductProfile',
@@ -200,13 +200,6 @@ const _memberProviderGraphAllowlist = <LegacyFence>[
     reason:
         'Diagnostic widget is allowed only while it is not mounted from normal '
         'member Settings or primary Chat routes.',
-  ),
-  LegacyFence(
-    path: 'lib/features/boards/presentation/boards_workspace_screen.dart',
-    issue: '#903',
-    reason:
-        'Boards presentation still maps OpenProject adapter vocabulary until '
-        'the Boards OpenAPI adapter exposes provider-neutral domain state.',
   ),
   LegacyFence(
     path:
@@ -329,25 +322,28 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
         'copy or typed readiness states before the hardcoded-copy fence closes.',
   ),
   LegacyFence(
-    path: 'lib/features/chat/data/repositories/backend_chat_repository.dart',
+    path:
+        'lib/features/chat/data/repositories/weave_matrix_facade_chat_repository.dart',
     issue: '#908',
     reason:
-        'Chat repository failure text is fenced until member-visible recovery '
-        'copy is localized from typed failure codes.',
+        'Matrix facade repository failure text is fenced until member-visible '
+        'recovery copy is localized from typed failure codes.',
   ),
   LegacyFence(
-    path: 'lib/features/chat/data/repositories/matrix_',
-    issue: '#906',
+    path:
+        'lib/features/chat/data/repositories/rust_matrix_core_chat_security_repository.dart',
+    issue: '#908',
     reason:
-        'Legacy Matrix repositories are diagnostic/provider seams and remain '
-        'fenced until normal member reachability is removed.',
+        'Rust Matrix security bridge failure text is fenced until member-visible '
+        'E2EE recovery copy is localized from typed failure codes.',
   ),
   LegacyFence(
-    path: 'lib/features/chat/data/services/matrix_',
-    issue: '#906',
+    path:
+        'lib/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart',
+    issue: '#908',
     reason:
-        'Legacy Matrix services are diagnostic/provider seams and remain fenced '
-        'until normal member reachability is removed.',
+        'Matrix crypto bootstrap and identity failures remain fenced until typed '
+        'Chat failure codes feed localized member recovery copy.',
   ),
   LegacyFence(
     path: 'lib/features/chat/data/services/archived_message_store.dart',
@@ -385,18 +381,11 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
         'feed localized Files recovery copy.',
   ),
   LegacyFence(
-    path: 'lib/features/onboarding/data/',
-    issue: '#908',
-    reason:
-        'Onboarding backend clients still emit displayable failure text until '
-        'typed first-run recovery codes feed localized UI copy.',
-  ),
-  LegacyFence(
     path: 'lib/features/onboarding/domain/',
     issue: '#908',
     reason:
-        'Onboarding handoff/domain failures still carry displayable text until '
-        'typed first-run recovery codes feed localized UI copy.',
+        'Organization handoff failures still carry displayable text until '
+        'typed handoff recovery codes feed localized UI copy.',
   ),
   LegacyFence(
     path: 'lib/features/profile/data/',
@@ -457,20 +446,11 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
         'OpenAPI feature-adapter fallback text remains fenced until typed '
         'member readiness codes feed localized UI copy.',
   ),
-  LegacyFence(
-    path: 'lib/integrations/nextcloud/',
-    issue: '#906',
-    reason:
-        'Nextcloud remains a legacy provider seam until normal member provider '
-        'reachability is removed or restricted to diagnostic/admin paths.',
-  ),
 ];
 
 final _rawProviderReachabilityPatterns = <RegExp>[
   RegExp(r'integrations/nextcloud'),
   RegExp(r'nextcloud[A-Z_a-z]'),
-  RegExp(r'Matrix[A-Z_a-z]'),
-  RegExp(r'matrix[A-Z_a-z]'),
   RegExp(r'\bCalDAV\b|\bcaldav[A-Z_a-z]|\bcalDav\b|\bcalDav[A-Z_a-z]'),
   RegExp(
     r'\bOpenProject\b|\bopenproject\b|\bopenProject\b|\bopenProject[A-Z_a-z]',

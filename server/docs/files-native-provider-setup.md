@@ -1,0 +1,34 @@
+# Files native provider setup
+
+Weave Files must integrate with native OS file surfaces through Weave-owned facades, not through raw storage-provider setup.
+The architecture is defined in
+`docs/architecture/domain-facade-protocol-projections.md`: the Files domain
+facade is product truth, while OpenAPI, the Weave WebDAV-compatible projection,
+iOS File Provider, Android DocumentsProvider, and MCP tools are
+thin projections over that facade.
+
+## Current executable slice
+
+`GET /api/files/native-provider-setup` returns authenticated, support-safe setup metadata for native file providers:
+
+- iOS boundary: File Provider extension.
+- Android boundary: DocumentsProvider / Storage Access Framework.
+- Flutter/native bridge role: setup, status, and revoke only.
+- File IO proof hooks: `OPTIONS /dav/files`, `PROPFIND /dav/files`, `GET /dav/files/{path}`, `PUT /dav/files/{path}`, `DELETE /dav/files/{path}`, and `MKCOL /dav/files/{path}`. Native availability still needs device-provider and revocation proof before exposing writes in OS integrations.
+- Support-safe blocked states for the remaining work: native extension/provider implementation, per-device token revocation, and physical-device provider proof.
+
+The response deliberately contains only Weave-owned paths. It must not include provider hostnames, raw provider WebDAV URLs, provider credentials, bearer tokens, or provider diagnostics.
+
+## Product boundary
+
+The member app may show native setup status and let the user start or revoke
+native setup. It must not become a raw provider WebDAV client and must not store
+storage-provider credentials. Native OS file IO belongs in the iOS File Provider
+extension or Android DocumentsProvider, backed by the Weave WebDAV-compatible
+Files facade projection.
+
+## First dogfood proof
+
+The first proof is acceptable when a native-provider boundary can list/open at least one Weave file through the Weave facade, or when this setup contract is exercised with a documented first-step proof and the remaining extension work is explicitly blocked in evidence.
+
+Full native availability remains blocked until physical-device evidence proves the OS provider boundary and revocation behavior.

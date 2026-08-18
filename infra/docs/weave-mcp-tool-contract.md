@@ -1,54 +1,57 @@
-# Weave MCP tool contract
+# Weave MCP workload boundary
 
-Status: Sprint 17 local RC evidence contract, disabled by default unless bound by a generated signed RuntimeProfile projection.
+Status: **Guarded / first read-only Files slice active**. The identity, admission,
+token-exchange, and current-context path is implemented. `files.search` and the canonical
+`weave://files/{canonicalFileId}` resource are active over the Weave WebDAV facade. This is not a
+production-ready Weaver or autonomous-action claim.
 
-This document records the MCP refinement for Sprint 16 without turning MCP into the product API. The Java/Kotlin backend remains the product and control-plane authority. A future MCP gateway under `infra/weave-mcp` may expose governed Weave domain tools to approved Weaver runtimes, but only as infra glue over backend-owned contracts.
+## Identity and protocol contract
 
-## Placement
+- MCP is a workload protocol surface, not a member API. Human access tokens, browser sessions,
+  forwarded user tokens, generic service accounts, and the fixed `weave-mcp-server` account are
+  invalid inbound cell identities.
+- Each enabled Weaver cell receives its own confidential Keycloak workload client,
+  `weaver-cell-{cellId}`, through Agent Runtime Control (ARC). The protected Compose/Keycloak
+  reconciler owns the fixed realm baseline; ARC owns dynamic client creation, rotation, suspension, deletion, and restore
+  reconciliation.
+- The cell uses the MCP Client Credentials extension
+  `io.modelcontextprotocol/oauth-client-credentials`. It presents a short-lived RFC 9068
+  `at+jwt` access token with the exact MCP audience, the `weaver-runtime` role, `mcp.tools`, and
+  only the domain scopes granted by its current RuntimeProfile.
+- The edge publishes OAuth Protected Resource Metadata at
+  `/.well-known/oauth-protected-resource/mcp`. Missing bearer tokens receive a discoverable
+  challenge; initialization without the client-credentials extension fails closed.
+- Before Spring AI protocol dispatch, the edge resolves the authenticated workload through
+  `client -> cell -> organization -> immutable person owner -> current RuntimeProfile v2`.
+  It uses Keycloak Standard Token Exchange V2 to mint a new exact-audience backend token and
+  asks `weave-backend` to revalidate current entitlement, lifecycle, profile, policy, and domain
+  scopes. The inbound token is never relayed downstream.
 
-Keep the Sprint 16 machine-readable contract under `infra/weave-workspace` because that operator/runtime area already owns Weaver lifecycle evidence and internal network boundaries. Use `infra/weave-mcp/` for any future Python FastMCP server package so the runnable MCP gateway stays clearly separated from workspace contracts and local lifecycle fixtures.
+## What is active
 
-FastMCP with Python `@tool` remains an implementation candidate only. Its architecture principle is `MCP = governed tool projection over Weave APIs`: validate typed input, derive org/user/runtime context from a Weave-generated signed RuntimeProfile projection, call backend facade APIs, redact output, and emit audit evidence. Caller-supplied capability headers are not policy input.
+- Spring AI 2.0 stateful Streamable HTTP at `/mcp`;
+- RFC 9068 token-type, issuer, time, exact-audience, workload-role, and scope validation;
+- protected-resource discovery and the MCP Client Credentials extension handshake;
+- server-owned ARC binding and current backend context resolution;
+- downscoped workload token exchange with no refresh or ID token;
+- `files.search` through bounded WebDAV `SEARCH`, with provider-neutral structured output;
+- exact canonical-ID resource resolution followed by a bounded WebDAV `GET`;
+- negative rejection of human tokens, unbound service accounts, missing extension negotiation,
+  missing scopes, upscope attempts, stale profiles, and direct workload access to admin routes.
 
-## Authority boundary
+## What remains guarded
 
-- Weave backend is authoritative for product domains, provider choices, policy decisions, readiness, audit, and SecretRef/CredentialRef handling.
-- MCP exposes governed actions for approved runtimes; it does not replace backend APIs.
-- Runtime containers must not call provider APIs directly.
-- Normal members must not configure providers, secrets, endpoint URLs, or raw OpenClaw/MCP server config through MCP.
-- All tool calls are deny-by-default, audited, and filtered by the generated signed RuntimeProfile projection, which carries the Weave capability-policy intersection as support-safe grants and allowed tool names. The local RC proof verifies a projection signature; production signing/fetch-by-hash remains a non-claim.
+The fixed canonical domain catalog is a capability ceiling, not an authorization grant. Only the
+Files read slice is advertised. Further discovery may open only as the intersection of the catalog,
+the current RuntimeProfile, current domain authorization, and runtime availability. Write-like
+tools additionally require argument-bound, signed, single-use ApprovalDecisionEvidence v2 and
+must emit immutable ActionEvidence v2. OpenClaw owns approval presentation and decision state;
+caller-supplied MCP elicitation is never authority.
 
-## Canonical MCP domains
+The removed v1 member runtime profile, `MemberMcp*` catalog, member-token exchange, caller header
+binding, fake Scout surface, Python/FastMCP gateway, and handwritten JSON-RPC controller have no
+compatibility readers.
 
-The canonical domain sketch is captured in `../weave-workspace/weave-mcp-tool-contract.json`:
-
-- `calendar`: event CRUD, calendar CRUD where appropriate, free/busy, invite/RSVP, recurrence, provider source mapping.
-- `files_documents`: file/folder CRUD, search, metadata, version/content reads, permissions/share links, document actions.
-- `boards_tasks`: board/list/card/task CRUD, assignments, labels, statuses, due dates, comments/activity.
-- `chat_comms`: channels/rooms/messages, membership, send/read/search where allowed, support-safe provider abstraction.
-- `people_identity_org`: users, groups, roles, org units, effective rights/policy, readiness.
-- `admin_setup_providers`: provider registry, category mapping, readiness checks, dry-runs, capability mapping, SecretRef references only.
-- `audit_policy`: audit events, redaction/support-safe views, policy simulation, permission scopes.
-- `weaver_runtime_governance`: org tool allowlists, capability bundles, consent policy, sandbox/package projection, runtime audit handoff.
-
-## Support-safe rules
-
-Every future `@tool` must return Weave domain objects or support-safe refs only. It must not return:
-
-- raw provider internals, raw downstream request/response bodies, or raw provider errors;
-- bearer tokens, cookies, OAuth access/refresh tokens, private keys, or SecretRef values;
-- credential-bearing URLs, direct provider admin URLs, room IDs/event IDs, or filenames in support-safe bundles;
-- `openclaw.json`, raw MCP server config, runtime tokens, sandbox bypass controls, or exec policy bypasses.
-
-Write/delete/external-send/provider-switch actions require approval receipts. Routine reads may be grant-based when the user has normal Weave rights and the organization has granted that tool class.
-
-## Sprint 16 slice
-
-Do not build every provider adapter in Sprint 16. The safe proof slice is:
-
-1. keep backend-owned Admin Console/readiness and suite facade contracts as the source of truth;
-2. record the MCP contract and test its fail-closed, support-safe domain shape;
-3. project Weaver RuntimeProfile/tool governance from those domains while disabled by default;
-4. if a runnable proof is added later, place it under `infra/weave-mcp/` with read-only tools such as `admin.get_readiness`, `weaver.get_runtime_profile_projection`, and one suite-domain search, plus an approval-required write stub that fails closed without an approval receipt.
-
-This is a scope adjustment to the Weaver/runtime and suite-facade design foundation, not a runtime launch or production MCP gateway claim.
+The authoritative contracts are the pinned `weave-specs` Agent Runtime Control domain and
+ADR 0012. The executable projection is
+`infra/weave-workspace/weave-mcp-tool-contract.json`.

@@ -15,16 +15,28 @@ mkdir -p "${stub_bin}"
 cat >"${stub_bin}/docker" <<'DOCKER'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "${WEAVE_DIAGNOSTICS_TEST_HANG:-false}" == "true" ]]; then
+  printf '%s\n' "$$" >"${WEAVE_DIAGNOSTICS_TEST_HANG_PID_FILE}"
+  trap '' TERM
+  while true; do
+    sleep 60
+  done
+fi
 case "${1:-}" in
   inspect)
     name="${@: -1}"
-    printf '/%s\trunning\tnone\t0\n' "${name}"
+    if [[ "${2:-}" == "--format" ]]; then
+      printf '/%s\trunning\tnone\t0\tfalse\t0\tnone\n' "${name}"
+    else
+      printf '[]\n'
+    fi
     ;;
   logs)
     cat <<'LOGS'
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payloadpayload.signature123
 callback=https://runner:secret-password@provider.internal.example/path
 operator=person@example.com
+mc: <ERROR> Invalid command usage, flag provided but not defined: -generated-secret-value
 LOGS
     ;;
   ps)
@@ -37,7 +49,7 @@ LOGS
     printf 'TYPE TOTAL ACTIVE SIZE RECLAIMABLE\n'
     ;;
   exec)
-    printf 'stubbed-docker-exec\n'
+    printf '%s\n' '{"status":"blocked","requestId":"private-request-id","checks":[{"key":"persistence","status":"blocked","readiness":"blocked","message":"Configured persistence is unavailable.","action":"Restore it."}],"actions":["Restore it."]}'
     ;;
   *)
     printf 'stubbed docker %s\n' "$*"
@@ -72,6 +84,7 @@ cat >"${acceptance_dir}/scenario-mapping-results.json" <<'JSON'
 JSON
 
 PATH="${stub_bin}:${PATH}" \
+  WEAVE_PROFILE=dev \
   WEAVE_ACCEPTANCE_EVIDENCE_DIR="${acceptance_dir}" \
   WEAVE_LIVE_STACK_PRIVATE_RAW_LOGS=false \
   bash "${SCRIPT}" "${output_dir}"
@@ -79,13 +92,78 @@ PATH="${stub_bin}:${PATH}" \
 [[ -s "${output_dir}/failure-summary.md" ]] || { echo "missing failure summary markdown" >&2; exit 1; }
 [[ -s "${output_dir}/failure-summary.json" ]] || { echo "missing failure summary json" >&2; exit 1; }
 [[ -s "${output_dir}/container-status.tsv" ]] || { echo "missing container status" >&2; exit 1; }
+grep -Fq $'container\tstate\thealth\texitCode\toomKilled\trestartCount\tengineError' "${output_dir}/container-status.tsv"
+grep -Fq $'weave-runtime-state\trunning\tnone\t0\tfalse\t0\tnone' "${output_dir}/container-status.tsv"
+[[ -s "${output_dir}/one-shot/schema-init.log" ]] || { echo "missing schema initializer diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/one-shot/native-files-volume-init.log" ]] || { echo "missing native Files volume initializer diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/one-shot/keycloak-realm-migration-receipt-check.log" ]] || { echo "missing Keycloak migration receipt diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/runtime/runtime-state.log" ]] || { echo "missing RuntimeState process diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/one-shot/runtime-state-volume-init.log" ]] || { echo "missing RuntimeState volume initializer diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/one-shot/runtime-state-init.log" ]] || { echo "missing RuntimeState initializer diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/runtime/backend-startup.log" ]] || { echo "missing backend startup diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/runtime/keycloak.log" ]] || { echo "missing Keycloak runtime diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/runtime/synapse.log" ]] || { echo "missing Synapse runtime diagnostic" >&2; exit 1; }
+[[ -s "${output_dir}/health-checks/backend-readiness.json" ]] || { echo "missing backend readiness diagnostic" >&2; exit 1; }
 grep -Fq 'intentionally does not dump raw container logs' "${output_dir}/failure-summary.md"
 grep -Fq 'rawContainerLogsIncluded": false' "${output_dir}/failure-summary.json"
+! grep -RFq "${output_dir}" "${output_dir}"
 grep -Fq 'CHAT_RESULT' "${output_dir}/failed-markers.json"
+grep -Fq '<redacted>' "${output_dir}/one-shot/schema-init.log"
+grep -Fq '<redacted>' "${output_dir}/one-shot/native-files-volume-init.log"
+grep -Fq '<redacted>' "${output_dir}/one-shot/keycloak-realm-migration-receipt-check.log"
+grep -Fq '<redacted>' "${output_dir}/runtime/runtime-state.log"
+grep -Fq '<redacted>' "${output_dir}/one-shot/runtime-state-volume-init.log"
+grep -Fq '<redacted>' "${output_dir}/one-shot/runtime-state-init.log"
+! grep -Fq -- '-generated-secret-value' "${output_dir}/runtime/runtime-state.log"
+! grep -Fq -- '-generated-secret-value' "${output_dir}/one-shot/runtime-state-volume-init.log"
+! grep -Fq -- '-generated-secret-value' "${output_dir}/one-shot/runtime-state-init.log"
+! grep -Fq -- '-generated-secret-value' "${output_dir}/one-shot/native-files-volume-init.log"
+! grep -Fq -- '-generated-secret-value' "${output_dir}/one-shot/keycloak-realm-migration-receipt-check.log"
+grep -Fq '<redacted>' "${output_dir}/runtime/backend-startup.log"
+grep -Fq '<redacted>' "${output_dir}/runtime/synapse.log"
+grep -Fq '"key": "persistence"' "${output_dir}/health-checks/backend-readiness.json"
+grep -Fq '"actionRequired": true' "${output_dir}/health-checks/backend-readiness.json"
+! grep -Fq 'private-request-id' "${output_dir}/health-checks/backend-readiness.json"
+! grep -Fq 'Restore it.' "${output_dir}/health-checks/backend-readiness.json"
 
 if grep -R -Fq 'secret-password' "${output_dir}" || grep -R -Fq 'person@example.com' "${output_dir}" || grep -R -Fq 'eyJhbGci' "${output_dir}"; then
   echo "failure diagnostics leaked raw private log content" >&2
   grep -R -n -E 'secret-password|person@example\.com|eyJhbGci' "${output_dir}" >&2 || true
+  exit 1
+fi
+
+hanging_output="${work_dir}/hanging-output"
+hanging_pid_file="${work_dir}/hanging.pid"
+hanging_log="${work_dir}/hanging.log"
+started_seconds="${SECONDS}"
+set +e
+PATH="${stub_bin}:${PATH}" \
+  WEAVE_DIAGNOSTICS_TEST_HANG=true \
+  WEAVE_DIAGNOSTICS_TEST_HANG_PID_FILE="${hanging_pid_file}" \
+  WEAVE_LIVE_STACK_DIAGNOSTICS_TIMEOUT_SECONDS=1 \
+  WEAVE_LIVE_STACK_PRIVATE_RAW_LOGS=false \
+  bash "${SCRIPT}" "${hanging_output}" >"${hanging_log}" 2>&1
+hanging_status=$?
+set -e
+elapsed_seconds=$((SECONDS - started_seconds))
+[[ "${hanging_status}" -eq 124 ]] || {
+  echo "hanging diagnostics returned ${hanging_status}, expected 124" >&2
+  exit 1
+}
+((elapsed_seconds < 8)) || {
+  echo "hanging diagnostics exceeded the fixture timeout bound" >&2
+  exit 1
+}
+grep -Fxq 'WEAVE_BOUNDED_PROCESS_TIMEOUT' "${hanging_log}"
+! grep -Fq "${work_dir}" "${hanging_log}"
+! grep -Fq 'fixture output must not escape' "${hanging_log}"
+[[ -s "${hanging_pid_file}" ]] || {
+  echo "hanging diagnostics did not expose its fixture pid" >&2
+  exit 1
+}
+hanging_pid="$(cat "${hanging_pid_file}")"
+if kill -0 "${hanging_pid}" 2>/dev/null; then
+  echo "hanging diagnostics child process survived the bounded watchdog" >&2
   exit 1
 fi
 

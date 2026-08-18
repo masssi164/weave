@@ -1,13 +1,15 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -40,10 +42,10 @@ class PlatformProductContractControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockBean
+    @MockitoBean
     private ContextAuthorizationPort contextAuthorizationPort;
 
     @BeforeEach
@@ -334,7 +336,7 @@ class PlatformProductContractControllerTest {
     }
 
     @Test
-    void calendarAccessPolicyAndSetupCredentialsAreRevocableWithoutSecretOutput() throws Exception {
+    void calendarAccessPolicyAndSetupCredentialsReturnSecretOnceAndRemainRevocable() throws Exception {
         mockMvc.perform(get("/api/calendar/access-policy").with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.backendActorMayReadPrivateUserCalendars").value(false))
@@ -345,17 +347,20 @@ class PlatformProductContractControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"label\":\"iPhone\",\"clientType\":\"apple-mobileconfig\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.state").value("active-no-secret-issued"))
-                .andExpect(jsonPath("$.secretMaterialReturned").value(false))
+                .andExpect(jsonPath("$.state").value("active"))
+                .andExpect(jsonPath("$.secretMaterialReturned").value(true))
+                .andExpect(jsonPath("$.secret").isNotEmpty())
                 .andExpect(jsonPath("$.profilePasswordEligible").value(false))
-                .andExpect(content().string(not(containsString("password"))))
                 .andExpect(content().string(not(containsString("bearer"))))
+                .andExpect(content().string(not(containsString("remote.php"))))
                 .andReturn();
 
         String credentialId = com.jayway.jsonpath.JsonPath.read(created.getResponse().getContentAsString(), "$.credentialId");
         mockMvc.perform(get("/api/calendar/client-setup/credentials").with(workspaceJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.credentials[0].credentialId").value(credentialId));
+                .andExpect(jsonPath("$.credentials[0].credentialId").value(credentialId))
+                .andExpect(jsonPath("$.credentials[0].secretMaterialReturned").value(false))
+                .andExpect(jsonPath("$.credentials[0].secret").doesNotExist());
 
         mockMvc.perform(delete("/api/calendar/client-setup/credentials/{credentialId}", credentialId)
                         .with(workspaceJwt()))
@@ -367,9 +372,14 @@ class PlatformProductContractControllerTest {
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .issuer("https://auth.example.invalid/realms/weave")
                         .claim("preferred_username", "test")
                         .claim("weave_tenant_id", "tenant-default")
-                        .claim("aud", java.util.List.of("weave-app")))
+                        .claim("aud", java.util.List.of("weave-app"))
+                        .claim(
+                                "organization",
+                                HumanJwtTestSupport
+                                        .organizationWithRole("admin")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
@@ -380,7 +390,7 @@ class PlatformProductContractControllerTest {
                         .claim("preferred_username", "admin")
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("admin"))))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("admin")))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                         new SimpleGrantedAuthority("ROLE_ADMIN"));

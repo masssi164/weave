@@ -12,24 +12,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appTitle => 'Weave';
 
   @override
-  String get welcomeTitle => 'Welcome to Weave';
-
-  @override
-  String get welcomeSubtitle =>
-      'Join your organization through an invite or sign-in handoff. Provider setup stays with your admins.';
-
-  @override
-  String get continueButton => 'Join your organization';
-
-  @override
-  String get setupTitle => 'Join Weave';
-
-  @override
-  String get setupProviderStepTitle => 'Configure provider categories';
-
-  @override
-  String get setupProviderStepDescription =>
-      'Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.';
+  String get setupTitle => 'Organization access';
 
   @override
   String get setupServicesStepTitle => 'Review Backend API';
@@ -43,7 +26,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get providerCategorySummaryDescription =>
-      'Weave tracks collaboration categories first. Provider names below are current dogfood choices for admins/operators, not member-facing product names.';
+      'Keycloak is the fixed platform identity authority. The remaining rows are collaboration categories whose provider names are admin/operator choices, not member-facing product names.';
 
   @override
   String get providerCategorySummarySemanticLabel =>
@@ -53,17 +36,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providerCategoryStatusCurrentDefault => 'Current dogfood choice';
 
   @override
+  String get platformIdentityStatusFixedAuthority => 'Fixed platform authority';
+
+  @override
   String get providerCategoryStatusAdminSetupRequired => 'Admin setup required';
 
   @override
   String get providerCategoryStatusDisabledByDefault => 'Disabled by default';
 
   @override
-  String get providerCategoryIdentityTitle => 'Identity/IDM';
+  String get platformIdentityTitle => 'Platform identity';
 
   @override
-  String get providerCategoryIdentityDetail =>
-      'Keycloak/Auth is the current dogfood choice; Entra ID, Authentik, or another OIDC/SAML source can map to this category.';
+  String get platformIdentityDetail =>
+      'Keycloak/Auth is the platform authority. Entra ID, Authentik/Auth0, other OIDC/SAML sources, or LDAP/AD integrate upstream through Keycloak federation or brokering.';
 
   @override
   String get providerCategoryChatTitle => 'Chat';
@@ -98,7 +84,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get providerCategoryMeetingsDetail =>
-      'LiveKit Meetings readiness is tracked behind the token facade before members can start or join calls.';
+      'MatrixRTC Profile 0 is the signaling boundary; a replaceable SFU carries media only after current RTC authorization.';
 
   @override
   String get providerCategoryDocumentsTitle => 'Documents/collaboration';
@@ -108,11 +94,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Document collaboration is a provider adapter category and stays admin setup required until a backend-owned launch path is configured.';
 
   @override
-  String get providerCategoryWeaverTitle => 'Weaver';
+  String get providerCategoryAgentRuntimeControlTitle =>
+      'Agent Runtime Control';
 
   @override
-  String get providerCategoryWeaverDetail =>
-      'Weaver stays disabled by default until governed per-user PA policy, whitelisting, consent, and audit are accepted.';
+  String get providerCategoryAgentRuntimeControlDetail =>
+      'Agent Runtime Control stays disabled without current Keycloak entitlement, signed RuntimeProfile v2, encrypted external state, and cell-bound workload identity.';
 
   @override
   String get setupLanguageStepTitle => 'Your Language';
@@ -180,44 +167,40 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shellRecentActivityTitle => 'Recent activity';
 
   @override
-  String get shellRecentActivityDescription =>
-      'Quick links to recent rooms and file changes.';
+  String get shellRecentActivitySemanticLabel =>
+      'Authorized recent workspace activity';
 
   @override
-  String get shellRecentActivitySemanticLabel => 'Recent activity quick links';
+  String get homeRecentActivityLoading => 'Loading recent workspace activity…';
 
   @override
-  String get shellRecentRoomsTitle => 'Rooms';
+  String get homeRecentActivityUnavailable =>
+      'Recent workspace activity is unavailable right now.';
 
   @override
-  String get shellRecentFilesTitle => 'Files';
+  String get homeRecentActivityEmpty =>
+      'No completed workspace activity is visible yet.';
 
   @override
-  String get shellRecentRoomsLoading => 'Loading recent rooms…';
+  String get homeRecentActivityCurrentMemberFilesCompleted =>
+      'You completed a Files change';
 
   @override
-  String get shellRecentRoomsEmpty => 'No recent rooms yet.';
+  String get homeRecentActivityOtherMemberFilesCompleted =>
+      'A workspace member completed a Files change';
 
   @override
-  String get shellRecentRoomsUnavailable =>
-      'Recent rooms are unavailable until chat is connected.';
+  String get homeRecentActivityWorkspaceVisibility =>
+      'Shared workspace activity';
 
   @override
-  String get shellRecentFilesLoading => 'Loading recent file changes…';
-
-  @override
-  String get shellRecentFilesEmpty => 'No recent file changes yet.';
-
-  @override
-  String get shellRecentFilesError =>
-      'Recent file changes could not be loaded.';
-
-  @override
-  String get shellRecentFilesUnavailable =>
-      'Recent files are unavailable until files are connected.';
-
-  @override
-  String get shellRecentActivityUnknownRecency => 'recent';
+  String homeRecentActivityItemSemantic(
+    String activity,
+    String visibility,
+    String recency,
+  ) {
+    return '$activity. $visibility. $recency.';
+  }
 
   @override
   String get shellRecentActivityNow => 'now';
@@ -232,31 +215,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shellRecentActivityYesterday => 'yesterday';
-
-  @override
-  String shellRecentRoomItemSemantic(
-    String roomName,
-    String preview,
-    String recency,
-  ) {
-    return 'Open room $roomName. Latest activity: $preview. $recency.';
-  }
-
-  @override
-  String shellRecentFileItemSemantic(
-    String itemType,
-    String itemName,
-    String path,
-    String recency,
-  ) {
-    return 'Open $itemType $itemName in $path. Changed $recency.';
-  }
-
-  @override
-  String get shellRecentFileFolderType => 'folder';
-
-  @override
-  String get shellRecentFileFileType => 'file';
 
   @override
   String get emptyStateLabel => 'Nothing here yet';
@@ -293,185 +251,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get semanticWeaveLogo => 'Weave logo';
-
-  @override
-  String get firstRunAppBarTitle => 'First-run status';
-
-  @override
-  String get firstRunLoadingLabel => 'Checking your Weave workspace…';
-
-  @override
-  String get firstRunLoadingHint =>
-      'Loading your profile, role, and module readiness from the Weave backend.';
-
-  @override
-  String get firstRunLoadFailure =>
-      'We could not load your first-run status from the Weave backend.';
-
-  @override
-  String get firstRunLoadFailureGuidance =>
-      'Check your connection and try again. If this keeps happening, ask an admin to confirm the backend is reachable.';
-
-  @override
-  String get firstRunSignedOutMessage =>
-      'Sign in to view your Weave first-run status.';
-
-  @override
-  String get firstRunSignedOutGuidance =>
-      'We need an active Weave SSO session before we can check your profile, role, and module readiness.';
-
-  @override
-  String get firstRunSignInAction => 'Go to sign in';
-
-  @override
-  String get firstRunSignedOutSemanticLabel =>
-      'Sign in to view your Weave first-run status. We need an active Weave SSO session before we can check your profile, role, and module readiness. Action: Go to sign in';
-
-  @override
-  String get firstRunReadyTitle => 'Your Weave workspace is ready';
-
-  @override
-  String get firstRunNeedsAttentionTitle =>
-      'Your Weave workspace is being prepared';
-
-  @override
-  String get firstRunDescription =>
-      'You signed in once with Weave SSO. Weave is checking your profile and collaboration modules; no separate Chat, Files, or Calendar credentials are needed.';
-
-  @override
-  String get firstRunIdentitySectionTitle => 'Your Weave identity';
-
-  @override
-  String get firstRunIdentitySectionDescription =>
-      'This profile and role come from the Weave backend contract after SSO.';
-
-  @override
-  String get firstRunDisplayNameLabel => 'Name';
-
-  @override
-  String get firstRunUsernameLabel => 'Username';
-
-  @override
-  String get firstRunEmailLabel => 'Email';
-
-  @override
-  String get firstRunRoleLabel => 'Role';
-
-  @override
-  String get firstRunInviteStatusLabel => 'Invite';
-
-  @override
-  String get firstRunRoleOwner => 'Owner';
-
-  @override
-  String get firstRunRoleAdmin => 'Admin';
-
-  @override
-  String get firstRunRoleOperator => 'Operator';
-
-  @override
-  String get firstRunRoleMember => 'Member';
-
-  @override
-  String get firstRunRoleGuest => 'Guest';
-
-  @override
-  String get firstRunRoleUnknown => 'Workspace role';
-
-  @override
-  String get firstRunInviteAccepted => 'Accepted';
-
-  @override
-  String get firstRunInvitePending => 'Pending';
-
-  @override
-  String get firstRunInviteExpired => 'Expired';
-
-  @override
-  String get firstRunInviteUnavailable => 'Unavailable';
-
-  @override
-  String get firstRunModuleSectionTitle => 'Module readiness';
-
-  @override
-  String get firstRunProfileModuleTitle => 'Profile';
-
-  @override
-  String get firstRunChatModuleTitle => 'Chat';
-
-  @override
-  String get firstRunFilesModuleTitle => 'Files';
-
-  @override
-  String get firstRunCalendarModuleTitle => 'Calendar';
-
-  @override
-  String get firstRunStateReady => 'Ready';
-
-  @override
-  String get firstRunStatePending => 'Pending';
-
-  @override
-  String get firstRunStateUnavailable => 'Unavailable';
-
-  @override
-  String get firstRunStateDegraded => 'Degraded';
-
-  @override
-  String get firstRunStateActionNeeded => 'Action needed';
-
-  @override
-  String get firstRunNextStepsTitle => 'Next steps';
-
-  @override
-  String get firstRunProfileReadyGuidance => 'Your profile is ready for Weave.';
-
-  @override
-  String get firstRunProfilePendingGuidance =>
-      'Your profile is still being prepared.';
-
-  @override
-  String get firstRunChatReadyGuidance => 'Chat is ready for this workspace.';
-
-  @override
-  String get firstRunChatPendingGuidance => 'Chat is still being prepared.';
-
-  @override
-  String get firstRunFilesReadyGuidance =>
-      'Files are ready for this workspace.';
-
-  @override
-  String get firstRunFilesPendingGuidance => 'Files are still being prepared.';
-
-  @override
-  String get firstRunCalendarReadyGuidance =>
-      'Calendar is ready for this workspace.';
-
-  @override
-  String get firstRunCalendarPendingGuidance =>
-      'Calendar is still being prepared.';
-
-  @override
-  String get firstRunModuleUnavailableGuidance =>
-      'This Weave capability is not available for this workspace yet.';
-
-  @override
-  String get firstRunModuleDegradedGuidance =>
-      'This Weave capability is available with limited functionality.';
-
-  @override
-  String get firstRunModuleActionNeededGuidance =>
-      'Workspace setup needs admin attention.';
-
-  @override
-  String get firstRunNextStepAdminAttention =>
-      'Workspace setup needs admin attention before every capability is ready.';
-
-  @override
-  String get firstRunRefreshButton => 'Refresh status';
-
-  @override
-  String get firstRunContinueButton => 'Continue to chat';
 
   @override
   String get chatProvisioningReadyTitle => 'Chat is ready';
@@ -539,18 +318,51 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatScreenTitle => 'Chat';
 
   @override
+  String get chatCreateConversationAction => 'Start conversation';
+
+  @override
+  String get chatCreateConversationTitle => 'Start an encrypted conversation';
+
+  @override
+  String get chatCreateConversationDescription =>
+      'Give this workspace conversation a clear name. Weave creates it through the organization Chat facade and enables encryption from the first event.';
+
+  @override
+  String get chatCreateConversationNameLabel => 'Conversation name';
+
+  @override
+  String get chatCreateConversationNameHint => 'For example, Release planning';
+
+  @override
+  String get chatCreateConversationNameRequired =>
+      'Enter a name between 1 and 200 characters.';
+
+  @override
+  String get chatCreateConversationCancel => 'Cancel';
+
+  @override
+  String get chatCreateConversationSubmit => 'Create conversation';
+
+  @override
+  String get chatCreateConversationSubmitting => 'Creating…';
+
+  @override
+  String get chatCreateConversationFailure =>
+      'The encrypted conversation could not be created. Your other Chat areas remain available; try again when the connection is back.';
+
+  @override
   String get chatOverviewTitle => 'Weave Home';
 
   @override
   String get chatOverviewDescription =>
-      'Your personal messages, favorites, channels, and AI chats are grouped here so the workspace starts from intent instead of a flat room list.';
+      'Your personal messages, favorites, and channels are grouped here so the workspace starts from intent instead of a flat room list.';
 
   @override
   String get chatHomeHeroTitle => 'Your organization workspace';
 
   @override
   String get chatHomeHeroDescription =>
-      'Start with messages, channel workspaces, and governed AI areas that are actually available to you.';
+      'Start with messages and channel workspaces that are actually available to you.';
 
   @override
   String chatHomeUnreadMetric(int count) {
@@ -589,20 +401,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String chatHomeAiMetricReady(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count governed AI chats',
-      one: '1 governed AI chat',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get chatHomeAiMetricDisabled => 'AI governed by workspace policy';
-
-  @override
   String get chatHomeContinueButton => 'Open next work item';
 
   @override
@@ -622,11 +420,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatFavoritesSectionDescription =>
-      'Pinned people, channels, and AI chats you want to reach first.';
+      'Pinned people and channels you want to reach first.';
 
   @override
   String get chatFavoritesSectionEmpty =>
-      'No favorites yet. Important direct messages, channels, and AI chats marked as favorites stay here.';
+      'No favorites yet. Important direct messages and channels marked as favorites stay here.';
 
   @override
   String get chatPersonalMessagesSectionTitle => 'Personal messages';
@@ -648,98 +446,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatChannelsSectionEmpty => 'No channels are available yet.';
-
-  @override
-  String get chatAiChatsSectionTitle => 'AI chats';
-
-  @override
-  String get chatAiChatsSectionDescription =>
-      'Specialized assistant and agent chats live in their own area.';
-
-  @override
-  String get chatAiChatsSectionEmpty =>
-      'AI chats are not enabled for this workspace. A workspace owner or admin can enable governed assistants after policy, consent, and audit controls are ready.';
-
-  @override
-  String get chatAgentGovernanceTitle =>
-      'Agent chats are governed by your workspace';
-
-  @override
-  String get chatAgentGovernanceDescription =>
-      'Agents can help inside Weave only after an owner or admin enables a package, chooses scopes, and keeps consent and audit visible.';
-
-  @override
-  String get chatAgentContextPackTitle => 'Context pack before action';
-
-  @override
-  String get chatAgentContextPackDescription =>
-      'When an agent is available, Weave will show what context is sent for this request before the agent uses it.';
-
-  @override
-  String get chatAgentContextPackScopedBullet =>
-      'Context is scoped to a selected chat, file, calendar event, board, or explicit workspace source.';
-
-  @override
-  String get chatAgentContextPackConsentBullet =>
-      'You will see permission hints before starting or approving an agent action.';
-
-  @override
-  String get chatAgentContextPackNoSurveillanceBullet =>
-      'Agents do not continuously read rooms in the background.';
-
-  @override
-  String get chatAgentGovernanceAuditNote =>
-      'Agent creation, context access, tool/action execution, approval, and revocation must be audit-ready before runtime enablement.';
-
-  @override
-  String get chatAgentAvailabilityPreview => 'Disabled by policy';
-
-  @override
-  String get chatAgentAvailabilityAdminSetup => 'Admin setup required';
-
-  @override
-  String get chatAgentAvailabilityBlocked => 'Blocked by policy';
-
-  @override
-  String get chatAgentPersonalAssistantTitle => 'Personal assistant';
-
-  @override
-  String get chatAgentPersonalAssistantDescription =>
-      'A private assistant chat for drafting, summaries, and reminders can be enabled only after workspace policy, consent, and audit controls are ready.';
-
-  @override
-  String get chatAgentChannelAgentTitle => 'Channel agent';
-
-  @override
-  String get chatAgentChannelAgentDescription =>
-      'A helper for a channel or project space can be enabled only through an admin-approved package.';
-
-  @override
-  String get chatAgentPersonalScope =>
-      'Uses only context you choose for the current request; workspace policy decides which skills are available.';
-
-  @override
-  String get chatAgentPersonalBoundary =>
-      'No continuous room reading; a context pack is assembled only after you start or approve a request.';
-
-  @override
-  String get chatAgentPersonalAudit =>
-      'Creation, context access, tool use, and permission changes will be auditable before runtime use.';
-
-  @override
-  String get chatAgentChannelScope =>
-      'An owner or admin must enable the package and choose allowed chat, files, calendar, and board scopes.';
-
-  @override
-  String get chatAgentChannelBoundary =>
-      'The agent sees named spaces and explicit context packs, not every message in the workspace.';
-
-  @override
-  String get chatAgentChannelAudit =>
-      'Approvals, revocations, and action attempts stay visible to admins without exposing secrets to the app.';
-
-  @override
-  String get chatAgentStartDisabledButton => 'Unavailable until enabled';
 
   @override
   String get chatLoadingLabel => 'Loading conversations…';
@@ -1218,6 +924,47 @@ class AppLocalizationsEn extends AppLocalizations {
       'Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.';
 
   @override
+  String get settingsSupportDiagnosticsTitle => 'Support diagnostics';
+
+  @override
+  String get settingsSupportDiagnosticsDescription =>
+      'Use these values to confirm which server and immutable app candidate are installed. They contain no session tokens or provider credentials.';
+
+  @override
+  String get settingsSupportServerLabel => 'Workspace server';
+
+  @override
+  String get settingsSupportCandidateCommitLabel => 'Candidate commit';
+
+  @override
+  String get settingsSupportVersionLabel => 'Version and build';
+
+  @override
+  String get settingsSupportBundleIdentifierLabel => 'Application identifier';
+
+  @override
+  String get settingsSupportEvidenceReferenceLabel => 'Evidence reference';
+
+  @override
+  String get settingsSupportIdentityComplete =>
+      'Candidate identity is complete';
+
+  @override
+  String get settingsSupportIdentityIncomplete =>
+      'Candidate metadata is incomplete; this build cannot satisfy the installed-candidate gate.';
+
+  @override
+  String get settingsSupportValueLoading => 'Loading…';
+
+  @override
+  String get settingsSupportValueUnavailable => 'Not embedded in this build';
+
+  @override
+  String settingsSupportVersionValue(String version, String buildNumber) {
+    return '$version ($buildNumber)';
+  }
+
+  @override
   String get settingsThemeTitle => 'Appearance';
 
   @override
@@ -1433,11 +1180,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsShellRecentActivityToggleTitle =>
-      'Recent activity quick links';
+      'Recent workspace activity';
 
   @override
   String get settingsShellRecentActivityToggleDescription =>
-      'Show recent rooms and file changes above the bottom navigation.';
+      'Show generic completed activity that your workspace permissions allow you to view.';
 
   @override
   String get settingsShellModulesLoading => 'Loading shell module preferences…';
@@ -1881,15 +1628,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsWorkspaceMatrixServerBodiesReadable => 'Review';
-
-  @override
-  String get settingsWorkspaceMatrixAgentWritesLabel => 'Agent writes';
-
-  @override
-  String get settingsWorkspaceMatrixAgentWritesBlocked => 'Blocked/fail-closed';
-
-  @override
-  String get settingsWorkspaceMatrixAgentWritesReview => 'Review policy';
 
   @override
   String get settingsWorkspaceCapabilityReady => 'Ready';
@@ -2500,54 +2238,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Review archived messages to restore one, or wait here for new messages.';
 
   @override
-  String get chatRoomContextPackTitle => 'Context for this room';
-
-  @override
-  String get chatRoomContextPackDescription =>
-      'Weave will only include scoped context that you can see here, such as this room, selected files, linked tasks, and recent decisions.';
-
-  @override
-  String chatRoomContextPackCounts(int includedCount, int availableCount) {
-    String _temp0 = intl.Intl.pluralLogic(
-      includedCount,
-      locale: localeName,
-      other: '$includedCount sources included',
-      one: '1 source included',
-      zero: 'No sources included',
-    );
-    String _temp1 = intl.Intl.pluralLogic(
-      availableCount,
-      locale: localeName,
-      other: '$availableCount optional sources available',
-      one: '1 optional source available',
-      zero: 'No optional sources available',
-    );
-    return '$_temp0. $_temp1.';
-  }
-
-  @override
-  String get chatRoomContextPackNoBackgroundReading =>
-      'No agent is reading this room in the background.';
-
-  @override
-  String get chatRoomContextCurrentRoomLabel => 'Current room';
-
-  @override
-  String get chatRoomContextSelectedFilesLabel => 'Selected files';
-
-  @override
-  String get chatRoomContextLinkedTasksLabel => 'Linked tasks';
-
-  @override
-  String get chatRoomContextRecentDecisionsLabel => 'Recent decisions';
-
-  @override
-  String get chatRoomContextIncludedStatus => 'Included';
-
-  @override
-  String get chatRoomContextAvailableStatus => 'Available when selected';
-
-  @override
   String get chatDecisionEvidencePanelTitle =>
       'Decisions, risks, questions, and evidence';
 
@@ -2690,96 +2380,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatDecisionEvidenceCaptureEvidenceAction => 'Capture as evidence';
 
   @override
-  String get chatWeaverScoutPanelTitle => 'Weaver scout';
-
-  @override
-  String get chatWeaverScoutPanelDescription =>
-      'Ask for channel context from allowed sources only. Sprint 4 Weaver is read-only and proposal-first; it cannot change room data silently.';
-
-  @override
-  String get chatWeaverScoutReadOnlyStatus => 'Read-only';
-
-  @override
-  String get chatWeaverScoutProposalOnlyStatus => 'Proposal only';
-
-  @override
-  String get chatWeaverScoutReceiptStatus => 'Receipt required';
-
-  @override
-  String get chatWeaverScoutCapabilitiesTitle => 'What Weaver may do';
-
-  @override
-  String get chatWeaverScoutSourcesTitle => 'Allowed sources';
-
-  @override
-  String get chatWeaverScoutApprovalReceiptsRequired =>
-      'Any future write or team-room mutation must create an approval receipt with actor, requested action, approved action, target, timestamp, and result category.';
-
-  @override
-  String get chatWeaverScoutSummarizeCapability => 'Summarize allowed context';
-
-  @override
-  String get chatWeaverScoutCiteSourcesCapability => 'Cite sources';
-
-  @override
-  String get chatWeaverScoutProposeOnlyCapability => 'Draft proposals only';
-
-  @override
-  String get chatWeaverScoutApprovalReceiptCapability =>
-      'Require approval receipts';
-
-  @override
-  String get chatWeaverScoutSummarizeDescription =>
-      'Summarize only explicitly allowed channel context.';
-
-  @override
-  String get chatWeaverScoutCiteSourcesDescription =>
-      'Cite messages, files, tasks, meetings, and decisions.';
-
-  @override
-  String get chatWeaverScoutProposeOnlyDescription =>
-      'Draft or propose actions without mutating team data.';
-
-  @override
-  String get chatWeaverScoutApprovalReceiptDescription =>
-      'Require approval receipts for any future write path.';
-
-  @override
-  String get chatWeaverScoutMessageSourceLabel => 'Explicit channel messages';
-
-  @override
-  String get chatWeaverScoutMessageSourceExcerpt =>
-      'Messages selected or allowed by the member context policy.';
-
-  @override
-  String get chatWeaverScoutDecisionSourceLabel => 'Decision ledger';
-
-  @override
-  String get chatWeaverScoutDecisionSourceExcerpt =>
-      'Captured decisions with source references.';
-
-  @override
-  String get chatWeaverScoutFileSourceLabel => 'Shared files';
-
-  @override
-  String get chatWeaverScoutFileSourceExcerpt =>
-      'File names and support-safe metadata visible to the member.';
-
-  @override
-  String get chatWeaverScoutTaskSourceLabel => 'Open tasks';
-
-  @override
-  String get chatWeaverScoutTaskSourceExcerpt =>
-      'Task status and follow-up links visible to the member.';
-
-  @override
-  String get chatWeaverScoutMeetingSourceLabel => 'Meeting capsules';
-
-  @override
-  String get chatWeaverScoutMeetingSourceExcerpt =>
-      'Agenda and follow-up references, not recordings or transcripts.';
-
-  @override
   String get filesEmptyMessage => 'No files yet';
 
   @override
@@ -2842,7 +2442,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serverConfigurationServicesHelper =>
-      'Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.';
+      'The Matrix facade is fixed to the backend API origin. Files and backend product endpoints are derived from the issuer host.';
 
   @override
   String get serverConfigurationBackendApiHelper =>
@@ -2856,7 +2456,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.';
 
   @override
-  String get serverConfigurationMatrixLabel => 'Matrix Homeserver URL';
+  String get serverConfigurationMatrixLabel => 'Weave Matrix Facade URL';
 
   @override
   String get serverConfigurationNextcloudLabel => 'Nextcloud Base URL';
@@ -3467,7 +3067,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get boardsWorkspaceBackendFedChip => 'Backend facade fed';
 
   @override
-  String get boardsWorkspaceProviderBlockedChip => 'Provider runtime blocked';
+  String get boardsWorkspaceProviderBlockedChip => 'Boards unavailable';
 
   @override
   String get boardsWorkspaceStaticFixtureChip => 'Static fixture workspace';
@@ -3602,152 +3202,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chatContextAgentHintDescription =>
       'Assistants receive only the scoped pack for the request, mention, or schedule.';
-
-  @override
-  String get firstRunAdminSetupTitle => 'Owner/admin setup responsibilities';
-
-  @override
-  String get firstRunAdminSetupDescription =>
-      'Your role can manage workspace setup. Use admin settings for organization access, invitations, capability readiness, and recovery tasks; normal members should only need one Weave sign-in.';
-
-  @override
-  String get agentCapabilityPolicyTitle => 'AI agent capability governance';
-
-  @override
-  String get agentCapabilityPolicyAdminDescription =>
-      'Owners and admins decide which agent packages and connectors can be used. This capability stays off until permission, consent, and audit controls are connected.';
-
-  @override
-  String get agentCapabilityPolicyUserDescription =>
-      'AI agent chats are not enabled for this workspace yet. You can keep using Weave normally; an owner or admin must turn this on first.';
-
-  @override
-  String get agentCapabilityPolicyFailClosedNotice =>
-      'Agent capabilities are blocked until Weave can confirm your role and the workspace policy.';
-
-  @override
-  String get agentCapabilityPolicyManageDisabledButton =>
-      'Management unavailable until admin setup is complete';
-
-  @override
-  String get agentCapabilityPolicyAskAdminHint =>
-      'Need an agent for your team? Ask a workspace owner or admin to review agent capabilities when they are available.';
-
-  @override
-  String get agentCapabilityPolicyAdminStateHint =>
-      'Current state: disabled by policy. Owner/admin review is required before users can start an agent.';
-
-  @override
-  String get agentCapabilityPersonalAssistantTitle => 'Personal assistant';
-
-  @override
-  String get agentCapabilityPersonalAssistantDescription =>
-      'Will only use context you choose for a request, after your workspace enables the capability.';
-
-  @override
-  String get agentCapabilityChannelAgentTitle => 'Channel agent';
-
-  @override
-  String get agentCapabilityChannelAgentDescription =>
-      'Requires an owner or admin to choose which channels, files, calendar items, or boards the agent may use.';
-
-  @override
-  String get agentCapabilityAvailabilityPreviewOnly => 'Admin setup required';
-
-  @override
-  String get agentCapabilityAvailabilityAdminSetupRequired =>
-      'Admin setup required';
-
-  @override
-  String get agentCapabilityAvailabilityBlocked => 'Blocked';
-
-  @override
-  String get agentCapabilityPolicyErrorTitle =>
-      'Agent capability policy is unavailable.';
-
-  @override
-  String get agentCapabilityPolicyLoading =>
-      'Checking agent capability policy…';
-
-  @override
-  String get weaverMemberTitle => 'Mein Weaver';
-
-  @override
-  String get weaverMemberUnavailableTitle => 'Weaver unavailable';
-
-  @override
-  String get weaverMemberDescription =>
-      'Choose from admin-approved model aliases and review the personal settings your workspace policy allows.';
-
-  @override
-  String get weaverMemberUnavailableDescription =>
-      'Your workspace has not enabled a governed Weaver profile for this account.';
-
-  @override
-  String get weaverMemberStatusAvailable => 'Enabled by policy';
-
-  @override
-  String get weaverMemberStatusDisabled => 'Disabled by policy';
-
-  @override
-  String get weaverMemberStatusUnavailable => 'Unavailable';
-
-  @override
-  String get weaverMemberLoading => 'Checking Weaver policy…';
-
-  @override
-  String get weaverMemberModelAliasTitle => 'Model alias';
-
-  @override
-  String get weaverMemberModelAliasDescription =>
-      'Only aliases approved by your workspace policy are shown here.';
-
-  @override
-  String get weaverMemberWorkspaceDefaultAlias => 'Workspace default';
-
-  @override
-  String get weaverMemberApprovedByAdmin => 'Approved by workspace policy';
-
-  @override
-  String get weaverMemberPersonalSettingsTitle => 'Personal settings';
-
-  @override
-  String get weaverMemberStyleSetting => 'Style preferences';
-
-  @override
-  String get weaverMemberMemorySetting => 'Memory controls';
-
-  @override
-  String get weaverMemberWorkspaceSetting => 'Workspace personalization';
-
-  @override
-  String get weaverMemberSettingAllowed => 'Allowed for your profile';
-
-  @override
-  String get weaverMemberSettingDisabled => 'Not enabled for your profile';
-
-  @override
-  String get weaverMemberAllowedSkillsTitle => 'Allowed skills';
-
-  @override
-  String get weaverMemberNoAllowedSkills =>
-      'No optional skills are enabled for your profile.';
-
-  @override
-  String get weaverMemberAllowedConnectionsTitle =>
-      'Allowed personal connections';
-
-  @override
-  String get weaverMemberNoAllowedConnections =>
-      'No personal connection flows are enabled for your profile.';
-
-  @override
-  String get weaverMemberBoundaryNotice =>
-      'Administration of providers, credentials, connector setup, and runtime files stays outside member settings; members only see policy-approved choices.';
-
-  @override
-  String get weaverMemberDisabledBoundaryNotice =>
-      'No provider secrets or runtime configuration are exposed. Contact your workspace owner if you expected Weaver access.';
 
   @override
   String get workflowPreviewTitle => 'Active workflows';
@@ -4064,59 +3518,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get channelWorkspaceStatusDegraded => 'degraded';
 
   @override
-  String get agentCapabilityAvailabilityDisabledByPolicy =>
-      'Disabled by policy';
-
-  @override
-  String get chatWeaverBetaTitle => 'Weaver Beta helper';
-
-  @override
-  String get chatWeaverBetaDescription =>
-      'Weaver stays inside this Weave workspace and can only use approved capabilities. Members see approved Weave actions, not internal runtime catalogs.';
-
-  @override
-  String get chatWeaverBetaConnectedState => 'Connected';
-
-  @override
-  String get chatWeaverBetaUnconnectedState => 'Unconnected';
-
-  @override
-  String get chatWeaverBetaEnabledState => 'Weaver enabled';
-
-  @override
-  String get chatWeaverBetaDisabledState => 'Weaver disabled';
-
-  @override
-  String get chatWeaverBetaCapabilityUnavailableState =>
-      'Capability unavailable';
-
-  @override
-  String get chatWeaverBetaApprovalRequiredState =>
-      'Approval required for sensitive actions';
-
-  @override
-  String get chatWeaverBetaDeniedFailedState => 'Denied or failed safely';
-
-  @override
-  String get chatWeaverBetaSupportSafeResult =>
-      'Results show a summary, status, and audit reference only; secrets and raw provider payloads stay out of the member view.';
-
-  @override
-  String chatWeaverBetaSemanticLabel(
-    String personalState,
-    String channelState,
-    String connectionState,
-  ) {
-    return 'Weaver Beta helper. Personal helper: $personalState. Channel helper: $channelState. Workspace connection: $connectionState. Results are support-safe and do not expose secrets or raw provider payloads.';
-  }
-
-  @override
   String get setupMemberHandoffTitle =>
       'Join from an invite or organization sign-in';
 
   @override
   String get setupMemberHandoffDescription =>
-      'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.';
+      'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you for technical service settings.';
+
+  @override
+  String get setupOrganizationUriLabel =>
+      'Server URI, invitation link, or QR payload';
+
+  @override
+  String get setupOrganizationUriHelper =>
+      'Paste the link from your email or QR code, or enter your organization\'s Weave address.';
+
+  @override
+  String get setupOrganizationUriError =>
+      'Enter a secure Weave server URI or invitation link without embedded credentials.';
+
+  @override
+  String get setupOrganizationContinueButton => 'Continue to organization';
+
+  @override
+  String get setupOrganizationAccessHelp =>
+      'Your invitation email and organization QR code contain the same Weave address. After it is verified, the next screen always offers Sign in.';
 
   @override
   String get setupMemberHandoffPrimaryAction =>
@@ -4160,6 +3586,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get memberHandoffErrorGuidance =>
       'The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.';
+
+  @override
+  String get memberHandoffSignInRetryGuidance =>
+      'Sign-in did not complete. Try again in the system browser or ask your workspace admin to verify your access.';
 
   @override
   String get memberHandoffTlsErrorGuidance =>

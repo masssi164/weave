@@ -13,14 +13,14 @@ For the default local tenant (`matrix.weave.test`):
 | General room | `general` | `#general:matrix.weave.test` |
 | Help room | `help` | `#help:matrix.weave.test` |
 
-For a non-local tenant, replace `matrix.weave.test` with `matrix.<tenant_domain>` or the configured `TF_VAR_matrix_subdomain`.`TF_VAR_tenant_domain` value.
+For a non-local tenant, replace `matrix.weave.test` with the `WEAVE_MATRIX_URL` authority from the reviewed profile environment.
 
 ## Access policy in this slice
 
-- The configured local/dev owner/admin Matrix account localpart defaults to `TF_VAR_keycloak_admin_username` (`admin`) and is joined to the workspace space plus all default rooms.
+- The configured local/dev provisioning account is joined to the workspace space plus all default rooms; its credential remains a private generated runtime input.
 - `announcements` keeps `events_default=50`, so normal members cannot post by default; owner/admin can post.
 - `general` and `help` keep normal member posting enabled.
-- When `TF_VAR_create_test_user=true`, the local smoke-test Matrix member (`test`) is created and joined to `announcements`, `general`, and `help` so smoke/E2E can verify the default member path. To avoid Synapse's cold-stack invite rate limit, provisioning briefly opens each default room for that member's Client-Server API join and immediately restores the invite-only policy.
+- Disposable E2E members are created only inside the exact isolated namespace and joined through the normal Matrix client path; persistent profiles have no static test-member flag.
 - Guest auto-join is intentionally disabled. Guests require an explicit invite/resource permission until role-driven Matrix membership automation lands.
 - Keycloak emits distinct owner/admin/member/guest realm roles and role-mapped workspace groups for backend/app policy checks. Matrix room membership is still intentionally not synchronized from those roles in single-host operator path; this slice only pre-provisions the local/dev default structures and optional smoke-test member.
 
@@ -28,19 +28,19 @@ For a non-local tenant, replace `matrix.weave.test` with `matrix.<tenant_domain>
 
 The current Synapse/MAS stack delegates Matrix authentication to Matrix Authentication Service (MAS), so the default workspace provisioner does **not** use Synapse shared-secret admin registration. Instead, `provision-matrix-default-workspace.sh` preflights the running MAS container, registers the local provisioning users with `mas-cli`, reconciles admin policy for existing users on reruns, issues MAS compatibility tokens, and validates each token against Synapse `/_matrix/client/v3/account/whoami` before any Matrix Client-Server API room creation.
 
-The generated MAS config disables password authentication (`passwords.enabled=false`). Provisioning therefore creates MAS users without `--password`/`set-password`; the room setup path authenticates only through compatibility tokens stored in the private generated bootstrap environment. MAS CLI user arguments are Matrix localparts/usernames such as `admin`, not full MXIDs such as `@admin:matrix.weave.test`.
+The generated MAS config disables password authentication (`passwords.enabled=false`). Provisioning therefore creates MAS users without `--password`/`set-password`; the room setup path authenticates only through short-lived compatibility tokens retained inside the private generated boundary. MAS CLI user arguments are Matrix localparts/usernames, not full MXIDs.
 
 By default the MAS container is `weave-mas`. Override `WEAVE_MATRIX_MAS_CONTAINER_NAME` only if the deployment intentionally uses a different container name. If MAS is not running, the image does not provide `mas-cli`, or Synapse rejects a freshly issued compatibility token, provisioning fails before room creation with an actionable error. Matrix API calls also retry transient rate-limit/service-unavailable responses.
 
 ## E2EE posture in this slice
 
-Matrix E2EE is active architecture scope but not complete. The current default workspace rooms remain unencrypted, and backend platform config must keep `features.chatE2ee=false` until encrypted-room, device-verification, and key-backup/recovery validation exists. `operator-check.sh` and `smoke-test.sh` use the private Matrix provisioner token to verify that default rooms do not carry `m.room.encryption` state. They also collect the provisioner-account key-backup response as a diagnostic only; that account state is not a global E2EE recovery-readiness claim.
+Matrix E2EE is active architecture scope but not complete. The current default workspace rooms remain unencrypted, and backend platform status must keep `matrix.e2eeEnabled=false` until encrypted-room, device-verification, and key-backup/recovery validation exists. `operator-check.sh` and `smoke-test.sh` use the private Matrix provisioner token to verify that default rooms do not carry `m.room.encryption` state. They also collect the provisioner-account key-backup response as a diagnostic only; that account state is not a global E2EE recovery-readiness claim.
 
 See `docs/matrix-e2ee-posture.md` for the promotion gates, support-safe metadata boundary, and bot/assistant/connector fail-closed policy for encrypted rooms.
 
 ## Secret handling
 
-The script stores MAS compatibility access tokens only in the private `weave-workspace/.generated/bootstrap.env` file. It does not print Matrix access tokens. `support-bundle.sh` does not include these private values and its redaction check treats token/secret/password patterns as failures.
+The script keeps MAS compatibility access tokens only inside the private generated runtime boundary. It does not print them. `support-bundle.sh` excludes the boundary and treats token/secret/password patterns as failures.
 
 ## Verification
 
@@ -49,7 +49,7 @@ After install:
 ```bash
 cd weave-workspace
 ./operator-check.sh
-TF_VAR_create_test_user=true ./smoke-test.sh
+./smoke-test.sh
 ```
 
 `operator-check.sh` verifies the stable aliases resolve. `smoke-test.sh` also verifies that the default rooms are attached to the workspace space and that `announcements` posting is owner/admin-limited by default.

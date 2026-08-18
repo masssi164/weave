@@ -1,0 +1,24 @@
+group = 'com.massimotter.weave'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+dependencies {
+    api project(':weave-application-core')
+    implementation platform(libs.spring.boot.bom)
+    implementation 'org.springframework.security:spring-security-oauth2-jose'
+    implementation 'tools.jackson.core:jackson-databind'
+    implementation libs.jcs
+
+    testImplementation platform(libs.spring.boot.bom)
+    testImplementation libs.archunit.junit5
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xlint:deprecation']
+}

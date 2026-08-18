@@ -33,9 +33,9 @@ class StaticBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
           ),
           BoardTaskWorkspace(
             id: 'provider-spike',
-            title: 'Vikunja adapter spike',
+            title: 'Adapter readiness check',
             description:
-                'Map Vikunja projects, tasks, labels, comments, and errors into the Weave board model.',
+                'Verify projects, tasks, labels, comments, and errors through the Weave board contract.',
             status: BoardTaskStatus.notStarted,
             assigneeLabel: 'Platform',
             dueLabel: 'Dogfood production',

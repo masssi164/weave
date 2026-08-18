@@ -8,7 +8,7 @@ Every provider adapter must publish a support-safe manifest before it can back a
 
 | Field | Requirement |
 | --- | --- |
-| `adapterKey` | Stable adapter identifier, e.g. `keycloak-realm`, `openproject-primary`, `livekit`, or `nextcloud-files`. |
+| `adapterKey` | Stable southbound adapter identifier, e.g. `matrix-synapse`, `openproject-primary`, `livekit`, or `nextcloud-files`; platform identity is not an adapter category. |
 | `domain` | One canonical domain, or an explicit list when the adapter spans domains. |
 | `apiProfile` | Standards/API profile used by the adapter, such as OIDC, SAML, SCIM, CalDAV, WebDAV, Matrix Client-Server, OpenProject REST, LiveKit token API, or provider Graph API. |
 | `canonicalObjects` | Canonical object kinds the adapter can read, write, or link. |
@@ -40,35 +40,43 @@ Provider changes and migrations must produce machine-readable and reviewer-reada
 
 - **Export report**: source objects discovered, immutable IDs, counts, redacted samples, permissions, attachments/binaries, versions, references, rate-limit notes, and unsupported provider features.
 - **Import report**: target feasibility, object mapping, generated target IDs, skipped objects, idempotency keys, and post-import validation.
+- **ImportFeasibilityReport**: whether apply is feasible, feasible only after explicit manual review, or blocked.
 - **Lossy report**: every unsupported field, permission, workflow transition, recurrence rule, comment, attachment, version, lock, or provider-native feature that cannot be preserved as-is.
 - **Conflict report**: duplicate identities, existing target objects, renamed/deleted source objects, concurrent updates, last-admin guards, membership mismatches, and required admin choices.
-- **Rollback/retention report**: rollback feasibility, retained provider data, retention/legal-hold boundary, and manual remediation steps.
+- **PermissionImpactReport**: ownership, sharing, role, and visibility consequences of the proposed transition.
+- **RollbackRetentionReport**: rollback feasibility, retained provider data, retention/legal-hold boundary, restore-smoke requirements, and manual remediation steps.
 
 A provider switch may be shown to members only as stable capability state and impact copy. Admins/operators see the reports, readiness cards, and next actions in the Admin Console or operator evidence bundle.
 
-## Sprint 11 Nextcloud Files and Calendar portability evidence
+## Native OS integration boundary
 
-The first release-quality Nextcloud path uses backend actor adapters. Member-facing clients consume Weave Files and Calendar states only; provider URLs, app passwords, actor usernames, raw WebDAV/CalDAV bodies, and raw provider paths stay out of member errors.
+Native OS integrations sit above the provider adapter layer. The governing decision is [Domain facade protocol projections](domain-facade-protocol-projections.md): Weave domain facades are product truth, while WebDAV, CalDAV/iCalendar, Matrix, OpenAPI, native OS extensions/providers, and MCP tools are projections or adapters over that truth.
 
-| Domain | Export/import portability | Lossy or blocked fields | Deletion and conflict safety | Readiness evidence |
-| --- | --- | --- | --- | --- |
-| Files via Nextcloud WebDAV | Portable objects are folders, files, MIME type, byte size, modified timestamp, quota used/total, and opaque Weave file IDs derived from normalized product paths. Import may recreate folders and upload file bytes through the backend actor. | Provider-native shares, versions, locks, comments, tags, external links, and retention/legal-hold metadata require a lossy report before adapter replacement. | Path traversal and invalid identifiers are rejected before a WebDAV request. Permission, lock, quota, not-found, auth, and unavailable responses map to stable product errors; delete conflicts are surfaced as refresh-and-retry conflicts rather than raw provider failures. | Admin readiness must prove backend actor credentials, WebDAV route, quota/status access, and write/delete scope without returning the actor username, app password, base URL, or raw response body to members. |
-| Calendar via Nextcloud CalDAV | Portable objects are scoped workspace/team/channel events with title, description, start/end, timezone, location, all-day state, attendees, ETag, updated timestamp, and opaque Weave event IDs. Import may PUT iCalendar VEVENT resources through backend actor collections. | Recurrence (`RRULE`, `RDATE`, `EXDATE`) is explicitly blocked until the Weave recurrence contract preserves intent. Provider alarms, attachments, organizer delegation, resources, and free/busy semantics require a lossy report. | Event IDs are scoped opaque IDs; reading through the wrong scope is rejected. Downstream auth, not-found, conflict, invalid response, and unavailable states map to stable calendar errors with provider paths redacted. | Admin readiness must prove CalDAV collection access, backend actor auth, scoped collection creation/read/write/delete, and credential setup safety without exposing passwords, tokens, user IDs, base URLs, or raw provider errors to members. |
+## Keycloak realm lifecycle
 
-## Keycloak desired-state dry-run direction
+Platform identity is not a provider-switch category. Keycloak is the fixed identity authority and follows the canonical lifecycle documented in [Keycloak realm lifecycle](keycloak-realm-lifecycle.md).
 
-Sprint 8 identity work uses Keycloak as the concrete desired-state dry-run profile. The dry-run must compare a desired realm/client/role/group mapping with the current support-safe snapshot and report planned create/update/delete/no-op actions without mutating a live realm.
+The static IAM model has one semantic source owned by `infra/weave-workspace/keycloak`. Candidate Cut binds only the environment-neutral semantic realm revision and migration-definition digest. Each environment then renders its own secret-free RealmRepresentation from that candidate definition plus environment coordinates and environment-owned public JWKS.
 
-Minimum dry-run evidence:
+The post-import FGAP operation has two distinct qualification paths:
 
-- realm/client presence and redirect/origin policy status;
-- role/group mapping to Weave capability profiles;
-- last-admin and lockout protection;
-- immutable subject strategy and email-rename handling;
-- raw secret and provider-payload redaction;
-- audit event names for dry-run and any future guarded apply.
+- **proven-empty Fresh Start / disposable E2E**: startup import establishes the new realm and the bounded FGAP operation is authorized by machine-verifiable empty-state or Fresh-Start plan/apply evidence; no artificial backup of the new empty realm is required;
+- **existing non-empty dogfood/prod realm**: static IAM changes require an explicit versioned migration bound to current/target semantic digests, private backup, and isolated restore rehearsal before mutation.
 
-Apply remains out of scope until readiness, approval, rollback, and audit gates exist.
+In both cases the operation must finish with semantic readback, an empty second plan, deletion of temporary bootstrap authority, negative readback proving that authority is gone, and support-safe receipt evidence. Normal Server startup never reconciles static realm structure.
+
+Minimum realm evidence:
+
+- candidate `semanticRealmSourceDigest` and `migrationDefinitionDigest`;
+- environment `overlayDigest` and `renderedRealmDigest`;
+- realm/client/organization/group/role/scope/mapper/required-action/service-account posture;
+- exact native Organization groups `/owners`, `/admins`, `/members`, `/guests` and `/capabilities/weaver`;
+- workload-only client and service-account boundaries;
+- semantic readback digest and `semanticReadbackVerified=true`;
+- stable same-environment render evidence;
+- raw secret, private key, token, cookie, SecretRef payload, and provider-payload redaction.
+
+Routine startup verifies completed migration/readback evidence and starts product services. Destructive recovery, implicit secret rotation, general-purpose `kcadm`, startup reconciliation, and a second static IAM authority are explicitly not compatibility paths.
 
 ## Sprint 12 provider portability schema v2
 
@@ -82,23 +90,3 @@ Sprint 12 upgrades the portability vocabulary from coarse loss classes to field-
 - `archive_only`: the field is preserved in a support-safe archive but is not imported into the target provider.
 
 The v2 contract is intentionally evidence-first: Weave promises **no unaccounted data loss**, not lossless migration. Release claims must not market “lossless migration”; every unsupported, lossy, vendor-locked, or archive-only field must be counted in support-safe evidence before apply can proceed.
-
-### Machine-readable v2 reports
-
-The canonical schemas live under `server/src/main/resources/contracts/portability/` and are checked by `./gradlew portabilityContractCheck`:
-
-- `ProviderAdapterManifest` declares adapter capabilities, readiness checks, unsupported fields, limits, audit events, and secret boundaries.
-- `ProviderMapping` maps source provider objects to Weave canonical objects and target adapter objects with v2 field classes.
-- `ExportManifest` records object counts, content hashes, mapping references, and audit references.
-- `ImportManifest` records target import feasibility and links to dry-run evidence.
-- `ImportFeasibilityReport` classifies whether apply is feasible, feasible with manual review, or blocked.
-- `LossyMappingReport` counts lossy fields and requires approval.
-- `ConflictReport` lists conflicts that must be resolved before apply.
-- `PermissionImpactReport` explains ownership, share, role, and visibility consequences without raw provider identifiers.
-- `ArchiveManifest` lists support-safe archive references and content hashes.
-- `RollbackRetentionReport` records rollback archive retention and restore-smoke requirements.
-- `MigrationRun` and `MigrationAuditRef` bind the reports into the server-side apply gate.
-
-### Domain dry-run fixtures
-
-Redacted Sprint 12 fixtures in `specs/0006-portability-contract/` cover Files, Calendar, Boards, and Chat. Negative fixtures reject silent drops and raw provider leaks. Admin Console and release evidence may render only stable product states such as `available`, `not_configured`, `guarded`, `manual_review_required`, `blocked`, and `unavailable`; member impact previews must never expose raw provider identifiers, URLs, tokens, payloads, or downstream error bodies.

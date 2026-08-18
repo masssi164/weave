@@ -42,7 +42,7 @@ The profile contract in `release/bootstrap-foundation/environment-profiles.v1.js
 
 ## Bootstrap state machine
 
-1. `init` — operator chooses source repo and target provider lane, such as GitHub, local Forgejo, GitLab, Azure DevOps, or another supported CI/GitOps target.
+1. `init` — operator chooses the GitHub source repository and the GitHub Actions delivery lane, or a local-shell engineering path that cannot satisfy release evidence.
 2. `plan` — bootstrap selects profile and domain modes: `deploy_new`, `attach_existing`, or `hybrid`.
 3. `preflight` — Weave Server/Control validates policy, SecretRef/CredentialRef presence, redaction, target readiness, profile compatibility, and member impact.
 4. `approval_required` — any mutation waits for explicit approval and clear consequence/rollback/support copy.
@@ -71,9 +71,9 @@ For local dogfood, the final command may wrap defaults, but it must remain equiv
 Plan input may include:
 
 - source repo ref and candidate commit SHA;
-- target provider lane: GitHub, Forgejo, GitLab, Azure DevOps, local Docker/Compose, Kubernetes, or another proven adapter;
+- target provider lane: GitHub Actions for repository delivery, with local Docker/Compose or Kubernetes remaining deployment substrates behind that workflow;
 - setup profile;
-- domain modes for identity, chat, files, calendar, boards, documents, meetings, and future Weaver governance;
+- domain modes for identity, chat, files, calendar, boards, documents, calls, and optional Agent Runtime Control;
 - opaque `SecretRef`/`CredentialRef` handles;
 - approval policy and rollback/support expectations;
 - provider category choices visible only to owner/admin/operator roles.

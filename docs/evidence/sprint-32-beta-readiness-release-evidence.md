@@ -12,10 +12,10 @@ This evidence bundle is derived from remote GitHub and checked-in artifacts on `
 | Gate | Evidence | Current status |
 | --- | --- | --- |
 | CI for merged Sprint 32 slices | PRs #837, #838, #839, #840, #841, and #842 are merged to `dev`; each had successful GitHub Gradle CI and exactly one release-notes label. | Present for component and E2E slices. |
-| E2E / acceptance evidence | Issue #835 is the owning Admin + User + Weaver E2E proof; PR #842 is merged; `docs/evidence/sprint-32-beta-path-evidence.md`. | Present on `dev`; re-check final CI/milestone state before closing #836. |
+| E2E / acceptance evidence | Issue #835 and PR #842 are historical. Their Beta-path fixture is retired by `docs/evidence/sprint-32-beta-path-evidence.md`; current ARC/MCP evidence is tracked separately. | Historical only; it cannot promote the current architecture. |
 | Adapter-continuity dry-run | `docs/evidence/sprint-32-adapter-continuity-dry-run.md`; PR #838. | Present as dry-run/report evidence only; no production apply or lossless migration claim. |
 | Runtime approval evidence | `docs/evidence/weaver-approval-runtime-boundary-issue-833.md`; PR #840. | Present for approval-required shared-state action routing through the user runtime. |
-| A11y smoke | #835 / PR #842 publishes the critical Admin/User/Weaver accessibility smoke in `docs/evidence/sprint-32-beta-path-evidence.md`; #834 component flow is present on `dev`. | Present on `dev`; remains bounded to documented smoke evidence. |
+| A11y smoke | #835 / PR #842 recorded a historical component smoke; the obsolete runtime evidence is retired by `docs/evidence/sprint-32-beta-path-evidence.md`. | Historical only; current ARC/admin/member accessibility needs current evidence. |
 | Stage-0 snapshot | `release/sprint-32-beta-readiness-stage-0.json` records the refreshed issue/PR/evidence state after #842 merged. | Present in this PR; #836 closure must re-check CI at merge time. |
 | Release notes / claim matrix | `docs/release-notes/unreleased.md`, `docs/product-trust-provider-choice-claim-matrix.md`, and `docs/beta-readiness-claim-gates.md`. | Updated/aligned as guarded Beta evidence; #830-#836 slice closure remains blocked by #836 review/merge and CI verification. |
 

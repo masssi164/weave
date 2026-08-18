@@ -46,7 +46,9 @@ void main() {
     expect(featureText, contains('bounded guest access'));
     expect(featureText, contains('support bundle'));
     expect(featureText, contains('backup manifest and restore receipt'));
-    expect(featureText, contains('approval receipt'));
+    expect(featureText, contains('short-lived single-use decision evidence'));
+    expect(featureText, contains('independently reauthorizes'));
+    expect(featureText, contains('immutable action evidence'));
     expect(featureText, contains('portable, lossy, unsupported'));
     expect(
       featureText,
@@ -74,14 +76,16 @@ void main() {
 
       final required = <String, Set<String>>{
         '@weave-product-org-domain-verification-provisioning': {
-          'identity-idm',
           'admin-health-ops',
         },
         '@weave-product-member-degraded-capability-state': {
           'admin-health-ops',
           'provider-portability',
         },
-        '@weave-product-guest-bounded-space-access': {'spaces', 'identity-idm'},
+        '@weave-product-guest-bounded-space-access': {
+          'spaces',
+          'admin-health-ops',
+        },
         '@weave-product-document-session-launch': {'documents-office', 'files'},
         '@weave-product-meeting-artifacts-followup': {
           'meetings-calls',
@@ -100,7 +104,7 @@ void main() {
           'admin-health-ops',
         },
         '@weave-product-weaver-consent-approval-receipt': {
-          'weaver-governed-pa',
+          'agent-runtime-control',
           'admin-health-ops',
         },
         '@weave-product-provider-switch-manual-review': {

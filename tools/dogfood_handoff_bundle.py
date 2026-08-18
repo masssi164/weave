@@ -15,7 +15,7 @@ from urllib.parse import urlencode, urlparse
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CERT_DIR = ROOT / "infra/weave-workspace/01-infrastructure/.generated/caddy/certs"
+DEFAULT_CERT_DIR = ROOT / "infra/weave-workspace/.generated/dogfood/tls"
 
 
 def openssl_fingerprint(path: Path) -> str | None:
@@ -202,8 +202,8 @@ def main() -> int:
         "public-trusted-https" if inferred_public_route else "local-stable-ca"
     )
 
-    ca_file = args.cert_dir / "weave-local-ca.pem"
-    leaf_file = args.cert_dir / "weave.test.pem"
+    ca_file = args.cert_dir / "ca.pem"
+    leaf_file = args.cert_dir / "cert.pem"
     live_ca_pem = None if ca_file.exists() else fetch_pem(args.ca_url)
     live_leaf = None if leaf_file.exists() else live_leaf_pem(
         args.leaf_host,

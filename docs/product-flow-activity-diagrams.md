@@ -10,7 +10,8 @@ Executable scenario anchors:
 
 Source/quality-check anchors:
 
-- Identity/profile specification anchor: pinned spec corpus `domains/identity-idm/spec.md` plus implementation endpoint `/api/me`.
+- Platform identity/profile specification anchor: pinned spec corpus
+  `platform/identity-security/spec.md` plus implementation endpoint `/api/me`.
 - CI/smoke/E2E specification anchor: pinned spec corpus `steering/devops-conformance.md` plus implementation gates in `build.gradle` and `e2e/scenario_mappings.json`.
 - Spec-map guard source: `client/tool/acceptance_contract.dart` and `e2e/scenario_mappings.json` in this implementation repository.
 - `/admin/protocol` is not a current Weave product route here; treat it only as shorthand for raw admin/protocol fallback surfaces unless a future spec defines the endpoint.
@@ -58,8 +59,8 @@ Scenario anchor: `@weave-live-matrix-e2ee`
 
 ```mermaid
 flowchart TD
-  A[User opens Weave Chat] --> B[Read Matrix homeserver from platform config]
-  B --> C[Use Matrix/MAS client auth boundary]
+  A[User opens Weave Chat] --> B[Read Weave Matrix facade from platform config]
+  B --> C[Use Weave OIDC token at the Matrix facade]
   C --> D[Load room list and selected room timeline]
   D --> E[Send and read message through Weave chat UI]
   E --> F{Room encrypted and validated?}

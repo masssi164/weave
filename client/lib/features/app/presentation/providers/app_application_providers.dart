@@ -3,10 +3,12 @@ import 'package:weave/features/app/domain/entities/integration_invalidation.dart
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
 import 'package:weave/features/app/domain/ports/chat_session_port.dart';
 import 'package:weave/features/app/domain/ports/files_session_port.dart';
+import 'package:weave/features/app/domain/ports/identity_session_port.dart';
 import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
 import 'package:weave/features/app/domain/ports/workspace_invalidation_port.dart';
 import 'package:weave/features/app/domain/use_cases/apply_server_configuration_changes.dart';
 import 'package:weave/features/app/domain/use_cases/resolve_app_bootstrap.dart';
+import 'package:weave/features/app/domain/use_cases/reconcile_identity_session.dart';
 import 'package:weave/features/app/domain/use_cases/restart_workspace_setup.dart';
 import 'package:weave/features/app/domain/use_cases/sign_in_with_oidc.dart';
 import 'package:weave/features/app/domain/use_cases/sign_out_workspace.dart';
@@ -22,6 +24,8 @@ import 'package:weave/features/files/presentation/providers/files_repository_pro
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/integrations/weave_api/data/services/weave_api_client.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_client_provider.dart';
 
 final appAuthPortProvider = Provider<AppAuthPort>((ref) {
   return _RepositoryAppAuthPort(ref.watch(authSessionRepositoryProvider));
@@ -49,9 +53,22 @@ final serverConfigurationPortProvider = Provider<ServerConfigurationPort>((
   );
 });
 
+final identitySessionPortProvider = Provider<IdentitySessionPort>((ref) {
+  return _WeaveApiIdentitySessionPort(ref.watch(weaveApiClientProvider));
+});
+
+final reconcileIdentitySessionProvider = Provider<ReconcileIdentitySession>((
+  ref,
+) {
+  return ReconcileIdentitySession(
+    identitySessionPort: ref.watch(identitySessionPortProvider),
+  );
+});
+
 final resolveAppBootstrapProvider = Provider<ResolveAppBootstrap>((ref) {
   return ResolveAppBootstrap(
     authPort: ref.watch(appAuthPortProvider),
+    reconcileIdentitySession: ref.watch(reconcileIdentitySessionProvider),
     serverConfigurationPort: ref.watch(serverConfigurationPortProvider),
   );
 });
@@ -59,6 +76,7 @@ final resolveAppBootstrapProvider = Provider<ResolveAppBootstrap>((ref) {
 final signInWithOidcProvider = Provider<SignInWithOidc>((ref) {
   return SignInWithOidc(
     authPort: ref.watch(appAuthPortProvider),
+    reconcileIdentitySession: ref.watch(reconcileIdentitySessionProvider),
     serverConfigurationPort: ref.watch(serverConfigurationPortProvider),
   );
 });
@@ -107,6 +125,11 @@ class _RepositoryAppAuthPort implements AppAuthPort {
   }
 
   @override
+  Future<AuthState> refreshSession(AuthConfiguration configuration) {
+    return _repository.refreshSession(configuration);
+  }
+
+  @override
   Future<AuthState> signIn(AuthConfiguration configuration) {
     return _repository.signIn(configuration);
   }
@@ -114,6 +137,29 @@ class _RepositoryAppAuthPort implements AppAuthPort {
   @override
   Future<void> signOut(AuthConfiguration configuration) {
     return _repository.signOut(configuration);
+  }
+}
+
+class _WeaveApiIdentitySessionPort implements IdentitySessionPort {
+  const _WeaveApiIdentitySessionPort(this._client);
+
+  final WeaveApiClient _client;
+
+  @override
+  Future<IdentitySessionReconciliation> reconcile({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async {
+    final result = await _client.reconcileIdentitySession(
+      baseUrl: baseUrl,
+      accessToken: accessToken,
+    );
+    return switch (result) {
+      IdentitySessionReconcileResult.unchanged =>
+        IdentitySessionReconciliation.unchanged,
+      IdentitySessionReconcileResult.reauthorizationRequired =>
+        IdentitySessionReconciliation.reauthorizationRequired,
+    };
   }
 }
 

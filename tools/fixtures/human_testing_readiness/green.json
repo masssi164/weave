@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 5,
+  "candidateCommit": "1111111111111111111111111111111111111111",
+  "sourceCandidateCommit": "2222222222222222222222222222222222222222",
+  "specCorpusCommit": "137510af0792e1e31ad6149901857f323ec9ce49",
+  "candidateManifestDigest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "images": {
+    "server": "ghcr.io/example/weave-server@sha256:5555555555555555555555555555555555555555555555555555555555555555",
+    "mcp-server": "ghcr.io/example/weave-mcp@sha256:6666666666666666666666666666666666666666666666666666666666666666",
+    "keycloak-runtime": "ghcr.io/example/weave-keycloak@sha256:8888888888888888888888888888888888888888888888888888888888888888"
+  },
+  "realmEvidence": {
+    "semanticRealmSourceDigest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+    "migrationDefinitionDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "overlayDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "renderedRealmDigest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "semanticReadbackDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "candidateRealmDefinitionMatched": true,
+    "environmentRealmRenderStable": true,
+    "semanticReadbackVerified": true,
+    "containsSecrets": false
+  },
+  "evidenceModes": ["live-provider-backed", "fixture-ui"],
+  "generatedAtUtc": "2026-07-12T12:00:00Z",
+  "state": "ready",
+  "humanTestingReady": true,
+  "builds": {
+    "backend": {
+      "commit": "2222222222222222222222222222222222222222",
+      "version": "0.1.0-rc.1",
+      "buildNumber": "101"
+    },
+    "client": {
+      "commit": "2222222222222222222222222222222222222222",
+      "version": "0.1.0-rc.1",
+      "buildNumber": "101",
+      "bundleId": "com.massimotter.weave"
+    }
+  },
+  "surfaces": {
+    "authenticationSession": {"status": "passed", "proofKinds": ["live-provider-backed"], "evidenceRefs": ["artifact:live/auth"]},
+    "home": {"status": "passed", "proofKinds": ["live-provider-backed", "fixture-ui"], "evidenceRefs": ["artifact:live/home"]},
+    "chat": {"status": "passed", "proofKinds": ["live-provider-backed", "fixture-ui"], "evidenceRefs": ["artifact:live/chat"]},
+    "files": {"status": "passed", "proofKinds": ["live-provider-backed", "fixture-ui"], "evidenceRefs": ["artifact:live/files"]},
+    "calendar": {"status": "passed", "proofKinds": ["live-provider-backed", "fixture-ui"], "evidenceRefs": ["artifact:live/calendar"]},
+    "settings": {"status": "passed", "proofKinds": ["fixture-ui"], "evidenceRefs": ["artifact:fixture/settings"]},
+    "profile": {"status": "passed", "proofKinds": ["live-provider-backed", "fixture-ui"], "evidenceRefs": ["artifact:live/profile"]}
+  },
+  "collaboration": {
+    "status": "passed",
+    "identityRefHashes": {
+      "author": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "collaborator": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "outsider": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "scenarioResults": {
+      "authenticationShell": "passed",
+      "home": "passed",
+      "chat": "passed",
+      "files": "passed",
+      "calendar": "passed",
+      "settingsProfile": "passed",
+      "failureContainment": "passed",
+      "authorization": "passed"
+    },
+    "cleanupStatus": "passed",
+    "repeatCount": 2
+  },
+  "deployment": {
+    "stackStatus": "passed",
+    "idempotencyStatus": "passed",
+    "persistentHumanUnchanged": true
+  },
+  "providerHealth": {
+    "overall": "available",
+    "observedAtUtc": "2026-07-12T11:59:00Z",
+    "cachedResultAgeSeconds": 60,
+    "capabilities": {
+      "chat": "available",
+      "files": "available",
+      "calendar": "available"
+    }
+  },
+  "distribution": {
+    "status": "passed",
+    "channel": "testflight",
+    "buildNumber": "101"
+  },
+  "physicalAcceptance": {
+    "status": "passed",
+    "physicalIPhone": true,
+    "voiceOver": "passed",
+    "sessionUpgrade": "passed",
+    "navigation": "passed",
+    "testerRefHash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "protocol": {
+      "schemaVersion": 1,
+      "candidateCommit": "1111111111111111111111111111111111111111",
+      "sourceCandidateCommit": "2222222222222222222222222222222222222222",
+      "specCorpusCommit": "137510af0792e1e31ad6149901857f323ec9ce49",
+      "candidateManifestDigest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "build": {"commit": "2222222222222222222222222222222222222222", "version": "0.1.0-rc.1", "buildNumber": "101", "bundleId": "com.massimotter.weave"},
+      "startedAtUtc": "2026-07-12T12:10:00Z",
+      "completedAtUtc": "2026-07-12T12:40:00Z",
+      "testerConfirmed": true,
+      "steps": {
+        "invitationMail": {"status": "passed", "expectedOutcome": "Invitation received", "actualOutcome": "Invitation received", "observedAtUtc": "2026-07-12T12:11:00Z", "evidenceRefs": ["issue:physical/invitation-mail"]},
+        "invitationOpen": {"status": "passed", "expectedOutcome": "Invitation opened", "actualOutcome": "Invitation opened", "observedAtUtc": "2026-07-12T12:12:00Z", "evidenceRefs": ["issue:physical/invitation-open"]},
+        "keycloakActivation": {"status": "passed", "expectedOutcome": "Account activated", "actualOutcome": "Account activated", "observedAtUtc": "2026-07-12T12:13:00Z", "evidenceRefs": ["issue:physical/keycloak-activation"]},
+        "appLaunch": {"status": "passed", "expectedOutcome": "Signed app launched", "actualOutcome": "Signed app launched", "observedAtUtc": "2026-07-12T12:14:00Z", "evidenceRefs": ["issue:physical/app-launch"]},
+        "authorizationCodePkce": {"status": "passed", "expectedOutcome": "PKCE login passed", "actualOutcome": "PKCE login passed", "observedAtUtc": "2026-07-12T12:15:00Z", "evidenceRefs": ["issue:physical/pkce"]},
+        "normalSession": {"status": "passed", "expectedOutcome": "Session active", "actualOutcome": "Session active", "observedAtUtc": "2026-07-12T12:16:00Z", "evidenceRefs": ["issue:physical/session"]},
+        "refresh": {"status": "passed", "expectedOutcome": "Refresh passed", "actualOutcome": "Refresh passed", "observedAtUtc": "2026-07-12T12:17:00Z", "evidenceRefs": ["issue:physical/refresh"]},
+        "logoutRelogin": {"status": "passed", "expectedOutcome": "Logout and login passed", "actualOutcome": "Logout and login passed", "observedAtUtc": "2026-07-12T12:18:00Z", "evidenceRefs": ["issue:physical/logout-relogin"]},
+        "filesUi": {"status": "passed", "expectedOutcome": "Files UI passed", "actualOutcome": "Files UI passed", "observedAtUtc": "2026-07-12T12:19:00Z", "evidenceRefs": ["issue:physical/files-ui"]},
+        "calendarUi": {"status": "passed", "expectedOutcome": "Calendar UI passed", "actualOutcome": "Calendar UI passed", "observedAtUtc": "2026-07-12T12:20:00Z", "evidenceRefs": ["issue:physical/calendar-ui"]},
+        "callsUi": {"status": "passed", "expectedOutcome": "Calls UI passed", "actualOutcome": "Calls UI passed", "observedAtUtc": "2026-07-12T12:21:00Z", "evidenceRefs": ["issue:physical/calls-ui"]},
+        "grant": {"status": "passed", "expectedOutcome": "Weaver grant passed", "actualOutcome": "Weaver grant passed", "observedAtUtc": "2026-07-12T12:22:00Z", "evidenceRefs": ["issue:physical/grant"]},
+        "mcpDiscovery": {"status": "passed", "expectedOutcome": "MCP discovery passed", "actualOutcome": "MCP discovery passed", "observedAtUtc": "2026-07-12T12:23:00Z", "evidenceRefs": ["issue:physical/mcp-discovery"]},
+        "filesSearch": {"status": "passed", "expectedOutcome": "files.search passed", "actualOutcome": "files.search passed", "observedAtUtc": "2026-07-12T12:24:00Z", "evidenceRefs": ["issue:physical/files-search"]},
+        "fileResourceOpen": {"status": "passed", "expectedOutcome": "File resource opened", "actualOutcome": "File resource opened", "observedAtUtc": "2026-07-12T12:25:00Z", "evidenceRefs": ["issue:physical/file-resource"]},
+        "revoke": {"status": "passed", "expectedOutcome": "Grant revoked", "actualOutcome": "Grant revoked", "observedAtUtc": "2026-07-12T12:26:00Z", "evidenceRefs": ["issue:physical/revoke"]},
+        "immediateRejection": {"status": "passed", "expectedOutcome": "Access rejected immediately", "actualOutcome": "Access rejected immediately", "observedAtUtc": "2026-07-12T12:27:00Z", "evidenceRefs": ["issue:physical/immediate-rejection"]},
+        "regrant": {"status": "passed", "expectedOutcome": "Grant restored", "actualOutcome": "Grant restored", "observedAtUtc": "2026-07-12T12:28:00Z", "evidenceRefs": ["issue:physical/regrant"]},
+        "postRegrantAccess": {"status": "passed", "expectedOutcome": "Access restored", "actualOutcome": "Access restored", "observedAtUtc": "2026-07-12T12:29:00Z", "evidenceRefs": ["issue:physical/post-regrant"]},
+        "identityContinuity": {"status": "passed", "expectedOutcome": "Subject unchanged", "actualOutcome": "Subject unchanged", "observedAtUtc": "2026-07-12T12:30:00Z", "evidenceRefs": ["issue:physical/identity-continuity"]}
+      },
+      "deviations": []
+    }
+  },
+  "blockers": [],
+  "evidence": [
+    "artifact:live-stack/101",
+    "artifact:dogfood-deployment/101",
+    "artifact:ios-distribution/101",
+    "issue:physical-acceptance/101"
+  ]
+}

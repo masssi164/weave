@@ -5,8 +5,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXPORT_TMP="$ROOT_DIR/build/openapi/weave-openapi.raw.json"
 EXPORT_TARGET="$ROOT_DIR/contracts/openapi/weave-openapi.json"
 
-"$ROOT_DIR/gradlew" -q -Dweave.openapi.export.path="$EXPORT_TMP" \
-  :server:test --tests com.massimotter.weave.backend.controller.OpenApiDocumentationTest --rerun-tasks
+if [[ "${WEAVE_OPENAPI_SKIP_EXPORT:-false}" != "true" ]]; then
+  "$ROOT_DIR/gradlew" -q :server:openApiContractExport
+fi
+
+if [[ ! -s "$EXPORT_TMP" ]]; then
+  echo "OpenAPI export is missing: $EXPORT_TMP" >&2
+  exit 1
+fi
 
 mkdir -p "$(dirname "$EXPORT_TARGET")"
 jq -S '

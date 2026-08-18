@@ -12,6 +12,10 @@ public record ChatMessage(
         String deliveryState,
         List<ChatAttachmentMetadata> attachments) {
     public ChatMessage {
+        conversationId = new ConversationId(conversationId).value();
+        if (messageId == null || messageId.isBlank() || messageId.length() > 200) {
+            throw new IllegalArgumentException("message id is invalid");
+        }
         attachments = attachments == null ? List.of() : List.copyOf(attachments);
     }
 }

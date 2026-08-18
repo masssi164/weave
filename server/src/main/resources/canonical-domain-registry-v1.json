@@ -39,101 +39,6 @@
   ],
   "domains": [
     {
-      "key": "identity",
-      "version": 1,
-      "displayName": "Identity",
-      "purpose": "Authentication, immutable subject resolution, groups, roles, and admin lifecycle inputs.",
-      "canonicalObjects": [
-        "Subject",
-        "IdentitySource",
-        "Group",
-        "Role",
-        "CapabilityProfile",
-        "LoginSession"
-      ],
-      "capabilityKeys": [
-        "identity.sign_in",
-        "identity.groups",
-        "identity.roles",
-        "policy.read",
-        "policy.manage"
-      ],
-      "memberStates": [
-        "available",
-        "disabled_by_policy",
-        "not_configured",
-        "degraded",
-        "unavailable",
-        "coming_later"
-      ],
-      "adminStates": [
-        "provider_not_configured",
-        "secret_missing",
-        "ready",
-        "degraded",
-        "dry_run_required",
-        "lossy_mapping_pending",
-        "apply_blocked",
-        "migration_ready"
-      ],
-      "sourceOfTruthModes": [
-        "weave_owned",
-        "provider_owned",
-        "shared_with_precedence",
-        "external_reference"
-      ],
-      "providerCandidates": [
-        "keycloak-realm",
-        "generic-oidc",
-        "generic-saml",
-        "scim-ldap",
-        "entra-id",
-        "authentik",
-        "auth0"
-      ],
-      "compatibilityAliases": [
-        "shellAccess",
-        "identity-idm",
-        "identity-admin-policy"
-      ],
-      "portabilityRequirements": [
-        "export_report",
-        "import_report",
-        "lossy_report",
-        "conflict_report",
-        "rollback_retention_report",
-        "support_safe_audit"
-      ],
-      "adapterManifestRequirements": [
-        "adapterKey",
-        "domainKeys",
-        "apiProfile",
-        "canonicalObjects",
-        "capabilityKeys",
-        "readinessChecks",
-        "unsupportedFields",
-        "migrationLimits",
-        "auditEvents",
-        "secretBoundary"
-      ],
-      "portabilityRisks": [
-        "email_rename",
-        "subject_collision",
-        "nested_groups",
-        "guest_identity",
-        "last_admin_lockout"
-      ],
-      "providerRealityLevelByCandidate": {
-        "keycloak-realm": "release_ready",
-        "generic-oidc": "release_ready",
-        "generic-saml": "contract_only",
-        "scim-ldap": "contract_only",
-        "entra-id": "contract_only",
-        "authentik": "contract_only",
-        "auth0": "contract_only"
-      }
-    },
-    {
       "key": "people",
       "version": 1,
       "displayName": "People",
@@ -771,12 +676,14 @@
       "key": "calls",
       "version": 1,
       "displayName": "Calls",
-      "purpose": "Meeting join/host capability, media sessions, participant state, recording/captions policy, and consent.",
+      "purpose": "MatrixRTC meeting identity, slot/member/device state, independently authorized media sessions, recording/captions policy, and consent.",
       "canonicalObjects": [
         "Meeting",
+        "MatrixRtcSlot",
+        "MatrixRtcMember",
+        "DeviceBinding",
         "MediaSession",
-        "Participant",
-        "TokenGrant",
+        "RtcAuthorization",
         "Recording",
         "Caption",
         "ConsentRecord"
@@ -813,11 +720,9 @@
       ],
       "providerCandidates": [
         "livekit",
-        "jitsi",
-        "zoom",
-        "microsoft-teams-meetings",
-        "google-meet",
-        "external-meeting-link"
+        "generic-webrtc-sfu",
+        "microsoft-teams-meeting-link",
+        "google-meet-link"
       ],
       "compatibilityAliases": [
         "meetings-calls",
@@ -846,17 +751,15 @@
       "portabilityRisks": [
         "e2ee_boundary",
         "recording_consent",
-        "token_grants",
+        "short_lived_sfu_authorization",
         "accessibility",
         "external_link_ownership"
       ],
       "providerRealityLevelByCandidate": {
         "livekit": "configured",
-        "jitsi": "contract_only",
-        "zoom": "contract_only",
-        "microsoft-teams-meetings": "contract_only",
-        "google-meet": "contract_only",
-        "external-meeting-link": "contract_only"
+        "generic-webrtc-sfu": "contract_only",
+        "microsoft-teams-meeting-link": "contract_only",
+        "google-meet-link": "contract_only"
       }
     },
     {
@@ -1124,24 +1027,26 @@
       }
     },
     {
-      "key": "weaver",
+      "key": "agent-runtime-control",
       "version": 1,
-      "displayName": "Weaver",
-      "purpose": "Optional per-user OpenClaw-derived assistant runtime governed by organization policy, member opt-in, tool grants, sandboxing, and audit.",
+      "displayName": "Agent Runtime Control",
+      "purpose": "Optional entitlement-bound control plane for signed RuntimeProfiles, disposable runtime cells, external state, revocation, and runtime-provider mapping; it owns no collaboration content or domain authorization.",
       "canonicalObjects": [
-        "WeaverRuntimeProfile",
-        "WeaverRuntimeInstance",
-        "WeaverUserWorkspace",
-        "WeaverToolGrant",
-        "WeaverApprovalReceipt",
-        "WeaverAuditEvent",
-        "WeaverCustomizationProfile"
+        "RuntimeEntitlementRef",
+        "RuntimeProfile",
+        "ApprovalChallenge",
+        "RuntimeCell",
+        "WorkspaceRevision",
+        "RuntimeRevocation",
+        "RuntimeAuditCorrelation"
       ],
       "capabilityKeys": [
-        "weaver.profile.read",
-        "weaver.runtime.opt_in",
-        "weaver.tool.invoke",
-        "weaver.admin.manage_grants"
+        "agent-runtime.entitled",
+        "agent-runtime.profile.read",
+        "agent-runtime.lifecycle.write",
+        "agent-runtime.wake",
+        "agent-runtime.approval.attest",
+        "agent-runtime.admin"
       ],
       "memberStates": [
         "available",
@@ -1168,11 +1073,11 @@
         "external_reference"
       ],
       "providerCandidates": [
-        "openclaw-derived-profile"
+        "weaver-openclaw"
       ],
       "compatibilityAliases": [
-        "assistant",
-        "personal-assistant"
+        "agent-runtime",
+        "runtime-control"
       ],
       "portabilityRequirements": [
         "export_report",
@@ -1195,14 +1100,14 @@
         "secretBoundary"
       ],
       "portabilityRisks": [
-        "overbroad_tools",
-        "secret_exposure",
-        "cross_user_data_bleed",
-        "group_chat_consent",
-        "unaudited_actions"
+        "cross_cell_state_bleed",
+        "stale_profile_or_entitlement",
+        "workload_credential_exposure",
+        "durable_cell_residue",
+        "unreconciled_restore"
       ],
       "providerRealityLevelByCandidate": {
-        "openclaw-derived-profile": "contract_only"
+        "weaver-openclaw": "contract_only"
       }
     }
   ],

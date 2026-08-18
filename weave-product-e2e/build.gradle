@@ -1,0 +1,10 @@
+plugins {
+    alias(libs.plugins.spring.dependency.management)
+    id 'java'
+}
+
+group = 'com.massimotter.weave'
+version = '0.1.0'
+
+apply from: "${projectDir}/gradle/scripts/java-and-dependencies.gradle"
+apply from: "${projectDir}/gradle/tasks/product-flow.gradle"

@@ -19,8 +19,6 @@ import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -33,7 +31,6 @@ import 'package:weave/main.dart';
 import '../../helpers/auth_test_data.dart';
 import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/fake_chat_security_repository.dart';
-import '../../helpers/first_run_status_fixture.dart';
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
 
@@ -111,6 +108,12 @@ class _RecordingWeaveApiClient implements WeaveApiClient {
   int callCount = 0;
 
   @override
+  Future<IdentitySessionReconcileResult> reconcileIdentitySession({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async => IdentitySessionReconcileResult.unchanged;
+
+  @override
   Future<OrganizationManifestSnapshot> fetchOrganizationManifest({
     required Uri baseUrl,
     required String accessToken,
@@ -150,11 +153,12 @@ class _RecordingWeaveApiClient implements WeaveApiClient {
     required String accessToken,
   }) async {
     return const WorkspaceHomeSnapshot(
-      version: 1,
+      version: 2,
       readiness: WorkspaceCapabilityReadiness.ready,
       summary: 'Weave Home is ready for tests.',
       sections: [],
       actions: [],
+      recentActivity: [],
       supportSafe: true,
     );
   }
@@ -347,18 +351,12 @@ void main() {
               ),
             ),
             userProfileProvider.overrideWith((ref) async => _memberProfile),
-            firstRunStatusProvider.overrideWith(
-              (ref) async =>
-                  FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
-            ),
             weaveApiClientProvider.overrideWithValue(weaveApiClient),
           ],
           child: const WeaveApp(),
         ),
       );
       await tester.pumpAndSettle();
-
-      await _continueFirstRunIfPresent(tester);
 
       expect(find.byType(NavigationBar), findsOneWidget);
 
@@ -401,16 +399,4 @@ void main() {
       );
     },
   );
-}
-
-Future<void> _continueFirstRunIfPresent(WidgetTester tester) async {
-  final continueButton = find.text('Continue to chat');
-  if (continueButton.evaluate().isEmpty) {
-    return;
-  }
-
-  await tester.ensureVisible(continueButton);
-  await tester.pumpAndSettle();
-  await tester.tap(continueButton);
-  await tester.pumpAndSettle();
 }

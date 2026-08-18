@@ -1,13 +1,11 @@
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/preferences_store.dart';
-import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 import 'package:weave/features/server_config/data/dtos/server_configuration_dto.dart';
 import 'package:weave/features/server_config/data/services/service_endpoint_deriver.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 
 const serverConfigurationStorageKey = 'server_configuration_v1';
-const legacySetupCompleteKey = 'setup_complete';
 
 class SharedPreferencesServerConfigurationRepository
     implements ServerConfigurationRepository {
@@ -32,34 +30,31 @@ class SharedPreferencesServerConfigurationRepository
       // malformed configuration from storage.
       final dto = ServerConfigurationDto.decode(raw);
       final issuerUrl = _deriver.parseIssuerUrl(dto.oidcIssuerUrl);
-      final defaults = _deriver.derive(issuerUrl);
-      final configuration = dto.toConfiguration(
-        fallbackBackendApiBaseUrl: defaults.backendApiBaseUrl,
-      );
-      final normalizedClientId = _normalizedClientId(
+      final configuration = dto.toConfiguration();
+      final clientId = _requiredClientId(
         configuration.oidcClientRegistration.clientId,
-      );
-      final matrixUrl = _deriver.parseServiceUrl(
-        configuration.serviceEndpoints.matrixHomeserverUrl.toString(),
-        fieldName: 'the Matrix homeserver URL',
-      );
-      final nextcloudUrl = _deriver.parseServiceUrl(
-        configuration.serviceEndpoints.nextcloudBaseUrl.toString(),
-        fieldName: 'the Nextcloud URL',
       );
       final backendApiUrl = _deriver.parseServiceUrl(
         configuration.serviceEndpoints.backendApiBaseUrl.toString(),
         fieldName: 'the backend API URL',
       );
+      final matrixUrl = _deriver.matrixFacadeFromBackendApi(backendApiUrl);
+      final filesUrl = _deriver.filesFacadeFromBackendApi(backendApiUrl);
+      if (configuration.serviceEndpoints.matrixHomeserverUrl != matrixUrl ||
+          configuration.serviceEndpoints.nextcloudBaseUrl != filesUrl) {
+        throw const AppFailure.validation(
+          'The saved organization profile does not match the current Weave facade contract.',
+        );
+      }
 
       return configuration.copyWith(
         oidcIssuerUrl: issuerUrl,
         oidcClientRegistration: configuration.oidcClientRegistration.copyWith(
-          clientId: normalizedClientId,
+          clientId: clientId,
         ),
         serviceEndpoints: configuration.serviceEndpoints.copyWith(
           matrixHomeserverUrl: matrixUrl,
-          nextcloudBaseUrl: nextcloudUrl,
+          nextcloudBaseUrl: filesUrl,
           backendApiBaseUrl: backendApiUrl,
         ),
       );
@@ -76,9 +71,19 @@ class SharedPreferencesServerConfigurationRepository
   @override
   Future<void> saveConfiguration(ServerConfiguration configuration) async {
     try {
-      final dto = ServerConfigurationDto.fromConfiguration(configuration);
+      final endpoints = configuration.serviceEndpoints;
+      final normalized = configuration.copyWith(
+        serviceEndpoints: endpoints.copyWith(
+          matrixHomeserverUrl: _deriver.matrixFacadeFromBackendApi(
+            endpoints.backendApiBaseUrl,
+          ),
+          nextcloudBaseUrl: _deriver.filesFacadeFromBackendApi(
+            endpoints.backendApiBaseUrl,
+          ),
+        ),
+      );
+      final dto = ServerConfigurationDto.fromConfiguration(normalized);
       await _store.setString(serverConfigurationStorageKey, dto.encode());
-      await _store.remove(legacySetupCompleteKey);
     } on AppFailure {
       rethrow;
     } catch (error) {
@@ -93,7 +98,6 @@ class SharedPreferencesServerConfigurationRepository
   Future<void> clearConfiguration() async {
     try {
       await _store.remove(serverConfigurationStorageKey);
-      await _store.remove(legacySetupCompleteKey);
     } catch (error) {
       throw AppFailure.storage(
         'Failed to clear the saved server configuration.',
@@ -102,8 +106,13 @@ class SharedPreferencesServerConfigurationRepository
     }
   }
 
-  String _normalizedClientId(String clientId) {
+  String _requiredClientId(String clientId) {
     final trimmed = clientId.trim();
-    return trimmed.isEmpty ? oidcDefaultClientId : trimmed;
+    if (trimmed.isEmpty) {
+      throw const AppFailure.validation(
+        'The saved organization profile is missing its OIDC client ID.',
+      );
+    }
+    return trimmed;
   }
 }

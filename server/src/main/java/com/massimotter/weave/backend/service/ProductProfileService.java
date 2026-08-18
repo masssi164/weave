@@ -23,9 +23,18 @@ public class ProductProfileService {
             new ModuleSyncStatusResponse("not_configured", "not_configured");
 
     private final ProductProfileOverrideRepository profileRepository;
+    private final OrganizationIdentityContextResolver identityContexts;
 
     public ProductProfileService(ProductProfileOverrideRepository profileRepository) {
+        this(profileRepository, OrganizationIdentityContextResolver.defaults());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ProductProfileService(
+            ProductProfileOverrideRepository profileRepository,
+            OrganizationIdentityContextResolver identityContexts) {
         this.profileRepository = profileRepository;
+        this.identityContexts = identityContexts;
     }
 
     public AuthenticatedUserResponse authenticatedUser(Jwt jwt) {
@@ -59,7 +68,7 @@ public class ProductProfileService {
     }
 
     public ProfileReadinessResponse readiness(Jwt jwt) {
-        OrganizationIdentityContextFactory.fromJwt(jwt);
+        identityContexts.resolve(jwt);
         return new ProfileReadinessResponse(
                 "CEFACADE",
                 "/profile/readiness",
@@ -75,7 +84,7 @@ public class ProductProfileService {
     }
 
     public ProductProfileResponse update(Jwt jwt, UpdateProductProfileRequest request) {
-        OrganizationIdentityContext identity = OrganizationIdentityContextFactory.fromJwt(jwt);
+        OrganizationIdentityContext identity = identityContexts.resolve(jwt);
         validateRequest(request);
         try {
             profileRepository.saveForPrimaryIdentityKey(
@@ -92,12 +101,12 @@ public class ProductProfileService {
     }
 
     public ModuleSyncStatusResponse syncStatus(Jwt jwt) {
-        OrganizationIdentityContextFactory.fromJwt(jwt);
+        identityContexts.resolve(jwt);
         return NOT_CONFIGURED_SYNC;
     }
 
     private ProductProfileSnapshot snapshot(Jwt jwt) {
-        return snapshot(jwt, OrganizationIdentityContextFactory.fromJwt(jwt));
+        return snapshot(jwt, identityContexts.resolve(jwt));
     }
 
     private ProductProfileSnapshot snapshot(Jwt jwt, OrganizationIdentityContext identity) {

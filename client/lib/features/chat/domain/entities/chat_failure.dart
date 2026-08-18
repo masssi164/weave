@@ -3,6 +3,7 @@ enum ChatFailureType {
   configuration,
   sessionRequired,
   unsupportedConfiguration,
+  peerDevicePending,
   protocol,
   storage,
   unsupportedPlatform,
@@ -28,6 +29,13 @@ class ChatFailure implements Exception {
   const ChatFailure.unsupportedConfiguration(String message, {Object? cause})
     : this(
         type: ChatFailureType.unsupportedConfiguration,
+        message: message,
+        cause: cause,
+      );
+
+  const ChatFailure.peerDevicePending(String message, {Object? cause})
+    : this(
+        type: ChatFailureType.peerDevicePending,
         message: message,
         cause: cause,
       );

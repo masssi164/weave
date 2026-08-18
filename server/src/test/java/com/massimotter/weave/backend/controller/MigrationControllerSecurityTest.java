@@ -13,9 +13,9 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -48,13 +48,13 @@ class MigrationControllerSecurityTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockBean
+    @MockitoBean
     private MigrationDryRunService migrationDryRunService;
 
-    @MockBean
+    @MockitoBean
     private MigrationApplyGateService migrationApplyGateService;
 
     @Test
@@ -68,7 +68,7 @@ class MigrationControllerSecurityTest {
     }
 
     @Test
-    void migrationApplyGateRejectsWorkspaceMembersWithoutAdminOperatorRole() throws Exception {
+    void migrationApplyGateRejectsWorkspaceMembersWithoutOwnerOrAdminRole() throws Exception {
         mockMvc.perform(post("/api/migration/apply-gates")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace")))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -93,7 +93,7 @@ class MigrationControllerSecurityTest {
     }
 
     @Test
-    void migrationApplyGateAllowsOperatorControlPlaneCallers() throws Exception {
+    void migrationApplyGateAllowsOwnerControlPlaneCallers() throws Exception {
         when(migrationApplyGateService.evaluate(any())).thenReturn(new MigrationApplyGateResponse(
                 "migration-chat-001",
                 "chat",
@@ -111,7 +111,7 @@ class MigrationControllerSecurityTest {
         mockMvc.perform(post("/api/migration/apply-gates")
                         .with(jwt().authorities(
                                 new SimpleGrantedAuthority("SCOPE_weave:workspace"),
-                                new SimpleGrantedAuthority("ROLE_OPERATOR")))
+                                new SimpleGrantedAuthority("ROLE_OWNER")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(applyGatePayload()))
                 .andExpect(status().isOk())

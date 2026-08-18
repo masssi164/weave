@@ -16,12 +16,11 @@ Gherkin files and marker mappings.
 
 | Suite | Lane | Purpose |
 | --- | --- | --- |
-| `member-live-critical-path` | `credentialed-live-stack` | Sparse runtime proof for sign-in, shell, provider-owned facades, and critical member work surfaces. |
+| `member-live-critical-path` | `governed-live-product-evidence` | Automated `testApp` and explicitly separate physical-device runtime evidence without credential-injected Flutter builds. |
 | `v0-1-dogfood-release-spine` | `pr-safe-offline-contract` | Deterministic release-scope evidence across member, admin, server, docs, and fixtures. |
 | `spec-0001-org-embedding` | `pr-safe-offline-contract` | Pinned-corpus organization embedding acceptance projection. |
 | `admin-provider-portability-lifecycle` | `pr-safe-offline-contract` | Admin/provider lifecycle, identity/offboarding, WOPI posture, Weaver preflight, and release operations. |
-| `operator-ci-cd-and-local-e2e-readiness` | `operator-fixture-contract` | Local Forgejo pipeline, runner, bootstrap, and deployed-stack handoff readiness. |
-| `cross-domain-provider-proof` | `provider-proof-fixture-contract` | Calendar/files/identity provider switch evidence and commercial adapter readiness boundaries. |
+| `cross-domain-provider-proof` | `provider-proof-fixture-contract` | Calendar/files provider-switch evidence, fixed Keycloak federation readiness, and commercial adapter boundaries. |
 | `product-e2e-scenario-layer` | `scenario-first-offline-contract` | Product/business flows that must be specified before runtime implementation expands, including guests, degraded states, documents, support bundles, backup/restore, lifecycle actions, and Weaver consent. |
 
 Do not add decorative scenarios. A new scenario must have a Gherkin tag, a

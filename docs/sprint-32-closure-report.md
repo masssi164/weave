@@ -1,6 +1,6 @@
 # Sprint 32 closure report — Beta readiness candidate
 
-Status: **Beta readiness slice evidence refreshed after #835 / PR #842**. This report prepares the release/demo/evidence closure for issue #836 after #830-#835 landed on `dev`. GitHub verification on 2026-06-18 found PR #842 merged and issue #835 closed, so the #830-#836 Beta readiness slice is ready for #836 review. This is not overall Sprint 32 milestone completion: the milestone remains open pending remaining P0 lanes outside #830-#836, including #771, #787, #792, #794, and #795.
+Status: **historical closure record, superseded by Agent Runtime Control v2**. This report records what the #830-#836 slice claimed in June 2026; its bespoke approval boundary, member opt-in/tool-grant flow, and associated fixtures were removed and must not be used as current release evidence. Current runtime truth is the pinned Agent Runtime Control spec, ADR 0012, and the current workload-identity/lifecycle evidence.
 
 ## Governing scope
 

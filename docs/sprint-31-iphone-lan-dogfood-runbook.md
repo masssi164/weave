@@ -1,6 +1,9 @@
 # Sprint 31 runbook — Physical iPhone LAN dogfood
 
-Sprint 31 prepares Massimo's first real physical iPhone test on the same LAN as the Mac. It does not require public DNS or trusted internet TLS for this local dogfood profile.
+Status: the trust and physical-device notes remain applicable; delivery now follows
+the direct Compose path in `docs/ios-dogfood-distribution.md`.
+
+Sprint 31 prepared Massimo's first real physical iPhone test on the same LAN as the Mac. It does not require public DNS or trusted internet TLS for this local dogfood profile.
 
 ## Operator command
 
@@ -42,9 +45,13 @@ This writes `build/dogfood/handoff.json` and `build/dogfood/handoff.md` with the
 
 Installed iOS client smoke must use a profile or release build. Debug builds and raw `devicectl` process launch success are not valid dogfood evidence for iOS custom-scheme launch. Use `tools/dogfood_ios_deeplink_smoke.sh` with `WEAVE_IOS_BUILD_MODE=profile` or `release`; this proves `last_handoff_consumed_v1`, `dogfood_visible_state_v1=handoff_ready`, and `dogfood_auth_state_v1=ready_for_sso` from the app container. It is still only the handoff gate. Full member onboarding evidence additionally requires Sign In, account activation, saved session, workspace entry, restore, reinstall/manual login, and Mailpit capture. Wi-Fi install is preferred, USB is a fallback only, and both install paths use the same stable bundle ID, provisioning Team ID `KNDHGC2KV6`, developer certificate label `Apple Development: massimo164@me.com (6RUS2Z848X)`, signing identity/profile class, and developer-trust assumptions. If a normal update or trust-preserving app-state reset prompts Massimo to trust the development team/profile again, the dogfood path is not ready for Massimo.
 
+The active development channel is a profile build installed in place with the
+stable bundle, Team, signing identity, and existing Developer App trust. TestFlight
+is deliberately deferred. See [iOS dogfood distribution](ios-dogfood-distribution.md).
+
 For local dogfood HTTPS, the physical smoke has a pre-launch TLS preflight. Set `WEAVE_IOS_LOCAL_CA_TRUST_STATUS=trusted` only after the Weave Local Development CA profile is installed on the iPhone and full trust is enabled in Settings > General > About > Certificate Trust Settings. If that state is not confirmed, the runner exits before install/launch with `PHYSICAL_DEVICE_TLS_PENDING` and writes `build/dogfood/ios-local-tls-preflight.json`. This is a precondition, not E2E success. iOS does not provide a support-safe non-interactive way for this runner to install and fully trust a local root CA; for a no-manual-CA tester flow, use a publicly trusted dogfood endpoint or stable installed configuration instead of relying on local CA setup.
 
-Do not uninstall the physical iPhone app by default. Apple can remove the Developer App trust anchor when the last app signed by a developer is deleted, which turns the next launch into a manual `Apple Development: massimo164@me.com (6RUS2Z848X)` trust step. The physical runner therefore defaults to `WEAVE_IOS_RESET_MODE=update_in_place`. For fresh-install semantics without deleting the app, use `WEAVE_IOS_RESET_MODE=app_state`; the runner appends a dogfood-only reset marker to the handoff so Weave clears saved configuration, handoff evidence, auth session, Nextcloud session, and dogfood evidence before consuming the link. Use `WEAVE_IOS_RESET_MODE=destructive_uninstall` only as an explicit physical-trust-disruptive reset and record that it may require a new Developer App trust approval. If repeated trust remains part of the development-runner path, prefer TestFlight/internal or ad-hoc distribution for professional dogfood handoff instead of asking Massimo to repeat device-management trust.
+Do not uninstall the physical iPhone app by default. Apple can remove the Developer App trust anchor when the last app signed by a developer is deleted, which turns the next launch into a manual `Apple Development: massimo164@me.com (6RUS2Z848X)` trust step. The physical runner therefore defaults to `WEAVE_IOS_RESET_MODE=update_in_place`. For fresh-install semantics without deleting the app, use `WEAVE_IOS_RESET_MODE=app_state`; the runner appends a dogfood-only reset marker to the handoff so Weave clears saved configuration, handoff evidence, auth session, stale legacy provider-client state, and dogfood evidence before consuming the link. Use `WEAVE_IOS_RESET_MODE=destructive_uninstall` only as an explicit physical-trust-disruptive reset and record that it may require a new Developer App trust approval. If repeated trust remains part of the development-runner path, prefer TestFlight/internal or ad-hoc distribution for professional dogfood handoff instead of asking Massimo to repeat device-management trust.
 
 Current physical-device evidence shows stable Developer App trust is possible: after the device-side approval, update-in-place plus `WEAVE_IOS_RESET_MODE=app_state` can install and launch without another `Apple Development: massimo164@me.com (6RUS2Z848X)` prompt. This is trust/runner evidence only. It is not member-onboarding success and must not be reported as a professional entry until handoff-ready, Sign In, activation, session, workspace, restore, app-state reset/manual login, and Mailpit evidence are all green.
 
@@ -89,21 +96,12 @@ It includes the local CA downloads, iPhone trust steps, DNS-first service links,
 infra/weave-workspace/local-invite-link.sh --json
 ```
 
-Before handing Massimo the QR/link, create the pending activation invite without an initial password:
-
-```sh
-cd infra/weave-workspace
-./activate-user.sh \
-  --username massimo \
-  --email massimo@example.test \
-  --display-name 'Massimo Dogfood' \
-  --role member \
-  --invite-ref handoff-s32-massimo-dogfood-home \
-  --activation-lifespan 900 \
-  --evidence-file ../../build/dogfood/activation-massimo-home.json
-```
-
-This sends a short-lived Keycloak required-action email to Mailpit. The Mailpit action URL is a secret one-time identity-provider artifact; do not put it in the QR, field manual, logs, screenshots, app storage, or GitHub comments.
+Before handing Massimo the QR/link on an empty realm, use the protected **Dogfood Owner Bootstrap**
+workflow. It creates the normal Keycloak Organizations invitation through Weave Server, or resends
+only the exactly correlated pending invitation. Once any human exists the bootstrap fails closed;
+later invitations and resends use the authenticated Admin Console/Server API. The Mailpit action URL
+is a secret one-time identity-provider artifact; do not put it in the QR, field manual, logs,
+screenshots, app storage, or GitHub comments.
 
 Default non-secret enrollment handoff link to give Massimo:
 
@@ -126,19 +124,20 @@ Expected tester path before Massimo is asked to try the build:
 7. After returning to Weave, copied app preferences must show `dogfood_auth_state_v1=workspace_ready`, and Weave must enter the authenticated workspace/home without raw provider/setup copy.
 8. Force-quit and reopen the app. The saved mobile session must restore without another interactive login.
 9. Run the trust-preserving app-state reset path, open the current handoff or organization sign-in path, and complete manual login to the workspace again. This proves fresh-session/manual-login recovery from a user perspective without deleting the Developer App trust anchor. A true uninstall/reinstall is a separate physical-trust-disruptive reset and must be explicitly requested.
-10. Verify local dogfood mail in Mailpit at `http://127.0.0.1:8025` or its API. Mailpit must capture identity mail locally and must not send dogfood mail externally.
+10. Verify dogfood mail from Safari on the iPhone at `https://mail.weave.test:44443` for the current LAN dogfood port profile. Mailpit must capture identity mail locally, remain restricted to the configured private LAN, and never send dogfood mail externally. Loopback port `8025` is only an internal runner-check detail.
 11. Verify `DOGFOOD_TRUST_STABILITY_RESULT` before handoff. If the trust checker emits `DOGFOOD_TRUST_STABILITY_BLOCKED`, report that blocker instead of asking Massimo to retest.
 
 After the full path, copy the app preferences and run:
 
 ```sh
-python3 tools/dogfood_onboarding_evidence_check.py \
+WEAVE_DOGFOOD_ACTIVATION_EVIDENCE_JSON=build/dogfood/activation-massimo-home.json \
+tools/dogfood_member_onboarding_gate.sh \
   --prefs-plist build/dogfood/appdata/com.massimotter.weave.plist \
   --expected-handoff-ref handoff-s32-massimo-dogfood-home \
   --expected-run-id s32-massimo-dogfood
 ```
 
-The command emits `DOGFOOD_MEMBER_ONBOARDING_RESULT` only when the copied app state is support-safe, reaches `workspace_ready`, and includes `dogfood_auth_state_history_v1` with `sso_in_progress`, `authenticated`, `workspace_bootstrap_loading`, and `workspace_ready` in order. That ordered history is the support-safe proof that Sign In opened the browser flow, the app returned after successful credentials, and workspace bootstrap completed. Use `--skip-mailpit` only for a local dry run; it is not sufficient dogfood completion evidence.
+The command emits `DOGFOOD_MEMBER_ONBOARDING_RESULT` only when the copied app state is support-safe, reaches `workspace_ready`, and includes `dogfood_auth_state_history_v1` with `sso_in_progress`, `authenticated`, `workspace_bootstrap_loading`, and `workspace_ready` in order. With `WEAVE_DOGFOOD_ACTIVATION_EVIDENCE_JSON` set, it also emits `DOGFOOD_ACTIVATION_MAIL_RESULT` only when the activation invite evidence matches the handoff, proves `UPDATE_PASSWORD` required-action mail was sent, and Mailpit contains the local identity mail without printing the action link. That ordered history is the support-safe proof that Sign In opened the browser flow, the app returned after successful credentials, and workspace bootstrap completed. Use `--skip-mailpit` only for a local dry run; it is not sufficient dogfood completion evidence.
 
 The release acceptance contract records this scenario as live runtime evidence scoped to source `dogfood-member-onboarding`. The generic `live-stack-e2e` lane proves stack login/chat/files/provider/workspace markers, but it must not claim or block on the member invite activation markers unless `tools/dogfood_member_onboarding_gate.sh` produced the dogfood onboarding log.
 
@@ -151,7 +150,8 @@ WEAVE_IOS_RESET_MODE=app_state \
 WEAVE_DOGFOOD_DEEPLINK='<current weave://join... URL>' \
 tools/dogfood_ios_deeplink_smoke.sh
 
-python3 tools/dogfood_onboarding_evidence_check.py \
+WEAVE_DOGFOOD_ACTIVATION_EVIDENCE_JSON=build/dogfood/activation-massimo-home.json \
+tools/dogfood_member_onboarding_gate.sh \
   --prefs-plist build/dogfood/appdata/com.massimotter.weave.plist \
   --expected-handoff-ref handoff-s32-massimo-dogfood-home \
   --expected-run-id s32-massimo-dogfood

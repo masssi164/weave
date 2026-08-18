@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
+import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/router/app_routes.dart';
@@ -13,6 +17,7 @@ import 'package:weave/features/app/domain/entities/integration_invalidation.dart
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_session.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
@@ -34,8 +39,8 @@ import 'package:weave/features/files/domain/entities/files_connection_state.dart
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
+import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -45,17 +50,58 @@ import 'package:weave/integrations/weave_api/presentation/providers/weave_api_pr
 import 'package:weave/main.dart';
 
 import '../helpers/in_memory_stores.dart';
+import '../helpers/fake_identity_session_port.dart';
 
 void main() {
   group('current release auth/files golden paths', () {
     testWidgets(
-      'setup, sign-in, ready shell, files browsing, chat room open plus send, sign-out/re-auth, and changed-server recovery',
+      'organization access, sign-in, ready shell, files browsing, chat send, and sign-out/re-auth',
       (tester) async {
         final authRepository = _ScenarioAuthSessionRepository();
         final serverConfigurationRepository =
             _MemoryServerConfigurationRepository();
         final filesRepository = _ScenarioFilesRepository(
           serverConfigurationRepository,
+        );
+        final discoveryClient = AppStartDiscoveryClient(
+          httpClient: MockClient((request) async {
+            expect(request.url.path, '/api/platform/config');
+            return http.Response(
+              jsonEncode({
+                'schemaVersion': 1,
+                'organizationOrigin': 'https://weave.test',
+                'controlPlaneBaseUrl': 'https://api.weave.test/api',
+                'oidc': {
+                  'issuer': 'https://auth.weave.test/realms/weave',
+                  'clientId': 'weave-app',
+                },
+                'protocols': {
+                  'matrixClientServerBaseUrl': 'https://api.weave.test',
+                  'filesWebDavBaseUrl': 'https://api.weave.test/dav/files',
+                  'calendarCalDavBaseUrl': 'https://api.weave.test/caldav',
+                },
+                'releasePosture': 'dogfood',
+                'domains': [
+                  for (final domain in [
+                    'identity',
+                    'chat',
+                    'files',
+                    'calendar',
+                    'boards',
+                    'health',
+                  ])
+                    {
+                      'domain': domain,
+                      'state': 'available',
+                      'capabilities': <String>[],
+                    },
+                ],
+                'recoveryActions': <Object>[],
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
         );
 
         tester.binding.platformDispatcher.localeTestValue = const Locale('en');
@@ -68,20 +114,26 @@ void main() {
         final container = ProviderContainer.test(
           overrides: [
             authSessionRepositoryProvider.overrideWithValue(authRepository),
+            identitySessionPortProvider.overrideWithValue(
+              FakeIdentitySessionPort(),
+            ),
             preferencesStoreProvider.overrideWith(
               (ref) => InMemoryPreferencesStore(),
             ),
+            secureStoreProvider.overrideWithValue(InMemorySecureStore()),
             serverConfigurationRepositoryProvider.overrideWithValue(
               serverConfigurationRepository,
+            ),
+            discoverOrganizationAccessProvider.overrideWithValue(
+              DiscoverOrganizationAccess(
+                repository: serverConfigurationRepository,
+                discoveryClient: discoveryClient,
+              ),
             ),
             filesRepositoryProvider.overrideWithValue(filesRepository),
             chatRepositoryProvider.overrideWithValue(_ScenarioChatRepository()),
             chatSecurityRepositoryProvider.overrideWithValue(
               _SignedOutChatSecurityRepository(),
-            ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async =>
-                  FirstRunLoadResult.authenticated(_releaseFirstRunStatus()),
             ),
             userProfileProvider.overrideWith((ref) async => _ownerProfile),
             workspaceConnectionStateProvider.overrideWithValue(
@@ -109,34 +161,18 @@ void main() {
           container.read(appBootstrapProvider).requireValue.phase,
           BootstrapPhase.needsSetup,
         );
-        expect(find.text('Join your organization'), findsOneWidget);
-
-        await tester.tap(find.text('Join your organization'));
-        await tester.pumpAndSettle();
-
-        await tester.ensureVisible(find.text('Open operator recovery setup'));
-        await tester.tap(find.text('Open operator recovery setup'));
-        await tester.pumpAndSettle();
+        expect(find.text('Organization access'), findsOneWidget);
 
         await tester.enterText(
-          _textFieldWithLabel('OIDC Issuer URL'),
-          'https://auth.weave.test/realms/weave',
+          _textFieldWithLabel('Server URI, invitation link, or QR payload'),
+          'https://weave.test',
         );
-        await tester.tap(find.text('Next'));
+        await tester.tap(find.text('Continue to organization'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Review Backend API'), findsOneWidget);
+        expect(find.text('Workspace ready for sign-in'), findsOneWidget);
         expect(find.text('https://matrix.weave.test'), findsNothing);
         expect(find.text('https://files.weave.test'), findsNothing);
-        expect(find.text('https://api.weave.test/api'), findsWidgets);
-
-        await tester.tap(find.text('Finish'));
-        await tester.pumpAndSettle();
-
-        expect(
-          container.read(appBootstrapProvider).requireValue.phase,
-          BootstrapPhase.needsSignIn,
-        );
         expect(find.text('Sign In'), findsWidgets);
 
         await tester.tap(find.widgetWithText(AccessibleButton, 'Sign In'));
@@ -146,7 +182,6 @@ void main() {
           container.read(appBootstrapProvider).requireValue.phase,
           BootstrapPhase.ready,
         );
-        await _continueFirstRunIfPresent(tester);
         expect(find.text('Weave Home'), findsWidgets);
 
         await tester.tap(_navigationDestination('Chat'));
@@ -222,31 +257,18 @@ void main() {
 
         await tester.tap(find.widgetWithText(AccessibleButton, 'Sign In'));
         await tester.pumpAndSettle();
-        await _continueFirstRunIfPresent(tester);
-
         container.read(appRouterProvider).go(AppRoutes.workspaceHealth);
         await tester.pumpAndSettle();
-        await tester.drag(
-          find.byType(CustomScrollView),
-          const Offset(0, -1400),
-        );
-        await tester.pumpAndSettle();
-        await tester.enterText(
-          _textFieldWithLabel('Nextcloud Base URL'),
-          'https://files-alt.weave.test',
-        );
-        await tester.tap(find.widgetWithText(AccessibleButton, 'Save Changes'));
-        await tester.pumpAndSettle();
-        await _continueFirstRunIfPresent(tester);
+        expect(_textFieldWithLabel('OIDC Issuer URL'), findsNothing);
+        expect(_textFieldWithLabel('Nextcloud Base URL'), findsNothing);
 
         await tester.tap(_navigationDestination('Files'));
         await tester.pumpAndSettle();
 
-        expect(find.text('https://files-alt.weave.test'), findsNothing);
         expect(find.text('Connect Files'), findsWidgets);
         expect(
           filesRepository.lastConfiguredBaseUrl.toString(),
-          'https://files-alt.weave.test',
+          'https://api.weave.test/dav/files',
         );
 
         await tester.tap(find.text('Connect Files').first);
@@ -269,18 +291,6 @@ Finder _navigationDestination(String label) {
   return find.widgetWithText(NavigationDestination, label);
 }
 
-Future<void> _continueFirstRunIfPresent(WidgetTester tester) async {
-  final continueButton = find.text('Continue to chat');
-  if (continueButton.evaluate().isEmpty) {
-    return;
-  }
-
-  await tester.ensureVisible(continueButton);
-  await tester.pumpAndSettle();
-  await tester.tap(continueButton);
-  await tester.pumpAndSettle();
-}
-
 const _ownerProfile = UserProfile(
   userId: 'release-owner',
   username: 'alex',
@@ -292,54 +302,6 @@ const _ownerProfile = UserProfile(
   roles: <String>['owner'],
   groups: <String>['workspace-default'],
 );
-
-FirstRunStatus _releaseFirstRunStatus() {
-  const profile = FirstRunProfileStatus(
-    status: 'ready',
-    missing: <String>[],
-    message: 'The Weave profile has the required first-run identity fields.',
-  );
-
-  const moduleReady = FirstRunModuleStatus(
-    state: FirstRunProvisioningState.ready,
-    message: 'Provisioning is ready for this user.',
-  );
-
-  return const FirstRunStatus(
-    identity: FirstRunIdentity(
-      userId: 'release-user',
-      username: 'alex',
-      email: 'alex@example.test',
-      emailVerified: true,
-      displayName: 'Alex Doe',
-      locale: 'en',
-      timezone: 'Europe/Berlin',
-      roles: <String>['owner'],
-      groups: <String>['workspace-default'],
-    ),
-    invite: FirstRunInviteStatus(
-      status: 'active',
-      message: 'The invite has been accepted and the account is active.',
-    ),
-    access: FirstRunAccess(
-      primaryRole: 'owner',
-      roles: <String>['owner'],
-      groups: <String>['workspace-default'],
-      canAdministerWorkspace: true,
-      canInviteUsers: true,
-      canUseWorkspaceModules: true,
-    ),
-    profile: profile,
-    moduleProvisioning: FirstRunModuleProvisioning(
-      identity: moduleReady,
-      profile: moduleReady,
-      matrix: moduleReady,
-      nextcloud: moduleReady,
-    ),
-    firstRunComplete: true,
-    actions: <String>[],
-  );
-}
 
 AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
   return const AsyncData(
@@ -618,6 +580,11 @@ class _ScenarioChatRepository implements ChatRepository {
 
   @override
   Future<void> connect() async {}
+
+  @override
+  Future<ChatConversation> createConversation({required String title}) {
+    throw UnimplementedError();
+  }
 
   @override
   Future<List<ChatConversation>> loadConversations() async =>

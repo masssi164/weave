@@ -28,8 +28,6 @@ import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration_save_result.dart';
@@ -42,7 +40,6 @@ import 'package:weave/main.dart';
 
 import '../../helpers/auth_test_data.dart';
 import '../../helpers/fake_chat_security_repository.dart';
-import '../../helpers/first_run_status_fixture.dart';
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
 
@@ -176,6 +173,11 @@ class _MutableChatRepository implements ChatRepository {
   }
 
   @override
+  Future<ChatConversation> createConversation({required String title}) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<List<ChatConversation>> loadConversations() async {
     loadCalls++;
     if (!isConnected) {
@@ -210,6 +212,12 @@ class _StaticWeaveApiClient implements WeaveApiClient {
   const _StaticWeaveApiClient(this.snapshot);
 
   final WorkspaceCapabilitySnapshot snapshot;
+
+  @override
+  Future<IdentitySessionReconcileResult> reconcileIdentitySession({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async => IdentitySessionReconcileResult.unchanged;
 
   @override
   Future<OrganizationManifestSnapshot> fetchOrganizationManifest({
@@ -248,11 +256,12 @@ class _StaticWeaveApiClient implements WeaveApiClient {
     required String accessToken,
   }) async {
     return const WorkspaceHomeSnapshot(
-      version: 1,
+      version: 2,
       readiness: WorkspaceCapabilityReadiness.ready,
       summary: 'Weave Home is ready for tests.',
       sections: [],
       actions: [],
+      recentActivity: [],
       supportSafe: true,
     );
   }
@@ -366,7 +375,7 @@ void main() {
   tearDown(binding.platformDispatcher.clearLocaleTestValue);
 
   group('Release golden paths', () {
-    testWidgets('sign-in journey reviews first-run status then reaches shell', (
+    testWidgets('sign-in journey enters the product shell directly', (
       tester,
     ) async {
       final secureStore = InMemorySecureStore();
@@ -397,10 +406,6 @@ void main() {
             ),
             chatSecurityRepositoryProvider.overrideWithValue(
               FakeChatSecurityRepository(),
-            ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async =>
-                  FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
             ),
             filesRepositoryProvider.overrideWithValue(
               _MutableFilesRepository(
@@ -461,8 +466,6 @@ void main() {
         await secureStore.read(authSessionStorageKey),
         contains('fresh-access-token'),
       );
-
-      await _continueFirstRunIfPresent(tester);
 
       expect(find.byType(NavigationBar), findsOneWidget);
     });
@@ -533,10 +536,6 @@ void main() {
               chatSecurityRepositoryProvider.overrideWithValue(
                 FakeChatSecurityRepository(),
               ),
-              firstRunStatusProvider.overrideWith(
-                (ref) async =>
-                    FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
-              ),
               userProfileProvider.overrideWith((ref) async => null),
               filesRepositoryProvider.overrideWithValue(filesRepository),
               weaveApiClientProvider.overrideWithValue(
@@ -571,10 +570,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await _continueFirstRunIfPresent(tester);
-
-        expect(chatRepository.connectCalls, 1);
-        expect(find.text('Weave Core'), findsWidgets);
+        expect(chatRepository.connectCalls, 0);
+        expect(find.text('Weave Core'), findsNothing);
 
         await tester.tap(find.byIcon(Icons.folder_outlined));
         await tester.pumpAndSettle();
@@ -605,6 +602,7 @@ void main() {
         await tester.tap(find.text('Chat'));
         await tester.pumpAndSettle();
 
+        expect(chatRepository.connectCalls, 1);
         expect(find.text('Weave Core'), findsWidgets);
         expect(find.text('Golden path looks healthy.'), findsOneWidget);
       },
@@ -642,10 +640,6 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               FakeChatSecurityRepository(),
             ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async =>
-                  FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
-            ),
             userProfileProvider.overrideWith((ref) async => null),
             filesRepositoryProvider.overrideWithValue(filesRepository),
             weaveApiClientProvider.overrideWithValue(
@@ -679,8 +673,6 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-
-      await _continueFirstRunIfPresent(tester);
 
       await tester.tap(find.byIcon(Icons.settings_outlined));
       await tester.pumpAndSettle();
@@ -732,10 +724,6 @@ void main() {
               chatSecurityRepositoryProvider.overrideWithValue(
                 FakeChatSecurityRepository(),
               ),
-              firstRunStatusProvider.overrideWith(
-                (ref) async =>
-                    FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
-              ),
               userProfileProvider.overrideWith((ref) async => null),
               filesRepositoryProvider.overrideWithValue(filesRepository),
               weaveApiClientProvider.overrideWithValue(
@@ -769,8 +757,6 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-
-        await _continueFirstRunIfPresent(tester);
 
         await tester.tap(find.byIcon(Icons.settings_outlined));
         await tester.pumpAndSettle();
@@ -819,17 +805,4 @@ void main() {
       },
     );
   });
-}
-
-Future<void> _continueFirstRunIfPresent(WidgetTester tester) async {
-  final continueButton = find.text('Continue to chat');
-  if (continueButton.evaluate().isEmpty) {
-    return;
-  }
-
-  expect(find.text('Your Weave workspace is ready'), findsOneWidget);
-  await tester.ensureVisible(continueButton);
-  await tester.pumpAndSettle();
-  await tester.tap(continueButton);
-  await tester.pumpAndSettle();
 }

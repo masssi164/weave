@@ -25,32 +25,28 @@ FORBIDDEN_FRAGMENTS = (
 REQUIRED_LANES = {
     "pr-safe-ci",
     "release-candidate-live-evidence",
+    "persistent-dogfood-verification",
+    "ios-dogfood-distribution",
+    "physical-human-acceptance",
     "release-promotion",
 }
 REQUIRED_GATES = {
     "gradle-ci",
+    "spec-corpus-conformance",
     "release-notes-label-check",
-    "credentialed-live-stack-e2e",
+    "test-app-product-flow-e2e",
+    "persistent-dogfood-deployment",
+    "ios-dogfood-distribution",
+    "physical-iphone-voiceover",
+    "human-testing-readiness-manifest",
     "release-draft-review",
     "release-owner-signoff",
 }
 REQUIRED_LIVE_ARTIFACTS = {
-    "weave-live-stack-acceptance-evidence/acceptance-summary.md",
-    "weave-live-stack-acceptance-evidence/scenario-mapping-results.json",
-    "weave-live-stack-acceptance-evidence/evidence-markers.json",
-    "weave-live-stack-acceptance-evidence/release-evidence-manifest.json",
+    "weave-live-stack-acceptance-evidence/weave-test-app-evidence.json",
 }
 REQUIRED_MARKERS = {
-    "AUTH_RESULT",
-    "PROFILE_RESULT",
-    "CHAT_RESULT",
-    "MATRIX_RESULT",
-    "E2EE_RESULT",
-    "FILES_RESULT",
-    "PROVIDER_STACK_RESULT",
-    "CALENDAR_RESULT",
-    "BOARDS_RESULT",
-    "PROVIDER_REALITY_RESULT",
+    "WEAVE_TEST_APP_RESULT",
 }
 
 
@@ -96,8 +92,10 @@ def check_contract(contract: dict[str, Any]) -> None:
     if not isinstance(promotion, dict):
         fail("promotionModel must be present")
     rule = str(promotion.get("promotionRule", ""))
-    if "green-credentialed-live-stack-e2e" not in rule or "waiver" not in rule:
-        fail("promotion rule must require green credentialed Live Stack E2E or waiver")
+    if "exact-candidate-human-testing-readiness-manifest-is-ready" not in rule:
+        fail("promotion rule must require the exact-candidate ready human-testing manifest")
+    if promotion.get("mandatoryGateWaiversAllowed") is not False:
+        fail("mandatory human-testing gates must not be waivable")
 
     lanes = contract["lanes"]
     lane_ids = {lane.get("id") for lane in lanes if isinstance(lane, dict)}
@@ -118,13 +116,13 @@ def check_contract(contract: dict[str, Any]) -> None:
         if not isinstance(evidence, list) or not evidence:
             fail(f"gate {gate.get('id', '<missing>')} must name evidence artifacts")
 
-    live_gate = next(gate for gate in gates if gate.get("id") == "credentialed-live-stack-e2e")
+    live_gate = next(gate for gate in gates if gate.get("id") == "test-app-product-flow-e2e")
     live_artifacts = set(live_gate.get("evidence", []))
     if REQUIRED_LIVE_ARTIFACTS - live_artifacts:
-        fail("credentialed-live-stack-e2e is missing required support-safe artifacts")
+        fail("test-app-product-flow-e2e is missing required support-safe artifacts")
     live_markers = set(live_gate.get("mustObserveMarkers", []))
     if REQUIRED_MARKERS - live_markers:
-        fail("credentialed-live-stack-e2e is missing required runtime markers")
+        fail("test-app-product-flow-e2e is missing required runtime markers")
 
 
 def check_accessibility_gate() -> None:
@@ -140,7 +138,7 @@ def check_accessibility_gate() -> None:
         "member-workspace-loop",
         "admin-migration-apply-recovery",
         "admin-go-live-claim-control",
-        "governed-weaver-approval-revocation",
+        "agent-runtime-control-admin-lifecycle",
     )
     flow_ids = {flow.get("id") for flow in flows if isinstance(flow, dict)}
     for required in required_flows:
@@ -159,7 +157,7 @@ def check_accessibility_gate() -> None:
         "member Workspace loop",
         "admin migration apply/recovery",
         "admin go-live claim-control",
-        "governed Weaver approval/revocation",
+        "Agent Runtime Control admin lifecycle",
         "docs/evidence/accessibility/sprint-18-manual-at-blocker.md",
     ):
         if fragment not in doc:

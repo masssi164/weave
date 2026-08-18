@@ -94,9 +94,6 @@ void main() {
         final channelWorkspace = File(
           'lib/features/chat/domain/entities/channel_workspace.dart',
         ).readAsStringSync();
-        final agentPolicy = File(
-          'lib/features/agents/domain/entities/agent_capability_policy.dart',
-        ).readAsStringSync();
 
         expect(
           channelWorkspace,
@@ -104,8 +101,6 @@ void main() {
         );
         expect(channelWorkspace, contains('notConfigured'));
         expect(channelWorkspace, contains('disabledByPolicy'));
-        expect(agentPolicy, isNot(contains('previewOnly')));
-        expect(agentPolicy, contains('disabledByPolicy'));
       },
     );
   });
@@ -124,13 +119,10 @@ const _releaseScopePrefixes = <String>[
   'setup',
   'nav',
   'shell',
-  'firstRun',
   'chatOverview',
   'chatFavorites',
   'chatPersonal',
   'chatChannels',
-  'chatAi',
-  'chatAgent',
   'chatProvisioning',
   'chatScreen',
   'chatRoom',
@@ -144,7 +136,6 @@ const _releaseScopePrefixes = <String>[
   'settingsAdmin',
   'settingsHelp',
   'settingsShell',
-  'agentCapability',
   'helpWhatIsWeave',
 ];
 
