@@ -55,9 +55,16 @@ The active PostgreSQL contract proves:
 - rejection of modified applied-migration checksums before Hibernate starts;
 - upgrade from the immediately previous resolved Flyway version;
 - two concurrent initializers serialize across the complete one-shot operation;
-- one authority marker and no duplicate successful migration version after concurrency.
+- one authority marker and no duplicate successful migration version after concurrency;
+- a private custom-format PostgreSQL dump restores into a separate empty PostgreSQL instance;
+- restored Flyway history, schema fingerprint, and authority receipt validate without new migrations;
+- a canonical transfer checkpoint and fidelity outcome survive restore;
+- the restored canonical transfer resumes and completes through `TransferRunRepository`;
+- continuing the restored transfer does not mutate the original source database.
 
-Issue #1320 still owns domain repository adoption, accepted-schema evolution policy, transaction coherence, and application-consistent backup/restore.
+The recovery test uses the PostgreSQL client shipped by the exact source and target server images. It creates a consistent custom-format dump with ownership and privileges excluded, restores in one transaction with `pg_restore --single-transaction --exit-on-error`, runs the real schema initializer, and then exercises the canonical repository port. It is deliberately independent of the historical Compose backup manifest, Nextcloud, Synapse/Tuwunel, or provider-volume evidence paths.
+
+This proves the relational half of canonical recovery. Files blob backup/restore and post-restore WebDAV, CalDAV, and Matrix equivalence remain owned by #1326, #1301, #1302, and the final #1412 system E2E.
 
 ## Fresh-start boundary
 
