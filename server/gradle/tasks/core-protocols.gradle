@@ -1,0 +1,37 @@
+def registerCoreProtocolTest = { String taskName, String taskDescription, List<String> patterns ->
+    tasks.register(taskName, Test) {
+        group = 'verification'
+        description = taskDescription
+        dependsOn tasks.named('buildMatrixRustCoreJni'), tasks.named('testClasses')
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+        maxParallelForks = 1
+        maxHeapSize = '1g'
+        systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
+        filter {
+            patterns.each { pattern -> includeTestsMatching(pattern) }
+            failOnNoMatchingTests = true
+        }
+        useJUnitPlatform {
+            excludeTags 'postgres'
+        }
+        testLogging {
+            exceptionFormat = 'full'
+        }
+    }
+}
+
+registerCoreProtocolTest(
+        'filesWebDavFacadeTest',
+        'Run the accepted Files/WebDAV projection and native canonical behavior tests.',
+        ['*WebDav*', '*FilesFacade*', '*WeaveNativeFilesAdapterTest'])
+
+registerCoreProtocolTest(
+        'calendarCalDavFacadeTest',
+        'Run the accepted Calendar/CalDAV/iCalendar projection and temporal behavior tests.',
+        ['*CalDav*', '*Calendar*'])
+
+registerCoreProtocolTest(
+        'chatMatrixFacadeTest',
+        'Run the accepted Chat/Matrix projection, canonical ledger, sync, and idempotency tests.',
+        ['*Matrix*', '*CanonicalChat*'])
