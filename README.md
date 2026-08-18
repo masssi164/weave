@@ -1,94 +1,143 @@
 # Weave
 
-Provider-neutral collaboration for organizations that need control, portability, and governed assistance.
+Weave gives organizations control over their collaboration data.
 
-Weave is a provider-neutral collaboration suite built around open standards and Weave-owned product contracts.
+It provides provider-independent **Files**, **Calendar**, and **Chat** domains, exposes them through open standards, persists a canonical Weave representation, and connects external providers through replaceable import/export adapters.
 
-Weave is an open-standards gateway and product surface, not a branded skin over one provider. The northbound side exposes stable Weave-owned protocols and product APIs to clients. The southbound side adapts replaceable providers behind canonical Weave domains.
+Weave is under active core reconstruction. It is not yet presented as a finished production collaboration server.
 
-## Bootstrap foundation
+## What Weave is
 
-The bootstrap foundation is the provider-neutral architectural baseline that every deployment starts from: permanent northbound WebDAV, CalDAV and Matrix Client-Server contracts; canonical Files, Calendar and Chat domains; replaceable southbound Provider Adapters; and Infrastructure Ports that isolate concrete storage/protocol/persistence technologies such as OpenDAL, iCal4j, Ruma/JNI and JPA/PostgreSQL. Bootstrap code may select `weave-native` as the default provider, but it must not collapse canonical domain contracts into provider- or backend-specific APIs.
+Weave separates three concerns that historically became mixed together:
 
-The binding setup boundary is documented in [`docs/bootstrap-foundation-contract.md`](docs/bootstrap-foundation-contract.md).
+1. Open client protocols.
+2. Canonical collaboration data and application behavior.
+3. Storage technologies and external providers.
 
-| Domain | Permanent northbound member data plane | Canonical Weave boundary | Selected default provider |
-| --- | --- | --- | --- |
-| Chat | Matrix Client-Server-compatible facade at the public API origin under `/_matrix/client/**` | Provider-neutral conversations, rooms, events, membership, sync and encryption policy | `weave-native` Chat with PostgreSQL/JPA; Synapse/Matrix-backed adapters remain optional southbound providers |
-| Files | WebDAV facade under `/dav/files/**` | Provider-neutral files, folders, versions, rights, locks, lifecycle and audit | `weave-native` Files with JPA metadata and Apache OpenDAL filesystem storage; S3 and Nextcloud/WebDAV remain separate optional providers |
-| Calendar | CalDAV/iCalendar facade under `/caldav/**` | Provider-neutral calendars/events, time semantics, recurrence, sync and meeting-thread references | `weave-native` Calendar with JPA/PostgreSQL and iCal4j; Nextcloud/CalDAV/Radicale adapters remain optional providers |
-| Platform identity/security | OIDC/OAuth2 with Keycloak as authority | One login, user profile, roles, policy, audit, workload identities, support-safe diagnostics | Keycloak; Entra ID/Auth0/Authentik/LDAP/AD may federate or broker upstream through Keycloak |
-| Boards/tasks | Weave product/control APIs while protocol parity matures | Provider-neutral task, board, readiness, mapping, authorization, and audit contracts | Local workspace today; OpenProject-class adapters remain gated |
-| Calls/meetings | Matrix v1.19 plus the revision-pinned MatrixRTC Profile 0 target | Matrix room, slot, membership, authorization, media-key, consent, and artifact contracts | LiveKit is the first replaceable RTC transport/SFU, not the member contract |
-| Agent Runtime Control | Signed RuntimeProfile v2 and an administrative lifecycle API | Entitlement, cell identity, desired state, profile issuance, workload reconciliation, encrypted external state, and audit | `weave/server`; Weaver/OpenClaw is the first runtime consumer |
-| Agent tools | Guarded OAuth-protected MCP at `/mcp` using Spring AI stateful Streamable HTTP | ARC-bound workload admission plus `files.search` and `weave://files/{canonicalFileId}` over the canonical Files boundary | Keycloak Standard Token Exchange V2 and the existing Weave WebDAV projection; Calendar, Chat and write catalogs remain gated |
+The product authority is the canonical Weave state. A provider may be an import source, export target, or synchronized projection, but its IDs, URLs, DTOs, and database schema are not the Weave contract.
 
-The WebDAV, CalDAV and Matrix Client-Server surfaces are server contracts, not provider feature flags. Provider selection happens only behind `FilesProviderPort`, `CalendarProviderPort`, and `ChatProviderPort`; changing a provider must not change the northbound URL, canonical IDs, authorization semantics, or application contracts.
+The current core intentionally covers only:
 
-Weave distinguishes **provider portability** from **technology access**. Provider Ports and Provider Adapters choose which implementation supplies a canonical domain capability. Infrastructure Ports and Infrastructure Adapters hide storage/protocol/persistence technology below that provider or facade. OpenDAL, iCal4j and Ruma therefore do not represent providers: OpenDAL is a storage infrastructure library, iCal4j is an iCalendar/recurrence infrastructure library, and Ruma/jni-rs form the Matrix protocol infrastructure adapter. The complete terminology is defined in `docs/architecture/provider-and-infrastructure-boundaries.md`.
+- Files;
+- Calendar;
+- Chat.
 
-This distinction also means a technology may be reused by multiple providers without collapsing their identities. `weave-native` Files uses OpenDAL's filesystem service behind `BlobStorePort`; an independently selectable S3 Files provider may also use OpenDAL's S3 service internally while remaining a separate `FilesProviderPort` implementation with separate configuration, capabilities and qualification.
+Provider-specific production migration, Home-core integration, Calls, broad UI work, and public release operations come later.
 
-Spring Boot is the server gatekeeper for OIDC, authorization, audit, readiness, and support-safe errors. The Matrix facade shares the public API origin; a `matrix.<tenant>` host is a southbound provider/operator endpoint, never a member-client setting. Server-side Matrix protocol shaping lives in the isolated `weave-matrix-protocol` Rust crate using Ruma and jni-rs. Client-side Matrix SDK/E2EE and Flutter bindings live separately in `weave-matrix-client`; client crypto is not linked into the server runtime.
+## Core architecture
 
-Matrix encryption is device-owned. The Flutter bridge uses the Apache-2.0 Matrix Rust SDK for encrypted-room state, cross-signing, SAS verification, recovery, and an encrypted SQLite crypto store. Spring and southbound adapters may persist public device keys, opaque encrypted events, to-device envelopes, and room-key backup ciphertext, but never user private keys or decrypted message bodies. Plaintext fallback is rejected for encrypted rooms.
-
-```mermaid
-flowchart LR
-  clients["Flutter, native DAV clients, and Weaver cells"] --> oidc["Keycloak identity"]
-  oidc --> northbound["WebDAV | CalDAV | Matrix Client-Server/MatrixRTC | OAuth-protected MCP"]
-  northbound --> domains["Files | Calendar | Chat | Calls | Agent Runtime Control domains"]
-  domains --> ports["Provider ports, mappings, conformance, and audit"]
-  ports --> native["weave-native defaults"]
-  ports --> optional["Replaceable S3, Nextcloud/WebDAV, CalDAV, Synapse/Matrix, Slack, Teams and future providers"]
+```text
+Northbound projections
+  WebDAV          CalDAV/iCalendar          Matrix Client-Server
+      \                  |                         /
+             canonical application use cases
+                Files | Calendar | Chat
+                         |
+              canonical data authority
+       IDs | revisions | provenance | tombstones
+       mappings | journals | transfer checkpoints
+                 /                     \
+Persistence adapters                Provider connectors
+JPA/Flyway/PostgreSQL               import/export/reconcile
+BlobStore/OpenDAL                   external provider APIs
 ```
 
-Textual equivalent: clients authenticate through the Weave identity boundary and always reach Weave-owned northbound standards interfaces. Those interfaces call canonical domain/application services, which select a provider only behind the corresponding Provider Port. `weave-native` is the selected default Provider Adapter for Files, Calendar and Chat; optional external providers stay southbound and replaceable. Provider Adapters may in turn compose narrower Infrastructure Ports. For Files, `BlobStorePort` is the storage Infrastructure Port and OpenDAL is an implementation technology below it; for Calendar, `IcalendarCodec`/`RecurrenceEngine` hide iCal4j; for Matrix, `MatrixProtocolCodec` hides Ruma/JNI.
+Textual equivalent: clients call Weave-owned WebDAV, CalDAV, or Matrix endpoints. Those protocol adapters call canonical application services. The services own identity, authorization, lifecycle, revisions, synchronization, and transfer rules. JPA/Flyway and BlobStore adapters persist canonical state. External providers remain behind separate source and target connector ports.
 
-Provider switching happens below the canonical domain boundary. Adapters translate provider identifiers, errors, and capabilities into Weave values; durable mappings and conformance reports preserve continuity. A provider URL, token, SDK type, Matrix homeserver, storage backend, or Nextcloud endpoint is therefore an implementation detail, never the member contract.
+### Northbound standards
 
-## Product Screenshots
+- Files: WebDAV.
+- Calendar: CalDAV and iCalendar.
+- Chat: a bounded Matrix Client-Server profile.
 
-The reviewed product captures and their evidence status are indexed in [the screenshot catalog](docs/product-screenshots.md).
+OpenAPI may remain for derived control, discovery, status, or generated convenience. It is not the Files, Calendar, Chat, portability, or MCP data-plane authority.
 
-## What Works Today
+### Native operation
 
-The native Files, Calendar, and Chat paths expose Weave-owned WebDAV, CalDAV, and Matrix facades over canonical persistence. The checked-in release gates distinguish compiled and contract-tested behavior from live dogfood and physical-device evidence.
+`weave-native` means that Weave serves the canonical state directly from its own persistence adapters. It is boot composition, not a second Files, Calendar, or Chat implementation.
 
-## What Is Guarded
+OpenDAL is a BlobStore technology. iCal4j is calendar syntax and recurrence infrastructure. Ruma/JNI is Matrix protocol infrastructure. None of them defines a provider-independent domain.
 
-Weave is in active dogfood, and that stream is evidence-driven; it does not claim public production readiness, perfect lossless migration, or unrestricted autonomous agents. Optional external providers, production promotion, physical accessibility acceptance, and broad E2EE completeness claims remain guarded until their dedicated evidence gates pass. The reviewed member journey is defined in [`docs/v0.1-golden-path.md`](docs/v0.1-golden-path.md).
+### MCP and Weaver
 
-Provider neutrality does not imply universal provider interchangeability, and perfect lossless migration is not claimed. The portability promise is no unaccounted data loss: every preserved, lossy, blocked, or provider-retained field must be explicit before a switch is approved. See the [product trust claim matrix](docs/product-trust-provider-choice-claim-matrix.md).
+The separate Weave MCP Server supports **Files and Calendar only**.
 
-## For Members
+It exposes semantic tools and resources and reaches Weave Server through typed WebDAV and CalDAV clients. It has no JPA repository, DataSource, provider adapter, or Chat catalog.
 
-Members use the Flutter product surfaces and stable Weave protocol endpoints; they never configure raw provider URLs or credentials.
+Weaver/OpenClaw communicates conversationally through the Weave Matrix facade using the OpenClaw Matrix plugin. Chat is therefore not duplicated as MCP tools.
 
-## For Admins And Operators
+## Current status
 
-Administrators select provider categories through the control plane. Operators use the documented candidate, backup, deployment, readiness, and support-bundle workflows.
+The development line already contains substantial historical implementation, but several layers remain mixed and are being corrected before the current tree becomes `main`.
 
-## For Developers
+Foundation now being established:
 
-Start with [AGENTS.md](AGENTS.md), the pinned specification corpus, and the repository-specific validation tasks before changing a product or deployment contract.
+- executable architecture boundaries for domain, application, projection, persistence, and provider code;
+- provider-independent canonical IDs and transfer envelopes;
+- resumable checkpoints, deterministic idempotency keys, and explicit loss accounting;
+- Flyway/JPA as persistence adapters rather than domain authority;
+- concise core CI and documentation entry points.
 
-## Release Notes
+Still incomplete:
 
-<!-- WEAVE_RELEASE_NOTES_START -->
-- Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
-- Latest release index: [Release notes](docs/release-notes/index.md)
-<!-- WEAVE_RELEASE_NOTES_END -->
+- complete canonical Files application and WebDAV conformance;
+- complete canonical Calendar application and CalDAV conformance;
+- complete canonical Chat ledger and Matrix profile;
+- Files/Calendar MCP equivalence;
+- PostgreSQL-backed transfer checkpoints;
+- provider connector conformance for all three domains;
+- exact-commit restart and backup/restore E2E.
 
-## Release Evidence
+No current statement implies named-provider cutover readiness, Matrix federation, complete client E2EE, Home-core replacement, or public production readiness.
 
-<!-- WEAVE_RELEASE_NOTES:START -->
-- Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
-- Offline release-note fixture review artifact: `build/release-notes/unreleased.md`
-- Release evidence check: deterministic CI/local gate for README markers, release-note structure, label policy, and release evidence fixtures.
-<!-- WEAVE_RELEASE_NOTES:END -->
+## Ordered roadmap
 
-## Enterprise Workflow
+The binding roadmap is [issue #1299](https://github.com/masssi164/weave/issues/1299).
 
-1. **Buyer and transformation lead** align the collaboration domains that matter: identity, chat, files, calendar, boards/tasks, meetings, decisions, and governed assistance.
-2. **Admin and operator** prepare the organization through one control path: connect provider categories, review readiness, preview policy impact, and keep diagnostics and evidence support-safe before member go-live.
+1. [#1024](https://github.com/masssi164/weave/issues/1024): enforce architecture boundaries.
+2. [#1012](https://github.com/masssi164/weave/issues/1012): canonical data and transfer kernel.
+3. [#1320](https://github.com/masssi164/weave/issues/1320): Flyway/JPA persistence adapters.
+4. [#1326](https://github.com/masssi164/weave/issues/1326): Files and WebDAV reference vertical.
+5. [#1301](https://github.com/masssi164/weave/issues/1301): Calendar and CalDAV/iCalendar.
+6. [#1302](https://github.com/masssi164/weave/issues/1302): Chat and Matrix Client-Server.
+7. [#1263](https://github.com/masssi164/weave/issues/1263) and [#1415](https://github.com/masssi164/weave/issues/1415): Files/Calendar MCP.
+8. [#1014](https://github.com/masssi164/weave/issues/1014): executable provider connector conformance.
+9. [#1304](https://github.com/masssi164/weave/issues/1304) and [#1306](https://github.com/masssi164/weave/issues/1306): minimal standalone topology.
+10. [#1412](https://github.com/masssi164/weave/issues/1412): complete system E2E.
+11. [#1307](https://github.com/masssi164/weave/issues/1307): active CI and DevOps truth.
+12. [#1416](https://github.com/masssi164/weave/issues/1416): documentation truth.
+
+The single `dev` to `main` convergence path is [PR #1413](https://github.com/masssi164/weave/pull/1413).
+
+## Develop and test
+
+Use Java 21. Container tooling is required only for PostgreSQL, IAM, protocol, or full-system tests that actually start infrastructure.
+
+Current foundation commands:
+
+```bash
+./gradlew coreArchitectureCi
+./gradlew canonicalDataCi
+./gradlew :server:test
+./gradlew :server:postgresJpaTest
+./gradlew :weave-mcp-server:test
+```
+
+The stable aggregate commands `coreCheck` and `coreSystemE2e` are introduced under #1307 as the focused gates become truthful.
+
+Do not require Flutter, Node, MkDocs, Xcode, TestFlight, screenshots, or manual release evidence for unrelated Server/Data/MCP changes.
+
+## Documentation
+
+- [Data-sovereignty architecture](docs/architecture/data-sovereignty-core.md)
+- [Package and dependency boundaries](docs/architecture/core-package-boundaries.md)
+- [Canonical transfer kernel](docs/architecture/canonical-transfer-kernel.md)
+- [Core development workflow](docs/development/core-workflow.md)
+- [Core test strategy](docs/testing/core-test-strategy.md)
+- [Documentation audit](docs/documentation-audit.md)
+
+Historical documents are not architecture authority. Superseded entry points redirect to the active documents above.
+
+## License
+
+See [LICENSE](LICENSE).
