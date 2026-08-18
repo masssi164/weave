@@ -1,0 +1,44 @@
+tasks.register('postgresPersistenceCi') {
+    group = 'verification'
+    description = 'Run canonical JPA adapter tests and authoritative PostgreSQL schema/repository contracts.'
+    dependsOn ':weave-persistence-jpa:test', ':server:postgresJpaTest'
+}
+
+tasks.register('protocolFacadeCi') {
+    group = 'verification'
+    description = 'Run focused WebDAV, CalDAV/iCalendar, and Matrix northbound facade tests.'
+    dependsOn ':server:filesWebDavFacadeTest',
+            ':server:calendarCalDavFacadeTest',
+            ':server:chatMatrixFacadeTest',
+            'filesWebDavFacadeAcceptanceCheck'
+}
+
+tasks.register('providerConnectorCi') {
+    group = 'verification'
+    description = 'Run the executable deterministic provider source/target and no-silent-drift contracts.'
+    dependsOn ':weave-data-core:canonicalDataCi'
+}
+
+tasks.register('mcpFilesCalendarBoundaryCheck', Exec) {
+    group = 'verification'
+    description = 'Reject Chat, persistence, provider, and OpenAPI-derived authority in weave-mcp-server.'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'tools/mcp_files_calendar_boundary_check.py'
+}
+
+tasks.register('mcpFilesCalendarCi') {
+    group = 'verification'
+    description = 'Run the Files/Calendar-only MCP module and architecture boundary checks.'
+    dependsOn ':weave-mcp-server:test', 'mcpFilesCalendarBoundaryCheck'
+}
+
+tasks.register('coreCheck') {
+    group = 'verification'
+    description = 'Run every required non-system-E2E data-sovereignty core gate.'
+    dependsOn 'coreArchitectureCi',
+            ':weave-data-core:canonicalDataCi',
+            'postgresPersistenceCi',
+            'protocolFacadeCi',
+            'providerConnectorCi',
+            'mcpFilesCalendarCi'
+}
