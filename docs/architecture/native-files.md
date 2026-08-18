@@ -1,72 +1,74 @@
-# Native Files provider
+# Native Files composition
+
+Status: active transition contract for issue #1326.
 
 ## Boundary
 
-Files is a provider-neutral canonical domain. WebDAV is a permanent northbound Weave Server interface. Provider selection occurs only behind `FilesProviderPort`.
+Files is a provider-independent canonical domain. WebDAV is the stable northbound Files interface. PostgreSQL/JPA and BlobStore implementations are southbound persistence and infrastructure adapters.
 
 ```text
-WebDAV
-  -> canonical Files application/domain
-    -> FilesProviderPort                    (Provider Port)
-      -> weave-native                       (Provider Adapter, selected default)
-        -> BlobStorePort                    (Infrastructure Port)
-          -> FilesystemBlobStore            (Infrastructure Adapter)
-            -> Apache OpenDAL (filesystem service)
-              -> private filesystem storage
-
-      -> weave-s3-minio                     (separate Provider Adapter)
-        -> ObjectStoragePort                (Infrastructure Port)
-          -> OpenDalS3ObjectStorageAdapter  (Infrastructure Adapter)
-            -> Apache OpenDAL (S3 service)
-              -> S3
-
-      -> optional external providers
+WebDAV projection
+    -> Files application use cases
+        -> canonical Files domain
+            -> FilesAuthorityRepository
+                -> JPA / Flyway / PostgreSQL
+            -> BlobStorePort
+                -> FilesystemBlobStore
+                    -> OpenDAL filesystem
+            -> provider source/target connector ports
 ```
 
-The general terminology is defined in [`provider-and-infrastructure-boundaries.md`](provider-and-infrastructure-boundaries.md).
+Textual equivalent: WebDAV translates HTTP/XML into canonical Files commands and queries. Canonical Files behavior owns IDs, paths, versions, lifecycle, locking and integrity. JPA stores metadata. `BlobStorePort` stores private immutable bytes. Provider connectors later import or export canonical objects; they are not selected by WebDAV.
 
-`weave-native` owns canonical relational metadata, hierarchy, versions, rights, locks, lifecycle, tombstones, operation intents, change state and reconciliation metadata in Weave PostgreSQL/JPA persistence.
+## Current transition
 
-Apache OpenDAL is **not a Files provider**. It is an infrastructure-level storage abstraction reused below Files provider boundaries. OpenDAL types never cross the infrastructure/provider boundary into canonical Files contracts.
+The current `FilesProviderPort`, `FilesFacadeService` and `WeaveNativeFilesAdapter` still combine more application and composition responsibility than the target architecture permits. They remain compatibility seams while behavior is moved into explicit Files application services.
 
-For `weave-native`, `FilesystemBlobStore` uses OpenDAL's filesystem service for private immutable blob storage. The independently selectable `weave-s3-minio` provider uses `ObjectStoragePort` with `OpenDalS3ObjectStorageAdapter` and OpenDAL's S3 service. Reusing the same infrastructure library does not merge those Provider Adapters.
+`weave-native` means canonical Files application behavior composed with `JpaFilesAuthorityRepository` and a configured `BlobStorePort`. It is not a second Files domain. A future S3-compatible implementation belongs below `BlobStorePort`; S3 is not a parallel canonical Files provider.
+
+A remaining known debt is that `CanonicalFileRecord` still carries a private storage reference. Issue #1326 removes that reference from the canonical domain surface as the JPA/blob binding is split into adapter-private persistence.
 
 ## Blob authority
 
-The native provider stores private immutable blob content in filesystem storage through the `BlobStorePort` Infrastructure Port. `FilesystemBlobStore` is the concrete OpenDAL filesystem Infrastructure Adapter. Raw NIO blob data paths are not parallel native authorities.
+`FilesystemBlobStore` is the initial OpenDAL-backed infrastructure adapter. It owns only bounded byte I/O through scoped opaque references:
 
-Canonical/member paths are not blob keys. Blob references are opaque, scoped and validated. Immutable publication verifies content digest and length.
+- verify expected length and SHA-256 digest;
+- publish immutable content through a private temporary key and same-backend rename;
+- read, delete and inventory scoped blobs;
+- enforce root containment, reject symlinks and use private filesystem permissions;
+- expose no raw path or blob reference northbound.
 
-## Atomicity model
+Canonical/member paths are not blob keys. Changing the BlobStore implementation must not change canonical IDs, WebDAV paths, versions, permissions or transfer envelopes.
 
-PostgreSQL and native filesystem blob storage do not share an ACID transaction. Writes therefore use a durable operation-intent/reconciliation boundary:
+## Atomicity and reconciliation
 
-1. persist a pending canonical operation intent;
-2. stream and verify the immutable blob through the Files storage Infrastructure Port;
-3. atomically commit canonical version metadata, change revision and outbox state in PostgreSQL;
-4. mark the intent complete;
-5. bounded reconciliation handles interrupted states.
+PostgreSQL and blob storage do not share one ACID transaction. Files mutations therefore require durable operation intent, immutable blob publication, metadata activation and bounded reconciliation. Ambiguous partial outcomes never become silent success.
 
-A failed or ambiguous blob/database boundary never becomes silent success.
+The current native adapter already verifies metadata/blob length and digest and deletes bounded orphan inventory. The next structural slices move this orchestration out of the adapter and bind intent, journal and outbox state transactionally to canonical metadata.
 
-## Filesystem behavior
+## Backup and restore contract
 
-The `weave-native` OpenDAL Infrastructure Adapter uses the filesystem service. Publication uses a private temporary key and same-backend atomic rename when the required capability is present. Capability checks are part of native configuration validation. A filesystem configuration that cannot satisfy required immutable-publication semantics fails closed.
+The executable recovery slice uses a quiesced canonical Files source and creates two private artifacts:
 
-## Separate S3 provider
+1. a custom-format PostgreSQL consistency dump without ownership or privilege records;
+2. a contained private archive of the native BlobStore root.
 
-`weave-s3-minio` is a southbound **Provider Adapter** selected independently behind `FilesProviderPort`. S3 is not a storage mode of `weave-native`.
+It restores both artifacts into independent empty targets and then verifies through the Files port:
 
-The provider delegates technical object-storage operations to the `ObjectStoragePort` Infrastructure Port. `OpenDalS3ObjectStorageAdapter` implements that port using OpenDAL's S3 service. S3 endpoint, bucket, credentials and provider-specific health/readiness remain scoped to the S3 provider path and do not enter `weave-native`.
+- the same canonical file ID, path and version;
+- identical file bytes and content integrity;
+- matching metadata and blob inventory with no orphan or inconsistent record;
+- successful creation and reading of a new file after restore;
+- no mutation of the original source environment.
 
-S3-provider tests and operations evidence remain provider-scoped and are not native Files evidence.
+The authoritative test is `CanonicalFilesBackupRestoreTest`. It uses the real schema initializer, Flyway/JPA repository, `FilesystemBlobStore`, `WeaveNativeFilesAdapter` composition and two independent PostgreSQL instances. It requires no Nextcloud, MinIO, Synapse/Tuwunel or external provider.
+
+This is the persistence recovery primitive, not final WebDAV recovery acceptance. Real HTTP WebDAV reads after isolated restore remain part of the complete #1326 vertical and the final #1412 system E2E.
 
 ## Security
 
-Access control is not delegated to OpenDAL. Canonical authentication, authorization, rights and policy checks occur before the Infrastructure Port is entered.
-
-Native filesystem storage additionally enforces root containment and rejects symlink substitution. Raw blob keys are excluded from member responses, logs and support evidence. Reconciliation is bounded and tenant/context scoped.
+Access control is enforced before the BlobStore port. Backup artifacts are private, content is never emitted as support evidence, archive extraction rejects absolute paths, empty or dot segments, duplicates and symlink traversal, and restored files/directories receive private permissions where POSIX permissions exist.
 
 ## Fresh-start policy
 
-No Nextcloud/WebDAV/S3 content import, dual write, compatibility reader or background adoption job is part of the native-provider cutover. Optional providers remain replaceable behind the same canonical port.
+No legacy provider import, dual write, compatibility reader, hidden provider adoption or historical unreleased Files-store compatibility is introduced by this recovery path.
