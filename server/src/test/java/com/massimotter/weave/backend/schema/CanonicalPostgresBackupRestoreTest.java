@@ -14,6 +14,7 @@ import com.massimotter.weave.backend.transfer.domain.TransferRun;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.sql.DriverManager;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -76,6 +77,7 @@ class CanonicalPostgresBackupRestoreTest {
             now.plusSeconds(1));
     sourceRepository.save(firstBatch, 0);
     assertThat(sourceRepository.findById(firstBatch.id())).contains(firstBatch);
+    SchemaCatalogFingerprint.Snapshot sourceCatalog = catalog(SOURCE);
 
     Path dump = directory.resolve("weave-canonical.dump");
     execute(
@@ -98,6 +100,12 @@ class CanonicalPostgresBackupRestoreTest {
             + "--single-transaction --exit-on-error --no-owner --no-privileges "
             + "--username=\"$POSTGRES_USER\" --dbname=\"$POSTGRES_DB\" "
             + DUMP_IN_CONTAINER);
+
+    SchemaCatalogFingerprint.Snapshot restoredCatalog = catalog(TARGET);
+    assertThat(restoredCatalog.sha256())
+        .as("restored catalog differs from source: "
+            + firstDifference(sourceCatalog.canonicalJson(), restoredCatalog.canonicalJson()))
+        .isEqualTo(sourceCatalog.sha256());
 
     Environment target = environment(TARGET, directory.resolve("target-schema-receipt.json"));
     SchemaAuthorityInitializer.run(target.values());
@@ -158,6 +166,14 @@ class CanonicalPostgresBackupRestoreTest {
     return dataSource;
   }
 
+  private static SchemaCatalogFingerprint.Snapshot catalog(
+      PostgreSQLContainer<?> postgres) throws Exception {
+    try (var connection = DriverManager.getConnection(
+        postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+      return SchemaCatalogFingerprint.inspect(connection);
+    }
+  }
+
   private static void execute(
       PostgreSQLContainer<?> postgres,
       String description,
@@ -184,6 +200,23 @@ class CanonicalPostgresBackupRestoreTest {
 
   private static JsonNode receipt(Path path) throws Exception {
     return new ObjectMapper().readTree(Files.readString(path));
+  }
+
+  private static String firstDifference(String source, String restored) {
+    int limit = Math.min(source.length(), restored.length());
+    int index = 0;
+    while (index < limit && source.charAt(index) == restored.charAt(index)) {
+      index++;
+    }
+    if (index == source.length() && index == restored.length()) {
+      return "none";
+    }
+    int from = Math.max(0, index - 120);
+    int sourceTo = Math.min(source.length(), index + 240);
+    int restoredTo = Math.min(restored.length(), index + 240);
+    return "offset=" + index
+        + ", source=..." + source.substring(from, sourceTo)
+        + ", restored=..." + restored.substring(from, restoredTo);
   }
 
   private static String supportSafe(String value, String secret) {
