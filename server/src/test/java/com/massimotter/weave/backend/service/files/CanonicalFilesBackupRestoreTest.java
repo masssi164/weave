@@ -20,7 +20,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
@@ -289,7 +288,7 @@ class CanonicalFilesBackupRestoreTest {
                 Path parent = target.getParent();
                 Files.createDirectories(parent);
                 privateDirectories(root, parent);
-                Files.copy(input, target, StandardCopyOption.COPY_ATTRIBUTES);
+                Files.copy(input, target);
                 privateFile(target);
                 input.closeEntry();
             }
