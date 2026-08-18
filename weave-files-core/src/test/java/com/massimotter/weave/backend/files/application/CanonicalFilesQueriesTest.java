@@ -68,12 +68,12 @@ class CanonicalFilesQueriesTest {
     @Test
     void listsFindsAndReadsCanonicalStateWithoutProviderTypes() {
         var root = queries.list(SCOPE, new FilePath("/"));
-        assertEquals(1, root.listing().items().size());
-        assertEquals(new FilePath("/docs"), root.listing().items().getFirst().path());
+        assertEquals(1, root.listing().children().size());
+        assertEquals(new FilePath("/docs"), root.listing().children().getFirst().path());
 
         var docs = queries.list(SCOPE, new FilePath("/docs"));
-        assertEquals(1, docs.listing().items().size());
-        assertEquals(file.object().id(), docs.listing().items().getFirst().id());
+        assertEquals(1, docs.listing().children().size());
+        assertEquals(file.object().id(), docs.listing().children().getFirst().id());
         assertTrue(queries.find(SCOPE, file.object().path()).isPresent());
         assertArrayEquals(content, queries.read(SCOPE, file.object().id()).bytes());
     }
