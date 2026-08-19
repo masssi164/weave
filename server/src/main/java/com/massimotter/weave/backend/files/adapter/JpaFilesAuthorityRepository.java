@@ -10,9 +10,11 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.ConcurrentMutationException;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.LockConflictException;
+import jakarta.persistence.OptimisticLockException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import org.hibernate.StaleStateException;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -54,7 +56,7 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
         } catch (DataIntegrityViolationException
                  | OptimisticLockingFailureException
                  | ConstraintViolationException concurrentMutation) {
-            throw new ConcurrentMutationException(requested.object().path(), concurrentMutation);
+            throw concurrent(requested.object().path(), concurrentMutation);
         }
     }
 
@@ -122,6 +124,24 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
 
     @Override
     @Transactional
+    public List<CanonicalFileRecord> replaceTree(
+            FilePath operationRoot,
+            List<CanonicalFileRecord> tombstones,
+            List<CanonicalFileRecord> activations) {
+        FilePath root = requireNonNull(operationRoot, "operationRoot");
+        try {
+            return replace(tombstones, activations);
+        } catch (DataIntegrityViolationException
+                 | OptimisticLockingFailureException
+                 | OptimisticLockException
+                 | ConstraintViolationException
+                 | StaleStateException concurrentMutation) {
+            throw concurrent(root, concurrentMutation);
+        }
+    }
+
+    @Override
+    @Transactional
     public CanonicalFileRecord move(
             String organizationRef,
             String spaceRef,
@@ -138,6 +158,34 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
             throw new StaleCanonicalFileException(id, expectedPath);
         }
         return files.saveAndFlush(entity).toDomain();
+    }
+
+    @Override
+    @Transactional
+    public CanonicalFileRecord moveNode(
+            String organizationRef,
+            String spaceRef,
+            FileId id,
+            FilePath expectedPath,
+            FilePath destination,
+            Instant movedAt) {
+        FilePath source = requireNonNull(expectedPath, "expectedPath");
+        try {
+            return move(
+                    organizationRef,
+                    spaceRef,
+                    id,
+                    source,
+                    destination,
+                    movedAt);
+        } catch (StaleCanonicalFileException
+                 | DataIntegrityViolationException
+                 | OptimisticLockingFailureException
+                 | OptimisticLockException
+                 | ConstraintViolationException
+                 | StaleStateException concurrentMutation) {
+            throw concurrent(source, concurrentMutation);
+        }
     }
 
     @Override
@@ -243,6 +291,12 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
             super("canonical file changed before move: " + id.value()
                     + " at " + expectedPath.value());
         }
+    }
+
+    private ConcurrentMutationException concurrent(
+            FilePath path,
+            RuntimeException cause) {
+        return new ConcurrentMutationException(path, cause);
     }
 
     private FileObjectJpaEntity entity(CanonicalFileRecord record) {
