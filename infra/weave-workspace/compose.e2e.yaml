@@ -5,6 +5,7 @@ services:
   keycloak:
     command:
       - start
+      - --optimized
       - --import-realm
     # E2E must never inherit the production SMTP credential mount.
     secrets: !override
