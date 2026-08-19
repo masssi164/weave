@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+/** Provider-independent persistence port for canonical Files metadata and locks. */
 public interface FilesAuthorityRepository {
 
     CanonicalFileRecord save(CanonicalFileRecord record);
@@ -24,11 +25,20 @@ public interface FilesAuthorityRepository {
             List<CanonicalFileRecord> activations);
 
     CanonicalFileRecord move(
-            String organizationRef, String spaceRef, FileId id, FilePath expectedPath, FilePath destination, Instant movedAt);
+            String organizationRef,
+            String spaceRef,
+            FileId id,
+            FilePath expectedPath,
+            FilePath destination,
+            Instant movedAt);
 
     FileLockRecord acquireLock(FileLockRecord requested, Instant now);
 
-    Optional<FileLockRecord> activeLock(String organizationRef, String spaceRef, FilePath path, Instant now);
+    Optional<FileLockRecord> activeLock(
+            String organizationRef,
+            String spaceRef,
+            FilePath path,
+            Instant now);
 
     List<FileLockRecord> activeLocks(String organizationRef, String spaceRef, Instant now);
 
