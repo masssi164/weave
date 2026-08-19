@@ -89,7 +89,7 @@ public final class CanonicalFilesCommands {
                 now);
 
         try {
-            return authority.save(activation).object();
+            return authority.activate(activation).object();
         } catch (ConcurrentMutationException concurrentMutation) {
             CanonicalFileRecord concurrent = authority
                     .findByPath(scope.organizationRef(), scope.spaceRef(), write.path())
@@ -128,7 +128,7 @@ public final class CanonicalFilesCommands {
                 false);
         String version = FilesDigests.sha256("collection\u0000" + path.value());
         try {
-            return authority.save(active(
+            return authority.activate(active(
                     scope,
                     object,
                     new FileVersion(version),
