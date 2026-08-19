@@ -55,4 +55,8 @@ jobs:
           ! grep -q 'software.amazon.awssdk' server/src/main/java/com/massimotter/weave/backend/service/files/FilesystemBlobStore.java
           test ! -e server/src/main/java/com/massimotter/weave/backend/service/files/S3BlobStore.java
           test ! -e server/src/test/java/com/massimotter/weave/backend/service/files/S3BlobStoreTest.java
+          test ! -e server/src/main/java/com/massimotter/weave/backend/service/files/WeaveNativeFilesAdapter.java
+          grep -q 'CanonicalFilesQueries' server/src/main/java/com/massimotter/weave/backend/service/files/CanonicalNativeFilesConfiguration.java
+          grep -q 'CanonicalFilesCommands' server/src/main/java/com/massimotter/weave/backend/service/files/CanonicalNativeFilesConfiguration.java
+          grep -q 'CanonicalFilesTreeCommands' server/src/main/java/com/massimotter/weave/backend/service/files/CanonicalNativeFilesConfiguration.java
           ! grep -R --line-number -E 'S3_COMPATIBLE|weave\.files\.native\.blob-store' server weave-files-core weave-application-core docs README.md

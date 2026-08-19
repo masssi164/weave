@@ -46,17 +46,11 @@ class CanonicalNativeFilesCompositionTest {
                 1024 * 1024,
                 100);
         blobs = new FilesystemBlobStore(properties);
-        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
-        WeaveNativeFilesAdapter transitional = new WeaveNativeFilesAdapter(
-                authority,
-                blobs,
-                clock,
-                properties.reconciliationLimit());
         composition = new CanonicalNativeFilesComposition(
-                transitional,
                 authority,
                 blobs,
-                clock);
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                properties.reconciliationLimit());
     }
 
     @AfterEach

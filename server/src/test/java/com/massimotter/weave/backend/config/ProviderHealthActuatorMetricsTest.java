@@ -1,22 +1,22 @@
 package com.massimotter.weave.backend.config;
 
-import com.massimotter.weave.backend.service.files.WeaveNativeFilesAdapter;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.test.web.servlet.MockMvc;
-
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
@@ -32,7 +32,7 @@ class ProviderHealthActuatorMetricsTest {
     private JwtDecoder jwtDecoder;
 
     @MockitoSpyBean
-    private WeaveNativeFilesAdapter weaveNativeFilesAdapter;
+    private FilesProviderPort filesProviderPort;
 
     @Test
     void localRunnerCanReadProviderHealthMetricsWithoutTriggeringAProbe() throws Exception {
@@ -63,6 +63,6 @@ class ProviderHealthActuatorMetricsTest {
         mockMvc.perform(get("/api/admin/provider-capability-health"))
                 .andExpect(status().isUnauthorized());
 
-        verify(weaveNativeFilesAdapter, never()).healthProbe();
+        verify(filesProviderPort, never()).healthProbe();
     }
 }

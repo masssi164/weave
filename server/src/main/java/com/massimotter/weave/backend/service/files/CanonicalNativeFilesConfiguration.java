@@ -1,11 +1,15 @@
 package com.massimotter.weave.backend.service.files;
 
 import com.massimotter.weave.backend.config.FilesRuntimeProperties;
+import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.application.CanonicalFilesCommands;
+import com.massimotter.weave.backend.files.application.CanonicalFilesQueries;
 import com.massimotter.weave.backend.files.application.CanonicalFilesTreeCommands;
+import com.massimotter.weave.backend.files.application.FilesApplicationException;
 import com.massimotter.weave.backend.files.application.FilesCommandException;
 import com.massimotter.weave.backend.files.application.FilesCommandScope;
+import com.massimotter.weave.backend.files.application.FilesScope;
 import com.massimotter.weave.backend.files.application.FilesTreeCommandException;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
@@ -19,25 +23,21 @@ import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
+import java.io.OutputStream;
 import java.time.Clock;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
+import java.util.Set;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 
-/**
- * Transitional boot composition for the canonical native Files application.
- *
- * <p>The composition is the primary {@link FilesProviderPort}: query behavior delegates to the
- * canonical query core through the transitional adapter, while create/write and COPY/MOVE/DELETE
- * execute through explicit canonical command services.</p>
- */
+/** Boot composition for the provider-independent native Files application. */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(
         name = "weave.files.provider",
@@ -45,120 +45,211 @@ import org.springframework.http.HttpStatus;
         matchIfMissing = true)
 public class CanonicalNativeFilesConfiguration {
 
-    private static final String TRANSITIONAL_ADAPTER_BEAN = "weaveNativeFilesAdapter";
-
-    /**
-     * The historical adapter is still annotated primary. Demote its bean definition before
-     * autowiring so this explicit composition becomes the single primary Files port.
-     */
-    @Bean
-    static BeanFactoryPostProcessor canonicalNativeFilesPrimarySelection() {
-        return beanFactory -> {
-            if (beanFactory.containsBeanDefinition(TRANSITIONAL_ADAPTER_BEAN)) {
-                beanFactory.getBeanDefinition(TRANSITIONAL_ADAPTER_BEAN).setPrimary(false);
-            }
-        };
-    }
-
     @Bean
     @Primary
     FilesProviderPort canonicalNativeFilesProvider(
-            WeaveNativeFilesAdapter transitionalAdapter,
             FilesAuthorityRepository authority,
-            BlobStorePort blobs) {
+            BlobStorePort blobs,
+            WeaveNativeFilesProperties properties) {
         return new CanonicalNativeFilesComposition(
-                transitionalAdapter,
                 authority,
                 blobs,
-                Clock.systemUTC());
+                Clock.systemUTC(),
+                properties.reconciliationLimit());
     }
 }
 
-/** Thin composition over canonical Files queries and mutation use cases. */
+/**
+ * Direct Server composition over canonical Files queries and commands.
+ *
+ * <p>Open protocols and support-safe HTTP failures remain outside the core. JPA and OpenDAL remain
+ * southbound implementations of the two injected ports.</p>
+ */
 final class CanonicalNativeFilesComposition implements FilesProviderPort {
 
-    private final WeaveNativeFilesAdapter transitionalAdapter;
+    static final String ADAPTER_KEY = "weave-native";
+
+    private final BlobStorePort blobs;
+    private final CanonicalFilesQueries queries;
     private final CanonicalFilesCommands commands;
     private final CanonicalFilesTreeCommands treeCommands;
 
     CanonicalNativeFilesComposition(
-            WeaveNativeFilesAdapter transitionalAdapter,
             FilesAuthorityRepository authority,
             BlobStorePort blobs,
-            Clock clock) {
-        this.transitionalAdapter = Objects.requireNonNull(
-                transitionalAdapter,
-                "transitionalAdapter must not be null");
-        this.commands = new CanonicalFilesCommands(authority, blobs, clock);
-        this.treeCommands = new CanonicalFilesTreeCommands(authority, blobs, clock);
+            Clock clock,
+            int reconciliationLimit) {
+        FilesAuthorityRepository requiredAuthority = Objects.requireNonNull(
+                authority,
+                "authority must not be null");
+        this.blobs = Objects.requireNonNull(blobs, "blobs must not be null");
+        Clock requiredClock = Objects.requireNonNull(clock, "clock must not be null");
+        this.queries = new CanonicalFilesQueries(
+                requiredAuthority,
+                this.blobs,
+                reconciliationLimit);
+        this.commands = new CanonicalFilesCommands(
+                requiredAuthority,
+                this.blobs,
+                requiredClock);
+        this.treeCommands = new CanonicalFilesTreeCommands(
+                requiredAuthority,
+                this.blobs,
+                requiredClock);
     }
 
     @Override
     public FilesProviderPort scoped(FilesRequestScope scope) {
-        FilesRequestScope required = Objects.requireNonNull(scope, "scope must not be null");
-        return new Scoped(required, transitionalAdapter.scoped(required));
+        return new Scoped(Objects.requireNonNull(scope, "scope must not be null"));
     }
 
     @Override
     public boolean configured() {
-        return transitionalAdapter.configured();
+        return blobs.configured();
     }
 
     @Override
     public ProviderReadiness readiness() {
-        return transitionalAdapter.readiness();
+        return configured()
+                ? ProviderReadiness.ready("files-native-ready")
+                : ProviderReadiness.degraded("files-native-blob-store-not-configured");
     }
 
     @Override
     public ProviderConformanceProfile conformanceProfile() {
-        return transitionalAdapter.conformanceProfile();
+        return new ProviderConformanceProfile(
+                "files",
+                ADAPTER_KEY,
+                Set.of(
+                        "list",
+                        "read",
+                        "write",
+                        "create_collection",
+                        "delete",
+                        "copy",
+                        "move",
+                        "versions",
+                        "locks"),
+                Map.of(
+                        "canonicalId", MappingClass.PORTABLE,
+                        "path", MappingClass.PORTABLE,
+                        "content", MappingClass.PORTABLE,
+                        "mediaType", MappingClass.PORTABLE,
+                        "version", MappingClass.PORTABLE,
+                        "lock", MappingClass.PORTABLE,
+                        "share", MappingClass.UNSUPPORTED),
+                true,
+                true,
+                true);
     }
 
     @Override
     public VersionedListing list(FilePath path) {
-        return transitionalAdapter.list(path);
+        throw unscoped();
     }
 
     @Override
     public Optional<VersionedFile> find(FilePath path) {
-        return transitionalAdapter.find(path);
+        throw unscoped();
     }
 
     @Override
     public FileContent read(FileId id) {
-        return transitionalAdapter.read(id);
+        throw unscoped();
     }
 
     @Override
     public FileObject write(FileWrite write) {
-        return transitionalAdapter.write(write);
+        throw unscoped();
     }
 
     @Override
     public FileObject createCollection(FilePath path) {
-        return transitionalAdapter.createCollection(path);
+        throw unscoped();
     }
 
     @Override
-    public FileObject copy(FilePath source, FilePath destination, boolean overwrite) {
-        return transitionalAdapter.copy(source, destination, overwrite);
+    public FileObject copy(
+            FilePath source,
+            FilePath destination,
+            boolean overwrite) {
+        throw unscoped();
     }
 
     @Override
-    public FileObject move(FilePath source, FilePath destination, boolean overwrite) {
-        return transitionalAdapter.move(source, destination, overwrite);
+    public FileObject move(
+            FilePath source,
+            FilePath destination,
+            boolean overwrite) {
+        throw unscoped();
     }
 
     @Override
-    public void delete(FilePath path, FileVersion expectedVersion) {
-        transitionalAdapter.delete(path, expectedVersion);
+    public void delete(
+            FilePath path,
+            FileVersion expectedVersion) {
+        throw unscoped();
+    }
+
+    void readTo(
+            FilesRequestScope scope,
+            FileId id,
+            OutputStream target) {
+        try {
+            queries.readTo(queryScope(scope), id, target);
+        } catch (FilesApplicationException exception) {
+            throw queryFailure(exception, "read-stream");
+        }
+    }
+
+    CanonicalFilesQueries.ReconciliationReport reconcile(FilesRequestScope scope) {
+        try {
+            return queries.reconcile(queryScope(scope));
+        } catch (FilesApplicationException exception) {
+            throw queryFailure(exception, "reconcile");
+        }
+    }
+
+    private FilesScope queryScope(FilesRequestScope scope) {
+        FilesRequestScope required = Objects.requireNonNull(scope, "scope must not be null");
+        return new FilesScope(required.organizationRef(), required.spaceRef());
     }
 
     private FilesCommandScope commandScope(FilesRequestScope scope) {
+        FilesRequestScope required = Objects.requireNonNull(scope, "scope must not be null");
         return new FilesCommandScope(
-                scope.organizationRef(),
-                scope.spaceRef(),
-                scope.providerBindingRevision());
+                required.organizationRef(),
+                required.spaceRef(),
+                required.providerBindingRevision());
+    }
+
+    private ApiErrorException queryFailure(
+            FilesApplicationException exception,
+            String operation) {
+        return switch (exception.code()) {
+            case NOT_FOUND -> new ApiErrorException(
+                    HttpStatus.NOT_FOUND,
+                    "file-not-found",
+                    exception.getMessage(),
+                    Map.of(
+                            "module", "files",
+                            "operation", operation,
+                            "diagnosticsRedacted", true));
+            case NOT_A_COLLECTION -> conflict(
+                    "files-native-not-a-collection",
+                    exception.getMessage());
+            case NOT_A_FILE -> conflict(
+                    "files-native-not-a-file",
+                    exception.getMessage());
+            case INVALID_BLOB_REFERENCE -> conflict(
+                    "files-native-metadata-blob-mismatch",
+                    exception.getMessage());
+            case CONTENT_INTEGRITY_FAILED -> conflict(
+                    "read-stream".equals(operation)
+                            ? "files-native-content-digest-mismatch"
+                            : "files-native-metadata-blob-mismatch",
+                    exception.getMessage());
+        };
     }
 
     private ApiErrorException commandFailure(FilesCommandException exception) {
@@ -168,52 +259,70 @@ final class CanonicalNativeFilesComposition implements FilesProviderPort {
             case PARENT_NOT_COLLECTION -> "files-native-parent-not-collection";
             case METADATA_CONFLICT -> "files-native-metadata-conflict";
         };
-        return supportSafeFailure(HttpStatus.CONFLICT, code, exception.getMessage());
+        return conflict(code, exception.getMessage());
     }
 
-    private ApiErrorException treeFailure(FilesTreeCommandException exception) {
-        HttpStatus status = switch (exception.code()) {
-            case NOT_FOUND -> HttpStatus.NOT_FOUND;
-            case PRECONDITION_FAILED -> HttpStatus.PRECONDITION_FAILED;
-            default -> HttpStatus.CONFLICT;
+    private ApiErrorException treeFailure(
+            FilesTreeCommandException exception,
+            String operation) {
+        return switch (exception.code()) {
+            case NOT_FOUND -> new ApiErrorException(
+                    HttpStatus.NOT_FOUND,
+                    "file-not-found",
+                    exception.getMessage(),
+                    Map.of(
+                            "module", "files",
+                            "operation", operation,
+                            "diagnosticsRedacted", true));
+            case PRECONDITION_FAILED -> new ApiErrorException(
+                    HttpStatus.PRECONDITION_FAILED,
+                    "files-precondition-failed",
+                    exception.getMessage(),
+                    Map.of(
+                            "module", "files",
+                            "adapter", ADAPTER_KEY,
+                            "diagnosticsRedacted", true));
+            case PARENT_MISSING -> conflict(
+                    "files-native-parent-missing",
+                    exception.getMessage());
+            case PARENT_NOT_COLLECTION -> conflict(
+                    "files-native-parent-not-collection",
+                    exception.getMessage());
+            case TREE_CONFLICT -> conflict(
+                    "files-native-tree-conflict",
+                    exception.getMessage());
+            case INVALID_BLOB_REFERENCE, CONTENT_INTEGRITY_FAILED -> conflict(
+                    "files-native-metadata-blob-mismatch",
+                    exception.getMessage());
+            case METADATA_CONFLICT -> conflict(
+                    "files-native-metadata-conflict",
+                    exception.getMessage());
         };
-        String code = switch (exception.code()) {
-            case NOT_FOUND -> "file-not-found";
-            case PARENT_MISSING -> "files-native-parent-missing";
-            case PARENT_NOT_COLLECTION -> "files-native-parent-not-collection";
-            case PRECONDITION_FAILED -> "files-precondition-failed";
-            case TREE_CONFLICT -> "files-native-tree-conflict";
-            case INVALID_BLOB_REFERENCE, CONTENT_INTEGRITY_FAILED ->
-                    "files-native-metadata-blob-mismatch";
-            case METADATA_CONFLICT -> "files-native-metadata-conflict";
-        };
-        return supportSafeFailure(status, code, exception.getMessage());
     }
 
-    private ApiErrorException supportSafeFailure(
-            HttpStatus status,
-            String code,
-            String message) {
+    private ApiErrorException unscoped() {
+        return conflict(
+                "files-native-scope-required",
+                "Native Files operations require an explicit organization/space scope.");
+    }
+
+    private ApiErrorException conflict(String code, String message) {
         return new ApiErrorException(
-                status,
+                HttpStatus.CONFLICT,
                 code,
                 message,
                 Map.of(
                         "module", "files",
-                        "adapter", WeaveNativeFilesAdapter.ADAPTER_KEY,
+                        "adapter", ADAPTER_KEY,
                         "diagnosticsRedacted", true));
     }
 
     private final class Scoped implements FilesProviderPort {
 
         private final FilesRequestScope scope;
-        private final FilesProviderPort transitionalScoped;
 
-        private Scoped(
-                FilesRequestScope scope,
-                FilesProviderPort transitionalScoped) {
+        private Scoped(FilesRequestScope scope) {
             this.scope = scope;
-            this.transitionalScoped = transitionalScoped;
         }
 
         @Override
@@ -238,17 +347,29 @@ final class CanonicalNativeFilesComposition implements FilesProviderPort {
 
         @Override
         public VersionedListing list(FilePath path) {
-            return transitionalScoped.list(path);
+            try {
+                return queries.list(queryScope(scope), path);
+            } catch (FilesApplicationException exception) {
+                throw queryFailure(exception, "list");
+            }
         }
 
         @Override
         public Optional<VersionedFile> find(FilePath path) {
-            return transitionalScoped.find(path);
+            try {
+                return queries.find(queryScope(scope), path);
+            } catch (FilesApplicationException exception) {
+                throw queryFailure(exception, "find");
+            }
         }
 
         @Override
         public FileContent read(FileId id) {
-            return transitionalScoped.read(id);
+            try {
+                return queries.read(queryScope(scope), id);
+            } catch (FilesApplicationException exception) {
+                throw queryFailure(exception, "read");
+            }
         }
 
         @Override
@@ -270,29 +391,48 @@ final class CanonicalNativeFilesComposition implements FilesProviderPort {
         }
 
         @Override
-        public FileObject copy(FilePath source, FilePath destination, boolean overwrite) {
+        public FileObject copy(
+                FilePath source,
+                FilePath destination,
+                boolean overwrite) {
             try {
-                return treeCommands.copy(commandScope(scope), source, destination, overwrite);
+                return treeCommands.copy(
+                        commandScope(scope),
+                        source,
+                        destination,
+                        overwrite);
             } catch (FilesTreeCommandException exception) {
-                throw treeFailure(exception);
+                throw treeFailure(exception, "copy");
             }
         }
 
         @Override
-        public FileObject move(FilePath source, FilePath destination, boolean overwrite) {
+        public FileObject move(
+                FilePath source,
+                FilePath destination,
+                boolean overwrite) {
             try {
-                return treeCommands.move(commandScope(scope), source, destination, overwrite);
+                return treeCommands.move(
+                        commandScope(scope),
+                        source,
+                        destination,
+                        overwrite);
             } catch (FilesTreeCommandException exception) {
-                throw treeFailure(exception);
+                throw treeFailure(exception, "move");
             }
         }
 
         @Override
-        public void delete(FilePath path, FileVersion expectedVersion) {
+        public void delete(
+                FilePath path,
+                FileVersion expectedVersion) {
             try {
-                treeCommands.delete(commandScope(scope), path, expectedVersion);
+                treeCommands.delete(
+                        commandScope(scope),
+                        path,
+                        expectedVersion);
             } catch (FilesTreeCommandException exception) {
-                throw treeFailure(exception);
+                throw treeFailure(exception, "delete");
             }
         }
     }
