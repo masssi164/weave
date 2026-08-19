@@ -73,7 +73,7 @@ class WeaveNativeFilesAdapterTest {
     void metadataFailureDoesNotActivateAnUncommittedFile() {
         byte[] content = "pending".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         FilesProviderPort failing = new WeaveNativeFilesAdapter(
-                new FailNextSaveAuthority(authority),
+                new FailNextMutationAuthority(authority, FailurePoint.SAVE),
                 blobs,
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 100).scoped(ALPHA);
@@ -82,6 +82,29 @@ class WeaveNativeFilesAdapterTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("injected metadata failure");
         assertThat(authority.findByPath(ALPHA.organizationRef(), ALPHA.spaceRef(), new FilePath("/pending.txt"))).isEmpty();
+    }
+
+    @Test
+    void reconciliationRemovesBlobPublishedBeforeFailedActivation() {
+        FilesProviderPort failing = new WeaveNativeFilesAdapter(
+                new FailNextMutationAuthority(authority, FailurePoint.ACTIVATE),
+                blobs,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                100).scoped(ALPHA);
+
+        assertThatThrownBy(() -> failing.write(new FileWrite(
+                new FilePath("/orphan.txt"),
+                new byte[] {7, 8, 9},
+                "application/octet-stream")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("injected metadata failure");
+        assertThat(blobs.inventory(blobScope(ALPHA), 10)).hasSize(1);
+
+        var report = adapter(authority).reconcile(ALPHA);
+
+        assertThat(report.orphanBlobsDeleted()).isEqualTo(1);
+        assertThat(report.inconsistentMetadataRecords()).isZero();
+        assertThat(blobs.inventory(blobScope(ALPHA), 10)).isEmpty();
     }
 
     @Test
@@ -132,21 +155,42 @@ class WeaveNativeFilesAdapterTest {
         return new BlobScope(scope.organizationRef(), scope.spaceRef());
     }
 
-    private static final class FailNextSaveAuthority implements FilesAuthorityRepository {
+    private enum FailurePoint {
+        SAVE,
+        ACTIVATE
+    }
+
+    private static final class FailNextMutationAuthority implements FilesAuthorityRepository {
         private final FilesAuthorityRepository delegate;
+        private final FailurePoint failurePoint;
         private boolean fail = true;
 
-        private FailNextSaveAuthority(FilesAuthorityRepository delegate) {
+        private FailNextMutationAuthority(
+                FilesAuthorityRepository delegate,
+                FailurePoint failurePoint) {
             this.delegate = delegate;
+            this.failurePoint = failurePoint;
         }
 
         @Override
         public CanonicalFileRecord save(CanonicalFileRecord record) {
-            if (fail) {
+            if (fail && failurePoint == FailurePoint.SAVE) {
                 fail = false;
                 throw new IllegalStateException("injected metadata failure before activation");
             }
             return delegate.save(record);
+        }
+
+        @Override
+        public CanonicalFileRecord activate(CanonicalFileRecord record) {
+            if (fail && failurePoint == FailurePoint.ACTIVATE) {
+                fail = false;
+                throw new IllegalStateException("injected metadata failure during activation");
+            }
+            if (failurePoint == FailurePoint.SAVE) {
+                return save(record);
+            }
+            return delegate.activate(record);
         }
 
         @Override public Optional<CanonicalFileRecord> findByPath(String organizationRef, String spaceRef, FilePath path) { return delegate.findByPath(organizationRef, spaceRef, path); }
