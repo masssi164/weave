@@ -1,20 +1,22 @@
 package com.massimotter.weave.backend.files.adapter;
 
+import static java.util.Objects.requireNonNull;
+
 import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
+import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.ConcurrentMutationException;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.LockConflictException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
-
-import static java.util.Objects.requireNonNull;
 
 /** JPA adapter for canonical Files metadata and fenced WebDAV locks. */
 @Repository
@@ -40,6 +42,17 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
                 .orElseGet(() -> FileObjectJpaEntity.create(id));
         entity.observe(requested);
         return files.saveAndFlush(entity).toDomain();
+    }
+
+    @Override
+    @Transactional
+    public CanonicalFileRecord activate(CanonicalFileRecord record) {
+        CanonicalFileRecord requested = requireNonNull(record, "record");
+        try {
+            return save(requested);
+        } catch (DataIntegrityViolationException | OptimisticLockingFailureException concurrentMutation) {
+            throw new ConcurrentMutationException(requested.object().path(), concurrentMutation);
+        }
     }
 
     @Override
