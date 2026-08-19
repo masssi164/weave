@@ -6,9 +6,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.adapter.FilesAuthorityJpaTestFactory;
-import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
+import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
+import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.http.HttpStatus;
 
 class CanonicalNativeFilesCompositionTest {
 
@@ -63,7 +65,7 @@ class CanonicalNativeFilesCompositionTest {
     }
 
     @Test
-    void createWriteAndReplaceUseCanonicalCommandsWhileReadsAndCopyRemainReachable() {
+    void createWriteReplaceAndCopyUseCanonicalCommandsWhileReadsRemainReachable() {
         FilesProviderPort files = composition.scoped(SCOPE);
         files.createCollection(new FilePath("/docs"));
         byte[] firstContent = "first canonical content".getBytes(StandardCharsets.UTF_8);
@@ -86,11 +88,36 @@ class CanonicalNativeFilesCompositionTest {
         assertThat(replacement.mediaType()).isEqualTo("text/markdown");
         assertThat(files.read(replacement.id()).bytes()).isEqualTo(replacementContent);
         assertThat(files.read(copied.id()).bytes()).isEqualTo(replacementContent);
-        assertThat(blobs.inventory(
-                new com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope(
-                        SCOPE.organizationRef(), SCOPE.spaceRef()),
-                10))
-                .hasSize(3);
+        assertThat(blobs.inventory(blobScope(), 10)).hasSize(3);
+    }
+
+    @Test
+    void moveAndDeleteUseCanonicalTreeCommandsWithStableIdentityAndCleanup() {
+        FilesProviderPort files = composition.scoped(SCOPE);
+        files.createCollection(new FilePath("/docs"));
+        files.createCollection(new FilePath("/archive"));
+        byte[] content = "move then delete".getBytes(StandardCharsets.UTF_8);
+        var original = files.write(new FileWrite(
+                new FilePath("/docs/item.txt"),
+                content,
+                "text/plain"));
+
+        var moved = files.move(
+                new FilePath("/docs/item.txt"),
+                new FilePath("/archive/item.txt"),
+                false);
+        var movedVersion = files.find(new FilePath("/archive/item.txt"))
+                .orElseThrow()
+                .version();
+
+        assertThat(moved.id()).isEqualTo(original.id());
+        assertThat(files.find(new FilePath("/docs/item.txt"))).isEmpty();
+        assertThat(files.read(moved.id()).bytes()).isEqualTo(content);
+
+        files.delete(new FilePath("/archive/item.txt"), movedVersion);
+
+        assertThat(files.find(new FilePath("/archive/item.txt"))).isEmpty();
+        assertThat(blobs.inventory(blobScope(), 10)).isEmpty();
     }
 
     @Test
@@ -102,9 +129,51 @@ class CanonicalNativeFilesCompositionTest {
                 new byte[] {1},
                 "application/octet-stream")))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
-                    assertThat(exception.status()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT);
+                    assertThat(exception.status()).isEqualTo(HttpStatus.CONFLICT);
                     assertThat(exception.code()).isEqualTo("files-native-parent-missing");
                     assertThat(exception.details()).containsEntry("diagnosticsRedacted", true);
+                });
+    }
+
+    @Test
+    void treeFailuresRetainWebDavFacingStatusesAndSupportSafeCodes() {
+        FilesProviderPort files = composition.scoped(SCOPE);
+        files.createCollection(new FilePath("/docs"));
+        files.write(new FileWrite(
+                new FilePath("/docs/source.txt"),
+                new byte[] {1, 2, 3},
+                "application/octet-stream"));
+
+        assertThatThrownBy(() -> files.copy(
+                new FilePath("/missing.txt"),
+                new FilePath("/docs/missing.txt"),
+                false))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.NOT_FOUND);
+                    assertThat(exception.code()).isEqualTo("file-not-found");
+                });
+
+        assertThatThrownBy(() -> files.copy(
+                new FilePath("/docs"),
+                new FilePath("/docs/copy"),
+                false))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.code()).isEqualTo("files-native-tree-conflict");
+                    assertThat(exception.details()).containsEntry("diagnosticsRedacted", true);
+                });
+
+        files.copy(
+                new FilePath("/docs/source.txt"),
+                new FilePath("/docs/copied.txt"),
+                false);
+        assertThatThrownBy(() -> files.copy(
+                new FilePath("/docs/source.txt"),
+                new FilePath("/docs/copied.txt"),
+                false))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.PRECONDITION_FAILED);
+                    assertThat(exception.code()).isEqualTo("files-precondition-failed");
                 });
     }
 
@@ -113,5 +182,9 @@ class CanonicalNativeFilesCompositionTest {
         assertThatThrownBy(() -> composition.find(new FilePath("/anything")))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception ->
                         assertThat(exception.code()).isEqualTo("files-native-scope-required"));
+    }
+
+    private BlobScope blobScope() {
+        return new BlobScope(SCOPE.organizationRef(), SCOPE.spaceRef());
     }
 }

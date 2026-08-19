@@ -3,8 +3,10 @@ package com.massimotter.weave.backend.service.files;
 import com.massimotter.weave.backend.config.FilesRuntimeProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.application.CanonicalFilesCommands;
+import com.massimotter.weave.backend.files.application.CanonicalFilesTreeCommands;
 import com.massimotter.weave.backend.files.application.FilesCommandException;
 import com.massimotter.weave.backend.files.application.FilesCommandScope;
+import com.massimotter.weave.backend.files.application.FilesTreeCommandException;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
@@ -32,9 +34,9 @@ import org.springframework.http.HttpStatus;
 /**
  * Transitional boot composition for the canonical native Files application.
  *
- * <p>The composition is the primary {@link FilesProviderPort}: canonical queries already live in
- * the transitional adapter, canonical create/write behavior lives in {@link CanonicalFilesCommands},
- * and COPY/MOVE/DELETE remain delegated until their own command slices are extracted.</p>
+ * <p>The composition is the primary {@link FilesProviderPort}: query behavior delegates to the
+ * canonical query core through the transitional adapter, while create/write and COPY/MOVE/DELETE
+ * execute through explicit canonical command services.</p>
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(
@@ -72,11 +74,12 @@ public class CanonicalNativeFilesConfiguration {
     }
 }
 
-/** Thin composition over canonical use cases and the remaining transitional tree mutations. */
+/** Thin composition over canonical Files queries and mutation use cases. */
 final class CanonicalNativeFilesComposition implements FilesProviderPort {
 
     private final WeaveNativeFilesAdapter transitionalAdapter;
     private final CanonicalFilesCommands commands;
+    private final CanonicalFilesTreeCommands treeCommands;
 
     CanonicalNativeFilesComposition(
             WeaveNativeFilesAdapter transitionalAdapter,
@@ -87,6 +90,7 @@ final class CanonicalNativeFilesComposition implements FilesProviderPort {
                 transitionalAdapter,
                 "transitionalAdapter must not be null");
         this.commands = new CanonicalFilesCommands(authority, blobs, clock);
+        this.treeCommands = new CanonicalFilesTreeCommands(authority, blobs, clock);
     }
 
     @Override
@@ -164,10 +168,36 @@ final class CanonicalNativeFilesComposition implements FilesProviderPort {
             case PARENT_NOT_COLLECTION -> "files-native-parent-not-collection";
             case METADATA_CONFLICT -> "files-native-metadata-conflict";
         };
+        return supportSafeFailure(HttpStatus.CONFLICT, code, exception.getMessage());
+    }
+
+    private ApiErrorException treeFailure(FilesTreeCommandException exception) {
+        HttpStatus status = switch (exception.code()) {
+            case NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case PRECONDITION_FAILED -> HttpStatus.PRECONDITION_FAILED;
+            default -> HttpStatus.CONFLICT;
+        };
+        String code = switch (exception.code()) {
+            case NOT_FOUND -> "file-not-found";
+            case PARENT_MISSING -> "files-native-parent-missing";
+            case PARENT_NOT_COLLECTION -> "files-native-parent-not-collection";
+            case PRECONDITION_FAILED -> "files-precondition-failed";
+            case TREE_CONFLICT -> "files-native-tree-conflict";
+            case INVALID_BLOB_REFERENCE, CONTENT_INTEGRITY_FAILED ->
+                    "files-native-metadata-blob-mismatch";
+            case METADATA_CONFLICT -> "files-native-metadata-conflict";
+        };
+        return supportSafeFailure(status, code, exception.getMessage());
+    }
+
+    private ApiErrorException supportSafeFailure(
+            HttpStatus status,
+            String code,
+            String message) {
         return new ApiErrorException(
-                HttpStatus.CONFLICT,
+                status,
                 code,
-                exception.getMessage(),
+                message,
                 Map.of(
                         "module", "files",
                         "adapter", WeaveNativeFilesAdapter.ADAPTER_KEY,
@@ -241,17 +271,29 @@ final class CanonicalNativeFilesComposition implements FilesProviderPort {
 
         @Override
         public FileObject copy(FilePath source, FilePath destination, boolean overwrite) {
-            return transitionalScoped.copy(source, destination, overwrite);
+            try {
+                return treeCommands.copy(commandScope(scope), source, destination, overwrite);
+            } catch (FilesTreeCommandException exception) {
+                throw treeFailure(exception);
+            }
         }
 
         @Override
         public FileObject move(FilePath source, FilePath destination, boolean overwrite) {
-            return transitionalScoped.move(source, destination, overwrite);
+            try {
+                return treeCommands.move(commandScope(scope), source, destination, overwrite);
+            } catch (FilesTreeCommandException exception) {
+                throw treeFailure(exception);
+            }
         }
 
         @Override
         public void delete(FilePath path, FileVersion expectedVersion) {
-            transitionalScoped.delete(path, expectedVersion);
+            try {
+                treeCommands.delete(commandScope(scope), path, expectedVersion);
+            } catch (FilesTreeCommandException exception) {
+                throw treeFailure(exception);
+            }
         }
     }
 }
