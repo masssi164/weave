@@ -13,6 +13,7 @@ import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.LockCon
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Repository;
@@ -50,7 +51,9 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
         CanonicalFileRecord requested = requireNonNull(record, "record");
         try {
             return save(requested);
-        } catch (DataIntegrityViolationException | OptimisticLockingFailureException concurrentMutation) {
+        } catch (DataIntegrityViolationException
+                 | OptimisticLockingFailureException
+                 | ConstraintViolationException concurrentMutation) {
             throw new ConcurrentMutationException(requested.object().path(), concurrentMutation);
         }
     }
