@@ -13,6 +13,18 @@ public interface FilesAuthorityRepository {
 
     CanonicalFileRecord save(CanonicalFileRecord record);
 
+    /**
+     * Activates one canonical metadata observation for a create or content-write command.
+     *
+     * <p>The default keeps non-concurrent adapters source-compatible. Persistence adapters with
+     * uniqueness or optimistic-lock semantics override this method and translate implementation
+     * failures into {@link ConcurrentMutationException}. Generic {@link #save} callers such as the
+     * transitional COPY implementation retain their existing persistence behavior.</p>
+     */
+    default CanonicalFileRecord activate(CanonicalFileRecord record) {
+        return save(record);
+    }
+
     Optional<CanonicalFileRecord> findByPath(
             String organizationRef,
             String spaceRef,
