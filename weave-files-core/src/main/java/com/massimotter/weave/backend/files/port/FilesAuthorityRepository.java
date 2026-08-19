@@ -13,9 +13,15 @@ public interface FilesAuthorityRepository {
 
     CanonicalFileRecord save(CanonicalFileRecord record);
 
-    Optional<CanonicalFileRecord> findByPath(String organizationRef, String spaceRef, FilePath path);
+    Optional<CanonicalFileRecord> findByPath(
+            String organizationRef,
+            String spaceRef,
+            FilePath path);
 
-    Optional<CanonicalFileRecord> findById(String organizationRef, String spaceRef, FileId id);
+    Optional<CanonicalFileRecord> findById(
+            String organizationRef,
+            String spaceRef,
+            FileId id);
 
     List<CanonicalFileRecord> activeFiles(String organizationRef, String spaceRef);
 
@@ -40,7 +46,10 @@ public interface FilesAuthorityRepository {
             FilePath path,
             Instant now);
 
-    List<FileLockRecord> activeLocks(String organizationRef, String spaceRef, Instant now);
+    List<FileLockRecord> activeLocks(
+            String organizationRef,
+            String spaceRef,
+            Instant now);
 
     void releaseLock(
             String organizationRef,
@@ -58,6 +67,22 @@ public interface FilesAuthorityRepository {
             String tokenDigest,
             String ownerRef,
             Instant now);
+
+    /**
+     * Signals that a canonical metadata activation lost a concurrent persistence race.
+     *
+     * <p>Persistence adapters must translate framework-specific constraint or optimistic-lock
+     * failures into this support-safe port failure before command use cases are wired to them.</p>
+     */
+    final class ConcurrentMutationException extends RuntimeException {
+        public ConcurrentMutationException(FilePath path) {
+            this(path, null);
+        }
+
+        public ConcurrentMutationException(FilePath path, Throwable cause) {
+            super("canonical file metadata changed concurrently at " + path.value(), cause);
+        }
+    }
 
     final class LockConflictException extends RuntimeException {
         public LockConflictException(FilePath path) {
