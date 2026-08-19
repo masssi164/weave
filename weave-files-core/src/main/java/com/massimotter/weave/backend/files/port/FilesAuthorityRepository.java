@@ -42,6 +42,19 @@ public interface FilesAuthorityRepository {
             List<CanonicalFileRecord> tombstones,
             List<CanonicalFileRecord> activations);
 
+    /**
+     * Command-specific tree replacement boundary.
+     *
+     * <p>Concurrent persistence implementations override this method and translate uniqueness or
+     * optimistic-lock failures into {@link ConcurrentMutationException} for {@code operationRoot}.</p>
+     */
+    default List<CanonicalFileRecord> replaceTree(
+            FilePath operationRoot,
+            List<CanonicalFileRecord> tombstones,
+            List<CanonicalFileRecord> activations) {
+        return replace(tombstones, activations);
+    }
+
     CanonicalFileRecord move(
             String organizationRef,
             String spaceRef,
@@ -49,6 +62,17 @@ public interface FilesAuthorityRepository {
             FilePath expectedPath,
             FilePath destination,
             Instant movedAt);
+
+    /** Command-specific single-node move boundary. */
+    default CanonicalFileRecord moveNode(
+            String organizationRef,
+            String spaceRef,
+            FileId id,
+            FilePath expectedPath,
+            FilePath destination,
+            Instant movedAt) {
+        return move(organizationRef, spaceRef, id, expectedPath, destination, movedAt);
+    }
 
     FileLockRecord acquireLock(FileLockRecord requested, Instant now);
 
@@ -81,7 +105,7 @@ public interface FilesAuthorityRepository {
             Instant now);
 
     /**
-     * Signals that a canonical metadata activation lost a concurrent persistence race.
+     * Signals that a canonical metadata activation or tree mutation lost a concurrent persistence race.
      *
      * <p>Persistence adapters must translate framework-specific constraint or optimistic-lock
      * failures into this support-safe port failure before command use cases are wired to them.</p>
