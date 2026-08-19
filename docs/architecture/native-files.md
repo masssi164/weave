@@ -1,6 +1,6 @@
 # Native Files composition
 
-Status: active transition contract for issue #1326.
+Status: active implementation contract for issue #1326.
 
 ## Boundary
 
@@ -18,15 +18,35 @@ WebDAV projection
             -> provider source/target connector ports
 ```
 
-Textual equivalent: WebDAV translates HTTP/XML into canonical Files commands and queries. Canonical Files behavior owns IDs, paths, versions, lifecycle, locking and integrity. JPA stores metadata. `BlobStorePort` stores private immutable bytes. Provider connectors later import or export canonical objects; they are not selected by WebDAV.
+Textual equivalent: WebDAV translates HTTP/XML into canonical Files commands and queries. Canonical Files behavior owns IDs, paths, versions, lifecycle, copying, moving, deletion, locking and content integrity. JPA stores metadata. `BlobStorePort` stores private immutable bytes. Provider connectors import or export canonical objects; they are not selected by WebDAV.
 
-## Current transition
+## Runtime composition
 
-The current `FilesProviderPort`, `FilesFacadeService` and `WeaveNativeFilesAdapter` still combine more application and composition responsibility than the target architecture permits. They remain compatibility seams while behavior is moved into explicit Files application services.
+The native runtime now has one `FilesProviderPort` bean: `WeaveNativeFilesAdapter`. Despite its historical class name, it is only the Server boot and error-translation composition. It owns no Files algorithms.
 
-`weave-native` means canonical Files application behavior composed with `JpaFilesAuthorityRepository` and a configured `BlobStorePort`. It is not a second Files domain. A future S3-compatible implementation belongs below `BlobStorePort`; S3 is not a parallel canonical Files provider.
+It binds three framework-free application services:
 
-A remaining known debt is that `CanonicalFileRecord` still carries a private storage reference. Issue #1326 removes that reference from the canonical domain surface as the JPA/blob binding is split into adapter-private persistence.
+- `CanonicalFilesQueries` for list, find, read, streaming and reconciliation;
+- `CanonicalFilesCommands` for collection creation and content write/replace;
+- `CanonicalFilesTreeCommands` for COPY, MOVE and DELETE.
+
+All three services depend only on canonical Files types, `FilesAuthorityRepository`, `BlobStorePort` and, for commands, `Clock`. No Spring, JPA, OpenDAL, WebDAV, HTTP or provider type enters their contracts.
+
+The previous second primary composition and BeanFactory post-processor have been removed. There is no longer a native mutation or query path outside the canonical application layer.
+
+`weave-native` means canonical Files behavior composed with `JpaFilesAuthorityRepository` and a configured `BlobStorePort`. It is not a second Files domain. A future S3-compatible implementation belongs below `BlobStorePort`; S3 is not a parallel canonical Files provider.
+
+## Identity and mutation semantics
+
+Create and write use stable canonical IDs. Replacing content keeps the existing ID and publishes immutable bytes before activating metadata.
+
+COPY creates independent deterministic IDs, verifies source size and SHA-256 before publication and leaves the source tree unchanged.
+
+MOVE preserves IDs, substitutes canonical paths across the complete subtree and does not copy blob content.
+
+DELETE tombstones complete subtrees and removes only blobs no longer referenced by active canonical metadata. Expected versions and overwrite rules fail closed before authoritative mutation.
+
+JPA translates uniqueness, optimistic-lock and stale-state races at command-specific repository seams into provider-independent `ConcurrentMutationException`. Framework exceptions do not enter the application layer.
 
 ## Blob authority
 
@@ -42,9 +62,11 @@ Canonical/member paths are not blob keys. Changing the BlobStore implementation 
 
 ## Atomicity and reconciliation
 
-PostgreSQL and blob storage do not share one ACID transaction. Files mutations therefore require durable operation intent, immutable blob publication, metadata activation and bounded reconciliation. Ambiguous partial outcomes never become silent success.
+PostgreSQL and blob storage do not share one ACID transaction. Files mutations therefore publish immutable content before metadata activation and retain ambiguous physical leftovers for bounded reconciliation rather than reporting silent success.
 
-The current native adapter already verifies metadata/blob length and digest and deletes bounded orphan inventory. The next structural slices move this orchestration out of the adapter and bind intent, journal and outbox state transactionally to canonical metadata.
+Canonical queries verify metadata/blob length and digest. Reconciliation compares active metadata with bounded blob inventory, reports inconsistent records and deletes unreferenced blobs.
+
+The next durability slice binds canonical mutation, operation intent, change journal and outbox coherently. A remaining known debt is that `CanonicalFileRecord` still carries a private storage reference; issue #1326 moves that binding into adapter-private persistence.
 
 ## Backup and restore contract
 
@@ -53,17 +75,15 @@ The executable recovery slice uses a quiesced canonical Files source and creates
 1. a custom-format PostgreSQL consistency dump without ownership or privilege records;
 2. a contained private archive of the native BlobStore root.
 
-It restores both artifacts into independent empty targets and then verifies through the Files port:
+It restores both artifacts into independent empty targets and verifies through the Files port:
 
 - the same canonical file ID, path and version;
-- identical file bytes and content integrity;
-- matching metadata and blob inventory with no orphan or inconsistent record;
+- identical bytes and content integrity;
+- matching metadata and blob inventory;
 - successful creation and reading of a new file after restore;
 - no mutation of the original source environment.
 
-The authoritative test is `CanonicalFilesBackupRestoreTest`. It uses the real schema initializer, Flyway/JPA repository, `FilesystemBlobStore`, `WeaveNativeFilesAdapter` composition and two independent PostgreSQL instances. It requires no Nextcloud, MinIO, Synapse/Tuwunel or external provider.
-
-This is the persistence recovery primitive, not final WebDAV recovery acceptance. Real HTTP WebDAV reads after isolated restore remain part of the complete #1326 vertical and the final #1412 system E2E.
+The authoritative persistence test is `CanonicalFilesBackupRestoreTest`. Real HTTP WebDAV equivalence after isolated restore remains part of the complete #1326 vertical and the final #1412 system E2E.
 
 ## Security
 
@@ -71,4 +91,4 @@ Access control is enforced before the BlobStore port. Backup artifacts are priva
 
 ## Fresh-start policy
 
-No legacy provider import, dual write, compatibility reader, hidden provider adoption or historical unreleased Files-store compatibility is introduced by this recovery path.
+No legacy provider import, dual write, compatibility reader, hidden provider adoption or historical unreleased Files-store compatibility is introduced by this implementation.

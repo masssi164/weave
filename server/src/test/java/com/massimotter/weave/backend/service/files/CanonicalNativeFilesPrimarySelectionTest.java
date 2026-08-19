@@ -1,58 +1,34 @@
 package com.massimotter.weave.backend.service.files;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
-import com.massimotter.weave.backend.files.port.BlobStorePort;
-import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
-import java.time.Clock;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.util.TestPropertyValues;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+/** Proves the complete native runtime exposes one direct canonical Files provider bean. */
+@SpringBootTest(properties = {
+        "weave.files.provider=weave-native",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
+        "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://auth.weave.test/realms/weave/protocol/openid-connect/certs"
+})
 class CanonicalNativeFilesPrimarySelectionTest {
 
+    @Autowired
+    private Map<String, FilesProviderPort> filesProviders;
+
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
+
     @Test
-    void canonicalCompositionIsTheSinglePrimaryFilesPort() {
-        FilesAuthorityRepository authority = mock(FilesAuthorityRepository.class);
-        BlobStorePort blobs = mock(BlobStorePort.class);
-        WeaveNativeFilesAdapter transitional = new WeaveNativeFilesAdapter(
-                authority,
-                blobs,
-                Clock.systemUTC(),
-                100);
-
-        try (AnnotationConfigApplicationContext context =
-                     new AnnotationConfigApplicationContext()) {
-            TestPropertyValues.of("weave.files.provider=weave-native").applyTo(context);
-            context.registerBean(
-                    "weaveNativeFilesAdapter",
-                    WeaveNativeFilesAdapter.class,
-                    () -> transitional,
-                    definition -> definition.setPrimary(true));
-            context.registerBean(
-                    "filesAuthorityRepository",
-                    FilesAuthorityRepository.class,
-                    () -> authority);
-            context.registerBean(
-                    "blobStorePort",
-                    BlobStorePort.class,
-                    () -> blobs);
-            context.register(CanonicalNativeFilesConfiguration.class);
-            context.refresh();
-
-            assertThat(context.getBeansOfType(FilesProviderPort.class)).hasSize(2);
-            assertThat(context.getBean(FilesProviderPort.class))
-                    .isInstanceOf(CanonicalNativeFilesComposition.class);
-            assertThat(context.getBeanFactory()
-                    .getBeanDefinition("weaveNativeFilesAdapter")
-                    .isPrimary())
-                    .isFalse();
-            assertThat(context.getBeanFactory()
-                    .getBeanDefinition("canonicalNativeFilesProvider")
-                    .isPrimary())
-                    .isTrue();
-        }
+    void directCanonicalProviderIsTheOnlyFilesPortBeanInTheApplicationContext() {
+        assertThat(filesProviders)
+                .containsOnlyKeys("weaveNativeFilesAdapter");
+        assertThat(filesProviders.get("weaveNativeFilesAdapter"))
+                .isInstanceOf(WeaveNativeFilesAdapter.class);
     }
 }
