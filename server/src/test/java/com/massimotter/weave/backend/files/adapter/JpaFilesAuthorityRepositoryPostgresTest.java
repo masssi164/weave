@@ -12,14 +12,15 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
+import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.ConcurrentMutationException;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import com.massimotter.weave.backend.testing.JpaTestDatabase;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -29,7 +30,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class JpaFilesAuthorityRepositoryPostgresTest {
 
     @Container
-    private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+    private static final PostgreSQLContainer<?> POSTGRES =
+            new PostgreSQLContainer<>("postgres:16-alpine");
 
     @Test
     void movePreservesCanonicalIdentityAndLocksPersistOnlyTokenDigests() {
@@ -58,15 +60,19 @@ class JpaFilesAuthorityRepositoryPostgresTest {
         assertThat(afterMove.object().id()).isEqualTo(stableId);
         assertThat(afterMove.object().path()).isEqualTo(moved);
         assertThat(jdbc.queryForObject(
-                "select token_digest from weave_file_locks where canonical_path = ?", String.class, moved.value()))
+                "select token_digest from weave_file_locks where canonical_path = ?",
+                String.class,
+                moved.value()))
                 .startsWith("sha256:")
                 .isNotEqualTo(granted.token());
         assertThatThrownBy(() -> locks.requireUnlocked(
                 "org:example", "space:home", moved, "opaquelocktoken:wrong", "person:alice"))
                 .isInstanceOf(FileLockedException.class);
         assertThatThrownBy(() -> locks.requireUnlocked(
-                "org:example", "space:home", new FilePath("/Documents/core-plan.md/attachment.txt"),
-                null, "person:alice"))
+                "org:example", "space:home",
+                new FilePath("/Documents/core-plan.md/attachment.txt"),
+                null,
+                "person:alice"))
                 .isInstanceOf(FileLockedException.class);
 
         var afterRestart = new FilesLockService(
@@ -78,12 +84,94 @@ class JpaFilesAuthorityRepositoryPostgresTest {
 
         FilePath movedAgain = new FilePath("/Archive/core-plan.md");
         afterRestart.move(
-                "org:example", "space:home", moved, movedAgain, granted.token(), "person:alice");
-        assertThat(repository.activeLock("org:example", "space:home", moved, now.plusSeconds(3))).isEmpty();
-        assertThat(repository.activeLock("org:example", "space:home", movedAgain, now.plusSeconds(3))).isPresent();
-        afterRestart.requireUnlocked("org:example", "space:home", movedAgain, granted.token(), "person:alice");
-        afterRestart.release("org:example", "space:home", movedAgain, granted.token(), "person:alice");
-        assertThat(repository.activeLock("org:example", "space:home", movedAgain, now.plusSeconds(3))).isEmpty();
+                "org:example", "space:home", moved, movedAgain,
+                granted.token(), "person:alice");
+        assertThat(repository.activeLock(
+                "org:example", "space:home", moved, now.plusSeconds(3))).isEmpty();
+        assertThat(repository.activeLock(
+                "org:example", "space:home", movedAgain, now.plusSeconds(3))).isPresent();
+        afterRestart.requireUnlocked(
+                "org:example", "space:home", movedAgain,
+                granted.token(), "person:alice");
+        afterRestart.release(
+                "org:example", "space:home", movedAgain,
+                granted.token(), "person:alice");
+        assertThat(repository.activeLock(
+                "org:example", "space:home", movedAgain, now.plusSeconds(3))).isEmpty();
+    }
+
+    @Test
+    void activationTranslatesActivePathRaceIntoCanonicalPortFailure() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaTestDatabase.initializeSchema(dataSource);
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        var repository = repository(dataSource);
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        String organization = "org:activation:" + suffix;
+        String space = "space:home";
+        FilePath path = new FilePath("/Activation/" + suffix + ".txt");
+        Instant now = Instant.parse("2026-08-19T02:00:00Z");
+        CanonicalFileRecord first = activeFile(
+                organization,
+                space,
+                new FileId("file:first:" + suffix),
+                path,
+                "a",
+                now);
+        CanonicalFileRecord competing = activeFile(
+                organization,
+                space,
+                new FileId("file:second:" + suffix),
+                path,
+                "b",
+                now.plusSeconds(1));
+
+        repository.activate(first);
+
+        assertThatThrownBy(() -> repository.activate(competing))
+                .isInstanceOf(ConcurrentMutationException.class)
+                .hasMessageContaining(path.value());
+        assertThat(jdbc.queryForObject(
+                """
+                select count(*)
+                  from weave_files_objects
+                 where organization_ref = ?
+                   and space_ref = ?
+                   and canonical_path = ?
+                   and lifecycle_state = 'ACTIVE'
+                """,
+                Integer.class,
+                organization,
+                space,
+                path.value()))
+                .isEqualTo(1);
+    }
+
+    private CanonicalFileRecord activeFile(
+            String organization,
+            String space,
+            FileId id,
+            FilePath path,
+            String digestSeed,
+            Instant observedAt) {
+        String repeated = digestSeed.repeat(64);
+        return new CanonicalFileRecord(
+                organization,
+                space,
+                new FileObject(
+                        id,
+                        path,
+                        Kind.FILE,
+                        1,
+                        "text/plain",
+                        observedAt,
+                        false),
+                new FileVersion("version-" + digestSeed),
+                "sha256:" + repeated,
+                "v1/activation/" + repeated,
+                1,
+                Lifecycle.ACTIVE,
+                observedAt);
     }
 
     private DriverManagerDataSource dataSource() {
@@ -97,14 +185,14 @@ class JpaFilesAuthorityRepositoryPostgresTest {
 
     private JpaFilesAuthorityRepository repository(
             DriverManagerDataSource dataSource) {
-        return com.massimotter.weave.backend.testing.JpaTestDatabase.transactional(
+        return JpaTestDatabase.transactional(
                 dataSource,
                 new JpaFilesAuthorityRepository(
-                com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
-                        dataSource,
-                        FileObjectJpaRepository.class),
-                com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
-                        dataSource,
-                        FileLockJpaRepository.class)));
+                        JpaTestDatabase.repository(
+                                dataSource,
+                                FileObjectJpaRepository.class),
+                        JpaTestDatabase.repository(
+                                dataSource,
+                                FileLockJpaRepository.class)));
     }
 }
