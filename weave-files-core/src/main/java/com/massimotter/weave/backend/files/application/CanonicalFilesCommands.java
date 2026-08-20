@@ -18,6 +18,8 @@ import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.ConcurrentMutationException;
+import com.massimotter.weave.backend.files.port.StoredFileRecord;
+import com.massimotter.weave.backend.files.port.StoredFileRecord.BlobBinding;
 import java.io.ByteArrayInputStream;
 import java.time.Clock;
 import java.time.Instant;
@@ -25,9 +27,6 @@ import java.util.Objects;
 
 /**
  * Canonical provider-independent Files collection-creation and content-write use cases.
- *
- * <p>Blob references remain a documented transitional seam until the adapter-private blob-binding
- * record replaces {@code CanonicalFileRecord.storageReference()}.</p>
  */
 public final class CanonicalFilesCommands {
 
@@ -51,10 +50,10 @@ public final class CanonicalFilesCommands {
 
         byte[] content = write.bytes();
         String digest = FilesDigests.sha256(content);
-        CanonicalFileRecord existing = authority
+        StoredFileRecord existing = authority
                 .findByPath(scope.organizationRef(), scope.spaceRef(), write.path())
                 .orElse(null);
-        if (existing != null && existing.object().kind() != Kind.FILE) {
+        if (existing != null && existing.metadata().object().kind() != Kind.FILE) {
             throw failure(
                     PATH_CONFLICT,
                     "A collection already exists at the requested Files path.");
@@ -62,7 +61,7 @@ public final class CanonicalFilesCommands {
 
         FileId id = existing == null
                 ? canonicalId(scope, write.path())
-                : existing.object().id();
+                : existing.metadata().object().id();
         BlobReference reference = blobReference(id, digest);
         blobs.putStream(
                 blobScope(scope),
@@ -80,26 +79,26 @@ public final class CanonicalFilesCommands {
                 write.mediaType(),
                 now,
                 false);
-        CanonicalFileRecord activation = active(
+        StoredFileRecord activation = active(
                 scope,
                 object,
                 new FileVersion(digest),
                 digest,
-                reference.value(),
+                new BlobBinding(reference.value()),
                 now);
 
         try {
-            return authority.activate(activation).object();
+            return authority.activate(activation).metadata().object();
         } catch (ConcurrentMutationException concurrentMutation) {
-            CanonicalFileRecord concurrent = authority
+            StoredFileRecord concurrent = authority
                     .findByPath(scope.organizationRef(), scope.spaceRef(), write.path())
                     .orElseThrow(() -> failure(
                             METADATA_CONFLICT,
                             "The canonical Files metadata changed concurrently."));
-            if (concurrent.object().kind() == Kind.FILE
-                    && Objects.equals(concurrent.contentDigest(), digest)
-                    && Objects.equals(concurrent.storageReference(), reference.value())) {
-                return concurrent.object();
+            if (concurrent.metadata().object().kind() == Kind.FILE
+                    && Objects.equals(concurrent.metadata().contentDigest(), digest)
+                    && Objects.equals(concurrent.blobBinding(), activation.blobBinding())) {
+                return concurrent.metadata().object();
             }
             throw failure(
                     METADATA_CONFLICT,
@@ -134,7 +133,7 @@ public final class CanonicalFilesCommands {
                     new FileVersion(version),
                     null,
                     null,
-                    now)).object();
+                    now)).metadata().object();
         } catch (ConcurrentMutationException concurrentMutation) {
             throw failure(
                     METADATA_CONFLICT,
@@ -149,6 +148,7 @@ public final class CanonicalFilesCommands {
         }
         CanonicalFileRecord parentRecord = authority
                 .findByPath(scope.organizationRef(), scope.spaceRef(), parent)
+                .map(StoredFileRecord::metadata)
                 .orElseThrow(() -> failure(
                         PARENT_MISSING,
                         "The parent Files collection does not exist."));
@@ -166,23 +166,24 @@ public final class CanonicalFilesCommands {
         return new FilePath(path.value().substring(0, path.value().lastIndexOf('/')));
     }
 
-    private CanonicalFileRecord active(
+    private StoredFileRecord active(
             FilesCommandScope scope,
             FileObject object,
             FileVersion version,
             String digest,
-            String storageReference,
+            BlobBinding blobBinding,
             Instant now) {
-        return new CanonicalFileRecord(
-                scope.organizationRef(),
-                scope.spaceRef(),
-                object,
-                version,
-                digest,
-                storageReference,
-                scope.providerBindingRevision(),
-                ACTIVE,
-                now);
+        return new StoredFileRecord(
+                new CanonicalFileRecord(
+                        scope.organizationRef(),
+                        scope.spaceRef(),
+                        object,
+                        version,
+                        digest,
+                        scope.providerBindingRevision(),
+                        ACTIVE,
+                        now),
+                blobBinding);
     }
 
     private FileId canonicalId(FilesCommandScope scope, FilePath initialPath) {

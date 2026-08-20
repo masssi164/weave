@@ -5,6 +5,7 @@ import static com.massimotter.weave.backend.files.application.FilesTreeCommandEx
 import static com.massimotter.weave.backend.files.application.FilesTreeCommandException.Code.PRECONDITION_FAILED;
 import static com.massimotter.weave.backend.files.application.FilesTreeCommandException.Code.TREE_CONFLICT;
 import static com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle.ACTIVE;
+import static com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle.TOMBSTONED;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -22,6 +23,8 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.ConcurrentMutationException;
+import com.massimotter.weave.backend.files.port.StoredFileRecord;
+import com.massimotter.weave.backend.files.port.StoredFileRecord.BlobBinding;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Clock;
@@ -62,7 +65,7 @@ class CanonicalFilesTreeCommandsTest {
 
     @Test
     void copyCreatesIndependentCanonicalTreeWithVerifiedContent() {
-        CanonicalFileRecord sourceA = recordAt("/docs/a.txt");
+        StoredFileRecord sourceA = recordAt("/docs/a.txt");
         byte[] sourceBytes = bytes(sourceA);
 
         FileObject copiedRoot = commands.copy(
@@ -71,10 +74,11 @@ class CanonicalFilesTreeCommandsTest {
                 new FilePath("/archive/docs"),
                 false);
 
-        CanonicalFileRecord copiedA = recordAt("/archive/docs/a.txt");
-        CanonicalFileRecord copiedB = recordAt("/archive/docs/nested/b.txt");
+        StoredFileRecord copiedA = recordAt("/archive/docs/a.txt");
+        StoredFileRecord copiedB = recordAt("/archive/docs/nested/b.txt");
         assertEquals(new FilePath("/archive/docs"), copiedRoot.path());
-        assertNotEquals(sourceA.object().id(), copiedA.object().id());
+        assertNotEquals(sourceA.metadata().object().id(), copiedA.metadata().object().id());
+        assertNotEquals(sourceA.blobBinding(), copiedA.blobBinding());
         assertArrayEquals(sourceBytes, bytes(copiedA));
         assertArrayEquals(
                 "beta".getBytes(java.nio.charset.StandardCharsets.UTF_8),
@@ -92,11 +96,11 @@ class CanonicalFilesTreeCommandsTest {
     void moveKeepsCanonicalIdsAndCleansOverwrittenDestinationContent() {
         addCollection("old-destination", "/archive/docs", "old-destination-v1");
         addFile("old-file", "/archive/docs/old.txt", "obsolete");
-        CanonicalFileRecord sourceA = recordAt("/docs/a.txt");
-        CanonicalFileRecord sourceB = recordAt("/docs/nested/b.txt");
+        StoredFileRecord sourceA = recordAt("/docs/a.txt");
+        StoredFileRecord sourceB = recordAt("/docs/nested/b.txt");
         BlobStorePort.BlobReference obsoleteReference =
                 new BlobStorePort.BlobReference(
-                        recordAt("/archive/docs/old.txt").storageReference());
+                        recordAt("/archive/docs/old.txt").blobBinding().opaqueReference());
 
         FileObject movedRoot = commands.move(
                 SCOPE,
@@ -106,11 +110,12 @@ class CanonicalFilesTreeCommandsTest {
 
         assertEquals(new FilePath("/archive/docs"), movedRoot.path());
         assertEquals(
-                sourceA.object().id(),
-                recordAt("/archive/docs/a.txt").object().id());
+                sourceA.metadata().object().id(),
+                recordAt("/archive/docs/a.txt").metadata().object().id());
         assertEquals(
-                sourceB.object().id(),
-                recordAt("/archive/docs/nested/b.txt").object().id());
+                sourceB.metadata().object().id(),
+                recordAt("/archive/docs/nested/b.txt").metadata().object().id());
+        assertEquals(sourceA.blobBinding(), recordAt("/archive/docs/a.txt").blobBinding());
         assertFalse(authority.findByPath(
                 SCOPE.organizationRef(),
                 SCOPE.spaceRef(),
@@ -123,12 +128,20 @@ class CanonicalFilesTreeCommandsTest {
 
     @Test
     void deleteTombstonesTreeAndCleansUnreferencedContent() {
-        FileVersion expected = recordAt("/docs").version();
+        FileVersion expected = recordAt("/docs").metadata().version();
+        StoredFileRecord sourceA = recordAt("/docs/a.txt");
+        StoredFileRecord sourceB = recordAt("/docs/nested/b.txt");
 
         commands.delete(SCOPE, new FilePath("/docs"), expected);
 
+        StoredFileRecord tombstonedA = authority.recordById(sourceA.metadata().object().id());
+        StoredFileRecord tombstonedB = authority.recordById(sourceB.metadata().object().id());
         assertFalse(authority.activeFiles(SCOPE.organizationRef(), SCOPE.spaceRef()).stream()
-                .anyMatch(record -> record.object().path().value().startsWith("/docs")));
+                .anyMatch(record -> record.metadata().object().path().value().startsWith("/docs")));
+        assertEquals(TOMBSTONED, tombstonedA.metadata().lifecycle());
+        assertEquals(TOMBSTONED, tombstonedB.metadata().lifecycle());
+        assertEquals(sourceA.blobBinding(), tombstonedA.blobBinding());
+        assertEquals(sourceB.blobBinding(), tombstonedB.blobBinding());
         assertTrue(authority.findByPath(
                 SCOPE.organizationRef(),
                 SCOPE.spaceRef(),
@@ -165,15 +178,15 @@ class CanonicalFilesTreeCommandsTest {
                         new FileVersion("stale")));
         assertEquals(PRECONDITION_FAILED, stale.code());
 
-        CanonicalFileRecord source = recordAt("/docs/a.txt");
+        StoredFileRecord source = recordAt("/docs/a.txt");
         blobs.values.put(
-                new BlobStorePort.BlobReference(source.storageReference()),
+                new BlobStorePort.BlobReference(source.blobBinding().opaqueReference()),
                 "corrupt".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         FilesTreeCommandException corrupt = assertThrows(
                 FilesTreeCommandException.class,
                 () -> commands.copy(
                         SCOPE,
-                        source.object().path(),
+                        source.metadata().object().path(),
                         new FilePath("/archive/a.txt"),
                         false));
         assertEquals(CONTENT_INTEGRITY_FAILED, corrupt.code());
@@ -204,95 +217,98 @@ class CanonicalFilesTreeCommandsTest {
     }
 
     private void addCollection(String id, String path, String version) {
-        authority.save(new CanonicalFileRecord(
-                SCOPE.organizationRef(),
-                SCOPE.spaceRef(),
-                new FileObject(
-                        new FileId(id),
-                        new FilePath(path),
-                        Kind.COLLECTION,
-                        0,
+        authority.save(new StoredFileRecord(
+                new CanonicalFileRecord(
+                        SCOPE.organizationRef(),
+                        SCOPE.spaceRef(),
+                        new FileObject(
+                                new FileId(id),
+                                new FilePath(path),
+                                Kind.COLLECTION,
+                                0,
+                                null,
+                                NOW,
+                                false),
+                        new FileVersion(version),
                         null,
-                        NOW,
-                        false),
-                new FileVersion(version),
-                null,
-                null,
-                SCOPE.providerBindingRevision(),
-                ACTIVE,
-                NOW));
+                        SCOPE.providerBindingRevision(),
+                        ACTIVE,
+                        NOW),
+                null));
     }
 
     private void addFile(String id, String path, String value) {
         byte[] content = value.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         String digest = FilesDigests.sha256(content);
         String referenceValue = "v1/source/" + id.replace(':', '-');
-        CanonicalFileRecord record = new CanonicalFileRecord(
-                SCOPE.organizationRef(),
-                SCOPE.spaceRef(),
-                new FileObject(
-                        new FileId(id),
-                        new FilePath(path),
-                        Kind.FILE,
-                        content.length,
-                        "text/plain",
-                        NOW,
-                        false),
-                new FileVersion(digest),
-                digest,
-                referenceValue,
-                SCOPE.providerBindingRevision(),
-                ACTIVE,
-                NOW);
+        StoredFileRecord record = new StoredFileRecord(
+                new CanonicalFileRecord(
+                        SCOPE.organizationRef(),
+                        SCOPE.spaceRef(),
+                        new FileObject(
+                                new FileId(id),
+                                new FilePath(path),
+                                Kind.FILE,
+                                content.length,
+                                "text/plain",
+                                NOW,
+                                false),
+                        new FileVersion(digest),
+                        digest,
+                        SCOPE.providerBindingRevision(),
+                        ACTIVE,
+                        NOW),
+                new BlobBinding(referenceValue));
         authority.save(record);
         blobs.values.put(new BlobStorePort.BlobReference(referenceValue), content);
     }
 
-    private CanonicalFileRecord recordAt(String path) {
+    private StoredFileRecord recordAt(String path) {
         return authority.findByPath(
                 SCOPE.organizationRef(),
                 SCOPE.spaceRef(),
                 new FilePath(path)).orElseThrow();
     }
 
-    private byte[] bytes(CanonicalFileRecord record) {
-        return blobs.values.get(new BlobStorePort.BlobReference(record.storageReference()));
+    private byte[] bytes(StoredFileRecord record) {
+        return blobs.values.get(new BlobStorePort.BlobReference(
+                record.blobBinding().opaqueReference()));
     }
 
     private static final class InMemoryAuthority implements FilesAuthorityRepository {
-        private final List<CanonicalFileRecord> records = new ArrayList<>();
+        private final List<StoredFileRecord> records = new ArrayList<>();
         private boolean failNextReplace;
 
         @Override
-        public CanonicalFileRecord save(CanonicalFileRecord record) {
+        public StoredFileRecord save(StoredFileRecord record) {
             replaceRecord(record);
             return record;
         }
 
         @Override
-        public Optional<CanonicalFileRecord> findByPath(
+        public Optional<StoredFileRecord> findByPath(
                 String organizationRef,
                 String spaceRef,
                 FilePath path) {
             return records.stream()
                     .filter(record -> activeMatch(record, organizationRef, spaceRef)
-                            && record.object().path().equals(path))
+                            && record.metadata().object().path().equals(path))
                     .findFirst();
         }
 
         @Override
-        public Optional<CanonicalFileRecord> findById(
+        public Optional<StoredFileRecord> findById(
                 String organizationRef,
                 String spaceRef,
                 FileId id) {
             return records.stream()
                     .filter(record -> activeMatch(record, organizationRef, spaceRef)
-                            && record.object().id().equals(id))
+                            && record.metadata().object().id().equals(id))
                     .findFirst();
         }
 
         @Override
-        public List<CanonicalFileRecord> activeFiles(
+        public List<StoredFileRecord> activeFiles(
                 String organizationRef,
                 String spaceRef) {
             return records.stream()
@@ -301,14 +317,14 @@ class CanonicalFilesTreeCommandsTest {
         }
 
         @Override
-        public List<CanonicalFileRecord> replace(
-                List<CanonicalFileRecord> tombstones,
-                List<CanonicalFileRecord> activations) {
+        public List<StoredFileRecord> replace(
+                List<StoredFileRecord> tombstones,
+                List<StoredFileRecord> activations) {
             if (failNextReplace) {
                 failNextReplace = false;
                 FilePath path = activations.isEmpty()
-                        ? tombstones.getFirst().object().path()
-                        : activations.getFirst().object().path();
+                        ? tombstones.getFirst().metadata().object().path()
+                        : activations.getFirst().metadata().object().path();
                 throw new ConcurrentMutationException(path);
             }
             tombstones.forEach(this::replaceRecord);
@@ -317,52 +333,61 @@ class CanonicalFilesTreeCommandsTest {
         }
 
         @Override
-        public CanonicalFileRecord move(
+        public StoredFileRecord move(
                 String organizationRef,
                 String spaceRef,
                 FileId id,
                 FilePath expectedPath,
                 FilePath destination,
                 Instant movedAt) {
-            CanonicalFileRecord current = findById(organizationRef, spaceRef, id)
-                    .filter(record -> record.object().path().equals(expectedPath))
+            StoredFileRecord current = findById(organizationRef, spaceRef, id)
+                    .filter(record -> record.metadata().object().path().equals(expectedPath))
                     .orElseThrow(() -> new ConcurrentMutationException(expectedPath));
             FileObject moved = new FileObject(
-                    current.object().id(),
+                    current.metadata().object().id(),
                     destination,
-                    current.object().kind(),
-                    current.object().size(),
-                    current.object().mediaType(),
+                    current.metadata().object().kind(),
+                    current.metadata().object().size(),
+                    current.metadata().object().mediaType(),
                     movedAt,
-                    current.object().hidden());
-            CanonicalFileRecord updated = new CanonicalFileRecord(
-                    current.organizationRef(),
-                    current.spaceRef(),
-                    moved,
-                    current.version(),
-                    current.contentDigest(),
-                    current.storageReference(),
-                    current.providerBindingRevision(),
-                    ACTIVE,
-                    movedAt);
+                    current.metadata().object().hidden());
+            StoredFileRecord updated = new StoredFileRecord(
+                    new CanonicalFileRecord(
+                            current.metadata().organizationRef(),
+                            current.metadata().spaceRef(),
+                            moved,
+                            current.metadata().version(),
+                            current.metadata().contentDigest(),
+                            current.metadata().providerBindingRevision(),
+                            ACTIVE,
+                            movedAt),
+                    current.blobBinding());
             replaceRecord(updated);
             return updated;
         }
 
-        private void replaceRecord(CanonicalFileRecord record) {
-            records.removeIf(existing -> existing.organizationRef().equals(record.organizationRef())
-                    && existing.spaceRef().equals(record.spaceRef())
-                    && existing.object().id().equals(record.object().id()));
+        private void replaceRecord(StoredFileRecord record) {
+            records.removeIf(existing -> existing.metadata().organizationRef()
+                    .equals(record.metadata().organizationRef())
+                    && existing.metadata().spaceRef().equals(record.metadata().spaceRef())
+                    && existing.metadata().object().id().equals(record.metadata().object().id()));
             records.add(record);
         }
 
         private boolean activeMatch(
-                CanonicalFileRecord record,
+                StoredFileRecord record,
                 String organizationRef,
                 String spaceRef) {
-            return record.organizationRef().equals(organizationRef)
-                    && record.spaceRef().equals(spaceRef)
-                    && record.lifecycle() == ACTIVE;
+            return record.metadata().organizationRef().equals(organizationRef)
+                    && record.metadata().spaceRef().equals(spaceRef)
+                    && record.metadata().lifecycle() == ACTIVE;
+        }
+
+        private StoredFileRecord recordById(FileId id) {
+            return records.stream()
+                    .filter(record -> record.metadata().object().id().equals(id))
+                    .findFirst()
+                    .orElseThrow();
         }
 
         @Override

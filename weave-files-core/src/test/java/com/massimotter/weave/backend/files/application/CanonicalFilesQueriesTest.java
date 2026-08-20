@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.files.application;
 
 import static com.massimotter.weave.backend.files.application.FilesApplicationException.Code.CONTENT_INTEGRITY_FAILED;
+import static com.massimotter.weave.backend.files.application.FilesApplicationException.Code.INVALID_BLOB_REFERENCE;
 import static com.massimotter.weave.backend.files.application.FilesApplicationException.Code.NOT_FOUND;
 import static com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle.ACTIVE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -18,6 +19,8 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
+import com.massimotter.weave.backend.files.port.StoredFileRecord;
+import com.massimotter.weave.backend.files.port.StoredFileRecord.BlobBinding;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Instant;
@@ -37,13 +40,13 @@ class CanonicalFilesQueriesTest {
     private final InMemoryAuthority authority = new InMemoryAuthority();
     private final InMemoryBlobs blobs = new InMemoryBlobs();
     private final CanonicalFilesQueries queries = new CanonicalFilesQueries(authority, blobs, 100);
-    private CanonicalFileRecord file;
+    private StoredFileRecord file;
     private byte[] content;
 
     @BeforeEach
     void setUp() {
         content = "canonical-files".getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        CanonicalFileRecord collection = record(
+        StoredFileRecord collection = record(
                 "collection-docs",
                 "/docs",
                 Kind.COLLECTION,
@@ -73,9 +76,9 @@ class CanonicalFilesQueriesTest {
 
         var docs = queries.list(SCOPE, new FilePath("/docs"));
         assertEquals(1, docs.listing().children().size());
-        assertEquals(file.object().id(), docs.listing().children().getFirst().id());
-        assertTrue(queries.find(SCOPE, file.object().path()).isPresent());
-        assertArrayEquals(content, queries.read(SCOPE, file.object().id()).bytes());
+        assertEquals(file.metadata().object().id(), docs.listing().children().getFirst().id());
+        assertTrue(queries.find(SCOPE, file.metadata().object().path()).isPresent());
+        assertArrayEquals(content, queries.read(SCOPE, file.metadata().object().id()).bytes());
     }
 
     @Test
@@ -88,8 +91,40 @@ class CanonicalFilesQueriesTest {
         blobs.values.put(new BlobStorePort.BlobReference("v1/readme/blob"), "corrupt".getBytes());
         FilesApplicationException corrupt = assertThrows(
                 FilesApplicationException.class,
-                () -> queries.read(SCOPE, file.object().id()));
+                () -> queries.read(SCOPE, file.metadata().object().id()));
         assertEquals(CONTENT_INTEGRITY_FAILED, corrupt.code());
+    }
+
+    @Test
+    void rejectsAnUnsafePersistedBlobBindingBeforeBlobAccess() {
+        StoredFileRecord unsafe = new StoredFileRecord(
+                file.metadata(),
+                new BlobBinding("../outside-scope"));
+        authority.records.remove(file);
+        authority.records.add(unsafe);
+
+        FilesApplicationException invalid = assertThrows(
+                FilesApplicationException.class,
+                () -> queries.read(SCOPE, unsafe.metadata().object().id()));
+
+        assertEquals(INVALID_BLOB_REFERENCE, invalid.code());
+        assertEquals(0, blobs.readCalls);
+        assertFalse(invalid.getMessage().contains("../outside-scope"));
+    }
+
+    @Test
+    void rejectsAMissingPersistedBlobBindingBeforeBlobAccess() {
+        StoredFileRecord missingBinding = new StoredFileRecord(file.metadata(), null);
+        authority.records.remove(file);
+        authority.records.add(missingBinding);
+
+        FilesApplicationException invalid = assertThrows(
+                FilesApplicationException.class,
+                () -> queries.read(SCOPE, missingBinding.metadata().object().id()));
+
+        assertEquals(INVALID_BLOB_REFERENCE, invalid.code());
+        assertEquals(0, blobs.readCalls);
+        assertEquals("The Files metadata does not reference content.", invalid.getMessage());
     }
 
     @Test
@@ -107,15 +142,15 @@ class CanonicalFilesQueriesTest {
         assertFalse(blobs.values.containsKey(orphan));
     }
 
-    private CanonicalFileRecord record(
+    private StoredFileRecord record(
             String id,
             String path,
             Kind kind,
             long size,
             String digest,
-            String storageReference,
+            String opaqueReference,
             String version) {
-        return new CanonicalFileRecord(
+        CanonicalFileRecord metadata = new CanonicalFileRecord(
                 SCOPE.organizationRef(),
                 SCOPE.spaceRef(),
                 new FileObject(
@@ -128,63 +163,66 @@ class CanonicalFilesQueriesTest {
                         false),
                 new FileVersion(version),
                 digest,
-                storageReference,
                 1,
                 ACTIVE,
                 NOW);
+        return new StoredFileRecord(
+                metadata,
+                opaqueReference == null ? null : new BlobBinding(opaqueReference));
     }
 
     private static final class InMemoryAuthority implements FilesAuthorityRepository {
-        private final List<CanonicalFileRecord> records = new ArrayList<>();
+        private final List<StoredFileRecord> records = new ArrayList<>();
 
         @Override
-        public CanonicalFileRecord save(CanonicalFileRecord record) {
-            records.removeIf(existing -> existing.object().id().equals(record.object().id()));
+        public StoredFileRecord save(StoredFileRecord record) {
+            records.removeIf(existing -> existing.metadata().object().id()
+                    .equals(record.metadata().object().id()));
             records.add(record);
             return record;
         }
 
         @Override
-        public Optional<CanonicalFileRecord> findByPath(
+        public Optional<StoredFileRecord> findByPath(
                 String organizationRef,
                 String spaceRef,
                 FilePath path) {
             return records.stream().filter(record -> matches(record, organizationRef, spaceRef)
-                    && record.object().path().equals(path)).findFirst();
+                    && record.metadata().object().path().equals(path)).findFirst();
         }
 
         @Override
-        public Optional<CanonicalFileRecord> findById(
+        public Optional<StoredFileRecord> findById(
                 String organizationRef,
                 String spaceRef,
                 FileId id) {
             return records.stream().filter(record -> matches(record, organizationRef, spaceRef)
-                    && record.object().id().equals(id)).findFirst();
+                    && record.metadata().object().id().equals(id)).findFirst();
         }
 
         @Override
-        public List<CanonicalFileRecord> activeFiles(String organizationRef, String spaceRef) {
+        public List<StoredFileRecord> activeFiles(String organizationRef, String spaceRef) {
             return records.stream().filter(record -> matches(record, organizationRef, spaceRef)).toList();
         }
 
         private boolean matches(
-                CanonicalFileRecord record,
+                StoredFileRecord record,
                 String organizationRef,
                 String spaceRef) {
-            return record.organizationRef().equals(organizationRef)
-                    && record.spaceRef().equals(spaceRef)
-                    && record.lifecycle() == ACTIVE;
+            return record.metadata().organizationRef().equals(organizationRef)
+                    && record.metadata().spaceRef().equals(spaceRef)
+                    && record.metadata().lifecycle() == ACTIVE;
         }
 
         @Override
-        public List<CanonicalFileRecord> replace(
-                List<CanonicalFileRecord> tombstones,
-                List<CanonicalFileRecord> activations) {
+        public List<StoredFileRecord> replace(
+                List<StoredFileRecord> tombstones,
+                List<StoredFileRecord> activations) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public CanonicalFileRecord move(
+        public StoredFileRecord move(
                 String organizationRef,
                 String spaceRef,
                 FileId id,
@@ -242,6 +280,7 @@ class CanonicalFilesQueriesTest {
 
     private static final class InMemoryBlobs implements BlobStorePort {
         private final Map<BlobReference, byte[]> values = new LinkedHashMap<>();
+        private int readCalls;
 
         @Override
         public boolean configured() {
@@ -266,6 +305,7 @@ class CanonicalFilesQueriesTest {
 
         @Override
         public void readStream(BlobScope scope, BlobReference reference, OutputStream target) {
+            readCalls++;
             byte[] bytes = values.get(reference);
             if (bytes == null) {
                 throw new IllegalStateException("blob missing");

@@ -66,7 +66,11 @@ PostgreSQL and blob storage do not share one ACID transaction. Files mutations t
 
 Canonical queries verify metadata/blob length and digest. Reconciliation compares active metadata with bounded blob inventory, reports inconsistent records and deletes unreferenced blobs.
 
-The next durability slice binds canonical mutation, operation intent, change journal and outbox coherently. A remaining known debt is that `CanonicalFileRecord` still carries a private storage reference; issue #1326 moves that binding into adapter-private persistence.
+`CanonicalFileRecord` contains only canonical domain metadata. The persistence-port envelope `StoredFileRecord` pairs that metadata with an opaque `BlobBinding`; JPA maps both into the same `weave_files_objects` row and transaction. The physical `storage_reference` column and its representation remain private to the persistence adapter, with no storage reference exposed through domain or public Files models.
+
+The incremental qualification record is [Native Files private blob-binding evidence](../evidence/native-files-private-blob-binding.md).
+
+The next durability slice binds canonical mutation, operation intent, change journal and outbox coherently. Until that contract is specified and implemented, publication and orphan cleanup are not a cross-instance transaction: reconciliation must not be represented as closing the race between an in-flight blob publication and another server's orphan scan.
 
 ## Backup and restore contract
 

@@ -21,6 +21,7 @@ import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
+import com.massimotter.weave.backend.files.port.StoredFileRecord;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -54,28 +55,31 @@ public final class CanonicalFilesQueries {
     public VersionedListing list(FilesScope scope, FilePath path) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(path, "path must not be null");
-        List<CanonicalFileRecord> records = active(scope);
+        List<StoredFileRecord> records = active(scope);
         if (!path.root()) {
             CanonicalFileRecord requested = byPath(records, path)
+                    .map(StoredFileRecord::metadata)
                     .orElseThrow(() -> failure(NOT_FOUND, "The requested file or folder was not found."));
             if (requested.object().kind() != Kind.COLLECTION) {
                 throw failure(NOT_A_COLLECTION, "The requested Files path is not a collection.");
             }
         }
-        List<CanonicalFileRecord> children = records.stream()
-                .filter(record -> parent(record.object().path()).equals(path))
-                .sorted(Comparator.comparing(record -> record.object().path().value()))
+        List<StoredFileRecord> children = records.stream()
+                .filter(record -> parent(record.metadata().object().path()).equals(path))
+                .sorted(Comparator.comparing(record -> record.metadata().object().path().value()))
                 .toList();
         Map<FilePath, FileVersion> versions = new LinkedHashMap<>();
-        children.forEach(child -> versions.put(child.object().path(), child.version()));
+        children.forEach(child -> versions.put(
+                child.metadata().object().path(),
+                child.metadata().version()));
         long used = records.stream()
-                .filter(record -> record.object().kind() == Kind.FILE)
-                .mapToLong(record -> record.object().size())
+                .filter(record -> record.metadata().object().kind() == Kind.FILE)
+                .mapToLong(record -> record.metadata().object().size())
                 .sum();
         return new VersionedListing(
                 new FileListing(
                         path,
-                        children.stream().map(CanonicalFileRecord::object).toList(),
+                        children.stream().map(record -> record.metadata().object()).toList(),
                         new FileQuota(null, used)),
                 listingVersion(path, children),
                 versions);
@@ -85,21 +89,22 @@ public final class CanonicalFilesQueries {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(path, "path must not be null");
         if (path.root()) {
-            List<CanonicalFileRecord> children = active(scope).stream()
-                    .filter(record -> parent(record.object().path()).equals(path))
+            List<StoredFileRecord> children = active(scope).stream()
+                    .filter(record -> parent(record.metadata().object().path()).equals(path))
                     .toList();
             return Optional.of(new VersionedFile(rootObject(), listingVersion(path, children)));
         }
         return authority.findByPath(scope.organizationRef(), scope.spaceRef(), path)
+                .map(StoredFileRecord::metadata)
                 .map(record -> new VersionedFile(record.object(), record.version()));
     }
 
     public FileContent read(FilesScope scope, FileId id) {
-        CanonicalFileRecord record = file(scope, id);
+        StoredFileRecord record = file(scope, id);
         ByteArrayOutputStream target = new ByteArrayOutputStream(
-                Math.toIntExact(Math.min(record.object().size(), Integer.MAX_VALUE)));
+                Math.toIntExact(Math.min(record.metadata().object().size(), Integer.MAX_VALUE)));
         readVerified(scope, record, target);
-        return new FileContent(record.object(), target.toByteArray());
+        return new FileContent(record.metadata().object(), target.toByteArray());
     }
 
     public void readTo(FilesScope scope, FileId id, OutputStream target) {
@@ -110,11 +115,11 @@ public final class CanonicalFilesQueries {
     public ReconciliationReport reconcile(FilesScope scope) {
         Objects.requireNonNull(scope, "scope must not be null");
         BlobScope blobScope = blobScope(scope);
-        List<CanonicalFileRecord> active = active(scope);
+        List<StoredFileRecord> active = active(scope);
         Set<BlobReference> referenced = new LinkedHashSet<>();
         int inconsistent = 0;
-        for (CanonicalFileRecord record : active) {
-            if (record.object().kind() != Kind.FILE) {
+        for (StoredFileRecord record : active) {
+            if (record.metadata().object().kind() != Kind.FILE) {
                 continue;
             }
             try {
@@ -136,12 +141,12 @@ public final class CanonicalFilesQueries {
         return new ReconciliationReport(active.size(), inventory.size(), deleted, inconsistent);
     }
 
-    private CanonicalFileRecord file(FilesScope scope, FileId id) {
+    private StoredFileRecord file(FilesScope scope, FileId id) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(id, "id must not be null");
-        CanonicalFileRecord record = authority.findById(scope.organizationRef(), scope.spaceRef(), id)
+        StoredFileRecord record = authority.findById(scope.organizationRef(), scope.spaceRef(), id)
                 .orElseThrow(() -> failure(NOT_FOUND, "The requested file or folder was not found."));
-        if (record.object().kind() != Kind.FILE) {
+        if (record.metadata().object().kind() != Kind.FILE) {
             throw failure(NOT_A_FILE, "The requested Files object has no file content.");
         }
         return record;
@@ -149,8 +154,9 @@ public final class CanonicalFilesQueries {
 
     private void readVerified(
             FilesScope scope,
-            CanonicalFileRecord record,
+            StoredFileRecord record,
             OutputStream target) {
+        CanonicalFileRecord metadata = record.metadata();
         MessageDigest digest = FilesDigests.newSha256();
         long[] count = {0};
         OutputStream verifying = new DigestOutputStream(new OutputStream() {
@@ -168,10 +174,10 @@ public final class CanonicalFilesQueries {
         }, digest);
         blobs.readStream(blobScope(scope), reference(record), verifying);
         String actualDigest = "sha256:" + java.util.HexFormat.of().formatHex(digest.digest());
-        if (count[0] != record.object().size()
-                || record.contentDigest() == null
+        if (count[0] != metadata.object().size()
+                || metadata.contentDigest() == null
                 || !MessageDigest.isEqual(
-                record.contentDigest().getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+                metadata.contentDigest().getBytes(java.nio.charset.StandardCharsets.US_ASCII),
                 actualDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
             throw failure(
                     CONTENT_INTEGRITY_FAILED,
@@ -179,18 +185,18 @@ public final class CanonicalFilesQueries {
         }
     }
 
-    private BlobReference reference(CanonicalFileRecord record) {
-        if (record.storageReference() == null) {
+    private BlobReference reference(StoredFileRecord record) {
+        if (record.blobBinding() == null) {
             throw failure(INVALID_BLOB_REFERENCE, "The Files metadata does not reference content.");
         }
         try {
-            return new BlobReference(record.storageReference());
+            return new BlobReference(record.blobBinding().opaqueReference());
         } catch (IllegalArgumentException exception) {
             throw failure(INVALID_BLOB_REFERENCE, "The Files metadata contains an invalid content reference.");
         }
     }
 
-    private List<CanonicalFileRecord> active(FilesScope scope) {
+    private List<StoredFileRecord> active(FilesScope scope) {
         return authority.activeFiles(scope.organizationRef(), scope.spaceRef());
     }
 
@@ -198,10 +204,12 @@ public final class CanonicalFilesQueries {
         return new BlobScope(scope.organizationRef(), scope.spaceRef());
     }
 
-    private Optional<CanonicalFileRecord> byPath(
-            List<CanonicalFileRecord> records,
+    private Optional<StoredFileRecord> byPath(
+            List<StoredFileRecord> records,
             FilePath path) {
-        return records.stream().filter(record -> record.object().path().equals(path)).findFirst();
+        return records.stream()
+                .filter(record -> record.metadata().object().path().equals(path))
+                .findFirst();
     }
 
     private FilePath parent(FilePath path) {
@@ -213,13 +221,13 @@ public final class CanonicalFilesQueries {
 
     private FileVersion listingVersion(
             FilePath path,
-            List<CanonicalFileRecord> children) {
+            List<StoredFileRecord> children) {
         StringBuilder canonical = new StringBuilder(path.value());
         children.stream()
-                .sorted(Comparator.comparing(record -> record.object().path().value()))
+                .sorted(Comparator.comparing(record -> record.metadata().object().path().value()))
                 .forEach(record -> canonical
-                        .append('\n').append(record.object().id().value())
-                        .append('\n').append(record.version().value()));
+                        .append('\n').append(record.metadata().object().id().value())
+                        .append('\n').append(record.metadata().version().value()));
         return new FileVersion(FilesDigests.sha256(canonical.toString()));
     }
 

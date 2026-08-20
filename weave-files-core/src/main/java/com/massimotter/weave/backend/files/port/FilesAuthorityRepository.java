@@ -1,6 +1,5 @@
 package com.massimotter.weave.backend.files.port;
 
-import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
@@ -11,36 +10,36 @@ import java.util.Optional;
 /** Provider-independent persistence port for canonical Files metadata and locks. */
 public interface FilesAuthorityRepository {
 
-    CanonicalFileRecord save(CanonicalFileRecord record);
+    StoredFileRecord save(StoredFileRecord record);
 
     /**
      * Activates one canonical metadata observation for a create or content-write command.
      *
      * <p>The default keeps non-concurrent adapters source-compatible. Persistence adapters with
      * uniqueness or optimistic-lock semantics override this method and translate implementation
-     * failures into {@link ConcurrentMutationException}. Generic {@link #save} callers such as the
-     * transitional COPY implementation retain their existing persistence behavior.</p>
+     * failures into {@link ConcurrentMutationException}. Generic {@link #save} callers retain
+     * their existing persistence behavior.</p>
      */
-    default CanonicalFileRecord activate(CanonicalFileRecord record) {
+    default StoredFileRecord activate(StoredFileRecord record) {
         return save(record);
     }
 
-    Optional<CanonicalFileRecord> findByPath(
+    Optional<StoredFileRecord> findByPath(
             String organizationRef,
             String spaceRef,
             FilePath path);
 
-    Optional<CanonicalFileRecord> findById(
+    Optional<StoredFileRecord> findById(
             String organizationRef,
             String spaceRef,
             FileId id);
 
-    List<CanonicalFileRecord> activeFiles(String organizationRef, String spaceRef);
+    List<StoredFileRecord> activeFiles(String organizationRef, String spaceRef);
 
     /** Atomically tombstones old path owners before activating replacement records. */
-    List<CanonicalFileRecord> replace(
-            List<CanonicalFileRecord> tombstones,
-            List<CanonicalFileRecord> activations);
+    List<StoredFileRecord> replace(
+            List<StoredFileRecord> tombstones,
+            List<StoredFileRecord> activations);
 
     /**
      * Command-specific tree replacement boundary.
@@ -48,14 +47,14 @@ public interface FilesAuthorityRepository {
      * <p>Concurrent persistence implementations override this method and translate uniqueness or
      * optimistic-lock failures into {@link ConcurrentMutationException} for {@code operationRoot}.</p>
      */
-    default List<CanonicalFileRecord> replaceTree(
+    default List<StoredFileRecord> replaceTree(
             FilePath operationRoot,
-            List<CanonicalFileRecord> tombstones,
-            List<CanonicalFileRecord> activations) {
+            List<StoredFileRecord> tombstones,
+            List<StoredFileRecord> activations) {
         return replace(tombstones, activations);
     }
 
-    CanonicalFileRecord move(
+    StoredFileRecord move(
             String organizationRef,
             String spaceRef,
             FileId id,
@@ -64,7 +63,7 @@ public interface FilesAuthorityRepository {
             Instant movedAt);
 
     /** Command-specific single-node move boundary. */
-    default CanonicalFileRecord moveNode(
+    default StoredFileRecord moveNode(
             String organizationRef,
             String spaceRef,
             FileId id,

@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
@@ -22,6 +21,7 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.ConcurrentMutationException;
+import com.massimotter.weave.backend.files.port.StoredFileRecord;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Clock;
@@ -64,7 +64,7 @@ class CanonicalFilesCommandsTest {
         FileObject first = commands.write(
                 SCOPE,
                 new FileWrite(new FilePath("/docs/readme.txt"), firstContent, "text/plain"));
-        CanonicalFileRecord firstRecord = authority
+        StoredFileRecord firstRecord = authority
                 .findByPath(SCOPE.organizationRef(), SCOPE.spaceRef(), first.path())
                 .orElseThrow();
 
@@ -74,18 +74,20 @@ class CanonicalFilesCommandsTest {
                         new FilePath("/docs/readme.txt"),
                         replacementContent,
                         "text/markdown"));
-        CanonicalFileRecord replacementRecord = authority
+        StoredFileRecord replacementRecord = authority
                 .findByPath(SCOPE.organizationRef(), SCOPE.spaceRef(), replacement.path())
                 .orElseThrow();
 
         assertEquals(Kind.COLLECTION, collection.kind());
         assertEquals(first.id(), replacement.id());
-        assertNotEquals(firstRecord.contentDigest(), replacementRecord.contentDigest());
+        assertNotEquals(
+                firstRecord.metadata().contentDigest(),
+                replacementRecord.metadata().contentDigest());
         assertEquals("text/markdown", replacement.mediaType());
         assertArrayEquals(
                 replacementContent,
                 blobs.values.get(new BlobStorePort.BlobReference(
-                        replacementRecord.storageReference())));
+                        replacementRecord.blobBinding().opaqueReference())));
         assertEquals(2, authority.activeFiles(SCOPE.organizationRef(), SCOPE.spaceRef()).size());
         assertEquals(2, blobs.values.size());
     }
@@ -134,13 +136,14 @@ class CanonicalFilesCommandsTest {
                 SCOPE,
                 new FileWrite(new FilePath("/idempotent.txt"), content, "text/plain"));
 
-        CanonicalFileRecord record = authority
+        StoredFileRecord record = authority
                 .findByPath(SCOPE.organizationRef(), SCOPE.spaceRef(), stored.path())
                 .orElseThrow();
-        assertEquals(stored.id(), record.object().id());
+        assertEquals(stored.id(), record.metadata().object().id());
         assertArrayEquals(
                 content,
-                blobs.values.get(new BlobStorePort.BlobReference(record.storageReference())));
+                blobs.values.get(new BlobStorePort.BlobReference(
+                        record.blobBinding().opaqueReference())));
     }
 
     @Test
@@ -173,55 +176,56 @@ class CanonicalFilesCommandsTest {
     }
 
     private static final class InMemoryAuthority implements FilesAuthorityRepository {
-        private final List<CanonicalFileRecord> records = new ArrayList<>();
+        private final List<StoredFileRecord> records = new ArrayList<>();
         private ConflictMode nextConflict = ConflictMode.NONE;
 
         @Override
-        public CanonicalFileRecord save(CanonicalFileRecord record) {
+        public StoredFileRecord save(StoredFileRecord record) {
             ConflictMode conflict = nextConflict;
             nextConflict = ConflictMode.NONE;
             if (conflict == ConflictMode.STORE_REQUESTED_AND_THROW) {
                 replaceRecord(record);
-                throw new ConcurrentMutationException(record.object().path());
+                throw new ConcurrentMutationException(record.metadata().object().path());
             }
             if (conflict == ConflictMode.THROW_ONLY) {
-                throw new ConcurrentMutationException(record.object().path());
+                throw new ConcurrentMutationException(record.metadata().object().path());
             }
             replaceRecord(record);
             return record;
         }
 
-        private void replaceRecord(CanonicalFileRecord record) {
-            records.removeIf(existing -> existing.organizationRef().equals(record.organizationRef())
-                    && existing.spaceRef().equals(record.spaceRef())
-                    && existing.object().id().equals(record.object().id()));
+        private void replaceRecord(StoredFileRecord record) {
+            records.removeIf(existing -> existing.metadata().organizationRef()
+                    .equals(record.metadata().organizationRef())
+                    && existing.metadata().spaceRef().equals(record.metadata().spaceRef())
+                    && existing.metadata().object().id().equals(record.metadata().object().id()));
             records.add(record);
         }
 
         @Override
-        public Optional<CanonicalFileRecord> findByPath(
+        public Optional<StoredFileRecord> findByPath(
                 String organizationRef,
                 String spaceRef,
                 FilePath path) {
             return records.stream()
                     .filter(record -> matches(record, organizationRef, spaceRef)
-                            && record.object().path().equals(path))
+                            && record.metadata().object().path().equals(path))
                     .findFirst();
         }
 
         @Override
-        public Optional<CanonicalFileRecord> findById(
+        public Optional<StoredFileRecord> findById(
                 String organizationRef,
                 String spaceRef,
                 FileId id) {
             return records.stream()
                     .filter(record -> matches(record, organizationRef, spaceRef)
-                            && record.object().id().equals(id))
+                            && record.metadata().object().id().equals(id))
                     .findFirst();
         }
 
         @Override
-        public List<CanonicalFileRecord> activeFiles(
+        public List<StoredFileRecord> activeFiles(
                 String organizationRef,
                 String spaceRef) {
             return records.stream()
@@ -230,23 +234,23 @@ class CanonicalFilesCommandsTest {
         }
 
         private boolean matches(
-                CanonicalFileRecord record,
+                StoredFileRecord record,
                 String organizationRef,
                 String spaceRef) {
-            return record.organizationRef().equals(organizationRef)
-                    && record.spaceRef().equals(spaceRef)
-                    && record.lifecycle() == ACTIVE;
+            return record.metadata().organizationRef().equals(organizationRef)
+                    && record.metadata().spaceRef().equals(spaceRef)
+                    && record.metadata().lifecycle() == ACTIVE;
         }
 
         @Override
-        public List<CanonicalFileRecord> replace(
-                List<CanonicalFileRecord> tombstones,
-                List<CanonicalFileRecord> activations) {
+        public List<StoredFileRecord> replace(
+                List<StoredFileRecord> tombstones,
+                List<StoredFileRecord> activations) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public CanonicalFileRecord move(
+        public StoredFileRecord move(
                 String organizationRef,
                 String spaceRef,
                 FileId id,
