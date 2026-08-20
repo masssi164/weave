@@ -17,6 +17,7 @@ public final class SchemaReceiptVerifier {
 
   private static final Pattern COMMIT = Pattern.compile("[0-9a-f]{40}");
   private static final Pattern TABLE = Pattern.compile("weave_[a-z0-9_]+");
+  static final long MAX_SCHEMA_RECEIPT_BYTES = 8L * 1024L * 1024L;
 
   private SchemaReceiptVerifier() {}
 
@@ -30,7 +31,7 @@ public final class SchemaReceiptVerifier {
     }
   }
 
-  static void verify(Map<String, String> environment) throws Exception {
+  static JsonNode verify(Map<String, String> environment) throws Exception {
     String candidate = environment.getOrDefault("WEAVE_CANDIDATE_COMMIT", "");
     if (!COMMIT.matcher(candidate).matches()) {
       throw new IllegalStateException("candidate commit is invalid");
@@ -39,10 +40,17 @@ public final class SchemaReceiptVerifier {
         Path.of(environment.getOrDefault("WEAVE_SCHEMA_INIT_RECEIPT_FILE", ""))
             .toAbsolutePath()
             .normalize();
-    if (Files.isSymbolicLink(receipt) || !Files.isRegularFile(receipt)) {
-      throw new IllegalStateException("schema receipt is unavailable");
+    Path nativeFilesBlobRoot =
+        Path.of(environment.getOrDefault("WEAVE_NATIVE_FILES_BLOB_ROOT", ""))
+            .toAbsolutePath()
+            .normalize();
+    if (Files.isSymbolicLink(nativeFilesBlobRoot)
+        || !Files.isDirectory(nativeFilesBlobRoot, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+      throw new IllegalStateException("native Files blob root is unavailable or unsafe");
     }
-    JsonNode value = new ObjectMapper().readTree(Files.readString(receipt));
+    JsonNode value = new ObjectMapper().readTree(
+        NativeFilesVolumeAuthority.readBoundedRegularFile(
+            receipt, MAX_SCHEMA_RECEIPT_BYTES, "schema receipt"));
     List<String> tables = new ArrayList<>();
     JsonNode tableValues = value.path("tables");
     if (!tableValues.isArray()) {
@@ -75,7 +83,13 @@ public final class SchemaReceiptVerifier {
             && tables.size() == new HashSet<>(tables).size()
             && tables.stream().allMatch(name -> TABLE.matcher(name).matches())
             && tables.contains("weave_schema_authority")
+            && tables.contains("weave_files_volume_authorities")
             && tables.equals(projectionTables);
+    NativeFilesVolumeAuthority.Authority nativeFilesVolumeAuthority =
+        NativeFilesVolumeAuthority.authorityFromReceipt(
+            value.path("nativeFilesVolumeAuthority"));
+    NativeFilesVolumeAuthority.validateMarker(
+        nativeFilesBlobRoot, nativeFilesVolumeAuthority);
     if (!SchemaAuthorityInitializer.RECEIPT_FORMAT.equals(value.path("schemaVersion").asText())
         || !value.path("supportSafe").asBoolean(false)
         || !"flyway".equals(value.path("authority").asText())
@@ -89,10 +103,13 @@ public final class SchemaReceiptVerifier {
         || !SchemaCatalogFingerprint.FORMAT.equals(observedFingerprintFormat)
         || !value.path("catalogFingerprint").asText().matches("[0-9a-f]{64}")
         || !value.path("catalogFingerprint").asText().equals(observedFingerprint)
+        || !value.path("catalogFingerprint").asText().equals(
+            nativeFilesVolumeAuthority.schemaHistoryFingerprint())
         || value.path("tableCount").asInt() != tables.size()
         || !validTables
         || value.path("secretValuesIncluded").asBoolean(true)) {
       throw new IllegalStateException("schema receipt does not match the exact candidate");
     }
+    return value;
   }
 }

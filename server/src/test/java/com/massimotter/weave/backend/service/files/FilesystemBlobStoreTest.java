@@ -7,13 +7,19 @@ import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
+import com.massimotter.weave.backend.schema.NativeFilesVolumeAuthority;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Arrays;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -114,8 +120,275 @@ class FilesystemBlobStoreTest {
                 .isEqualTo("files-native-path-containment-failed");
     }
 
+    @Test
+    void reservedVolumeMarkerIsOutsideBindingInventoryAndCleanup() throws Exception {
+        Path root = temporaryDirectory.resolve("private-blobs");
+        Files.createDirectories(root);
+        Path marker = root.resolve(NativeFilesVolumeAuthority.MARKER_FILE_NAME);
+        Files.writeString(marker, "adapter-private-authority-marker");
+        var scope = new BlobScope("org:alpha", "space:home");
+        var reference = new BlobReference(
+                "v1/file/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        byte[] content = "payload".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        var store = store(1024);
+
+        assertThat(store.inventory(scope, 10)).isEmpty();
+        store.put(scope, reference, content, FilesystemBlobStore.digest(content));
+        assertThat(store.inventory(scope, 10)).containsExactly(reference);
+        store.delete(scope, reference);
+
+        assertThat(store.inventory(scope, 10)).isEmpty();
+        assertThat(marker).hasContent("adapter-private-authority-marker");
+        assertThatThrownBy(
+                () -> new BlobReference(NativeFilesVolumeAuthority.MARKER_FILE_NAME))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsAStoredBlobThatGrowsBeyondTheBoundAfterStat() throws Exception {
+        var scope = new BlobScope("org:alpha", "space:growing");
+        var reference = new BlobReference(
+                "v1/file/9999999999999999999999999999999999999999999999999999999999999999");
+        AtomicBoolean grew = new AtomicBoolean();
+        var store = store(
+                1024,
+                FilesystemBlobStore.DurabilitySync.system(),
+                path -> {
+                    if (grew.compareAndSet(false, true)) {
+                        Files.write(path, new byte[] {1}, StandardOpenOption.APPEND);
+                    }
+                });
+        Path target = store.resolvedPathForTest(scope, reference);
+        Files.createDirectories(target.getParent());
+        Files.write(target, new byte[1024]);
+
+        assertThatThrownBy(() -> store.readStream(
+                        scope,
+                        reference,
+                        java.io.OutputStream.nullOutputStream()))
+                .isInstanceOf(ApiErrorException.class)
+                .extracting(error -> ((ApiErrorException) error).code())
+                .isEqualTo("files-native-blob-read-failed");
+        assertThat(Files.size(target)).isEqualTo(1025);
+        assertThatThrownBy(() -> store.receipt(scope, reference))
+                .isInstanceOf(ApiErrorException.class)
+                .extracting(error -> ((ApiErrorException) error).code())
+                .isEqualTo("files-native-blob-size-invalid");
+    }
+
+    @Test
+    void propagatesFileAndDirectoryDurabilitySyncFailures() throws Exception {
+        var scope = new BlobScope("org:alpha", "space:durability");
+        byte[] content = "durable payload".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String digest = FilesystemBlobStore.digest(content);
+        var fileFailure = new BlobReference(
+                "v1/file/7777777777777777777777777777777777777777777777777777777777777777");
+        var directoryFailure = new BlobReference(
+                "v1/file/8888888888888888888888888888888888888888888888888888888888888888");
+        var layout = store(1024);
+        Path fileFailureTarget = layout.resolvedPathForTest(scope, fileFailure);
+        Path directoryFailureTarget = layout.resolvedPathForTest(scope, directoryFailure);
+        Files.createDirectories(fileFailureTarget.getParent());
+        Files.createDirectories(directoryFailureTarget.getParent());
+        Files.createDirectories(layout.stagingPathForTest("layout.pending").getParent());
+
+        assertThatThrownBy(() -> store(
+                        1024,
+                        path -> {
+                            if (!Files.isDirectory(path)) {
+                                throw new java.io.IOException("forced file sync failure");
+                            }
+                        },
+                        ignored -> { })
+                .put(scope, fileFailure, content, digest))
+                .isInstanceOf(ApiErrorException.class)
+                .extracting(error -> ((ApiErrorException) error).code())
+                .isEqualTo("files-native-blob-write-failed");
+
+        assertThatThrownBy(() -> store(
+                        1024,
+                        path -> {
+                            if (path.equals(directoryFailureTarget.getParent())) {
+                                throw new java.io.IOException("forced directory sync failure");
+                            }
+                        },
+                        ignored -> { })
+                .put(scope, directoryFailure, content, digest))
+                .isInstanceOf(ApiErrorException.class)
+                .extracting(error -> ((ApiErrorException) error).code())
+                .isEqualTo("files-native-blob-write-failed");
+
+        var recovered = store(1024);
+        assertThat(recovered.put(scope, fileFailure, content, digest).digest())
+                .isEqualTo(digest);
+        assertThat(recovered.put(scope, directoryFailure, content, digest).digest())
+                .isEqualTo(digest);
+    }
+
+    @Test
+    void retryReprovesEveryExistingAncestorAfterAncestorSyncFailure() {
+        var scope = new BlobScope("org:alpha", "space:ancestor-retry");
+        var reference = new BlobReference(
+                "v1/file/4444444444444444444444444444444444444444444444444444444444444444");
+        byte[] content = "ancestor retry".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String digest = FilesystemBlobStore.digest(content);
+        var layout = store(1024);
+        Path ancestor = layout.resolvedPathForTest(scope, reference)
+                .getParent()
+                .getParent();
+
+        assertThatThrownBy(() -> store(
+                        1024,
+                        path -> {
+                            if (path.equals(ancestor)) {
+                                throw new java.io.IOException("forced ancestor sync failure");
+                            }
+                        },
+                        ignored -> { })
+                .put(scope, reference, content, digest))
+                .isInstanceOf(ApiErrorException.class)
+                .extracting(error -> ((ApiErrorException) error).code())
+                .isEqualTo("files-native-blob-write-failed");
+        assertThat(ancestor).isDirectory();
+
+        java.util.Set<Path> synced = new java.util.HashSet<>();
+        var recovered = store(1024, synced::add, ignored -> { });
+        assertThat(recovered.put(scope, reference, content, digest).digest())
+                .isEqualTo(digest);
+        assertThat(synced).contains(ancestor, ancestor.getParent());
+    }
+
+    @Test
+    void existingReceiptReprovesStagingDirectoryDurabilityBeforePlanRetry() {
+        var scope = new BlobScope("org:alpha", "space:receipt-staging-retry");
+        var reference = new BlobReference(
+                "v1/file/3333333333333333333333333333333333333333333333333333333333333333");
+        byte[] content = "receipt staging retry"
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String digest = FilesystemBlobStore.digest(content);
+        var published = store(1024);
+        published.put(scope, reference, content, digest);
+        Path staging = published.stagingPathForTest("placeholder").getParent();
+
+        assertThatThrownBy(() -> store(
+                        1024,
+                        path -> {
+                            if (path.equals(staging)) {
+                                throw new java.io.IOException("forced staging retry sync failure");
+                            }
+                        },
+                        ignored -> { })
+                .receipt(scope, reference))
+                .isInstanceOf(ApiErrorException.class)
+                .extracting(error -> ((ApiErrorException) error).code())
+                .isEqualTo("files-native-blob-read-failed");
+
+        java.util.Set<Path> synced = new java.util.HashSet<>();
+        assertThat(store(1024, synced::add, ignored -> { }).receipt(scope, reference))
+                .isPresent();
+        assertThat(synced).contains(staging);
+    }
+
+    @Test
+    void deleteRequiresDurableParentSyncAndARegularRetryReprovesAbsence() {
+        var scope = new BlobScope("org:alpha", "space:delete-durability");
+        var reference = new BlobReference(
+                "v1/file/6666666666666666666666666666666666666666666666666666666666666666");
+        byte[] content = "delete durably".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String digest = FilesystemBlobStore.digest(content);
+        var published = store(1024);
+        published.put(scope, reference, content, digest);
+        Path parent = published.resolvedPathForTest(scope, reference).getParent();
+
+        assertThatThrownBy(() -> store(
+                        1024,
+                        path -> {
+                            if (path.equals(parent)) {
+                                throw new java.io.IOException("forced delete directory sync failure");
+                            }
+                        },
+                        ignored -> { })
+                .delete(scope, reference))
+                .isInstanceOf(ApiErrorException.class)
+                .extracting(error -> ((ApiErrorException) error).code())
+                .isEqualTo("files-native-blob-delete-failed");
+
+        var recovered = store(1024);
+        recovered.delete(scope, reference);
+        assertThat(recovered.receipt(scope, reference)).isEmpty();
+    }
+
+    @Test
+    void excludesActiveStagingAndScavengesOnlyUnlockedStaleEntries() throws Exception {
+        var scope = new BlobScope("org:alpha", "space:staging");
+        var store = store(1024);
+        Path staleOwner = store.stagingPathForTest("stranded.lock");
+        Path stale = store.stagingPathForTest("stranded.pending");
+        Path activeOwner = store.stagingPathForTest("in-flight.lock");
+        Path active = store.stagingPathForTest("in-flight.pending");
+        Files.createDirectories(stale.getParent());
+        Files.write(staleOwner, new byte[] {0});
+        Files.write(stale, new byte[] {1});
+        Files.write(activeOwner, new byte[] {0});
+        Files.write(active, new byte[] {2});
+        FileTime old = FileTime.from(Instant.now().minusSeconds(2 * 60 * 60));
+        Files.setLastModifiedTime(staleOwner, old);
+        Files.setLastModifiedTime(activeOwner, old);
+
+        try (FileChannel activeChannel = FileChannel.open(
+                        activeOwner,
+                        StandardOpenOption.WRITE);
+                var ignored = activeChannel.lock()) {
+            assertThat(store.inventory(scope, 10)).isEmpty();
+            assertThat(staleOwner).doesNotExist();
+            assertThat(stale).doesNotExist();
+            assertThat(activeOwner).exists();
+            assertThat(active).exists();
+        }
+
+        assertThat(store.inventory(scope, 10)).isEmpty();
+        assertThat(activeOwner).doesNotExist();
+        assertThat(active).doesNotExist();
+    }
+
+    @Test
+    void rejectsStagingNamespaceSymlinkWithoutCreatingOutsideDirectories() throws Exception {
+        var scope = new BlobScope("org:alpha", "space:staging-symlink");
+        var reference = new BlobReference(
+                "v1/file/5555555555555555555555555555555555555555555555555555555555555555");
+        byte[] content = "contained".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Path root = temporaryDirectory.resolve("private-blobs");
+        var store = store(1024);
+        Path outside = temporaryDirectory.resolve("outside-staging");
+        Files.createDirectories(outside);
+        Files.createSymbolicLink(root.resolve(".weave-native-staging"), outside);
+
+        assertThatThrownBy(() -> store.put(
+                        scope,
+                        reference,
+                        content,
+                        FilesystemBlobStore.digest(content)))
+                .isInstanceOf(ApiErrorException.class)
+                .extracting(error -> ((ApiErrorException) error).code())
+                .isEqualTo("files-native-path-containment-failed");
+        assertThat(outside.resolve("v1")).doesNotExist();
+    }
+
     private FilesystemBlobStore store(long maximumBytes) {
         return new FilesystemBlobStore(new WeaveNativeFilesProperties(
                 temporaryDirectory.resolve("private-blobs"), maximumBytes, 100));
+    }
+
+    private FilesystemBlobStore store(
+            long maximumBytes,
+            FilesystemBlobStore.DurabilitySync durabilitySync,
+            FilesystemBlobStore.StoredReadObserver readObserver) {
+        return new FilesystemBlobStore(
+                new WeaveNativeFilesProperties(
+                        temporaryDirectory.resolve("private-blobs"),
+                        maximumBytes,
+                        100),
+                durabilitySync,
+                readObserver);
     }
 }

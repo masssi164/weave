@@ -30,6 +30,7 @@ from realm_renderer import (  # noqa: E402
 
 CORE_TEXT_SECRETS = (
     "postgres-admin-password",
+    "backend-migrator-db-password",
     "backend-db-password",
     "identity-reference-hmac-key",
     "keycloak-db-password",

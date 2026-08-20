@@ -22,6 +22,7 @@ from rendering.keycloak import render_keycloak
 from rendering.providers import render_appservice, render_mas, render_synapse
 
 REQUIRED_PRIVATE_FILES = (
+    "backend-migrator-db-password",
     "backend-db-password",
     "identity-reference-hmac-key",
     "keycloak-db-password",

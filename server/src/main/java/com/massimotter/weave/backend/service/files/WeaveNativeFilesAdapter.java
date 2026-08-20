@@ -4,8 +4,23 @@ import com.massimotter.weave.backend.config.FilesRuntimeProperties;
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.application.CanonicalFilesCommands;
+import com.massimotter.weave.backend.files.application.CanonicalFilesBlobEffects;
+import com.massimotter.weave.backend.files.application.CanonicalFilesMutationPlanner;
 import com.massimotter.weave.backend.files.application.CanonicalFilesQueries;
 import com.massimotter.weave.backend.files.application.CanonicalFilesTreeCommands;
+import com.massimotter.weave.backend.files.application.FilesDigests;
+import com.massimotter.weave.backend.files.application.FilesEtags;
+import com.massimotter.weave.backend.files.application.FilesMutationRecords;
+import com.massimotter.weave.backend.files.application.FilesMutationPlanningException;
+import com.massimotter.weave.backend.files.application.FilesMutationTargetCodec;
+import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository;
+import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository.CommitProbe;
+import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository.CommitOutcome;
+import com.massimotter.weave.backend.files.adapter.JpaFilesMutationRepository.AuthorizationDeniedException;
+import com.massimotter.weave.backend.files.adapter.JpaFilesMutationRepository.ConcurrentFilesMutationException;
+import com.massimotter.weave.backend.files.adapter.JpaFilesMutationRepository.LockPreconditionException;
+import com.massimotter.weave.backend.files.adapter.JpaFilesMutationRepository.RequestPreconditionException;
+import com.massimotter.weave.backend.files.application.CanonicalFilesBlobEffects.BlobEffectException;
 import com.massimotter.weave.backend.files.application.FilesApplicationException;
 import com.massimotter.weave.backend.files.application.FilesCommandException;
 import com.massimotter.weave.backend.files.application.FilesCommandScope;
@@ -21,19 +36,29 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
+import com.massimotter.weave.backend.files.port.FilesBlobProtectionPort;
+import com.massimotter.weave.backend.files.port.FilesMutationPlan;
+import com.massimotter.weave.backend.files.port.FilesMutationPlan.Sealed;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort;
+import com.massimotter.weave.backend.files.port.StoredFileRecord;
+import com.massimotter.weave.backend.operation.domain.OperationIntent;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
 import java.io.OutputStream;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import jakarta.persistence.PersistenceException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -50,7 +75,7 @@ import org.springframework.stereotype.Component;
         name = "weave.files.provider",
         havingValue = FilesRuntimeProperties.WEAVE_NATIVE,
         matchIfMissing = true)
-public final class WeaveNativeFilesAdapter implements FilesProviderPort {
+public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeFilesDurableMutationPort {
 
     public static final String ADAPTER_KEY = "weave-native";
 
@@ -58,9 +83,29 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
     private final CanonicalFilesQueries queries;
     private final CanonicalFilesCommands commands;
     private final CanonicalFilesTreeCommands treeCommands;
+    private final CanonicalFilesMutationPlanner mutationPlanner;
+    private final CanonicalFilesBlobEffects blobEffects;
+    private final NativeFilesMutationRepository mutationRepository;
+    private final FilesMutationTargetCodec targetCodec;
+    private final Clock clock;
 
     @Autowired
     public WeaveNativeFilesAdapter(
+            FilesAuthorityRepository authority,
+            BlobStorePort blobs,
+            WeaveNativeFilesProperties properties,
+            NativeFilesMutationRepository mutationRepository,
+            FilesMutationTargetCodec targetCodec) {
+        this(
+                authority,
+                blobs,
+                Clock.systemUTC(),
+                properties.reconciliationLimit(),
+                mutationRepository,
+                targetCodec);
+    }
+
+    WeaveNativeFilesAdapter(
             FilesAuthorityRepository authority,
             BlobStorePort blobs,
             WeaveNativeFilesProperties properties) {
@@ -68,7 +113,9 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
                 authority,
                 blobs,
                 Clock.systemUTC(),
-                properties.reconciliationLimit());
+                properties.reconciliationLimit(),
+                null,
+                null);
     }
 
     WeaveNativeFilesAdapter(
@@ -76,14 +123,26 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
             BlobStorePort blobs,
             Clock clock,
             int reconciliationLimit) {
+        this(authority, blobs, clock, reconciliationLimit, null, null);
+    }
+
+    WeaveNativeFilesAdapter(
+            FilesAuthorityRepository authority,
+            BlobStorePort blobs,
+            Clock clock,
+            int reconciliationLimit,
+            NativeFilesMutationRepository mutationRepository,
+            FilesMutationTargetCodec targetCodec) {
         FilesAuthorityRepository requiredAuthority = Objects.requireNonNull(
                 authority,
                 "authority must not be null");
         this.blobs = Objects.requireNonNull(blobs, "blobs must not be null");
         Clock requiredClock = clock == null ? Clock.systemUTC() : clock;
+        this.clock = requiredClock;
         this.queries = new CanonicalFilesQueries(
                 requiredAuthority,
                 this.blobs,
+                mutationRepository == null ? FilesBlobProtectionPort.none() : mutationRepository,
                 reconciliationLimit);
         this.commands = new CanonicalFilesCommands(
                 requiredAuthority,
@@ -93,6 +152,382 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
                 requiredAuthority,
                 this.blobs,
                 requiredClock);
+        this.mutationPlanner = new CanonicalFilesMutationPlanner(requiredAuthority, requiredClock);
+        this.blobEffects = new CanonicalFilesBlobEffects(this.blobs);
+        this.mutationRepository = mutationRepository;
+        this.targetCodec = targetCodec;
+    }
+
+    @Override
+    public Sealed plan(
+            OperationIntent intent,
+            FilesRequestScope scope,
+            Mutation mutation) {
+        requireDurableComposition();
+        OperationIntent requiredIntent = Objects.requireNonNull(intent, "intent must not be null");
+        FilesRequestScope requiredScope = Objects.requireNonNull(scope, "scope must not be null");
+        CanonicalFilesMutationPlanner.MutationScope mutationScope =
+                new CanonicalFilesMutationPlanner.MutationScope(
+                        requiredIntent.operationRef(),
+                        requiredScope.organizationRef(),
+                        requiredScope.spaceRef(),
+                        requiredIntent.canonicalArgumentsDigest(),
+                        requiredScope.providerBindingRevision());
+        FilesMutationPlan.Draft draft;
+        try {
+            draft = switch (Objects.requireNonNull(mutation, "mutation must not be null")) {
+                case Put put -> mutationPlanner.put(
+                        mutationScope, put.write(), put.ifMatchCondition(), put.ifNoneMatchCondition());
+                case MakeCollection makeCollection -> mutationPlanner.createCollection(
+                        mutationScope,
+                        makeCollection.path(),
+                        makeCollection.ifMatchCondition(),
+                        makeCollection.ifNoneMatchCondition());
+                case Copy copy -> mutationPlanner.copy(
+                        mutationScope,
+                        copy.source(),
+                        copy.destination(),
+                        copy.overwrite(),
+                        copy.ifMatchCondition(),
+                        copy.ifNoneMatchCondition());
+                case Move move -> mutationPlanner.move(
+                        mutationScope,
+                        move.source(),
+                        move.destination(),
+                        move.overwrite(),
+                        move.ifMatchCondition(),
+                        move.ifNoneMatchCondition());
+                case Delete delete -> mutationPlanner.delete(
+                        mutationScope,
+                        delete.path(),
+                        delete.expectedVersion(),
+                        delete.ifMatchCondition(),
+                        delete.ifNoneMatchCondition());
+            };
+        } catch (FilesMutationPlanningException exception) {
+            throw planningFailure(exception);
+        }
+        Instant sealedAt = Instant.now(clock).truncatedTo(ChronoUnit.MICROS);
+        return draft.seal(
+                targetCodec.targetsDigest(draft.targets()),
+                targetCodec.fencesDigest(draft.fences()),
+                sealedAt);
+    }
+
+    @Override
+    public NativeResult execute(
+            OperationIntent intent,
+            FilesRequestScope scope,
+            Sealed suppliedPlan,
+            Mutation mutation,
+            String auditRef,
+            NativeLockMove lockMove) {
+        requireDurableComposition();
+        Sealed plan = mutationRepository.requireSealed(suppliedPlan.operationRef());
+        if (!plan.equals(suppliedPlan)) {
+            throw new IllegalStateException("the native Files mutation plan changed after sealing");
+        }
+
+        StoredFileRecord resultRecord = null;
+        FilesMutationPlan.Target rootTarget = null;
+        if (!(mutation instanceof Delete)) {
+            rootTarget = plan.targets().stream()
+                    .filter(target -> target.resultLifecycleState()
+                            == com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle.ACTIVE)
+                    .filter(target -> Objects.equals(target.targetPath(), mutation.resultPath().value()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("the native Files result target is missing"));
+            resultRecord = FilesMutationRecords.resultRecord(plan, rootTarget);
+        }
+        FileObject item = resultRecord == null ? null : resultRecord.metadata().object();
+        FileVersion version = resultRecord == null
+                ? FileVersion.unknown()
+                : resultRecord.metadata().version();
+        String etag = item == null ? null : FilesEtags.strong(item, version);
+        boolean created = rootTarget != null
+                && rootTarget.changeKind()
+                        == com.massimotter.weave.backend.files.domain.FilesChangeStream.ChangeKind.CREATED;
+        String canonicalResult = item == null
+                ? "deleted:" + mutation.resultPath().value()
+                : item.id().value() + "\n" + item.path().value() + "\n" + etag;
+        NativeFilesMutationRepository.LockMove repositoryLockMove = lockMove == null
+                ? null
+                : new NativeFilesMutationRepository.LockMove(
+                        lockMove.source(),
+                        lockMove.destination(),
+                        lockMove.tokenDigest(),
+                        lockMove.ownerRef());
+        var initialProbe = mutationRepository.probe(plan.operationRef());
+        if (initialProbe.outcome() == CommitOutcome.TERMINAL_FAILURE) {
+            throw conflict(
+                    "files-native-operation-terminal",
+                    "The native Files operation already has a terminal failure.");
+        }
+        if (initialProbe.outcome() == CommitOutcome.CORRUPT) {
+            throw unavailable(
+                    "files-native-finalization-corrupt",
+                    "The native Files finalization evidence is inconsistent.");
+        }
+        if (initialProbe.outcome() == CommitOutcome.SUCCEEDED) {
+            return new NativeResult(item, version, etag, created);
+        }
+
+        OperationIntent executionIntent = initialProbe.intent();
+        if (executionIntent.state() == OperationIntent.State.AMBIGUOUS) {
+            executionIntent = mutationRepository.beginReconciliation(executionIntent);
+            if (executionIntent.state().terminal()) {
+                return replayConcurrentFinalization(
+                        plan.operationRef(), item, version, etag, created);
+            }
+            if (executionIntent.state() != OperationIntent.State.RECONCILING) {
+                throw unavailable(
+                        "files-native-finalization-outcome-unknown",
+                        "The native Files reconciliation state could not be established.");
+            }
+        }
+        try {
+            byte[] putContent = mutation instanceof Put put ? put.write().bytes() : null;
+            blobEffects.execute(plan, putContent);
+            mutationRepository.finalizeSuccess(
+                    executionIntent,
+                    plan,
+                    FilesDigests.sha256(canonicalResult),
+                    auditRef,
+                    repositoryLockMove);
+        } catch (RuntimeException failure) {
+            return recoverFinalizationOutcome(
+                    plan, item, version, etag, created, auditRef, failure);
+        }
+        return new NativeResult(item, version, etag, created);
+    }
+
+    private NativeResult replayConcurrentFinalization(
+            String operationRef,
+            FileObject item,
+            FileVersion version,
+            String etag,
+            boolean created) {
+        CommitProbe probe;
+        try {
+            probe = mutationRepository.probe(operationRef);
+        } catch (RuntimeException unavailableProbe) {
+            throw unavailable(
+                    "files-native-finalization-outcome-unknown",
+                    "The concurrent native Files finalization outcome could not be proven.");
+        }
+        return switch (probe.outcome()) {
+            case SUCCEEDED -> new NativeResult(item, version, etag, created);
+            case TERMINAL_FAILURE -> throw conflict(
+                    "files-native-operation-terminal",
+                    "The native Files operation already has a terminal failure.");
+            case NOT_COMMITTED, CORRUPT -> throw unavailable(
+                    "files-native-finalization-corrupt",
+                    "The concurrent native Files finalization evidence is inconsistent.");
+        };
+    }
+
+    private NativeResult recoverFinalizationOutcome(
+            Sealed plan,
+            FileObject item,
+            FileVersion version,
+            String etag,
+            boolean created,
+            String auditRef,
+            RuntimeException failure) {
+        NativeFilesMutationRepository.CommitProbe probe;
+        try {
+            probe = mutationRepository.probe(plan.operationRef());
+        } catch (RuntimeException unavailableProbe) {
+            throw unavailable(
+                    "files-native-finalization-outcome-unknown",
+                    "The native Files finalization outcome could not be proven.");
+        }
+        return switch (probe.outcome()) {
+            case SUCCEEDED -> new NativeResult(item, version, etag, created);
+            case NOT_COMMITTED -> {
+                if (deterministicFailure(failure) || persistenceFailure(failure)) {
+                    boolean denied = failure instanceof AuthorizationDeniedException
+                            || (failure instanceof ApiErrorException apiFailure
+                                    && apiFailure.status() == HttpStatus.FORBIDDEN);
+                    CommitOutcome settlement = settleProvenNonCommit(
+                            probe.intent(),
+                            denied,
+                            FilesDigests.sha256(failureCode(failure)),
+                            auditRef,
+                            plan,
+                            failure);
+                    if (settlement == CommitOutcome.SUCCEEDED) {
+                        yield new NativeResult(item, version, etag, created);
+                    }
+                    throw translatedFinalizationFailure(failure);
+                }
+                try {
+                    mutationRepository.markAmbiguous(
+                            probe.intent(),
+                            FilesDigests.sha256(
+                                    "native-files-uncertain:" + failure.getClass().getName()));
+                } catch (RuntimeException transitionFailure) {
+                    throw unavailable(
+                            "files-native-finalization-outcome-unknown",
+                            "The native Files finalization outcome could not be recorded.");
+                }
+                throw unavailable(
+                        "files-native-finalization-outcome-unknown",
+                        "The native Files finalization outcome requires reconciliation.");
+            }
+            case TERMINAL_FAILURE -> throw conflict(
+                    "files-native-operation-terminal",
+                    "The native Files operation already has a terminal failure.");
+            case CORRUPT -> throw unavailable(
+                    "files-native-finalization-corrupt",
+                    "The native Files finalization evidence is inconsistent.");
+        };
+    }
+
+    private CommitOutcome settleProvenNonCommit(
+            OperationIntent intent,
+            boolean denied,
+            String resultDigest,
+            String auditRef,
+            Sealed plan,
+            RuntimeException originalFailure) {
+        RuntimeException lastSettlementFailure = null;
+        for (int attempt = 0; attempt < 3; attempt++) {
+            OperationIntent settled;
+            try {
+                settled = mutationRepository.recordFailure(
+                        intent, denied, resultDigest, auditRef);
+            } catch (RuntimeException settlementFailure) {
+                lastSettlementFailure = settlementFailure;
+                CommitProbe settlementProbe;
+                try {
+                    settlementProbe = mutationRepository.probe(plan.operationRef());
+                } catch (RuntimeException unavailableProbe) {
+                    settlementFailure.addSuppressed(unavailableProbe);
+                    continue;
+                }
+                switch (settlementProbe.outcome()) {
+                    case SUCCEEDED -> {
+                        return CommitOutcome.SUCCEEDED;
+                    }
+                    case TERMINAL_FAILURE -> {
+                        return CommitOutcome.TERMINAL_FAILURE;
+                    }
+                    case CORRUPT -> throw unavailable(
+                            "files-native-finalization-corrupt",
+                            "The native Files failure settlement evidence is inconsistent.");
+                    case NOT_COMMITTED -> {
+                        // The settlement is proven absent, so a bounded retry is safe.
+                    }
+                }
+                continue;
+            }
+            if (settled.state() == OperationIntent.State.SUCCEEDED) {
+                return CommitOutcome.SUCCEEDED;
+            }
+            if (settled.state() == OperationIntent.State.DENIED
+                    || settled.state() == OperationIntent.State.FAILED) {
+                return CommitOutcome.TERMINAL_FAILURE;
+            }
+            throw unavailable(
+                    "files-native-finalization-corrupt",
+                    "The native Files failure settlement returned a nonterminal state.");
+        }
+        if (lastSettlementFailure != null) {
+            originalFailure.addSuppressed(lastSettlementFailure);
+        }
+        throw unavailable(
+                "files-native-finalization-outcome-unknown",
+                "The native Files failure settlement could not be committed.");
+    }
+
+    private boolean deterministicFailure(RuntimeException failure) {
+        return failure instanceof AuthorizationDeniedException
+                || failure instanceof LockPreconditionException
+                || failure instanceof ConcurrentFilesMutationException
+                || failure instanceof RequestPreconditionException
+                || failure instanceof BlobEffectException
+                || (failure instanceof ApiErrorException apiFailure
+                        && apiFailure.status().is4xxClientError());
+    }
+
+    private boolean persistenceFailure(RuntimeException failure) {
+        return failure instanceof PersistenceException || failure instanceof DataAccessException;
+    }
+
+    private String failureCode(RuntimeException failure) {
+        if (failure instanceof ApiErrorException apiFailure) {
+            return apiFailure.code();
+        }
+        if (failure instanceof AuthorizationDeniedException) {
+            return "files-native-authorization-denied";
+        }
+        if (failure instanceof LockPreconditionException) {
+            return "files-native-lock-precondition-failed";
+        }
+        if (failure instanceof ConcurrentFilesMutationException) {
+            return "files-native-concurrent-mutation";
+        }
+        if (failure instanceof RequestPreconditionException) {
+            return "files-webdav-precondition-failed";
+        }
+        if (persistenceFailure(failure)) {
+            return "files-native-persistence-failed";
+        }
+        return "files-native-blob-effect-failed";
+    }
+
+    private ApiErrorException translatedFinalizationFailure(RuntimeException failure) {
+        if (failure instanceof ApiErrorException apiFailure) {
+            return apiFailure;
+        }
+        if (failure instanceof AuthorizationDeniedException) {
+            return new ApiErrorException(
+                    HttpStatus.FORBIDDEN,
+                    "files-forbidden",
+                    "Files access was revoked before the mutation committed.",
+                    Map.of("module", "files", "adapter", ADAPTER_KEY, "diagnosticsRedacted", true));
+        }
+        if (failure instanceof LockPreconditionException) {
+            return new ApiErrorException(
+                    HttpStatus.LOCKED,
+                    "file-locked",
+                    "The Files lock precondition changed before the mutation committed.",
+                    Map.of("module", "files", "adapter", ADAPTER_KEY, "diagnosticsRedacted", true));
+        }
+        if (failure instanceof ConcurrentFilesMutationException) {
+            return conflict(
+                    "files-native-concurrent-mutation",
+                    "The native Files mutation lost a concurrent precondition race.");
+        }
+        if (failure instanceof RequestPreconditionException) {
+            return precondition("A persisted WebDAV precondition changed before commit.");
+        }
+        if (persistenceFailure(failure)) {
+            return unavailable(
+                    "files-native-persistence-failed",
+                    "The native Files mutation did not commit after bounded persistence retries.");
+        }
+        return conflict(
+                "files-native-blob-effect-failed",
+                "The planned native Files blob effect could not be proven.");
+    }
+
+    private ApiErrorException planningFailure(FilesMutationPlanningException exception) {
+        return switch (exception.code()) {
+            case NOT_FOUND -> notFound("mutation-plan", exception.getMessage());
+            case PRECONDITION_FAILED -> precondition(exception.getMessage());
+            case PATH_CONFLICT -> conflict("files-native-path-conflict", exception.getMessage());
+            case PARENT_MISSING -> conflict("files-native-parent-missing", exception.getMessage());
+            case PARENT_NOT_COLLECTION -> conflict("files-native-parent-not-collection", exception.getMessage());
+            case INVALID_BLOB_BINDING -> conflict("files-native-metadata-blob-mismatch", exception.getMessage());
+        };
+    }
+
+    private void requireDurableComposition() {
+        if (mutationRepository == null || targetCodec == null) {
+            throw new IllegalStateException("native Files durable mutation composition is unavailable");
+        }
     }
 
     @Override
@@ -354,6 +789,17 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
     private ApiErrorException conflict(String code, String message) {
         return new ApiErrorException(
                 HttpStatus.CONFLICT,
+                code,
+                message,
+                Map.of(
+                        "module", "files",
+                        "adapter", ADAPTER_KEY,
+                        "diagnosticsRedacted", true));
+    }
+
+    private ApiErrorException unavailable(String code, String message) {
+        return new ApiErrorException(
+                HttpStatus.SERVICE_UNAVAILABLE,
                 code,
                 message,
                 Map.of(

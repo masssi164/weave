@@ -34,6 +34,7 @@ import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.files.application.FilesLockService;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
+import com.massimotter.weave.backend.files.application.NativeFilesLockRepository;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
 import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
 import com.massimotter.weave.backend.security.device.DeviceCredentialRepository;
@@ -153,6 +154,9 @@ class FilesCalendarFacadeControllerTest {
 
     @MockitoBean
     private FilesMutationIntentService filesMutationIntentService;
+
+    @MockitoBean
+    private NativeFilesLockRepository nativeFilesLockRepository;
 
     @BeforeEach
     void allowContextAccess() {

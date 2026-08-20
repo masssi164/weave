@@ -188,7 +188,7 @@ def assert_dogfood_reset_is_exact(context) -> None:
     original_execute = compose_runtime_module.execute
     compose_calls: list[tuple[str, ...]] = []
     removed: list[tuple[str, str]] = []
-    execute_calls: list[tuple[str, tuple[str, ...]]] = []
+    execute_calls: list[tuple[str, tuple[str, ...], str | None]] = []
     retired_cleanup_calls = 0
     preflight_calls = 0
 
@@ -200,8 +200,12 @@ def assert_dogfood_reset_is_exact(context) -> None:
     def fake_remove(kind, name):
         removed.append((kind, name))
 
-    def fake_execute(_context, command, extra):
-        execute_calls.append((command, tuple(extra)))
+    def fake_execute(
+        _context, command, extra, *, files_volume_transition_kind=None
+    ):
+        execute_calls.append(
+            (command, tuple(extra), files_volume_transition_kind)
+        )
 
     def fake_retired_cleanup():
         nonlocal retired_cleanup_calls
@@ -245,7 +249,56 @@ def assert_dogfood_reset_is_exact(context) -> None:
     assert all(str(context.tls_root) not in name for _, name in removed)
     assert retired_cleanup_calls == 1
     assert preflight_calls == 1
-    assert execute_calls == [("up", ())]
+    assert execute_calls == [("up", (), "AUTHORIZED_RESET")]
+
+
+def assert_native_files_transition_context_is_private_and_one_shot(context) -> None:
+    schema_root = context.generated_root / "schema-init"
+    schema_root.mkdir(parents=True, exist_ok=True)
+    value = compose_runtime_module._files_volume_transition_payload(
+        context, "AUTHORIZED_RESET"
+    )
+    assert set(value) == {
+        "schemaVersion",
+        "transitionKind",
+        "composeProject",
+        "runScope",
+        "candidateCommit",
+    }
+    assert not any(
+        marker in " ".join(value).lower()
+        for marker in ("token", "approval", "manifest", "identity")
+    )
+    compose_runtime_module._write_files_volume_transition_context(
+        context, value, replace_existing=False
+    )
+    path = compose_runtime_module._files_volume_transition_path(context)
+    assert path.parent == schema_root
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert compose_runtime_module._read_files_volume_transition_context(path) == value
+    path.write_bytes(
+        b"x" * (compose_runtime_module.FILES_VOLUME_TRANSITION_CONTEXT_MAX_BYTES + 1)
+    )
+    try:
+        compose_runtime_module._read_files_volume_transition_context(path)
+    except ContractError as error:
+        assert "oversized" in str(error)
+    else:
+        raise AssertionError("transition context accepted an oversized artifact")
+    path.unlink()
+    compose_runtime_module._write_files_volume_transition_context(
+        context, value, replace_existing=False
+    )
+    conflicting = {**value, "candidateCommit": "f" * 40}
+    try:
+        compose_runtime_module._write_files_volume_transition_context(
+            context, conflicting, replace_existing=False
+        )
+    except ContractError:
+        pass
+    else:
+        raise AssertionError("transition context accepted a conflicting ordinary retry")
+    path.unlink()
 
 
 def assert_retired_cleanup_is_bounded() -> None:
@@ -443,6 +496,7 @@ def main() -> int:
             "WEAVE_MAILPIT_DATA_VOLUME",
         )
         assert_dogfood_reset_is_exact(dogfood)
+        assert_native_files_transition_context_is_private_and_one_shot(dogfood)
         assert _image_digest(prod) == "sha256:" + "a" * 64
         assert _overlay(dogfood, "sha256:" + "b" * 64)["smtpEndpoints"]["host"] == "mailpit"
         dogfood_caddy = render_caddy(dogfood)

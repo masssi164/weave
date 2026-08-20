@@ -21,6 +21,7 @@ import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
+import com.massimotter.weave.backend.files.port.FilesBlobProtectionPort;
 import com.massimotter.weave.backend.files.port.StoredFileRecord;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -41,14 +42,24 @@ public final class CanonicalFilesQueries {
 
     private final FilesAuthorityRepository authority;
     private final BlobStorePort blobs;
+    private final FilesBlobProtectionPort blobProtection;
     private final int reconciliationLimit;
 
     public CanonicalFilesQueries(
             FilesAuthorityRepository authority,
             BlobStorePort blobs,
             int reconciliationLimit) {
+        this(authority, blobs, FilesBlobProtectionPort.none(), reconciliationLimit);
+    }
+
+    public CanonicalFilesQueries(
+            FilesAuthorityRepository authority,
+            BlobStorePort blobs,
+            FilesBlobProtectionPort blobProtection,
+            int reconciliationLimit) {
         this.authority = Objects.requireNonNull(authority, "authority must not be null");
         this.blobs = Objects.requireNonNull(blobs, "blobs must not be null");
+        this.blobProtection = Objects.requireNonNull(blobProtection, "blobProtection must not be null");
         this.reconciliationLimit = Math.max(1, reconciliationLimit);
     }
 
@@ -117,6 +128,16 @@ public final class CanonicalFilesQueries {
         BlobScope blobScope = blobScope(scope);
         List<StoredFileRecord> active = active(scope);
         Set<BlobReference> referenced = new LinkedHashSet<>();
+        for (StoredFileRecord stored : authority.storedFiles(scope.organizationRef(), scope.spaceRef())) {
+            if (stored.metadata().object().kind() == Kind.FILE && stored.blobBinding() != null) {
+                try {
+                    referenced.add(new BlobReference(stored.blobBinding().opaqueReference()));
+                } catch (IllegalArgumentException ignored) {
+                    // Active invalid bindings are counted by the verified pass below; invalid tombstones protect nothing.
+                }
+            }
+        }
+        referenced.addAll(blobProtection.protectedBindings(scope));
         int inconsistent = 0;
         for (StoredFileRecord record : active) {
             if (record.metadata().object().kind() != Kind.FILE) {

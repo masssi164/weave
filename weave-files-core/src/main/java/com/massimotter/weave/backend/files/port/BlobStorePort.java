@@ -8,6 +8,7 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
@@ -29,6 +30,11 @@ public interface BlobStorePort {
             String expectedDigest);
 
     void readStream(BlobScope scope, BlobReference reference, OutputStream target);
+
+    /** Returns a verified immutable receipt when the exact opaque binding is already durable. */
+    default Optional<BlobReceipt> receipt(BlobScope scope, BlobReference reference) {
+        return Optional.empty();
+    }
 
     default BlobReceipt put(
             BlobScope scope,

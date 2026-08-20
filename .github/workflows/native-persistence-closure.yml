@@ -58,12 +58,7 @@ jobs:
             --tests 'com.massimotter.weave.backend.service.files.WeaveNativeFilesAdapterTest' \
             --tests 'com.massimotter.weave.backend.schema.*'
       - name: PostgreSQL schema-authority and canonical recovery qualification
-        run: |
-          set -euo pipefail
-          ./gradlew :server:postgresJpaTest \
-            --tests 'com.massimotter.weave.backend.schema.SchemaAuthorityInitializerPostgresTest' \
-            --tests 'com.massimotter.weave.backend.schema.CanonicalPostgresBackupRestoreTest' \
-            --tests 'com.massimotter.weave.backend.service.files.CanonicalFilesBackupRestoreTest'
+        run: ./gradlew :server:postgresJpaTest
       - name: Migration authority invariants
         run: |
           set -euo pipefail
@@ -73,6 +68,7 @@ jobs:
           test -s server/src/main/resources/db/migration/V4__relax_legacy_calendar_timezone_projection.sql
           test -s server/src/main/resources/db/migration/V5__matrix_shared_user_change_journal.sql
           test -s server/src/main/resources/db/migration/V6__canonical_transfer_runs.sql
+          test -s server/src/main/resources/db/migration/V7__files_change_journal_and_mutation_finalization.sql
 
           ! grep -R --line-number 'public\.' server/src/main/resources/db/migration
 

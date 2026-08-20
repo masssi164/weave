@@ -2,7 +2,13 @@ package com.massimotter.weave.backend.files.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.massimotter.weave.backend.files.adapter.JpaFilesMutationRepository.CorruptFilesMutationException;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService.Command;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService.ProviderBindingUnavailableException;
 import com.massimotter.weave.backend.operation.adapter.OperationIntentJpaTestFactory;
@@ -19,6 +25,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -28,6 +35,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
+@Tag("postgres")
 class FilesMutationIntentServicePostgresTest {
 
     @Container
@@ -57,6 +65,29 @@ class FilesMutationIntentServicePostgresTest {
     }
 
     @Test
+    void explicitRetryReloadsThePinnedBindingAfterTheActiveBindingChanges() {
+        Fixture fixture = fixture();
+        fixture.bindings().activate(
+                fixture.organizationRef(), "files", 0, "nextcloud-webdav", "secretref:files:nextcloud", fixture.now());
+
+        var first = fixture.service().begin(command(fixture, "human-supplied-idempotency-0002", "/Team/plan.md"));
+        fixture.bindings().activate(
+                fixture.organizationRef(), "files", 1, "weave-native", "secretref:files:native",
+                fixture.now().plusSeconds(1));
+
+        var retry = fixture.service().begin(command(fixture, "human-supplied-idempotency-0002", "/Team/plan.md"));
+
+        assertThat(retry.retry()).isTrue();
+        assertThat(retry.intent().operationRef()).isEqualTo(first.intent().operationRef());
+        assertThat(retry.binding().revision()).isEqualTo(1);
+        assertThat(retry.binding().adapterKey()).isEqualTo("nextcloud-webdav");
+        assertThat(fixture.bindings().current(fixture.organizationRef(), "files"))
+                .get()
+                .extracting(binding -> binding.revision(), binding -> binding.adapterKey())
+                .containsExactly(2L, "weave-native");
+    }
+
+    @Test
     void failsClosedWithoutAnActiveFilesBinding() {
         Fixture fixture = fixture();
 
@@ -82,6 +113,45 @@ class FilesMutationIntentServicePostgresTest {
         assertThat(ambiguous.intent().state()).isEqualTo(State.AMBIGUOUS);
         assertThat(reconciling.intent().state()).isEqualTo(State.RECONCILING);
         assertThat(reconciling.intent().reconciliation().attempts()).isEqualTo(1);
+    }
+
+    @Test
+    void publicNativeBeginFailsClosedWhenBootstrapDidNotProvisionTheScope() {
+        Fixture fixture = fixture();
+        fixture.bindings().activate(
+                fixture.organizationRef(),
+                "files",
+                0,
+                "weave-native",
+                "profile:weave-native",
+                fixture.now());
+        NativeFilesMutationRepository nativeMutations = mock(NativeFilesMutationRepository.class);
+        FilesMutationIntentService nativeService = new FilesMutationIntentService(
+                fixture.intents(),
+                fixture.bindings(),
+                nativeMutations);
+        var prepared = nativeService.prepare(command(
+                fixture,
+                "native-missing-head-idempotency-0001",
+                "/Team/unconfigured.md"));
+        FilesScope scope = new FilesScope(fixture.organizationRef(), "workspace-default");
+        when(nativeMutations.begin(eq(prepared.candidate()), eq(scope), any()))
+                .thenThrow(new CorruptFilesMutationException("native Files stream head is missing"));
+
+        assertThatThrownBy(() -> nativeService.beginNative(
+                prepared,
+                scope,
+                () -> {
+                    throw new AssertionError("an unprovisioned scope must fail before planning");
+                }))
+                .isInstanceOf(CorruptFilesMutationException.class)
+                .hasMessageContaining("stream head is missing");
+
+        verify(nativeMutations).begin(eq(prepared.candidate()), eq(scope), any());
+        assertThat(fixture.jdbc().queryForObject(
+                "select count(*) from weave_operation_intents where organization_ref = ?",
+                Integer.class,
+                fixture.organizationRef())).isZero();
     }
 
     @Test
@@ -141,11 +211,18 @@ class FilesMutationIntentServicePostgresTest {
                 OperationIntentJpaTestFactory.create(dataSource),
                 Clock.fixed(now, ZoneOffset.UTC));
         String organizationRef = "org:test:" + UUID.randomUUID();
-        return new Fixture(new FilesMutationIntentService(intents, bindings), bindings, jdbc, now, organizationRef);
+        return new Fixture(
+                new FilesMutationIntentService(intents, bindings),
+                intents,
+                bindings,
+                jdbc,
+                now,
+                organizationRef);
     }
 
     private record Fixture(
             FilesMutationIntentService service,
+            OperationIntentService intents,
             JpaProviderBindingRepository bindings,
             JdbcTemplate jdbc,
             Instant now,

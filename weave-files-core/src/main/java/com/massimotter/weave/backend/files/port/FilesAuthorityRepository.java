@@ -36,6 +36,11 @@ public interface FilesAuthorityRepository {
 
     List<StoredFileRecord> activeFiles(String organizationRef, String spaceRef);
 
+    /** Returns active and tombstoned metadata for binding retention and recovery. */
+    default List<StoredFileRecord> storedFiles(String organizationRef, String spaceRef) {
+        return activeFiles(organizationRef, spaceRef);
+    }
+
     /** Atomically tombstones old path owners before activating replacement records. */
     List<StoredFileRecord> replace(
             List<StoredFileRecord> tombstones,

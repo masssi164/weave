@@ -25,12 +25,21 @@ read_secret() {
 }
 
 read_secret PGPASSWORD /run/secrets/postgres-admin-password WEAVE_POSTGRES_ADMIN_PASSWORD_FINGERPRINT
+read_secret WEAVE_BACKEND_MIGRATOR_DB_PASSWORD /run/secrets/backend-migrator-db-password WEAVE_BACKEND_MIGRATOR_DB_PASSWORD_FINGERPRINT
 read_secret WEAVE_BACKEND_DB_PASSWORD /run/secrets/backend-db-password WEAVE_BACKEND_DB_PASSWORD_FINGERPRINT
 read_secret WEAVE_KEYCLOAK_DB_PASSWORD /run/secrets/keycloak-db-password WEAVE_KEYCLOAK_DB_PASSWORD_FINGERPRINT
 read_secret WEAVE_CONTROL_DB_PASSWORD /run/secrets/control-db-password WEAVE_CONTROL_DB_PASSWORD_FINGERPRINT
 
+[ "${WEAVE_BACKEND_MIGRATOR_DB_USERNAME}" != "${WEAVE_BACKEND_DB_USERNAME}" ] ||
+  fail "backend migrator and serving database roles must be distinct"
+[ "${WEAVE_BACKEND_MIGRATOR_DB_USERNAME}" != "${PGUSER}" ] ||
+  fail "backend migrator must be distinct from the PostgreSQL administrator"
+
 psql --no-psqlrc --set=ON_ERROR_STOP=1 --quiet <<'SQL'
 \getenv backend_name WEAVE_BACKEND_DB_NAME
+\getenv backend_migrator_user WEAVE_BACKEND_MIGRATOR_DB_USERNAME
+\getenv backend_migrator_password WEAVE_BACKEND_MIGRATOR_DB_PASSWORD
+\getenv backend_migrator_fingerprint WEAVE_BACKEND_MIGRATOR_DB_PASSWORD_FINGERPRINT
 \getenv backend_user WEAVE_BACKEND_DB_USERNAME
 \getenv backend_password WEAVE_BACKEND_DB_PASSWORD
 \getenv backend_fingerprint WEAVE_BACKEND_DB_PASSWORD_FINGERPRINT
@@ -52,6 +61,28 @@ CREATE TABLE IF NOT EXISTS weave_control.database_role_secret_generations (
 REVOKE ALL ON TABLE weave_control.database_role_secret_generations FROM PUBLIC;
 
 INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
+SELECT :'backend_migrator_user', :'backend_migrator_fingerprint'
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'backend_migrator_user')
+ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp();
+SELECT format(
+  'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION',
+  :'backend_migrator_user', :'backend_migrator_password')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'backend_migrator_user') \gexec
+SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION',
+              :'backend_migrator_user', :'backend_migrator_password')
+WHERE NOT EXISTS (
+  SELECT 1 FROM weave_control.database_role_secret_generations
+  WHERE role_name = :'backend_migrator_user'
+    AND secret_fingerprint = :'backend_migrator_fingerprint'
+) \gexec
+SELECT format('ALTER ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION',
+              :'backend_migrator_user') \gexec
+INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
+VALUES (:'backend_migrator_user', :'backend_migrator_fingerprint')
+ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp()
+WHERE weave_control.database_role_secret_generations.secret_fingerprint IS DISTINCT FROM EXCLUDED.secret_fingerprint;
+
+INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
 SELECT :'backend_user', :'backend_fingerprint'
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'backend_user')
 ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp();
@@ -62,11 +93,13 @@ WHERE NOT EXISTS (
   SELECT 1 FROM weave_control.database_role_secret_generations
   WHERE role_name = :'backend_user' AND secret_fingerprint = :'backend_fingerprint'
 ) \gexec
+SELECT format('ALTER ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION',
+              :'backend_user') \gexec
 INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
 VALUES (:'backend_user', :'backend_fingerprint')
 ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp()
 WHERE weave_control.database_role_secret_generations.secret_fingerprint IS DISTINCT FROM EXCLUDED.secret_fingerprint;
-SELECT format('CREATE DATABASE %I OWNER %I', :'backend_name', :'backend_user')
+SELECT format('CREATE DATABASE %I OWNER %I', :'backend_name', :'backend_migrator_user')
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'backend_name') \gexec
 
 INSERT INTO weave_control.database_role_secret_generations (role_name, secret_fingerprint)
@@ -103,7 +136,7 @@ VALUES (:'control_user', :'control_fingerprint')
 ON CONFLICT (role_name) DO UPDATE SET secret_fingerprint = EXCLUDED.secret_fingerprint, applied_at = clock_timestamp()
 WHERE weave_control.database_role_secret_generations.secret_fingerprint IS DISTINCT FROM EXCLUDED.secret_fingerprint;
 
-SELECT format('ALTER DATABASE %I OWNER TO %I', :'backend_name', :'backend_user') \gexec
+SELECT format('ALTER DATABASE %I OWNER TO %I', :'backend_name', :'backend_migrator_user') \gexec
 SELECT format('ALTER DATABASE %I OWNER TO %I', :'keycloak_name', :'keycloak_user') \gexec
 SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'backend_name') \gexec
 SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'keycloak_name') \gexec
@@ -166,9 +199,26 @@ GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA weave_control TO :"control_
 ALTER DEFAULT PRIVILEGES IN SCHEMA weave_control REVOKE ALL ON TABLES FROM PUBLIC;
 SQL
 
-unset PGPASSWORD WEAVE_BACKEND_DB_PASSWORD WEAVE_KEYCLOAK_DB_PASSWORD \
+PGDATABASE="${WEAVE_BACKEND_DB_NAME}" psql --no-psqlrc --set=ON_ERROR_STOP=1 --quiet <<'SQL'
+\getenv backend_migrator_user WEAVE_BACKEND_MIGRATOR_DB_USERNAME
+\getenv backend_user WEAVE_BACKEND_DB_USERNAME
+
+SELECT format('REASSIGN OWNED BY %I TO %I', :'backend_user', :'backend_migrator_user') \gexec
+ALTER SCHEMA public OWNER TO :"backend_migrator_user";
+SELECT format('REVOKE ALL PRIVILEGES ON DATABASE %I FROM PUBLIC', current_database()) \gexec
+SELECT format('REVOKE ALL PRIVILEGES ON DATABASE %I FROM %I', current_database(), :'backend_user') \gexec
+SELECT format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), :'backend_user') \gexec
+REVOKE ALL PRIVILEGES ON SCHEMA public FROM PUBLIC;
+REVOKE ALL PRIVILEGES ON SCHEMA public FROM :"backend_user";
+GRANT USAGE ON SCHEMA public TO :"backend_user";
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM :"backend_user";
+REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM :"backend_user";
+SQL
+
+unset PGPASSWORD WEAVE_BACKEND_MIGRATOR_DB_PASSWORD WEAVE_BACKEND_DB_PASSWORD WEAVE_KEYCLOAK_DB_PASSWORD \
   WEAVE_CONTROL_DB_PASSWORD WEAVE_POSTGRES_ADMIN_PASSWORD_FINGERPRINT \
-  WEAVE_BACKEND_DB_PASSWORD_FINGERPRINT WEAVE_KEYCLOAK_DB_PASSWORD_FINGERPRINT \
+  WEAVE_BACKEND_MIGRATOR_DB_PASSWORD_FINGERPRINT WEAVE_BACKEND_DB_PASSWORD_FINGERPRINT \
+  WEAVE_KEYCLOAK_DB_PASSWORD_FINGERPRINT \
   WEAVE_CONTROL_DB_PASSWORD_FINGERPRINT
 
 printf '%s\n' 'postgres-reconcile: converged'
