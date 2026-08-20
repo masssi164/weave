@@ -1,55 +1,57 @@
-# Native Files closure evidence
+# Native Files transition evidence
 
-Status: qualification in progress on PR #1325. This document becomes immutable closure evidence only after all referenced runs are green on the final PR head.
+Status: partial structural qualification on PR #1442 under issue #1326. This is not complete Files closure evidence. Issue #1326 remains open until its real-HTTP WebDAV, durable journal, operation-intent and coordinated recovery requirements pass on an exact final head.
 
 ## Architecture under test
 
-- canonical Files remains behind `FilesProviderPort`;
-- `weave-native` is the default provider implementation;
-- Apache OpenDAL filesystem storage is the only private blob I/O backend used by `weave-native`;
-- S3 is a separate provider adapter and is not native blob storage;
-- PostgreSQL/JPA owns canonical metadata, provider binding revision, lifecycle and locks;
+- canonical Files behavior is implemented by `CanonicalFilesQueries`, `CanonicalFilesCommands` and `CanonicalFilesTreeCommands` behind `FilesProviderPort`;
+- `WeaveNativeFilesAdapter` is the sole `weave-native` `FilesProviderPort` bean and is only a Spring boot/error-translation composition over those canonical use cases;
+- Apache OpenDAL filesystem storage is the initial private `BlobStorePort` implementation;
+- a future S3-compatible store belongs below `BlobStorePort`; it is not a parallel canonical Files provider;
+- PostgreSQL/JPA owns canonical metadata, provider-binding revision, lifecycle and locks behind `FilesAuthorityRepository`;
 - blob references are opaque and scoped; canonical member paths are not blob keys;
-- reconciliation owns bounded orphan cleanup and missing-blob detection.
+- reconciliation owns bounded orphan cleanup and missing or corrupt blob detection.
 
 ## Required evidence
 
-The final head must prove:
+Every PR #1442 head proposed for merge must prove:
 
 ```text
-Native Provider Gate
-Native Persistence Closure
-regular CI
+Core architecture
+native-providers
+postgres-flyway
+PostgreSQL persistence
+Full Compose E2E
+Release Notes Label Check
 ```
 
-The Files-specific tests must cover:
+The transition-specific tests prove:
 
-- write/read/restart;
-- tenant isolation;
-- immutable publication and digest verification;
-- concurrent publication safety;
-- move/copy with stable canonical identity semantics;
-- symlink/path-containment rejection;
-- orphan reconciliation and missing-blob detection;
-- configured maximum blob size;
-- bounded streaming path for large payloads;
-- absence of the obsolete native S3 store/config/test path.
+- the complete Spring application context contains exactly one native `FilesProviderPort` bean, `weaveNativeFilesAdapter`;
+- every current native list/read/write/create/COPY/MOVE/DELETE operation delegates through the canonical application layer;
+- provider health instrumentation observes the active `FilesProviderPort` rather than a concrete implementation;
+- immutable blob publication followed by failed metadata activation leaves no active canonical file and bounded reconciliation removes the orphan;
+- the obsolete second native composition/configuration is absent while the retained adapter remains thin.
+
+Previously merged Files qualification continues to cover restart, tenant isolation, immutable publication and digest verification, concurrent activation, path containment, size/streaming bounds, and quiesced PostgreSQL-plus-blob backup/restore. Those results are prerequisites, not proof of the remaining #1326 vertical.
+
+The complete #1326 closure still requires real-HTTP WebDAV equivalence after isolated restore, adapter-private blob bindings, a durable Files change journal and stream head, coherent metadata/journal/outbox/intent transactions, provider connector round-trip conformance, and the remaining standards decisions recorded in the pinned contract.
 
 ## Commands
 
 ```bash
-./gradlew :server:test --tests 'com.massimotter.weave.backend.service.files.*'
+./gradlew :weave-files-core:test
 ./gradlew :server:compileJava :server:compileTestJava
-./gradlew serverCi
+./gradlew :server:test --tests 'com.massimotter.weave.backend.service.files.*'
+./gradlew :server:test --tests 'com.massimotter.weave.backend.config.ProviderHealthActuatorMetricsTest'
+./gradlew coreArchitectureCi
 ```
 
-## Final run references
+## Exact-head evidence record
 
-To be filled only after the final PR head is stable and green:
+The authoritative head and check URLs are the GitHub PR #1442 head and its attached check suite at merge time. A durable PR comment must record that exact SHA and the successful run URLs before merge; this file cannot truthfully self-reference the hash of the commit that contains it.
 
-- final PR head: pending
-- Native Provider Gate: pending
-- Native Persistence Closure: pending
-- regular CI: pending
+- transition PR: https://github.com/masssi164/weave/pull/1442
+- governing issue and remaining work: https://github.com/masssi164/weave/issues/1326
 
-No S3-provider result may be cited as native Files evidence.
+No external-provider or S3-adapter result may be cited as proof of canonical native Files behavior.

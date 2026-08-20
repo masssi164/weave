@@ -1,20 +1,25 @@
 package com.massimotter.weave.backend.files.adapter;
 
-import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
+import static java.util.Objects.requireNonNull;
+
 import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
+import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.ConcurrentMutationException;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.LockConflictException;
+import com.massimotter.weave.backend.files.port.StoredFileRecord;
+import jakarta.persistence.OptimisticLockException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import org.hibernate.StaleStateException;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
-
-import static java.util.Objects.requireNonNull;
 
 /** JPA adapter for canonical Files metadata and fenced WebDAV locks. */
 @Repository
@@ -33,17 +38,30 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
 
     @Override
     @Transactional
-    public CanonicalFileRecord save(CanonicalFileRecord record) {
-        CanonicalFileRecord requested = requireNonNull(record, "record");
+    public StoredFileRecord save(StoredFileRecord record) {
+        StoredFileRecord requested = requireNonNull(record, "record");
         CanonicalFileId id = CanonicalFileId.from(requested);
         FileObjectJpaEntity entity = files.findById(id)
                 .orElseGet(() -> FileObjectJpaEntity.create(id));
         entity.observe(requested);
-        return files.saveAndFlush(entity).toDomain();
+        return files.saveAndFlush(entity).toStoredRecord();
     }
 
     @Override
-    public Optional<CanonicalFileRecord> findByPath(
+    @Transactional
+    public StoredFileRecord activate(StoredFileRecord record) {
+        StoredFileRecord requested = requireNonNull(record, "record");
+        try {
+            return save(requested);
+        } catch (DataIntegrityViolationException
+                 | OptimisticLockingFailureException
+                 | ConstraintViolationException concurrentMutation) {
+            throw concurrent(requested.metadata().object().path(), concurrentMutation);
+        }
+    }
+
+    @Override
+    public Optional<StoredFileRecord> findByPath(
             String organizationRef,
             String spaceRef,
             FilePath path) {
@@ -52,12 +70,12 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
                         organizationRef,
                         spaceRef,
                         path.value())
-                .map(FileObjectJpaEntity::toDomain)
-                .filter(record -> record.lifecycle() == Lifecycle.ACTIVE);
+                .map(FileObjectJpaEntity::toStoredRecord)
+                .filter(record -> record.metadata().lifecycle() == Lifecycle.ACTIVE);
     }
 
     @Override
-    public Optional<CanonicalFileRecord> findById(
+    public Optional<StoredFileRecord> findById(
             String organizationRef,
             String spaceRef,
             FileId id) {
@@ -65,40 +83,39 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
                         organizationRef,
                         spaceRef,
                         id.value()))
-                .map(FileObjectJpaEntity::toDomain)
-                .filter(record -> record.lifecycle() == Lifecycle.ACTIVE);
+                .map(FileObjectJpaEntity::toStoredRecord)
+                .filter(record -> record.metadata().lifecycle() == Lifecycle.ACTIVE);
     }
 
     @Override
-    public List<CanonicalFileRecord> activeFiles(String organizationRef, String spaceRef) {
+    public List<StoredFileRecord> activeFiles(String organizationRef, String spaceRef) {
         return files
                 .findByIdOrganizationRefAndIdSpaceRefAndLifecycleOrderByCanonicalPath(
                         organizationRef, spaceRef, Lifecycle.ACTIVE)
                 .stream()
-                .map(FileObjectJpaEntity::toDomain)
+                .map(FileObjectJpaEntity::toStoredRecord)
                 .toList();
     }
 
     @Override
     @Transactional
-    public List<CanonicalFileRecord> replace(
-            List<CanonicalFileRecord> tombstones,
-            List<CanonicalFileRecord> activations) {
-        for (CanonicalFileRecord record : List.copyOf(tombstones)) {
-            if (record.lifecycle() != Lifecycle.TOMBSTONED) {
+    public List<StoredFileRecord> replace(
+            List<StoredFileRecord> tombstones,
+            List<StoredFileRecord> activations) {
+        for (StoredFileRecord record : List.copyOf(tombstones)) {
+            if (record.metadata().lifecycle() != Lifecycle.TOMBSTONED) {
                 throw new IllegalArgumentException("replacement deactivation must be tombstoned");
             }
-            entity(record).observe(record);
+            observe(record);
         }
         files.flush();
-        List<CanonicalFileRecord> activated = new java.util.ArrayList<>();
-        for (CanonicalFileRecord record : List.copyOf(activations)) {
-            if (record.lifecycle() != Lifecycle.ACTIVE) {
+        List<StoredFileRecord> activated = new java.util.ArrayList<>();
+        for (StoredFileRecord record : List.copyOf(activations)) {
+            if (record.metadata().lifecycle() != Lifecycle.ACTIVE) {
                 throw new IllegalArgumentException("replacement activation must be active");
             }
-            FileObjectJpaEntity entity = entity(record);
-            entity.observe(record);
-            activated.add(entity.toDomain());
+            FileObjectJpaEntity entity = observe(record);
+            activated.add(entity.toStoredRecord());
         }
         files.flush();
         return List.copyOf(activated);
@@ -106,7 +123,25 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
 
     @Override
     @Transactional
-    public CanonicalFileRecord move(
+    public List<StoredFileRecord> replaceTree(
+            FilePath operationRoot,
+            List<StoredFileRecord> tombstones,
+            List<StoredFileRecord> activations) {
+        FilePath root = requireNonNull(operationRoot, "operationRoot");
+        try {
+            return replace(tombstones, activations);
+        } catch (DataIntegrityViolationException
+                 | OptimisticLockingFailureException
+                 | OptimisticLockException
+                 | ConstraintViolationException
+                 | StaleStateException concurrentMutation) {
+            throw concurrent(root, concurrentMutation);
+        }
+    }
+
+    @Override
+    @Transactional
+    public StoredFileRecord move(
             String organizationRef,
             String spaceRef,
             FileId id,
@@ -121,7 +156,35 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
         if (!entity.move(expectedPath, destination, movedAt)) {
             throw new StaleCanonicalFileException(id, expectedPath);
         }
-        return files.saveAndFlush(entity).toDomain();
+        return files.saveAndFlush(entity).toStoredRecord();
+    }
+
+    @Override
+    @Transactional
+    public StoredFileRecord moveNode(
+            String organizationRef,
+            String spaceRef,
+            FileId id,
+            FilePath expectedPath,
+            FilePath destination,
+            Instant movedAt) {
+        FilePath source = requireNonNull(expectedPath, "expectedPath");
+        try {
+            return move(
+                    organizationRef,
+                    spaceRef,
+                    id,
+                    source,
+                    destination,
+                    movedAt);
+        } catch (StaleCanonicalFileException
+                 | DataIntegrityViolationException
+                 | OptimisticLockingFailureException
+                 | OptimisticLockException
+                 | ConstraintViolationException
+                 | StaleStateException concurrentMutation) {
+            throw concurrent(source, concurrentMutation);
+        }
     }
 
     @Override
@@ -229,11 +292,17 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
         }
     }
 
-    private FileObjectJpaEntity entity(CanonicalFileRecord record) {
+    private ConcurrentMutationException concurrent(
+            FilePath path,
+            RuntimeException cause) {
+        return new ConcurrentMutationException(path, cause);
+    }
+
+    private FileObjectJpaEntity observe(StoredFileRecord record) {
         CanonicalFileId id = CanonicalFileId.from(record);
-        return files.findById(id).orElseGet(() -> {
-            FileObjectJpaEntity created = FileObjectJpaEntity.create(id);
-            return files.save(created);
-        });
+        FileObjectJpaEntity entity = files.findById(id)
+                .orElseGet(() -> FileObjectJpaEntity.create(id));
+        entity.observe(record);
+        return files.save(entity);
     }
 }

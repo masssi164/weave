@@ -67,7 +67,7 @@ tasks.register('openApiContractExport', Test) {
 
 tasks.register('postgresJpaTest', Test) {
     group = 'verification'
-    description = 'Run the authoritative JPA repository, constraint, transaction, and migration contracts against PostgreSQL.'
+    description = 'Run the authoritative JPA repository, constraint, transaction, migration, and restore contracts against PostgreSQL.'
     dependsOn tasks.named('buildMatrixRustCoreJni'), tasks.named('testClasses')
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
@@ -80,6 +80,8 @@ tasks.register('postgresJpaTest', Test) {
     filter {
         includeTestsMatching '*PostgresJpaSchemaValidationTest'
         includeTestsMatching '*SchemaAuthorityInitializerPostgresTest'
+        includeTestsMatching '*CanonicalPostgresBackupRestoreTest'
+        includeTestsMatching '*CanonicalFilesBackupRestoreTest'
         includeTestsMatching '*JpaEncryptedRuntimeStateStoreTest'
         includeTestsMatching '*JpaRuntimeCellRepositoryTest'
         includeTestsMatching '*JpaRuntimeCommandRepositoryTest'

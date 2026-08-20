@@ -11,10 +11,11 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
- * Infrastructure Port for tenant-fenced immutable blob I/O used below Files provider adapters.
- * Provider selection remains at {@link FilesProviderPort}; concrete storage libraries stay behind this boundary.
+ * Infrastructure port for tenant-fenced immutable blob I/O below canonical Files use cases.
+ * Concrete storage libraries, paths, credentials, and provider DTOs remain outside this contract.
  *
- * <p>Streaming is the production data-plane contract. The byte-array helpers are bounded convenience adapters only.</p>
+ * <p>Streaming is the production data-plane contract. Byte-array helpers are bounded convenience
+ * adapters only.</p>
  */
 public interface BlobStorePort {
 
@@ -29,9 +30,18 @@ public interface BlobStorePort {
 
     void readStream(BlobScope scope, BlobReference reference, OutputStream target);
 
-    default BlobReceipt put(BlobScope scope, BlobReference reference, byte[] bytes, String expectedDigest) {
+    default BlobReceipt put(
+            BlobScope scope,
+            BlobReference reference,
+            byte[] bytes,
+            String expectedDigest) {
         byte[] content = bytes == null ? new byte[0] : bytes.clone();
-        return putStream(scope, reference, new ByteArrayInputStream(content), content.length, expectedDigest);
+        return putStream(
+                scope,
+                reference,
+                new ByteArrayInputStream(content),
+                content.length,
+                expectedDigest);
     }
 
     default byte[] read(BlobScope scope, BlobReference reference) {
@@ -58,7 +68,8 @@ public interface BlobStorePort {
             value = required(value, "blob reference");
             if (!SAFE.matcher(value).matches()
                     || Arrays.stream(value.split("/", -1)).anyMatch(segment -> segment.isBlank()
-                            || ".".equals(segment) || "..".equals(segment))) {
+                    || ".".equals(segment)
+                    || "..".equals(segment))) {
                 throw new IllegalArgumentException("blob reference is not a safe opaque key");
             }
         }
@@ -76,16 +87,25 @@ public interface BlobStorePort {
         }
     }
 
-    static long transferBounded(InputStream source, OutputStream target, long maximumBytes) throws IOException {
+    static long transferBounded(
+            InputStream source,
+            OutputStream target,
+            long maximumBytes) throws IOException {
         Objects.requireNonNull(source, "source must not be null");
         Objects.requireNonNull(target, "target must not be null");
-        if (maximumBytes < 0) throw new IllegalArgumentException("maximumBytes must not be negative");
+        if (maximumBytes < 0) {
+            throw new IllegalArgumentException("maximumBytes must not be negative");
+        }
         byte[] buffer = new byte[64 * 1024];
         long total = 0;
-        for (int read; (read = source.read(buffer)) >= 0;) {
-            if (read == 0) continue;
+        for (int read; (read = source.read(buffer)) >= 0; ) {
+            if (read == 0) {
+                continue;
+            }
             total += read;
-            if (total > maximumBytes) throw new IOException("stream exceeds configured bound");
+            if (total > maximumBytes) {
+                throw new IOException("stream exceeds configured bound");
+            }
             target.write(buffer, 0, read);
         }
         return total;

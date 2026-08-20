@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.config;
 
-import com.massimotter.weave.backend.service.files.WeaveNativeFilesAdapter;
+import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -32,7 +32,7 @@ class ProviderHealthActuatorMetricsTest {
     private JwtDecoder jwtDecoder;
 
     @MockitoSpyBean
-    private WeaveNativeFilesAdapter weaveNativeFilesAdapter;
+    private FilesProviderPort filesProviderPort;
 
     @Test
     void localRunnerCanReadProviderHealthMetricsWithoutTriggeringAProbe() throws Exception {
@@ -63,6 +63,6 @@ class ProviderHealthActuatorMetricsTest {
         mockMvc.perform(get("/api/admin/provider-capability-health"))
                 .andExpect(status().isUnauthorized());
 
-        verify(weaveNativeFilesAdapter, never()).healthProbe();
+        verify(filesProviderPort, never()).healthProbe();
     }
 }

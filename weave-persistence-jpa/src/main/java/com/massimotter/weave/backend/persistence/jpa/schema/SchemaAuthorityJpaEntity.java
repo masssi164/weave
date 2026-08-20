@@ -6,7 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
-/** Completed code-first schema authority marker for one pre-release persistence epoch. */
+/** Completed Flyway-managed schema authority marker for one persistence epoch. */
 @Entity
 @Table(name = "weave_schema_authority")
 public class SchemaAuthorityJpaEntity {

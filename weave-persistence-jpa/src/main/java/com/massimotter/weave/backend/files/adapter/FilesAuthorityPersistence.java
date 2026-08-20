@@ -8,6 +8,8 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
+import com.massimotter.weave.backend.files.port.StoredFileRecord;
+import com.massimotter.weave.backend.files.port.StoredFileRecord.BlobBinding;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EmbeddedId;
@@ -97,7 +99,8 @@ class FileObjectJpaEntity {
         return entity;
     }
 
-    void observe(CanonicalFileRecord record) {
+    void observe(StoredFileRecord stored) {
+        CanonicalFileRecord record = stored.metadata();
         if (observedAt != null
                 && record.observedAt().isBefore(observedAt.toInstant())) {
             throw new IllegalArgumentException(
@@ -112,7 +115,9 @@ class FileObjectJpaEntity {
         hidden = record.object().hidden();
         versionToken = record.version().value();
         contentDigest = record.contentDigest();
-        storageReference = record.storageReference();
+        storageReference = stored.blobBinding() == null
+                ? null
+                : stored.blobBinding().opaqueReference();
         providerBindingRevision = record.providerBindingRevision();
         lifecycle = record.lifecycle();
         observedAt = FilesPersistenceTime.utc(record.observedAt());
@@ -130,7 +135,7 @@ class FileObjectJpaEntity {
         return true;
     }
 
-    CanonicalFileRecord toDomain() {
+    StoredFileRecord toStoredRecord() {
         FileObject object = new FileObject(
                 new FileId(id.fileId()),
                 new FilePath(canonicalPath),
@@ -139,16 +144,19 @@ class FileObjectJpaEntity {
                 mediaType,
                 FilesPersistenceTime.instant(modifiedAt),
                 hidden);
-        return new CanonicalFileRecord(
+        CanonicalFileRecord metadata = new CanonicalFileRecord(
                 id.organizationRef(),
                 id.spaceRef(),
                 object,
                 new FileVersion(versionToken),
                 contentDigest,
-                storageReference,
                 providerBindingRevision,
                 lifecycle,
                 observedAt.toInstant());
+        BlobBinding blobBinding = storageReference == null || storageReference.isBlank()
+                ? null
+                : new BlobBinding(storageReference);
+        return new StoredFileRecord(metadata, blobBinding);
     }
 }
 
@@ -176,7 +184,8 @@ class CanonicalFileId implements Serializable {
         this.fileId = Objects.requireNonNull(fileId, "fileId");
     }
 
-    static CanonicalFileId from(CanonicalFileRecord record) {
+    static CanonicalFileId from(StoredFileRecord stored) {
+        CanonicalFileRecord record = stored.metadata();
         return new CanonicalFileId(
                 record.organizationRef(),
                 record.spaceRef(),

@@ -8,7 +8,7 @@ COPY --chown=1000:0 keycloak-services-26.7.1.jar \
 RUN test "$(sha256sum /opt/keycloak/lib/lib/main/org.keycloak.keycloak-services-26.7.1.jar | cut -d' ' -f1)" = \
     "${WEAVE_PATCHED_SERVICES_SHA256}"
 USER 1000:0
-RUN /opt/keycloak/bin/kc.sh build --db=postgres --vault=file
+RUN /opt/keycloak/bin/kc.sh build --db=postgres --health-enabled=true
 
 FROM ${WEAVE_KEYCLOAK_BASE}
 
