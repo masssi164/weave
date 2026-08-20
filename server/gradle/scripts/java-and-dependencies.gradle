@@ -47,7 +47,7 @@ dependencies {
     implementation libs.opendal
     runtimeOnly "org.apache.opendal:opendal:${libs.versions.opendal.get()}:${weaveOpenDalClassifier}"
 
-    // Separate southbound S3 provider / ARC object-store support. This is not part of weave-native Files.
+    // Transitional S3 client dependency. Any canonical use belongs below weave-native BlobStorePort.
     implementation libs.aws.s3
     implementation libs.aws.url.connection.client
 

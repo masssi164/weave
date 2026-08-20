@@ -5,16 +5,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.files.adapter.FilesAuthorityJpaTestFactory;
 import com.massimotter.weave.backend.files.adapter.JpaFilesAuthorityRepository;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
+import com.massimotter.weave.backend.files.application.CanonicalFilesQueries;
+import com.massimotter.weave.backend.files.application.FilesDigests;
+import com.massimotter.weave.backend.files.application.FilesScope;
+import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
+import com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
+import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
+import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
+import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
+import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
+import com.massimotter.weave.backend.files.port.StoredFileRecord;
+import com.massimotter.weave.backend.files.port.StoredFileRecord.BlobBinding;
 import com.massimotter.weave.backend.schema.NativeFilesVolumeAuthority;
 import com.massimotter.weave.backend.schema.SchemaAuthorityTestSupport;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +37,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
+import java.time.Instant;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -52,6 +66,7 @@ class CanonicalFilesBackupRestoreTest {
     private static final String CANDIDATE = "c".repeat(40);
     private static final String DATABASE_DUMP = "/tmp/weave-files.dump";
     private static final long MAXIMUM_BLOB_BYTES = 4L * 1024L * 1024L;
+    private static final Instant OBSERVED_AT = Instant.parse("2026-08-20T08:00:00Z");
     private static final FilesRequestScope SCOPE =
             new FilesRequestScope("organization-files", "space-primary", 1);
     private static final PostgreSQLContainer<?> SOURCE = postgres("weave_files_source");
@@ -100,12 +115,16 @@ class CanonicalFilesBackupRestoreTest {
                     new WeaveNativeFilesAdapter(sourceAuthority, sourceBlobs, sourceProperties);
             FilesProviderPort files = nativeFiles.scoped(SCOPE);
             files.createCollection(new FilePath("/docs"));
-            originalFile = files.write(new FileWrite(
+            originalFile = seed(
+                    sourceAuthority,
+                    sourceBlobs,
+                    SCOPE,
                     new FilePath("/docs/recovery.txt"),
                     originalContent,
-                    "text/plain; charset=utf-8"));
+                    "text/plain; charset=utf-8");
             originalVersion = files.find(new FilePath("/docs/recovery.txt")).orElseThrow();
-            assertThat(files.read(originalFile.id()).bytes()).containsExactly(originalContent);
+            assertThat(read(sourceAuthority, sourceBlobs, SCOPE, originalFile.id()))
+                    .containsExactly(originalContent);
             assertHealthy(nativeFiles.reconcile(SCOPE), 2, 1);
         } finally {
             sourceBlobs.closeOperator();
@@ -150,18 +169,21 @@ class CanonicalFilesBackupRestoreTest {
             assertThat(restored.item().id()).isEqualTo(originalFile.id());
             assertThat(restored.item().path()).isEqualTo(originalFile.path());
             assertThat(restored.version()).isEqualTo(originalVersion.version());
-            FileContent restoredContent = files.read(restored.item().id());
-            assertThat(restoredContent.item().id()).isEqualTo(originalFile.id());
-            assertThat(restoredContent.bytes()).containsExactly(originalContent);
+            assertThat(read(targetAuthority, targetBlobs, SCOPE, restored.item().id()))
+                    .containsExactly(originalContent);
             assertHealthy(nativeFiles.reconcile(SCOPE), 2, 1);
 
             byte[] continuedContent = "Written only after isolated restore\n"
                     .getBytes(StandardCharsets.UTF_8);
-            FileObject continued = files.write(new FileWrite(
+            FileObject continued = seed(
+                    targetAuthority,
+                    targetBlobs,
+                    SCOPE,
                     new FilePath("/docs/after-restore.txt"),
                     continuedContent,
-                    "text/plain; charset=utf-8"));
-            assertThat(files.read(continued.id()).bytes()).containsExactly(continuedContent);
+                    "text/plain; charset=utf-8");
+            assertThat(read(targetAuthority, targetBlobs, SCOPE, continued.id()))
+                    .containsExactly(continuedContent);
             assertHealthy(nativeFiles.reconcile(SCOPE), 3, 2);
         } finally {
             targetBlobs.closeOperator();
@@ -186,6 +208,58 @@ class CanonicalFilesBackupRestoreTest {
         assertThat(report.inventoriedBlobs()).isEqualTo(expectedBlobs);
         assertThat(report.orphanBlobsDeleted()).isZero();
         assertThat(report.inconsistentMetadataRecords()).isZero();
+    }
+
+    private static FileObject seed(
+            FilesAuthorityRepository authority,
+            FilesystemBlobStore blobs,
+            FilesRequestScope scope,
+            FilePath path,
+            byte[] content,
+            String mediaType) {
+        String digest = FilesDigests.sha256(content);
+        FileObject item = new FileObject(
+                new FileId("file:" + digest.substring("sha256:".length())),
+                path,
+                Kind.FILE,
+                content.length,
+                mediaType,
+                OBSERVED_AT,
+                false);
+        BlobReference reference = new BlobReference(
+                "v1/backup-test/" + digest.substring("sha256:".length()));
+        blobs.putStream(
+                new BlobScope(scope.organizationRef(), scope.spaceRef()),
+                reference,
+                new ByteArrayInputStream(content),
+                content.length,
+                digest);
+        authority.activate(new StoredFileRecord(
+                new CanonicalFileRecord(
+                        scope.organizationRef(),
+                        scope.spaceRef(),
+                        item,
+                        new FileVersion(digest),
+                        digest,
+                        scope.providerBindingRevision(),
+                        Lifecycle.ACTIVE,
+                        OBSERVED_AT),
+                new BlobBinding(reference.value())));
+        return item;
+    }
+
+    private static byte[] read(
+            FilesAuthorityRepository authority,
+            FilesystemBlobStore blobs,
+            FilesRequestScope scope,
+            FileId id) {
+        ByteArrayOutputStream target = new ByteArrayOutputStream();
+        new CanonicalFilesQueries(authority, blobs, 100)
+                .openRead(
+                        new FilesScope(scope.organizationRef(), scope.spaceRef()),
+                        id)
+                .transferTo(target);
+        return target.toByteArray();
     }
 
     private static PostgreSQLContainer<?> postgres(String databaseName) {

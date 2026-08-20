@@ -6,12 +6,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.adapter.FilesAuthorityJpaTestFactory;
+import com.massimotter.weave.backend.files.application.CanonicalFilesQueries;
+import com.massimotter.weave.backend.files.application.FilesDigests;
+import com.massimotter.weave.backend.files.application.FilesScope;
+import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
+import com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
+import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
+import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
+import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
+import com.massimotter.weave.backend.files.port.StoredFileRecord;
+import com.massimotter.weave.backend.files.port.StoredFileRecord.BlobBinding;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -35,12 +49,13 @@ class CanonicalNativeFilesCompositionTest {
     Path temporaryDirectory;
 
     private FilesystemBlobStore blobs;
+    private FilesAuthorityRepository authority;
     private WeaveNativeFilesAdapter provider;
 
     @BeforeEach
     void setUp() {
         DataSource dataSource = JpaTestDatabase.entityFirstDataSource("canonical_native_files");
-        FilesAuthorityRepository authority = FilesAuthorityJpaTestFactory.create(dataSource);
+        authority = FilesAuthorityJpaTestFactory.create(dataSource);
         WeaveNativeFilesProperties properties = new WeaveNativeFilesProperties(
                 temporaryDirectory.resolve("private-blobs"),
                 1024 * 1024,
@@ -62,17 +77,9 @@ class CanonicalNativeFilesCompositionTest {
     void everyCurrentFilesOperationRoutesThroughCanonicalUseCases() {
         FilesProviderPort files = provider.scoped(SCOPE);
         files.createCollection(new FilePath("/docs"));
-        byte[] firstContent = "first canonical content".getBytes(StandardCharsets.UTF_8);
         byte[] replacementContent = "replacement canonical content".getBytes(StandardCharsets.UTF_8);
-
-        var first = files.write(new FileWrite(
-                new FilePath("/docs/readme.txt"),
-                firstContent,
-                "text/plain"));
-        var replacement = files.write(new FileWrite(
-                new FilePath("/docs/readme.txt"),
-                replacementContent,
-                "text/markdown"));
+        var replacement = seed(
+                new FilePath("/docs/readme.txt"), replacementContent, "text/markdown");
         var copied = files.copy(
                 new FilePath("/docs/readme.txt"),
                 new FilePath("/docs/copy.txt"),
@@ -82,29 +89,25 @@ class CanonicalNativeFilesCompositionTest {
                 new FilePath("/moved.txt"),
                 false);
 
-        assertThat(replacement.id()).isEqualTo(first.id());
         assertThat(replacement.mediaType()).isEqualTo("text/markdown");
-        assertThat(files.read(replacement.id()).bytes()).isEqualTo(replacementContent);
+        assertThat(read(replacement.id())).isEqualTo(replacementContent);
         assertThat(moved.id()).isEqualTo(copied.id());
-        assertThat(files.read(moved.id()).bytes()).isEqualTo(replacementContent);
+        assertThat(read(moved.id())).isEqualTo(replacementContent);
 
         files.delete(new FilePath("/moved.txt"), null);
         assertThat(files.find(new FilePath("/moved.txt"))).isEmpty();
 
         var reconciliation = provider.reconcile(SCOPE);
         assertThat(reconciliation.inconsistentMetadataRecords()).isZero();
-        assertThat(reconciliation.orphanBlobsDeleted()).isGreaterThanOrEqualTo(1);
-        assertThat(files.read(replacement.id()).bytes()).isEqualTo(replacementContent);
+        assertThat(reconciliation.orphanBlobsDeleted()).isZero();
+        assertThat(read(replacement.id())).isEqualTo(replacementContent);
     }
 
     @Test
     void canonicalFailuresRetainExistingSupportSafeBoundaryCodes() {
         FilesProviderPort files = provider.scoped(SCOPE);
 
-        assertThatThrownBy(() -> files.write(new FileWrite(
-                new FilePath("/missing/readme.txt"),
-                new byte[] {1},
-                "application/octet-stream")))
+        assertThatThrownBy(() -> files.createCollection(new FilePath("/missing/readme")))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(HttpStatus.CONFLICT);
                     assertThat(exception.code()).isEqualTo("files-native-parent-missing");
@@ -136,5 +139,41 @@ class CanonicalNativeFilesCompositionTest {
         assertThatThrownBy(() -> provider.find(new FilePath("/anything")))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception ->
                         assertThat(exception.code()).isEqualTo("files-native-scope-required"));
+    }
+
+    private FileObject seed(FilePath path, byte[] content, String mediaType) {
+        String digest = FilesDigests.sha256(content);
+        FileId id = new FileId("file:" + digest.substring("sha256:".length()));
+        BlobReference reference = new BlobReference(
+                "v1/test/" + digest.substring("sha256:".length()));
+        blobs.putStream(
+                new BlobScope(SCOPE.organizationRef(), SCOPE.spaceRef()),
+                reference,
+                new ByteArrayInputStream(content),
+                content.length,
+                digest);
+        FileObject item = new FileObject(
+                id, path, Kind.FILE, content.length, mediaType, NOW, false);
+        authority.activate(new StoredFileRecord(
+                new CanonicalFileRecord(
+                        SCOPE.organizationRef(),
+                        SCOPE.spaceRef(),
+                        item,
+                        new FileVersion(digest),
+                        digest,
+                        SCOPE.providerBindingRevision(),
+                        Lifecycle.ACTIVE,
+                        NOW),
+                new BlobBinding(reference.value())));
+        return item;
+    }
+
+    private byte[] read(FileId id) {
+        var queries = new CanonicalFilesQueries(authority, blobs, 100);
+        ByteArrayOutputStream target = new ByteArrayOutputStream();
+        queries.openRead(
+                        new FilesScope(SCOPE.organizationRef(), SCOPE.spaceRef()), id)
+                .transferTo(target);
+        return target.toByteArray();
     }
 }

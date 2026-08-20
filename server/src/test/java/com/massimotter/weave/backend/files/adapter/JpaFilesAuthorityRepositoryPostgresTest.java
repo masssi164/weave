@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.massimotter.weave.backend.files.application.FilesEtags;
+import com.massimotter.weave.backend.files.application.FilesDigests;
 import com.massimotter.weave.backend.files.application.CanonicalFilesMutationPlanner;
 import com.massimotter.weave.backend.files.application.FilesLockService;
 import com.massimotter.weave.backend.files.application.FilesLockService.FileLockedException;
@@ -12,6 +13,7 @@ import com.massimotter.weave.backend.files.application.FilesMutationTargetCodec;
 import com.massimotter.weave.backend.files.application.FilesScope;
 import com.massimotter.weave.backend.files.application.NativeFilesBlobCleanupCoordinator;
 import com.massimotter.weave.backend.files.application.NativeFilesBlobCleanupCoordinator.CleanupResult;
+import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository;
 import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository.FinalizationResult;
 import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository.CommitOutcome;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
@@ -21,7 +23,6 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReceipt;
@@ -32,6 +33,7 @@ import com.massimotter.weave.backend.files.port.FilesMutationPlan;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Draft;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Sealed;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Target;
+import com.massimotter.weave.backend.files.port.ReplayableFileContent;
 import com.massimotter.weave.backend.files.port.StoredFileRecord;
 import com.massimotter.weave.backend.files.port.StoredFileRecord.BlobBinding;
 import com.massimotter.weave.backend.operation.adapter.OperationIntentJpaTestFactory;
@@ -461,6 +463,11 @@ class JpaFilesAuthorityRepositoryPostgresTest {
         assertThat(begun.created()).isTrue();
         assertThat(begun.intent().state()).isEqualTo(State.CREATED);
         assertThat(begun.plan()).isEqualTo(mutation.plan());
+        assertThat(fixture.mutations().ingressProtection(mutation.intent().operationRef()))
+                .isEqualTo(NativeFilesMutationRepository.IngressProtection.PROTECTED);
+        assertThat(fixture.mutations().recoverablePutMutations(16))
+                .containsExactly(new NativeFilesMutationRepository.RecoveryCandidate(
+                        begun.intent(), mutation.plan()));
         assertThat(fixture.jdbc().queryForObject(
                 "select count(*) from weave_operation_intents",
                 Integer.class)).isEqualTo(1);
@@ -490,6 +497,45 @@ class JpaFilesAuthorityRepositoryPostgresTest {
     }
 
     @Test
+    void recoverablePutPagingAdvancesAcrossAFullCorruptPage() {
+        MutationFixture fixture = mutationFixture("recovery_cursor_corrupt_page");
+        List<PlannedMutation> mutations = java.util.stream.IntStream.rangeClosed(0, 16)
+                .mapToObj(index -> plannedFile(
+                        fixture,
+                        "recovery-cursor-%02d".formatted(index),
+                        "/recovery-cursor-%02d.txt".formatted(index)))
+                .toList();
+        mutations.forEach(mutation -> fixture.mutations().begin(mutation.intent(), mutation.plan()));
+        String corruptDigest = "sha256:" + "0".repeat(64);
+        // Simulate out-of-band physical corruption that bypasses the normal immutable-plan guard.
+        fixture.jdbc().execute(
+                "alter table weave_files_mutation_plans disable trigger trg_weave_files_v7_plan_immutability");
+        try {
+            mutations.subList(0, 16).forEach(mutation -> fixture.jdbc().update(
+                    "update weave_files_mutation_plans set targets_digest = ? where operation_ref = ?",
+                    corruptDigest,
+                    mutation.intent().operationRef()));
+        } finally {
+            fixture.jdbc().execute(
+                    "alter table weave_files_mutation_plans enable trigger trg_weave_files_v7_plan_immutability");
+        }
+
+        var corruptPage = fixture.mutations().recoverablePutMutations(null, 16);
+        var healthyPage = fixture.mutations().recoverablePutMutations(
+                corruptPage.lastScannedOperationRef(), 16);
+
+        assertThat(corruptPage.candidates()).isEmpty();
+        assertThat(corruptPage.scannedCount()).isEqualTo(16);
+        assertThat(corruptPage.lastScannedOperationRef())
+                .isEqualTo(mutations.get(15).intent().operationRef());
+        assertThat(healthyPage.scannedCount()).isEqualTo(1);
+        assertThat(healthyPage.candidates())
+                .containsExactly(new NativeFilesMutationRepository.RecoveryCandidate(
+                        mutations.get(16).intent(),
+                        mutations.get(16).plan()));
+    }
+
+    @Test
     void nativeMutationTx2AtomicallyCommitsBindingJournalHeadSuccessAndReservedOutbox() {
         MutationFixture fixture = mutationFixture("tx2");
         PlannedMutation mutation = plannedFile(fixture, "tx2", "/tx2.txt");
@@ -503,6 +549,9 @@ class JpaFilesAuthorityRepositoryPostgresTest {
                 null);
 
         assertThat(result.intent().state()).isEqualTo(State.SUCCEEDED);
+        assertThat(fixture.mutations().ingressProtection(mutation.intent().operationRef()))
+                .isEqualTo(NativeFilesMutationRepository.IngressProtection.UNPROTECTED);
+        assertThat(fixture.mutations().recoverablePutMutations(16)).isEmpty();
         assertThat(result.rangeStart()).isEqualTo(1);
         assertThat(result.rangeEnd()).isEqualTo(1);
         Map<String, Object> file = fixture.jdbc().queryForMap("""
@@ -1422,7 +1471,12 @@ class JpaFilesAuthorityRepositoryPostgresTest {
                 List.of(pathRef(path.value()), "lock-token:none"));
         Draft draft = mutationPlanner(fixture).put(
                 mutationScope(intent),
-                new FileWrite(path, content, "text/plain"));
+                path,
+                new ReplayableFileContent(
+                        content.length,
+                        FilesDigests.sha256(content),
+                        "text/plain",
+                        () -> new java.io.ByteArrayInputStream(content)));
         return planned(fixture, intent, draft);
     }
 

@@ -91,6 +91,19 @@ public final class FilesMutationIntentService {
                 existing != null);
     }
 
+    /**
+     * Returns whether an explicit client key already names a durable operation. This narrow probe
+     * lets the HTTP boundary distinguish a new request (whose current preconditions must be checked
+     * before body ingress) from a replay (whose sealed plan/result, not today's target state, is
+     * authoritative). Canonical-argument equivalence is still enforced by {@link #prepare(Command)}
+     * after the exact representation digest is known.
+     */
+    public boolean hasExistingOperation(String organizationRef, String idempotencyKey) {
+        String suppliedKey = suppliedIdempotencyKey(idempotencyKey);
+        return suppliedKey != null
+                && intents.findExisting(organizationRef, suppliedKey).isPresent();
+    }
+
     public NativePinnedMutation beginNative(PreparedMutation prepared, Sealed plan) {
         return beginNative(
                 prepared,

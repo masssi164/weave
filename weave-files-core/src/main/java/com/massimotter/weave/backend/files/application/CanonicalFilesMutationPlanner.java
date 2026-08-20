@@ -15,7 +15,6 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan;
@@ -26,6 +25,7 @@ import com.massimotter.weave.backend.files.port.FilesMutationPlan.FenceRole;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Membership;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.OperationKind;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Target;
+import com.massimotter.weave.backend.files.port.ReplayableFileContent;
 import com.massimotter.weave.backend.files.port.StoredFileRecord;
 import com.massimotter.weave.backend.files.port.StoredFileRecord.BlobBinding;
 import java.nio.charset.StandardCharsets;
@@ -53,26 +53,33 @@ public final class CanonicalFilesMutationPlanner {
 
     public Draft put(
             MutationScope scope,
-            FileWrite write) {
-        return put(scope, write, EntityTagCondition.notSupplied(), EntityTagCondition.notSupplied());
+            FilePath path,
+            ReplayableFileContent content) {
+        return put(
+                scope,
+                path,
+                content,
+                EntityTagCondition.notSupplied(),
+                EntityTagCondition.notSupplied());
     }
 
     public Draft put(
             MutationScope scope,
-            FileWrite write,
+            FilePath path,
+            ReplayableFileContent content,
             EntityTagCondition ifMatch,
             EntityTagCondition ifNoneMatch) {
-        Objects.requireNonNull(write, "write must not be null");
+        Objects.requireNonNull(path, "path must not be null");
+        Objects.requireNonNull(content, "content must not be null");
         List<StoredFileRecord> records = active(scope);
-        ensureParent(records, write.path());
-        StoredFileRecord existing = byPath(records, write.path()).orElse(null);
+        ensureParent(records, path);
+        StoredFileRecord existing = byPath(records, path).orElse(null);
         requireRequestConditions(existing, ifMatch, ifNoneMatch);
         if (existing != null && existing.metadata().object().kind() != Kind.FILE) {
             throw failure(PATH_CONFLICT, "A collection already exists at the requested Files path.");
         }
 
-        byte[] content = write.bytes();
-        String digest = FilesDigests.sha256(content);
+        String digest = content.sha256Digest();
         FileId id = existing == null
                 ? canonicalId(scope)
                 : existing.metadata().object().id();
@@ -80,10 +87,10 @@ public final class CanonicalFilesMutationPlanner {
         FileVersion version = new FileVersion(digest);
         FileObject resultObject = new FileObject(
                 id,
-                write.path(),
+                path,
                 Kind.FILE,
-                content.length,
-                write.mediaType(),
+                content.sizeBytes(),
+                content.mediaType(),
                 now,
                 false);
         StoredFileRecord result = active(
@@ -100,7 +107,7 @@ public final class CanonicalFilesMutationPlanner {
                 existing == null ? null : existing.metadata().object().id().value(),
                 existing == null ? null : existing.metadata().object().path().value(),
                 result.metadata().object().path().value(),
-                result)), List.of(observation(FenceRole.REQUEST_TARGET, write.path(), existing, null)));
+                result)), List.of(observation(FenceRole.REQUEST_TARGET, path, existing, null)));
     }
 
     public Draft createCollection(MutationScope scope, FilePath path) {

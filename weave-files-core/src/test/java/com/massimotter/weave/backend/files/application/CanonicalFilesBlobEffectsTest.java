@@ -4,6 +4,7 @@ import static com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycl
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.massimotter.weave.backend.files.application.CanonicalFilesBlobEffects.BlobEffectException;
 import com.massimotter.weave.backend.files.application.CanonicalFilesMutationPlanner.MutationScope;
@@ -13,7 +14,6 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReceipt;
@@ -21,8 +21,10 @@ import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Sealed;
+import com.massimotter.weave.backend.files.port.ReplayableFileContent;
 import com.massimotter.weave.backend.files.port.StoredFileRecord;
 import com.massimotter.weave.backend.files.port.StoredFileRecord.BlobBinding;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -33,6 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -65,21 +68,79 @@ class CanonicalFilesBlobEffectsTest {
     @Test
     void putPublishesOnlyTheExactPlannedBytesAndIsIdempotent() {
         byte[] content = "planned".getBytes(StandardCharsets.UTF_8);
+        AtomicInteger sourceOpens = new AtomicInteger();
+        ReplayableFileContent replayable = content(content, sourceOpens);
         Sealed plan = planner.put(
                         SCOPE,
-                        new FileWrite(new FilePath("/docs/planned.txt"), content, "text/plain"))
+                        new FilePath("/docs/planned.txt"),
+                        replayable)
                 .seal(PLAN_DIGEST, PLAN_DIGEST, NOW);
 
-        effects.execute(plan, content);
-        effects.execute(plan, content);
+        effects.execute(plan, replayable);
+        effects.execute(plan, replayable);
 
         String binding = plan.targets().getFirst().resultBlobBinding();
         assertArrayEquals(content, blobs.values.get(new BlobReference(binding)));
         assertEquals(1, blobs.putAttempts);
+        assertEquals(1, sourceOpens.get());
         assertThrows(BlobEffectException.class, () -> effects.execute(
                 plan,
-                "different".getBytes(StandardCharsets.UTF_8)));
+                content("different".getBytes(StandardCharsets.UTF_8))));
         assertEquals(1, blobs.putAttempts);
+    }
+
+    @Test
+    void putRejectsShortOversizedAndDigestInvalidReplays() {
+        byte[] planned = "planned".getBytes(StandardCharsets.UTF_8);
+        ReplayableFileContent descriptor = content(planned);
+        Sealed plan = planner.put(
+                        SCOPE,
+                        new FilePath("/docs/planned.txt"),
+                        descriptor)
+                .seal(PLAN_DIGEST, PLAN_DIGEST, NOW);
+
+        assertThrows(BlobEffectException.class, () -> effects.execute(
+                plan,
+                replay(planned.length, FilesDigests.sha256(planned), "plan".getBytes(StandardCharsets.UTF_8))));
+        assertThrows(BlobEffectException.class, () -> effects.execute(
+                plan,
+                replay(planned.length, FilesDigests.sha256(planned), "planned-extra".getBytes(StandardCharsets.UTF_8))));
+        assertThrows(BlobEffectException.class, () -> effects.execute(
+                plan,
+                replay(planned.length, FilesDigests.sha256(planned), "PlanNed".getBytes(StandardCharsets.UTF_8))));
+        assertEquals(3, blobs.putAttempts);
+        assertTrue(blobs.values.isEmpty());
+    }
+
+    @Test
+    void putCapsEverySourceReadAtTheFixedTransferBuffer() {
+        byte[] planned = new byte[ReplayableFileContent.TRANSFER_BUFFER_BYTES * 3 + 17];
+        java.util.Arrays.fill(planned, (byte) 7);
+        int[] largestRequestedRead = {0};
+        ReplayableFileContent descriptor = new ReplayableFileContent(
+                planned.length,
+                FilesDigests.sha256(planned),
+                "application/octet-stream",
+                () -> new ByteArrayInputStream(planned) {
+                    @Override
+                    public synchronized int read(byte[] target, int offset, int length) {
+                        largestRequestedRead[0] = Math.max(largestRequestedRead[0], length);
+                        return super.read(target, offset, length);
+                    }
+                });
+        Sealed plan = planner.put(
+                        SCOPE,
+                        new FilePath("/docs/large.bin"),
+                        descriptor)
+                .seal(PLAN_DIGEST, PLAN_DIGEST, NOW);
+
+        effects.execute(plan, descriptor);
+
+        assertTrue(largestRequestedRead[0] > 0);
+        assertTrue(largestRequestedRead[0] <= ReplayableFileContent.TRANSFER_BUFFER_BYTES);
+        assertArrayEquals(
+                planned,
+                blobs.values.get(new BlobReference(plan.targets().getFirst().resultBlobBinding())));
     }
 
     @Test
@@ -203,6 +264,31 @@ class CanonicalFilesBlobEffectsTest {
                 null);
     }
 
+    private ReplayableFileContent content(byte[] value) {
+        return content(value, new AtomicInteger());
+    }
+
+    private ReplayableFileContent content(byte[] value, AtomicInteger opens) {
+        byte[] stable = value.clone();
+        return new ReplayableFileContent(
+                stable.length,
+                FilesDigests.sha256(stable),
+                "text/plain",
+                () -> {
+                    opens.incrementAndGet();
+                    return new ByteArrayInputStream(stable);
+                });
+    }
+
+    private ReplayableFileContent replay(long size, String digest, byte[] actual) {
+        byte[] stable = actual.clone();
+        return new ReplayableFileContent(
+                size,
+                digest,
+                "text/plain",
+                () -> new ByteArrayInputStream(stable));
+    }
+
     private StoredFileRecord file(
             String id,
             String path,
@@ -255,7 +341,7 @@ class CanonicalFilesBlobEffectsTest {
                 }
                 return new BlobReceipt(reference, expectedDigest, expectedSize);
             } catch (java.io.IOException exception) {
-                throw new AssertionError(exception);
+                throw new IllegalStateException(exception);
             }
         }
 

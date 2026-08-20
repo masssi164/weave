@@ -1,7 +1,5 @@
 package com.massimotter.weave.backend.files.port;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -15,10 +13,20 @@ import java.util.regex.Pattern;
  * Infrastructure port for tenant-fenced immutable blob I/O below canonical Files use cases.
  * Concrete storage libraries, paths, credentials, and provider DTOs remain outside this contract.
  *
- * <p>Streaming is the production data-plane contract. Byte-array helpers are bounded convenience
- * adapters only.</p>
+ * <p>Streaming is the only data-plane contract. Complete representations never cross this port as
+ * byte arrays.</p>
  */
 public interface BlobStorePort {
+
+    /**
+     * Marks a failure of the caller-owned content destination, distinct from a corrupt or
+     * unreadable stored blob. Adapters must preserve this marker across the read boundary.
+     */
+    final class ContentTargetUnavailableException extends RuntimeException {
+        public ContentTargetUnavailableException(Throwable cause) {
+            super("blob content target is unavailable", Objects.requireNonNull(cause, "cause"));
+        }
+    }
 
     boolean configured();
 
@@ -34,26 +42,6 @@ public interface BlobStorePort {
     /** Returns a verified immutable receipt when the exact opaque binding is already durable. */
     default Optional<BlobReceipt> receipt(BlobScope scope, BlobReference reference) {
         return Optional.empty();
-    }
-
-    default BlobReceipt put(
-            BlobScope scope,
-            BlobReference reference,
-            byte[] bytes,
-            String expectedDigest) {
-        byte[] content = bytes == null ? new byte[0] : bytes.clone();
-        return putStream(
-                scope,
-                reference,
-                new ByteArrayInputStream(content),
-                content.length,
-                expectedDigest);
-    }
-
-    default byte[] read(BlobScope scope, BlobReference reference) {
-        ByteArrayOutputStream target = new ByteArrayOutputStream();
-        readStream(scope, reference, target);
-        return target.toByteArray();
     }
 
     void delete(BlobScope scope, BlobReference reference);

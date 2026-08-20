@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.massimotter.weave.backend.config.WeaveS3FilesProperties;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
+import com.massimotter.weave.backend.service.files.UnqualifiedLegacyFilesContentAdapter.LegacyFileWrite;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.AfterAll;
@@ -85,12 +85,12 @@ class WeaveS3FilesAdapterMinioTest {
 
         adapter.createCollection(new FilePath("/Team"));
         adapter.createCollection(new FilePath("/Archive"));
-        var written = adapter.write(new FileWrite(
+        var written = adapter.writeLegacy(new LegacyFileWrite(
                 new FilePath("/Team/readme.md"),
                 "portable-core".getBytes(StandardCharsets.UTF_8),
                 "text/markdown"));
 
-        assertThat(adapter.read(written.id()).bytes())
+        assertThat(adapter.readLegacy(written.id()).bytes())
                 .isEqualTo("portable-core".getBytes(StandardCharsets.UTF_8));
         assertThat(adapter.copy(
                 new FilePath("/Team/readme.md"), new FilePath("/Archive/readme.md"), false).path().value())

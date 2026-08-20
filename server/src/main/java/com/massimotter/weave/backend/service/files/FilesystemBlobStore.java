@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.service.files;
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
+import com.massimotter.weave.backend.files.port.BlobStorePort.ContentTargetUnavailableException;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.io.InputStream;
@@ -190,7 +191,7 @@ public final class FilesystemBlobStore implements BlobStorePort {
             try (InputStream source = operator.createInputStream(key)) {
                 transferred = BlobStorePort.transferBounded(
                         source,
-                        target,
+                        contentTarget(target),
                         maximumBlobBytes);
             }
             if (transferred != size) {
@@ -201,6 +202,29 @@ public final class FilesystemBlobStore implements BlobStorePort {
         } catch (IOException | OpenDALException exception) {
             throw map(exception, "files-native-blob-read-failed");
         }
+    }
+
+    private OutputStream contentTarget(OutputStream target) {
+        Objects.requireNonNull(target, "target must not be null");
+        return new OutputStream() {
+            @Override
+            public void write(int value) {
+                try {
+                    target.write(value);
+                } catch (IOException failure) {
+                    throw new ContentTargetUnavailableException(failure);
+                }
+            }
+
+            @Override
+            public void write(byte[] value, int offset, int length) {
+                try {
+                    target.write(value, offset, length);
+                } catch (IOException failure) {
+                    throw new ContentTargetUnavailableException(failure);
+                }
+            }
+        };
     }
 
     @Override

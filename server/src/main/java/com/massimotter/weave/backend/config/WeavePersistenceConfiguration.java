@@ -10,6 +10,7 @@ import com.massimotter.weave.backend.files.application.NativeFilesMutationReposi
 import com.massimotter.weave.backend.files.application.NativeFilesScopeProvisioner;
 import com.massimotter.weave.backend.files.application.NativeFilesBindingScopeObserver;
 import com.massimotter.weave.backend.files.application.NativeFilesFinalizationAuthorization;
+import com.massimotter.weave.backend.files.port.NativeFilesContentStore;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
@@ -25,6 +26,7 @@ import com.massimotter.weave.backend.persistence.jpa.readiness.JpaPersistenceRea
 import com.massimotter.weave.backend.persistence.jpa.security.DeviceCredentialJpaRepository;
 import com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaRepository;
 import com.massimotter.weave.backend.schema.NativeFilesVolumeAuthorityReadiness;
+import com.massimotter.weave.backend.service.files.BoundedNativeFilesContentStore;
 import com.massimotter.weave.backend.provider.JpaProviderSelectionRepository;
 import com.massimotter.weave.backend.providerbinding.adapter.JpaProviderBindingRepository;
 import com.massimotter.weave.backend.providerbinding.application.FilesProviderBindingBootstrap;
@@ -41,6 +43,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.env.Environment;
 
 /**
@@ -54,31 +57,53 @@ import org.springframework.core.env.Environment;
 public class WeavePersistenceConfiguration {
 
   @Bean
+  NativeFilesVolumeAuthorityReadiness nativeFilesVolumeAuthorityReadiness(
+      FilesVolumeAuthorityJpaRepository filesVolumeAuthority,
+      WeaveNativeFilesProperties nativeFilesProperties,
+      Environment environment) {
+    String candidate = environment.getProperty("weave.candidate.commit", "");
+    String receiptFile = environment.getProperty("weave.schema-init.receipt-file", "");
+    return new NativeFilesVolumeAuthorityReadiness(
+        filesVolumeAuthority,
+        nativeFilesProperties.filesystemRoot(),
+        java.nio.file.Path.of(receiptFile),
+        candidate);
+  }
+
+  @Bean
   @ConditionalOnBean(EntityManagerFactory.class)
   JpaPersistenceReadinessProbe jpaPersistenceReadinessProbe(
       EntityManagerFactory entityManagerFactory,
       SchemaAuthorityJpaRepository schemaAuthority,
-      FilesVolumeAuthorityJpaRepository filesVolumeAuthority,
-      WeaveNativeFilesProperties nativeFilesProperties,
+      NativeFilesVolumeAuthorityReadiness nativeFilesAuthority,
       Environment environment) {
     Set<String> markerProfiles = Set.of("test", "dogfood", "prod", "e2e");
     boolean markerRequired =
         markerProfiles.contains(environment.getProperty("weave.deployment.profile", ""))
             || Arrays.stream(environment.getActiveProfiles()).anyMatch(markerProfiles::contains);
     String candidate = environment.getProperty("weave.candidate.commit", "");
-    String receiptFile = environment.getProperty("weave.schema-init.receipt-file", "");
-    NativeFilesVolumeAuthorityReadiness nativeFilesAuthority =
-        new NativeFilesVolumeAuthorityReadiness(
-            filesVolumeAuthority,
-            nativeFilesProperties.filesystemRoot(),
-            java.nio.file.Path.of(receiptFile),
-            candidate);
     return new JpaPersistenceReadinessProbe(
         entityManagerFactory,
         schemaAuthority,
         markerRequired,
         candidate,
         nativeFilesAuthority::isReady);
+  }
+
+  @Bean
+  @Lazy
+  NativeFilesContentStore nativeFilesContentStore(
+      WeaveNativeFilesProperties properties,
+      NativeFilesVolumeAuthorityReadiness authority,
+      NativeFilesMutationRepository mutations) {
+    return new BoundedNativeFilesContentStore(
+        properties,
+        authority::requireValidated,
+        operationRef -> switch (mutations.ingressProtection(operationRef)) {
+          case PROTECTED -> BoundedNativeFilesContentStore.Protection.PROTECTED;
+          case UNPROTECTED -> BoundedNativeFilesContentStore.Protection.UNPROTECTED;
+          case UNAVAILABLE -> BoundedNativeFilesContentStore.Protection.UNAVAILABLE;
+        });
   }
 
   @Bean

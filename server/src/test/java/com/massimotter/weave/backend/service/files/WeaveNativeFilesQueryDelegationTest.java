@@ -34,7 +34,6 @@ class WeaveNativeFilesQueryDelegationTest {
                         "substitute",
                         "tombstones",
                         "cleanupBlobs",
-                        "verify",
                         "canonicalId",
                         "blobReference");
     }

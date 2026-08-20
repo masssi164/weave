@@ -1,31 +1,38 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.files.port.FilesMutationPlan.EntityTagCondition;
+import com.massimotter.weave.backend.files.port.FilesStreamingContentPort.Egress;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.service.FilesFacadeService;
-import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilePathCodec;
+import com.massimotter.weave.backend.service.files.WebDavFileRead;
 import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
+import com.massimotter.weave.backend.service.files.WebDavPutRequest;
 import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import com.massimotter.weave.backend.service.files.WebDavSearchRequest;
 import com.massimotter.weave.backend.service.files.WebDavSearchResult;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.util.List;
 import java.util.Map;
-import org.springframework.http.CacheControl;
+import java.util.Collections;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
@@ -176,28 +183,76 @@ public class FilesWebDavController {
                 Map.of("module", "files", "operation", "webdav-search"));
     }
 
-    private ResponseEntity<byte[]> get(HttpServletRequest request, boolean headOnly) {
+    private ResponseEntity<?> get(HttpServletRequest request, boolean headOnly) {
         String path = productPath(request);
-        DownloadedFile file = filesFacadeService.downloadWebDavPath(path);
-        String etag = filesFacadeService.etagFor(path);
+        WebDavFileRead file = filesFacadeService.openWebDavPath(path);
+        EntityTagCondition ifMatch = entityTagCondition(
+                combinedListHeader(request, HttpHeaders.IF_MATCH),
+                "If-Match");
+        EntityTagCondition ifNoneMatch = entityTagCondition(
+                combinedListHeader(request, HttpHeaders.IF_NONE_MATCH),
+                "If-None-Match");
+        if (ifMatch.supplied() && !ifMatch.matches(file.strongEtag(), true)) {
+            throw readPreconditionFailed("If-Match did not match the selected representation.");
+        }
+        if (ifNoneMatch.supplied() && ifNoneMatch.matches(file.strongEtag(), false)) {
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED)
+                    .eTag(file.strongEtag())
+                    .header(HttpHeaders.CACHE_CONTROL, file.cacheControl())
+                    .build();
+        }
+        if (!file.withinContentProfile()) {
+            throw readStreamingCapacityUnavailable();
+        }
+        try {
+            MediaType.parseMediaType(file.contentType());
+        } catch (IllegalArgumentException invalidStoredMediaType) {
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "file-content-integrity-unavailable",
+                    "The selected Files representation has invalid metadata.",
+                    Map.of("module", "files", "operation", "webdav-read", "diagnosticsRedacted", true));
+        }
         ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(file.mimeType()))
-                .contentLength(file.content().length)
-                .eTag(etag)
-                .cacheControl(CacheControl.empty().noTransform())
+                .header(HttpHeaders.CONTENT_TYPE, file.contentType())
+                .contentLength(file.contentLength())
+                .eTag(file.strongEtag())
+                .header(HttpHeaders.CACHE_CONTROL, file.cacheControl())
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         ContentDisposition.inline().filename(file.filename()).build().toString());
-        return builder.body(headOnly ? null : file.content());
+        if (headOnly) {
+            return builder.build();
+        }
+        Egress egress = file.prepareBody();
+        try {
+            InputStream source = new EgressInputStream(egress.openStream(), egress);
+            InputStreamResource body = new InputStreamResource(source) {
+                @Override public long contentLength() { return file.contentLength(); }
+                @Override public String getFilename() { return file.filename(); }
+            };
+            return builder.body(body);
+        } catch (IOException failure) {
+            egress.close();
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "file-content-integrity-unavailable",
+                    "The selected Files representation could not be opened safely.",
+                    Map.of("module", "files", "operation", "webdav-get", "diagnosticsRedacted", true));
+        }
     }
 
     private ResponseEntity<Void> put(HttpServletRequest request) {
         String path = productPath(request);
         WebDavMutationResult result = filesFacadeService.putWebDavFile(
                 path,
-                requestBody(request),
-                request.getContentType(),
-                request.getHeader(HttpHeaders.IF_MATCH),
-                request.getHeader(HttpHeaders.IF_NONE_MATCH),
+                new WebDavPutRequest(
+                        Collections.list(request.getHeaders(HttpHeaders.CONTENT_LENGTH)),
+                        Collections.list(request.getHeaders(HttpHeaders.CONTENT_TYPE)),
+                        Collections.list(request.getHeaders(HttpHeaders.CONTENT_ENCODING)),
+                        Collections.list(request.getHeaders(HttpHeaders.TRANSFER_ENCODING)),
+                        request::getInputStream),
+                combinedListHeader(request, HttpHeaders.IF_MATCH),
+                combinedListHeader(request, HttpHeaders.IF_NONE_MATCH),
                 request.getHeader("If"),
                 request.getHeader("Idempotency-Key"));
         HttpStatus status = result.created() ? HttpStatus.CREATED : HttpStatus.NO_CONTENT;
@@ -210,8 +265,8 @@ public class FilesWebDavController {
     private ResponseEntity<Void> mkcol(HttpServletRequest request) {
         WebDavMutationResult result = filesFacadeService.createWebDavFolder(
                 productPath(request),
-                request.getHeader(HttpHeaders.IF_MATCH),
-                request.getHeader(HttpHeaders.IF_NONE_MATCH),
+                combinedListHeader(request, HttpHeaders.IF_MATCH),
+                combinedListHeader(request, HttpHeaders.IF_NONE_MATCH),
                 request.getHeader("If"),
                 request.getHeader("Idempotency-Key"));
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -223,8 +278,8 @@ public class FilesWebDavController {
     private ResponseEntity<Void> delete(HttpServletRequest request) {
         filesFacadeService.deleteWebDavPath(
                 productPath(request),
-                request.getHeader(HttpHeaders.IF_MATCH),
-                request.getHeader(HttpHeaders.IF_NONE_MATCH),
+                combinedListHeader(request, HttpHeaders.IF_MATCH),
+                combinedListHeader(request, HttpHeaders.IF_NONE_MATCH),
                 request.getHeader("If"),
                 request.getHeader("Idempotency-Key"));
         return ResponseEntity.noContent().build();
@@ -235,8 +290,8 @@ public class FilesWebDavController {
                 productPath(request),
                 destinationPath(request),
                 overwrite(request),
-                request.getHeader(HttpHeaders.IF_MATCH),
-                request.getHeader(HttpHeaders.IF_NONE_MATCH),
+                combinedListHeader(request, HttpHeaders.IF_MATCH),
+                combinedListHeader(request, HttpHeaders.IF_NONE_MATCH),
                 request.getHeader("If"),
                 request.getHeader("Idempotency-Key"));
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.NO_CONTENT)
@@ -250,8 +305,8 @@ public class FilesWebDavController {
                 productPath(request),
                 destinationPath(request),
                 overwrite(request),
-                request.getHeader(HttpHeaders.IF_MATCH),
-                request.getHeader(HttpHeaders.IF_NONE_MATCH),
+                combinedListHeader(request, HttpHeaders.IF_MATCH),
+                combinedListHeader(request, HttpHeaders.IF_NONE_MATCH),
                 request.getHeader("If"),
                 request.getHeader("Idempotency-Key"));
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.NO_CONTENT)
@@ -288,10 +343,13 @@ public class FilesWebDavController {
 
     private ResponseEntity<String> davError(ApiErrorException exception) {
         HttpStatus status = webdavStatus(exception);
-        return ResponseEntity.status(status)
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(status)
                 .contentType(XML)
-                .header("X-Weave-Error-Code", exception.code())
-                .body(errorXml(exception.code(), exception.getMessage()));
+                .header("X-Weave-Error-Code", exception.code());
+        if ("files-content-coding-unsupported".equals(exception.code())) {
+            response.header(HttpHeaders.ACCEPT_ENCODING, "identity");
+        }
+        return response.body(errorXml(exception.code(), exception.getMessage()));
     }
 
     private HttpStatus webdavStatus(ApiErrorException exception) {
@@ -359,15 +417,65 @@ public class FilesWebDavController {
         return overwrite == null || overwrite.isBlank() || !"F".equalsIgnoreCase(overwrite.trim());
     }
 
-    private byte[] requestBody(HttpServletRequest request) {
+    private EntityTagCondition entityTagCondition(String value, String headerName) {
         try {
-            return request.getInputStream().readAllBytes();
-        } catch (IOException exception) {
+            return EntityTagCondition.parseHeader(value);
+        } catch (IllegalArgumentException invalid) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
-                    "file-upload-unreadable",
-                    "Uploaded file could not be read by the backend.",
-                    Map.of("module", "files", "operation", "webdav-put"));
+                    "files-webdav-precondition-invalid",
+                    headerName + " is not a valid entity-tag condition.",
+                    Map.of("module", "files", "operation", "webdav-read", "diagnosticsRedacted", true));
+        }
+    }
+
+    private String combinedListHeader(HttpServletRequest request, String headerName) {
+        List<String> values = Collections.list(request.getHeaders(headerName));
+        return values.isEmpty() ? null : String.join(",", values);
+    }
+
+    private ApiErrorException readPreconditionFailed(String message) {
+        return new ApiErrorException(
+                HttpStatus.PRECONDITION_FAILED,
+                "files-precondition-failed",
+                message,
+                Map.of("module", "files", "operation", "webdav-read", "diagnosticsRedacted", true));
+    }
+
+    private ApiErrorException readStreamingCapacityUnavailable() {
+        return new ApiErrorException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "files-streaming-capacity-unavailable",
+                "Bounded Files content capacity is temporarily unavailable.",
+                Map.of("module", "files", "operation", "webdav-read", "diagnosticsRedacted", true));
+    }
+
+    private static final class EgressInputStream extends FilterInputStream {
+        private final Egress egress;
+        private boolean closed;
+
+        private EgressInputStream(InputStream source, Egress egress) {
+            super(source);
+            this.egress = egress;
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            IOException failure = null;
+            try {
+                super.close();
+            } catch (IOException closeFailure) {
+                failure = closeFailure;
+            } finally {
+                egress.close();
+            }
+            if (failure != null) {
+                throw failure;
+            }
         }
     }
 

@@ -265,6 +265,24 @@ interface FilesMutationPlanJpaRepository extends JpaRepository<FilesMutationPlan
     @Query("select plan from FilesMutationPlanJpaEntity plan where plan.operationRef = :operationRef")
     Optional<FilesMutationPlanJpaEntity> lockForCleanupByOperationRef(
             @Param("operationRef") String operationRef);
+
+    @Query("""
+            select plan.operationRef
+              from FilesMutationPlanJpaEntity plan
+             where plan.operationKind = :operationKind
+               and (:afterOperationRef is null or plan.operationRef > :afterOperationRef)
+               and exists (
+                    select intent.operationRef
+                      from OperationIntentJpaEntity intent
+                     where intent.operationRef = plan.operationRef
+                       and intent.state in :intentStates)
+             order by plan.operationRef
+            """)
+    List<String> findRecoverableOperationRefs(
+            @Param("operationKind") String operationKind,
+            @Param("intentStates") List<String> intentStates,
+            @Param("afterOperationRef") String afterOperationRef,
+            Pageable pageable);
 }
 
 @Embeddable

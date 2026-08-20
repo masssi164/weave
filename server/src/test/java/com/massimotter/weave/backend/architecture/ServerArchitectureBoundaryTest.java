@@ -276,11 +276,15 @@ class ServerArchitectureBoundaryTest {
 
         assertThat(filesWebDavController.text())
                 .contains("case \"PUT\" -> put(request)")
+                .contains("request::getInputStream")
                 .contains("case \"MKCOL\" -> mkcol(request)")
                 .contains("case \"DELETE\" -> delete(request)")
                 .contains("filesFacadeService.putWebDavFile(")
                 .contains("filesFacadeService.createWebDavFolder(")
                 .contains("filesFacadeService.deleteWebDavPath(")
+                .contains("InputStreamResource")
+                .doesNotContain("request.getInputStream().readAllBytes()")
+                .doesNotContain("ResponseEntity<byte[]>")
                 .doesNotContain("NextcloudFilesAdapter")
                 .doesNotContain("RestClient");
     }

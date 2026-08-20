@@ -55,7 +55,11 @@ jobs:
             --tests 'com.massimotter.weave.backend.matrix.MatrixE2eeStateServiceSharedUsersTest' \
             --tests 'com.massimotter.weave.backend.matrix.MatrixE2eeStateServiceSignatureMergeTest' \
             --tests 'com.massimotter.weave.backend.matrix.MatrixE2eeStateServiceSyncSnapshotTest' \
+            --tests 'com.massimotter.weave.backend.controller.FilesWebDavControllerTest' \
+            --tests 'com.massimotter.weave.backend.controller.FilesWebDavRealSocketStreamingTest' \
+            --tests 'com.massimotter.weave.backend.service.FilesFacadeNativeAuditIdempotencyTest' \
             --tests 'com.massimotter.weave.backend.service.files.WeaveNativeFilesAdapterTest' \
+            --tests 'com.massimotter.weave.backend.architecture.ServerArchitectureBoundaryTest' \
             --tests 'com.massimotter.weave.backend.schema.*'
       - name: PostgreSQL schema-authority and canonical recovery qualification
         run: ./gradlew :server:postgresJpaTest

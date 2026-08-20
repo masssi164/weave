@@ -2,18 +2,18 @@ package com.massimotter.weave.backend.service.files;
 
 import com.massimotter.weave.backend.config.WeaveS3FilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileListing;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileQuota;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.service.files.UnqualifiedLegacyFilesContentAdapter.LegacyFileContent;
+import com.massimotter.weave.backend.service.files.UnqualifiedLegacyFilesContentAdapter.LegacyFileWrite;
 import com.massimotter.weave.backend.files.port.ObjectStoragePort;
 import com.massimotter.weave.backend.files.port.ObjectStoragePort.ObjectEntry;
 import com.massimotter.weave.backend.files.port.ObjectStoragePort.ObjectMetadata;
@@ -43,7 +43,8 @@ import org.springframework.stereotype.Component;
 @Primary
 @ConditionalOnProperty(name = "weave.files.s3.enabled", havingValue = "true")
 @ConditionalOnExpression("'${weave.files.provider:weave-native}' == 'weave-s3-minio'")
-public class WeaveS3FilesAdapter implements FilesProviderPort {
+public class WeaveS3FilesAdapter
+        implements FilesProviderPort, UnqualifiedLegacyFilesContentAdapter {
 
     private static final String COLLECTION_MARKER = ".weave-collection";
 
@@ -162,13 +163,13 @@ public class WeaveS3FilesAdapter implements FilesProviderPort {
     }
 
     @Override
-    public FileContent read(FileId id) {
+    public LegacyFileContent readLegacy(FileId id) {
         ensureConfigured();
         FilePath path = new FilePath(FilePathCodec.pathFromId(id.value()));
         try {
             ObjectMetadata metadata = storage.stat(key(path)).orElseThrow(() -> notFound("read-file"));
             byte[] bytes = storage.read(key(path));
-            return new FileContent(
+            return new LegacyFileContent(
                     object(path, Kind.FILE, bytes.length, metadata.contentType(), metadata.modifiedAt()),
                     bytes);
         } catch (ObjectStorageException exception) {
@@ -177,7 +178,7 @@ public class WeaveS3FilesAdapter implements FilesProviderPort {
     }
 
     @Override
-    public FileObject write(FileWrite write) {
+    public FileObject writeLegacy(LegacyFileWrite write) {
         ensureConfigured();
         try {
             storage.write(key(write.path()), write.bytes(), write.mediaType());

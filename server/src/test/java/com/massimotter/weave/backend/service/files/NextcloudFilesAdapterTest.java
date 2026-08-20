@@ -5,7 +5,7 @@ import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
+import com.massimotter.weave.backend.service.files.UnqualifiedLegacyFilesContentAdapter.LegacyFileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.sun.net.httpserver.HttpServer;
@@ -269,7 +269,7 @@ class NextcloudFilesAdapterTest {
 
         assertThat(adapter.createCollection(new FilePath("/Team/Design")).path().value())
                 .isEqualTo("/Team/Design");
-        var upload = adapter.write(new FileWrite(
+        var upload = adapter.writeLegacy(new LegacyFileWrite(
                 new FilePath("/Team/readme.md"),
                 "hello".getBytes(StandardCharsets.UTF_8),
                 "text/markdown"));
@@ -277,7 +277,7 @@ class NextcloudFilesAdapterTest {
         assertThat(upload.kind()).isEqualTo(Kind.FILE);
 
         String fileId = FilePathCodec.toId("/Team/readme.md");
-        var download = adapter.read(new FileId(fileId));
+        var download = adapter.readLegacy(new FileId(fileId));
         assertThat(download.item().name()).isEqualTo("readme.md");
         assertThat(download.item().mediaType()).isEqualTo("text/plain");
         assertThat(download.bytes()).isEqualTo("hello".getBytes(StandardCharsets.UTF_8));
@@ -320,7 +320,7 @@ class NextcloudFilesAdapterTest {
                 .andRespond(withStatus(HttpStatus.INSUFFICIENT_STORAGE)
                         .body("quota exceeded on /remote.php/dav/files/weave-service"));
 
-        assertThatThrownBy(() -> adapter.write(new FileWrite(
+        assertThatThrownBy(() -> adapter.writeLegacy(new LegacyFileWrite(
                 new FilePath("/Team"), new byte[] {1}, "application/octet-stream")))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
@@ -329,7 +329,7 @@ class NextcloudFilesAdapterTest {
                     assertSupportSafe(exception);
                 });
 
-        assertThatThrownBy(() -> adapter.write(new FileWrite(
+        assertThatThrownBy(() -> adapter.writeLegacy(new LegacyFileWrite(
                 new FilePath("/Team/large.bin"), new byte[1024 * 1024], "application/octet-stream")))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(HttpStatus.INSUFFICIENT_STORAGE);
@@ -349,7 +349,7 @@ class NextcloudFilesAdapterTest {
                 .andExpect(method(HttpMethod.DELETE))
                 .andRespond(withStatus(HttpStatus.LOCKED).body("locked by downstream provider"));
 
-        assertThatThrownBy(() -> adapter.read(new FileId(FilePathCodec.toId("/Team/private.md"))))
+        assertThatThrownBy(() -> adapter.readLegacy(new FileId(FilePathCodec.toId("/Team/private.md"))))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(HttpStatus.FORBIDDEN);
                     assertThat(exception.code()).isEqualTo("files-permission-denied");

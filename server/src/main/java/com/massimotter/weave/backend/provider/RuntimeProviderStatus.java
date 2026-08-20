@@ -9,9 +9,10 @@ import java.util.Set;
 /**
  * Builds registry evidence from the adapter that is actually bound at runtime.
  *
- * <p>This deliberately does not call a provider readiness endpoint. Reachability
- * belongs to the cached provider-capability health service; rendering registry
- * status must never create downstream load.</p>
+ * <p>This deliberately does not call a remote provider readiness endpoint. Reachability
+ * belongs to the cached provider-capability health service. Files may attach a fresh,
+ * bounded capability observation from Weave-owned local authority state, but registry
+ * rendering never creates downstream provider traffic.</p>
  */
 public final class RuntimeProviderStatus {
 
@@ -25,9 +26,37 @@ public final class RuntimeProviderStatus {
             ProviderConformanceProfile conformance,
             String summary,
             List<String> candidates) {
+        return fromConformancePort(
+                module,
+                providerKey,
+                configured,
+                conformance,
+                summary,
+                candidates,
+                Map.of());
+    }
+
+    public static ProviderPort fromConformancePort(
+            ProviderModule module,
+            String providerKey,
+            boolean configured,
+            ProviderConformanceProfile conformance,
+            String summary,
+            List<String> candidates,
+            Map<String, Object> additionalDiagnostics) {
         ProviderRealityLevel reality = !configured
                 ? ProviderRealityLevel.CONTRACT_ONLY
                 : ProviderRealityLevel.CONFIGURED;
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        diagnostics.put("canonicalDomain", conformance.domain());
+        diagnostics.put("adapterKey", conformance.adapterKey());
+        diagnostics.put("atomicWrites", conformance.atomicWrites());
+        diagnostics.put("stableVersionTokens", conformance.stableVersionTokens());
+        diagnostics.put("runtimeBindingObserved", true);
+        diagnostics.put("reachabilitySource", "cached-provider-capability-health");
+        if (additionalDiagnostics != null) {
+            diagnostics.putAll(additionalDiagnostics);
+        }
         return fixed(
                 module,
                 providerKey,
@@ -37,13 +66,7 @@ public final class RuntimeProviderStatus {
                 Set.of(),
                 candidates,
                 reality,
-                Map.of(
-                        "canonicalDomain", conformance.domain(),
-                        "adapterKey", conformance.adapterKey(),
-                        "atomicWrites", conformance.atomicWrites(),
-                        "stableVersionTokens", conformance.stableVersionTokens(),
-                        "runtimeBindingObserved", true,
-                        "reachabilitySource", "cached-provider-capability-health"));
+                diagnostics);
     }
 
     public static ProviderPort fixed(

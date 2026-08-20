@@ -1,8 +1,19 @@
 package com.massimotter.weave.backend.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.massimotter.weave.backend.config.ProviderHealthProperties;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.files.port.FilesStreamingContentPort;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderCapabilityProbeResult;
+import com.massimotter.weave.backend.portability.ProviderReadiness;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
@@ -12,13 +23,7 @@ import java.time.ZoneOffset;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import org.mockito.Mockito;
 
 class ProviderCapabilityHealthServiceTest {
 
@@ -176,6 +181,23 @@ class ProviderCapabilityHealthServiceTest {
                 .isZero();
     }
 
+    @Test
+    void selectedAdapterWithoutBoundedStreamingStaysDegradedWithoutProviderProbe() {
+        MutableClock clock = clock();
+        FilesProviderPort files = mock(FilesProviderPort.class);
+        when(files.configured()).thenReturn(true);
+        when(files.healthProbe()).thenReturn(ProviderCapabilityProbeResult.available("files-storage-ready"));
+        ProviderCapabilityHealthService service = service(files, clock, new SimpleMeterRegistry());
+
+        service.refreshDueProviders();
+
+        assertThat(service.cached("files")).hasValueSatisfying(capability -> {
+            assertThat(capability.state()).isEqualTo("degraded");
+            assertThat(capability.supportSafeCode()).isEqualTo("files-streaming-not-supported");
+        });
+        verify(files, never()).healthProbe();
+    }
+
     private ProviderCapabilityHealthService service(
             FilesProviderPort files,
             MutableClock clock,
@@ -195,8 +217,27 @@ class ProviderCapabilityHealthServiceTest {
     }
 
     private FilesProviderPort configuredFiles() {
-        FilesProviderPort files = mock(FilesProviderPort.class);
+        FilesProviderPort files = mock(
+                FilesProviderPort.class,
+                Mockito.withSettings().extraInterfaces(FilesStreamingContentPort.class));
+        FilesStreamingContentPort streaming = (FilesStreamingContentPort) files;
         when(files.configured()).thenReturn(true);
+        when(files.readiness()).thenReturn(ProviderReadiness.ready("files-native-ready"));
+        when(files.conformanceProfile()).thenReturn(new ProviderConformanceProfile(
+                "files",
+                "weave-native",
+                java.util.Set.of(
+                        "files.content_streaming_read",
+                        "files.content_streaming_write"),
+                java.util.Map.of(),
+                true,
+                true,
+                true));
+        when(streaming.contentProfile()).thenReturn(new FilesStreamingContentPort.ContentProfile(
+                1024,
+                4096,
+                2,
+                2));
         return files;
     }
 

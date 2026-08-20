@@ -60,7 +60,7 @@
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
           "fragments": [
-            "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit",
+            "unqualifiedContentWriteFailsClosedWhileOtherMutationsKeepTheirAuditContract",
             "FILES_WEBDAV_WRITE_COMPLETED"
           ]
         }
@@ -4510,7 +4510,16 @@
           "fragments": [
             "case \"GET\" -> get(request, false)",
             "case \"HEAD\" -> get(request, true)",
-            ".eTag(etag)"
+            ".eTag(file.strongEtag())",
+            "InputStreamResource"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavRealSocketStreamingTest.java",
+          "fragments": [
+            "FILES_WEBDAV_REAL_SOCKET_BOUNDED_STREAMING",
+            "LARGE_CONTENT",
+            "assertThat(preparations).hasValue(1)"
           ]
         }
       ]
@@ -4531,6 +4540,23 @@
             "FILES_WEBDAV_PUT_MKCOL_DELETE_FACADE",
             "HttpHeaders.IF_MATCH",
             "HttpHeaders.ETAG"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavRealSocketStreamingTest.java",
+          "fragments": [
+            "FILES_WEBDAV_REAL_SOCKET_CHUNKED_PUT",
+            "transferEncodingFields()",
+            "maximumReadRequest"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeNativeAuditIdempotencyTest.java",
+          "fragments": [
+            "framingAndDeclaredOversizeFailBeforeTheRequestBodyOrIngressStoreOpens",
+            "files-content-too-large",
+            "files-content-coding-unsupported",
+            "file-upload-invalid-request"
           ]
         }
       ]

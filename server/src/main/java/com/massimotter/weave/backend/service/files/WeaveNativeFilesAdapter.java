@@ -26,27 +26,27 @@ import com.massimotter.weave.backend.files.application.FilesCommandException;
 import com.massimotter.weave.backend.files.application.FilesCommandScope;
 import com.massimotter.weave.backend.files.application.FilesScope;
 import com.massimotter.weave.backend.files.application.FilesTreeCommandException;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesBlobProtectionPort;
+import com.massimotter.weave.backend.files.port.FilesStreamingContentPort;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Sealed;
+import com.massimotter.weave.backend.files.port.NativeFilesContentStore;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort;
+import com.massimotter.weave.backend.files.port.ReplayableFileContent.StreamFactory;
 import com.massimotter.weave.backend.files.port.StoredFileRecord;
+import com.massimotter.weave.backend.files.port.VerifiedFileRead;
 import com.massimotter.weave.backend.operation.domain.OperationIntent;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
-import java.io.OutputStream;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -54,10 +54,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import jakarta.persistence.PersistenceException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -75,7 +77,8 @@ import org.springframework.stereotype.Component;
         name = "weave.files.provider",
         havingValue = FilesRuntimeProperties.WEAVE_NATIVE,
         matchIfMissing = true)
-public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeFilesDurableMutationPort {
+public final class WeaveNativeFilesAdapter
+        implements FilesProviderPort, NativeFilesDurableMutationPort, FilesStreamingContentPort {
 
     public static final String ADAPTER_KEY = "weave-native";
 
@@ -87,7 +90,9 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
     private final CanonicalFilesBlobEffects blobEffects;
     private final NativeFilesMutationRepository mutationRepository;
     private final FilesMutationTargetCodec targetCodec;
+    private final NativeFilesContentStore contentStore;
     private final Clock clock;
+    private final AtomicBoolean contentIntegrityHealthy = new AtomicBoolean(true);
 
     @Autowired
     public WeaveNativeFilesAdapter(
@@ -95,14 +100,16 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
             BlobStorePort blobs,
             WeaveNativeFilesProperties properties,
             NativeFilesMutationRepository mutationRepository,
-            FilesMutationTargetCodec targetCodec) {
+            FilesMutationTargetCodec targetCodec,
+            @Lazy NativeFilesContentStore contentStore) {
         this(
                 authority,
                 blobs,
                 Clock.systemUTC(),
                 properties.reconciliationLimit(),
                 mutationRepository,
-                targetCodec);
+                targetCodec,
+                contentStore);
     }
 
     WeaveNativeFilesAdapter(
@@ -115,6 +122,7 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
                 Clock.systemUTC(),
                 properties.reconciliationLimit(),
                 null,
+                null,
                 null);
     }
 
@@ -123,7 +131,7 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
             BlobStorePort blobs,
             Clock clock,
             int reconciliationLimit) {
-        this(authority, blobs, clock, reconciliationLimit, null, null);
+        this(authority, blobs, clock, reconciliationLimit, null, null, null);
     }
 
     WeaveNativeFilesAdapter(
@@ -133,6 +141,24 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
             int reconciliationLimit,
             NativeFilesMutationRepository mutationRepository,
             FilesMutationTargetCodec targetCodec) {
+        this(
+                authority,
+                blobs,
+                clock,
+                reconciliationLimit,
+                mutationRepository,
+                targetCodec,
+                null);
+    }
+
+    WeaveNativeFilesAdapter(
+            FilesAuthorityRepository authority,
+            BlobStorePort blobs,
+            Clock clock,
+            int reconciliationLimit,
+            NativeFilesMutationRepository mutationRepository,
+            FilesMutationTargetCodec targetCodec,
+            NativeFilesContentStore contentStore) {
         FilesAuthorityRepository requiredAuthority = Objects.requireNonNull(
                 authority,
                 "authority must not be null");
@@ -146,7 +172,6 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
                 reconciliationLimit);
         this.commands = new CanonicalFilesCommands(
                 requiredAuthority,
-                this.blobs,
                 requiredClock);
         this.treeCommands = new CanonicalFilesTreeCommands(
                 requiredAuthority,
@@ -156,6 +181,7 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
         this.blobEffects = new CanonicalFilesBlobEffects(this.blobs);
         this.mutationRepository = mutationRepository;
         this.targetCodec = targetCodec;
+        this.contentStore = contentStore;
     }
 
     @Override
@@ -177,7 +203,11 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
         try {
             draft = switch (Objects.requireNonNull(mutation, "mutation must not be null")) {
                 case Put put -> mutationPlanner.put(
-                        mutationScope, put.write(), put.ifMatchCondition(), put.ifNoneMatchCondition());
+                        mutationScope,
+                        put.path(),
+                        put.content(),
+                        put.ifMatchCondition(),
+                        put.ifNoneMatchCondition());
                 case MakeCollection makeCollection -> mutationPlanner.createCollection(
                         mutationScope,
                         makeCollection.path(),
@@ -286,7 +316,7 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
             }
         }
         try {
-            byte[] putContent = mutation instanceof Put put ? put.write().bytes() : null;
+            var putContent = mutation instanceof Put put ? put.content() : null;
             blobEffects.execute(plan, putContent);
             mutationRepository.finalizeSuccess(
                     executionIntent,
@@ -542,9 +572,19 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
 
     @Override
     public ProviderReadiness readiness() {
-        return configured()
-                ? ProviderReadiness.ready("files-native-ready")
-                : ProviderReadiness.degraded("files-native-blob-store-not-configured");
+        if (!configured()) {
+            return ProviderReadiness.degraded("files-native-blob-store-not-configured");
+        }
+        if (contentStore == null || !contentIntegrityHealthy.get()) {
+            return ProviderReadiness.degraded("files-native-streaming-not-ready");
+        }
+        try {
+            contentStore.requireStreamingReady();
+            contentStore.contentProfile();
+            return ProviderReadiness.ready("files-native-ready");
+        } catch (RuntimeException unavailable) {
+            return ProviderReadiness.degraded("files-native-streaming-not-ready");
+        }
     }
 
     @Override
@@ -561,7 +601,9 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
                         "copy",
                         "move",
                         "versions",
-                        "locks"),
+                        "locks",
+                        "files.content_streaming_read",
+                        "files.content_streaming_write"),
                 Map.of(
                         "canonicalId", MappingClass.PORTABLE,
                         "path", MappingClass.PORTABLE,
@@ -577,24 +619,25 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
 
     @Override public VersionedListing list(FilePath path) { throw unscoped(); }
     @Override public Optional<VersionedFile> find(FilePath path) { throw unscoped(); }
-    @Override public FileContent read(FileId id) { throw unscoped(); }
-    @Override public FileObject write(FileWrite write) { throw unscoped(); }
     @Override public FileObject createCollection(FilePath path) { throw unscoped(); }
     @Override public FileObject copy(FilePath source, FilePath destination, boolean overwrite) { throw unscoped(); }
     @Override public FileObject move(FilePath source, FilePath destination, boolean overwrite) { throw unscoped(); }
     @Override public void delete(FilePath path, FileVersion expectedVersion) { throw unscoped(); }
-
-    public void readTo(FilesRequestScope scope, FileId id, OutputStream target) {
-        try {
-            queries.readTo(queryScope(scope), id, target);
-        } catch (FilesApplicationException exception) {
-            throw queryFailure(exception, "read-stream");
+    @Override public ContentProfile contentProfile() { return requireContentStore().contentProfile(); }
+    @Override public void requireStreamingReady() {
+        if (!contentIntegrityHealthy.get()) {
+            throw new IllegalStateException("native Files content integrity is not ready");
         }
+        requireContentStore().requireStreamingReady();
     }
+    @Override public Ingress receive(Long declaredLength, String mediaType, StreamFactory requestBody) { throw unscoped(); }
+    @Override public VerifiedFileRead inspect(FilePath path) { throw unscoped(); }
+    @Override public Egress verify(VerifiedFileRead read) { throw unscoped(); }
 
     public ReconciliationReport reconcile(FilesRequestScope scope) {
         try {
             CanonicalFilesQueries.ReconciliationReport report = queries.reconcile(queryScope(scope));
+            contentIntegrityHealthy.set(report.inconsistentMetadataRecords() == 0);
             return new ReconciliationReport(
                     report.activeMetadataRecords(),
                     report.inventoriedBlobs(),
@@ -628,20 +671,29 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
         }
     }
 
-    private FileContent read(FilesRequestScope scope, FileId id) {
+    private VerifiedFileRead inspect(FilesRequestScope scope, FilePath path) {
+        requireContentStore();
         try {
-            return queries.read(queryScope(scope), id);
+            return queries.openRead(queryScope(scope), path);
         } catch (FilesApplicationException exception) {
-            throw queryFailure(exception, "read");
+            if (exception.code() == FilesApplicationException.Code.CONTENT_INTEGRITY_FAILED
+                    || exception.code() == FilesApplicationException.Code.INVALID_BLOB_REFERENCE) {
+                contentIntegrityHealthy.set(false);
+                throw unavailable(
+                        "file-content-integrity-unavailable",
+                        "The native Files content snapshot could not be verified.");
+            }
+            throw queryFailure(exception, "read-snapshot");
         }
     }
 
-    private FileObject write(FilesRequestScope scope, FileWrite write) {
-        try {
-            return commands.write(commandScope(scope), write);
-        } catch (FilesCommandException exception) {
-            throw commandFailure(exception);
+    private NativeFilesContentStore requireContentStore() {
+        if (contentStore == null) {
+            throw unavailable(
+                    "files-streaming-not-supported",
+                    "The native Files bounded-content store is unavailable.");
         }
+        return contentStore;
     }
 
     private FileObject createCollection(FilesRequestScope scope, FilePath path) {
@@ -808,7 +860,7 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
                         "diagnosticsRedacted", true));
     }
 
-    private final class Scoped implements FilesProviderPort {
+    private final class Scoped implements FilesProviderPort, FilesStreamingContentPort {
         private final FilesRequestScope scope;
 
         private Scoped(FilesRequestScope scope) {
@@ -821,11 +873,29 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort, NativeF
         @Override public ProviderConformanceProfile conformanceProfile() { return WeaveNativeFilesAdapter.this.conformanceProfile(); }
         @Override public VersionedListing list(FilePath path) { return WeaveNativeFilesAdapter.this.list(scope, path); }
         @Override public Optional<VersionedFile> find(FilePath path) { return WeaveNativeFilesAdapter.this.find(scope, path); }
-        @Override public FileContent read(FileId id) { return WeaveNativeFilesAdapter.this.read(scope, id); }
-        @Override public FileObject write(FileWrite write) { return WeaveNativeFilesAdapter.this.write(scope, write); }
         @Override public FileObject createCollection(FilePath path) { return WeaveNativeFilesAdapter.this.createCollection(scope, path); }
         @Override public FileObject copy(FilePath source, FilePath destination, boolean overwrite) { return WeaveNativeFilesAdapter.this.copy(scope, source, destination, overwrite); }
         @Override public FileObject move(FilePath source, FilePath destination, boolean overwrite) { return WeaveNativeFilesAdapter.this.move(scope, source, destination, overwrite); }
         @Override public void delete(FilePath path, FileVersion expectedVersion) { WeaveNativeFilesAdapter.this.delete(scope, path, expectedVersion); }
+        @Override public ContentProfile contentProfile() { return requireContentStore().contentProfile(); }
+        @Override public void requireStreamingReady() {
+            WeaveNativeFilesAdapter.this.requireStreamingReady();
+        }
+        @Override public Ingress receive(Long declaredLength, String mediaType, StreamFactory requestBody) {
+            return requireContentStore().receive(declaredLength, mediaType, requestBody);
+        }
+        @Override public VerifiedFileRead inspect(FilePath path) {
+            return WeaveNativeFilesAdapter.this.inspect(scope, path);
+        }
+        @Override public Egress verify(VerifiedFileRead read) {
+            try {
+                return requireContentStore().verify(read);
+            } catch (ApiErrorException failure) {
+                if ("file-content-integrity-unavailable".equals(failure.code())) {
+                    contentIntegrityHealthy.set(false);
+                }
+                throw failure;
+            }
+        }
     }
 }
