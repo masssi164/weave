@@ -13,6 +13,7 @@ import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -134,19 +135,12 @@ public final class FilesystemBlobStore implements BlobStorePort {
                 return verifyExisting(scope, key, reference, actualDigest, transferred);
             }
 
-            try (InputStream verifiedPayload = Files.newInputStream(spool);
-                 OutputStream staging = operator.createOutputStream(temporary)) {
-                long staged = BlobStorePort.transferBounded(
-                        verifiedPayload,
-                        staging,
-                        maximumBlobBytes);
-                if (staged != transferred) {
-                    throw error(
-                            HttpStatus.CONFLICT,
-                            "files-native-blob-size-mismatch",
-                            "The native Files blob size changed before publication.");
-                }
-            }
+            Path pending = stagingPathForTest(stagingId + ".pending");
+            Files.move(spool, pending, StandardCopyOption.ATOMIC_MOVE);
+            spool = null;
+            enforcePermissions(pending, FILE_PERMISSIONS);
+            durabilitySync.force(pending);
+            syncStagingDirectoryIfPresent();
             try {
                 operator.rename(temporary, key);
             } catch (OpenDALException concurrentPublish) {

@@ -240,6 +240,18 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
+    void filesystemBlobPublicationAvoidsTheUnsafeOpenDalOutputStreamJniPath()
+            throws IOException {
+        JavaSource blobStore = sourceEndingWith(Path.of(
+                "service", "files", "FilesystemBlobStore.java"));
+
+        assertThat(blobStore.text())
+                .contains("StandardCopyOption.ATOMIC_MOVE")
+                .contains("operator.rename(temporary, key)")
+                .doesNotContain("operator.createOutputStream");
+    }
+
+    @Test
     void retiredApplicationCompatibilityRoutesAndConfigurationFallbacksStayAbsent()
             throws IOException {
         assertThat(sourceEndingWith(Path.of("controller", "WorkspaceController.java")).text())
