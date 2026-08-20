@@ -56,6 +56,9 @@ jobs:
             --tests 'com.massimotter.weave.backend.matrix.MatrixE2eeStateServiceSignatureMergeTest' \
             --tests 'com.massimotter.weave.backend.matrix.MatrixE2eeStateServiceSyncSnapshotTest' \
             --tests 'com.massimotter.weave.backend.service.files.WeaveNativeFilesAdapterTest' \
+            --tests 'com.massimotter.weave.backend.config.RelationalProfileGuardTest' \
+            --tests 'com.massimotter.weave.backend.config.ServingFlywayAuthorityTest' \
+            --tests 'com.massimotter.weave.backend.config.ServingFlywayOverrideStartupTest' \
             --tests 'com.massimotter.weave.backend.schema.*'
       - name: PostgreSQL schema-authority and canonical recovery qualification
         run: |
@@ -77,6 +80,12 @@ jobs:
           ! grep -R --line-number 'public\.' server/src/main/resources/db/migration
 
           # Production schema authority must remain Flyway-only and fail closed.
+          grep -q 'enabled:[[:space:]]*false' server/src/main/resources/application-base.yml
+          grep -q 'baselineOnMigrate(false)' server/src/main/java/com/massimotter/weave/backend/schema/SchemaAuthorityInitializer.java
+          grep -q 'cleanDisabled(true)' server/src/main/java/com/massimotter/weave/backend/schema/SchemaAuthorityInitializer.java
+          grep -q 'outOfOrder(false)' server/src/main/java/com/massimotter/weave/backend/schema/SchemaAuthorityInitializer.java
+          grep -q 'validateOnMigrate(true)' server/src/main/java/com/massimotter/weave/backend/schema/SchemaAuthorityInitializer.java
+          grep -q 'validateMigrationNaming(true)' server/src/main/java/com/massimotter/weave/backend/schema/SchemaAuthorityInitializer.java
           ! grep -R --line-number -E 'baselineOnMigrate\(true\)|cleanDisabled\(false\)' server/src/main/java
           ! grep -R --line-number -E 'ddl-auto[=:][[:space:]]*(update|create|create-drop)' \
             server/src/main/resources/application.yml \
