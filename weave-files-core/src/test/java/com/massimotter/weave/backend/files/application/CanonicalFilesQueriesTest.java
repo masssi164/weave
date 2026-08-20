@@ -19,9 +19,12 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
+import com.massimotter.weave.backend.files.port.BlobStorePort.ContentTargetUnavailableException;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.StoredFileRecord;
 import com.massimotter.weave.backend.files.port.StoredFileRecord.BlobBinding;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Instant;
@@ -79,21 +82,101 @@ class CanonicalFilesQueriesTest {
         assertEquals(1, docs.listing().children().size());
         assertEquals(file.metadata().object().id(), docs.listing().children().getFirst().id());
         assertTrue(queries.find(SCOPE, file.metadata().object().path()).isPresent());
-        assertArrayEquals(content, queries.read(SCOPE, file.metadata().object().id()).bytes());
+        assertArrayEquals(content, read(file.metadata().object().id()));
+    }
+
+    @Test
+    void exactReadSnapshotUsesOneObservationAndInspectionOpensNoBlob() {
+        var read = queries.openRead(SCOPE, file.metadata().object().id());
+
+        assertEquals(1, authority.idReads);
+        assertEquals(0, blobs.readCalls);
+        assertEquals(content.length, read.headers().contentLength());
+        assertEquals("text/plain", read.headers().contentType());
+        assertEquals("no-transform", read.headers().cacheControl());
+        assertEquals(
+                FilesEtags.strong(file.metadata().object(), file.metadata().version()),
+                read.headers().strongEtag());
+
+        byte[] replacement = "newer-content".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String replacementDigest = FilesDigests.sha256(replacement);
+        StoredFileRecord newer = record(
+                file.metadata().object().id().value(),
+                file.metadata().object().path().value(),
+                Kind.FILE,
+                replacement.length,
+                replacementDigest,
+                "v1/readme/newer-blob",
+                replacementDigest);
+        authority.records.remove(file);
+        authority.records.add(newer);
+        blobs.values.put(new BlobStorePort.BlobReference("v1/readme/newer-blob"), replacement);
+
+        ByteArrayOutputStream target = new ByteArrayOutputStream();
+        read.transferTo(target);
+
+        assertArrayEquals(content, target.toByteArray());
+        assertEquals(1, authority.idReads);
+        assertEquals(1, blobs.readCalls);
+        assertEquals(
+                FilesEtags.strong(file.metadata().object(), file.metadata().version()),
+                read.headers().strongEtag());
+    }
+
+    @Test
+    void pathSelectedReadUsesOneObservationAndInspectionOpensNoBlob() {
+        var read = queries.openRead(SCOPE, file.metadata().object().path());
+
+        assertEquals(1, authority.pathReads);
+        assertEquals(0, authority.idReads);
+        assertEquals(0, blobs.readCalls);
+
+        ByteArrayOutputStream target = new ByteArrayOutputStream();
+        read.transferTo(target);
+
+        assertArrayEquals(content, target.toByteArray());
+        assertEquals(1, authority.pathReads);
+        assertEquals(0, authority.idReads);
+        assertEquals(1, blobs.readCalls);
     }
 
     @Test
     void emitsCanonicalFailuresForMissingAndCorruptContent() {
         FilesApplicationException missing = assertThrows(
                 FilesApplicationException.class,
-                () -> queries.read(SCOPE, new FileId("missing-file")));
+                () -> read(new FileId("missing-file")));
         assertEquals(NOT_FOUND, missing.code());
 
         blobs.values.put(new BlobStorePort.BlobReference("v1/readme/blob"), "corrupt".getBytes());
         FilesApplicationException corrupt = assertThrows(
                 FilesApplicationException.class,
-                () -> queries.read(SCOPE, file.metadata().object().id()));
+                () -> read(file.metadata().object().id()));
         assertEquals(CONTENT_INTEGRITY_FAILED, corrupt.code());
+    }
+
+    @Test
+    void verifiedReadRejectsShortOversizedAndSameSizeDigestInvalidContent() {
+        assertReadIntegrityFailure(java.util.Arrays.copyOf(content, content.length - 1));
+        assertReadIntegrityFailure(java.util.Arrays.copyOf(content, content.length + 1));
+        byte[] wrongDigest = content.clone();
+        wrongDigest[0] ^= 1;
+        assertReadIntegrityFailure(wrongDigest);
+    }
+
+    @Test
+    void preservesContentTargetUnavailabilityWithoutRelabelingItAsIntegrityFailure() {
+        IOException targetFailure = new IOException("private target detail");
+        ContentTargetUnavailableException failure = assertThrows(
+                ContentTargetUnavailableException.class,
+                () -> queries.openRead(SCOPE, file.metadata().object().id())
+                        .transferTo(new OutputStream() {
+                            @Override
+                            public void write(int value) throws IOException {
+                                throw targetFailure;
+                            }
+                        }));
+
+        assertEquals(targetFailure, failure.getCause());
     }
 
     @Test
@@ -106,7 +189,7 @@ class CanonicalFilesQueriesTest {
 
         FilesApplicationException invalid = assertThrows(
                 FilesApplicationException.class,
-                () -> queries.read(SCOPE, unsafe.metadata().object().id()));
+                () -> read(unsafe.metadata().object().id()));
 
         assertEquals(INVALID_BLOB_REFERENCE, invalid.code());
         assertEquals(0, blobs.readCalls);
@@ -121,7 +204,7 @@ class CanonicalFilesQueriesTest {
 
         FilesApplicationException invalid = assertThrows(
                 FilesApplicationException.class,
-                () -> queries.read(SCOPE, missingBinding.metadata().object().id()));
+                () -> read(missingBinding.metadata().object().id()));
 
         assertEquals(INVALID_BLOB_REFERENCE, invalid.code());
         assertEquals(0, blobs.readCalls);
@@ -217,8 +300,25 @@ class CanonicalFilesQueriesTest {
                 opaqueReference == null ? null : new BlobBinding(opaqueReference));
     }
 
+    private void assertReadIntegrityFailure(byte[] actual) {
+        blobs.values.put(new BlobStorePort.BlobReference("v1/readme/blob"), actual);
+        FilesApplicationException failure = assertThrows(
+                FilesApplicationException.class,
+                () -> queries.openRead(SCOPE, file.metadata().object().id())
+                        .transferTo(new ByteArrayOutputStream()));
+        assertEquals(CONTENT_INTEGRITY_FAILED, failure.code());
+    }
+
+    private byte[] read(FileId id) {
+        ByteArrayOutputStream target = new ByteArrayOutputStream();
+        queries.openRead(SCOPE, id).transferTo(target);
+        return target.toByteArray();
+    }
+
     private static final class InMemoryAuthority implements FilesAuthorityRepository {
         private final List<StoredFileRecord> records = new ArrayList<>();
+        private int idReads;
+        private int pathReads;
 
         @Override
         public StoredFileRecord save(StoredFileRecord record) {
@@ -233,6 +333,7 @@ class CanonicalFilesQueriesTest {
                 String organizationRef,
                 String spaceRef,
                 FilePath path) {
+            pathReads++;
             return records.stream().filter(record -> matches(record, organizationRef, spaceRef)
                     && record.metadata().object().path().equals(path)).findFirst();
         }
@@ -242,6 +343,7 @@ class CanonicalFilesQueriesTest {
                 String organizationRef,
                 String spaceRef,
                 FileId id) {
+            idReads++;
             return records.stream().filter(record -> matches(record, organizationRef, spaceRef)
                     && record.metadata().object().id().equals(id)).findFirst();
         }
@@ -367,7 +469,7 @@ class CanonicalFilesQueriesTest {
             try {
                 target.write(bytes);
             } catch (java.io.IOException exception) {
-                throw new IllegalStateException(exception);
+                throw new ContentTargetUnavailableException(exception);
             }
         }
 

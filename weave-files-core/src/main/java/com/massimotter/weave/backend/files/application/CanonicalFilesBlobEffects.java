@@ -9,8 +9,10 @@ import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.OperationKind;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Sealed;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Target;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import com.massimotter.weave.backend.files.port.ReplayableFileContent;
+import com.massimotter.weave.backend.files.port.ReplayableFileContent.ContentMismatchException;
+import com.massimotter.weave.backend.files.port.ReplayableFileContent.ExactInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -27,7 +29,7 @@ public final class CanonicalFilesBlobEffects {
         this.blobs = Objects.requireNonNull(blobs, "blobs must not be null");
     }
 
-    public List<BlobReceipt> execute(Sealed plan, byte[] putContent) {
+    public List<BlobReceipt> execute(Sealed plan, ReplayableFileContent putContent) {
         Sealed required = Objects.requireNonNull(plan, "plan must not be null");
         return switch (required.operationKind()) {
             case PUT -> put(required, putContent);
@@ -36,7 +38,7 @@ public final class CanonicalFilesBlobEffects {
         };
     }
 
-    private List<BlobReceipt> put(Sealed plan, byte[] supplied) {
+    private List<BlobReceipt> put(Sealed plan, ReplayableFileContent supplied) {
         List<Target> files = plan.targets().stream()
                 .filter(target -> target.objectKind() == Kind.FILE
                         && (target.changeKind() == ChangeKind.CREATED
@@ -45,9 +47,11 @@ public final class CanonicalFilesBlobEffects {
         if (files.size() != 1) {
             throw new BlobEffectException("a PUT plan must contain exactly one file result");
         }
-        byte[] content = supplied == null ? new byte[0] : supplied.clone();
+        ReplayableFileContent content = Objects.requireNonNull(
+                supplied,
+                "a PUT blob effect requires replayable content");
         Target target = files.getFirst();
-        verify(content, target.resultSize(), target.resultContentDigest());
+        verifyDescriptor(content, target);
         Optional<BlobReceipt> existing = existing(plan, target);
         if (existing.isPresent()) {
             return List.of(existing.get());
@@ -71,17 +75,26 @@ public final class CanonicalFilesBlobEffects {
                     || target.sourceContentDigest() == null) {
                 throw new BlobEffectException("a copied file is missing its protected source snapshot");
             }
-            ByteArrayOutputStream content = new ByteArrayOutputStream(
-                    Math.toIntExact(Math.min(target.sourceSize(), Integer.MAX_VALUE)));
-            blobs.readStream(
-                    scope(plan),
-                    reference(target.sourceReadBlobBinding()),
-                    content);
-            byte[] verified = content.toByteArray();
-            verify(verified, target.sourceSize(), target.sourceContentDigest());
-            receipts.add(publish(plan, target, verified));
+            receipts.add(copy(plan, target));
         }
         return List.copyOf(receipts);
+    }
+
+    private BlobReceipt copy(Sealed plan, Target target) {
+        try {
+            return BoundedBlobTransfer.copy(
+                    blobs,
+                    scope(plan),
+                    reference(target.sourceReadBlobBinding()),
+                    reference(target.resultBlobBinding()),
+                    target.sourceSize(),
+                    target.sourceContentDigest(),
+                    target.sourceMediaType() == null
+                            ? "application/octet-stream"
+                            : target.sourceMediaType());
+        } catch (BoundedBlobTransfer.TransferException failure) {
+            throw new BlobEffectException("the protected COPY source could not be streamed", failure);
+        }
     }
 
     private Optional<BlobReceipt> existing(Sealed plan, Target target) {
@@ -97,26 +110,52 @@ public final class CanonicalFilesBlobEffects {
         return receipt;
     }
 
-    private BlobReceipt publish(Sealed plan, Target target, byte[] content) {
-        BlobReceipt receipt = blobs.putStream(
-                scope(plan),
-                reference(target.resultBlobBinding()),
-                new ByteArrayInputStream(content),
-                target.resultSize(),
-                target.resultContentDigest());
-        if (receipt.size() != target.resultSize()
-                || !constantTime(receipt.digest(), target.resultContentDigest())
-                || !receipt.reference().value().equals(target.resultBlobBinding())) {
-            throw new BlobEffectException("the blob receipt does not match the sealed Files plan");
+    private BlobReceipt publish(
+            Sealed plan,
+            Target target,
+            ReplayableFileContent content) {
+        verifyDescriptor(content, target);
+        try (ExactInputStream source = content.openStream()) {
+            BlobReceipt receipt = blobs.putStream(
+                    scope(plan),
+                    reference(target.resultBlobBinding()),
+                    source,
+                    target.resultSize(),
+                    target.resultContentDigest());
+            source.requireComplete();
+            if (receipt.size() != target.resultSize()
+                    || !constantTime(receipt.digest(), target.resultContentDigest())
+                    || !receipt.reference().value().equals(target.resultBlobBinding())) {
+                throw new BlobEffectException("the blob receipt does not match the sealed Files plan");
+            }
+            return receipt;
+        } catch (IOException failure) {
+            throw new BlobEffectException("the supplied Files content does not match the sealed plan", failure);
+        } catch (RuntimeException failure) {
+            if (causedByContentMismatch(failure)) {
+                throw new BlobEffectException(
+                        "the supplied Files content does not match the sealed plan",
+                        failure);
+            }
+            throw failure;
         }
-        return receipt;
     }
 
-    private void verify(byte[] content, long expectedSize, String expectedDigest) {
-        String actual = FilesDigests.sha256(content);
-        if (content.length != expectedSize || !constantTime(actual, expectedDigest)) {
+    private void verifyDescriptor(ReplayableFileContent content, Target target) {
+        if (content.sizeBytes() != target.resultSize()
+                || !constantTime(content.sha256Digest(), target.resultContentDigest())
+                || !Objects.equals(content.mediaType(), target.resultMediaType())) {
             throw new BlobEffectException("the supplied Files content does not match the sealed plan");
         }
+    }
+
+    private boolean causedByContentMismatch(Throwable failure) {
+        for (Throwable current = failure; current != null && current != current.getCause(); current = current.getCause()) {
+            if (current instanceof ContentMismatchException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean constantTime(String left, String right) {

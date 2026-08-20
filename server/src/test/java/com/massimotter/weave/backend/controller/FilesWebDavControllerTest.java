@@ -8,20 +8,24 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.files.port.FilesStreamingContentPort.Egress;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.security.device.DeviceCredentialService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
-import com.massimotter.weave.backend.service.files.DownloadedFile;
+import com.massimotter.weave.backend.service.files.WebDavFileRead;
 import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
+import com.massimotter.weave.backend.service.files.WebDavPutRequest;
 import com.massimotter.weave.backend.service.files.WebDavSearchRequest;
 import com.massimotter.weave.backend.service.files.WebDavSearchResult;
+import java.io.ByteArrayInputStream;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -39,6 +43,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
@@ -214,9 +221,12 @@ class FilesWebDavControllerTest {
     @Test
     void getDownloadsFileThroughFacadePath() throws Exception {
         // FILES_WEBDAV_GET_HEAD_FACADE
-        given(filesFacadeService.downloadWebDavPath("/Team/readme one.md"))
-                .willReturn(new DownloadedFile("readme one.md", "text/markdown", "hello".getBytes()));
-        given(filesFacadeService.etagFor("/Team/readme one.md")).willReturn("\"etag-readme\"");
+        given(filesFacadeService.openWebDavPath("/Team/readme one.md"))
+                .willReturn(webDavRead(
+                        "readme one.md",
+                        "text/markdown",
+                        "\"etag-readme\"",
+                        "hello".getBytes()));
 
         mockMvc.perform(get("/dav/files/Team/readme one.md")
                         .with(workspaceJwt()))
@@ -235,6 +245,53 @@ class FilesWebDavControllerTest {
                 .andExpect(header().string(HttpHeaders.ETAG, "\"etag-readme\""))
                 .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-transform"))
                 .andExpect(content().bytes(new byte[0]));
+    }
+
+    @Test
+    void readConditionsPrecedeTheSnapshotBoundAndExactMediaTypeIsPreserved() throws Exception {
+        java.util.concurrent.atomic.AtomicBoolean prepared = new java.util.concurrent.atomic.AtomicBoolean();
+        WebDavFileRead oversized = new WebDavFileRead(
+                "mixed.txt",
+                5,
+                "Text/Plain; Charset=\"UTF-8\"",
+                "\"etag-mixed\"",
+                "no-transform",
+                4,
+                () -> {
+                    prepared.set(true);
+                    throw new AssertionError("oversized or conditional reads must not prepare egress");
+                });
+        given(filesFacadeService.openWebDavPath("/Team/mixed.txt")).willReturn(oversized);
+
+        mockMvc.perform(get("/dav/files/Team/mixed.txt")
+                        .header(HttpHeaders.IF_NONE_MATCH, "W/\"etag-mixed\"")
+                        .with(workspaceJwt()))
+                .andExpect(status().isNotModified())
+                .andExpect(header().string(HttpHeaders.ETAG, "\"etag-mixed\""));
+        mockMvc.perform(request(HttpMethod.HEAD, "/dav/files/Team/mixed.txt")
+                        .header(HttpHeaders.IF_MATCH, "\"different\"")
+                        .with(workspaceJwt()))
+                .andExpect(status().isPreconditionFailed());
+        mockMvc.perform(request(HttpMethod.HEAD, "/dav/files/Team/mixed.txt")
+                        .with(workspaceJwt()))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string(
+                        "X-Weave-Error-Code", "files-streaming-capacity-unavailable"));
+        org.assertj.core.api.Assertions.assertThat(prepared.get()).isFalse();
+
+        given(filesFacadeService.openWebDavPath("/Team/exact-media.txt"))
+                .willReturn(webDavRead(
+                        "exact-media.txt",
+                        "Text/Plain; Charset=\"UTF-8\"",
+                        "\"etag-exact-media\"",
+                        "hello".getBytes()));
+        mockMvc.perform(get("/dav/files/Team/exact-media.txt")
+                        .header(HttpHeaders.IF_MATCH, "\"other\"", "\"etag-exact-media\"")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CONTENT_TYPE,
+                        "Text/Plain; Charset=\"UTF-8\""));
     }
 
     @Test
@@ -257,13 +314,13 @@ class FilesWebDavControllerTest {
                         "files-forbidden",
                         "Files access is not allowed for this Context/Space.",
                         Map.of("module", "files", "operation", "webdav-propfind")));
-        given(filesFacadeService.downloadWebDavPath("/Missing.md"))
+        given(filesFacadeService.openWebDavPath("/Missing.md"))
                 .willThrow(new ApiErrorException(
                         HttpStatus.NOT_FOUND,
                         "file-not-found",
                         "The requested file or folder was not found.",
                         Map.of("module", "files", "operation", "download-file")));
-        given(filesFacadeService.downloadWebDavPath("/Locked.md"))
+        given(filesFacadeService.openWebDavPath("/Locked.md"))
                 .willThrow(new ApiErrorException(
                         HttpStatus.CONFLICT,
                         "file-conflict",
@@ -291,18 +348,18 @@ class FilesWebDavControllerTest {
     void putMkcolAndDeleteUseWebDavFacadeWriteUseCases() throws Exception {
         // FILES_WEBDAV_PUT_MKCOL_DELETE_FACADE
         given(filesFacadeService.putWebDavFile(
-                "/Team/readme.md",
-                "new".getBytes(),
-                "text/markdown",
-                "\"etag-old\"",
-                null,
-                null,
-                "files-put-idempotency-0001"))
+                eq("/Team/readme.md"),
+                any(WebDavPutRequest.class),
+                eq("\"etag-older\",\"etag-old\""),
+                isNull(),
+                isNull(),
+                eq("files-put-idempotency-0001")))
                 .willReturn(new WebDavMutationResult(
                         file("/Team/readme.md", "text/markdown", 3L),
                         "\"etag-new\"",
                         false));
-        given(filesFacadeService.createWebDavFolder("/Team/Design", null, "*", null, null))
+        given(filesFacadeService.createWebDavFolder(
+                "/Team/Design", null, "\"missing-a\",\"missing-b\"", null, null))
                 .willReturn(new WebDavMutationResult(
                         folder("/Team/Design"),
                         "\"etag-folder\"",
@@ -311,7 +368,7 @@ class FilesWebDavControllerTest {
         mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/dav/files/Team/readme.md")
                         .content("new")
                         .contentType("text/markdown")
-                        .header(HttpHeaders.IF_MATCH, "\"etag-old\"")
+                        .header(HttpHeaders.IF_MATCH, "\"etag-older\"", "\"etag-old\"")
                         .header("Idempotency-Key", "files-put-idempotency-0001")
                         .with(workspaceJwt()))
                 .andExpect(status().isNoContent())
@@ -319,41 +376,51 @@ class FilesWebDavControllerTest {
                 .andExpect(header().string(HttpHeaders.LOCATION, "/dav/files/Team/readme.md"));
 
         mockMvc.perform(request(HttpMethod.valueOf("MKCOL"), "/dav/files/Team/Design")
-                        .header(HttpHeaders.IF_NONE_MATCH, "*")
+                        .header(HttpHeaders.IF_NONE_MATCH, "\"missing-a\"")
+                        .header(HttpHeaders.IF_NONE_MATCH, "\"missing-b\"")
                         .with(workspaceJwt()))
                 .andExpect(status().isCreated())
                 .andExpect(header().string(HttpHeaders.ETAG, "\"etag-folder\""))
                 .andExpect(header().string(HttpHeaders.LOCATION, "/dav/files/Team/Design/"));
 
         mockMvc.perform(request(HttpMethod.valueOf("DELETE"), "/dav/files/Team/old.md")
+                        .header(HttpHeaders.IF_MATCH, "\"etag-older\"")
                         .header(HttpHeaders.IF_MATCH, "\"etag-old\"")
                         .with(workspaceJwt()))
                 .andExpect(status().isNoContent());
 
+        ArgumentCaptor<WebDavPutRequest> putRequest = ArgumentCaptor.forClass(WebDavPutRequest.class);
         then(filesFacadeService).should().putWebDavFile(
-                "/Team/readme.md",
-                "new".getBytes(),
-                "text/markdown",
-                "\"etag-old\"",
-                null,
-                null,
-                "files-put-idempotency-0001");
-        then(filesFacadeService).should().createWebDavFolder("/Team/Design", null, "*", null, null);
+                eq("/Team/readme.md"),
+                putRequest.capture(),
+                eq("\"etag-older\",\"etag-old\""),
+                isNull(),
+                isNull(),
+                eq("files-put-idempotency-0001"));
+        org.assertj.core.api.Assertions.assertThat(putRequest.getValue().contentTypeFields())
+                .singleElement()
+                .asString()
+                .startsWith("text/markdown");
+        try (var source = putRequest.getValue().requestBody().openStream()) {
+            org.assertj.core.api.Assertions.assertThat(source.readAllBytes())
+                    .isEqualTo("new".getBytes());
+        }
+        then(filesFacadeService).should().createWebDavFolder(
+                "/Team/Design", null, "\"missing-a\",\"missing-b\"", null, null);
         then(filesFacadeService).should().deleteWebDavPath(
-                "/Team/old.md", "\"etag-old\"", null, null, null);
+                "/Team/old.md", "\"etag-older\",\"etag-old\"", null, null, null);
     }
 
     @Test
     void preconditionFailuresReturnStableWebDavErrorWithoutProviderLeakage() throws Exception {
         // FILES_WEBDAV_PRECONDITION_FACADE
         given(filesFacadeService.putWebDavFile(
-                "/Team/readme.md",
-                "new".getBytes(),
-                "text/markdown",
-                null,
-                "*",
-                null,
-                null))
+                eq("/Team/readme.md"),
+                any(WebDavPutRequest.class),
+                isNull(),
+                eq("*"),
+                isNull(),
+                isNull()))
                 .willThrow(new ApiErrorException(
                         HttpStatus.PRECONDITION_FAILED,
                         "files-precondition-failed",
@@ -379,7 +446,7 @@ class FilesWebDavControllerTest {
                 "/Team/readme.md",
                 "/Team/readme-copy.md",
                 false,
-                "\"etag-readme\"",
+                "\"etag-readme-older\",\"etag-readme\"",
                 null,
                 null,
                 null))
@@ -392,7 +459,7 @@ class FilesWebDavControllerTest {
                 "/Archive/readme.md",
                 true,
                 null,
-                null,
+                "\"missing-a\",\"missing-b\"",
                 null,
                 null))
                 .willReturn(new WebDavMutationResult(
@@ -405,6 +472,7 @@ class FilesWebDavControllerTest {
         mockMvc.perform(request(HttpMethod.valueOf("COPY"), "/dav/files/Team/readme.md")
                         .header("Destination", "https://api.weave.test/dav/files/Team/readme-copy.md")
                         .header("Overwrite", "F")
+                        .header(HttpHeaders.IF_MATCH, "\"etag-readme-older\"")
                         .header(HttpHeaders.IF_MATCH, "\"etag-readme\"")
                         .with(workspaceJwt()))
                 .andExpect(status().isCreated())
@@ -413,6 +481,8 @@ class FilesWebDavControllerTest {
 
         mockMvc.perform(request(HttpMethod.valueOf("MOVE"), "/dav/files/Team/readme.md")
                         .header("Destination", "/dav/files/Archive/readme.md")
+                        .header(HttpHeaders.IF_NONE_MATCH, "\"missing-a\"")
+                        .header(HttpHeaders.IF_NONE_MATCH, "\"missing-b\"")
                         .with(workspaceJwt()))
                 .andExpect(status().isNoContent())
                 .andExpect(header().string(HttpHeaders.ETAG, "\"etag-move\""))
@@ -434,7 +504,7 @@ class FilesWebDavControllerTest {
                 "/Team/readme.md",
                 "/Team/readme-copy.md",
                 false,
-                "\"etag-readme\"",
+                "\"etag-readme-older\",\"etag-readme\"",
                 null,
                 null,
                 null);
@@ -443,7 +513,7 @@ class FilesWebDavControllerTest {
                 "/Archive/readme.md",
                 true,
                 null,
-                null,
+                "\"missing-a\",\"missing-b\"",
                 null,
                 null);
         then(filesFacadeService).should().lockWebDavPath("/Team/readme.md", null, null);
@@ -473,13 +543,12 @@ class FilesWebDavControllerTest {
     void quotaExceededMapsTo507WithoutProviderLeakage() throws Exception {
         // FILES_WEBDAV_QUOTA_FACADE
         given(filesFacadeService.putWebDavFile(
-                "/Team/large.bin",
-                new byte[] {1},
-                "application/octet-stream",
-                null,
-                "*",
-                null,
-                null))
+                eq("/Team/large.bin"),
+                any(WebDavPutRequest.class),
+                isNull(),
+                eq("*"),
+                isNull(),
+                isNull()))
                 .willThrow(new ApiErrorException(
                         HttpStatus.INSUFFICIENT_STORAGE,
                         "files-quota-exceeded",
@@ -496,6 +565,53 @@ class FilesWebDavControllerTest {
                 .andExpect(content().string(not(containsString("Nextcloud"))))
                 .andExpect(content().string(not(containsString("remote.php"))))
                 .andExpect(content().string(not(containsString("Bearer"))));
+    }
+
+    @Test
+    void unsupportedPutContentCodingAdvertisesIdentityOnly() throws Exception {
+        given(filesFacadeService.putWebDavFile(
+                eq("/Team/encoded.bin"),
+                any(WebDavPutRequest.class),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull()))
+                .willThrow(new ApiErrorException(
+                        HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                        "files-content-coding-unsupported",
+                        "Files PUT accepts only the identity content coding.",
+                        Map.of("module", "files", "diagnosticsRedacted", true)));
+
+        mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/dav/files/Team/encoded.bin")
+                        .content("encoded")
+                        .contentType("application/octet-stream")
+                        .header(HttpHeaders.CONTENT_ENCODING, "gzip")
+                        .with(workspaceJwt()))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(header().string(HttpHeaders.ACCEPT_ENCODING, "identity"))
+                .andExpect(header().string(
+                        "X-Weave-Error-Code", "files-content-coding-unsupported"));
+    }
+
+    private WebDavFileRead webDavRead(
+            String filename,
+            String mediaType,
+            String etag,
+            byte[] content) {
+        return new WebDavFileRead(
+                filename,
+                content.length,
+                mediaType,
+                etag,
+                "no-transform",
+                () -> new Egress() {
+                    @Override public java.io.InputStream openStream() {
+                        return new ByteArrayInputStream(content);
+                    }
+
+                    @Override public void close() {
+                    }
+                });
     }
 
     private FileItemResponse file(String path, String mimeType, long size) {

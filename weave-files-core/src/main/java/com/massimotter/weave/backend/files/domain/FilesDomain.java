@@ -1,7 +1,6 @@
 package com.massimotter.weave.backend.files.domain;
 
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -156,37 +155,6 @@ public final class FilesDomain {
             childVersions = childVersions == null
                     ? Map.of()
                     : Map.copyOf(new LinkedHashMap<>(childVersions));
-        }
-    }
-
-    public record FileContent(FileObject item, byte[] bytes) {
-        public FileContent {
-            if (item == null || item.kind() != Kind.FILE) {
-                throw new IllegalArgumentException("file content requires a file item");
-            }
-            bytes = bytes == null ? new byte[0] : Arrays.copyOf(bytes, bytes.length);
-        }
-
-        @Override
-        public byte[] bytes() {
-            return Arrays.copyOf(bytes, bytes.length);
-        }
-    }
-
-    public record FileWrite(FilePath path, byte[] bytes, String mediaType) {
-        public FileWrite {
-            if (path == null || path.root()) {
-                throw new IllegalArgumentException("file write requires a non-root path");
-            }
-            bytes = bytes == null ? new byte[0] : Arrays.copyOf(bytes, bytes.length);
-            mediaType = mediaType == null || mediaType.isBlank()
-                    ? "application/octet-stream"
-                    : mediaType.trim();
-        }
-
-        @Override
-        public byte[] bytes() {
-            return Arrays.copyOf(bytes, bytes.length);
         }
     }
 

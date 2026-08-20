@@ -14,12 +14,15 @@ Feature: Files full WebDAV facade
     Given a file exists behind the Files facade
     When the member sends GET and HEAD through "/dav/files"
     Then content metadata and Weave ETags are returned support-safely
+    And GET streams an exactly verified bounded representation
+    And HEAD and an unchanged conditional read open no content body
 
   @files-webdav-put-create
   Scenario: PUT creates a file with If-None-Match and records audit
     Given no file exists at the target path
-    When the member sends PUT with If-None-Match "*"
+    When the member sends a fixed-length or chunked PUT with If-None-Match "*"
     Then the file is created through the Files facade
+    And invalid framing, unsupported coding, capacity pressure, and oversize fail before mutation
     And attempted and completed audit events are recorded
 
   @files-webdav-put-stale

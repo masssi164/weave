@@ -15,6 +15,7 @@ import com.massimotter.weave.backend.files.application.NativeFilesScopeProvision
 import com.massimotter.weave.backend.files.application.NativeFilesFinalizationAuthorization;
 import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository.CommitOutcome;
 import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository.CommitProbe;
+import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository.RecoveryPage;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
 import com.massimotter.weave.backend.files.domain.FilesChangeStream.ChangeKind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
@@ -24,6 +25,7 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Sealed;
+import com.massimotter.weave.backend.files.port.FilesMutationPlan.OperationKind;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.ExpectedPresence;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Fence;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.FenceRole;
@@ -44,8 +46,10 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
@@ -420,6 +424,64 @@ public class JpaFilesMutationRepository
                     current,
                     null,
                     null);
+        });
+    }
+
+    @Override
+    public IngressProtection ingressProtection(String operationRef) {
+        String requiredOperationRef = requireText(operationRef, "operationRef");
+        try {
+            return transactions.execute(status -> {
+                boolean planExists = plans.existsById(requiredOperationRef);
+                Optional<OperationIntent> intent = operations.findByOperationRef(requiredOperationRef);
+                if (!planExists && intent.isEmpty()) {
+                    return IngressProtection.UNPROTECTED;
+                }
+                if (!planExists || intent.isEmpty()) {
+                    return IngressProtection.UNAVAILABLE;
+                }
+                return intent.orElseThrow().state().terminal()
+                        ? IngressProtection.UNPROTECTED
+                        : IngressProtection.PROTECTED;
+            });
+        } catch (RuntimeException unavailable) {
+            return IngressProtection.UNAVAILABLE;
+        }
+    }
+
+    @Override
+    public RecoveryPage recoverablePutMutations(String afterOperationRef, int limit) {
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException("recovery limit must be between 1 and 100");
+        }
+        return transactions.execute(status -> {
+            List<String> operationRefs = plans.findRecoverableOperationRefs(
+                        OperationKind.PUT.name(),
+                        NONTERMINAL_INTENT_STATES,
+                        afterOperationRef,
+                        PageRequest.of(0, limit));
+            List<RecoveryCandidate> candidates = new ArrayList<>();
+            for (String operationRef : operationRefs) {
+                try {
+                    OperationIntent intent = operations.findByOperationRef(operationRef)
+                            .orElseThrow(() -> new CorruptFilesMutationException(
+                                    "the Files recovery intent is missing"));
+                    Sealed plan = verifiedStoredPlan(operationRef);
+                    if (intent.state().terminal() || plan.operationKind() != OperationKind.PUT) {
+                        throw new CorruptFilesMutationException(
+                                "the Files recovery candidate changed");
+                    }
+                    candidates.add(new RecoveryCandidate(intent, plan));
+                } catch (NativeFilesMutationRepository.CorruptMutationStateException
+                        | IllegalArgumentException
+                        | IllegalStateException corruptCandidate) {
+                    // Cursor progress comes from the raw page, not only successfully decoded rows.
+                }
+            }
+            return new RecoveryPage(
+                    candidates,
+                    operationRefs.isEmpty() ? null : operationRefs.getLast(),
+                    operationRefs.size());
         });
     }
 

@@ -2,18 +2,18 @@ package com.massimotter.weave.backend.service.files;
 
 import com.massimotter.weave.backend.config.NextcloudFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileListing;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileQuota;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.service.files.UnqualifiedLegacyFilesContentAdapter.LegacyFileContent;
+import com.massimotter.weave.backend.service.files.UnqualifiedLegacyFilesContentAdapter.LegacyFileWrite;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
 import com.massimotter.weave.backend.portability.ProviderCapabilityProbeResult;
@@ -58,7 +58,8 @@ import org.w3c.dom.NodeList;
 
 @Component
 @ConditionalOnProperty(name = "weave.files.provider", havingValue = "nextcloud-webdav")
-public class NextcloudFilesAdapter implements FilesProviderPort {
+public class NextcloudFilesAdapter
+        implements FilesProviderPort, UnqualifiedLegacyFilesContentAdapter {
 
     private static final HttpMethod PROPFIND = HttpMethod.valueOf("PROPFIND");
     private static final HttpMethod MKCOL = HttpMethod.valueOf("MKCOL");
@@ -230,7 +231,7 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
     }
 
     @Override
-    public FileObject write(FileWrite write) {
+    public FileObject writeLegacy(LegacyFileWrite write) {
         ensureConfigured();
         String targetPath = write.path().value();
         byte[] body = write.bytes();
@@ -268,7 +269,7 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
     }
 
     @Override
-    public FileContent read(FileId id) {
+    public LegacyFileContent readLegacy(FileId id) {
         ensureConfigured();
         FilePath path = new FilePath(FilePathCodec.pathFromId(id.value()));
         try {
@@ -280,7 +281,8 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
                             byte[] body = StreamUtils.copyToByteArray(response.getBody());
                             MediaType mediaType = response.getHeaders().getContentType();
                             String contentType = mediaType == null ? MediaType.APPLICATION_OCTET_STREAM_VALUE : mediaType.toString();
-                            return new FileContent(fileObject(path, contentType, body.length, null), body);
+                            return new LegacyFileContent(
+                                    fileObject(path, contentType, body.length, null), body);
                         }
                         throw mapStatus(response.getStatusCode(), "download-file", path.value());
                     });

@@ -78,7 +78,9 @@ def require_read_list_download() -> None:
         'case "GET"',
         'case "HEAD"',
         "filesFacadeService.webDavPropfind(path)",
-        "filesFacadeService.downloadWebDavPath(path)",
+        "filesFacadeService.openWebDavPath(path)",
+        "file.prepareBody()",
+        "InputStreamResource",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
@@ -146,7 +148,6 @@ def require_webdav_write_mvp() -> None:
         "deleteWebDavPath(",
         "FileVersion",
         "VersionedFile",
-        "contentVersionToken(",
         "FILES_WEBDAV_WRITE_ATTEMPTED",
         "FILES_WEBDAV_WRITE_COMPLETED",
         "files-precondition-failed",
@@ -154,28 +155,42 @@ def require_webdav_write_mvp() -> None:
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
-        "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit",
-        "webDavWritePreconditionsFailBeforeStorageMutationButAfterAttemptAudit",
-        "webDavPutResponseEtagChangesForSameSizeOverwriteWhenMetadataDoesNotChange",
+        "unqualifiedContentWriteFailsClosedWhileOtherMutationsKeepTheirAuditContract",
+        "unqualifiedStreamingWriteFailsBeforeOpeningTheRequestBody",
         "FILES_WEBDAV_WRITE_COMPLETED",
-        "files-precondition-failed",
+        "files-streaming-not-supported",
+    )
+    require(
+        "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavRealSocketStreamingTest.java",
+        "realSocketGetStreamsVerifiedContentWhileHeadAndNotModifiedOpenNoBody",
+        "realSocketChunkedPutReachesFacadeAsUnknownLengthAndBoundedReads",
     )
     require(
         "server/src/main/java/com/massimotter/weave/backend/files/port/FilesProviderPort.java",
         "Optional<VersionedFile> find(FilePath path)",
-        "FileObject write(FileWrite write)",
         "FileObject createCollection(FilePath path)",
         "void delete(FilePath path, FileVersion expectedVersion)",
+    )
+    require_absent(
+        "server/src/main/java/com/massimotter/weave/backend/files/port/FilesProviderPort.java",
+        "FileContent",
+        "FileWrite",
     )
     require(
         "server/src/main/java/com/massimotter/weave/backend/service/files/NextcloudFilesAdapter.java",
         "public Optional<VersionedFile> find(FilePath path)",
-        "public FileObject write(FileWrite write)",
+        "public FileObject writeLegacy(LegacyFileWrite write)",
         "public FileObject createCollection(FilePath path)",
         "public void delete(FilePath path, FileVersion expectedVersion)",
         "getetag",
         "HttpMethod.PUT",
         "webdav-put",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/service/files/UnqualifiedLegacyFilesContentAdapter.java",
+        "interface UnqualifiedLegacyFilesContentAdapter",
+        "LegacyFileContent",
+        "LegacyFileWrite",
     )
     require(
         "client/lib/features/files/data/repositories/backend_files_repository.dart",

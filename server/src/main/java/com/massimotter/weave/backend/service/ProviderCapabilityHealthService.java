@@ -4,6 +4,8 @@ import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.chat.port.ChatSouthboundProvider;
 import com.massimotter.weave.backend.config.ProviderHealthProperties;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.files.port.FilesStreamingCapabilityProfile;
+import com.massimotter.weave.backend.files.port.FilesStreamingContentPort;
 import com.massimotter.weave.backend.model.admin.ProviderCapabilityHealthResponse;
 import com.massimotter.weave.backend.portability.ProviderCapabilityProbeResult;
 import com.massimotter.weave.backend.portability.ProviderCapabilityState;
@@ -76,7 +78,7 @@ public class ProviderCapabilityHealthService {
         Map<String, ProbeTarget> configuredTargets = new LinkedHashMap<>();
         configuredTargets.put("files", target(
                 "files",
-                filesProvider == null ? null : filesProvider::healthProbe,
+                filesProvider == null ? null : () -> filesHealthProbe(filesProvider),
                 safelyConfigured(filesProvider),
                 now));
         configuredTargets.put("calendar", target(
@@ -91,6 +93,14 @@ public class ProviderCapabilityHealthService {
                 now));
         this.targets = Collections.unmodifiableMap(configuredTargets);
         this.targets.values().forEach(this::registerGauges);
+    }
+
+    private ProviderCapabilityProbeResult filesHealthProbe(FilesProviderPort provider) {
+        if (!(provider instanceof FilesStreamingContentPort streaming)
+                || !FilesStreamingCapabilityProfile.observe(provider, streaming).qualified()) {
+            return ProviderCapabilityProbeResult.degraded("files-streaming-not-supported");
+        }
+        return provider.healthProbe();
     }
 
     @Scheduled(initialDelay = 1_000, fixedDelay = 5_000)

@@ -1,10 +1,12 @@
 # ADR: OpenDAL as the native Files storage infrastructure adapter
 
-Status: Accepted for the native-provider closure track; readiness remains gated by PR #1325 evidence.
+Status: Accepted for the incremental native-provider closure track under issue #1326.
 
 ## Context
 
-`FilesProviderPort` is the provider-selection boundary. `weave-native` is one Provider Adapter. S3 is a different Provider Adapter and must not become a storage mode of `weave-native`.
+`FilesProviderPort` is the provider-selection boundary. `weave-native` is the canonical Files
+provider adapter. Filesystem and future S3-compatible object storage are infrastructure adapters
+below its `BlobStorePort`; neither is a second Files domain or provider.
 
 Provider selection and technology access are different extension points. The project-wide terminology is defined in [`../provider-and-infrastructure-boundaries.md`](../provider-and-infrastructure-boundaries.md):
 
@@ -20,9 +22,10 @@ The native provider needs private immutable blob storage while Weave owns canoni
 - The native implementation uses the OpenDAL filesystem service.
 - OpenDAL is not a Files provider and does not own canonical Files semantics.
 - OpenDAL types do not leak into `FilesProviderPort`, canonical Files values or member-facing APIs.
-- S3 remains independently selectable behind `FilesProviderPort`.
-- A separate S3 Provider Adapter may itself use OpenDAL's S3 service behind its own Infrastructure Port if its capability and operational requirements are satisfied.
-- Reusing OpenDAL below two Provider Adapters does not collapse those providers into one; the provider boundary is defined above the infrastructure layer.
+- A future S3-compatible `BlobStorePort` adapter may use OpenDAL's S3 service if its capability,
+  immutability, durability and operational requirements are qualified.
+- Changing the infrastructure adapter does not change provider identity, canonical semantics,
+  member paths, authorization, mutation plans or northbound WebDAV contracts.
 - Blob references are opaque and scoped; canonical member paths are not blob keys.
 - PostgreSQL remains canonical for metadata and lifecycle. The native filesystem stores blob bytes only.
 - Publication must be immutable and fail closed when required filesystem/OpenDAL capabilities are unavailable.
@@ -34,10 +37,16 @@ The infrastructure layer is deliberately not called an "access control layer". A
 
 ## Transitional marker
 
-The current application-facing Files API still carries byte-array content objects. This is **not** accepted as proof of bounded streaming for large payloads. PR #1325 may not close the Files acceptance criterion until the northbound/native write and read path has a bounded streaming contract and corresponding tests. This marker must be removed, not merely reworded, when that implementation lands.
+Native WebDAV PUT, GET and HEAD now have the bounded streaming contract and incremental executable
+evidence linked from the canonical native Files architecture page. The canonical Files domain,
+selected provider port, native adapter and BlobStore port expose no whole-representation byte-array
+fallback. Historical external adapters remain explicitly unqualified until they implement the
+same bounded profile. The complete
+authenticated PostgreSQL/blob real-HTTP, two-instance and restart topology remains required before
+issue #1326 can close.
 
 ## Consequences
 
-The native Files provider has no S3 backend switch and no native-S3 tests. S3-provider qualification is separate and cannot be cited as native Files evidence.
-
-OpenDAL may nevertheless be reused as an infrastructure library by the independent S3 provider. Such reuse must remain below the S3 provider boundary and must not introduce S3 configuration or semantics into `weave-native`.
+The initial qualified infrastructure adapter remains OpenDAL filesystem. S3-compatible
+`BlobStorePort` qualification is separate infrastructure work and cannot be inferred from
+filesystem evidence.

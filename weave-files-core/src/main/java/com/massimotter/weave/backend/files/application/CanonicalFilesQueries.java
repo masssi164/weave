@@ -7,7 +7,6 @@ import static com.massimotter.weave.backend.files.application.FilesApplicationEx
 import static com.massimotter.weave.backend.files.application.FilesApplicationException.Code.NOT_FOUND;
 
 import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileListing;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
@@ -20,13 +19,15 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
+import com.massimotter.weave.backend.files.port.BlobStorePort.ContentTargetUnavailableException;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesBlobProtectionPort;
+import com.massimotter.weave.backend.files.port.ReplayableFileContent;
 import com.massimotter.weave.backend.files.port.StoredFileRecord;
-import java.io.ByteArrayOutputStream;
+import com.massimotter.weave.backend.files.port.VerifiedFileRead;
+import com.massimotter.weave.backend.files.port.VerifiedFileRead.RepresentationHeaders;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -110,17 +111,50 @@ public final class CanonicalFilesQueries {
                 .map(record -> new VersionedFile(record.object(), record.version()));
     }
 
-    public FileContent read(FilesScope scope, FileId id) {
-        StoredFileRecord record = file(scope, id);
-        ByteArrayOutputStream target = new ByteArrayOutputStream(
-                Math.toIntExact(Math.min(record.metadata().object().size(), Integer.MAX_VALUE)));
-        readVerified(scope, record, target);
-        return new FileContent(record.metadata().object(), target.toByteArray());
+    /**
+     * Captures canonical metadata and its private binding once without opening blob content.
+     */
+    public VerifiedFileRead openRead(FilesScope scope, FileId id) {
+        return openRead(scope, file(scope, id));
     }
 
-    public void readTo(FilesScope scope, FileId id, OutputStream target) {
-        Objects.requireNonNull(target, "target must not be null");
-        readVerified(scope, file(scope, id), target);
+    /** Captures the path-selected metadata and binding in one repository observation. */
+    public VerifiedFileRead openRead(FilesScope scope, FilePath path) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(path, "path must not be null");
+        if (path.root()) {
+            throw failure(NOT_A_FILE, "The requested Files object has no file content.");
+        }
+        StoredFileRecord snapshot = authority
+                .findByPath(scope.organizationRef(), scope.spaceRef(), path)
+                .orElseThrow(() -> failure(NOT_FOUND, "The requested file or folder was not found."));
+        if (snapshot.metadata().object().kind() != Kind.FILE) {
+            throw failure(NOT_A_FILE, "The requested Files object has no file content.");
+        }
+        return openRead(scope, snapshot);
+    }
+
+    private VerifiedFileRead openRead(FilesScope scope, StoredFileRecord snapshot) {
+        CanonicalFileRecord metadata = snapshot.metadata();
+        BlobReference binding = reference(snapshot);
+        FileObject item = metadata.object();
+        if (item.mediaType() == null
+                || metadata.contentDigest() == null
+                || !metadata.version().known()) {
+            throw failure(
+                    CONTENT_INTEGRITY_FAILED,
+                    "The native Files metadata does not contain a complete content snapshot.");
+        }
+        return new VerifiedFileRead(
+                item,
+                metadata.version(),
+                new RepresentationHeaders(
+                        item.size(),
+                        item.mediaType(),
+                        FilesEtags.strong(item, metadata.version()),
+                        "no-transform"),
+                metadata.observedAt(),
+                target -> readVerified(scope, snapshot, binding, target));
     }
 
     public ReconciliationReport reconcile(FilesScope scope) {
@@ -146,7 +180,7 @@ public final class CanonicalFilesQueries {
             try {
                 BlobReference reference = reference(record);
                 referenced.add(reference);
-                readVerified(scope, record, OutputStream.nullOutputStream());
+                readVerified(scope, record, reference, OutputStream.nullOutputStream());
             } catch (RuntimeException exception) {
                 inconsistent++;
             }
@@ -176,33 +210,31 @@ public final class CanonicalFilesQueries {
     private void readVerified(
             FilesScope scope,
             StoredFileRecord record,
+            BlobReference reference,
             OutputStream target) {
         CanonicalFileRecord metadata = record.metadata();
-        MessageDigest digest = FilesDigests.newSha256();
-        long[] count = {0};
-        OutputStream verifying = new DigestOutputStream(new OutputStream() {
-            @Override
-            public void write(int value) throws IOException {
-                target.write(value);
-                count[0]++;
-            }
-
-            @Override
-            public void write(byte[] value, int offset, int length) throws IOException {
-                target.write(value, offset, length);
-                count[0] += length;
-            }
-        }, digest);
-        blobs.readStream(blobScope(scope), reference(record), verifying);
-        String actualDigest = "sha256:" + java.util.HexFormat.of().formatHex(digest.digest());
-        if (count[0] != metadata.object().size()
-                || metadata.contentDigest() == null
-                || !MessageDigest.isEqual(
-                metadata.contentDigest().getBytes(java.nio.charset.StandardCharsets.US_ASCII),
-                actualDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+        if (metadata.contentDigest() == null) {
             throw failure(
                     CONTENT_INTEGRITY_FAILED,
                     "The native Files metadata and blob content do not match.");
+        }
+        ExactOutputStream verifying = new ExactOutputStream(
+                target,
+                metadata.object().size(),
+                metadata.contentDigest());
+        try {
+            blobs.readStream(blobScope(scope), reference, verifying);
+            verifying.requireComplete();
+        } catch (RuntimeException exception) {
+            if (exception instanceof ContentTargetUnavailableException targetUnavailable) {
+                throw targetUnavailable;
+            }
+            if (exception instanceof FilesApplicationException applicationException) {
+                throw applicationException;
+            }
+            throw failure(
+                    CONTENT_INTEGRITY_FAILED,
+                    "The native Files content could not be verified.");
         }
     }
 
@@ -267,6 +299,67 @@ public final class CanonicalFilesQueries {
             FilesApplicationException.Code code,
             String message) {
         return new FilesApplicationException(code, message);
+    }
+
+    private static final class ExactOutputStream extends OutputStream {
+        private final OutputStream target;
+        private final long expectedSize;
+        private final String expectedDigest;
+        private final MessageDigest digest = FilesDigests.newSha256();
+        private long observedSize;
+
+        private ExactOutputStream(
+                OutputStream target,
+                long expectedSize,
+                String expectedDigest) {
+            this.target = Objects.requireNonNull(target, "target must not be null");
+            this.expectedSize = expectedSize;
+            this.expectedDigest = expectedDigest;
+        }
+
+        @Override
+        public void write(int value) throws IOException {
+            if (observedSize >= expectedSize) {
+                throw new FilesApplicationException(
+                        CONTENT_INTEGRITY_FAILED,
+                        "The native Files metadata and blob content do not match.");
+            }
+            target.write(value);
+            digest.update((byte) value);
+            observedSize++;
+        }
+
+        @Override
+        public void write(byte[] value, int offset, int length) throws IOException {
+            Objects.checkFromIndexSize(offset, length, value.length);
+            if (observedSize + length > expectedSize) {
+                throw new FilesApplicationException(
+                        CONTENT_INTEGRITY_FAILED,
+                        "The native Files metadata and blob content do not match.");
+            }
+            int written = 0;
+            while (written < length) {
+                int chunk = Math.min(
+                        ReplayableFileContent.TRANSFER_BUFFER_BYTES,
+                        length - written);
+                target.write(value, offset + written, chunk);
+                digest.update(value, offset + written, chunk);
+                observedSize += chunk;
+                written += chunk;
+            }
+        }
+
+        private void requireComplete() {
+            String actual = "sha256:" + java.util.HexFormat.of().formatHex(digest.digest());
+            if (observedSize != expectedSize
+                    || !MessageDigest.isEqual(
+                            expectedDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+                            actual.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+                throw new FilesApplicationException(
+                        CONTENT_INTEGRITY_FAILED,
+                        "The native Files metadata and blob content do not match.");
+            }
+        }
     }
 
     public record ReconciliationReport(

@@ -20,18 +20,19 @@ import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.files.adapter.FilesAuthorityJpaTestFactory;
 import com.massimotter.weave.backend.files.application.FilesLockService;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileListing;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileQuota;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.files.port.FilesStreamingContentPort;
+import com.massimotter.weave.backend.files.port.ReplayableFileContent;
+import com.massimotter.weave.backend.files.port.VerifiedFileRead;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
@@ -40,8 +41,11 @@ import com.massimotter.weave.backend.portability.ProviderReadiness;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
+import com.massimotter.weave.backend.service.files.WebDavPutRequest;
 import com.massimotter.weave.backend.service.files.WebDavSearchRequest;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -122,16 +126,20 @@ class FilesFacadeServiceTest {
     }
 
     @Test
-    void webDavDownloadResolvesThePathToItsCanonicalFileId() {
+    void webDavDownloadResolvesThePathToItsCanonicalFileId() throws Exception {
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
-        StubAdapter adapter = new StubAdapter(true);
+        StubAdapter adapter = new StubAdapter(true, true);
         FilesFacadeService service = service(adapter);
 
-        var downloaded = service.downloadWebDavPath("/Team/readme.md");
+        var downloaded = service.openWebDavPath("/Team/readme.md");
 
         assertThat(downloaded.filename()).isEqualTo("readme.md");
-        assertThat(downloaded.content()).isEqualTo("aaaaaaaaaaaa".getBytes(StandardCharsets.UTF_8));
-        assertThat(adapter.lastReadId).isEqualTo("files:/Team/readme.md");
+        try (var egress = downloaded.prepareBody();
+                var source = egress.openStream()) {
+            assertThat(source.readAllBytes())
+                    .isEqualTo("aaaaaaaaaaaa".getBytes(StandardCharsets.UTF_8));
+        }
+        assertThat(adapter.lastReadPath).isEqualTo("/Team/readme.md");
     }
 
     @Test
@@ -370,7 +378,7 @@ class FilesFacadeServiceTest {
     }
 
     @Test
-    void webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit() {
+    void unqualifiedContentWriteFailsClosedWhileOtherMutationsKeepTheirAuditContract() {
         // FILES_WEBDAV_PUT_CREATE_AUDIT
         // FILES_WEBDAV_DELETE_AUDIT
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
@@ -378,27 +386,28 @@ class FilesFacadeServiceTest {
         StubAdapter adapter = new StubAdapter(true);
         FilesFacadeService service = service(adapter, audit);
 
-        WebDavMutationResult put = service.putWebDavFile(
+        assertThatThrownBy(() -> service.putWebDavFile(
                 "/Team/new.md",
-                "new".getBytes(),
-                "text/markdown",
+                putRequest("new".getBytes(), "text/markdown"),
                 null,
-                "*");
+                "*",
+                null,
+                null))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(exception.code()).isEqualTo("files-streaming-not-supported");
+                });
         WebDavMutationResult folder = service.createWebDavFolder("/Team/Design", null, "*");
         String readmeEtag = service.etagFor("/Team/readme.md");
         service.deleteWebDavPath("/Team/readme.md", readmeEtag);
 
-        assertThat(put.created()).isTrue();
-        assertThat(put.item().path()).isEqualTo("/Team/new.md");
-        assertThat(put.etag()).startsWith("\"").endsWith("\"");
+        assertThat(adapter.putPath).isNull();
         assertThat(folder.created()).isTrue();
         assertThat(folder.item().path()).isEqualTo("/Team/Design");
         assertThat(adapter.deletedPath).isEqualTo("/Team/readme.md");
         assertThat(audit.events())
                 .extracting(event -> event.action())
                 .containsExactly(
-                        AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED,
-                        AuditAction.FILES_WEBDAV_WRITE_COMPLETED,
                         AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED,
                         AuditAction.FILES_WEBDAV_WRITE_COMPLETED,
                         AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED,
@@ -436,36 +445,41 @@ class FilesFacadeServiceTest {
     }
 
     @Test
-    void webDavWritePreconditionsFailBeforeStorageMutationButAfterAttemptAudit() {
+    void unqualifiedStreamingWriteFailsBeforeOpeningTheRequestBody() {
         // FILES_WEBDAV_STALE_ETAG_PRECONDITION
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
         InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
         StubAdapter adapter = new StubAdapter(true);
         FilesFacadeService service = service(adapter, audit);
 
+        java.util.concurrent.atomic.AtomicBoolean opened = new java.util.concurrent.atomic.AtomicBoolean();
         assertThatThrownBy(() -> service.putWebDavFile(
                         "/Team/readme.md",
-                        "new".getBytes(),
-                        "text/markdown",
+                        new WebDavPutRequest(
+                                List.of("3"),
+                                List.of("text/markdown"),
+                                List.of(),
+                                List.of(),
+                                () -> {
+                                    opened.set(true);
+                                    return new ByteArrayInputStream("new".getBytes());
+                                }),
                         null,
-                        "*"))
+                        "*",
+                        null,
+                        null))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
-                    assertThat(exception.status()).isEqualTo(HttpStatus.PRECONDITION_FAILED);
-                    assertThat(exception.code()).isEqualTo("files-precondition-failed");
+                    assertThat(exception.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(exception.code()).isEqualTo("files-streaming-not-supported");
                     assertThat(exception.details())
                             .containsEntry("operation", "webdav-put")
                             .containsEntry("openApiDataPlaneUsed", false)
                             .containsEntry("diagnosticsRedacted", true);
                 });
 
+        assertThat(opened).isFalse();
         assertThat(adapter.putPath).isNull();
-        assertThat(audit.events()).singleElement().satisfies(event -> {
-            assertThat(event.action()).isEqualTo(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED);
-            assertThat(event.payload())
-                    .containsEntry("operation", "webdav-put")
-                    .containsEntry("webDavMethod", "PUT")
-                    .containsEntry("productPath", "/Team/readme.md");
-        });
+        assertThat(audit.events()).isEmpty();
     }
 
     @Test
@@ -514,8 +528,8 @@ class FilesFacadeServiceTest {
 
         assertThatThrownBy(() -> service.putWebDavFile(
                         "/Team/readme.md",
-                        "blocked".getBytes(StandardCharsets.UTF_8),
-                        "text/markdown",
+                        putRequest("blocked".getBytes(StandardCharsets.UTF_8), "text/markdown"),
+                        null,
                         null,
                         null,
                         null))
@@ -530,45 +544,33 @@ class FilesFacadeServiceTest {
                         assertThat(exception.status()).isEqualTo(HttpStatus.LOCKED));
 
         service.unlockWebDavPath("/Team/readme.md", "<" + lock.token() + ">");
-        WebDavMutationResult updated = service.putWebDavFile(
+        assertThatThrownBy(() -> service.putWebDavFile(
                 "/Team/readme.md",
-                "unlocked".getBytes(StandardCharsets.UTF_8),
-                "text/markdown",
+                putRequest("unlocked".getBytes(StandardCharsets.UTF_8), "text/markdown"),
                 null,
                 null,
-                null);
-        assertThat(updated.created()).isFalse();
-        assertThat(adapter.putPath).isEqualTo("/Team/readme.md");
+                null,
+                null))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception ->
+                        assertThat(exception.code()).isEqualTo("files-streaming-not-supported"));
     }
 
     @Test
-    void webDavPutResponseEtagChangesForSameSizeOverwriteWhenMetadataDoesNotChange() {
+    void externalAdapterNeverFallsBackToWholeContentPut() {
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
         StubAdapter adapter = new StubAdapter(true);
         FilesFacadeService service = service(adapter, new InMemoryAuditEventPublisher());
 
-        String initialEtag = service.etagFor("/Team/readme.md");
-        WebDavMutationResult first = service.putWebDavFile(
+        assertThatThrownBy(() -> service.putWebDavFile(
                 "/Team/readme.md",
-                "bbbbbbbbbbbb".getBytes(StandardCharsets.UTF_8),
-                "text/markdown",
-                initialEtag,
-                null);
-        WebDavMutationResult second = service.putWebDavFile(
-                "/Team/readme.md",
-                "cccccccccccc".getBytes(StandardCharsets.UTF_8),
-                "text/markdown",
-                first.etag(),
-                null);
-
-        assertThat(first.created()).isFalse();
-        assertThat(second.created()).isFalse();
-        assertThat(first.item().size()).isEqualTo(12L);
-        assertThat(second.item().size()).isEqualTo(12L);
-        assertThat(first.item().modifiedAt()).isEqualTo(OffsetDateTime.parse("2026-04-26T08:00:00Z"));
-        assertThat(second.item().modifiedAt()).isEqualTo(OffsetDateTime.parse("2026-04-26T08:00:00Z"));
-        assertThat(first.etag()).isNotEqualTo(initialEtag);
-        assertThat(second.etag()).isNotEqualTo(first.etag());
+                putRequest("bbbbbbbbbbbb".getBytes(StandardCharsets.UTF_8), "text/markdown"),
+                service.etagFor("/Team/readme.md"),
+                null,
+                null,
+                null))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception ->
+                        assertThat(exception.code()).isEqualTo("files-streaming-not-supported"));
+        assertThat(adapter.putPath).isNull();
     }
 
     @Test
@@ -841,9 +843,10 @@ class FilesFacadeServiceTest {
         };
     }
 
-    private static class StubAdapter implements FilesProviderPort {
+    private static class StubAdapter implements FilesProviderPort, FilesStreamingContentPort {
 
         private final boolean configured;
+        private final boolean streamingQualified;
         private final Map<String, byte[]> contentByPath = new HashMap<>(Map.of(
                 "/Team/readme.md", "aaaaaaaaaaaa".getBytes(StandardCharsets.UTF_8)));
         private final Set<String> collections = new java.util.HashSet<>(Set.of("/", "/Team"));
@@ -852,12 +855,17 @@ class FilesFacadeServiceTest {
         private String deletedPath;
         private String copiedPath;
         private String movedPath;
-        private String lastReadId;
+        private String lastReadPath;
         private int listWithVersionTokenCalls;
         private int versionTokenCalls;
 
         private StubAdapter(boolean configured) {
+            this(configured, false);
+        }
+
+        private StubAdapter(boolean configured, boolean streamingQualified) {
             this.configured = configured;
+            this.streamingQualified = streamingQualified;
         }
 
         @Override
@@ -876,8 +884,17 @@ class FilesFacadeServiceTest {
         public ProviderConformanceProfile conformanceProfile() {
             return new ProviderConformanceProfile(
                     "files",
-                    "test-memory",
-                    Set.of("list", "read", "write", "create-collection", "delete"),
+                    streamingQualified ? "weave-native" : "test-memory",
+                    streamingQualified
+                            ? Set.of(
+                                    "list",
+                                    "read",
+                                    "write",
+                                    "create-collection",
+                                    "delete",
+                                    "files.content_streaming_read",
+                                    "files.content_streaming_write")
+                            : Set.of("list", "read", "write", "create-collection", "delete"),
                     Map.of(),
                     true,
                     true,
@@ -922,24 +939,65 @@ class FilesFacadeServiceTest {
         }
 
         @Override
-        public FileContent read(FileId id) {
-            lastReadId = id.value();
-            if (!lastReadId.startsWith("files:")) {
-                throw new IllegalArgumentException("canonical file id is required");
-            }
-            String path = lastReadId.substring("files:".length());
-            byte[] content = contentByPath.get(path);
-            if (content == null) {
-                throw new IllegalArgumentException("file content is missing");
-            }
-            return new FileContent(file(path, content), content);
+        public ContentProfile contentProfile() {
+            return new ContentProfile(64L * 1024L * 1024L, 65_536, 1, 1);
         }
 
         @Override
-        public FileObject write(FileWrite write) {
-            putPath = write.path().value();
-            contentByPath.put(putPath, write.bytes());
-            return file(putPath, write.bytes(), write.mediaType(), Instant.parse("2026-04-26T08:05:00Z"));
+        public void requireStreamingReady() {
+        }
+
+        @Override
+        public Ingress receive(
+                Long declaredLength,
+                String mediaType,
+                ReplayableFileContent.StreamFactory requestBody) {
+            throw new AssertionError("an unqualified adapter must not receive a PUT body");
+        }
+
+        @Override
+        public VerifiedFileRead inspect(FilePath path) {
+            lastReadPath = path.value();
+            byte[] content = contentByPath.get(path.value());
+            if (content == null) {
+                throw new ApiErrorException(
+                        HttpStatus.NOT_FOUND,
+                        "file-not-found",
+                        "The requested file or folder was not found.",
+                        Map.of());
+            }
+            FileObject item = file(path.value(), content);
+            return new VerifiedFileRead(
+                    item,
+                    version(content),
+                    new VerifiedFileRead.RepresentationHeaders(
+                            content.length,
+                            item.mediaType(),
+                            "\"test-stream-" + Integer.toHexString(java.util.Arrays.hashCode(content)) + "\"",
+                            "no-transform"),
+                    item.modifiedAt(),
+                    target -> {
+                        try {
+                            target.write(content);
+                        } catch (java.io.IOException failure) {
+                            throw new IllegalStateException(failure);
+                        }
+                    });
+        }
+
+        @Override
+        public Egress verify(VerifiedFileRead read) {
+            ByteArrayOutputStream verified = new ByteArrayOutputStream();
+            read.transferTo(verified);
+            byte[] content = verified.toByteArray();
+            return new Egress() {
+                @Override public java.io.InputStream openStream() {
+                    return new ByteArrayInputStream(content);
+                }
+
+                @Override public void close() {
+                }
+            };
         }
 
         @Override
@@ -1012,6 +1070,15 @@ class FilesFacadeServiceTest {
             int separator = path.lastIndexOf('/');
             return separator <= 0 ? "/" : path.substring(0, separator);
         }
+    }
+
+    private WebDavPutRequest putRequest(byte[] content, String mediaType) {
+        return new WebDavPutRequest(
+                List.of(Integer.toString(content.length)),
+                List.of(mediaType),
+                List.of(),
+                List.of(),
+                () -> new ByteArrayInputStream(content));
     }
 
     private static final class ProviderErrorAdapter extends StubAdapter {

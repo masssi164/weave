@@ -3,10 +3,10 @@ package com.massimotter.weave.backend.files.port;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Sealed;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.EntityTagCondition;
+import com.massimotter.weave.backend.files.port.ReplayableFileContent;
 import com.massimotter.weave.backend.operation.domain.OperationIntent;
 
 /** Server-private native extension; never a provider-neutral or northbound contract. */
@@ -29,13 +29,28 @@ public interface NativeFilesDurableMutationPort {
     }
 
     record Put(
-            FileWrite write,
+            FilePath path,
+            ReplayableFileContent content,
             EntityTagCondition ifMatchCondition,
             EntityTagCondition ifNoneMatchCondition) implements Mutation {
-        public Put(FileWrite write) {
-            this(write, EntityTagCondition.notSupplied(), EntityTagCondition.notSupplied());
+        public Put(FilePath path, ReplayableFileContent content) {
+            this(
+                    path,
+                    content,
+                    EntityTagCondition.notSupplied(),
+                    EntityTagCondition.notSupplied());
         }
-        @Override public FilePath resultPath() { return write.path(); }
+
+        public Put {
+            if (path == null || path.root()) {
+                throw new IllegalArgumentException("PUT requires a non-root path");
+            }
+            if (content == null) {
+                throw new IllegalArgumentException("PUT requires replayable content");
+            }
+        }
+
+        @Override public FilePath resultPath() { return path; }
     }
 
     record MakeCollection(

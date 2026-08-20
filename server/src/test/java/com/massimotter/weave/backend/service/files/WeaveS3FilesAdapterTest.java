@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.massimotter.weave.backend.config.WeaveS3FilesProperties;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
+import com.massimotter.weave.backend.service.files.UnqualifiedLegacyFilesContentAdapter.LegacyFileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.port.ObjectStoragePort;
 import java.net.URI;
@@ -22,7 +22,7 @@ class WeaveS3FilesAdapterTest {
         InMemoryObjectStorage storage = new InMemoryObjectStorage();
         WeaveS3FilesAdapter adapter = new WeaveS3FilesAdapter(properties(), storage);
 
-        var stored = adapter.write(new FileWrite(
+        var stored = adapter.writeLegacy(new LegacyFileWrite(
                 new FilePath("/Team/notes.txt"), "core".getBytes(), "text/plain"));
 
         assertThat(storage.bytes.get("Team/notes.txt")).isEqualTo("core".getBytes());

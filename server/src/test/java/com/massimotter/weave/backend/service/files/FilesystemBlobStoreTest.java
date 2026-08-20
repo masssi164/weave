@@ -6,10 +6,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
+import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReceipt;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
+import com.massimotter.weave.backend.files.port.BlobStorePort.ContentTargetUnavailableException;
 import com.massimotter.weave.backend.schema.NativeFilesVolumeAuthority;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,12 +39,12 @@ class FilesystemBlobStoreTest {
         byte[] content = "native files".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         String digest = FilesystemBlobStore.digest(content);
 
-        store(1024).put(scope, reference, content, digest);
+        put(store(1024), scope, reference, content, digest);
         var restarted = store(1024);
 
-        assertThat(restarted.read(scope, reference)).isEqualTo(content);
+        assertThat(read(restarted, scope, reference)).isEqualTo(content);
         assertThat(restarted.inventory(scope, 10)).containsExactly(reference);
-        assertThat(restarted.put(scope, reference, content, digest).digest()).isEqualTo(digest);
+        assertThat(put(restarted, scope, reference, content, digest).digest()).isEqualTo(digest);
         Path target = restarted.resolvedPathForTest(scope, reference);
         if (Files.getFileStore(target).supportsFileAttributeView("posix")) {
             assertThat(Files.getPosixFilePermissions(target))
@@ -69,6 +73,26 @@ class FilesystemBlobStoreTest {
         assertThat(receipt.size()).isEqualTo(content.length);
         assertThat(receipt.digest()).isEqualTo(digest);
         assertThat(target.toByteArray()).isEqualTo(content);
+    }
+
+    @Test
+    void preservesCallerTargetFailureAcrossTheStoredBlobReadBoundary() {
+        byte[] content = "content".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        var scope = new BlobScope("org:alpha", "space:target-failure");
+        var reference = new BlobReference(
+                "v1/file/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+        var store = store(1024);
+        put(store, scope, reference, content, FilesystemBlobStore.digest(content));
+        IOException targetFailure = new IOException("private target detail");
+
+        assertThatThrownBy(() -> store.readStream(scope, reference, new OutputStream() {
+                    @Override
+                    public void write(int value) throws IOException {
+                        throw targetFailure;
+                    }
+                }))
+                .isInstanceOf(ContentTargetUnavailableException.class)
+                .hasCause(targetFailure);
     }
 
     @Test
@@ -103,7 +127,12 @@ class FilesystemBlobStoreTest {
         var store = store(1024);
         var scope = new BlobScope("org:alpha", "space:home");
         var reference = new BlobReference("v1/file/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
-        assertThatThrownBy(() -> store.put(scope, reference, new byte[] {1}, FilesystemBlobStore.digest(new byte[] {2})))
+        assertThatThrownBy(() -> put(
+                        store,
+                        scope,
+                        reference,
+                        new byte[] {1},
+                        FilesystemBlobStore.digest(new byte[] {2})))
                 .isInstanceOf(ApiErrorException.class)
                 .extracting(error -> ((ApiErrorException) error).code())
                 .isEqualTo("files-native-blob-digest-mismatch");
@@ -114,7 +143,7 @@ class FilesystemBlobStoreTest {
         Files.write(outside, new byte[] {9});
         Files.createSymbolicLink(target, outside);
 
-        assertThatThrownBy(() -> store.read(scope, reference))
+        assertThatThrownBy(() -> read(store, scope, reference))
                 .isInstanceOf(ApiErrorException.class)
                 .extracting(error -> ((ApiErrorException) error).code())
                 .isEqualTo("files-native-path-containment-failed");
@@ -133,7 +162,7 @@ class FilesystemBlobStoreTest {
         var store = store(1024);
 
         assertThat(store.inventory(scope, 10)).isEmpty();
-        store.put(scope, reference, content, FilesystemBlobStore.digest(content));
+        put(store, scope, reference, content, FilesystemBlobStore.digest(content));
         assertThat(store.inventory(scope, 10)).containsExactly(reference);
         store.delete(scope, reference);
 
@@ -192,36 +221,34 @@ class FilesystemBlobStoreTest {
         Files.createDirectories(directoryFailureTarget.getParent());
         Files.createDirectories(layout.stagingPathForTest("layout.pending").getParent());
 
-        assertThatThrownBy(() -> store(
+        assertThatThrownBy(() -> put(store(
                         1024,
                         path -> {
                             if (!Files.isDirectory(path)) {
                                 throw new java.io.IOException("forced file sync failure");
                             }
                         },
-                        ignored -> { })
-                .put(scope, fileFailure, content, digest))
+                        ignored -> { }), scope, fileFailure, content, digest))
                 .isInstanceOf(ApiErrorException.class)
                 .extracting(error -> ((ApiErrorException) error).code())
                 .isEqualTo("files-native-blob-write-failed");
 
-        assertThatThrownBy(() -> store(
+        assertThatThrownBy(() -> put(store(
                         1024,
                         path -> {
                             if (path.equals(directoryFailureTarget.getParent())) {
                                 throw new java.io.IOException("forced directory sync failure");
                             }
                         },
-                        ignored -> { })
-                .put(scope, directoryFailure, content, digest))
+                        ignored -> { }), scope, directoryFailure, content, digest))
                 .isInstanceOf(ApiErrorException.class)
                 .extracting(error -> ((ApiErrorException) error).code())
                 .isEqualTo("files-native-blob-write-failed");
 
         var recovered = store(1024);
-        assertThat(recovered.put(scope, fileFailure, content, digest).digest())
+        assertThat(put(recovered, scope, fileFailure, content, digest).digest())
                 .isEqualTo(digest);
-        assertThat(recovered.put(scope, directoryFailure, content, digest).digest())
+        assertThat(put(recovered, scope, directoryFailure, content, digest).digest())
                 .isEqualTo(digest);
     }
 
@@ -237,15 +264,14 @@ class FilesystemBlobStoreTest {
                 .getParent()
                 .getParent();
 
-        assertThatThrownBy(() -> store(
+        assertThatThrownBy(() -> put(store(
                         1024,
                         path -> {
                             if (path.equals(ancestor)) {
                                 throw new java.io.IOException("forced ancestor sync failure");
                             }
                         },
-                        ignored -> { })
-                .put(scope, reference, content, digest))
+                        ignored -> { }), scope, reference, content, digest))
                 .isInstanceOf(ApiErrorException.class)
                 .extracting(error -> ((ApiErrorException) error).code())
                 .isEqualTo("files-native-blob-write-failed");
@@ -253,7 +279,7 @@ class FilesystemBlobStoreTest {
 
         java.util.Set<Path> synced = new java.util.HashSet<>();
         var recovered = store(1024, synced::add, ignored -> { });
-        assertThat(recovered.put(scope, reference, content, digest).digest())
+        assertThat(put(recovered, scope, reference, content, digest).digest())
                 .isEqualTo(digest);
         assertThat(synced).contains(ancestor, ancestor.getParent());
     }
@@ -267,7 +293,7 @@ class FilesystemBlobStoreTest {
                 .getBytes(java.nio.charset.StandardCharsets.UTF_8);
         String digest = FilesystemBlobStore.digest(content);
         var published = store(1024);
-        published.put(scope, reference, content, digest);
+        put(published, scope, reference, content, digest);
         Path staging = published.stagingPathForTest("placeholder").getParent();
 
         assertThatThrownBy(() -> store(
@@ -297,7 +323,7 @@ class FilesystemBlobStoreTest {
         byte[] content = "delete durably".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         String digest = FilesystemBlobStore.digest(content);
         var published = store(1024);
-        published.put(scope, reference, content, digest);
+        put(published, scope, reference, content, digest);
         Path parent = published.resolvedPathForTest(scope, reference).getParent();
 
         assertThatThrownBy(() -> store(
@@ -363,7 +389,8 @@ class FilesystemBlobStoreTest {
         Files.createDirectories(outside);
         Files.createSymbolicLink(root.resolve(".weave-native-staging"), outside);
 
-        assertThatThrownBy(() -> store.put(
+        assertThatThrownBy(() -> put(
+                        store,
                         scope,
                         reference,
                         content,
@@ -372,6 +399,27 @@ class FilesystemBlobStoreTest {
                 .extracting(error -> ((ApiErrorException) error).code())
                 .isEqualTo("files-native-path-containment-failed");
         assertThat(outside.resolve("v1")).doesNotExist();
+    }
+
+    private BlobReceipt put(
+            FilesystemBlobStore store,
+            BlobScope scope,
+            BlobReference reference,
+            byte[] content,
+            String digest) {
+        return store.putStream(
+                scope,
+                reference,
+                new ByteArrayInputStream(content),
+                content.length,
+                digest);
+    }
+
+    private byte[] read(
+            FilesystemBlobStore store, BlobScope scope, BlobReference reference) {
+        ByteArrayOutputStream target = new ByteArrayOutputStream();
+        store.readStream(scope, reference, target);
+        return target.toByteArray();
     }
 
     private FilesystemBlobStore store(long maximumBytes) {

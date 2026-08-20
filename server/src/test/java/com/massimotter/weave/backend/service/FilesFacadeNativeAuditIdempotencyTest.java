@@ -39,9 +39,13 @@ import com.massimotter.weave.backend.files.port.FilesMutationPlan.Sealed;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Target;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.LockConflictException;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.files.port.FilesStreamingContentPort;
+import com.massimotter.weave.backend.files.port.FilesStreamingContentPort.ContentProfile;
+import com.massimotter.weave.backend.files.port.FilesStreamingContentPort.Ingress;
 import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort;
 import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort.NativeLockMove;
 import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort.NativeResult;
+import com.massimotter.weave.backend.files.port.ReplayableFileContent;
 import com.massimotter.weave.backend.operation.domain.OperationIntent;
 import com.massimotter.weave.backend.operation.application.OperationIntentService.BeginCommand;
 import com.massimotter.weave.backend.operation.domain.OperationIntent.HumanActor;
@@ -52,8 +56,10 @@ import com.massimotter.weave.backend.portability.ProviderReadiness;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.security.device.DeviceCredentialService;
 import com.massimotter.weave.backend.security.device.InMemoryDeviceCredentialRepository;
+import com.massimotter.weave.backend.service.files.WebDavPutRequest;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -62,6 +68,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -102,13 +109,26 @@ class FilesFacadeNativeAuditIdempotencyTest {
                 org.mockito.ArgumentMatchers.<java.util.function.Supplier<Sealed>>any()))
                 .thenReturn(first);
         when(flow.intents().resumeNative(retry)).thenReturn(replay);
+        when(flow.intents().hasExistingOperation("tenant-default", IDEMPOTENCY_KEY))
+                .thenReturn(false, true);
 
         var firstResult = flow.facade().putWebDavFile(
-                "/audit.txt", "audit".getBytes(StandardCharsets.UTF_8), "text/plain",
-                null, null, null, IDEMPOTENCY_KEY);
+                "/audit.txt", putRequest("audit".getBytes(StandardCharsets.UTF_8), "text/plain"),
+                null, "*", null, IDEMPOTENCY_KEY);
+        FilesProviderPort adapter = (FilesProviderPort) flow.nativeAdapter();
+        when(adapter.find(new FilePath("/audit.txt"))).thenReturn(Optional.of(new VersionedFile(
+                new FileObject(
+                        new FileId(firstResult.item().id()),
+                        new FilePath(firstResult.item().path()),
+                        Kind.FILE,
+                        firstResult.item().size(),
+                        firstResult.item().mimeType(),
+                        CREATED_AT,
+                        false),
+                new FileVersion(CONTENT_DIGEST))));
         var replayedResult = flow.facade().putWebDavFile(
-                "/audit.txt", "audit".getBytes(StandardCharsets.UTF_8), "text/plain",
-                null, null, null, IDEMPOTENCY_KEY);
+                "/audit.txt", putRequest("audit".getBytes(StandardCharsets.UTF_8), "text/plain"),
+                null, "*", null, IDEMPOTENCY_KEY);
 
         assertThat(replayedResult).isEqualTo(firstResult);
         assertThat(operationIntentAudits(audit)).singleElement().satisfies(event -> {
@@ -152,7 +172,7 @@ class FilesFacadeNativeAuditIdempotencyTest {
                 .thenReturn(intent("failure", OperationIntent.State.FAILED));
 
         assertThatThrownBy(() -> flow.facade().putWebDavFile(
-                "/audit.txt", "audit".getBytes(StandardCharsets.UTF_8), "text/plain",
+                "/audit.txt", putRequest("audit".getBytes(StandardCharsets.UTF_8), "text/plain"),
                 null, null, null, IDEMPOTENCY_KEY))
                 .isInstanceOf(ApiErrorException.class);
 
@@ -176,8 +196,7 @@ class FilesFacadeNativeAuditIdempotencyTest {
 
         assertThatThrownBy(() -> flow.facade().putWebDavFile(
                         "/audit.txt",
-                        "audit".getBytes(StandardCharsets.UTF_8),
-                        "text/plain",
+                        putRequest("audit".getBytes(StandardCharsets.UTF_8), "text/plain"),
                         null,
                         null,
                         null,
@@ -192,6 +211,123 @@ class FilesFacadeNativeAuditIdempotencyTest {
                 });
         verify(flow.nativeAdapter(), never()).execute(
                 any(), any(), any(), any(), anyString(), nullable(NativeLockMove.class));
+    }
+
+    @Test
+    void framingAndDeclaredOversizeFailBeforeTheRequestBodyOrIngressStoreOpens() {
+        JpaAuditEventPublisher audit = auditPublisher("files_native_streaming_framing");
+        NativeFlow flow = nativeFlow("streaming-framing", audit);
+        FilesStreamingContentPort streaming =
+                (FilesStreamingContentPort) flow.nativeAdapter();
+        AtomicBoolean opened = new AtomicBoolean();
+
+        assertThatThrownBy(() -> flow.facade().putWebDavFile(
+                        "/too-large.bin",
+                        new WebDavPutRequest(
+                                List.of("1025"),
+                                List.of("application/octet-stream"),
+                                List.of(),
+                                List.of(),
+                                () -> {
+                                    opened.set(true);
+                                    return new ByteArrayInputStream(new byte[0]);
+                                }),
+                        null,
+                        null,
+                        null,
+                        IDEMPOTENCY_KEY))
+                .isInstanceOfSatisfying(ApiErrorException.class, failure -> {
+                    assertThat(failure.status()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+                    assertThat(failure.code()).isEqualTo("files-content-too-large");
+                });
+
+        assertThatThrownBy(() -> flow.facade().putWebDavFile(
+                        "/encoded.bin",
+                        new WebDavPutRequest(
+                                List.of(),
+                                List.of("application/octet-stream"),
+                                List.of("gzip"),
+                                List.of("chunked"),
+                                () -> {
+                                    opened.set(true);
+                                    return new ByteArrayInputStream(new byte[0]);
+                                }),
+                        null,
+                        null,
+                        null,
+                        IDEMPOTENCY_KEY))
+                .isInstanceOfSatisfying(ApiErrorException.class, failure -> {
+                    assertThat(failure.status()).isEqualTo(HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+                    assertThat(failure.code()).isEqualTo("files-content-coding-unsupported");
+                });
+
+        assertThatThrownBy(() -> flow.facade().putWebDavFile(
+                        "/ambiguous.bin",
+                        new WebDavPutRequest(
+                                List.of("0"),
+                                List.of("application/octet-stream"),
+                                List.of(),
+                                List.of("chunked"),
+                                () -> {
+                                    opened.set(true);
+                                    return new ByteArrayInputStream(new byte[0]);
+                                }),
+                        null,
+                        null,
+                        null,
+                        IDEMPOTENCY_KEY))
+                .isInstanceOfSatisfying(ApiErrorException.class, failure -> {
+                    assertThat(failure.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(failure.code()).isEqualTo("file-upload-invalid-request");
+                });
+
+        assertThat(opened).isFalse();
+        verify(streaming, never()).receive(any(), anyString(), any());
+        assertThat(operationIntentAudits(audit)).isEmpty();
+    }
+
+    @Test
+    void stalePutPreconditionFailsBeforeTheRequestBodyOrIngressStoreOpens() {
+        JpaAuditEventPublisher audit = auditPublisher("files_native_streaming_stale_precondition");
+        NativeFlow flow = nativeFlow("streaming-stale-precondition", audit);
+        FilesProviderPort adapter = (FilesProviderPort) flow.nativeAdapter();
+        FilesStreamingContentPort streaming = (FilesStreamingContentPort) flow.nativeAdapter();
+        AtomicBoolean opened = new AtomicBoolean();
+        FilePath target = new FilePath("/already.bin");
+        when(adapter.find(target)).thenReturn(Optional.of(new VersionedFile(
+                new FileObject(
+                        new FileId("file:already"),
+                        target,
+                        Kind.FILE,
+                        7,
+                        "application/octet-stream",
+                        CREATED_AT,
+                        false),
+                new FileVersion("sha256:already"))));
+
+        assertThatThrownBy(() -> flow.facade().putWebDavFile(
+                        target.value(),
+                        new WebDavPutRequest(
+                                List.of("7"),
+                                List.of("application/octet-stream"),
+                                List.of(),
+                                List.of(),
+                                () -> {
+                                    opened.set(true);
+                                    return new ByteArrayInputStream(new byte[7]);
+                                }),
+                        null,
+                        "*",
+                        null,
+                        IDEMPOTENCY_KEY))
+                .isInstanceOfSatisfying(ApiErrorException.class, failure -> {
+                    assertThat(failure.status()).isEqualTo(HttpStatus.PRECONDITION_FAILED);
+                    assertThat(failure.code()).isEqualTo("files-precondition-failed");
+                });
+
+        assertThat(opened).isFalse();
+        verify(streaming, never()).receive(any(), anyString(), any());
+        verify(flow.intents(), never()).prepare(any());
     }
 
     @Test
@@ -269,8 +405,11 @@ class FilesFacadeNativeAuditIdempotencyTest {
     private NativeFlow nativeFlow(String suffix, JpaAuditEventPublisher audit) {
         FilesProviderPort adapter = mock(
                 FilesProviderPort.class,
-                withSettings().extraInterfaces(NativeFilesDurableMutationPort.class));
+                withSettings().extraInterfaces(
+                        NativeFilesDurableMutationPort.class,
+                        FilesStreamingContentPort.class));
         NativeFilesDurableMutationPort nativeAdapter = (NativeFilesDurableMutationPort) adapter;
+        FilesStreamingContentPort streaming = (FilesStreamingContentPort) adapter;
         FilesMutationIntentService intents = mock(FilesMutationIntentService.class);
         FilesLockService locks = mock(FilesLockService.class);
         Sealed plan = plan(suffix);
@@ -300,12 +439,42 @@ class FilesFacadeNativeAuditIdempotencyTest {
         when(adapter.conformanceProfile()).thenReturn(new ProviderConformanceProfile(
                 "files",
                 "weave-native",
-                Set.of("write"),
+                Set.of(
+                        "write",
+                        "files.content_streaming_read",
+                        "files.content_streaming_write"),
                 Map.of(),
                 true,
                 true,
                 true));
         when(adapter.scoped(any())).thenReturn(adapter);
+        when(streaming.contentProfile()).thenReturn(new ContentProfile(1024, 65_536, 1, 1));
+        org.mockito.Mockito.doNothing().when(streaming).requireStreamingReady();
+        when(streaming.receive(any(), anyString(), any())).thenAnswer(invocation -> {
+            Long declaredLength = invocation.getArgument(0);
+            String mediaType = invocation.getArgument(1);
+            ReplayableFileContent.StreamFactory source = invocation.getArgument(2);
+            byte[] bytes;
+            try (var input = source.openStream()) {
+                bytes = input.readAllBytes();
+            }
+            assertThat(declaredLength).isEqualTo((long) bytes.length);
+            ReplayableFileContent content = new ReplayableFileContent(
+                    bytes.length,
+                    FilesMutationIntentService.digest(bytes),
+                    mediaType,
+                    () -> new ByteArrayInputStream(bytes));
+            return new Ingress() {
+                @Override public ReplayableFileContent content() { return content; }
+                @Override public <T> T bindThroughPlanCommit(
+                        String operationRef,
+                        java.util.function.Supplier<T> transaction) {
+                    return transaction.get();
+                }
+                @Override public boolean releaseIfTerminal() { return true; }
+                @Override public void close() { }
+            };
+        });
         when(adapter.find(any())).thenAnswer(invocation -> {
             FilePath path = invocation.getArgument(0);
             if (!path.root()) {
@@ -494,6 +663,15 @@ class FilesFacadeNativeAuditIdempotencyTest {
                 properties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+    }
+
+    private WebDavPutRequest putRequest(byte[] content, String mediaType) {
+        return new WebDavPutRequest(
+                List.of(Integer.toString(content.length)),
+                List.of(mediaType),
+                List.of(),
+                List.of(),
+                () -> new ByteArrayInputStream(content));
     }
 
     private Jwt jwt() {

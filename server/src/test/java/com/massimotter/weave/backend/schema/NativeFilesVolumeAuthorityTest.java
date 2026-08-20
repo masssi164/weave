@@ -152,10 +152,13 @@ class NativeFilesVolumeAuthorityTest {
         new NativeFilesVolumeAuthorityReadiness(repository, blobRoot, receipt, CANDIDATE);
 
     assertThat(readiness.isReady()).isTrue();
+    assertThat(readiness.requireValidated()).isEqualTo(authority);
 
     Files.writeString(
         blobRoot.resolve(NativeFilesVolumeAuthority.MARKER_FILE_NAME), "{}");
     assertThat(readiness.isReady()).isFalse();
+    assertThatThrownBy(readiness::requireValidated)
+        .isInstanceOf(IllegalStateException.class);
     Files.delete(blobRoot.resolve(NativeFilesVolumeAuthority.MARKER_FILE_NAME));
     assertThat(readiness.isReady()).isFalse();
   }

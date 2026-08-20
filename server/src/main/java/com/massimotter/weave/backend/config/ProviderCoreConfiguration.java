@@ -6,6 +6,9 @@ import com.massimotter.weave.backend.boards.port.BoardsRepository;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.chat.port.ChatProviderPort;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.files.port.FilesStreamingCapabilityProfile;
+import com.massimotter.weave.backend.files.port.FilesStreamingContentPort;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.provider.ProviderModule;
 import com.massimotter.weave.backend.provider.ProviderPort;
 import com.massimotter.weave.backend.provider.ProviderRealityLevel;
@@ -13,6 +16,7 @@ import com.massimotter.weave.backend.provider.RuntimeProviderStatus;
 import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.provider.StaticProviderPort;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -57,18 +61,53 @@ public class ProviderCoreConfiguration {
                     ProviderModule.FILES,
                     "weave-native",
                     "No Files runtime adapter is bound; the canonical Files facade remains fail-closed.",
-                    Set.of("list", "read", "write", "create-collection", "delete", "copy", "move"),
+                    Set.of("list", "create-collection", "delete", "copy", "move"),
                     Set.of("direct-member-provider-api", "credential-exposure", "raw-provider-errors"),
                     List.of("weave-native", "nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"),
                     Map.of("runtimeBindingObserved", false, "facade", "/dav/files"));
         }
+        return filesProviderRegistrySeamFor(runtime);
+    }
+
+    ProviderPort filesProviderRegistrySeamFor(FilesProviderPort runtime) {
+        return () -> currentFilesProviderRegistry(runtime).status();
+    }
+
+    private ProviderPort currentFilesProviderRegistry(FilesProviderPort runtime) {
+        Map<String, Object> diagnostics = Map.of();
+        ProviderConformanceProfile conformance = runtime.conformanceProfile();
+        FilesStreamingCapabilityProfile capability;
+        if (runtime instanceof FilesStreamingContentPort streaming) {
+            capability = FilesStreamingCapabilityProfile.observe(runtime, streaming);
+        } else {
+            capability = FilesStreamingCapabilityProfile.blocked(
+                    conformance.adapterKey(),
+                    java.time.Instant.now());
+        }
+        diagnostics = Map.of("capabilityProfile", capability.projection());
+        if (!capability.qualified()) {
+            Set<String> supported = new LinkedHashSet<>(conformance.supportedOperations());
+            supported.remove("read");
+            supported.remove("write");
+            supported.remove(FilesStreamingCapabilityProfile.READ);
+            supported.remove(FilesStreamingCapabilityProfile.WRITE);
+            conformance = new ProviderConformanceProfile(
+                    conformance.domain(),
+                    conformance.adapterKey(),
+                    supported,
+                    conformance.fieldMappings(),
+                    conformance.atomicWrites(),
+                    conformance.stableVersionTokens(),
+                    conformance.supportSafe());
+        }
         return RuntimeProviderStatus.fromConformancePort(
                 ProviderModule.FILES,
-                runtime.conformanceProfile().adapterKey(),
+                conformance.adapterKey(),
                 runtime.configured(),
-                runtime.conformanceProfile(),
+                conformance,
                 "The selected Files adapter is bound behind the canonical Files port and the /dav/files projection.",
-                List.of("weave-native", "nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"));
+                List.of("weave-native", "nextcloud-files", "webdav", "sharepoint", "onedrive", "s3-compatible", "smb"),
+                diagnostics);
     }
 
     @Bean

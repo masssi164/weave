@@ -22,10 +22,10 @@ import com.massimotter.weave.backend.files.application.NativeFilesMutationReposi
 import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository.CommitProbe;
 import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository.FinalizationResult;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Sealed;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
 import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort.Put;
+import com.massimotter.weave.backend.files.port.ReplayableFileContent;
 import com.massimotter.weave.backend.operation.domain.OperationIntent;
 import com.massimotter.weave.backend.operation.domain.OperationIntent.HumanActor;
 import com.massimotter.weave.backend.operation.domain.OperationIntent.ProtocolProjection;
@@ -34,6 +34,7 @@ import com.massimotter.weave.backend.operation.domain.OperationIntent.Reconcilia
 import com.massimotter.weave.backend.operation.domain.OperationIntent.State;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import jakarta.persistence.PersistenceException;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
@@ -91,7 +92,7 @@ class WeaveNativeFilesDurableRecoveryTest {
         var recovered = fixture.adapter().execute(
                 ambiguous, SCOPE, fixture.plan(), fixture.put(), "audit:recovery", null);
 
-        assertThat(recovered.item().path()).isEqualTo(fixture.put().write().path());
+        assertThat(recovered.item().path()).isEqualTo(fixture.put().path());
         verify(fixture.repository()).markAmbiguous(eq(fixture.intent()), anyString());
         verify(fixture.repository()).beginReconciliation(ambiguous);
         verify(fixture.repository(), never()).recordFailure(
@@ -115,7 +116,7 @@ class WeaveNativeFilesDurableRecoveryTest {
         var result = fixture.adapter().execute(
                 fixture.intent(), SCOPE, fixture.plan(), fixture.put(), "audit:post-commit", null);
 
-        assertThat(result.item().path()).isEqualTo(fixture.put().write().path());
+        assertThat(result.item().path()).isEqualTo(fixture.put().path());
         verify(fixture.repository(), never()).markAmbiguous(any(), anyString());
         verify(fixture.repository(), never()).recordFailure(
                 any(), eq(false), anyString(), anyString());
@@ -140,7 +141,7 @@ class WeaveNativeFilesDurableRecoveryTest {
         var result = fixture.adapter().execute(
                 ambiguous, SCOPE, fixture.plan(), fixture.put(), "audit:concurrent-success", null);
 
-        assertThat(result.item().path()).isEqualTo(fixture.put().write().path());
+        assertThat(result.item().path()).isEqualTo(fixture.put().path());
         verify(fixture.repository()).beginReconciliation(ambiguous);
         verify(fixture.repository(), never()).finalizeSuccess(any(), any(), anyString(), anyString(), any());
     }
@@ -294,7 +295,7 @@ class WeaveNativeFilesDurableRecoveryTest {
                 "audit:settlement-success-race",
                 null);
 
-        assertThat(result.item().path()).isEqualTo(fixture.put().write().path());
+        assertThat(result.item().path()).isEqualTo(fixture.put().path());
         verify(fixture.repository(), never()).markAmbiguous(any(), anyString());
     }
 
@@ -340,7 +341,13 @@ class WeaveNativeFilesDurableRecoveryTest {
                 codec);
         FilePath path = new FilePath("/" + suffix + ".txt");
         byte[] content = ("content-" + suffix).getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        Put put = new Put(new FileWrite(path, content, "text/plain"));
+        Put put = new Put(
+                path,
+                new ReplayableFileContent(
+                        content.length,
+                        FilesystemBlobStore.digest(content),
+                        "text/plain",
+                        () -> new ByteArrayInputStream(content)));
         OperationIntent intent = intent(suffix, path, content);
         Sealed plan = adapter.plan(intent, SCOPE, put);
         return new Fixture(adapter, repository, blobs, intent, plan, put);

@@ -83,9 +83,11 @@ This page cannot truthfully self-reference the commit that contains it.
 
 ## Explicitly remaining under issue #1326
 
-- real-HTTP qualification of the complete accepted WebDAV profile;
+- authenticated PostgreSQL-plus-BlobStore real-HTTP qualification of the complete accepted WebDAV
+  profile; the bounded-content slice has a real-socket controller test but does not claim that full
+  integrated topology;
 - canonical search, change/sync projection, import/export and remaining rights semantics;
-- two-instance protocol concurrency, restart and large-streaming proof;
+- two-instance protocol concurrency and complete process-restart proof;
 - deterministic provider A-to-canonical-to-provider-B roundtrip with complete fidelity accounting;
 - isolated PostgreSQL plus BlobStore restore followed by equivalent real-WebDAV read and mutation.
 

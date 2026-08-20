@@ -25,9 +25,24 @@ public final class NativeFilesVolumeAuthorityReadiness {
 
   public boolean isReady() {
     try {
+      requireValidated();
+      return true;
+    } catch (Exception invalidAuthority) {
+      return false;
+    }
+  }
+
+  /**
+   * Returns the one exact authority whose relational row, schema receipt, and root marker agree.
+   *
+   * <p>Callers use this stronger form when a physical operation must remain fenced to the
+   * validated volume/generation, rather than merely contributing a boolean readiness signal.
+   */
+  public NativeFilesVolumeAuthority.Authority requireValidated() {
+    try {
       var rows = repository.findAll();
       if (rows.size() != 1) {
-        return false;
+        throw new IllegalStateException("native Files volume authority row is not singular");
       }
       NativeFilesVolumeAuthority.Authority persisted =
           NativeFilesVolumeAuthority.Authority.fromEntity(rows.getFirst());
@@ -39,9 +54,16 @@ public final class NativeFilesVolumeAuthorityReadiness {
       NativeFilesVolumeAuthority.Authority bound =
           NativeFilesVolumeAuthority.authorityFromReceipt(
               receipt.path("nativeFilesVolumeAuthority"));
-      return persisted.equals(bound);
-    } catch (Exception invalidAuthority) {
-      return false;
+      if (!persisted.equals(bound)) {
+        throw new IllegalStateException(
+            "native Files volume authority disagrees with the schema receipt");
+      }
+      NativeFilesVolumeAuthority.validateMarker(blobRoot, persisted);
+      return persisted;
+    } catch (RuntimeException failure) {
+      throw failure;
+    } catch (Exception failure) {
+      throw new IllegalStateException("native Files volume authority is not validated", failure);
     }
   }
 }

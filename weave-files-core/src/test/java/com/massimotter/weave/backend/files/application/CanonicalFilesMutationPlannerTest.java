@@ -16,14 +16,15 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Target;
+import com.massimotter.weave.backend.files.port.ReplayableFileContent;
 import com.massimotter.weave.backend.files.port.StoredFileRecord;
 import com.massimotter.weave.backend.files.port.StoredFileRecord.BlobBinding;
 import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayInputStream;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -32,6 +33,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -61,14 +63,23 @@ class CanonicalFilesMutationPlannerTest {
 
     @Test
     void putPlansCompleteResultBeforeBlobAccess() {
+        byte[] bytes = "replacement".getBytes(StandardCharsets.UTF_8);
+        AtomicInteger opens = new AtomicInteger();
+        ReplayableFileContent content = new ReplayableFileContent(
+                bytes.length,
+                FilesDigests.sha256(bytes),
+                "text/plain",
+                () -> {
+                    opens.incrementAndGet();
+                    return new ByteArrayInputStream(bytes);
+                });
         var plan = planner.put(
                 SCOPE,
-                new FileWrite(
-                        new FilePath("/docs/source.txt"),
-                        "replacement".getBytes(StandardCharsets.UTF_8),
-                        "text/plain"));
+                new FilePath("/docs/source.txt"),
+                content);
 
         assertEquals(FilesMutationPlan.OperationKind.PUT, plan.operationKind());
+        assertEquals(0, opens.get());
         Target target = plan.targets().getFirst();
         assertEquals(ChangeKind.CONTENT_UPDATED, target.changeKind());
         assertEquals("file:source", target.sourceFileRef());
@@ -77,6 +88,9 @@ class CanonicalFilesMutationPlannerTest {
         assertEquals("/docs/source.txt", target.targetPath());
         assertTrue(target.sourceReadBlobBinding().startsWith("blob:"));
         assertTrue(target.resultBlobBinding().startsWith("v1/"));
+        assertEquals(content.sizeBytes(), target.resultSize());
+        assertEquals(content.sha256Digest(), target.resultContentDigest());
+        assertEquals(content.mediaType(), target.resultMediaType());
         assertNotEquals(target.sourceContentDigest(), target.resultContentDigest());
         assertEquals(NOW, target.resultModifiedAt());
         assertTrue(target.resultStrongEtag().startsWith("\""));
@@ -152,7 +166,8 @@ class CanonicalFilesMutationPlannerTest {
                 match.canonicalValue());
         planner.put(
                 SCOPE,
-                new FileWrite(new FilePath("/docs/source.txt"), new byte[] {1}, "text/plain"),
+                new FilePath("/docs/source.txt"),
+                content(new byte[] {1}, "text/plain"),
                 match,
                 FilesMutationPlan.EntityTagCondition.notSupplied());
 
@@ -160,12 +175,14 @@ class CanonicalFilesMutationPlannerTest {
                 "W/" + current);
         assertThrows(FilesMutationPlanningException.class, () -> planner.put(
                 SCOPE,
-                new FileWrite(new FilePath("/docs/source.txt"), new byte[] {1}, "text/plain"),
+                new FilePath("/docs/source.txt"),
+                content(new byte[] {1}, "text/plain"),
                 weak,
                 FilesMutationPlan.EntityTagCondition.notSupplied()));
         assertThrows(FilesMutationPlanningException.class, () -> planner.put(
                 SCOPE,
-                new FileWrite(new FilePath("/docs/source.txt"), new byte[] {1}, "text/plain"),
+                new FilePath("/docs/source.txt"),
+                content(new byte[] {1}, "text/plain"),
                 FilesMutationPlan.EntityTagCondition.notSupplied(),
                 weak));
         assertThrows(IllegalArgumentException.class, () ->
@@ -220,7 +237,8 @@ class CanonicalFilesMutationPlannerTest {
     void targetContractRejectsUnsafeIntegerAndTimestampValues() {
         Target valid = planner.put(
                 SCOPE,
-                new FileWrite(new FilePath("/docs/new.txt"), new byte[] {1}, "application/octet-stream"))
+                new FilePath("/docs/new.txt"),
+                content(new byte[] {1}, "application/octet-stream"))
                 .targets()
                 .getFirst();
 
@@ -261,6 +279,14 @@ class CanonicalFilesMutationPlannerTest {
                 source.resultModifiedAt(),
                 source.resultHidden(),
                 resultObservedAt);
+    }
+
+    private ReplayableFileContent content(byte[] bytes, String mediaType) {
+        return new ReplayableFileContent(
+                bytes.length,
+                FilesDigests.sha256(bytes),
+                mediaType,
+                () -> new ByteArrayInputStream(bytes));
     }
 
     private void addCollection(String id, String path) {

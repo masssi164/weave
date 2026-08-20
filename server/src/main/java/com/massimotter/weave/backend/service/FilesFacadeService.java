@@ -28,24 +28,26 @@ import com.massimotter.weave.backend.files.application.NativeFilesLockRepository
 import com.massimotter.weave.backend.files.application.NativeFilesLockRepository.LockResult;
 import com.massimotter.weave.backend.files.application.NativeFilesLockRepository.TerminalLockOperationException;
 import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository.CorruptMutationStateException;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileListing;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileQuota;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
-import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.LockConflictException;
+import com.massimotter.weave.backend.files.port.FilesStreamingCapabilityProfile;
+import com.massimotter.weave.backend.files.port.FilesStreamingContentPort;
+import com.massimotter.weave.backend.files.port.FilesStreamingContentPort.Ingress;
 import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.EntityTagCondition;
 import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort.NativeLockMove;
 import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort.NativeResult;
+import com.massimotter.weave.backend.service.files.NativeFilesOperationAudit;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
@@ -56,12 +58,13 @@ import com.massimotter.weave.backend.model.files.FileSetupCredentialRequest;
 import com.massimotter.weave.backend.model.files.FileSetupCredentialResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.operation.domain.OperationIntent;
-import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilePathCodec;
+import com.massimotter.weave.backend.service.files.WebDavFileRead;
 import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
+import com.massimotter.weave.backend.service.files.WebDavPutRequest;
 import com.massimotter.weave.backend.service.files.WebDavSearchRequest;
 import com.massimotter.weave.backend.service.files.WebDavSearchResult;
 import com.massimotter.weave.backend.security.device.DeviceCredential;
@@ -91,6 +94,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -372,33 +376,22 @@ public class FilesFacadeService {
         throw webDavWritePolicyRequired("upload-file", principal, parentPath, null);
     }
 
-    public DownloadedFile download(String id) {
-        PrincipalContext principal =
-                requireContextPermission(ContextPermission.VIEW, "download-file");
-        try {
-            FileContent content = configuredAdapter("download-file", principal).read(new FileId(id));
-            publishWorkloadReadAudit(principal, "files.resource.read", id, "completed", 1);
-            return new DownloadedFile(content.item().name(), content.item().mediaType(), content.bytes());
-        } catch (ApiErrorException exception) {
-            publishWorkloadReadAudit(principal, "files.resource.read", id, "failed", 0);
-            throw supportSafeStorageError(exception, "download-file");
-        }
-    }
-
-    public DownloadedFile downloadWebDavPath(String path) {
+    public WebDavFileRead openWebDavPath(String path) {
         String operation = "webdav-get";
         PrincipalContext principal = requireContextPermission(ContextPermission.VIEW, operation);
         String normalizedPath = FilePathCodec.normalizeProductPath(path);
         try {
             FilesProviderPort adapter = configuredAdapter(operation, principal);
-            VersionedFile item = adapter.find(new FilePath(normalizedPath))
-                    .orElseThrow(() -> new ApiErrorException(
-                            HttpStatus.NOT_FOUND,
-                            "file-not-found",
-                            "The requested file or folder was not found.",
-                            Map.of("module", "files", "operation", operation)));
-            FileContent content = adapter.read(item.item().id());
-            return new DownloadedFile(content.item().name(), content.item().mediaType(), content.bytes());
+            FilesStreamingContentPort streaming = requireStreamingContent(adapter, operation);
+            var read = streaming.inspect(new FilePath(normalizedPath));
+            return new WebDavFileRead(
+                    read.item().name(),
+                    read.headers().contentLength(),
+                    read.headers().contentType(),
+                    read.headers().strongEtag(),
+                    read.headers().cacheControl(),
+                    streaming.contentProfile().maximumContentBytes(),
+                    () -> streaming.verify(read));
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, operation);
         }
@@ -418,27 +411,7 @@ public class FilesFacadeService {
 
     public WebDavMutationResult putWebDavFile(
             String path,
-            byte[] content,
-            String contentType,
-            String ifMatch,
-            String ifNoneMatch) {
-        return putWebDavFile(path, content, contentType, ifMatch, ifNoneMatch, null);
-    }
-
-    public WebDavMutationResult putWebDavFile(
-            String path,
-            byte[] content,
-            String contentType,
-            String ifMatch,
-            String ifNoneMatch,
-            String ifHeader) {
-        return putWebDavFile(path, content, contentType, ifMatch, ifNoneMatch, ifHeader, null);
-    }
-
-    public WebDavMutationResult putWebDavFile(
-            String path,
-            byte[] content,
-            String contentType,
+            WebDavPutRequest request,
             String ifMatch,
             String ifNoneMatch,
             String ifHeader,
@@ -449,16 +422,52 @@ public class FilesFacadeService {
         EntityTagCondition noneMatchCondition = parseEntityTagCondition(ifNoneMatch, operation, "If-None-Match");
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
         enforceUnlocked(normalizedPath, ifHeader, operation, principal);
+        FilesProviderPort scopedAdapter = configuredAdapter(operation, principal);
+        FilesStreamingContentPort streaming = requireStreamingContent(scopedAdapter, operation);
+        requireDurableStreamingWrite(operation);
+        PutFraming framing = validatePutFraming(request, streaming, operation);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "PUT", "attempted");
-        byte[] writeContent = content == null ? new byte[0] : content;
-        String arguments = String.join("\n",
-                normalizedPath,
-                firstNonBlank(contentType, "application/octet-stream"),
-                matchCondition.canonicalValue(),
-                noneMatchCondition.canonicalValue(),
-                lockTokenRef(ifHeader),
-                FilesMutationIntentService.digest(writeContent));
+        NativePlanCheck planCheck = adapter -> {
+            VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, true);
+            enforcePreconditions(existing, matchCondition, noneMatchCondition, operation);
+            if (existing != null && existing.item().kind() != Kind.FILE) {
+                throw fileConflict(operation, normalizedPath, "PUT cannot replace a collection.");
+            }
+            if (existing == null) {
+                requireParentCollection(adapter, normalizedPath, operation);
+            }
+        };
+        // Reject an already-stale request before consuming any request-body bytes. The same check is
+        // repeated against the pinned provider binding immediately before a new Tx1 seals its
+        // fences. An existing explicit-key operation replays its immutable plan/result instead of
+        // evaluating today's target state; canonical-argument equivalence is checked after ingress.
+        boolean knownReplay;
         try {
+            knownReplay = filesMutationIntentService != null
+                    && filesMutationIntentService.hasExistingOperation(principal.tenantId(), idempotencyKey);
+        } catch (FilesMutationIntentService.InvalidIdempotencyKeyException invalid) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "files-idempotency-key-invalid",
+                    "Idempotency-Key must contain between 16 and 128 characters.",
+                    Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+        }
+        if (!knownReplay) {
+            planCheck.validate(scopedAdapter);
+        }
+        try (Ingress ingress = streaming.receive(
+                framing.declaredLength(),
+                framing.mediaType(),
+                request.requestBody())) {
+            var content = ingress.content();
+            String arguments = String.join("\n",
+                    normalizedPath,
+                    content.mediaType(),
+                    Long.toString(content.sizeBytes()),
+                    content.sha256Digest(),
+                    matchCondition.canonicalValue(),
+                    noneMatchCondition.canonicalValue(),
+                    lockTokenRef(ifHeader));
             return executeMutation(
                     idempotencyKey,
                     principal,
@@ -468,19 +477,12 @@ public class FilesFacadeService {
                             "file-path:" + FilesMutationIntentService.digest(normalizedPath),
                             lockTokenRef(ifHeader)),
                     new NativeFilesDurableMutationPort.Put(
-                            new FileWrite(new FilePath(normalizedPath), writeContent, contentType),
+                            new FilePath(normalizedPath),
+                            content,
                             matchCondition,
                             noneMatchCondition),
-                    adapter -> {
-                        VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, true);
-                        enforcePreconditions(existing, matchCondition, noneMatchCondition, operation);
-                        if (existing != null && existing.item().kind() != Kind.FILE) {
-                            throw fileConflict(operation, normalizedPath, "PUT cannot replace a collection.");
-                        }
-                        if (existing == null) {
-                            requireParentCollection(adapter, normalizedPath, operation);
-                        }
-                    },
+                    ingress,
+                    planCheck,
                     null,
                     result -> {
                         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal,
@@ -488,24 +490,11 @@ public class FilesFacadeService {
                         return webDavMutationResult(result, operation);
                     },
                     adapter -> {
-                        VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, true);
-                        enforcePreconditions(existing, matchCondition, noneMatchCondition, operation);
-                        if (existing != null && existing.item().kind() != Kind.FILE) {
-                            throw fileConflict(operation, normalizedPath, "PUT cannot replace a collection.");
-                        }
-                        if (existing == null) {
-                            requireParentCollection(adapter, normalizedPath, operation);
-                        }
-                        FileObject stored = adapter.write(
-                                new FileWrite(new FilePath(normalizedPath), writeContent, contentType));
-                        VersionedFileItem updated = firstNonNull(
-                                existingVersionedItem(adapter, normalizedPath, operation, false),
-                                versioned(stored, new FileVersion(contentVersionToken(writeContent))));
-                        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal,
-                                normalizedPath, "PUT", "completed");
-                        return new WebDavMutationResult(toResponse(updated.item()), etag(updated), existing == null);
+                        throw streamingNotSupported(operation);
                     },
-                    adapter -> reconcilePut(adapter, normalizedPath, writeContent, operation),
+                    adapter -> {
+                        throw streamingNotSupported(operation);
+                    },
                     result -> result.item().id() + "\n" + result.item().path() + "\n" + result.etag());
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, operation);
@@ -1517,6 +1506,146 @@ public class FilesFacadeService {
     private record SearchNode(String path, int depth) {
     }
 
+    private PutFraming validatePutFraming(
+            WebDavPutRequest request,
+            FilesStreamingContentPort streaming,
+            String operation) {
+        WebDavPutRequest required = Objects.requireNonNull(request, "request must not be null");
+        Long declaredLength = parseContentLength(required.contentLengthFields(), operation);
+        validateTransferEncoding(
+                required.transferEncodingFields(),
+                declaredLength != null,
+                operation);
+        String mediaType = parseContentType(required.contentTypeFields(), operation);
+        validateContentEncoding(required.contentEncodingFields(), operation);
+        if (declaredLength != null
+                && declaredLength > streaming.contentProfile().maximumContentBytes()) {
+            throw new ApiErrorException(
+                    HttpStatus.PAYLOAD_TOO_LARGE,
+                    "files-content-too-large",
+                    "The Files representation exceeds the accepted content bound.",
+                    Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+        }
+        return new PutFraming(declaredLength, mediaType);
+    }
+
+    private Long parseContentLength(List<String> values, String operation) {
+        if (values.size() > 1) {
+            throw invalidPutRequest(operation);
+        }
+        if (values.isEmpty()) {
+            return null;
+        }
+        String value = values.getFirst() == null ? "" : values.getFirst().trim();
+        if (!value.matches("0|[1-9][0-9]*")) {
+            throw invalidPutRequest(operation);
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException invalid) {
+            throw invalidPutRequest(operation);
+        }
+    }
+
+    private void validateTransferEncoding(
+            List<String> values,
+            boolean contentLengthSupplied,
+            String operation) {
+        if (values.size() > 1) {
+            throw invalidPutRequest(operation);
+        }
+        if (values.isEmpty()) {
+            return;
+        }
+        String value = values.getFirst() == null ? "" : values.getFirst().trim();
+        if (contentLengthSupplied || !"chunked".equalsIgnoreCase(value)) {
+            throw invalidPutRequest(operation);
+        }
+    }
+
+    private String parseContentType(List<String> values, String operation) {
+        if (values.size() > 1) {
+            throw invalidPutRequest(operation);
+        }
+        if (values.isEmpty()) {
+            return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
+        String value = values.getFirst() == null ? "" : values.getFirst().trim();
+        if (value.isEmpty() || value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0) {
+            throw invalidPutRequest(operation);
+        }
+        try {
+            MediaType.parseMediaType(value);
+        } catch (IllegalArgumentException invalid) {
+            throw invalidPutRequest(operation);
+        }
+        return value;
+    }
+
+    private void validateContentEncoding(List<String> values, String operation) {
+        if (values.size() > 1) {
+            throw invalidPutRequest(operation);
+        }
+        if (values.isEmpty()) {
+            return;
+        }
+        String value = values.getFirst() == null ? "" : values.getFirst().trim();
+        if (!"identity".equalsIgnoreCase(value)) {
+            throw new ApiErrorException(
+                    HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                    "files-content-coding-unsupported",
+                    "Files PUT accepts only the identity content coding.",
+                    Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+        }
+    }
+
+    private ApiErrorException invalidPutRequest(String operation) {
+        return new ApiErrorException(
+                HttpStatus.BAD_REQUEST,
+                "file-upload-invalid-request",
+                "The Files PUT request framing is invalid.",
+                Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+    }
+
+    private FilesStreamingContentPort requireStreamingContent(
+            FilesProviderPort adapter,
+            String operation) {
+        if (adapter instanceof FilesStreamingContentPort streaming) {
+            if (FilesStreamingCapabilityProfile.observe(adapter, streaming).qualified()) {
+                return streaming;
+            }
+        }
+        throw streamingNotSupported(operation);
+    }
+
+    private ApiErrorException streamingNotSupported(String operation) {
+        return new ApiErrorException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "files-streaming-not-supported",
+                "The selected Files adapter has no verified bounded-content capability.",
+                Map.of(
+                        "module", "files",
+                        "operation", operation,
+                        "webDavFacadePath", "/dav/files",
+                        "openApiDataPlaneUsed", false,
+                        "diagnosticsRedacted", true));
+    }
+
+    private void requireDurableStreamingWrite(String operation) {
+        if (filesMutationIntentService == null
+                || !(configuredAdapter(operation) instanceof NativeFilesDurableMutationPort)) {
+            throw streamingNotSupported(operation);
+        }
+    }
+
+    private ApiErrorException streamingCapacityUnavailable(String operation) {
+        return new ApiErrorException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "files-streaming-capacity-unavailable",
+                "Bounded Files content capacity is temporarily unavailable.",
+                Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+    }
+
     private FilesProviderPort configuredAdapter(String operation) {
         if (filesProviderPort == null || !filesProviderPort.configured()) {
             throw adapterNotConfigured(operation);
@@ -1542,6 +1671,36 @@ public class FilesFacadeService {
             String canonicalArguments,
             List<String> objectRefs,
             NativeFilesDurableMutationPort.Mutation nativeMutation,
+            NativePlanCheck nativePlanCheck,
+            NativeLockMove nativeLockMove,
+            Function<NativeResult, T> nativeResult,
+            ProviderMutation<T> apply,
+            ProviderMutation<T> reconcile,
+            Function<T, String> canonicalResult) {
+        return executeMutation(
+                idempotencyKey,
+                principal,
+                operation,
+                canonicalArguments,
+                objectRefs,
+                nativeMutation,
+                null,
+                nativePlanCheck,
+                nativeLockMove,
+                nativeResult,
+                apply,
+                reconcile,
+                canonicalResult);
+    }
+
+    private <T> T executeMutation(
+            String idempotencyKey,
+            PrincipalContext principal,
+            String operation,
+            String canonicalArguments,
+            List<String> objectRefs,
+            NativeFilesDurableMutationPort.Mutation nativeMutation,
+            Ingress ingress,
             NativePlanCheck nativePlanCheck,
             NativeLockMove nativeLockMove,
             Function<NativeResult, T> nativeResult,
@@ -1608,28 +1767,38 @@ public class FilesFacadeService {
                 principal.tenantId(),
                 DEFAULT_CONTEXT_ID,
                 prepared.binding().revision());
+        if (nativePlanCheck != null && !prepared.retry()) {
+            nativePlanCheck.validate(adapter.scoped(scope));
+        }
         NativePinnedMutation mutation = null;
         try {
-            if (prepared.retry()) {
-                mutation = filesMutationIntentService.resumeNative(prepared);
-            } else {
-                mutation = filesMutationIntentService.beginNative(
-                        prepared,
-                        new FilesScope(scope.organizationRef(), scope.spaceRef()),
-                        () -> nativeAdapter.plan(prepared.candidate(), scope, nativeMutation));
-            }
+            java.util.function.Supplier<NativePinnedMutation> planCommit = () -> prepared.retry()
+                    ? filesMutationIntentService.resumeNative(prepared)
+                    : filesMutationIntentService.beginNative(
+                            prepared,
+                            new FilesScope(scope.organizationRef(), scope.spaceRef()),
+                            () -> nativeAdapter.plan(prepared.candidate(), scope, nativeMutation));
+            mutation = ingress == null
+                    ? planCommit.get()
+                    : ingress.bindThroughPlanCommit(
+                            prepared.candidate().operationRef(),
+                            planCommit);
             filesMutationIntentService.requireAdapter(
                     mutation,
                     adapter.conformanceProfile().adapterKey());
             requireNativeMutationRunnable(mutation, operation);
             String auditRef = publishNativeOperationIntentAudit(mutation);
-            return nativeResult.apply(nativeAdapter.execute(
+            NativeResult executed = nativeAdapter.execute(
                     mutation.intent(),
                     scope,
                     mutation.plan(),
                     nativeMutation,
                     auditRef,
-                    nativeLockMove));
+                    nativeLockMove);
+            if (ingress != null) {
+                ingress.releaseIfTerminal();
+            }
+            return nativeResult.apply(executed);
         } catch (FilesMutationIntentService.PinnedAdapterMismatchException exception) {
             throw new ApiErrorException(
                     HttpStatus.SERVICE_UNAVAILABLE,
@@ -1816,27 +1985,7 @@ public class FilesFacadeService {
     }
 
     private String publishNativeOperationIntentAudit(OperationIntent intent) {
-        if (!(intent.projection() instanceof OperationIntent.ProtocolProjection projection)) {
-            throw new IllegalArgumentException("native Files mutation requires one protocol projection");
-        }
-        String auditRef = "files-operation-intent:" + intent.operationRef();
-        auditEventPublisher.publish(new AuditEvent(
-                intent.organizationRef(),
-                DEFAULT_CONTEXT_ID,
-                intent.actor().personRef(),
-                "files:operation-intent",
-                AuditAction.FILES_OPERATION_INTENT_RECORDED,
-                intent.createdAt().truncatedTo(ChronoUnit.MICROS),
-                auditRef,
-                AuditRedactionLevel.SUPPORT_SAFE,
-                Map.of(
-                        "domain", "files",
-                        "operation", projection.operation(),
-                        "operationRef", intent.operationRef(),
-                        "providerBindingRevision", Long.toString(intent.providerBindingRevision()),
-                        "result", "recorded",
-                        "supportSafe", true)));
-        return auditRef;
+        return NativeFilesOperationAudit.publish(auditEventPublisher, intent);
     }
 
     private String publishOperationIntentAudit(
@@ -1898,21 +2047,6 @@ public class FilesFacadeService {
                         "result", result + ":" + matchCount)));
     }
 
-
-    private WebDavMutationResult reconcilePut(
-            FilesProviderPort adapter, String normalizedPath, byte[] expectedContent, String operation) {
-        VersionedFileItem current = existingVersionedItem(adapter, normalizedPath, operation, false);
-        if (current == null || current.item().kind() != Kind.FILE) {
-            throw operationReconciliationRequired(operation, normalizedPath);
-        }
-        FileContent content = adapter.read(current.item().id());
-        if (!MessageDigest.isEqual(
-                FilesMutationIntentService.digest(expectedContent).getBytes(StandardCharsets.US_ASCII),
-                FilesMutationIntentService.digest(content.bytes()).getBytes(StandardCharsets.US_ASCII))) {
-            throw operationReconciliationRequired(operation, normalizedPath);
-        }
-        return new WebDavMutationResult(toResponse(current.item()), etag(current), false);
-    }
 
     private WebDavMutationResult reconcileExisting(
             FilesProviderPort adapter, String normalizedPath, Kind expectedKind, String operation) {
@@ -2319,10 +2453,6 @@ public class FilesFacadeService {
         return FilesEtags.strong(item, version);
     }
 
-    private String contentVersionToken(byte[] content) {
-        return "content-sha256:" + sha256Token(content);
-    }
-
     private String sha256(String material) {
         return sha256Token(material.getBytes(StandardCharsets.UTF_8));
     }
@@ -2382,6 +2512,9 @@ public class FilesFacadeService {
     }
 
     private record VersionedFileItem(FileObject item, FileVersion version) {
+    }
+
+    private record PutFraming(Long declaredLength, String mediaType) {
     }
 
     private ApiErrorException supportSafeStorageError(ApiErrorException exception, String operation) {

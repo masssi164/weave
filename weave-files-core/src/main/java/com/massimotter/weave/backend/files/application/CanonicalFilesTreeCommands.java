@@ -24,10 +24,6 @@ import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.ConcurrentMutationException;
 import com.massimotter.weave.backend.files.port.StoredFileRecord;
 import com.massimotter.weave.backend.files.port.StoredFileRecord.BlobBinding;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -83,14 +79,23 @@ public final class CanonicalFilesTreeCommands {
             String digest = sourceMetadata.contentDigest();
             BlobBinding blobBinding = null;
             if (sourceMetadata.object().kind() == Kind.FILE) {
-                byte[] content = readVerified(scope, sourceRecord);
                 BlobReference copiedReference = blobReference(copiedId, digest);
-                blobs.putStream(
-                        blobScope(scope),
-                        copiedReference,
-                        new ByteArrayInputStream(content),
-                        content.length,
-                        digest);
+                try {
+                    BoundedBlobTransfer.copy(
+                            blobs,
+                            blobScope(scope),
+                            reference(sourceRecord),
+                            copiedReference,
+                            sourceMetadata.object().size(),
+                            digest,
+                            sourceMetadata.object().mediaType() == null
+                                    ? "application/octet-stream"
+                                    : sourceMetadata.object().mediaType());
+                } catch (BoundedBlobTransfer.TransferException transferFailure) {
+                    throw failure(
+                            CONTENT_INTEGRITY_FAILED,
+                            "The canonical Files content could not be copied safely.");
+                }
                 blobBinding = new BlobBinding(copiedReference.value());
             }
             FileObject copied = new FileObject(
@@ -256,27 +261,6 @@ public final class CanonicalFilesTreeCommands {
                 metadata.contentDigest(),
                 record.blobBinding(),
                 now);
-    }
-
-    private byte[] readVerified(
-            FilesCommandScope scope,
-            StoredFileRecord record) {
-        CanonicalFileRecord metadata = record.metadata();
-        ByteArrayOutputStream target = new ByteArrayOutputStream(
-                Math.toIntExact(Math.min(metadata.object().size(), Integer.MAX_VALUE)));
-        blobs.readStream(blobScope(scope), reference(record), target);
-        byte[] content = target.toByteArray();
-        String actualDigest = FilesDigests.sha256(content);
-        if (metadata.object().size() != content.length
-                || metadata.contentDigest() == null
-                || !MessageDigest.isEqual(
-                        metadata.contentDigest().getBytes(StandardCharsets.US_ASCII),
-                        actualDigest.getBytes(StandardCharsets.US_ASCII))) {
-            throw failure(
-                    CONTENT_INTEGRITY_FAILED,
-                    "The canonical Files metadata and blob content do not match.");
-        }
-        return content;
     }
 
     private BlobReference reference(StoredFileRecord record) {

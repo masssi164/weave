@@ -132,10 +132,45 @@ ascending gap-free changes, and uses an HMAC-protected continuation bound to org
 high-water, last revision, page limit and cursor version. History below the retained floor fails
 closed with reset-required evidence.
 
+## Bounded WebDAV content transfer
+
+The first qualified northbound content profile is native WebDAV PUT, GET and HEAD. It has no
+byte-array fallback:
+
+- PUT validates authorization, lock state, current ETag preconditions, request framing, content
+  coding and fixed-length bounds before it opens the servlet request body; the preconditions are
+  checked again against the pinned binding before Tx1 seals its immutable fences;
+- fixed and chunked bodies are copied in at most 65,536-byte chunks into a private, capacity-reserved
+  ingress object under the validated Files volume/generation;
+- the ingress owner lock remains held while the descriptor is bound to the immutable operation
+  reference and Tx1 commits; a nonterminal plan protects the retained bytes;
+- PostgreSQL, not private spool inventory, enumerates bounded recovery candidates. Recovery reopens
+  the exact same-generation ingress by operation reference and executes the sealed plan without a
+  client resend;
+- GET observes metadata and its private binding once, verifies the complete representation into a
+  capacity-reserved private egress object before committing HTTP success, then streams that verified
+  object to the client;
+- HEAD and a matching If-None-Match response use the same binding-free metadata snapshot without
+  opening a blob or allocating egress;
+- a client disconnect releases and deletes private egress, while ingress is released only after
+  terminal relational evidence;
+- a scheduled bounded, age-fenced scavenger rechecks the relational protection state while holding
+  the private owner lock before reclaiming crash-left content.
+
+The implementation target is 64 MiB per representation with four admitted ingress and four
+admitted egress transfers per server instance. Those values are an adapter capability profile, not
+member-visible capacity diagnostics. External provider adapters that have not qualified this exact
+profile fail closed with `files-streaming-not-supported`; they do not receive a byte-array bridge.
+The provider registry projects a fresh `weave.capability-profile/v1` observation on every status
+read, including native/F0-or-blocked/F4 records, conformance and adapter versions, evidence,
+expiry, and the runtime-observed maximum, buffer and concurrency limits. Request admission uses
+the same qualification observation and cannot rely on a stale startup snapshot.
+
 `CanonicalFileRecord` contains only canonical domain metadata. The persistence-port envelope `StoredFileRecord` pairs that metadata with an opaque `BlobBinding`; JPA maps both into the same `weave_files_objects` row and transaction. The physical `storage_reference` column and its representation remain private to the persistence adapter, with no storage reference exposed through domain or public Files models.
 
 The incremental qualification records are [Native Files private blob-binding evidence](../evidence/native-files-private-blob-binding.md)
-and [Native Files V7 durability evidence](../evidence/native-files-v7-durability.md).
+and [Native Files V7 durability evidence](../evidence/native-files-v7-durability.md), plus
+[Native Files bounded streaming evidence](../evidence/native-files-bounded-streaming.md).
 
 ## Backup and restore contract
 
