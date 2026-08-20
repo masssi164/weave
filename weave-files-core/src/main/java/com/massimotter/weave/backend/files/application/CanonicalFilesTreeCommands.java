@@ -22,6 +22,8 @@ import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.ConcurrentMutationException;
+import com.massimotter.weave.backend.files.port.StoredFileRecord;
+import com.massimotter.weave.backend.files.port.StoredFileRecord.BlobBinding;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -59,13 +61,13 @@ public final class CanonicalFilesTreeCommands {
             boolean overwrite) {
         requireArguments(scope, source, destination);
         requireDistinctTreePaths(source, destination);
-        List<CanonicalFileRecord> records = active(scope);
-        List<CanonicalFileRecord> sourceTree = tree(records, source);
+        List<StoredFileRecord> records = active(scope);
+        List<StoredFileRecord> sourceTree = tree(records, source);
         if (sourceTree.isEmpty()) {
             throw failure(NOT_FOUND, "The requested file or folder was not found.");
         }
         ensureParent(records, destination);
-        List<CanonicalFileRecord> destinationTree = tree(records, destination);
+        List<StoredFileRecord> destinationTree = tree(records, destination);
         if (!destinationTree.isEmpty() && !overwrite) {
             throw failure(
                     PRECONDITION_FAILED,
@@ -73,13 +75,14 @@ public final class CanonicalFilesTreeCommands {
         }
 
         Instant now = Instant.now(clock);
-        List<CanonicalFileRecord> activations = new ArrayList<>();
-        for (CanonicalFileRecord sourceRecord : sourceTree) {
-            FilePath copiedPath = substitute(sourceRecord.object().path(), source, destination);
+        List<StoredFileRecord> activations = new ArrayList<>();
+        for (StoredFileRecord sourceRecord : sourceTree) {
+            CanonicalFileRecord sourceMetadata = sourceRecord.metadata();
+            FilePath copiedPath = substitute(sourceMetadata.object().path(), source, destination);
             FileId copiedId = canonicalId(scope, copiedPath);
-            String digest = sourceRecord.contentDigest();
-            String storageReference = null;
-            if (sourceRecord.object().kind() == Kind.FILE) {
+            String digest = sourceMetadata.contentDigest();
+            BlobBinding blobBinding = null;
+            if (sourceMetadata.object().kind() == Kind.FILE) {
                 byte[] content = readVerified(scope, sourceRecord);
                 BlobReference copiedReference = blobReference(copiedId, digest);
                 blobs.putStream(
@@ -88,39 +91,39 @@ public final class CanonicalFilesTreeCommands {
                         new ByteArrayInputStream(content),
                         content.length,
                         digest);
-                storageReference = copiedReference.value();
+                blobBinding = new BlobBinding(copiedReference.value());
             }
             FileObject copied = new FileObject(
                     copiedId,
                     copiedPath,
-                    sourceRecord.object().kind(),
-                    sourceRecord.object().size(),
-                    sourceRecord.object().mediaType(),
+                    sourceMetadata.object().kind(),
+                    sourceMetadata.object().size(),
+                    sourceMetadata.object().mediaType(),
                     now,
-                    sourceRecord.object().hidden());
+                    sourceMetadata.object().hidden());
             activations.add(active(
                     scope,
                     copied,
-                    sourceRecord.version(),
+                    sourceMetadata.version(),
                     digest,
-                    storageReference,
+                    blobBinding,
                     now));
         }
 
         try {
             if (sourceTree.size() == 1 && destinationTree.isEmpty()) {
-                CanonicalFileRecord activation = activations.getFirst();
+                StoredFileRecord activation = activations.getFirst();
                 try {
-                    return authority.activate(activation).object();
+                    return authority.activate(activation).metadata().object();
                 } catch (ConcurrentMutationException concurrentMutation) {
-                    CanonicalFileRecord concurrent = authority
+                    StoredFileRecord concurrent = authority
                             .findByPath(
                                     scope.organizationRef(),
                                     scope.spaceRef(),
                                     destination)
                             .orElse(null);
                     if (equivalent(concurrent, activation)) {
-                        return concurrent.object();
+                        return concurrent.metadata().object();
                     }
                     throw concurrentMutation;
                 }
@@ -136,7 +139,7 @@ public final class CanonicalFilesTreeCommands {
                     "The canonical Files metadata changed concurrently.");
         }
         cleanupBlobs(scope, destinationTree);
-        return root(activations, destination).object();
+        return root(activations, destination).metadata().object();
     }
 
     public FileObject move(
@@ -146,13 +149,13 @@ public final class CanonicalFilesTreeCommands {
             boolean overwrite) {
         requireArguments(scope, source, destination);
         requireDistinctTreePaths(source, destination);
-        List<CanonicalFileRecord> records = active(scope);
-        List<CanonicalFileRecord> sourceTree = tree(records, source);
+        List<StoredFileRecord> records = active(scope);
+        List<StoredFileRecord> sourceTree = tree(records, source);
         if (sourceTree.isEmpty()) {
             throw failure(NOT_FOUND, "The requested file or folder was not found.");
         }
         ensureParent(records, destination);
-        List<CanonicalFileRecord> destinationTree = tree(records, destination);
+        List<StoredFileRecord> destinationTree = tree(records, destination);
         if (!destinationTree.isEmpty() && !overwrite) {
             throw failure(
                     PRECONDITION_FAILED,
@@ -161,15 +164,15 @@ public final class CanonicalFilesTreeCommands {
 
         Instant now = Instant.now(clock);
         if (sourceTree.size() == 1 && destinationTree.isEmpty()) {
-            CanonicalFileRecord sourceRecord = sourceTree.getFirst();
+            StoredFileRecord sourceRecord = sourceTree.getFirst();
             try {
                 return authority.moveNode(
                         scope.organizationRef(),
                         scope.spaceRef(),
-                        sourceRecord.object().id(),
+                        sourceRecord.metadata().object().id(),
                         source,
                         destination,
-                        now).object();
+                        now).metadata().object();
             } catch (ConcurrentMutationException concurrentMutation) {
                 throw failure(
                         METADATA_CONFLICT,
@@ -177,7 +180,7 @@ public final class CanonicalFilesTreeCommands {
             }
         }
 
-        List<CanonicalFileRecord> moved = sourceTree.stream()
+        List<StoredFileRecord> moved = sourceTree.stream()
                 .map(record -> moveRecord(scope, record, source, destination, now))
                 .toList();
         try {
@@ -191,7 +194,7 @@ public final class CanonicalFilesTreeCommands {
                     "The canonical Files metadata changed concurrently.");
         }
         cleanupBlobs(scope, destinationTree);
-        return root(moved, destination).object();
+        return root(moved, destination).metadata().object();
     }
 
     public void delete(
@@ -203,11 +206,11 @@ public final class CanonicalFilesTreeCommands {
         if (path.root()) {
             throw failure(TREE_CONFLICT, "The Files root cannot be deleted.");
         }
-        List<CanonicalFileRecord> target = tree(active(scope), path);
+        List<StoredFileRecord> target = tree(active(scope), path);
         if (target.isEmpty()) {
             throw failure(NOT_FOUND, "The requested file or folder was not found.");
         }
-        CanonicalFileRecord root = root(target, path);
+        CanonicalFileRecord root = root(target, path).metadata();
         if (expectedVersion != null
                 && expectedVersion.known()
                 && !Objects.equals(expectedVersion.value(), root.version().value())) {
@@ -228,44 +231,46 @@ public final class CanonicalFilesTreeCommands {
         cleanupBlobs(scope, target);
     }
 
-    private CanonicalFileRecord moveRecord(
+    private StoredFileRecord moveRecord(
             FilesCommandScope scope,
-            CanonicalFileRecord record,
+            StoredFileRecord record,
             FilePath source,
             FilePath destination,
             Instant now) {
-        FilePath movedPath = substitute(record.object().path(), source, destination);
+        CanonicalFileRecord metadata = record.metadata();
+        FilePath movedPath = substitute(metadata.object().path(), source, destination);
         FileObject object = new FileObject(
-                record.object().id(),
+                metadata.object().id(),
                 movedPath,
-                record.object().kind(),
-                record.object().size(),
-                record.object().mediaType(),
+                metadata.object().kind(),
+                metadata.object().size(),
+                metadata.object().mediaType(),
                 now,
-                record.object().hidden());
+                metadata.object().hidden());
         String version = FilesDigests.sha256(
-                String.valueOf(record.version().value()) + "\u0000" + movedPath.value());
+                String.valueOf(metadata.version().value()) + "\u0000" + movedPath.value());
         return active(
                 scope,
                 object,
                 new FileVersion(version),
-                record.contentDigest(),
-                record.storageReference(),
+                metadata.contentDigest(),
+                record.blobBinding(),
                 now);
     }
 
     private byte[] readVerified(
             FilesCommandScope scope,
-            CanonicalFileRecord record) {
+            StoredFileRecord record) {
+        CanonicalFileRecord metadata = record.metadata();
         ByteArrayOutputStream target = new ByteArrayOutputStream(
-                Math.toIntExact(Math.min(record.object().size(), Integer.MAX_VALUE)));
+                Math.toIntExact(Math.min(metadata.object().size(), Integer.MAX_VALUE)));
         blobs.readStream(blobScope(scope), reference(record), target);
         byte[] content = target.toByteArray();
         String actualDigest = FilesDigests.sha256(content);
-        if (record.object().size() != content.length
-                || record.contentDigest() == null
+        if (metadata.object().size() != content.length
+                || metadata.contentDigest() == null
                 || !MessageDigest.isEqual(
-                        record.contentDigest().getBytes(StandardCharsets.US_ASCII),
+                        metadata.contentDigest().getBytes(StandardCharsets.US_ASCII),
                         actualDigest.getBytes(StandardCharsets.US_ASCII))) {
             throw failure(
                     CONTENT_INTEGRITY_FAILED,
@@ -274,14 +279,14 @@ public final class CanonicalFilesTreeCommands {
         return content;
     }
 
-    private BlobReference reference(CanonicalFileRecord record) {
-        if (record.storageReference() == null) {
+    private BlobReference reference(StoredFileRecord record) {
+        if (record.blobBinding() == null) {
             throw failure(
                     INVALID_BLOB_REFERENCE,
                     "The Files metadata does not reference content.");
         }
         try {
-            return new BlobReference(record.storageReference());
+            return new BlobReference(record.blobBinding().opaqueReference());
         } catch (IllegalArgumentException invalidReference) {
             throw failure(
                     INVALID_BLOB_REFERENCE,
@@ -291,15 +296,15 @@ public final class CanonicalFilesTreeCommands {
 
     private void cleanupBlobs(
             FilesCommandScope scope,
-            List<CanonicalFileRecord> records) {
-        Set<String> retained = active(scope).stream()
-                .map(CanonicalFileRecord::storageReference)
+            List<StoredFileRecord> records) {
+        Set<BlobBinding> retained = active(scope).stream()
+                .map(StoredFileRecord::blobBinding)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toUnmodifiableSet());
-        for (CanonicalFileRecord record : records) {
-            if (record.object().kind() == Kind.FILE
-                    && record.storageReference() != null
-                    && !retained.contains(record.storageReference())) {
+        for (StoredFileRecord record : records) {
+            if (record.metadata().object().kind() == Kind.FILE
+                    && record.blobBinding() != null
+                    && !retained.contains(record.blobBinding())) {
                 try {
                     blobs.delete(blobScope(scope), reference(record));
                 } catch (RuntimeException ignored) {
@@ -310,30 +315,35 @@ public final class CanonicalFilesTreeCommands {
     }
 
     private boolean equivalent(
-            CanonicalFileRecord current,
-            CanonicalFileRecord requested) {
+            StoredFileRecord current,
+            StoredFileRecord requested) {
+        CanonicalFileRecord currentMetadata = current == null ? null : current.metadata();
+        CanonicalFileRecord requestedMetadata = requested.metadata();
         return current != null
-                && current.lifecycle() == ACTIVE
-                && current.object().id().equals(requested.object().id())
-                && current.object().kind() == requested.object().kind()
-                && current.object().size() == requested.object().size()
-                && Objects.equals(current.object().mediaType(), requested.object().mediaType())
-                && Objects.equals(current.contentDigest(), requested.contentDigest())
-                && Objects.equals(current.storageReference(), requested.storageReference());
+                && currentMetadata.lifecycle() == ACTIVE
+                && currentMetadata.object().id().equals(requestedMetadata.object().id())
+                && currentMetadata.object().kind() == requestedMetadata.object().kind()
+                && currentMetadata.object().size() == requestedMetadata.object().size()
+                && Objects.equals(
+                        currentMetadata.object().mediaType(),
+                        requestedMetadata.object().mediaType())
+                && Objects.equals(currentMetadata.contentDigest(), requestedMetadata.contentDigest())
+                && Objects.equals(current.blobBinding(), requested.blobBinding());
     }
 
-    private List<CanonicalFileRecord> active(FilesCommandScope scope) {
+    private List<StoredFileRecord> active(FilesCommandScope scope) {
         return authority.activeFiles(scope.organizationRef(), scope.spaceRef());
     }
 
     private void ensureParent(
-            List<CanonicalFileRecord> records,
+            List<StoredFileRecord> records,
             FilePath path) {
         FilePath parent = parent(path);
         if (parent.root()) {
             return;
         }
         CanonicalFileRecord parentRecord = byPath(records, parent)
+                .map(StoredFileRecord::metadata)
                 .orElseThrow(() -> failure(
                         PARENT_MISSING,
                         "The parent Files collection does not exist."));
@@ -344,70 +354,72 @@ public final class CanonicalFilesTreeCommands {
         }
     }
 
-    private List<CanonicalFileRecord> tree(
-            List<CanonicalFileRecord> records,
+    private List<StoredFileRecord> tree(
+            List<StoredFileRecord> records,
             FilePath root) {
         String prefix = root.value() + "/";
         return records.stream()
-                .filter(record -> record.object().path().equals(root)
-                        || record.object().path().value().startsWith(prefix))
+                .filter(record -> record.metadata().object().path().equals(root)
+                        || record.metadata().object().path().value().startsWith(prefix))
                 .sorted(Comparator
-                        .comparingInt((CanonicalFileRecord record) ->
-                                record.object().path().value().length())
-                        .thenComparing(record -> record.object().path().value()))
+                        .comparingInt((StoredFileRecord record) ->
+                                record.metadata().object().path().value().length())
+                        .thenComparing(record -> record.metadata().object().path().value()))
                 .toList();
     }
 
-    private CanonicalFileRecord root(
-            List<CanonicalFileRecord> records,
+    private StoredFileRecord root(
+            List<StoredFileRecord> records,
             FilePath path) {
         return byPath(records, path).orElseThrow(() -> failure(
                 METADATA_CONFLICT,
                 "The canonical Files tree result is incomplete."));
     }
 
-    private Optional<CanonicalFileRecord> byPath(
-            List<CanonicalFileRecord> records,
+    private Optional<StoredFileRecord> byPath(
+            List<StoredFileRecord> records,
             FilePath path) {
         return records.stream()
-                .filter(record -> record.object().path().equals(path))
+                .filter(record -> record.metadata().object().path().equals(path))
                 .findFirst();
     }
 
-    private List<CanonicalFileRecord> tombstones(
-            List<CanonicalFileRecord> records,
+    private List<StoredFileRecord> tombstones(
+            List<StoredFileRecord> records,
             Instant now) {
         return records.stream()
-                .map(record -> new CanonicalFileRecord(
-                        record.organizationRef(),
-                        record.spaceRef(),
-                        record.object(),
-                        record.version(),
-                        record.contentDigest(),
-                        record.storageReference(),
-                        record.providerBindingRevision(),
-                        TOMBSTONED,
-                        later(now, record.observedAt())))
+                .map(record -> new StoredFileRecord(
+                        new CanonicalFileRecord(
+                                record.metadata().organizationRef(),
+                                record.metadata().spaceRef(),
+                                record.metadata().object(),
+                                record.metadata().version(),
+                                record.metadata().contentDigest(),
+                                record.metadata().providerBindingRevision(),
+                                TOMBSTONED,
+                                later(now, record.metadata().observedAt())),
+                        record.blobBinding()))
                 .toList();
     }
 
-    private CanonicalFileRecord active(
+    private StoredFileRecord active(
             FilesCommandScope scope,
             FileObject object,
             FileVersion version,
             String digest,
-            String storageReference,
+            BlobBinding blobBinding,
             Instant now) {
-        return new CanonicalFileRecord(
-                scope.organizationRef(),
-                scope.spaceRef(),
-                object,
-                version,
-                digest,
-                storageReference,
-                scope.providerBindingRevision(),
-                ACTIVE,
-                now);
+        return new StoredFileRecord(
+                new CanonicalFileRecord(
+                        scope.organizationRef(),
+                        scope.spaceRef(),
+                        object,
+                        version,
+                        digest,
+                        scope.providerBindingRevision(),
+                        ACTIVE,
+                        now),
+                blobBinding);
     }
 
     private FileId canonicalId(

@@ -1,16 +1,31 @@
 package com.massimotter.weave.backend.files.domain;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
+import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
+import java.util.Arrays;
+import org.junit.jupiter.api.Test;
 
 @AnalyzeClasses(
         packages = "com.massimotter.weave.backend.files",
         importOptions = ImportOption.DoNotIncludeTests.class)
 class FilesCoreArchitectureTest {
+
+    @Test
+    void canonicalMetadataDoesNotExposePersistencePrivateBlobBindings() {
+        var componentNames = Arrays.stream(CanonicalFileRecord.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName)
+                .toList();
+
+        assertFalse(componentNames.contains("storageReference"));
+        assertFalse(componentNames.contains("blobBinding"));
+        assertFalse(componentNames.contains("blobReference"));
+    }
 
     @ArchTest
     static final ArchRule CORE_HAS_NO_FRAMEWORK_TRANSPORT_OR_ADAPTER_DEPENDENCIES = noClasses()

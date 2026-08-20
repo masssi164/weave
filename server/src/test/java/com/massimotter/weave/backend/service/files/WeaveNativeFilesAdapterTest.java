@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.adapter.FilesAuthorityJpaTestFactory;
-import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
@@ -15,6 +14,7 @@ import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
+import com.massimotter.weave.backend.files.port.StoredFileRecord;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -173,7 +173,7 @@ class WeaveNativeFilesAdapterTest {
         }
 
         @Override
-        public CanonicalFileRecord save(CanonicalFileRecord record) {
+        public StoredFileRecord save(StoredFileRecord record) {
             if (fail && failurePoint == FailurePoint.SAVE) {
                 fail = false;
                 throw new IllegalStateException("injected metadata failure before activation");
@@ -182,7 +182,7 @@ class WeaveNativeFilesAdapterTest {
         }
 
         @Override
-        public CanonicalFileRecord activate(CanonicalFileRecord record) {
+        public StoredFileRecord activate(StoredFileRecord record) {
             if (fail && failurePoint == FailurePoint.ACTIVATE) {
                 fail = false;
                 throw new IllegalStateException("injected metadata failure during activation");
@@ -193,11 +193,11 @@ class WeaveNativeFilesAdapterTest {
             return delegate.activate(record);
         }
 
-        @Override public Optional<CanonicalFileRecord> findByPath(String organizationRef, String spaceRef, FilePath path) { return delegate.findByPath(organizationRef, spaceRef, path); }
-        @Override public Optional<CanonicalFileRecord> findById(String organizationRef, String spaceRef, FileId id) { return delegate.findById(organizationRef, spaceRef, id); }
-        @Override public List<CanonicalFileRecord> activeFiles(String organizationRef, String spaceRef) { return delegate.activeFiles(organizationRef, spaceRef); }
-        @Override public List<CanonicalFileRecord> replace(List<CanonicalFileRecord> tombstones, List<CanonicalFileRecord> activations) { return delegate.replace(tombstones, activations); }
-        @Override public CanonicalFileRecord move(String organizationRef, String spaceRef, FileId id, FilePath expectedPath, FilePath destination, Instant movedAt) { return delegate.move(organizationRef, spaceRef, id, expectedPath, destination, movedAt); }
+        @Override public Optional<StoredFileRecord> findByPath(String organizationRef, String spaceRef, FilePath path) { return delegate.findByPath(organizationRef, spaceRef, path); }
+        @Override public Optional<StoredFileRecord> findById(String organizationRef, String spaceRef, FileId id) { return delegate.findById(organizationRef, spaceRef, id); }
+        @Override public List<StoredFileRecord> activeFiles(String organizationRef, String spaceRef) { return delegate.activeFiles(organizationRef, spaceRef); }
+        @Override public List<StoredFileRecord> replace(List<StoredFileRecord> tombstones, List<StoredFileRecord> activations) { return delegate.replace(tombstones, activations); }
+        @Override public StoredFileRecord move(String organizationRef, String spaceRef, FileId id, FilePath expectedPath, FilePath destination, Instant movedAt) { return delegate.move(organizationRef, spaceRef, id, expectedPath, destination, movedAt); }
         @Override public FileLockRecord acquireLock(FileLockRecord requested, Instant now) { return delegate.acquireLock(requested, now); }
         @Override public Optional<FileLockRecord> activeLock(String organizationRef, String spaceRef, FilePath path, Instant now) { return delegate.activeLock(organizationRef, spaceRef, path, now); }
         @Override public List<FileLockRecord> activeLocks(String organizationRef, String spaceRef, Instant now) { return delegate.activeLocks(organizationRef, spaceRef, now); }

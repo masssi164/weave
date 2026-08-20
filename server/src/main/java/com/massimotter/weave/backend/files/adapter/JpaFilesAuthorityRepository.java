@@ -2,7 +2,6 @@ package com.massimotter.weave.backend.files.adapter;
 
 import static java.util.Objects.requireNonNull;
 
-import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
@@ -10,6 +9,7 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.ConcurrentMutationException;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.LockConflictException;
+import com.massimotter.weave.backend.files.port.StoredFileRecord;
 import jakarta.persistence.OptimisticLockException;
 import java.time.Instant;
 import java.util.List;
@@ -38,30 +38,30 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
 
     @Override
     @Transactional
-    public CanonicalFileRecord save(CanonicalFileRecord record) {
-        CanonicalFileRecord requested = requireNonNull(record, "record");
+    public StoredFileRecord save(StoredFileRecord record) {
+        StoredFileRecord requested = requireNonNull(record, "record");
         CanonicalFileId id = CanonicalFileId.from(requested);
         FileObjectJpaEntity entity = files.findById(id)
                 .orElseGet(() -> FileObjectJpaEntity.create(id));
         entity.observe(requested);
-        return files.saveAndFlush(entity).toDomain();
+        return files.saveAndFlush(entity).toStoredRecord();
     }
 
     @Override
     @Transactional
-    public CanonicalFileRecord activate(CanonicalFileRecord record) {
-        CanonicalFileRecord requested = requireNonNull(record, "record");
+    public StoredFileRecord activate(StoredFileRecord record) {
+        StoredFileRecord requested = requireNonNull(record, "record");
         try {
             return save(requested);
         } catch (DataIntegrityViolationException
                  | OptimisticLockingFailureException
                  | ConstraintViolationException concurrentMutation) {
-            throw concurrent(requested.object().path(), concurrentMutation);
+            throw concurrent(requested.metadata().object().path(), concurrentMutation);
         }
     }
 
     @Override
-    public Optional<CanonicalFileRecord> findByPath(
+    public Optional<StoredFileRecord> findByPath(
             String organizationRef,
             String spaceRef,
             FilePath path) {
@@ -70,12 +70,12 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
                         organizationRef,
                         spaceRef,
                         path.value())
-                .map(FileObjectJpaEntity::toDomain)
-                .filter(record -> record.lifecycle() == Lifecycle.ACTIVE);
+                .map(FileObjectJpaEntity::toStoredRecord)
+                .filter(record -> record.metadata().lifecycle() == Lifecycle.ACTIVE);
     }
 
     @Override
-    public Optional<CanonicalFileRecord> findById(
+    public Optional<StoredFileRecord> findById(
             String organizationRef,
             String spaceRef,
             FileId id) {
@@ -83,40 +83,39 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
                         organizationRef,
                         spaceRef,
                         id.value()))
-                .map(FileObjectJpaEntity::toDomain)
-                .filter(record -> record.lifecycle() == Lifecycle.ACTIVE);
+                .map(FileObjectJpaEntity::toStoredRecord)
+                .filter(record -> record.metadata().lifecycle() == Lifecycle.ACTIVE);
     }
 
     @Override
-    public List<CanonicalFileRecord> activeFiles(String organizationRef, String spaceRef) {
+    public List<StoredFileRecord> activeFiles(String organizationRef, String spaceRef) {
         return files
                 .findByIdOrganizationRefAndIdSpaceRefAndLifecycleOrderByCanonicalPath(
                         organizationRef, spaceRef, Lifecycle.ACTIVE)
                 .stream()
-                .map(FileObjectJpaEntity::toDomain)
+                .map(FileObjectJpaEntity::toStoredRecord)
                 .toList();
     }
 
     @Override
     @Transactional
-    public List<CanonicalFileRecord> replace(
-            List<CanonicalFileRecord> tombstones,
-            List<CanonicalFileRecord> activations) {
-        for (CanonicalFileRecord record : List.copyOf(tombstones)) {
-            if (record.lifecycle() != Lifecycle.TOMBSTONED) {
+    public List<StoredFileRecord> replace(
+            List<StoredFileRecord> tombstones,
+            List<StoredFileRecord> activations) {
+        for (StoredFileRecord record : List.copyOf(tombstones)) {
+            if (record.metadata().lifecycle() != Lifecycle.TOMBSTONED) {
                 throw new IllegalArgumentException("replacement deactivation must be tombstoned");
             }
-            entity(record).observe(record);
+            observe(record);
         }
         files.flush();
-        List<CanonicalFileRecord> activated = new java.util.ArrayList<>();
-        for (CanonicalFileRecord record : List.copyOf(activations)) {
-            if (record.lifecycle() != Lifecycle.ACTIVE) {
+        List<StoredFileRecord> activated = new java.util.ArrayList<>();
+        for (StoredFileRecord record : List.copyOf(activations)) {
+            if (record.metadata().lifecycle() != Lifecycle.ACTIVE) {
                 throw new IllegalArgumentException("replacement activation must be active");
             }
-            FileObjectJpaEntity entity = entity(record);
-            entity.observe(record);
-            activated.add(entity.toDomain());
+            FileObjectJpaEntity entity = observe(record);
+            activated.add(entity.toStoredRecord());
         }
         files.flush();
         return List.copyOf(activated);
@@ -124,10 +123,10 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
 
     @Override
     @Transactional
-    public List<CanonicalFileRecord> replaceTree(
+    public List<StoredFileRecord> replaceTree(
             FilePath operationRoot,
-            List<CanonicalFileRecord> tombstones,
-            List<CanonicalFileRecord> activations) {
+            List<StoredFileRecord> tombstones,
+            List<StoredFileRecord> activations) {
         FilePath root = requireNonNull(operationRoot, "operationRoot");
         try {
             return replace(tombstones, activations);
@@ -142,7 +141,7 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
 
     @Override
     @Transactional
-    public CanonicalFileRecord move(
+    public StoredFileRecord move(
             String organizationRef,
             String spaceRef,
             FileId id,
@@ -157,12 +156,12 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
         if (!entity.move(expectedPath, destination, movedAt)) {
             throw new StaleCanonicalFileException(id, expectedPath);
         }
-        return files.saveAndFlush(entity).toDomain();
+        return files.saveAndFlush(entity).toStoredRecord();
     }
 
     @Override
     @Transactional
-    public CanonicalFileRecord moveNode(
+    public StoredFileRecord moveNode(
             String organizationRef,
             String spaceRef,
             FileId id,
@@ -299,11 +298,11 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
         return new ConcurrentMutationException(path, cause);
     }
 
-    private FileObjectJpaEntity entity(CanonicalFileRecord record) {
+    private FileObjectJpaEntity observe(StoredFileRecord record) {
         CanonicalFileId id = CanonicalFileId.from(record);
-        return files.findById(id).orElseGet(() -> {
-            FileObjectJpaEntity created = FileObjectJpaEntity.create(id);
-            return files.save(created);
-        });
+        FileObjectJpaEntity entity = files.findById(id)
+                .orElseGet(() -> FileObjectJpaEntity.create(id));
+        entity.observe(record);
+        return files.save(entity);
     }
 }
