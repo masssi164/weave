@@ -8,18 +8,25 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.opendal.AsyncOperator;
@@ -29,6 +36,7 @@ import org.apache.opendal.OpenDALException;
 import org.apache.opendal.Operator;
 import org.apache.opendal.layer.ConcurrentLimitLayer;
 import org.apache.opendal.layer.RetryLayer;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -40,24 +48,45 @@ public final class FilesystemBlobStore implements BlobStorePort {
 
     private static final Set<PosixFilePermission> DIRECTORY_PERMISSIONS = PosixFilePermissions.fromString("rwx------");
     private static final Set<PosixFilePermission> FILE_PERMISSIONS = PosixFilePermissions.fromString("rw-------");
+    private static final String STAGING_PREFIX = ".weave-native-staging/v1/";
+    private static final Duration STAGING_RETENTION = Duration.ofHours(1);
 
     private final Path root;
     private final long maximumBlobBytes;
+    private final int reconciliationLimit;
     private final AsyncOperator asyncOperator;
     private final Operator operator;
+    private final DurabilitySync durabilitySync;
+    private final StoredReadObserver readObserver;
 
+    @Autowired
     public FilesystemBlobStore(WeaveNativeFilesProperties properties) {
+        this(properties, DurabilitySync.system(), ignored -> { });
+    }
+
+    FilesystemBlobStore(
+            WeaveNativeFilesProperties properties,
+            DurabilitySync durabilitySync,
+            StoredReadObserver readObserver) {
         try {
             root = properties.filesystemRoot().toAbsolutePath().normalize();
             Files.createDirectories(root);
             if (Files.isSymbolicLink(root)) throw unsafePath();
             enforcePermissions(root, DIRECTORY_PERMISSIONS);
             maximumBlobBytes = properties.maximumBlobBytes();
+            reconciliationLimit = properties.reconciliationLimit();
             asyncOperator = AsyncOperator.of("fs", Map.of("root", root.toString()))
                     .layer(RetryLayer.builder().maxTimes(4).jitter(true).build())
                     .layer(new ConcurrentLimitLayer(32));
             operator = asyncOperator.blocking();
+            this.durabilitySync = Objects.requireNonNull(
+                    durabilitySync,
+                    "durabilitySync must not be null");
+            this.readObserver = Objects.requireNonNull(
+                    readObserver,
+                    "readObserver must not be null");
             requireCapabilities();
+            scavengeStaging(Instant.now().minus(STAGING_RETENTION));
         } catch (ApiErrorException exception) {
             throw exception;
         } catch (IOException | OpenDALException exception) {
@@ -77,11 +106,16 @@ public final class FilesystemBlobStore implements BlobStorePort {
         requireWithinLimit(expectedSize, "files-native-blob-too-large");
         String requiredDigest = requiredDigest(expectedDigest);
         String key = key(scope, reference);
-        String temporary = parent(key) + ".pending-" + UUID.randomUUID();
+        String stagingId = UUID.randomUUID().toString();
+        String temporary = STAGING_PREFIX + stagingId + ".pending";
         Path spool = null;
+        StagingLease stagingLease = null;
         try {
             validateSandbox(scope, reference, true);
-            spool = Files.createTempFile(root, ".weave-upload-", ".spool");
+            validateStagingSandbox(true);
+            stagingLease = acquireStagingLease(stagingId);
+            spool = stagingLease.spool();
+            Files.createFile(spool);
             enforcePermissions(spool, FILE_PERMISSIONS);
 
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -97,31 +131,48 @@ public final class FilesystemBlobStore implements BlobStorePort {
             if (!MessageDigest.isEqual(actualDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII), requiredDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
                 throw error(HttpStatus.CONFLICT, "files-native-blob-digest-mismatch", "The native Files blob digest did not match the requested digest.");
             }
-            if (exists(key)) return verifyExisting(key, reference, actualDigest, transferred);
+            if (exists(key)) {
+                return verifyExisting(scope, key, reference, actualDigest, transferred);
+            }
 
-            byte[] verifiedPayload = Files.readAllBytes(spool);
-            requireWithinLimit(verifiedPayload.length, "files-native-blob-size-invalid");
-            operator.write(temporary, verifiedPayload);
+            Path pending = stagingPathForTest(stagingId + ".pending");
+            Files.move(spool, pending, StandardCopyOption.ATOMIC_MOVE);
+            spool = null;
+            enforcePermissions(pending, FILE_PERMISSIONS);
+            durabilitySync.force(pending);
+            syncStagingDirectoryIfPresent();
             try {
                 operator.rename(temporary, key);
             } catch (OpenDALException concurrentPublish) {
-                operator.delete(temporary);
-                if (exists(key)) return verifyExisting(key, reference, actualDigest, transferred);
+                cleanupStaging(temporary);
+                if (exists(key)) {
+                    return verifyExisting(scope, key, reference, actualDigest, transferred);
+                }
                 throw concurrentPublish;
             }
             Path target = resolvedPathForTest(scope, reference);
             enforcePermissions(target, FILE_PERMISSIONS);
-            forceFile(target);
-            forceDirectory(target.getParent());
+            durabilitySync.force(target);
+            durabilitySync.force(target.getParent());
+            syncStagingDirectoryIfPresent();
             return new BlobReceipt(reference, actualDigest, transferred);
         } catch (ApiErrorException exception) {
             throw exception;
         } catch (IOException | OpenDALException | NoSuchAlgorithmException exception) {
-            try { operator.delete(temporary); } catch (RuntimeException ignored) { }
             throw map(exception, "files-native-blob-write-failed");
         } finally {
+            boolean stagingClean = cleanupStagingQuietly(temporary);
             if (spool != null) {
-                try { Files.deleteIfExists(spool); } catch (IOException ignored) { }
+                try {
+                    if (Files.deleteIfExists(spool)) {
+                        syncStagingDirectoryIfPresent();
+                    }
+                } catch (IOException ignored) {
+                    stagingClean = false;
+                }
+            }
+            if (stagingLease != null) {
+                stagingLease.close(stagingClean);
             }
         }
     }
@@ -132,14 +183,40 @@ public final class FilesystemBlobStore implements BlobStorePort {
         try {
             validateSandbox(scope, reference, false);
             if (!exists(key)) throw conflict("files-native-blob-missing");
-            long size = operator.stat(key).getContentLength();
+            long size = statBounded(key);
+            readObserver.afterStat(resolvedPathForTest(scope, reference));
             requireWithinLimit(size, "files-native-blob-size-invalid");
-            byte[] value = operator.read(key);
-            requireWithinLimit(value.length, "files-native-blob-size-invalid");
-            long transferred = BlobStorePort.transferBounded(new java.io.ByteArrayInputStream(value), target, maximumBlobBytes);
+            long transferred;
+            try (InputStream source = operator.createInputStream(key)) {
+                transferred = BlobStorePort.transferBounded(
+                        source,
+                        target,
+                        maximumBlobBytes);
+            }
             if (transferred != size) {
                 throw error(HttpStatus.CONFLICT, "files-native-blob-size-mismatch", "The native Files blob size did not match its metadata.");
             }
+        } catch (ApiErrorException exception) {
+            throw exception;
+        } catch (IOException | OpenDALException exception) {
+            throw map(exception, "files-native-blob-read-failed");
+        }
+    }
+
+    @Override
+    public Optional<BlobReceipt> receipt(BlobScope scope, BlobReference reference) {
+        String key = key(scope, reference);
+        try {
+            validateSandbox(scope, reference, false);
+            if (!exists(key)) {
+                return Optional.empty();
+            }
+            BlobReceipt receipt = readReceipt(scope, key, reference);
+            Path target = resolvedPathForTest(scope, reference);
+            durabilitySync.force(target);
+            durabilitySync.force(target.getParent());
+            syncStagingDirectoryIfPresent();
+            return Optional.of(receipt);
         } catch (ApiErrorException exception) {
             throw exception;
         } catch (IOException | OpenDALException exception) {
@@ -152,6 +229,10 @@ public final class FilesystemBlobStore implements BlobStorePort {
         try {
             validateSandbox(scope, reference, false);
             operator.delete(key(scope, reference));
+            Path parent = resolvedPathForTest(scope, reference).getParent();
+            if (Files.isDirectory(parent, LinkOption.NOFOLLOW_LINKS)) {
+                durabilitySync.force(parent);
+            }
         } catch (ApiErrorException exception) {
             throw exception;
         } catch (IOException | OpenDALException exception) {
@@ -164,6 +245,7 @@ public final class FilesystemBlobStore implements BlobStorePort {
         if (limit < 1) throw new IllegalArgumentException("inventory limit must be positive");
         String prefix = scopePrefix(scope);
         try {
+            scavengeStaging(Instant.now().minus(STAGING_RETENTION));
             Path scopePath = root.resolve(prefix).normalize();
             if (Files.exists(scopePath, LinkOption.NOFOLLOW_LINKS) && Files.isSymbolicLink(scopePath)) throw unsafePath();
             ListOptions options = ListOptions.builder().recursive(true).limit((long) limit + 1).build();
@@ -180,6 +262,8 @@ public final class FilesystemBlobStore implements BlobStorePort {
         } catch (OpenDALException exception) {
             if (exception.getCode() == OpenDALException.Code.NotFound) return List.of();
             throw map(exception, "files-native-blob-inventory-failed");
+        } catch (IOException exception) {
+            throw map(exception, "files-native-blob-inventory-failed");
         }
     }
 
@@ -189,34 +273,245 @@ public final class FilesystemBlobStore implements BlobStorePort {
         return value;
     }
 
+    Path stagingPathForTest(String name) {
+        Path value = root.resolve(STAGING_PREFIX).resolve(name).normalize();
+        if (!value.startsWith(root.resolve(STAGING_PREFIX).normalize())) throw unsafePath();
+        return value;
+    }
+
     private void validateSandbox(BlobScope scope, BlobReference reference, boolean createParents) throws IOException {
         Path target = resolvedPathForTest(scope, reference);
         Path parent = target.getParent();
-        if (createParents) {
-            Files.createDirectories(parent);
-            Path current = root;
-            for (Path segment : root.relativize(parent)) {
-                current = current.resolve(segment);
-                if (Files.isSymbolicLink(current) || !Files.isDirectory(current, LinkOption.NOFOLLOW_LINKS)) throw unsafePath();
-                enforcePermissions(current, DIRECTORY_PERMISSIONS);
-            }
-            return;
-        }
-        Path current = root;
-        for (Path segment : root.relativize(parent)) {
-            current = current.resolve(segment);
-            if (!Files.exists(current, LinkOption.NOFOLLOW_LINKS)) return;
-            if (Files.isSymbolicLink(current) || !Files.isDirectory(current, LinkOption.NOFOLLOW_LINKS)) throw unsafePath();
-        }
+        validateDirectoryChain(parent, createParents);
         if (Files.exists(target, LinkOption.NOFOLLOW_LINKS) && Files.isSymbolicLink(target)) throw unsafePath();
     }
 
-    private BlobReceipt verifyExisting(String key, BlobReference reference, String expectedDigest, long expectedSize) {
-        byte[] existing = operator.read(key);
-        if (existing.length != expectedSize || !MessageDigest.isEqual(digest(existing).getBytes(java.nio.charset.StandardCharsets.US_ASCII), expectedDigest.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+    private void validateStagingSandbox(boolean create) throws IOException {
+        Path staging = root.resolve(STAGING_PREFIX).normalize();
+        if (!staging.startsWith(root)) throw unsafePath();
+        validateDirectoryChain(staging, create);
+    }
+
+    private void validateDirectoryChain(Path directory, boolean create) throws IOException {
+        Path current = root;
+        for (Path segment : root.relativize(directory)) {
+            current = current.resolve(segment);
+            if (!Files.exists(current, LinkOption.NOFOLLOW_LINKS)) {
+                if (!create) return;
+                Files.createDirectory(current);
+            }
+            if (Files.isSymbolicLink(current)
+                    || !Files.isDirectory(current, LinkOption.NOFOLLOW_LINKS)) {
+                throw unsafePath();
+            }
+            enforcePermissions(current, DIRECTORY_PERMISSIONS);
+            if (create) {
+                durabilitySync.force(current);
+                durabilitySync.force(current.getParent());
+            }
+        }
+    }
+
+    private void scavengeStaging(Instant staleBefore) throws IOException {
+        validateStagingSandbox(false);
+        Path staging = root.resolve(STAGING_PREFIX).normalize();
+        if (!Files.isDirectory(staging, LinkOption.NOFOLLOW_LINKS)) return;
+        List<Path> owners;
+        try (var entries = Files.list(staging)) {
+            owners = entries
+                    .filter(path -> path.getFileName().toString().endsWith(".lock"))
+                    .limit(reconciliationLimit)
+                    .toList();
+        }
+        for (Path owner : owners) {
+            scavengeStagingOwner(owner, staleBefore);
+        }
+    }
+
+    private StagingLease acquireStagingLease(String stagingId) throws IOException {
+        Path owner = stagingPathForTest(stagingId + ".lock");
+        Path spool = stagingPathForTest(stagingId + ".spool");
+        FileChannel channel = null;
+        FileLock lock = null;
+        try {
+            Files.createFile(owner);
+            enforcePermissions(owner, FILE_PERMISSIONS);
+            durabilitySync.force(owner);
+            syncStagingDirectoryIfPresent();
+            channel = FileChannel.open(owner, StandardOpenOption.WRITE);
+            lock = channel.lock();
+            return new StagingLease(owner, spool, channel, lock);
+        } catch (IOException | RuntimeException failure) {
+            if (lock != null) {
+                try { lock.release(); } catch (IOException ignored) { }
+            }
+            if (channel != null) {
+                try { channel.close(); } catch (IOException ignored) { }
+            }
+            try { Files.deleteIfExists(owner); } catch (IOException ignored) { }
+            throw failure;
+        }
+    }
+
+    private void scavengeStagingOwner(Path owner, Instant staleBefore) throws IOException {
+        if (Files.isSymbolicLink(owner)
+                || !Files.isRegularFile(owner, LinkOption.NOFOLLOW_LINKS)
+                || Files.getLastModifiedTime(owner, LinkOption.NOFOLLOW_LINKS)
+                        .toInstant()
+                        .isAfter(staleBefore)) {
+            return;
+        }
+        boolean cleaned = false;
+        try (FileChannel channel = FileChannel.open(owner, StandardOpenOption.WRITE)) {
+            FileLock lock;
+            try {
+                lock = channel.tryLock();
+            } catch (OverlappingFileLockException activeInThisProcess) {
+                return;
+            }
+            if (lock == null) return;
+            try (lock) {
+                if (Files.getLastModifiedTime(owner, LinkOption.NOFOLLOW_LINKS)
+                        .toInstant()
+                        .isAfter(staleBefore)) {
+                    return;
+                }
+                String fileName = owner.getFileName().toString();
+                String stagingId = fileName.substring(0, fileName.length() - ".lock".length());
+                Files.deleteIfExists(stagingPathForTest(stagingId + ".pending"));
+                Files.deleteIfExists(stagingPathForTest(stagingId + ".spool"));
+                syncStagingDirectoryIfPresent();
+                cleaned = true;
+            }
+        }
+        if (cleaned && Files.deleteIfExists(owner)) {
+            syncStagingDirectoryIfPresent();
+        }
+    }
+
+    private void cleanupStaging(String temporary) throws IOException {
+        validateStagingSandbox(false);
+        operator.delete(temporary);
+        syncStagingDirectoryIfPresent();
+    }
+
+    private boolean cleanupStagingQuietly(String temporary) {
+        try {
+            cleanupStaging(temporary);
+            return true;
+        } catch (RuntimeException | IOException ignored) {
+            // A crash-safe, inventory-excluded staging entry remains eligible for bounded scavenging.
+            return false;
+        }
+    }
+
+    private void syncStagingDirectoryIfPresent() throws IOException {
+        Path staging = root.resolve(STAGING_PREFIX).normalize();
+        if (Files.isDirectory(staging, LinkOption.NOFOLLOW_LINKS)) {
+            durabilitySync.force(staging);
+        }
+    }
+
+    private final class StagingLease {
+        private final Path owner;
+        private final Path spool;
+        private final FileChannel channel;
+        private final FileLock lock;
+
+        private StagingLease(
+                Path owner,
+                Path spool,
+                FileChannel channel,
+                FileLock lock) {
+            this.owner = owner;
+            this.spool = spool;
+            this.channel = channel;
+            this.lock = lock;
+        }
+
+        private Path spool() {
+            return spool;
+        }
+
+        private void close(boolean stagingClean) {
+            try {
+                lock.release();
+            } catch (IOException ignored) {
+                stagingClean = false;
+            }
+            try {
+                channel.close();
+            } catch (IOException ignored) {
+                stagingClean = false;
+            }
+            if (stagingClean) {
+                try {
+                    if (Files.deleteIfExists(owner)) {
+                        syncStagingDirectoryIfPresent();
+                    }
+                } catch (IOException ignored) {
+                    // The unlocked owner marker remains eligible for bounded scavenging.
+                }
+            }
+        }
+    }
+
+    private BlobReceipt verifyExisting(
+            BlobScope scope,
+            String key,
+            BlobReference reference,
+            String expectedDigest,
+            long expectedSize) throws IOException {
+        BlobReceipt existing = readReceipt(scope, key, reference);
+        if (existing.size() != expectedSize
+                || !constantEquals(existing.digest(), expectedDigest)) {
             throw conflict("files-native-blob-key-collision");
         }
+        Path target = resolvedPathForTest(scope, reference);
+        enforcePermissions(target, FILE_PERMISSIONS);
+        durabilitySync.force(target);
+        durabilitySync.force(target.getParent());
+        syncStagingDirectoryIfPresent();
         return new BlobReceipt(reference, expectedDigest, expectedSize);
+    }
+
+    private BlobReceipt readReceipt(
+            BlobScope scope,
+            String key,
+            BlobReference reference) throws IOException {
+        long size = statBounded(key);
+        readObserver.afterStat(resolvedPathForTest(scope, reference));
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+        long transferred;
+        try (InputStream source = new DigestInputStream(
+                operator.createInputStream(key),
+                digest)) {
+            transferred = BlobStorePort.transferBounded(
+                    source,
+                    OutputStream.nullOutputStream(),
+                    maximumBlobBytes);
+        }
+        if (transferred != size) {
+            throw error(
+                    HttpStatus.CONFLICT,
+                    "files-native-blob-size-mismatch",
+                    "The native Files blob size changed while it was verified.");
+        }
+        return new BlobReceipt(
+                reference,
+                "sha256:" + HexFormat.of().formatHex(digest.digest()),
+                transferred);
+    }
+
+    private long statBounded(String key) {
+        long size = operator.stat(key).getContentLength();
+        requireWithinLimit(size, "files-native-blob-size-invalid");
+        return size;
     }
 
     private boolean exists(String key) {
@@ -260,8 +555,29 @@ public final class FilesystemBlobStore implements BlobStorePort {
         try { Files.setPosixFilePermissions(path, permissions); } catch (UnsupportedOperationException ignored) { }
     }
 
-    private void forceFile(Path file) { try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ)) { channel.force(true); } catch (IOException ignored) { } }
-    private void forceDirectory(Path directory) { try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) { channel.force(true); } catch (IOException ignored) { } }
+    private boolean constantEquals(String first, String second) {
+        return MessageDigest.isEqual(
+                first.getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+                second.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+    }
+
+    @FunctionalInterface
+    interface DurabilitySync {
+        void force(Path path) throws IOException;
+
+        static DurabilitySync system() {
+            return path -> {
+                try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
+                    channel.force(true);
+                }
+            };
+        }
+    }
+
+    @FunctionalInterface
+    interface StoredReadObserver {
+        void afterStat(Path path) throws IOException;
+    }
 
     private ApiErrorException map(Throwable error, String fallback) {
         if (error instanceof OpenDALException opendal) {

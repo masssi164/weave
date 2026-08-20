@@ -40,9 +40,12 @@ Protected `native-providers`, `postgres-flyway`, PostgreSQL persistence, archite
 
 The pull request comment must record the exact commit SHA and successful check URLs before merge. This file cannot truthfully self-reference the commit that contains it.
 
-## Explicitly remaining under issue #1326
+## Subsequent progress and remaining scope
 
-- a specified Files change taxonomy, stream head, commit-ordered journal, cursor and retention model;
-- coherent metadata, journal, operation-intent and outbox finalization;
-- resolution of the cross-instance race between put-before-activate publication and orphan reconciliation;
-- provider connector round-trip conformance and real-HTTP WebDAV recovery equivalence.
+The later [Native Files V7 durability evidence](native-files-v7-durability.md) records the
+implementation of the change taxonomy, stream head, captured-high-water reader, coordinated
+intent/plan/finalization transaction and plan-aware orphan protection that were still open when
+this private-binding slice was written.
+
+Issue #1326 still requires provider connector round-trip conformance, full real-HTTP WebDAV
+qualification, two-instance/restart proof and real-WebDAV equivalence after isolated restore.

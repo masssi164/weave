@@ -339,7 +339,8 @@ class FilesWebDavControllerTest {
                 null,
                 "files-put-idempotency-0001");
         then(filesFacadeService).should().createWebDavFolder("/Team/Design", null, "*", null, null);
-        then(filesFacadeService).should().deleteWebDavPath("/Team/old.md", "\"etag-old\"", null, null);
+        then(filesFacadeService).should().deleteWebDavPath(
+                "/Team/old.md", "\"etag-old\"", null, null, null);
     }
 
     @Test
@@ -380,6 +381,7 @@ class FilesWebDavControllerTest {
                 false,
                 "\"etag-readme\"",
                 null,
+                null,
                 null))
                 .willReturn(new WebDavMutationResult(
                         file("/Team/readme-copy.md", "text/markdown", 12L),
@@ -389,6 +391,7 @@ class FilesWebDavControllerTest {
                 "/Team/readme.md",
                 "/Archive/readme.md",
                 true,
+                null,
                 null,
                 null,
                 null))
@@ -433,11 +436,13 @@ class FilesWebDavControllerTest {
                 false,
                 "\"etag-readme\"",
                 null,
+                null,
                 null);
         then(filesFacadeService).should().moveWebDavPath(
                 "/Team/readme.md",
                 "/Archive/readme.md",
                 true,
+                null,
                 null,
                 null,
                 null);

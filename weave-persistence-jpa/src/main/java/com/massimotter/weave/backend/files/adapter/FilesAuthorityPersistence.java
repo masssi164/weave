@@ -156,7 +156,7 @@ class FileObjectJpaEntity {
         BlobBinding blobBinding = storageReference == null || storageReference.isBlank()
                 ? null
                 : new BlobBinding(storageReference);
-        return new StoredFileRecord(metadata, blobBinding);
+        return new StoredFileRecord(metadata, blobBinding, version);
     }
 }
 
@@ -233,6 +233,14 @@ interface FileObjectJpaRepository
                     String organizationRef,
                     String spaceRef,
                     Lifecycle lifecycle);
+
+    List<FileObjectJpaEntity> findByIdOrganizationRefAndIdSpaceRefOrderByCanonicalPath(
+            String organizationRef,
+            String spaceRef);
+
+    boolean existsByIdOrganizationRefAndIdSpaceRef(
+            String organizationRef,
+            String spaceRef);
 }
 
 @Entity
@@ -304,6 +312,23 @@ class FileLockJpaEntity {
         }
         releasedAt = FilesPersistenceTime.utc(now);
         return true;
+    }
+
+    boolean refresh(
+            String requestedTokenDigest,
+            String requestedOwnerRef,
+            Instant now,
+            Instant extendedExpiry) {
+        if (!ownedAndActive(requestedTokenDigest, requestedOwnerRef, now)
+                || !extendedExpiry.isAfter(expiresAt.toInstant())) {
+            return false;
+        }
+        expiresAt = FilesPersistenceTime.utc(extendedExpiry);
+        return true;
+    }
+
+    Instant expiresAt() {
+        return expiresAt.toInstant();
     }
 
     FileLockJpaEntity rekey(FilePath destination) {
@@ -402,6 +427,10 @@ class FileLockId implements Serializable {
 
 interface FileLockJpaRepository
         extends JpaRepository<FileLockJpaEntity, FileLockId> {
+
+    boolean existsByIdOrganizationRefAndIdSpaceRef(
+            String organizationRef,
+            String spaceRef);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select lock from FileLockJpaEntity lock where lock.id = :id")

@@ -12,6 +12,7 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
+import com.massimotter.weave.backend.schema.NativeFilesVolumeAuthority;
 import com.massimotter.weave.backend.schema.SchemaAuthorityTestSupport;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.io.File;
@@ -59,6 +60,14 @@ class CanonicalFilesBackupRestoreTest {
     static {
         SOURCE.start();
         TARGET.start();
+        try {
+            SchemaAuthorityTestSupport.ensureServingRole(
+                    SOURCE.getJdbcUrl(), SOURCE.getUsername(), SOURCE.getPassword());
+            SchemaAuthorityTestSupport.ensureServingRole(
+                    TARGET.getJdbcUrl(), TARGET.getUsername(), TARGET.getPassword());
+        } catch (Exception failure) {
+            throw new ExceptionInInitializerError(failure);
+        }
     }
 
     @Test
@@ -68,8 +77,13 @@ class CanonicalFilesBackupRestoreTest {
         Path targetBlobRoot = directory.resolve("target-blobs");
         Path sourceReceipt = directory.resolve("source-schema-receipt.json");
         Path targetReceipt = directory.resolve("target-schema-receipt.json");
-        Map<String, String> sourceEnvironment = environment(SOURCE, sourceReceipt);
-        Map<String, String> targetEnvironment = environment(TARGET, targetReceipt);
+        Files.createDirectories(sourceBlobRoot);
+        Files.createDirectories(targetBlobRoot);
+        Map<String, String> sourceEnvironment =
+                environment(SOURCE, sourceReceipt, sourceBlobRoot);
+        Map<String, String> targetEnvironment =
+                environment(TARGET, targetReceipt, targetBlobRoot);
+        writeInitialProvisionContext(sourceReceipt.getParent());
 
         SchemaAuthorityTestSupport.initializeAndVerify(sourceEnvironment);
         DriverManagerDataSource sourceDataSource = dataSource(SOURCE);
@@ -109,6 +123,8 @@ class CanonicalFilesBackupRestoreTest {
 
         restoreDatabase(TARGET, databaseDump);
         restoreBlobTree(blobArchive, targetBlobRoot);
+        Files.copy(sourceReceipt, targetReceipt);
+        SchemaAuthorityTestSupport.verify(targetEnvironment);
         SchemaAuthorityTestSupport.initializeAndVerify(targetEnvironment);
 
         JsonNode sourceSchemaReceipt = receipt(sourceReceipt);
@@ -116,6 +132,8 @@ class CanonicalFilesBackupRestoreTest {
         assertThat(targetSchemaReceipt.path("migrationsExecuted").asInt()).isZero();
         assertThat(targetSchemaReceipt.path("catalogFingerprint").asText())
                 .isEqualTo(sourceSchemaReceipt.path("catalogFingerprint").asText());
+        assertThat(targetSchemaReceipt.path("nativeFilesVolumeAuthority"))
+                .isEqualTo(sourceSchemaReceipt.path("nativeFilesVolumeAuthority"));
 
         DriverManagerDataSource targetDataSource = dataSource(TARGET);
         JpaTestDatabase.validateSchema(targetDataSource);
@@ -179,14 +197,32 @@ class CanonicalFilesBackupRestoreTest {
 
     private static Map<String, String> environment(
             PostgreSQLContainer<?> postgres,
-            Path receipt) {
+            Path receipt,
+            Path blobRoot) {
         Map<String, String> values = new LinkedHashMap<>();
         values.put("WEAVE_PERSISTENCE_URL", postgres.getJdbcUrl());
         values.put("WEAVE_PERSISTENCE_USERNAME", postgres.getUsername());
         values.put("WEAVE_PERSISTENCE_PASSWORD", postgres.getPassword());
+        values.put("WEAVE_SERVING_DB_USERNAME", SchemaAuthorityTestSupport.SERVING_USERNAME);
         values.put("WEAVE_CANDIDATE_COMMIT", CANDIDATE);
         values.put("WEAVE_SCHEMA_INIT_RECEIPT_FILE", receipt.toString());
+        values.put("WEAVE_NATIVE_FILES_BLOB_ROOT", blobRoot.toString());
         return Map.copyOf(values);
+    }
+
+    private static void writeInitialProvisionContext(Path receiptParent) throws Exception {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put(
+                "schemaVersion",
+                NativeFilesVolumeAuthority.TRANSITION_CONTEXT_FORMAT);
+        value.put("transitionKind", "INITIAL_PROVISION");
+        value.put("composeProject", "weave-files-backup-test");
+        value.put("runScope", "files-backup-source");
+        value.put("candidateCommit", CANDIDATE);
+        Files.writeString(
+                receiptParent.resolve(
+                        NativeFilesVolumeAuthority.TRANSITION_CONTEXT_FILE_NAME),
+                new ObjectMapper().writeValueAsString(value));
     }
 
     private static DriverManagerDataSource dataSource(PostgreSQLContainer<?> postgres) {

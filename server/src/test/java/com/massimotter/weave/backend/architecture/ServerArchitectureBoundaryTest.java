@@ -80,6 +80,11 @@ class ServerArchitectureBoundaryTest {
             "/agentruntime/adapter/FileRuntimeStateKeyWrapper.java",
             "/schema/SchemaAuthorityInitializer.java",
             "/schema/SchemaReceiptVerifier.java");
+    private static final String ACCEPTED_NATIVE_FILES_VOLUME_AUTHORITY =
+            "/schema/NativeFilesVolumeAuthority.java";
+    private static final Set<String> ACCEPTED_NATIVE_FILES_VOLUME_AUTHORITY_JSON_FILES = Set.of(
+            ".weave-files-volume-authority-v1.json",
+            "files-volume-transition-context-v1.json");
     private static final List<String> FILE_RUNTIME_AUTHORITY_MARKERS = List.of(
             "Path storagePath",
             "readValue(storagePath.toFile()",
@@ -193,6 +198,20 @@ class ServerArchitectureBoundaryTest {
 
     @Test
     void strategicJsonAndFileRuntimeAuthorityDoesNotExpandBeyondFencedDebt() throws IOException {
+        JavaSource nativeFilesVolumeAuthority = sourceEndingWith(
+                Path.of("schema", "NativeFilesVolumeAuthority.java"));
+        assertThat(jsonFileNameLiterals(nativeFilesVolumeAuthority))
+                .as("Native Files may own only its reserved root marker and one-shot transition context.")
+                .containsExactlyInAnyOrderElementsOf(
+                        ACCEPTED_NATIVE_FILES_VOLUME_AUTHORITY_JSON_FILES);
+        assertThat(nativeFilesVolumeAuthority.text())
+                .as("Native Files volume evidence must remain root-contained and reject symbolic links.")
+                .contains(
+                        "private static Path markerPath(Path root)",
+                        "if (!marker.getParent().equals(root.normalize()))",
+                        "Files.isSymbolicLink(root)",
+                        "Files.isSymbolicLink(contextPath)");
+
         List<String> violations = productionSources().stream()
                 .filter(ServerArchitectureBoundaryTest::usesFileRuntimeStore)
                 .filter(source -> !isAllowedFileRuntimeAuthority(source))
@@ -202,7 +221,7 @@ class ServerArchitectureBoundaryTest {
                 .toList();
 
         assertThat(violations)
-                .as("Runtime truth must remain relational; only canonical operator-mounted cryptographic key custody and fenced legacy debt may use files.")
+                .as("Runtime truth must remain relational; only the exact native Files volume evidence, canonical operator-mounted cryptographic key custody, and fenced legacy debt may use files.")
                 .isEmpty();
     }
 
@@ -218,6 +237,18 @@ class ServerArchitectureBoundaryTest {
                 .doesNotContain("@PostMapping(\"/api/files/upload\")")
                 .doesNotContain("@PostMapping(\"/api/files/folders\")")
                 .doesNotContain("@DeleteMapping(\"/api/files/{id}\")");
+    }
+
+    @Test
+    void filesystemBlobPublicationAvoidsTheUnsafeOpenDalOutputStreamJniPath()
+            throws IOException {
+        JavaSource blobStore = sourceEndingWith(Path.of(
+                "service", "files", "FilesystemBlobStore.java"));
+
+        assertThat(blobStore.text())
+                .contains("StandardCopyOption.ATOMIC_MOVE")
+                .contains("operator.rename(temporary, key)")
+                .doesNotContain("operator.createOutputStream");
     }
 
     @Test
@@ -692,7 +723,19 @@ class ServerArchitectureBoundaryTest {
     private static boolean isAllowedFileRuntimeAuthority(JavaSource source) {
         String path = source.path().toString().replace('\\', '/');
         return LEGACY_FILE_RUNTIME_STORE_ALLOWLIST.stream().anyMatch(path::endsWith)
-                || ACCEPTED_FILE_KEY_CUSTODY_ALLOWLIST.stream().anyMatch(path::endsWith);
+                || ACCEPTED_FILE_KEY_CUSTODY_ALLOWLIST.stream().anyMatch(path::endsWith)
+                || path.endsWith(ACCEPTED_NATIVE_FILES_VOLUME_AUTHORITY);
+    }
+
+    private static List<String> jsonFileNameLiterals(JavaSource source) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("\\\"([^\\\"]+\\.json)\\\"")
+                .matcher(source.text());
+        java.util.ArrayList<String> names = new java.util.ArrayList<>();
+        while (matcher.find()) {
+            names.add(matcher.group(1));
+        }
+        return List.copyOf(names);
     }
 
     private static List<String> forbiddenNativeOrMcpLiterals(JavaSource source) {

@@ -8,6 +8,7 @@ import jakarta.persistence.criteria.CriteriaQuery;
 import com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaRepository;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 /**
  * Executes a small, provider-neutral JPA query to prove that the configured persistence unit can
@@ -21,9 +22,10 @@ public final class JpaPersistenceReadinessProbe {
   private final SchemaAuthorityJpaRepository schemaAuthority;
   private final boolean markerRequired;
   private final String candidateCommit;
+  private final BooleanSupplier additionalAuthorityEvidence;
 
   public JpaPersistenceReadinessProbe(EntityManagerFactory entityManagerFactory) {
-    this(entityManagerFactory, null, false, "");
+    this(entityManagerFactory, null, false, "", () -> true);
   }
 
   public JpaPersistenceReadinessProbe(
@@ -31,10 +33,20 @@ public final class JpaPersistenceReadinessProbe {
       SchemaAuthorityJpaRepository schemaAuthority,
       boolean markerRequired,
       String candidateCommit) {
+    this(entityManagerFactory, schemaAuthority, markerRequired, candidateCommit, () -> true);
+  }
+
+  public JpaPersistenceReadinessProbe(
+      EntityManagerFactory entityManagerFactory,
+      SchemaAuthorityJpaRepository schemaAuthority,
+      boolean markerRequired,
+      String candidateCommit,
+      BooleanSupplier additionalAuthorityEvidence) {
     this.entityManagerFactory = entityManagerFactory;
     this.schemaAuthority = schemaAuthority;
     this.markerRequired = markerRequired;
     this.candidateCommit = candidateCommit == null ? "" : candidateCommit;
+    this.additionalAuthorityEvidence = Objects.requireNonNull(additionalAuthorityEvidence);
   }
 
   public boolean isReady() {
@@ -56,12 +68,13 @@ public final class JpaPersistenceReadinessProbe {
       }
       var markers = schemaAuthority.findAll();
       return markers.size() == 1
-          && Objects.equals(markers.getFirst().epoch(), "weave-code-first-v1")
+          && Objects.equals(markers.getFirst().epoch(), "weave-flyway-v1")
           && Objects.equals(
               markers.getFirst().relationalModelId(), "WEAVE-ARCH-RELATIONAL-CORE-MODEL")
           && Objects.equals(markers.getFirst().candidateCommit(), candidateCommit)
           && markers.getFirst().catalogFingerprint().matches("[0-9a-f]{64}")
-          && markers.getFirst().completedAt() != null;
+          && markers.getFirst().completedAt() != null
+          && additionalAuthorityEvidence.getAsBoolean();
     } finally {
       entityManager.close();
     }

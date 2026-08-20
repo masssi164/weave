@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.schema;
 
+import com.massimotter.weave.backend.files.adapter.FilesVolumeAuthorityJpaRepository;
 import com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaRepository;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -12,5 +13,9 @@ import org.springframework.context.annotation.Profile;
 @Profile("schema-init")
 @EnableAutoConfiguration
 @EntityScan("com.massimotter.weave.backend")
-@EnableJpaRepositories(basePackageClasses = SchemaAuthorityJpaRepository.class)
+@EnableJpaRepositories(
+    basePackageClasses = {
+      SchemaAuthorityJpaRepository.class,
+      FilesVolumeAuthorityJpaRepository.class
+    })
 class SchemaInitConfiguration {}

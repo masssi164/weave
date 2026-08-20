@@ -20,23 +20,46 @@ External provider databases such as Nextcloud or Matrix homeservers are outside 
 
 ## Production lifecycle
 
-1. PostgreSQL database and application role are provisioned.
-2. The `schema-init` one-shot process acquires a PostgreSQL advisory lock scoped to the current database and schema.
-3. While holding that lock, Flyway acquires its migration-history lock and applies committed migrations.
-4. Flyway validates migration history and checksums.
-5. The initializer starts a non-web Spring context with `spring.jpa.hibernate.ddl-auto=validate`.
-6. The relational catalog fingerprint and the single authority marker are verified and updated.
-7. A support-safe receipt is written atomically.
-8. Closing the lock connection releases the schema-scoped advisory lock.
-9. Only then may the normal Weave Server start.
+1. PostgreSQL provisions a non-serving migrator role as database/schema owner and a separate
+   non-owner serving role. Their credentials are distinct SecretRefs.
+2. The native Files volume initializer creates the private blob root before schema initialization.
+3. The `schema-init` one-shot process acquires a PostgreSQL advisory lock scoped to the current database and schema.
+4. Before applying V7, the initializer requires an empty private blob root. V7 creates only the
+   adapter-private authority table; it does not infer a volume identity.
+5. While holding that lock, Flyway acquires its migration-history lock and applies committed migrations.
+6. Flyway validates migration history and checksums.
+7. The initializer starts a non-web Spring context with `spring.jpa.hibernate.ddl-auto=validate`.
+8. The relational catalog fingerprint and schema-authority marker are verified and updated.
+9. Only an accepted isolated first-provision or exact dogfood reset call path lets the initializer
+   mint the append-only Files volume-authority row and immutable root marker. Ordinary startup can
+   only validate the existing pair.
+10. A support-safe receipt binding the authority-row and canonical root-marker digests is written
+    with an exclusive mode-0600 temporary file, file and directory durability barriers, atomic
+    replacement, and bounded verification before the private transition context is durably
+    consumed.
+11. Closing the lock connection releases the schema-scoped advisory lock.
+12. Only then may the normal Weave Server start.
 
 The advisory lock covers migration, Hibernate validation, marker mutation, fingerprint verification, and receipt creation. Flyway's own lock remains the DDL/history authority; the outer lock prevents two one-shot processes from racing after Flyway has released its migration lock.
 
 The normal Server process does not own schema evolution. Deployment fails closed before application traffic when migration, checksum, mapping, catalog, marker, or receipt validation fails.
 
+After Flyway, the migrator reconciles serving privileges from a closed baseline. Serving receives
+database `CONNECT`, schema `USAGE`, application-table `SELECT`/`INSERT`/`UPDATE`/`DELETE`, and
+sequence `USAGE`/`SELECT`. It receives `SELECT` only on Flyway history, schema authority, and Files
+volume authority. It has no database/schema ownership, schema `CREATE`, authority-evidence write,
+or DDL capability. PostgreSQL reconciliation transfers any older backend-owned migration objects
+to the migrator before schema-init runs; the serving credential is never mounted into schema-init.
+
 ## Catalog fingerprint
 
-The support-safe catalog projection is explicitly versioned as `weave.schema-catalog/v2`; the matching receipt is `weave.schema-init-receipt/v4`.
+The support-safe catalog projection is explicitly versioned as `weave.schema-catalog/v2`; the
+matching receipt is `weave.schema-init-receipt/v6`. Its `nativeFilesVolumeAuthority` projection
+contains the exact append-only row values plus the RFC 8785 row digest and root-marker digest.
+Both the offline receipt gate and serving readiness verify the canonical marker bytes. Serving
+additionally compares the bound projection with the one persisted authority row. Missing,
+replacement, altered or generation-mismatched state blocks readiness; an empty replacement root
+never authorizes repair.
 
 The fingerprint contains tables, ordered columns, nullability, defaults, primary and foreign keys, check and unique constraints, and explicit indexes. It excludes row data, secrets, Flyway history rows, object ownership, privileges, and provider databases.
 
