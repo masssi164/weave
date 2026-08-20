@@ -6,6 +6,9 @@ import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
+import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
+import com.massimotter.weave.backend.files.domain.FilesSearch;
+import com.massimotter.weave.backend.files.domain.FilesSearch.ScopeDepth;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.ConcurrentMutationException;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.LockConflictException;
@@ -18,6 +21,7 @@ import org.hibernate.StaleStateException;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -95,6 +99,63 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
                 .stream()
                 .map(FileObjectJpaEntity::toStoredRecord)
                 .toList();
+    }
+
+    @Override
+    public List<StoredFileRecord> activeSearchCandidates(
+            String organizationRef,
+            String spaceRef,
+            FilePath scopePath,
+            ScopeDepth scopeDepth,
+            int maximumRows) {
+        requireNonNull(organizationRef, "organizationRef");
+        requireNonNull(spaceRef, "spaceRef");
+        FilePath requiredPath = requireNonNull(scopePath, "scopePath");
+        ScopeDepth requiredDepth = requireNonNull(scopeDepth, "scopeDepth");
+        if (maximumRows < 1 || maximumRows > FilesSearch.MAXIMUM_CANDIDATES + 1) {
+            throw new IllegalArgumentException("Files search maximumRows must be between 1 and 1001");
+        }
+
+        List<FileObjectJpaEntity> selected = new java.util.ArrayList<>(maximumRows);
+        if (!requiredPath.root()) {
+            FileObjectJpaEntity scope = files
+                    .findByIdOrganizationRefAndIdSpaceRefAndActivePathKey(
+                            organizationRef,
+                            spaceRef,
+                            requiredPath.value())
+                    .orElse(null);
+            if (scope == null) {
+                return List.of();
+            }
+            selected.add(scope);
+            if (maximumRows == 1
+                    || requiredDepth == ScopeDepth.ZERO
+                    || scope.toStoredRecord().metadata().object().kind() != Kind.COLLECTION) {
+                return selected.stream().map(FileObjectJpaEntity::toStoredRecord).toList();
+            }
+        } else if (requiredDepth == ScopeDepth.ZERO) {
+            return List.of();
+        }
+
+        int remaining = maximumRows - selected.size();
+        String pathPrefix = requiredPath.root() ? "/" : requiredPath.value() + "/";
+        int childStart = pathPrefix.length() + 1;
+        List<FileObjectJpaEntity> descendants = requiredDepth == ScopeDepth.ONE
+                ? files.findActiveChildren(
+                        organizationRef,
+                        spaceRef,
+                        pathPrefix,
+                        pathPrefix.length(),
+                        childStart,
+                        PageRequest.of(0, remaining))
+                : files.findActiveDescendants(
+                        organizationRef,
+                        spaceRef,
+                        pathPrefix,
+                        pathPrefix.length(),
+                        PageRequest.of(0, remaining));
+        selected.addAll(descendants);
+        return selected.stream().map(FileObjectJpaEntity::toStoredRecord).toList();
     }
 
     @Override

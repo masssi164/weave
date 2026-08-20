@@ -168,6 +168,9 @@ class SpringAiMcpTransportTest {
                 .string(containsString("\"name\":\"files.search\"")))
         .andExpect(
             org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                .string(containsString("Case-sensitive filename substring")))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                 .string(containsString("\"readOnlyHint\":true")))
         .andExpect(
             org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()

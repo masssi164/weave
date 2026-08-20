@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
@@ -22,12 +23,15 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
+import com.massimotter.weave.backend.files.domain.FilesSearch.ScopeDepth;
+import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
 import com.massimotter.weave.backend.files.port.FilesStreamingCapabilityProfile;
+import com.massimotter.weave.backend.files.port.FilesWebDavSearchQualification;
 import com.massimotter.weave.backend.files.port.FilesStreamingContentPort;
 import com.massimotter.weave.backend.files.port.FilesStreamingContentPort.ContentProfile;
 import com.massimotter.weave.backend.files.port.NativeFilesContentStore;
@@ -87,6 +91,87 @@ class WeaveNativeFilesAdapterTest {
         seed(authority, ALPHA, new FilePath("/private.txt"), new byte[] {1, 2}, "text/plain");
 
         assertThat(beta.find(new FilePath("/private.txt"))).isEmpty();
+    }
+
+    @Test
+    void scopedNativeSearchEnumeratesBoundedCanonicalMetadataWithoutBlobAccess() {
+        authority.activate(searchRecord(ALPHA, "collection-docs", "/docs", Kind.COLLECTION));
+        authority.activate(searchRecord(ALPHA, "file-a", "/docs/a.txt", Kind.FILE));
+        authority.activate(searchRecord(ALPHA, "file-b", "/docs/b.txt", Kind.FILE));
+        authority.activate(searchRecord(
+                ALPHA, "collection-nested", "/docs/nested", Kind.COLLECTION));
+        authority.activate(searchRecord(
+                ALPHA, "file-deep", "/docs/nested/deep.txt", Kind.FILE));
+        authority.activate(searchRecord(ALPHA, "file-top", "/top.txt", Kind.FILE));
+        authority.activate(searchRecord(BETA, "file-private", "/private.txt", Kind.FILE));
+        BlobStorePort untouchedBlobs = mock(BlobStorePort.class);
+        WeaveNativeFilesAdapter nativeAdapter = new WeaveNativeFilesAdapter(
+                authority,
+                untouchedBlobs,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                100);
+        FilesProviderPort scoped = nativeAdapter.scoped(ALPHA);
+
+        assertThat(paths(scoped.searchCandidates(
+                new FilePath("/"), ScopeDepth.ZERO, 100)))
+                .containsExactly("/");
+        assertThat(paths(scoped.searchCandidates(
+                new FilePath("/"), ScopeDepth.ONE, 100)))
+                .containsExactly("/", "/docs", "/top.txt");
+        assertThat(paths(scoped.searchCandidates(
+                new FilePath("/"), ScopeDepth.INFINITY, 100)))
+                .containsExactly(
+                        "/",
+                        "/docs",
+                        "/docs/a.txt",
+                        "/docs/b.txt",
+                        "/docs/nested",
+                        "/docs/nested/deep.txt",
+                        "/top.txt");
+        assertThat(paths(scoped.searchCandidates(
+                new FilePath("/docs"), ScopeDepth.ZERO, 100)))
+                .containsExactly("/docs");
+        assertThat(paths(scoped.searchCandidates(
+                new FilePath("/docs"), ScopeDepth.ONE, 100)))
+                .containsExactly("/docs", "/docs/a.txt", "/docs/b.txt", "/docs/nested");
+        assertThat(paths(scoped.searchCandidates(
+                new FilePath("/docs"), ScopeDepth.INFINITY, 100)))
+                .containsExactly(
+                        "/docs",
+                        "/docs/a.txt",
+                        "/docs/b.txt",
+                        "/docs/nested",
+                        "/docs/nested/deep.txt");
+        for (ScopeDepth depth : ScopeDepth.values()) {
+            assertThat(paths(scoped.searchCandidates(
+                    new FilePath("/docs/a.txt"), depth, 100)))
+                    .containsExactly("/docs/a.txt");
+        }
+
+        var page = scoped.searchCandidates(
+                new FilePath("/"),
+                ScopeDepth.INFINITY,
+                2);
+
+        assertThat(page.candidates())
+                .extracting(candidate -> candidate.item().path().value())
+                .containsExactly("/", "/docs");
+        assertThat(page.truncated()).isTrue();
+        assertThat(nativeAdapter.conformanceProfile().supportedOperations())
+                .contains("files.webdav_basicsearch");
+        FilesWebDavSearchQualification searchQualification =
+                nativeAdapter.webDavBasicSearchQualification();
+        assertThat(searchQualification.qualifiedAt(searchQualification.observedAt())).isTrue();
+        assertThat(searchQualification.evidenceRef())
+                .isEqualTo(FilesWebDavSearchQualification.EVIDENCE_REF);
+        verifyNoInteractions(untouchedBlobs);
+    }
+
+    private java.util.List<String> paths(
+            com.massimotter.weave.backend.files.domain.FilesSearch.CandidatePage page) {
+        return page.candidates().stream()
+                .map(candidate -> candidate.item().path().value())
+                .toList();
     }
 
     @Test
@@ -270,6 +355,12 @@ class WeaveNativeFilesAdapterTest {
                     assertThat(exception.status()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT);
                     assertThat(exception.code()).isEqualTo("files-native-scope-required");
                 });
+        assertThatThrownBy(() -> adapter(authority).searchCandidates(
+                        new FilePath("/"), ScopeDepth.ZERO, 1))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT);
+                    assertThat(exception.code()).isEqualTo("files-native-scope-required");
+                });
     }
 
     private WeaveNativeFilesAdapter adapter(FilesAuthorityRepository repository) {
@@ -311,6 +402,23 @@ class WeaveNativeFilesAdapterTest {
                 metadata(scope, item, digest),
                 new BlobBinding(reference.value())));
         return item;
+    }
+
+    private StoredFileRecord searchRecord(
+            FilesRequestScope scope,
+            String id,
+            String path,
+            Kind kind) {
+        FileObject item = new FileObject(
+                new FileId(id),
+                new FilePath(path),
+                kind,
+                0,
+                kind == Kind.FILE ? "text/plain" : null,
+                NOW,
+                false);
+        String digest = kind == Kind.FILE ? FilesDigests.sha256(new byte[0]) : null;
+        return new StoredFileRecord(metadata(scope, item, digest), null);
     }
 
     private void seedMetadataWithoutBinding(

@@ -21,11 +21,13 @@ import org.springframework.web.client.RestClient;
 class FilesWebDavClientTest {
   private HttpServer server;
   private AtomicReference<String> searchBody;
+  private AtomicReference<String> searchLimitHeader;
   private AtomicReference<String> authorization;
 
   @BeforeEach
   void setUp() throws Exception {
     searchBody = new AtomicReference<>();
+    searchLimitHeader = new AtomicReference<>();
     authorization = new AtomicReference<>();
     server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
   }
@@ -41,6 +43,7 @@ class FilesWebDavClientTest {
         "/dav/files",
         exchange -> {
           authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+          searchLimitHeader.set(exchange.getRequestHeaders().getFirst("X-Weave-Search-Limit"));
           searchBody.set(
               new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
           byte[] response = searchResponse("files:/Team/readme.md");
@@ -58,7 +61,9 @@ class FilesWebDavClientTest {
     assertThat(searchBody.get())
         .contains("<d:like>")
         .contains("<w:canonical-id/>")
-        .contains("<d:literal>readme.md</d:literal>");
+        .contains("<d:literal>%readme.md%</d:literal>")
+        .contains("<d:limit><d:nresults>10</d:nresults></d:limit>");
+    assertThat(searchLimitHeader.get()).isNull();
     assertThat(matches)
         .singleElement()
         .satisfies(
@@ -69,11 +74,33 @@ class FilesWebDavClientTest {
   }
 
   @Test
+  void searchEscapesDavLikeWildcardsAndBackslashBeforeAddingSubstringWildcards() {
+    server.createContext(
+        "/dav/files",
+        exchange -> {
+          searchBody.set(
+              new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+          byte[] response = searchResponse("files:/Team/readme.md");
+          exchange.sendResponseHeaders(207, response.length);
+          exchange.getResponseBody().write(response);
+          exchange.close();
+        });
+    server.start();
+
+    client().search("draft\\100%_final", "/", 7);
+
+    assertThat(searchBody.get())
+        .contains("<d:literal>%draft\\\\100\\%\\_final%</d:literal>")
+        .contains("<d:nresults>7</d:nresults>");
+  }
+
+  @Test
   void resourceReadResolvesCanonicalIdByExactDavPredicateThenGetsFacadeContent() {
     server.createContext(
         "/dav/files",
         exchange -> {
           authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+          searchLimitHeader.set(exchange.getRequestHeaders().getFirst("X-Weave-Search-Limit"));
           searchBody.set(
               new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
           byte[] response = searchResponse("files:/Team/readme.md");
@@ -99,8 +126,27 @@ class FilesWebDavClientTest {
         .contains("<d:eq>")
         .contains("<w:canonical-id/>")
         .contains("<d:literal>files:/Team/readme.md</d:literal>")
+        .contains("<d:limit><d:nresults>2</d:nresults></d:limit>")
         .doesNotContain("<d:like>");
+    assertThat(searchLimitHeader.get()).isNull();
     assertThat(result.content()).isEqualTo("hello".getBytes(StandardCharsets.UTF_8));
+  }
+
+  @Test
+  void resourceReadFailsClosedWhenCanonicalIdResolutionHasNoMatch() {
+    server.createContext(
+        "/dav/files",
+        exchange -> {
+          byte[] response = emptySearchResponse();
+          exchange.sendResponseHeaders(207, response.length);
+          exchange.getResponseBody().write(response);
+          exchange.close();
+        });
+    server.start();
+
+    assertThatThrownBy(() -> client().read("files:/Team/missing.md"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The canonical file reference is unavailable or ambiguous");
   }
 
   @Test
@@ -127,6 +173,40 @@ class FilesWebDavClientTest {
     assertThatThrownBy(() -> client().read("files:/Team/readme.md"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("ambiguous");
+  }
+
+  @Test
+  void searchRejectsPartialRowsWhenArbiterReportsInsufficientStorage() {
+    server.createContext(
+        "/dav/files",
+        exchange -> {
+          byte[] response = truncatedSearchResponse();
+          exchange.sendResponseHeaders(207, response.length);
+          exchange.getResponseBody().write(response);
+          exchange.close();
+        });
+    server.start();
+
+    assertThatThrownBy(() -> client().search("readme", "/", 1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The Files search result is unavailable or ambiguous");
+  }
+
+  @Test
+  void resourceReadRejectsCanonicalMatchWhenArbiterReportsInsufficientStorage() {
+    server.createContext(
+        "/dav/files",
+        exchange -> {
+          byte[] response = truncatedSearchResponse();
+          exchange.sendResponseHeaders(207, response.length);
+          exchange.getResponseBody().write(response);
+          exchange.close();
+        });
+    server.start();
+
+    assertThatThrownBy(() -> client().read("files:/Team/readme.md"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The Files search result is unavailable or ambiguous");
   }
 
   @Test
@@ -192,6 +272,29 @@ class FilesWebDavClientTest {
     </d:multistatus>
     """
         .formatted(canonicalId)
+        .getBytes(StandardCharsets.UTF_8);
+  }
+
+  private byte[] emptySearchResponse() {
+    return """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <d:multistatus xmlns:d="DAV:" xmlns:w="urn:weave:files"/>
+    """
+        .getBytes(StandardCharsets.UTF_8);
+  }
+
+  private byte[] truncatedSearchResponse() {
+    String complete = new String(searchResponse("files:/Team/readme.md"), StandardCharsets.UTF_8);
+    return complete
+        .replace(
+            "</d:multistatus>",
+            """
+              <d:response>
+                <d:href>/dav/files</d:href>
+                <d:status>HTTP/1.1 507 Insufficient Storage</d:status>
+              </d:response>
+            </d:multistatus>
+            """)
         .getBytes(StandardCharsets.UTF_8);
   }
 }

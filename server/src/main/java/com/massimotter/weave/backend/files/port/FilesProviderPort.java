@@ -5,11 +5,14 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
+import com.massimotter.weave.backend.files.domain.FilesSearch.CandidatePage;
+import com.massimotter.weave.backend.files.domain.FilesSearch.ScopeDepth;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderCapabilityProbeResult;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
 import java.util.Optional;
 import java.util.Objects;
+import java.time.Instant;
 
 public interface FilesProviderPort {
 
@@ -38,9 +41,20 @@ public interface FilesProviderPort {
 
     ProviderConformanceProfile conformanceProfile();
 
+    default FilesWebDavSearchQualification webDavBasicSearchQualification() {
+        return FilesWebDavSearchQualification.blocked(Instant.now());
+    }
+
     VersionedListing list(FilePath path);
 
     Optional<VersionedFile> find(FilePath path);
+
+    default CandidatePage searchCandidates(
+            FilePath scopePath,
+            ScopeDepth scopeDepth,
+            int maxCandidates) {
+        throw new SearchCandidatesUnsupportedException();
+    }
 
     FileObject createCollection(FilePath path);
 
@@ -49,6 +63,12 @@ public interface FilesProviderPort {
     FileObject move(FilePath source, FilePath destination, boolean overwrite);
 
     void delete(FilePath path, FileVersion expectedVersion);
+
+    final class SearchCandidatesUnsupportedException extends UnsupportedOperationException {
+        public SearchCandidatesUnsupportedException() {
+            super("bounded canonical Files search enumeration is not supported");
+        }
+    }
 
     record FilesRequestScope(String organizationRef, String spaceRef, long providerBindingRevision) {
         public FilesRequestScope {

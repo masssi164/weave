@@ -4496,6 +4496,53 @@
       ]
     },
     {
+      "tag": "@files-webdav-basicsearch",
+      "scenario": "SEARCH executes the bounded canonical RFC 5323 profile",
+      "feature": "e2e/features/files_webdav_full_facade.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavRealSocketStreamingTest.java",
+      "evidenceMarkers": [
+        "FILES_WEBDAV_REAL_SOCKET_BASICSEARCH"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/main/java/com/massimotter/weave/backend/controller/protocol/FilesWebDavSearchParser.java",
+          "fragments": [
+            "MAX_BODY_BYTES = 65_536",
+            "SEARCH_GRAMMAR_SUPPORTED",
+            "SEARCH_MULTIPLE_SCOPE_SUPPORTED",
+            "NO_EXTERNAL_ENTITIES"
+          ]
+        },
+        {
+          "path": "server/src/main/java/com/massimotter/weave/backend/service/files/WebDavBasicSearchEvaluator.java",
+          "fragments": [
+            "files-search-incomplete",
+            "files-canonical-integrity-unavailable",
+            "compareUtf8",
+            "boolean like"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavRealSocketStreamingTest.java",
+          "fragments": [
+            "FILES_WEBDAV_REAL_SOCKET_BASICSEARCH",
+            "<DAV:basicsearch>",
+            "HTTP/1.1 507 Insufficient Storage",
+            "portable-note"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/files/adapter/JpaFilesAuthorityRepositoryPostgresTest.java",
+          "fragments": [
+            "searchCandidates",
+            "ScopeDepth.INFINITY",
+            "assertThat(second).isEqualTo(first)"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@files-webdav-get-head",
       "scenario": "GET and HEAD stream file content with Weave ETags",
       "feature": "e2e/features/files_webdav_full_facade.feature",

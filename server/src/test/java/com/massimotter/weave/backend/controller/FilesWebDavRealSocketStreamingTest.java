@@ -13,6 +13,8 @@ import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.files.WebDavFileRead;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import com.massimotter.weave.backend.service.files.WebDavPutRequest;
+import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
+import com.massimotter.weave.backend.service.files.WebDavSearchResult;
 import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -20,6 +22,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
@@ -137,6 +140,51 @@ class FilesWebDavRealSocketStreamingTest {
         assertThat(maximumReadRequest.get()).isBetween(1, 65_536);
     }
 
+    @Test
+    void realSocketBasicsearchAdvertisesDaslAndReturnsSelectedPropsWith507Arbiter() throws Exception {
+        // FILES_WEBDAV_REAL_SOCKET_BASICSEARCH
+        when(facade.webDavSearchQualified()).thenReturn(true);
+        when(facade.webDavSearch(any())).thenReturn(new WebDavSearchResult(
+                List.of(new WebDavPropfindResource(searchFile(), "\"search-etag\"")),
+                true));
+
+        HttpResponse<String> options = client.send(
+                request("/dav/files/Team")
+                        .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(options.statusCode()).isEqualTo(204);
+        assertThat(options.headers().firstValue("DASL")).contains("<DAV:basicsearch>");
+
+        String body = """
+                <d:searchrequest xmlns:d="DAV:" xmlns:w="urn:weave:files" xmlns:x="urn:unknown">
+                  <d:basicsearch>
+                    <d:select><d:prop><d:displayname/><x:portable-note/></d:prop></d:select>
+                    <d:from><d:scope><d:href>/dav/files/Team</d:href><d:depth>infinity</d:depth></d:scope></d:from>
+                    <d:where><d:eq><d:prop><w:canonical-id/></d:prop><d:literal>files:/Team/readme.md</d:literal></d:eq></d:where>
+                    <d:limit><d:nresults>2</d:nresults></d:limit>
+                  </d:basicsearch>
+                </d:searchrequest>
+                """;
+        HttpResponse<String> response = client.send(
+                request("/dav/files/Team")
+                        .header("Content-Type", "application/xml; charset=utf-8")
+                        .method("SEARCH", HttpRequest.BodyPublishers.ofString(body))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(207);
+        assertThat(response.headers().firstValue("Content-Type"))
+                .hasValueSatisfying(value -> assertThat(value).isEqualToIgnoringCase("application/xml;charset=UTF-8"));
+        assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
+        assertThat(response.body())
+                .contains("<w:canonical-id>files:/Team/readme.md</w:canonical-id>")
+                .contains("HTTP/1.1 404 Not Found")
+                .contains("portable-note")
+                .contains("HTTP/1.1 507 Insufficient Storage")
+                .doesNotContain("remote.php", "Authorization", "Bearer");
+    }
+
     private HttpRequest.Builder request(String path) {
         return HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                 .timeout(Duration.ofSeconds(20));
@@ -176,6 +224,18 @@ class FilesWebDavRealSocketStreamingTest {
                         OffsetDateTime.parse("2026-08-20T00:00:00Z"),
                         true),
                 "\"chunked-etag\"",
+                true);
+    }
+
+    private static FileItemResponse searchFile() {
+        return new FileItemResponse(
+                "files:/Team/readme.md",
+                "readme.md",
+                "/Team/readme.md",
+                "file",
+                "text/markdown",
+                12L,
+                OffsetDateTime.parse("2026-08-20T00:00:00Z"),
                 true);
     }
 

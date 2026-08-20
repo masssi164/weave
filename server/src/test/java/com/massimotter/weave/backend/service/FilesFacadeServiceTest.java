@@ -29,7 +29,10 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
+import com.massimotter.weave.backend.files.domain.FilesSearch.CandidatePage;
+import com.massimotter.weave.backend.files.domain.FilesSearch.ScopeDepth;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.files.port.FilesWebDavSearchQualification;
 import com.massimotter.weave.backend.files.port.FilesStreamingContentPort;
 import com.massimotter.weave.backend.files.port.ReplayableFileContent;
 import com.massimotter.weave.backend.files.port.VerifiedFileRead;
@@ -43,6 +46,7 @@ import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import com.massimotter.weave.backend.service.files.WebDavPutRequest;
 import com.massimotter.weave.backend.service.files.WebDavSearchRequest;
+import com.massimotter.weave.backend.service.files.WebDavBasicSearchEvaluator;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -166,6 +170,64 @@ class FilesFacadeServiceTest {
     }
 
     @Test
+    void basicSearchRequiresCurrentOperationQualificationButNotContentReadiness() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        WebDavSearchRequest request = new WebDavSearchRequest(
+                "/Team",
+                "/Team",
+                ScopeDepth.INFINITY,
+                new WebDavSearchRequest.AllProperties(),
+                new WebDavSearchRequest.TruePredicate(),
+                List.of(),
+                25);
+
+        StubAdapter degradedContent = new StubAdapter(true, true) {
+            @Override
+            public ProviderReadiness readiness() {
+                return ProviderReadiness.degraded("files-content-degraded");
+            }
+        };
+        FilesFacadeService current = service(degradedContent);
+        assertThat(current.webDavSearchQualified()).isTrue();
+        assertThat(current.webDavSearch(request).resources()).hasSize(1);
+        assertThat(degradedContent.searchCandidateCalls).isEqualTo(1);
+
+        StubAdapter blocked = new StubAdapter(true, true) {
+            @Override
+            public FilesWebDavSearchQualification webDavBasicSearchQualification() {
+                return FilesWebDavSearchQualification.blocked(Instant.now());
+            }
+        };
+        FilesFacadeService blockedService = service(blocked);
+        assertThat(blockedService.webDavSearchQualified()).isFalse();
+        assertThatThrownBy(() -> blockedService.webDavSearch(request))
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(error.code()).isEqualTo("files-search-not-supported");
+                });
+        assertThat(blocked.searchCandidateCalls).isZero();
+
+        StubAdapter expired = new StubAdapter(true, true) {
+            @Override
+            public FilesWebDavSearchQualification webDavBasicSearchQualification() {
+                Instant observed = Instant.parse("2026-08-20T10:00:00Z");
+                return new FilesWebDavSearchQualification(
+                        "native",
+                        true,
+                        observed,
+                        observed.plusSeconds(60),
+                        FilesWebDavSearchQualification.EVIDENCE_REF);
+            }
+        };
+        FilesFacadeService expiredService = service(expired);
+        assertThat(expiredService.webDavSearchQualified()).isFalse();
+        assertThatThrownBy(() -> expiredService.webDavSearch(request))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.code()).isEqualTo("files-search-not-supported"));
+        assertThat(expired.searchCandidateCalls).isZero();
+    }
+
+    @Test
     void workloadSearchAuditsWorkloadPersonToolBindingObjectAndOutcomeSeparately() {
         Instant issuedAt = Instant.parse("2026-07-26T10:00:00Z");
         Jwt workloadJwt = Jwt.withTokenValue("exchanged-token")
@@ -212,7 +274,7 @@ class FilesFacadeServiceTest {
         InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
         AtomicReference<ContextAuthorizationRequest> contextRequest = new AtomicReference<>();
         FilesFacadeService service = new FilesFacadeService(
-                provider(new StubAdapter(true)),
+                provider(new StubAdapter(true, true)),
                 request -> {
                     contextRequest.set(request);
                     return ContextAuthorizationDecision.allow("active member binding");
@@ -227,9 +289,15 @@ class FilesFacadeServiceTest {
 
         var result = service.webDavSearch(new WebDavSearchRequest(
                 "/Team",
-                "readme",
-                25,
-                WebDavSearchRequest.MatchField.DISPLAY_NAME_OR_PATH));
+                "/Team",
+                ScopeDepth.INFINITY,
+                new WebDavSearchRequest.AllProperties(),
+                new WebDavSearchRequest.ComparisonPredicate(
+                        WebDavSearchRequest.ComparisonOperator.LIKE,
+                        WebDavBasicSearchEvaluator.DISPLAY_NAME,
+                        "%readme%"),
+                List.of(),
+                25));
 
         assertThat(result.resources()).hasSize(1);
         assertThat(contextRequest.get().principalRef()).isEqualTo("user:member-username");
@@ -858,6 +926,7 @@ class FilesFacadeServiceTest {
         private String lastReadPath;
         private int listWithVersionTokenCalls;
         private int versionTokenCalls;
+        private int searchCandidateCalls;
 
         private StubAdapter(boolean configured) {
             this(configured, false);
@@ -893,12 +962,20 @@ class FilesFacadeServiceTest {
                                     "create-collection",
                                     "delete",
                                     "files.content_streaming_read",
-                                    "files.content_streaming_write")
+                                    "files.content_streaming_write",
+                                    "files.webdav_basicsearch")
                             : Set.of("list", "read", "write", "create-collection", "delete"),
                     Map.of(),
                     true,
                     true,
                     true);
+        }
+
+        @Override
+        public FilesWebDavSearchQualification webDavBasicSearchQualification() {
+            return streamingQualified
+                    ? FilesWebDavSearchQualification.nativeVerified(Instant.now())
+                    : FilesWebDavSearchQualification.blocked(Instant.now());
         }
 
         @Override
@@ -936,6 +1013,18 @@ class FilesFacadeServiceTest {
                 return Optional.of(new VersionedFile(collection(path.value()), FileVersion.unknown()));
             }
             return Optional.empty();
+        }
+
+        @Override
+        public CandidatePage searchCandidates(FilePath scopePath, ScopeDepth scopeDepth, int maxCandidates) {
+            searchCandidateCalls++;
+            List<VersionedFile> candidates = contentByPath.entrySet().stream()
+                    .filter(entry -> entry.getKey().equals(scopePath.value())
+                            || entry.getKey().startsWith(scopePath.value() + "/"))
+                    .map(entry -> new VersionedFile(file(entry.getKey(), entry.getValue()), version(entry.getValue())))
+                    .limit(maxCandidates)
+                    .toList();
+            return new CandidatePage(candidates, false);
         }
 
         @Override

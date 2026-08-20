@@ -57,6 +57,27 @@ public class ApiErrorResponseWriter {
                 memberImpact));
     }
 
+    public void writeFilesWebDav(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            HttpStatus status,
+            String code,
+            String message) throws IOException {
+        response.setStatus(status.value());
+        response.setContentType(MediaType.APPLICATION_XML_VALUE);
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Cache-Control", "no-store");
+        response.setHeader("X-Weave-Error-Code", code);
+        response.setHeader(RequestIdFilter.HEADER, RequestIdFilter.requestId(request));
+        response.getWriter().write("""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <d:error xmlns:d="DAV:">
+                  <d:responsedescription>%s</d:responsedescription>
+                  <weave-code>%s</weave-code>
+                </d:error>
+                """.formatted(escapeXml(message), escapeXml(code)));
+    }
+
     private String defaultCode(HttpStatus status) {
         return status.name().toLowerCase().replace('_', '-');
     }
@@ -77,6 +98,14 @@ public class ApiErrorResponseWriter {
             return fallback;
         }
         return trimmed;
+    }
+
+    private String escapeXml(String value) {
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&apos;");
     }
 
 }

@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MARKERS = [
     "FILES_WEBDAV_FACADE_READ_LIST_DOWNLOAD",
     "FILES_WEBDAV_WRITE_MVP",
+    "FILES_WEBDAV_BASICSEARCH",
     "FILES_MCP_FACADE_NO_PROVIDER_BYPASS",
 ]
 
@@ -237,6 +238,56 @@ def require_mcp_facade_boundary() -> None:
         "workspace/weaver/mcp/servers",
         "workspace/weaver/runtime-profile",
     )
+
+
+def require_basicsearch() -> None:
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/controller/protocol/FilesWebDavSearchParser.java",
+        "MAX_BODY_BYTES = 65_536",
+        "MAX_EXPRESSION_DEPTH = 8",
+        "MAX_OPERATORS = 32",
+        "SEARCH_GRAMMAR_SUPPORTED",
+        "SEARCH_MULTIPLE_SCOPE_SUPPORTED",
+        "NO_EXTERNAL_ENTITIES",
+        "validLikeLiteral",
+    )
+    require(
+        "weave-files-core/src/main/java/com/massimotter/weave/backend/files/application/CanonicalFilesQueries.java",
+        "CandidatePage searchCandidates(",
+        "FilesSearch.MAXIMUM_CANDIDATES",
+        "activeSearchCandidates(",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/service/files/WebDavBasicSearchEvaluator.java",
+        "files-search-incomplete",
+        "files-canonical-integrity-unavailable",
+        "compareUtf8",
+        "static boolean like",
+        "page.truncated() || resultTruncated",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java",
+        'header("DASL", "<DAV:basicsearch>")',
+        'header(HttpHeaders.CACHE_CONTROL, "no-store")',
+        "HTTP/1.1 507 Insufficient Storage",
+        'appendSearchPropstat(xml, undefined, "404 Not Found")',
+        "FilesWebDavSearchParser.parse(request)",
+    )
+    require(
+        "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavRealSocketStreamingTest.java",
+        "FILES_WEBDAV_REAL_SOCKET_BASICSEARCH",
+        "realSocketBasicsearchAdvertisesDaslAndReturnsSelectedPropsWith507Arbiter",
+        "HTTP/1.1 507 Insufficient Storage",
+    )
+    require(
+        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/FilesWebDavClient.java",
+        "<d:limit><d:nresults>",
+        "IncompleteSearchResponseException",
+    )
+    require_absent(
+        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/FilesWebDavClient.java",
+        "X-Weave-Search-Limit",
+    )
     require(
         "infra/weave-workspace/weave-mcp-tool-contract.json",
         '"dataPlaneAuthority": "weave-webdav-facade"',
@@ -248,6 +299,7 @@ def require_mcp_facade_boundary() -> None:
 def main() -> int:
     require_read_list_download()
     require_webdav_write_mvp()
+    require_basicsearch()
     require_mcp_facade_boundary()
     for marker in MARKERS:
         print(marker)
