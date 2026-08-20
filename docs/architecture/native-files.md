@@ -170,7 +170,20 @@ the same qualification observation and cannot rely on a stale startup snapshot.
 
 The incremental qualification records are [Native Files private blob-binding evidence](../evidence/native-files-private-blob-binding.md)
 and [Native Files V7 durability evidence](../evidence/native-files-v7-durability.md), plus
-[Native Files bounded streaming evidence](../evidence/native-files-bounded-streaming.md).
+[Native Files bounded streaming evidence](../evidence/native-files-bounded-streaming.md) and
+[Native Files WebDAV basicsearch evidence](../evidence/native-files-webdav-basicsearch.md).
+
+## Bounded WebDAV metadata search
+
+The native SEARCH projection is one strict, content-free RFC 5323 `DAV:basicsearch` profile. XML
+parsing yields a closed typed request before provider access. After authorization, the scoped
+native adapter executes one bounded PostgreSQL metadata enumeration ordered by canonical path and FileId;
+the application evaluator applies three-valued predicates and deterministic ordering without
+opening a blob. The controller renders requested property successes and failures and makes every
+partial result explicit through the search-arbiter 507 row. SEARCH and DASL discovery are omitted
+whenever the selected adapter lacks a fresh operation-specific `files.webdav_basicsearch`
+qualification. That admission record is independent of blob/content readiness, is time bounded,
+and is applied identically to OPTIONS discovery and direct SEARCH execution.
 
 ## Backup and restore contract
 

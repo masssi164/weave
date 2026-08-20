@@ -2,7 +2,10 @@ package com.massimotter.weave.backend.files.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.massimotter.weave.backend.files.application.CanonicalFilesQueries;
 import com.massimotter.weave.backend.files.application.FilesEtags;
 import com.massimotter.weave.backend.files.application.FilesDigests;
 import com.massimotter.weave.backend.files.application.CanonicalFilesMutationPlanner;
@@ -24,6 +27,7 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
+import com.massimotter.weave.backend.files.domain.FilesSearch.ScopeDepth;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReceipt;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
@@ -87,6 +91,128 @@ class JpaFilesAuthorityRepositoryPostgresTest {
     @Container
     private static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:16-alpine");
+
+    @Test
+    void boundedSearchQueryIsScopeSafeTruncatedAndEquivalentAcrossRepositoryInstances() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaTestDatabase.initializeSchema(dataSource);
+        var firstRepository = repository(dataSource);
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        String organization = "org:search:" + suffix;
+        String otherOrganization = organization + ":other";
+        String space = "space:home";
+        Instant now = Instant.parse("2026-08-20T11:00:00Z");
+        firstRepository.activate(activeCollection(
+                organization,
+                space,
+                new FileId("collection:search:" + suffix),
+                new FilePath("/Search"),
+                now));
+        firstRepository.activate(activeFile(
+                organization,
+                space,
+                new FileId("file:a:" + suffix),
+                new FilePath("/Search/a.txt"),
+                "a",
+                now));
+        firstRepository.activate(activeFile(
+                organization,
+                space,
+                new FileId("file:b:" + suffix),
+                new FilePath("/Search/b.txt"),
+                "b",
+                now));
+        firstRepository.activate(activeCollection(
+                organization,
+                space,
+                new FileId("collection:nested:" + suffix),
+                new FilePath("/Search/nested"),
+                now));
+        firstRepository.activate(activeFile(
+                organization,
+                space,
+                new FileId("file:deep:" + suffix),
+                new FilePath("/Search/nested/deep.txt"),
+                "c",
+                now));
+        firstRepository.activate(activeFile(
+                organization,
+                space,
+                new FileId("file:sibling:" + suffix),
+                new FilePath("/Search-other/not-a-descendant.txt"),
+                "d",
+                now));
+        firstRepository.activate(activeFile(
+                otherOrganization,
+                space,
+                new FileId("file:other-org:" + suffix),
+                new FilePath("/Search/private.txt"),
+                "e",
+                now));
+        firstRepository.activate(activeFile(
+                organization,
+                "space:other",
+                new FileId("file:other-space:" + suffix),
+                new FilePath("/Search/private.txt"),
+                "f",
+                now));
+        firstRepository.activate(activeCollection(
+                organization,
+                space,
+                new FileId("collection:utf8:" + suffix),
+                new FilePath("/Utf8"),
+                now));
+        firstRepository.activate(activeFile(
+                organization,
+                space,
+                new FileId("file:astral:" + suffix),
+                new FilePath("/Utf8/😀.txt"),
+                "1",
+                now));
+        firstRepository.activate(activeFile(
+                organization,
+                space,
+                new FileId("file:private-use:" + suffix),
+                new FilePath("/Utf8/\ue000.txt"),
+                "2",
+                now));
+        BlobStorePort untouchedBlobs = mock(BlobStorePort.class);
+        var firstQueries = new CanonicalFilesQueries(firstRepository, untouchedBlobs, 100);
+        var secondQueries = new CanonicalFilesQueries(repository(dataSource), untouchedBlobs, 100);
+
+        var first = firstQueries.searchCandidates(
+                new FilesScope(organization, space),
+                new FilePath("/Search"),
+                ScopeDepth.INFINITY,
+                2);
+        var second = secondQueries.searchCandidates(
+                new FilesScope(organization, space),
+                new FilePath("/Search"),
+                ScopeDepth.INFINITY,
+                2);
+
+        assertThat(first.candidates())
+                .extracting(candidate -> candidate.item().path().value())
+                .containsExactly("/Search", "/Search/a.txt");
+        assertThat(first.truncated()).isTrue();
+        assertThat(second).isEqualTo(first);
+        var utf8Ordered = firstQueries.searchCandidates(
+                new FilesScope(organization, space),
+                new FilePath("/Utf8"),
+                ScopeDepth.ONE,
+                2);
+        assertThat(utf8Ordered.candidates())
+                .extracting(candidate -> candidate.item().path().value())
+                .containsExactly("/Utf8", "/Utf8/\ue000.txt");
+        assertThat(utf8Ordered.truncated()).isTrue();
+        assertThat(secondQueries.searchCandidates(
+                        new FilesScope(organization, space),
+                        new FilePath("/Utf8"),
+                        ScopeDepth.ONE,
+                        2))
+                .isEqualTo(utf8Ordered);
+        verifyNoInteractions(untouchedBlobs);
+    }
 
     @Test
     void movePreservesCanonicalIdentityAndLocksPersistOnlyTokenDigests() {

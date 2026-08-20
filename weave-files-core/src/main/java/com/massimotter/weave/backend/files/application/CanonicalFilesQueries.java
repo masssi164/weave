@@ -16,6 +16,9 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
+import com.massimotter.weave.backend.files.domain.FilesSearch;
+import com.massimotter.weave.backend.files.domain.FilesSearch.CandidatePage;
+import com.massimotter.weave.backend.files.domain.FilesSearch.ScopeDepth;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
@@ -109,6 +112,52 @@ public final class CanonicalFilesQueries {
         return authority.findByPath(scope.organizationRef(), scope.spaceRef(), path)
                 .map(StoredFileRecord::metadata)
                 .map(record -> new VersionedFile(record.object(), record.version()));
+    }
+
+    /**
+     * Enumerates one deterministic, bounded canonical metadata page without opening file content.
+     */
+    public CandidatePage searchCandidates(
+            FilesScope scope,
+            FilePath scopePath,
+            ScopeDepth scopeDepth,
+            int maxCandidates) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(scopePath, "scopePath must not be null");
+        Objects.requireNonNull(scopeDepth, "scopeDepth must not be null");
+        if (maxCandidates < 1 || maxCandidates > FilesSearch.MAXIMUM_CANDIDATES) {
+            throw new IllegalArgumentException("Files search maxCandidates must be between 1 and 1000");
+        }
+
+        int maximumRows = scopePath.root() ? maxCandidates : maxCandidates + 1;
+        List<StoredFileRecord> stored = List.copyOf(authority.activeSearchCandidates(
+                scope.organizationRef(),
+                scope.spaceRef(),
+                scopePath,
+                scopeDepth,
+                maximumRows));
+        if (stored.size() > maximumRows) {
+            throw new IllegalStateException("Files search persistence exceeded its requested row bound");
+        }
+        if (!scopePath.root() && stored.isEmpty()) {
+            throw failure(NOT_FOUND, "The requested file or folder was not found.");
+        }
+
+        List<VersionedFile> ordered = new java.util.ArrayList<>(stored.size() + 1);
+        if (scopePath.root()) {
+            ordered.add(new VersionedFile(rootObject(), FileVersion.unknown()));
+        }
+        stored.stream()
+                .map(StoredFileRecord::metadata)
+                .map(record -> new VersionedFile(record.object(), record.version()))
+                .sorted(CANDIDATE_ORDER)
+                .forEach(ordered::add);
+        ordered.sort(CANDIDATE_ORDER);
+
+        boolean truncated = ordered.size() > maxCandidates;
+        return new CandidatePage(
+                ordered.subList(0, Math.min(maxCandidates, ordered.size())),
+                truncated);
     }
 
     /**
@@ -293,6 +342,30 @@ public final class CanonicalFilesQueries {
                 null,
                 null,
                 false);
+    }
+
+    private static final Comparator<VersionedFile> CANDIDATE_ORDER = (left, right) -> {
+        int pathOrder = compareUtf8(
+                left.item().path().value(),
+                right.item().path().value());
+        return pathOrder != 0
+                ? pathOrder
+                : compareUtf8(left.item().id().value(), right.item().id().value());
+    };
+
+    private static int compareUtf8(String left, String right) {
+        byte[] leftBytes = left.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] rightBytes = right.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        int shared = Math.min(leftBytes.length, rightBytes.length);
+        for (int index = 0; index < shared; index++) {
+            int compared = Integer.compare(
+                    Byte.toUnsignedInt(leftBytes[index]),
+                    Byte.toUnsignedInt(rightBytes[index]));
+            if (compared != 0) {
+                return compared;
+            }
+        }
+        return Integer.compare(leftBytes.length, rightBytes.length);
     }
 
     private FilesApplicationException failure(

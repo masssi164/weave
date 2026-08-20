@@ -18,6 +18,7 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
+import com.massimotter.weave.backend.files.domain.FilesSearch.ScopeDepth;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.BlobStorePort.ContentTargetUnavailableException;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
@@ -83,6 +84,163 @@ class CanonicalFilesQueriesTest {
         assertEquals(file.metadata().object().id(), docs.listing().children().getFirst().id());
         assertTrue(queries.find(SCOPE, file.metadata().object().path()).isPresent());
         assertArrayEquals(content, read(file.metadata().object().id()));
+    }
+
+    @Test
+    void searchCandidatesApplyRootCollectionAndNonCollectionDepthWithoutContentReads() {
+        StoredFileRecord top = record(
+                "file-top",
+                "/top.txt",
+                Kind.FILE,
+                1,
+                FilesDigests.sha256(new byte[] {1}),
+                "v1/top/blob",
+                "top-v1");
+        StoredFileRecord nested = record(
+                "collection-nested",
+                "/docs/nested",
+                Kind.COLLECTION,
+                0,
+                null,
+                null,
+                "nested-v1");
+        StoredFileRecord deep = record(
+                "file-deep",
+                "/docs/nested/deep.txt",
+                Kind.FILE,
+                1,
+                FilesDigests.sha256(new byte[] {2}),
+                "v1/deep/blob",
+                "deep-v1");
+        StoredFileRecord siblingPrefix = record(
+                "file-sibling-prefix",
+                "/docs-other/not-a-descendant.txt",
+                Kind.FILE,
+                1,
+                FilesDigests.sha256(new byte[] {3}),
+                "v1/sibling/blob",
+                "sibling-v1");
+        authority.records.addAll(List.of(top, nested, deep, siblingPrefix));
+
+        assertEquals(
+                List.of("/"),
+                paths(queries.searchCandidates(SCOPE, new FilePath("/"), ScopeDepth.ZERO, 100)));
+        assertEquals(
+                List.of("/", "/docs", "/top.txt"),
+                paths(queries.searchCandidates(SCOPE, new FilePath("/"), ScopeDepth.ONE, 100)));
+        assertEquals(
+                List.of(
+                        "/",
+                        "/docs",
+                        "/docs-other/not-a-descendant.txt",
+                        "/docs/nested",
+                        "/docs/nested/deep.txt",
+                        "/docs/readme.txt",
+                        "/top.txt"),
+                paths(queries.searchCandidates(SCOPE, new FilePath("/"), ScopeDepth.INFINITY, 100)));
+        assertEquals(
+                List.of("/docs"),
+                paths(queries.searchCandidates(SCOPE, new FilePath("/docs"), ScopeDepth.ZERO, 100)));
+        assertEquals(
+                List.of("/docs", "/docs/nested", "/docs/readme.txt"),
+                paths(queries.searchCandidates(SCOPE, new FilePath("/docs"), ScopeDepth.ONE, 100)));
+        assertEquals(
+                List.of("/docs", "/docs/nested", "/docs/nested/deep.txt", "/docs/readme.txt"),
+                paths(queries.searchCandidates(SCOPE, new FilePath("/docs"), ScopeDepth.INFINITY, 100)));
+        for (ScopeDepth depth : ScopeDepth.values()) {
+            assertEquals(
+                    List.of("/docs/readme.txt"),
+                    paths(queries.searchCandidates(
+                            SCOPE,
+                            new FilePath("/docs/readme.txt"),
+                            depth,
+                            100)));
+        }
+        assertEquals(0, blobs.readCalls);
+        assertEquals(0, authority.activeFileReads);
+    }
+
+    @Test
+    void searchCandidatesAreExactlyBoundedOrderedAndExplicitlyTruncated() {
+        authority.records.add(record(
+                "file-a",
+                "/a.txt",
+                Kind.FILE,
+                1,
+                FilesDigests.sha256(new byte[] {4}),
+                "v1/a/blob",
+                "a-v1"));
+
+        var bounded = queries.searchCandidates(
+                SCOPE,
+                new FilePath("/"),
+                ScopeDepth.INFINITY,
+                2);
+        assertEquals(2, authority.lastMaximumRows);
+        var complete = queries.searchCandidates(
+                SCOPE,
+                new FilePath("/docs"),
+                ScopeDepth.ZERO,
+                2);
+
+        assertEquals(List.of("/", "/a.txt"), paths(bounded));
+        assertTrue(bounded.truncated());
+        assertEquals(2, bounded.candidates().size());
+        assertEquals(3, authority.lastMaximumRows);
+        assertEquals(List.of("/docs"), paths(complete));
+        assertFalse(complete.truncated());
+    }
+
+    @Test
+    void searchCandidatesKeepTenantSpacePathAndFileIdTieBoundaries() {
+        StoredFileRecord tieB = record(
+                "file-b",
+                "/docs/tie.txt",
+                Kind.FILE,
+                1,
+                FilesDigests.sha256(new byte[] {5}),
+                "v1/tie-b/blob",
+                "tie-b-v1");
+        StoredFileRecord tieA = record(
+                "file-a",
+                "/docs/tie.txt",
+                Kind.FILE,
+                1,
+                FilesDigests.sha256(new byte[] {6}),
+                "v1/tie-a/blob",
+                "tie-a-v1");
+        StoredFileRecord otherTenant = record(
+                new FilesScope("org-2", SCOPE.spaceRef()),
+                "other-tenant",
+                "/docs/private.txt",
+                Kind.FILE,
+                "other-v1");
+        StoredFileRecord otherSpace = record(
+                new FilesScope(SCOPE.organizationRef(), "space-2"),
+                "other-space",
+                "/docs/private.txt",
+                Kind.FILE,
+                "other-v1");
+        authority.records.addAll(List.of(tieB, tieA, otherTenant, otherSpace));
+
+        var page = queries.searchCandidates(
+                SCOPE,
+                new FilePath("/docs"),
+                ScopeDepth.ONE,
+                100);
+
+        assertEquals(
+                List.of("collection-docs", "file-readme", "file-a", "file-b"),
+                page.candidates().stream().map(item -> item.item().id().value()).toList());
+        assertFalse(page.truncated());
+        assertEquals(0, blobs.readCalls);
+        assertThrows(
+                FilesApplicationException.class,
+                () -> queries.searchCandidates(
+                        SCOPE,
+                        new FilePath("/missing"),
+                        ScopeDepth.INFINITY,
+                        100));
     }
 
     @Test
@@ -300,6 +458,36 @@ class CanonicalFilesQueriesTest {
                 opaqueReference == null ? null : new BlobBinding(opaqueReference));
     }
 
+    private StoredFileRecord record(
+            FilesScope scope,
+            String id,
+            String path,
+            Kind kind,
+            String version) {
+        CanonicalFileRecord metadata = new CanonicalFileRecord(
+                scope.organizationRef(),
+                scope.spaceRef(),
+                new FileObject(
+                        new FileId(id),
+                        new FilePath(path),
+                        kind,
+                        0,
+                        kind == Kind.FILE ? "text/plain" : null,
+                        NOW,
+                        false),
+                new FileVersion(version),
+                kind == Kind.FILE ? FilesDigests.sha256(new byte[0]) : null,
+                1,
+                ACTIVE,
+                NOW);
+        return new StoredFileRecord(metadata, null);
+    }
+
+    private List<String> paths(
+            com.massimotter.weave.backend.files.domain.FilesSearch.CandidatePage page) {
+        return page.candidates().stream().map(item -> item.item().path().value()).toList();
+    }
+
     private void assertReadIntegrityFailure(byte[] actual) {
         blobs.values.put(new BlobStorePort.BlobReference("v1/readme/blob"), actual);
         FilesApplicationException failure = assertThrows(
@@ -319,6 +507,8 @@ class CanonicalFilesQueriesTest {
         private final List<StoredFileRecord> records = new ArrayList<>();
         private int idReads;
         private int pathReads;
+        private int activeFileReads;
+        private int lastMaximumRows;
 
         @Override
         public StoredFileRecord save(StoredFileRecord record) {
@@ -350,7 +540,61 @@ class CanonicalFilesQueriesTest {
 
         @Override
         public List<StoredFileRecord> activeFiles(String organizationRef, String spaceRef) {
+            activeFileReads++;
             return records.stream().filter(record -> matches(record, organizationRef, spaceRef)).toList();
+        }
+
+        @Override
+        public List<StoredFileRecord> activeSearchCandidates(
+                String organizationRef,
+                String spaceRef,
+                FilePath scopePath,
+                ScopeDepth scopeDepth,
+                int maximumRows) {
+            lastMaximumRows = maximumRows;
+            List<StoredFileRecord> scoped = records.stream()
+                    .filter(record -> matches(record, organizationRef, spaceRef))
+                    .filter(record -> inSearchScope(record, scopePath, scopeDepth))
+                    .sorted(java.util.Comparator
+                            .comparing((StoredFileRecord record) ->
+                                    record.metadata().object().path().value())
+                            .thenComparing(record -> record.metadata().object().id().value()))
+                    .limit(maximumRows)
+                    .toList();
+            if (scopePath.root()) {
+                return scopeDepth == ScopeDepth.ZERO ? List.of() : scoped;
+            }
+            Optional<StoredFileRecord> scope = records.stream()
+                    .filter(record -> matches(record, organizationRef, spaceRef))
+                    .filter(record -> record.metadata().object().path().equals(scopePath))
+                    .findFirst();
+            if (scope.isEmpty()) {
+                return List.of();
+            }
+            if (scope.get().metadata().object().kind() != Kind.COLLECTION
+                    || scopeDepth == ScopeDepth.ZERO) {
+                return List.of(scope.get());
+            }
+            return scoped;
+        }
+
+        private boolean inSearchScope(
+                StoredFileRecord record,
+                FilePath scopePath,
+                ScopeDepth scopeDepth) {
+            String path = record.metadata().object().path().value();
+            if (path.equals(scopePath.value())) {
+                return true;
+            }
+            if (scopeDepth == ScopeDepth.ZERO) {
+                return false;
+            }
+            String prefix = scopePath.root() ? "/" : scopePath.value() + "/";
+            if (!path.startsWith(prefix)) {
+                return false;
+            }
+            return scopeDepth == ScopeDepth.INFINITY
+                    || path.substring(prefix.length()).indexOf('/') < 0;
         }
 
         @Override

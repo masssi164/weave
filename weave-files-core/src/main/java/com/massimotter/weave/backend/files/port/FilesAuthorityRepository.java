@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.files.port;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
+import com.massimotter.weave.backend.files.domain.FilesSearch.ScopeDepth;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +36,24 @@ public interface FilesAuthorityRepository {
             FileId id);
 
     List<StoredFileRecord> activeFiles(String organizationRef, String spaceRef);
+
+    /**
+     * Returns at most {@code maximumRows} active metadata rows in canonical path/FileId order.
+     *
+     * <p>The scope resource is included when it is persisted. Root is a virtual canonical
+     * collection and is therefore supplied by the application query. Implementations must apply
+     * tenant, Space, path, depth, lifecycle, ordering, and row bounds in persistence rather than
+     * filtering an unbounded materialization.</p>
+     */
+    default List<StoredFileRecord> activeSearchCandidates(
+            String organizationRef,
+            String spaceRef,
+            FilePath scopePath,
+            ScopeDepth scopeDepth,
+            int maximumRows) {
+        throw new UnsupportedOperationException(
+                "bounded canonical Files search enumeration is not supported");
+    }
 
     /** Returns active and tombstoned metadata for binding retention and recovery. */
     default List<StoredFileRecord> storedFiles(String organizationRef, String spaceRef) {

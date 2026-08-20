@@ -33,7 +33,7 @@ public final class FilesMcpProjection {
               idempotentHint = true,
               openWorldHint = false))
   public FileSearchResult search(
-      @McpToolParam(description = "Case-insensitive file or path text, at most 200 characters")
+      @McpToolParam(description = "Case-sensitive filename substring, at most 200 characters")
           String query,
       @McpToolParam(
               description = "Optional Weave Files scope path, for example /Team",

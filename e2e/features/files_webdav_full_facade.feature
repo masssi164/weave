@@ -9,6 +9,17 @@ Feature: Files full WebDAV facade
     And resources include Weave-owned hrefs, getetag, displayname, resourcetype, content metadata, and lock properties
     And no provider URL, provider credential, or raw downstream payload is exposed
 
+  @files-webdav-basicsearch
+  Scenario: SEARCH executes the bounded canonical RFC 5323 profile
+    Given an authenticated member has Files read capability
+    And the selected adapter has current files.webdav_basicsearch qualification
+    When the member discovers and submits DAV basicsearch through "/dav/files"
+    Then OPTIONS advertises SEARCH and DASL DAV basicsearch
+    And the 207 response contains deterministic Weave hrefs, requested 200 and 404 property statuses, and canonical FileIds
+    And a partial bounded result contains one 507 response for the search arbiter
+    And malformed, unsafe, unsupported, unauthorized, or escaping input fails before provider access
+    And no provider URL, provider credential, raw downstream payload, or content bytes are exposed
+
   @files-webdav-get-head
   Scenario: GET and HEAD stream file content with Weave ETags
     Given a file exists behind the Files facade

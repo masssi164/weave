@@ -31,6 +31,8 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
+import com.massimotter.weave.backend.files.domain.FilesSearch.CandidatePage;
+import com.massimotter.weave.backend.files.domain.FilesSearch.ScopeDepth;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesBlobProtectionPort;
@@ -39,6 +41,7 @@ import com.massimotter.weave.backend.files.port.FilesMutationPlan;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.Sealed;
 import com.massimotter.weave.backend.files.port.NativeFilesContentStore;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.files.port.FilesWebDavSearchQualification;
 import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort;
 import com.massimotter.weave.backend.files.port.ReplayableFileContent.StreamFactory;
 import com.massimotter.weave.backend.files.port.StoredFileRecord;
@@ -602,6 +605,7 @@ public final class WeaveNativeFilesAdapter
                         "move",
                         "versions",
                         "locks",
+                        "files.webdav_basicsearch",
                         "files.content_streaming_read",
                         "files.content_streaming_write"),
                 Map.of(
@@ -617,8 +621,15 @@ public final class WeaveNativeFilesAdapter
                 true);
     }
 
+    @Override
+    public FilesWebDavSearchQualification webDavBasicSearchQualification() {
+        return FilesWebDavSearchQualification.nativeVerified(Instant.now());
+    }
+
     @Override public VersionedListing list(FilePath path) { throw unscoped(); }
     @Override public Optional<VersionedFile> find(FilePath path) { throw unscoped(); }
+    @Override public CandidatePage searchCandidates(
+            FilePath scopePath, ScopeDepth scopeDepth, int maxCandidates) { throw unscoped(); }
     @Override public FileObject createCollection(FilePath path) { throw unscoped(); }
     @Override public FileObject copy(FilePath source, FilePath destination, boolean overwrite) { throw unscoped(); }
     @Override public FileObject move(FilePath source, FilePath destination, boolean overwrite) { throw unscoped(); }
@@ -668,6 +679,22 @@ public final class WeaveNativeFilesAdapter
             return queries.find(queryScope(scope), path);
         } catch (FilesApplicationException exception) {
             throw queryFailure(exception, "find");
+        }
+    }
+
+    private CandidatePage searchCandidates(
+            FilesRequestScope scope,
+            FilePath scopePath,
+            ScopeDepth scopeDepth,
+            int maxCandidates) {
+        try {
+            return queries.searchCandidates(
+                    queryScope(scope),
+                    scopePath,
+                    scopeDepth,
+                    maxCandidates);
+        } catch (FilesApplicationException exception) {
+            throw queryFailure(exception, "search-candidates");
         }
     }
 
@@ -871,8 +898,16 @@ public final class WeaveNativeFilesAdapter
         @Override public boolean configured() { return WeaveNativeFilesAdapter.this.configured(); }
         @Override public ProviderReadiness readiness() { return WeaveNativeFilesAdapter.this.readiness(); }
         @Override public ProviderConformanceProfile conformanceProfile() { return WeaveNativeFilesAdapter.this.conformanceProfile(); }
+        @Override public FilesWebDavSearchQualification webDavBasicSearchQualification() {
+            return WeaveNativeFilesAdapter.this.webDavBasicSearchQualification();
+        }
         @Override public VersionedListing list(FilePath path) { return WeaveNativeFilesAdapter.this.list(scope, path); }
         @Override public Optional<VersionedFile> find(FilePath path) { return WeaveNativeFilesAdapter.this.find(scope, path); }
+        @Override public CandidatePage searchCandidates(
+                FilePath scopePath, ScopeDepth scopeDepth, int maxCandidates) {
+            return WeaveNativeFilesAdapter.this.searchCandidates(
+                    scope, scopePath, scopeDepth, maxCandidates);
+        }
         @Override public FileObject createCollection(FilePath path) { return WeaveNativeFilesAdapter.this.createCollection(scope, path); }
         @Override public FileObject copy(FilePath source, FilePath destination, boolean overwrite) { return WeaveNativeFilesAdapter.this.copy(scope, source, destination, overwrite); }
         @Override public FileObject move(FilePath source, FilePath destination, boolean overwrite) { return WeaveNativeFilesAdapter.this.move(scope, source, destination, overwrite); }

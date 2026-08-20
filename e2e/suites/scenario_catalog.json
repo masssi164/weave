@@ -3479,6 +3479,22 @@
       ]
     },
     {
+      "tag": "@files-webdav-basicsearch",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "SEARCH and DASL discovery follow current adapter qualification",
+        "bounded canonical metadata evaluation returns deterministic requested properties",
+        "partial results carry an explicit arbiter 507 without provider or content leakage"
+      ]
+    },
+    {
       "tag": "@files-webdav-get-head",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [

@@ -1,11 +1,14 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.controller.protocol.FilesWebDavSearchParser;
+import com.massimotter.weave.backend.controller.protocol.FilesWebDavSearchParser.SearchRequestException;
 import com.massimotter.weave.backend.files.port.FilesMutationPlan.EntityTagCondition;
 import com.massimotter.weave.backend.files.port.FilesStreamingContentPort.Egress;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.files.FilePathCodec;
+import com.massimotter.weave.backend.service.files.WebDavBasicSearchEvaluator;
 import com.massimotter.weave.backend.service.files.WebDavFileRead;
 import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
@@ -19,7 +22,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -27,6 +29,9 @@ import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import javax.xml.namespace.QName;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -37,11 +42,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriUtils;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
-import javax.xml.XMLConstants;
-import javax.xml.parsers.DocumentBuilderFactory;
 
 @RestController
 @Hidden
@@ -49,6 +49,7 @@ public class FilesWebDavController {
 
     private static final String DAV_ROOT = "/dav/files";
     private static final MediaType XML = MediaType.APPLICATION_XML;
+    private static final MediaType DAV_XML = new MediaType("application", "xml", StandardCharsets.UTF_8);
 
     private final FilesFacadeService filesFacadeService;
 
@@ -80,17 +81,24 @@ public class FilesWebDavController {
                 case "UNLOCK" -> unlock(request);
                 default -> unsupportedMethod(method);
             };
+        } catch (SearchRequestException exception) {
+            return searchError(exception);
         } catch (ApiErrorException exception) {
             return davError(exception);
         }
     }
 
     private ResponseEntity<Void> options() {
-        return ResponseEntity.noContent()
+        boolean searchQualified = filesFacadeService.webDavSearchQualified();
+        ResponseEntity.HeadersBuilder<?> response = ResponseEntity.noContent()
                 .header("DAV", "1")
-                .header(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, SEARCH, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK")
+                .header(HttpHeaders.ALLOW, allowedMethods(searchQualified))
                 .header("MS-Author-Via", "DAV")
-                .build();
+                .header(HttpHeaders.CACHE_CONTROL, "no-store");
+        if (searchQualified) {
+            response.header("DASL", "<DAV:basicsearch>");
+        }
+        return response.build();
     }
 
     private ResponseEntity<String> propfind(HttpServletRequest request) {
@@ -113,74 +121,13 @@ public class FilesWebDavController {
     }
 
     private ResponseEntity<String> search(HttpServletRequest request) {
-        WebDavSearchRequest search = parseSearchRequest(request);
+        WebDavSearchRequest search = FilesWebDavSearchParser.parse(request);
         WebDavSearchResult result = filesFacadeService.webDavSearch(search);
         return ResponseEntity.status(207)
-                .contentType(XML)
+                .contentType(DAV_XML)
                 .header("DAV", "1")
-                .body(searchMultistatus(result));
-    }
-
-    private WebDavSearchRequest parseSearchRequest(HttpServletRequest request) {
-        try {
-            byte[] body = request.getInputStream().readNBytes(65_537);
-            if (body.length == 0 || body.length > 65_536) {
-                throw invalidSearch();
-            }
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setNamespaceAware(true);
-            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-            Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(body));
-            NodeList scopes = document.getElementsByTagNameNS("DAV:", "href");
-            NodeList literals = document.getElementsByTagNameNS("DAV:", "literal");
-            if (scopes.getLength() != 1 || literals.getLength() != 1) {
-                throw invalidSearch();
-            }
-            String href = scopes.item(0).getTextContent().trim();
-            String query = literals.item(0).getTextContent();
-            NodeList whereClauses = document.getElementsByTagNameNS("DAV:", "where");
-            if (whereClauses.getLength() != 1) {
-                throw invalidSearch();
-            }
-            Element whereClause = (Element) whereClauses.item(0);
-            boolean canonicalIdMatch =
-                    whereClause.getElementsByTagNameNS("urn:weave:files", "canonical-id").getLength() > 0;
-            boolean exactMatch = document.getElementsByTagNameNS("DAV:", "eq").getLength() == 1;
-            if (canonicalIdMatch != exactMatch) {
-                throw invalidSearch();
-            }
-            String rawPath = java.net.URI.create(href).getPath();
-            if (rawPath == null || !rawPath.startsWith(DAV_ROOT)) {
-                throw invalidSearch();
-            }
-            String suffix = rawPath.substring(DAV_ROOT.length());
-            String scopePath = suffix.isBlank() ? "/" : UriUtils.decode(suffix, StandardCharsets.UTF_8);
-            String limitHeader = request.getHeader("X-Weave-Search-Limit");
-            int limit = limitHeader == null || limitHeader.isBlank() ? 25 : Integer.parseInt(limitHeader);
-            return new WebDavSearchRequest(
-                    scopePath,
-                    query,
-                    limit,
-                    canonicalIdMatch
-                            ? WebDavSearchRequest.MatchField.CANONICAL_ID
-                            : WebDavSearchRequest.MatchField.DISPLAY_NAME_OR_PATH);
-        } catch (ApiErrorException exception) {
-            throw exception;
-        } catch (Exception invalid) {
-            throw invalidSearch();
-        }
-    }
-
-    private ApiErrorException invalidSearch() {
-        return new ApiErrorException(
-                HttpStatus.BAD_REQUEST,
-                "webdav-search-invalid",
-                "The WebDAV SEARCH request is outside the supported bounded basicsearch profile.",
-                Map.of("module", "files", "operation", "webdav-search"));
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(searchMultistatus(search, result));
     }
 
     private ResponseEntity<?> get(HttpServletRequest request, boolean headOnly) {
@@ -332,9 +279,10 @@ public class FilesWebDavController {
     }
 
     private ResponseEntity<String> unsupportedMethod(String method) {
+        boolean searchQualified = filesFacadeService.webDavSearchQualified();
         return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)
                 .contentType(XML)
-                .header(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, SEARCH, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK")
+                .header(HttpHeaders.ALLOW, allowedMethods(searchQualified))
                 .header("X-Weave-Error-Code", "webdav-method-not-implemented")
                 .body(errorXml("webdav-method-not-implemented",
                         "Weave Files WebDAV does not implement " + method
@@ -344,12 +292,29 @@ public class FilesWebDavController {
     private ResponseEntity<String> davError(ApiErrorException exception) {
         HttpStatus status = webdavStatus(exception);
         ResponseEntity.BodyBuilder response = ResponseEntity.status(status)
-                .contentType(XML)
+                .contentType(DAV_XML)
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .header("X-Weave-Error-Code", exception.code());
         if ("files-content-coding-unsupported".equals(exception.code())) {
             response.header(HttpHeaders.ACCEPT_ENCODING, "identity");
         }
         return response.body(errorXml(exception.code(), exception.getMessage()));
+    }
+
+    private ResponseEntity<String> searchError(SearchRequestException exception) {
+        String code = "webdav-search-invalid";
+        String condition = exception.davCondition().map(value -> value.localName()).orElse(null);
+        return ResponseEntity.status(exception.status())
+                .contentType(DAV_XML)
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .header("X-Weave-Error-Code", code)
+                .body(searchErrorXml(code, exception.getMessage(), condition));
+    }
+
+    private String allowedMethods(boolean searchQualified) {
+        return searchQualified
+                ? "OPTIONS, PROPFIND, SEARCH, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK"
+                : "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK";
     }
 
     private HttpStatus webdavStatus(ApiErrorException exception) {
@@ -498,20 +463,150 @@ public class FilesWebDavController {
         return xml.toString();
     }
 
-    private String searchMultistatus(WebDavSearchResult result) {
+    private String searchMultistatus(WebDavSearchRequest request, WebDavSearchResult result) {
         StringBuilder xml = new StringBuilder("""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <d:multistatus xmlns:d="DAV:" xmlns:w="urn:weave:files">
                 """);
         for (WebDavPropfindResource resource : result.resources()) {
-            if ("folder".equals(resource.item().type())) {
-                appendFolderResponse(xml, resource);
-            } else {
-                appendFileResponse(xml, resource);
-            }
+            appendSearchResponse(xml, request, resource);
+        }
+        if (result.truncated()) {
+            xml.append("  <d:response>\n")
+                    .append("    <d:href>")
+                    .append(escapeXml(davHref(request.arbiterPath(), false)))
+                    .append("</d:href>\n")
+                    .append("    <d:status>HTTP/1.1 507 Insufficient Storage</d:status>\n")
+                    .append("  </d:response>\n");
         }
         xml.append("</d:multistatus>");
         return xml.toString();
+    }
+
+    private void appendSearchResponse(
+            StringBuilder xml,
+            WebDavSearchRequest request,
+            WebDavPropfindResource resource) {
+        FileItemResponse item = resource.item();
+        Set<QName> requested = new LinkedHashSet<>();
+        if (request.selection() instanceof WebDavSearchRequest.AllProperties) {
+            requested.addAll(WebDavBasicSearchEvaluator.ALL_PROPERTIES);
+        } else {
+            requested.addAll(((WebDavSearchRequest.SelectedProperties) request.selection()).properties());
+        }
+        requested.add(WebDavBasicSearchEvaluator.CANONICAL_ID);
+
+        StringBuilder defined = new StringBuilder();
+        StringBuilder undefined = new StringBuilder();
+        int propertyIndex = 0;
+        for (QName property : requested) {
+            if (!appendSearchProperty(defined, resource, property, propertyIndex)) {
+                appendEmptyProperty(undefined, property, propertyIndex);
+            }
+            propertyIndex++;
+        }
+
+        xml.append("  <d:response>\n")
+                .append("    <d:href>")
+                .append(escapeXml(davHref(item.path(), "folder".equals(item.type()))))
+                .append("</d:href>\n");
+        appendSearchPropstat(xml, defined, "200 OK");
+        if (!undefined.isEmpty()) {
+            appendSearchPropstat(xml, undefined, "404 Not Found");
+        }
+        xml.append("  </d:response>\n");
+    }
+
+    private void appendSearchPropstat(StringBuilder xml, StringBuilder properties, String status) {
+        xml.append("    <d:propstat>\n")
+                .append("      <d:prop>\n")
+                .append(properties)
+                .append("      </d:prop>\n")
+                .append("      <d:status>HTTP/1.1 ")
+                .append(status)
+                .append("</d:status>\n")
+                .append("    </d:propstat>\n");
+    }
+
+    private boolean appendSearchProperty(
+            StringBuilder xml,
+            WebDavPropfindResource resource,
+            QName property,
+            int propertyIndex) {
+        FileItemResponse item = resource.item();
+        if (WebDavBasicSearchEvaluator.DISPLAY_NAME.equals(property)) {
+            appendTextProperty(xml, "d:displayname", item.name());
+        } else if (WebDavBasicSearchEvaluator.RESOURCE_TYPE.equals(property)) {
+            xml.append("        <d:resourcetype>");
+            if ("folder".equals(item.type())) {
+                xml.append("<d:collection/>");
+            }
+            xml.append("</d:resourcetype>\n");
+        } else if (WebDavBasicSearchEvaluator.GET_ETAG.equals(property)) {
+            if (resource.etag() == null || resource.etag().isBlank()) {
+                return false;
+            }
+            appendTextProperty(xml, "d:getetag", resource.etag());
+        } else if (WebDavBasicSearchEvaluator.GET_CONTENT_TYPE.equals(property)) {
+            if (!"file".equals(item.type()) || item.mimeType() == null || item.mimeType().isBlank()) {
+                return false;
+            }
+            appendTextProperty(xml, "d:getcontenttype", item.mimeType());
+        } else if (WebDavBasicSearchEvaluator.GET_CONTENT_LENGTH.equals(property)) {
+            if (!"file".equals(item.type()) || item.size() == null) {
+                return false;
+            }
+            appendTextProperty(xml, "d:getcontentlength", item.size().toString());
+        } else if (WebDavBasicSearchEvaluator.GET_LAST_MODIFIED.equals(property)) {
+            if (item.modifiedAt() == null) {
+                return false;
+            }
+            appendTextProperty(xml, "d:getlastmodified", httpDate(item.modifiedAt()));
+        } else if (WebDavBasicSearchEvaluator.SUPPORTED_LOCK.equals(property)) {
+            xml.append("        <d:supportedlock/>\n");
+        } else if (WebDavBasicSearchEvaluator.LOCK_DISCOVERY.equals(property)) {
+            xml.append("        <d:lockdiscovery/>\n");
+        } else if (WebDavBasicSearchEvaluator.CANONICAL_ID.equals(property)) {
+            appendTextProperty(xml, "w:canonical-id", item.id());
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    private void appendTextProperty(StringBuilder xml, String elementName, String value) {
+        xml.append("        <")
+                .append(elementName)
+                .append(">")
+                .append(escapeXml(value))
+                .append("</")
+                .append(elementName)
+                .append(">\n");
+    }
+
+    private void appendEmptyProperty(StringBuilder xml, QName property, int propertyIndex) {
+        if (WebDavBasicSearchEvaluator.DAV_NAMESPACE.equals(property.getNamespaceURI())) {
+            xml.append("        <d:").append(property.getLocalPart()).append("/>\n");
+            return;
+        }
+        if (WebDavBasicSearchEvaluator.WEAVE_FILES_NAMESPACE.equals(property.getNamespaceURI())) {
+            xml.append("        <w:").append(property.getLocalPart()).append("/>\n");
+            return;
+        }
+        if (property.getNamespaceURI().isEmpty()) {
+            xml.append("        <").append(property.getLocalPart()).append("/>\n");
+            return;
+        }
+        String prefix = "p" + propertyIndex;
+        xml.append("        <")
+                .append(prefix)
+                .append(':')
+                .append(property.getLocalPart())
+                .append(" xmlns:")
+                .append(prefix)
+                .append("=\"")
+                .append(escapeXml(property.getNamespaceURI()))
+                .append("\"/>\n");
     }
 
     private void appendFolderResponse(StringBuilder xml, WebDavPropfindResource resource) {
@@ -627,6 +722,19 @@ public class FilesWebDavController {
                   <weave-code>%s</weave-code>
                 </d:error>
                 """.formatted(escapeXml(message), escapeXml(code));
+    }
+
+    private String searchErrorXml(String code, String message, String condition) {
+        String conditionElement = condition == null || condition.isBlank()
+                ? ""
+                : "  <d:" + condition + "/>\n";
+        return """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <d:error xmlns:d="DAV:">
+                %s  <d:responsedescription>%s</d:responsedescription>
+                  <weave-code>%s</weave-code>
+                </d:error>
+                """.formatted(conditionElement, escapeXml(message), escapeXml(code));
     }
 
     private String lockDiscoveryXml(WebDavLockResult result) {

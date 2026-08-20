@@ -37,7 +37,10 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
+import com.massimotter.weave.backend.files.domain.FilesSearch;
+import com.massimotter.weave.backend.files.domain.FilesSearch.CandidatePage;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.files.port.FilesWebDavSearchQualification;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.LockConflictException;
 import com.massimotter.weave.backend.files.port.FilesStreamingCapabilityProfile;
@@ -48,6 +51,7 @@ import com.massimotter.weave.backend.files.port.FilesMutationPlan.EntityTagCondi
 import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort.NativeLockMove;
 import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort.NativeResult;
 import com.massimotter.weave.backend.service.files.NativeFilesOperationAudit;
+import com.massimotter.weave.backend.service.files.WebDavBasicSearchEvaluator;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
@@ -79,7 +83,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
-import java.util.ArrayDeque;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -107,6 +110,9 @@ public class FilesFacadeService {
 
     private static final String DEFAULT_CONTEXT_ID = "workspace-default";
     private static final Logger LOGGER = LoggerFactory.getLogger(FilesFacadeService.class);
+    private static final String WEBDAV_BASICSEARCH = "files.webdav_basicsearch";
+    private static final WebDavBasicSearchEvaluator BASICSEARCH_EVALUATOR =
+            new WebDavBasicSearchEvaluator();
 
     private final FilesProviderPort filesProviderPort;
     private final ContextAuthorizationPort contextAuthorizationPort;
@@ -322,48 +328,69 @@ public class FilesFacadeService {
         String operation = "webdav-search";
         PrincipalContext principal = requireContextPermission(ContextPermission.VIEW, operation);
         String scopePath = FilePathCodec.normalizeProductPath(request.scopePath());
-        String needle = request.query().toLowerCase(Locale.ROOT);
-        ArrayDeque<SearchNode> pending = new ArrayDeque<>();
-        pending.add(new SearchNode(scopePath, 0));
-        List<WebDavPropfindResource> matches = new java.util.ArrayList<>();
-        int scanned = 0;
         try {
-            FilesProviderPort adapter = configuredAdapter(operation, principal);
-            while (!pending.isEmpty() && matches.size() < request.limit()) {
-                SearchNode node = pending.removeFirst();
-                VersionedListing listing = adapter.list(new FilePath(node.path()));
-                for (FileObject item : listing.listing().children()) {
-                    if (++scanned > 1_000) {
-                        WebDavSearchResult bounded = new WebDavSearchResult(matches);
-                        publishWorkloadReadAudit(
-                                principal, "files.search", scopePath, "bounded", bounded.resources().size());
-                        return bounded;
-                    }
-                    String searchable = request.matchField() == WebDavSearchRequest.MatchField.CANONICAL_ID
-                            ? item.id().value().toLowerCase(Locale.ROOT)
-                            : (item.name() + "\n" + item.path().value()).toLowerCase(Locale.ROOT);
-                    boolean matchesQuery = request.matchField() == WebDavSearchRequest.MatchField.CANONICAL_ID
-                            ? searchable.equals(needle)
-                            : searchable.contains(needle);
-                    if (matchesQuery) {
-                        matches.add(webDavResource(item, listing.childVersions().get(item.path())));
-                        if (matches.size() >= request.limit()) {
-                            break;
-                        }
-                    }
-                    if (item.kind() == Kind.COLLECTION && node.depth() < 8) {
-                        pending.addLast(new SearchNode(item.path().value(), node.depth() + 1));
-                    }
-                }
-            }
-            WebDavSearchResult result = new WebDavSearchResult(matches);
+            FilesProviderPort rootAdapter = configuredAdapter(operation);
+            requireBasicSearch(rootAdapter, operation);
+            FilesProviderPort adapter = rootAdapter.scoped(new FilesRequestScope(
+                    principal.tenantId(), DEFAULT_CONTEXT_ID, 1));
+            CandidatePage candidates = adapter.searchCandidates(
+                    new FilePath(scopePath),
+                    request.scopeDepth(),
+                    FilesSearch.MAXIMUM_CANDIDATES);
+            WebDavSearchResult result = BASICSEARCH_EVALUATOR.evaluate(
+                    request,
+                    candidates,
+                    candidate -> webDavResource(candidate.item(), candidate.version()));
             publishWorkloadReadAudit(
-                    principal, "files.search", scopePath, "completed", result.resources().size());
+                    principal,
+                    "files.search",
+                    scopePath,
+                    result.truncated() ? "bounded" : "completed",
+                    result.resources().size());
             return result;
+        } catch (FilesProviderPort.SearchCandidatesUnsupportedException unsupported) {
+            publishWorkloadReadAudit(principal, "files.search", scopePath, "failed", 0);
+            throw basicSearchNotSupported(operation);
         } catch (ApiErrorException exception) {
             publishWorkloadReadAudit(principal, "files.search", scopePath, "failed", 0);
             throw supportSafeStorageError(exception, operation);
         }
+    }
+
+    /** Returns the current bounded-search qualification used by WebDAV discovery. */
+    public boolean webDavSearchQualified() {
+        try {
+            return filesProviderPort != null
+                    && filesProviderPort.configured()
+                    && currentBasicSearchQualification(filesProviderPort);
+        } catch (RuntimeException unavailable) {
+            return false;
+        }
+    }
+
+    private void requireBasicSearch(FilesProviderPort adapter, String operation) {
+        if (!currentBasicSearchQualification(adapter)) {
+            throw basicSearchNotSupported(operation);
+        }
+    }
+
+    private boolean currentBasicSearchQualification(FilesProviderPort adapter) {
+        FilesWebDavSearchQualification qualification = adapter.webDavBasicSearchQualification();
+        return adapter.conformanceProfile().supports(WEBDAV_BASICSEARCH)
+                && qualification.qualifiedAt(Instant.now());
+    }
+
+    private ApiErrorException basicSearchNotSupported(String operation) {
+        return new ApiErrorException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "files-search-not-supported",
+                "The selected Files adapter has no qualified bounded canonical search capability.",
+                Map.of(
+                        "module", "files",
+                        "operation", operation,
+                        "webDavFacadePath", "/dav/files",
+                        "openApiDataPlaneUsed", false,
+                        "diagnosticsRedacted", true));
     }
 
     public FileItemResponse createFolder(CreateFolderRequest request) {
@@ -1501,9 +1528,6 @@ public class FilesFacadeService {
             String mcpEdgeClientId,
             String cellRef,
             String personRef) {
-    }
-
-    private record SearchNode(String path, int depth) {
     }
 
     private PutFraming validatePutFraming(

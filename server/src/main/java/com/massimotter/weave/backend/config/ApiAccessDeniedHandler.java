@@ -21,11 +21,25 @@ public class ApiAccessDeniedHandler implements AccessDeniedHandler {
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
             AccessDeniedException accessDeniedException) throws IOException, ServletException {
+        if (isFilesWebDav(request)) {
+            errorResponseWriter.writeFilesWebDav(
+                    request,
+                    response,
+                    HttpStatus.FORBIDDEN,
+                    "forbidden",
+                    "The authenticated caller is not authorized for the Weave Files WebDAV facade.");
+            return;
+        }
         errorResponseWriter.write(
                 request,
                 response,
                 HttpStatus.FORBIDDEN,
                 "forbidden",
                 "The bearer token is authenticated but missing the required weave:workspace scope or selected-organization role.");
+    }
+
+    private boolean isFilesWebDav(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return "/dav/files".equals(path) || path.startsWith("/dav/files/");
     }
 }

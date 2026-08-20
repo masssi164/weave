@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriUtils;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 /** Narrow northbound WebDAV client. It never calls a raw storage provider. */
@@ -66,17 +67,17 @@ final class FilesWebDavClient {
             <d:select><d:prop><w:canonical-id/><d:displayname/><d:getcontenttype/><d:getcontentlength/><d:getlastmodified/></d:prop></d:select>
             <d:from><d:scope><d:href>%s</d:href><d:depth>infinity</d:depth></d:scope></d:from>
             <d:where><d:like><d:prop><d:displayname/></d:prop><d:literal>%s</d:literal></d:like></d:where>
+            <d:limit><d:nresults>%d</d:nresults></d:limit>
           </d:basicsearch>
         </d:searchrequest>
         """
-            .formatted(xml(scopeHref), xml(query));
+            .formatted(xml(scopeHref), xml(likeSubstringPattern(query)), limit);
     byte[] response =
         restClient
             .method(HttpMethod.valueOf("SEARCH"))
             .uri(encodePath(normalizedPath))
             .contentType(MediaType.APPLICATION_XML)
             .accept(MediaType.APPLICATION_XML)
-            .header("X-Weave-Search-Limit", Integer.toString(limit))
             .body(body)
             .retrieve()
             .body(byte[].class);
@@ -115,6 +116,7 @@ final class FilesWebDavClient {
             <d:select><d:prop><w:canonical-id/><d:displayname/><d:getcontenttype/><d:getcontentlength/><d:getlastmodified/></d:prop></d:select>
             <d:from><d:scope><d:href>%s</d:href><d:depth>infinity</d:depth></d:scope></d:from>
             <d:where><d:eq><d:prop><w:canonical-id/></d:prop><d:literal>%s</d:literal></d:eq></d:where>
+            <d:limit><d:nresults>2</d:nresults></d:limit>
           </d:basicsearch>
         </d:searchrequest>
         """
@@ -125,7 +127,6 @@ final class FilesWebDavClient {
             .uri("")
             .contentType(MediaType.APPLICATION_XML)
             .accept(MediaType.APPLICATION_XML)
-            .header("X-Weave-Search-Limit", "2")
             .body(body)
             .retrieve()
             .body(byte[].class);
@@ -139,6 +140,9 @@ final class FilesWebDavClient {
     try {
       DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
       factory.setNamespaceAware(true);
+      factory.setXIncludeAware(false);
+      factory.setExpandEntityReferences(false);
+      factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
       factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
       factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
       factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
@@ -149,6 +153,12 @@ final class FilesWebDavClient {
               .newDocumentBuilder()
               .parse(new ByteArrayInputStream(body))
               .getElementsByTagNameNS("DAV:", "response");
+      for (int index = 0; index < responses.getLength(); index++) {
+        Element response = (Element) responses.item(index);
+        if (isInsufficientStorage(directChildText(response, "DAV:", "status"))) {
+          throw new IncompleteSearchResponseException();
+        }
+      }
       List<FileSearchItem> results = new ArrayList<>();
       for (int index = 0; index < responses.getLength(); index++) {
         Element response = (Element) responses.item(index);
@@ -167,11 +177,30 @@ final class FilesWebDavClient {
                 optionalInstant(response, "DAV:", "getlastmodified")));
       }
       return List.copyOf(results);
-    } catch (RuntimeException invalid) {
-      throw invalid;
+    } catch (IncompleteSearchResponseException incomplete) {
+      throw incomplete;
     } catch (Exception invalid) {
       throw new IllegalArgumentException("The Files search response is invalid");
     }
+  }
+
+  private static String directChildText(Element element, String namespace, String name) {
+    for (Node child = element.getFirstChild(); child != null; child = child.getNextSibling()) {
+      if (child.getNodeType() == Node.ELEMENT_NODE
+          && namespace.equals(child.getNamespaceURI())
+          && name.equals(child.getLocalName())) {
+        return child.getTextContent().trim();
+      }
+    }
+    return null;
+  }
+
+  private static boolean isInsufficientStorage(String status) {
+    if (status == null) {
+      return false;
+    }
+    String[] parts = status.trim().split("\\s+", 3);
+    return parts.length >= 2 && parts[0].startsWith("HTTP/") && "507".equals(parts[1]);
   }
 
   private static String required(Element element, String namespace, String name) {
@@ -225,6 +254,11 @@ final class FilesWebDavClient {
     return encoded.toString();
   }
 
+  private static String likeSubstringPattern(String query) {
+    String escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    return "%" + escaped + "%";
+  }
+
   private static String xml(String value) {
     return value
         .replace("&", "&amp;")
@@ -251,6 +285,12 @@ final class FilesWebDavClient {
     @Override
     public byte[] content() {
       return content.clone();
+    }
+  }
+
+  private static final class IncompleteSearchResponseException extends IllegalArgumentException {
+    private IncompleteSearchResponseException() {
+      super("The Files search result is unavailable or ambiguous");
     }
   }
 }

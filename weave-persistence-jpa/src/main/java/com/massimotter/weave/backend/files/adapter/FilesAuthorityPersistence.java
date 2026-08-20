@@ -28,6 +28,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -227,6 +228,46 @@ interface FileObjectJpaRepository
                     String organizationRef,
                     String spaceRef,
                     String canonicalPath);
+
+    Optional<FileObjectJpaEntity>
+            findByIdOrganizationRefAndIdSpaceRefAndActivePathKey(
+                    String organizationRef,
+                    String spaceRef,
+                    String activePathKey);
+
+    @Query("""
+            select file
+              from FileObjectJpaEntity file
+             where file.id.organizationRef = :organizationRef
+               and file.id.spaceRef = :spaceRef
+               and file.activePathKey is not null
+               and substring(file.activePathKey, 1, :prefixLength) = :pathPrefix
+             order by cast(file.activePathKey as binary), cast(file.id.fileId as binary)
+            """)
+    List<FileObjectJpaEntity> findActiveDescendants(
+            @Param("organizationRef") String organizationRef,
+            @Param("spaceRef") String spaceRef,
+            @Param("pathPrefix") String pathPrefix,
+            @Param("prefixLength") int prefixLength,
+            Pageable pageable);
+
+    @Query("""
+            select file
+              from FileObjectJpaEntity file
+             where file.id.organizationRef = :organizationRef
+               and file.id.spaceRef = :spaceRef
+               and file.activePathKey is not null
+               and substring(file.activePathKey, 1, :prefixLength) = :pathPrefix
+               and locate('/', substring(file.activePathKey, :childStart)) = 0
+             order by cast(file.activePathKey as binary), cast(file.id.fileId as binary)
+            """)
+    List<FileObjectJpaEntity> findActiveChildren(
+            @Param("organizationRef") String organizationRef,
+            @Param("spaceRef") String spaceRef,
+            @Param("pathPrefix") String pathPrefix,
+            @Param("prefixLength") int prefixLength,
+            @Param("childStart") int childStart,
+            Pageable pageable);
 
     List<FileObjectJpaEntity>
             findByIdOrganizationRefAndIdSpaceRefAndLifecycleOrderByCanonicalPath(

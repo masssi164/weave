@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.files.port.FilesStreamingContentPort.Egress;
+import com.massimotter.weave.backend.files.domain.FilesSearch.ScopeDepth;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.security.device.DeviceCredentialService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
@@ -41,6 +42,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.ArgumentMatchers.any;
@@ -82,11 +84,27 @@ class FilesWebDavControllerTest {
 
     @Test
     void optionsAdvertisesWebdavMethods() throws Exception {
+        given(filesFacadeService.webDavSearchQualified()).willReturn(true);
+
         mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/dav/files")
                         .with(workspaceJwt()))
                 .andExpect(status().isNoContent())
                 .andExpect(header().string("DAV", "1"))
+                .andExpect(header().string("DASL", "<DAV:basicsearch>"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
                 .andExpect(header().string(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, SEARCH, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK"));
+    }
+
+    @Test
+    void optionsOmitsSearchAndDaslWhenSelectedAdapterIsUnqualified() throws Exception {
+        given(filesFacadeService.webDavSearchQualified()).willReturn(false);
+
+        mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/dav/files")
+                        .with(workspaceJwt()))
+                .andExpect(status().isNoContent())
+                .andExpect(header().doesNotExist("DASL"))
+                .andExpect(header().string(HttpHeaders.ALLOW,
+                        "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK"));
     }
 
     @Test
@@ -131,57 +149,100 @@ class FilesWebDavControllerTest {
 
     @Test
     void searchUsesBoundedBasicsearchAndReturnsCanonicalIds() throws Exception {
-        given(filesFacadeService.webDavSearch(new WebDavSearchRequest(
-                "/Team", "readme", 10, WebDavSearchRequest.MatchField.DISPLAY_NAME_OR_PATH)))
+        given(filesFacadeService.webDavSearch(any()))
                 .willReturn(new WebDavSearchResult(List.of(
                         new WebDavPropfindResource(
                                 file("/Team/readme.md", "text/markdown", 12L),
-                                "\"etag-readme\""))));
+                                "\"etag-readme\"")), false));
 
         mockMvc.perform(request(HttpMethod.valueOf("SEARCH"), "/dav/files/Team")
                         .contentType("application/xml")
-                        .header("X-Weave-Search-Limit", "10")
                         .content("""
                                 <?xml version="1.0" encoding="UTF-8"?>
-                                <d:searchrequest xmlns:d="DAV:" xmlns:w="urn:weave:files">
+                                <d:searchrequest xmlns:d="DAV:" xmlns:w="urn:weave:files" xmlns:x="urn:unknown">
                                   <d:basicsearch>
-                                    <d:select><d:prop><w:canonical-id/><d:displayname/><d:getcontenttype/><d:getcontentlength/><d:getlastmodified/></d:prop></d:select>
+                                    <d:select><d:prop><d:displayname/><d:getcontenttype/><x:portable-note/></d:prop></d:select>
                                     <d:from><d:scope><d:href>/dav/files/Team</d:href><d:depth>infinity</d:depth></d:scope></d:from>
-                                    <d:where><d:like><d:prop><d:displayname/></d:prop><d:literal>readme</d:literal></d:like></d:where>
+                                    <d:where><d:like><d:prop><d:displayname/></d:prop><d:literal>%readme%</d:literal></d:like></d:where>
+                                    <d:limit><d:nresults>10</d:nresults></d:limit>
                                   </d:basicsearch>
                                 </d:searchrequest>
                                 """)
                         .with(workspaceJwt()))
                 .andExpect(status().is(207))
-                .andExpect(content().contentTypeCompatibleWith("application/xml"))
+                .andExpect(content().contentType("application/xml;charset=UTF-8"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
                 .andExpect(content().string(containsString("<w:canonical-id>files:/Team/readme.md</w:canonical-id>")))
+                .andExpect(content().string(containsString("HTTP/1.1 404 Not Found")))
+                .andExpect(content().string(containsString("portable-note")))
                 .andExpect(content().string(not(containsString("remote.php"))));
+
+        ArgumentCaptor<WebDavSearchRequest> requestCaptor = ArgumentCaptor.forClass(WebDavSearchRequest.class);
+        then(filesFacadeService).should().webDavSearch(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().arbiterPath()).isEqualTo("/Team");
+        assertThat(requestCaptor.getValue().scopePath()).isEqualTo("/Team");
+        assertThat(requestCaptor.getValue().scopeDepth()).isEqualTo(ScopeDepth.INFINITY);
+        assertThat(requestCaptor.getValue().limit()).isEqualTo(10);
+    }
+
+    @Test
+    void searchAuthenticationFailuresUseSupportSafeDavXml() throws Exception {
+        String body = """
+                <d:searchrequest xmlns:d="DAV:"><d:basicsearch>
+                  <d:select><d:allprop/></d:select>
+                  <d:from><d:scope><d:href>/dav/files</d:href><d:depth>0</d:depth></d:scope></d:from>
+                </d:basicsearch></d:searchrequest>
+                """;
+
+        mockMvc.perform(request(HttpMethod.valueOf("SEARCH"), "/dav/files")
+                        .contentType("application/xml")
+                        .content(body))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentType("application/xml;charset=UTF-8"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+                .andExpect(header().string("X-Weave-Error-Code", "unauthorized"))
+                .andExpect(content().string(containsString("<d:error xmlns:d=\"DAV:\">")))
+                .andExpect(content().string(not(containsString("Bearer "))));
+
+        mockMvc.perform(request(HttpMethod.valueOf("SEARCH"), "/dav/files")
+                        .contentType("application/xml")
+                        .content(body)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_other"))))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentType("application/xml;charset=UTF-8"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+                .andExpect(header().string("X-Weave-Error-Code", "forbidden"))
+                .andExpect(content().string(containsString("<d:error xmlns:d=\"DAV:\">")))
+                .andExpect(content().string(not(containsString("SCOPE_other"))));
+
+        then(filesFacadeService).shouldHaveNoInteractions();
     }
 
     @Test
     void searchSupportsExactCanonicalIdPredicateForResourceResolution() throws Exception {
-        given(filesFacadeService.webDavSearch(new WebDavSearchRequest(
-                "/", "files:/Team/readme.md", 2, WebDavSearchRequest.MatchField.CANONICAL_ID)))
+        given(filesFacadeService.webDavSearch(any()))
                 .willReturn(new WebDavSearchResult(List.of(
                         new WebDavPropfindResource(
                                 file("/Team/readme.md", "text/markdown", 12L),
-                                "\"etag-readme\""))));
+                                "\"etag-readme\"")), true));
 
         mockMvc.perform(request(HttpMethod.valueOf("SEARCH"), "/dav/files")
                         .contentType("application/xml")
-                        .header("X-Weave-Search-Limit", "2")
                         .content("""
                                 <d:searchrequest xmlns:d="DAV:" xmlns:w="urn:weave:files">
                                   <d:basicsearch>
                                     <d:select><d:prop><w:canonical-id/></d:prop></d:select>
                                     <d:from><d:scope><d:href>/dav/files</d:href><d:depth>infinity</d:depth></d:scope></d:from>
                                     <d:where><d:eq><d:prop><w:canonical-id/></d:prop><d:literal>files:/Team/readme.md</d:literal></d:eq></d:where>
+                                    <d:limit><d:nresults>2</d:nresults></d:limit>
                                   </d:basicsearch>
                                 </d:searchrequest>
                                 """)
                         .with(workspaceJwt()))
                 .andExpect(status().is(207))
-                .andExpect(content().string(containsString("<w:canonical-id>files:/Team/readme.md</w:canonical-id>")));
+                .andExpect(content().string(containsString("<w:canonical-id>files:/Team/readme.md</w:canonical-id>")))
+                .andExpect(content().string(containsString("HTTP/1.1 507 Insufficient Storage")))
+                .andExpect(content().string(containsString("<d:href>/dav/files</d:href>")));
     }
 
     @Test
@@ -191,13 +252,14 @@ class FilesWebDavControllerTest {
                         .content("""
                                 <d:searchrequest xmlns:d="DAV:" xmlns:w="urn:weave:files">
                                   <d:basicsearch>
-                                    <d:from><d:scope><d:href>/dav/files</d:href></d:scope></d:from>
+                                    <d:select><d:prop><w:canonical-id/></d:prop></d:select>
+                                    <d:from><d:scope><d:href>/dav/files</d:href><d:depth>infinity</d:depth></d:scope></d:from>
                                     <d:where><d:like><d:prop><w:canonical-id/></d:prop><d:literal>files:</d:literal></d:like></d:where>
                                   </d:basicsearch>
                                 </d:searchrequest>
                                 """)
                         .with(workspaceJwt()))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isUnprocessableEntity())
                 .andExpect(header().string("X-Weave-Error-Code", "webdav-search-invalid"));
     }
 
@@ -213,8 +275,9 @@ class FilesWebDavControllerTest {
                                 </d:basicsearch></d:searchrequest>
                                 """)
                         .with(workspaceJwt()))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isForbidden())
                 .andExpect(header().string("X-Weave-Error-Code", "webdav-search-invalid"))
+                .andExpect(content().string(containsString("<d:no-external-entities/>")))
                 .andExpect(content().string(not(containsString("root:"))));
     }
 
