@@ -267,6 +267,8 @@ services:
     profiles: *provider-profiles
     environment:
       TUWUNEL_CONFIG: /etc/tuwunel/tuwunel.toml
+    secrets:
+      - tuwunel_registration_token
     volumes:
       - ./provider-stack/tuwunel.toml:/etc/tuwunel/tuwunel.toml:ro
       - tuwunel-data:/var/lib/tuwunel
@@ -317,6 +319,8 @@ secrets:
     file: ./.state/secrets/runner-enrollment.secret
   internal_api_token:
     file: ./.state/secrets/internal-api.token
+  tuwunel_registration_token:
+    file: ./.state/secrets/tuwunel-registration.token
   engine_tls_certificate:
     file: ./.state/pki/engine-cert.pem
   engine_tls_private_key:
