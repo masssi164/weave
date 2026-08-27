@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:weave:e2e:internal-asset-lookup-input:v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "assetId"
+  ],
+  "properties": {
+    "assetId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,63}$"
+    }
+  }
+}

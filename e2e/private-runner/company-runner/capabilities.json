@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "weave.runner.capability-bundle/v1",
+  "bundleId": "weave.e2e.company",
+  "bundleVersion": "1.0.0",
+  "displayName": "Weave private-network E2E fixture",
+  "labels": {
+    "environment": "private-e2e"
+  },
+  "capabilities": [
+    {
+      "id": "internal.asset.lookup",
+      "version": "1.0.0",
+      "title": "Look up an internal asset",
+      "description": "Reads one asset from an API that is reachable only from the company-private network.",
+      "inputSchema": "/opt/company/schemas/asset-lookup-input.json",
+      "outputSchema": "/opt/company/schemas/asset-lookup-output.json",
+      "effect": "READ_ONLY",
+      "artifactTypes": [
+        "internal-asset-report"
+      ],
+      "execution": {
+        "handler": "/opt/company/bin/private-fixture",
+        "arguments": [
+          "lookup"
+        ],
+        "environmentAllowlist": [
+          "INTERNAL_API_BASE_URL",
+          "INTERNAL_API_TOKEN_FILE"
+        ],
+        "networkProfile": "company-private",
+        "timeoutSeconds": 30,
+        "maxOutputBytes": 65536
+      }
+    }
+  ],
+  "detectors": [
+    {
+      "id": "internal.topology",
+      "version": "1.0.0",
+      "sourceKind": "RUNTIME",
+      "intervalSeconds": 30,
+      "ttlSeconds": 120,
+      "execution": {
+        "handler": "/opt/company/bin/private-fixture",
+        "arguments": [
+          "detect"
+        ],
+        "environmentAllowlist": [
+          "INTERNAL_API_BASE_URL",
+          "INTERNAL_API_TOKEN_FILE"
+        ],
+        "networkProfile": "company-private",
+        "timeoutSeconds": 15,
+        "maxOutputBytes": 65536
+      }
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+name: Private Runner Contract
+
+on:
+  pull_request:
+    paths:
+      - '.devcontainer/**'
+      - '.github/workflows/private-runner-contract.yml'
+      - 'contracts/runner/**'
+      - 'e2e/private-runner/**'
+      - 'runner/**'
+      - 'tools/private_runner_stack_contract.py'
+      - 'gradle/tasks/core-ci.gradle'
+      - 'weave-application-core/src/**/runner/**'
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - '.devcontainer/**'
+      - '.github/workflows/private-runner-contract.yml'
+      - 'contracts/runner/**'
+      - 'e2e/private-runner/**'
+      - 'runner/**'
+      - 'tools/private_runner_stack_contract.py'
+      - 'gradle/tasks/core-ci.gradle'
+      - 'weave-application-core/src/**/runner/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: private-runner-contract-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Dev Container contract and Runner tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Build the Dev Container and run the contract gate
+        uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3
+        with:
+          push: never
+          runCmd: |
+            set -euo pipefail
+            bash .devcontainer/verify-toolchain.sh
+            ./gradlew --no-daemon --stacktrace privateRunnerContractCi

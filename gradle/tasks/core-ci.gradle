@@ -23,6 +23,49 @@ tasks.register('coreDocsCheck', Exec) {
     commandLine 'python3', 'tools/core_docs_check.py'
 }
 
+tasks.register('privateRunnerStackContract', Exec) {
+    group = 'verification'
+    description = 'Validate the reduced Runner, provider-reference, and Files-cutover Compose graphs.'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'tools/private_runner_stack_contract.py'
+    outputs.upToDateWhen { false }
+}
+
+def goVerificationCommand = '''
+formatted="$(gofmt -l .)"
+if [ -n "$formatted" ]; then
+  printf 'gofmt required for:\n%s\n' "$formatted" >&2
+  exit 1
+fi
+go test ./...
+go vet ./...
+'''.stripIndent().trim()
+
+tasks.register('privateRunnerGoTest', Exec) {
+    group = 'verification'
+    description = 'Format-check, test, and vet the generic private Runner.'
+    workingDir rootProject.file('runner')
+    commandLine 'bash', '-ec', goVerificationCommand
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('privateRunnerFixtureGoTest', Exec) {
+    group = 'verification'
+    description = 'Format-check, compile, and vet the company-derived Runner fixture handler.'
+    workingDir rootProject.file('e2e/private-runner/company-runner/handler')
+    commandLine 'bash', '-ec', goVerificationCommand
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('privateRunnerContractCi') {
+    group = 'verification'
+    description = 'Run test-first private Runner domain, Go, fixture, and reduced-stack contracts.'
+    dependsOn ':weave-application-core:test',
+            'privateRunnerGoTest',
+            'privateRunnerFixtureGoTest',
+            'privateRunnerStackContract'
+}
+
 tasks.register('coreCheck') {
     group = 'verification'
     description = 'Run every currently truthful non-system-E2E Server/Data/MCP foundation gate.'

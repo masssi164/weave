@@ -6,239 +6,272 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/masssi164/weave/runner/internal/protocol"
 )
 
 const (
-	maximumEntities          = 1000
-	maximumRelations         = 5000
+	maximumEntities          = 4096
+	maximumRelations         = 8192
 	maximumAliasesPerEntity  = 32
 	maximumEvidencePerObject = 32
 	maximumAttributesBytes   = 32 * 1024
+
+	SourceDeclaration = "DECLARATION"
+	SourceOpenAPI     = "OPENAPI"
+	SourceAsyncAPI    = "ASYNCAPI"
+	SourceSBOM        = "SBOM"
+	SourceOTel        = "OTEL"
+	SourceRuntime     = "RUNTIME"
+	SourceCustom      = "CUSTOM"
 )
 
-type SourceKind string
-
-const (
-	SourceDeclaration SourceKind = "DECLARATION"
-	SourceContract    SourceKind = "MACHINE_CONTRACT"
-	SourceRuntime     SourceKind = "RUNTIME_OBSERVATION"
-	SourceDetector    SourceKind = "DETERMINISTIC_DETECTOR"
-	SourceHeuristic   SourceKind = "HEURISTIC_PROPOSAL"
+var (
+	identifierPattern      = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
+	semanticVersionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`)
+	runnerIDPattern        = regexp.MustCompile(`^runner_[A-Za-z0-9_-]{8,128}$`)
+	traceparentPattern     = regexp.MustCompile(`^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`)
 )
 
-type Evidence struct {
-	Kind   string `json:"kind"`
-	Source string `json:"source"`
-	Digest string `json:"digest,omitempty"`
+var acceptedSourceKinds = map[string]struct{}{
+	SourceDeclaration: {},
+	SourceOpenAPI:     {},
+	SourceAsyncAPI:    {},
+	SourceSBOM:        {},
+	SourceOTel:        {},
+	SourceRuntime:     {},
+	SourceCustom:      {},
 }
 
-type Entity struct {
-	LocalKey   string         `json:"localKey"`
-	Type       string         `json:"type"`
-	DisplayName string        `json:"displayName,omitempty"`
-	Aliases    []string       `json:"aliases,omitempty"`
-	Attributes map[string]any `json:"attributes,omitempty"`
-	Evidence   []Evidence     `json:"evidence,omitempty"`
+var acceptedEvidenceKinds = map[string]struct{}{
+	"DECLARATION": {},
+	"DOCUMENT":    {},
+	"SCHEMA":      {},
+	"SBOM":        {},
+	"TRACE":       {},
+	"RUNTIME":     {},
+	"HASH":        {},
+	"CUSTOM":      {},
 }
 
-type Relation struct {
-	From       string         `json:"from"`
-	Type       string         `json:"type"`
-	To         string         `json:"to"`
-	Confidence float64        `json:"confidence"`
-	Attributes map[string]any `json:"attributes,omitempty"`
-	Evidence   []Evidence     `json:"evidence,omitempty"`
-}
-
-type Batch struct {
-	RunnerID        string     `json:"runnerId"`
-	DetectorID      string     `json:"detectorId"`
-	DetectorVersion string     `json:"detectorVersion"`
-	SourceKind      SourceKind `json:"sourceKind"`
-	Scope           string     `json:"scope"`
-	ObservedAt      time.Time  `json:"observedAt"`
-	TTLSeconds      int64      `json:"ttlSeconds"`
-	Entities        []Entity   `json:"entities"`
-	Relations       []Relation `json:"relations"`
-	Digest          string     `json:"digest"`
-}
-
-// Normalize validates one detector response, strips ordering ambiguity and computes the digest
-// that the Engine uses for idempotent observation reconciliation. It never infers new entities or
-// relations.
-func Normalize(batch Batch, now time.Time) (Batch, error) {
-	if !strings.HasPrefix(batch.RunnerID, "runner_") {
-		return Batch{}, errors.New("runner ID is invalid")
+// Normalize validates one detector response against the public observation contract, removes
+// ordering ambiguity and computes the digest used by the Engine for idempotent reconciliation. It
+// never infers entities or relations and never widens the submitted evidence.
+func Normalize(batch protocol.ObservationBatch, now time.Time) (protocol.ObservationBatch, error) {
+	if batch.SchemaVersion != "weave.runner.observation/v1" {
+		return protocol.ObservationBatch{}, errors.New("observation schema version is unsupported")
 	}
-	if !coordinate(batch.DetectorID) || !version(batch.DetectorVersion) {
-		return Batch{}, errors.New("detector coordinate is invalid")
+	if !runnerIDPattern.MatchString(batch.RunnerID) {
+		return protocol.ObservationBatch{}, errors.New("runner ID is invalid")
 	}
-	if !validSourceKind(batch.SourceKind) {
-		return Batch{}, errors.New("observation source kind is unsupported")
+	batch.DetectorID = strings.TrimSpace(batch.DetectorID)
+	batch.DetectorVersion = strings.TrimSpace(batch.DetectorVersion)
+	if !identifier(batch.DetectorID) || !semanticVersion(batch.DetectorVersion) {
+		return protocol.ObservationBatch{}, errors.New("detector coordinate is invalid")
 	}
-	if batch.Scope == "" || len(batch.Scope) > 256 {
-		return Batch{}, errors.New("observation scope is invalid")
+	if _, accepted := acceptedSourceKinds[batch.SourceKind]; !accepted {
+		return protocol.ObservationBatch{}, errors.New("observation source kind is unsupported")
+	}
+	batch.Scope = strings.TrimSpace(batch.Scope)
+	if len(batch.Scope) > 256 {
+		return protocol.ObservationBatch{}, errors.New("observation scope exceeds the accepted bound")
 	}
 	if batch.ObservedAt.IsZero() || batch.ObservedAt.After(now.Add(5*time.Minute)) {
-		return Batch{}, errors.New("observation time is invalid")
+		return protocol.ObservationBatch{}, errors.New("observation time is invalid")
 	}
-	if batch.TTLSeconds < 30 || batch.TTLSeconds > int64((30*24*time.Hour)/time.Second) {
-		return Batch{}, errors.New("observation TTL is outside the accepted bound")
+	if batch.TTLSeconds < 30 || batch.TTLSeconds > int((30*24*time.Hour)/time.Second) {
+		return protocol.ObservationBatch{}, errors.New("observation TTL is outside the accepted bound")
 	}
-	if len(batch.Entities) == 0 || len(batch.Entities) > maximumEntities {
-		return Batch{}, errors.New("observation entity count is outside the accepted bound")
+	if len(batch.Entities) > maximumEntities {
+		return protocol.ObservationBatch{}, errors.New("observation entity count exceeds the accepted bound")
 	}
 	if len(batch.Relations) > maximumRelations {
-		return Batch{}, errors.New("observation relation count exceeds the accepted bound")
+		return protocol.ObservationBatch{}, errors.New("observation relation count exceeds the accepted bound")
+	}
+	if batch.Traceparent != "" && !traceparentPattern.MatchString(batch.Traceparent) {
+		return protocol.ObservationBatch{}, errors.New("traceparent is invalid")
 	}
 
-	entities := make([]Entity, 0, len(batch.Entities))
+	entities := make([]protocol.ObservationEntity, 0, len(batch.Entities))
 	keys := make(map[string]string, len(batch.Entities))
 	for _, entity := range batch.Entities {
 		normalized, err := normalizeEntity(entity)
 		if err != nil {
-			return Batch{}, err
+			return protocol.ObservationBatch{}, err
 		}
 		if previous, exists := keys[normalized.LocalKey]; exists {
-			return Batch{}, fmt.Errorf("duplicate entity key %q (types %q and %q)", normalized.LocalKey, previous, normalized.Type)
+			return protocol.ObservationBatch{}, fmt.Errorf(
+				"duplicate entity key %q (kinds %q and %q)",
+				normalized.LocalKey,
+				previous,
+				normalized.Kind,
+			)
 		}
-		keys[normalized.LocalKey] = normalized.Type
+		keys[normalized.LocalKey] = normalized.Kind
 		entities = append(entities, normalized)
 	}
-	sort.Slice(entities, func(left, right int) bool { return entities[left].LocalKey < entities[right].LocalKey })
+	sort.Slice(entities, func(left, right int) bool {
+		return entities[left].LocalKey < entities[right].LocalKey
+	})
 
-	relations := make([]Relation, 0, len(batch.Relations))
+	relations := make([]protocol.ObservationRelation, 0, len(batch.Relations))
 	relationKeys := make(map[string]struct{}, len(batch.Relations))
 	for _, relation := range batch.Relations {
 		normalized, err := normalizeRelation(relation, keys)
 		if err != nil {
-			return Batch{}, err
+			return protocol.ObservationBatch{}, err
 		}
-		key := normalized.From + "\x00" + normalized.Type + "\x00" + normalized.To
+		key := normalized.FromLocalKey + "\x00" + normalized.Predicate + "\x00" + normalized.ToLocalKey
 		if _, exists := relationKeys[key]; exists {
-			return Batch{}, fmt.Errorf("duplicate relation %s -> %s -> %s", normalized.From, normalized.Type, normalized.To)
+			return protocol.ObservationBatch{}, fmt.Errorf(
+				"duplicate relation %s -> %s -> %s",
+				normalized.FromLocalKey,
+				normalized.Predicate,
+				normalized.ToLocalKey,
+			)
 		}
 		relationKeys[key] = struct{}{}
 		relations = append(relations, normalized)
 	}
 	sort.Slice(relations, func(left, right int) bool {
-		if relations[left].From != relations[right].From {
-			return relations[left].From < relations[right].From
+		if relations[left].FromLocalKey != relations[right].FromLocalKey {
+			return relations[left].FromLocalKey < relations[right].FromLocalKey
 		}
-		if relations[left].Type != relations[right].Type {
-			return relations[left].Type < relations[right].Type
+		if relations[left].Predicate != relations[right].Predicate {
+			return relations[left].Predicate < relations[right].Predicate
 		}
-		return relations[left].To < relations[right].To
+		return relations[left].ToLocalKey < relations[right].ToLocalKey
 	})
 
-	normalized := Batch{
+	normalized := protocol.ObservationBatch{
+		SchemaVersion:   batch.SchemaVersion,
 		RunnerID:        batch.RunnerID,
 		DetectorID:      batch.DetectorID,
 		DetectorVersion: batch.DetectorVersion,
 		SourceKind:      batch.SourceKind,
-		Scope:           strings.TrimSpace(batch.Scope),
+		Scope:           batch.Scope,
 		ObservedAt:      batch.ObservedAt.UTC(),
 		TTLSeconds:      batch.TTLSeconds,
 		Entities:        entities,
 		Relations:       relations,
+		Traceparent:     batch.Traceparent,
 	}
 	digest, err := digest(normalized)
 	if err != nil {
-		return Batch{}, err
+		return protocol.ObservationBatch{}, err
 	}
-	normalized.Digest = digest
+	normalized.BatchDigest = digest
 	return normalized, nil
 }
 
-func (batch Batch) ExpiresAt() time.Time {
+func ExpiresAt(batch protocol.ObservationBatch) time.Time {
 	return batch.ObservedAt.Add(time.Duration(batch.TTLSeconds) * time.Second)
 }
 
-func normalizeEntity(entity Entity) (Entity, error) {
+func normalizeEntity(entity protocol.ObservationEntity) (protocol.ObservationEntity, error) {
 	entity.LocalKey = strings.TrimSpace(entity.LocalKey)
-	entity.Type = strings.TrimSpace(entity.Type)
+	entity.Kind = strings.TrimSpace(entity.Kind)
 	entity.DisplayName = strings.TrimSpace(entity.DisplayName)
-	if !localKey(entity.LocalKey) || !coordinate(entity.Type) || len(entity.DisplayName) > 512 {
-		return Entity{}, errors.New("observation entity identity is invalid")
+	if !localKey(entity.LocalKey) || !identifier(entity.Kind) {
+		return protocol.ObservationEntity{}, errors.New("observation entity identity is invalid")
 	}
-	aliases := uniqueStrings(entity.Aliases, maximumAliasesPerEntity)
-	if aliases == nil && len(entity.Aliases) > 0 {
-		return Entity{}, errors.New("entity aliases are invalid or exceed the accepted bound")
+	if len(entity.DisplayName) > 256 {
+		return protocol.ObservationEntity{}, errors.New("entity display name exceeds the accepted bound")
 	}
-	attributes, err := safeAttributes(entity.Attributes)
+	aliases, err := uniqueStrings(entity.Aliases, maximumAliasesPerEntity, 512)
 	if err != nil {
-		return Entity{}, fmt.Errorf("entity %s attributes: %w", entity.LocalKey, err)
+		return protocol.ObservationEntity{}, fmt.Errorf("entity %s aliases: %w", entity.LocalKey, err)
+	}
+	attributes, err := safeAttributes(entity.Attributes, 64)
+	if err != nil {
+		return protocol.ObservationEntity{}, fmt.Errorf("entity %s attributes: %w", entity.LocalKey, err)
 	}
 	evidence, err := normalizeEvidence(entity.Evidence)
 	if err != nil {
-		return Entity{}, fmt.Errorf("entity %s evidence: %w", entity.LocalKey, err)
+		return protocol.ObservationEntity{}, fmt.Errorf("entity %s evidence: %w", entity.LocalKey, err)
 	}
-	return Entity{
-		LocalKey: entity.LocalKey,
-		Type: entity.Type,
+	return protocol.ObservationEntity{
+		LocalKey:    entity.LocalKey,
+		Kind:        entity.Kind,
 		DisplayName: entity.DisplayName,
-		Aliases: aliases,
-		Attributes: attributes,
-		Evidence: evidence,
+		Aliases:     aliases,
+		Attributes:  attributes,
+		Evidence:    evidence,
 	}, nil
 }
 
-func normalizeRelation(relation Relation, entities map[string]string) (Relation, error) {
-	relation.From = strings.TrimSpace(relation.From)
-	relation.To = strings.TrimSpace(relation.To)
-	relation.Type = strings.TrimSpace(relation.Type)
-	if _, exists := entities[relation.From]; !exists {
-		return Relation{}, fmt.Errorf("relation source %q is absent from the same batch", relation.From)
+func normalizeRelation(
+	relation protocol.ObservationRelation,
+	entities map[string]string,
+) (protocol.ObservationRelation, error) {
+	relation.FromLocalKey = strings.TrimSpace(relation.FromLocalKey)
+	relation.ToLocalKey = strings.TrimSpace(relation.ToLocalKey)
+	relation.Predicate = strings.TrimSpace(relation.Predicate)
+	if _, exists := entities[relation.FromLocalKey]; !exists {
+		return protocol.ObservationRelation{}, fmt.Errorf(
+			"relation source %q is absent from the same batch",
+			relation.FromLocalKey,
+		)
 	}
-	if _, exists := entities[relation.To]; !exists {
-		return Relation{}, fmt.Errorf("relation target %q is absent from the same batch", relation.To)
+	if _, exists := entities[relation.ToLocalKey]; !exists {
+		return protocol.ObservationRelation{}, fmt.Errorf(
+			"relation target %q is absent from the same batch",
+			relation.ToLocalKey,
+		)
 	}
-	if !coordinate(relation.Type) || relation.Confidence < 0 || relation.Confidence > 1 {
-		return Relation{}, errors.New("relation type or confidence is invalid")
+	if !identifier(relation.Predicate) || relation.Confidence < 0 || relation.Confidence > 1 {
+		return protocol.ObservationRelation{}, errors.New("relation predicate or confidence is invalid")
 	}
-	attributes, err := safeAttributes(relation.Attributes)
+	attributes, err := safeAttributes(relation.Attributes, 32)
 	if err != nil {
-		return Relation{}, fmt.Errorf("relation %s attributes: %w", relation.Type, err)
+		return protocol.ObservationRelation{}, fmt.Errorf(
+			"relation %s attributes: %w",
+			relation.Predicate,
+			err,
+		)
 	}
 	evidence, err := normalizeEvidence(relation.Evidence)
 	if err != nil {
-		return Relation{}, fmt.Errorf("relation %s evidence: %w", relation.Type, err)
+		return protocol.ObservationRelation{}, fmt.Errorf(
+			"relation %s evidence: %w",
+			relation.Predicate,
+			err,
+		)
 	}
-	return Relation{
-		From: relation.From,
-		Type: relation.Type,
-		To: relation.To,
-		Confidence: relation.Confidence,
-		Attributes: attributes,
-		Evidence: evidence,
+	return protocol.ObservationRelation{
+		FromLocalKey: relation.FromLocalKey,
+		Predicate:    relation.Predicate,
+		ToLocalKey:   relation.ToLocalKey,
+		Confidence:   relation.Confidence,
+		Attributes:   attributes,
+		Evidence:     evidence,
 	}, nil
 }
 
-func normalizeEvidence(values []Evidence) ([]Evidence, error) {
+func normalizeEvidence(values []protocol.ObservationEvidence) ([]protocol.ObservationEvidence, error) {
 	if len(values) > maximumEvidencePerObject {
 		return nil, errors.New("evidence count exceeds the accepted bound")
 	}
-	result := make([]Evidence, 0, len(values))
+	result := make([]protocol.ObservationEvidence, 0, len(values))
 	seen := make(map[string]struct{}, len(values))
 	for _, value := range values {
 		value.Kind = strings.TrimSpace(value.Kind)
-		value.Source = strings.TrimSpace(value.Source)
+		value.Reference = strings.TrimSpace(value.Reference)
 		value.Digest = strings.TrimSpace(value.Digest)
-		if !coordinate(value.Kind) || len(value.Source) > 2048 {
-			return nil, errors.New("evidence identity is invalid")
+		if _, accepted := acceptedEvidenceKinds[value.Kind]; !accepted {
+			return nil, errors.New("evidence kind is unsupported")
 		}
-		parsed, err := url.Parse(value.Source)
-		if err != nil || parsed.Scheme == "" || parsed.Fragment != "" {
-			return nil, errors.New("evidence source must be an absolute URI without a fragment")
+		if value.Reference == "" || len(value.Reference) > 1024 {
+			return nil, errors.New("evidence reference is invalid")
 		}
 		if value.Digest != "" && !sha256Digest(value.Digest) {
 			return nil, errors.New("evidence digest must be SHA-256")
 		}
-		key := value.Kind + "\x00" + value.Source + "\x00" + value.Digest
+		key := value.Kind + "\x00" + value.Reference + "\x00" + value.Digest
 		if _, exists := seen[key]; exists {
 			continue
 		}
@@ -249,24 +282,30 @@ func normalizeEvidence(values []Evidence) ([]Evidence, error) {
 		if result[left].Kind != result[right].Kind {
 			return result[left].Kind < result[right].Kind
 		}
-		if result[left].Source != result[right].Source {
-			return result[left].Source < result[right].Source
+		if result[left].Reference != result[right].Reference {
+			return result[left].Reference < result[right].Reference
 		}
 		return result[left].Digest < result[right].Digest
 	})
 	return result, nil
 }
 
-func safeAttributes(attributes map[string]any) (map[string]any, error) {
+func safeAttributes(attributes map[string]any, maximumProperties int) (map[string]any, error) {
 	if len(attributes) == 0 {
 		return nil, nil
 	}
+	if len(attributes) > maximumProperties {
+		return nil, errors.New("attribute count exceeds the accepted bound")
+	}
 	for key, value := range attributes {
+		if key == "" || len(key) > 128 {
+			return nil, fmt.Errorf("attribute key %q is invalid", key)
+		}
 		if sensitiveKey(key) {
 			return nil, fmt.Errorf("sensitive attribute key %q is forbidden", key)
 		}
-		if err := inspectValue(value, 0); err != nil {
-			return nil, fmt.Errorf("attribute %q: %w", key, err)
+		if !scalarJSONValue(value) {
+			return nil, fmt.Errorf("attribute %q is not a scalar JSON value", key)
 		}
 	}
 	raw, err := json.Marshal(attributes)
@@ -276,50 +315,39 @@ func safeAttributes(attributes map[string]any) (map[string]any, error) {
 	if len(raw) > maximumAttributesBytes {
 		return nil, errors.New("attributes exceed the accepted byte bound")
 	}
-	var copy map[string]any
-	if err := json.Unmarshal(raw, &copy); err != nil {
+	var copied map[string]any
+	if err := json.Unmarshal(raw, &copied); err != nil {
 		return nil, err
 	}
-	return copy, nil
+	return copied, nil
 }
 
-func inspectValue(value any, depth int) error {
-	if depth > 8 {
-		return errors.New("nested value exceeds the accepted depth")
-	}
-	switch typed := value.(type) {
-	case nil, bool, string, float64, float32, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, json.Number:
-		return nil
-	case []any:
-		if len(typed) > 256 {
-			return errors.New("array exceeds the accepted item bound")
-		}
-		for _, item := range typed {
-			if err := inspectValue(item, depth+1); err != nil {
-				return err
-			}
-		}
-		return nil
-	case map[string]any:
-		if len(typed) > 256 {
-			return errors.New("object exceeds the accepted field bound")
-		}
-		for key, item := range typed {
-			if sensitiveKey(key) {
-				return fmt.Errorf("sensitive nested key %q is forbidden", key)
-			}
-			if err := inspectValue(item, depth+1); err != nil {
-				return err
-			}
-		}
-		return nil
+func scalarJSONValue(value any) bool {
+	switch value.(type) {
+	case nil,
+		bool,
+		string,
+		json.Number,
+		float32,
+		float64,
+		int,
+		int8,
+		int16,
+		int32,
+		int64,
+		uint,
+		uint8,
+		uint16,
+		uint32,
+		uint64:
+		return true
 	default:
-		return fmt.Errorf("unsupported JSON value type %T", value)
+		return false
 	}
 }
 
-func digest(batch Batch) (string, error) {
-	batch.Digest = ""
+func digest(batch protocol.ObservationBatch) (string, error) {
+	batch.BatchDigest = ""
 	raw, err := json.Marshal(batch)
 	if err != nil {
 		return "", err
@@ -328,16 +356,16 @@ func digest(batch Batch) (string, error) {
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
-func uniqueStrings(values []string, maximum int) []string {
-	if len(values) > maximum {
-		return nil
+func uniqueStrings(values []string, maximumItems, maximumLength int) ([]string, error) {
+	if len(values) > maximumItems {
+		return nil, errors.New("item count exceeds the accepted bound")
 	}
 	seen := make(map[string]struct{}, len(values))
 	result := make([]string, 0, len(values))
 	for _, value := range values {
 		value = strings.TrimSpace(value)
-		if value == "" || len(value) > 512 {
-			return nil
+		if value == "" || len(value) > maximumLength {
+			return nil, errors.New("item is invalid")
 		}
 		if _, exists := seen[value]; exists {
 			continue
@@ -346,54 +374,19 @@ func uniqueStrings(values []string, maximum int) []string {
 		result = append(result, value)
 	}
 	sort.Strings(result)
-	return result
+	return result, nil
 }
 
-func validSourceKind(kind SourceKind) bool {
-	switch kind {
-	case SourceDeclaration, SourceContract, SourceRuntime, SourceDetector, SourceHeuristic:
-		return true
-	default:
-		return false
-	}
-}
-
-func coordinate(value string) bool {
-	if value == "" || len(value) > 128 {
-		return false
-	}
-	for index, character := range value {
-		if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' || character == '.' || character == '-' || character == '_' {
-			continue
-		}
-		if index > 0 && character >= 'A' && character <= 'Z' {
-			continue
-		}
-		return false
-	}
-	return true
+func identifier(value string) bool {
+	return len(value) <= 128 && identifierPattern.MatchString(value)
 }
 
 func localKey(value string) bool {
 	return value != "" && len(value) <= 512 && !strings.ContainsAny(value, "\r\n\x00")
 }
 
-func version(value string) bool {
-	parts := strings.Split(value, ".")
-	if len(parts) != 3 {
-		return false
-	}
-	for _, part := range parts {
-		if part == "" {
-			return false
-		}
-		for _, character := range part {
-			if character < '0' || character > '9' {
-				return false
-			}
-		}
-	}
-	return true
+func semanticVersion(value string) bool {
+	return len(value) <= 96 && semanticVersionPattern.MatchString(value)
 }
 
 func sha256Digest(value string) bool {
@@ -407,7 +400,16 @@ func sha256Digest(value string) bool {
 func sensitiveKey(value string) bool {
 	normalized := strings.ToLower(strings.NewReplacer("-", "_", ".", "_").Replace(value))
 	for _, marker := range []string{
-		"password", "passwd", "secret", "token", "authorization", "cookie", "credential", "private_key", "api_key", "client_secret",
+		"password",
+		"passwd",
+		"secret",
+		"token",
+		"authorization",
+		"cookie",
+		"credential",
+		"private_key",
+		"api_key",
+		"client_secret",
 	} {
 		if strings.Contains(normalized, marker) {
 			return true
