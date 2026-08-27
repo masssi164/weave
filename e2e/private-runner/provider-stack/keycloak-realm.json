@@ -1,0 +1,40 @@
+{
+  "realm": "weave-e2e",
+  "enabled": true,
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": false,
+  "clients": [
+    {
+      "clientId": "weave-client",
+      "name": "Weave E2E Flutter client",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1/*",
+        "http://localhost/*"
+      ],
+      "webOrigins": [
+        "http://127.0.0.1",
+        "http://localhost"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "weave-member"
+      },
+      {
+        "name": "weave-runner-operator"
+      }
+    ]
+  }
+}
