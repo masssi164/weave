@@ -8,6 +8,7 @@ RUN apt-get update \
         curl \
         jq \
         make \
+        openssl \
         postgresql-client \
         python3 \
         python3-yaml \
