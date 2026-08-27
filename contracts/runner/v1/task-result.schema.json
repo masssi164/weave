@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:weave:runner:task-result:v1",
+  "title": "Weave Runner task result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "taskId", "leaseId", "fencingToken", "capability", "status", "result", "artifacts", "completedAt"],
+  "properties": {
+    "schemaVersion": {"const": "weave.runner.task-result/v1"},
+    "taskId": {"type": "string", "format": "uuid"},
+    "leaseId": {"type": "string", "format": "uuid"},
+    "fencingToken": {"type": "integer", "minimum": 1},
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$", "maxLength": 128},
+        "version": {"type": "string", "maxLength": 96}
+      }
+    },
+    "status": {"enum": ["SUCCEEDED", "FAILED", "CANCELLED"]},
+    "result": {"type": ["object", "array", "string", "number", "integer", "boolean", "null"]},
+    "artifacts": {"type": "array", "maxItems": 128, "items": {"$ref": "#/$defs/artifact"}},
+    "error": {"$ref": "#/$defs/error"},
+    "observationsFile": {"type": "string", "pattern": "^[A-Za-z0-9._/-]+$", "maxLength": 512},
+    "completedAt": {"type": "string", "format": "date-time"},
+    "traceparent": {"type": "string", "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "FAILED"}}},
+      "then": {"required": ["error"]}
+    }
+  ],
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "mediaType", "size", "digest"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\u0000\\r\\n]+$", "maxLength": 512},
+        "name": {"type": "string", "minLength": 1, "maxLength": 256},
+        "artifactType": {"type": "string", "minLength": 1, "maxLength": 160},
+        "mediaType": {"type": "string", "pattern": "^[^/\\s]+/[^\\s]+$", "maxLength": 160},
+        "size": {"type": "integer", "minimum": 0, "maximum": 1073741824},
+        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,63}$"},
+        "message": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "retryable": {"type": "boolean"}
+      }
+    }
+  }
+}
