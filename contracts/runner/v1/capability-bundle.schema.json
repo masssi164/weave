@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:weave:runner:capability-bundle:v1",
+  "title": "Weave Runner local capability bundle v1",
+  "description": "Local-only handler and detector configuration. Handler paths, arguments and environment names are never published as capability metadata.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "bundleId", "bundleVersion", "capabilities"],
+  "properties": {
+    "schemaVersion": {"const": "weave.runner.capability-bundle/v1"},
+    "bundleId": {"$ref": "#/$defs/identifier"},
+    "bundleVersion": {"$ref": "#/$defs/semanticVersion"},
+    "displayName": {"type": "string", "minLength": 1, "maxLength": 160},
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": {"$ref": "#/$defs/capability"}
+    },
+    "detectors": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {"$ref": "#/$defs/detector"},
+      "default": []
+    },
+    "labels": {
+      "type": "object",
+      "maxProperties": 32,
+      "additionalProperties": {"type": "string", "maxLength": 256},
+      "default": {}
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "semanticVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$",
+      "maxLength": 96
+    },
+    "absolutePath": {
+      "type": "string",
+      "pattern": "^/(?!.*(?:^|/)\\.\\.(?:/|$))[^\\u0000\\r\\n]+$",
+      "maxLength": 1024
+    },
+    "argument": {
+      "type": "string",
+      "maxLength": 1024,
+      "pattern": "^[^\\u0000\\r\\n]*$"
+    },
+    "environmentName": {
+      "type": "string",
+      "pattern": "^[A-Z_][A-Z0-9_]*$",
+      "maxLength": 128
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handler"],
+      "properties": {
+        "handler": {"$ref": "#/$defs/absolutePath"},
+        "arguments": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {"$ref": "#/$defs/argument"},
+          "default": []
+        },
+        "workingDirectory": {"$ref": "#/$defs/absolutePath"},
+        "environmentAllowlist": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/environmentName"},
+          "default": []
+        },
+        "networkProfile": {"$ref": "#/$defs/identifier"},
+        "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 3600, "default": 300},
+        "maxOutputBytes": {"type": "integer", "minimum": 1024, "maximum": 16777216, "default": 1048576}
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "title", "inputSchema", "outputSchema", "effect", "execution"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "version": {"$ref": "#/$defs/semanticVersion"},
+        "title": {"type": "string", "minLength": 1, "maxLength": 160},
+        "description": {"type": "string", "maxLength": 1000, "default": ""},
+        "inputSchema": {"$ref": "#/$defs/absolutePath"},
+        "outputSchema": {"$ref": "#/$defs/absolutePath"},
+        "effect": {"enum": ["READ_ONLY", "IDEMPOTENT_WRITE", "NON_IDEMPOTENT_WRITE"]},
+        "artifactTypes": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 160},
+          "default": []
+        },
+        "execution": {"$ref": "#/$defs/execution"}
+      }
+    },
+    "detector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "sourceKind", "execution"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "version": {"$ref": "#/$defs/semanticVersion"},
+        "sourceKind": {"enum": ["DECLARATION", "OPENAPI", "ASYNCAPI", "SBOM", "OTEL", "RUNTIME", "CUSTOM"]},
+        "intervalSeconds": {"type": "integer", "minimum": 30, "maximum": 86400, "default": 300},
+        "ttlSeconds": {"type": "integer", "minimum": 30, "maximum": 2592000, "default": 900},
+        "execution": {"$ref": "#/$defs/execution"}
+      }
+    }
+  }
+}
