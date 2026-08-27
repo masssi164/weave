@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -116,7 +115,7 @@ func requestJSON(path string, output any) error {
 	}
 	token := strings.TrimSpace(string(tokenRaw))
 	defer zero(tokenRaw)
-	if subtle.ConstantTimeEq(int32(len(token)), 0) == 1 {
+	if token == "" {
 		return errors.New("internal API credential is empty")
 	}
 
@@ -145,7 +144,7 @@ func requestJSON(path string, output any) error {
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("internal API returned status %d", response.StatusCode)
 	}
-	decoder = json.NewDecoder(bytes.NewReader(body))
+	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(output); err != nil {
 		return errors.New("internal API returned invalid JSON")
