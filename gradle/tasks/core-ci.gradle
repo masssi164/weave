@@ -23,6 +23,30 @@ tasks.register('coreDocsCheck', Exec) {
     commandLine 'python3', 'tools/core_docs_check.py'
 }
 
+tasks.register('privateRunnerStackContract', Exec) {
+    group = 'verification'
+    description = 'Validate the reduced Runner, provider-reference, and Files-cutover Compose graphs.'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'tools/private_runner_stack_contract.py'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('privateRunnerGoTest', Exec) {
+    group = 'verification'
+    description = 'Run the generic private Runner Go tests.'
+    workingDir rootProject.file('runner')
+    commandLine 'go', 'test', './...'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('privateRunnerContractCi') {
+    group = 'verification'
+    description = 'Run test-first private Runner domain, Go, and reduced-stack contracts.'
+    dependsOn ':weave-application-core:test',
+            'privateRunnerGoTest',
+            'privateRunnerStackContract'
+}
+
 tasks.register('coreCheck') {
     group = 'verification'
     description = 'Run every currently truthful non-system-E2E Server/Data/MCP foundation gate.'
