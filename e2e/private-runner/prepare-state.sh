@@ -23,7 +23,8 @@ for secret in \
   nextcloud-db.password \
   nextcloud-admin.password \
   runner-enrollment.secret \
-  internal-api.token; do
+  internal-api.token \
+  tuwunel-registration.token; do
   write_secret "$secret_root/$secret"
 done
 
