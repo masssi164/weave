@@ -33,17 +33,26 @@ tasks.register('privateRunnerStackContract', Exec) {
 
 tasks.register('privateRunnerGoTest', Exec) {
     group = 'verification'
-    description = 'Run the generic private Runner Go tests.'
+    description = 'Format-check, test, and vet the generic private Runner.'
     workingDir rootProject.file('runner')
-    commandLine 'go', 'test', './...'
+    commandLine 'bash', '-ec', 'test -z "$(gofmt -l .)" && go test ./... && go vet ./...'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('privateRunnerFixtureGoTest', Exec) {
+    group = 'verification'
+    description = 'Format-check, compile, and vet the company-derived Runner fixture handler.'
+    workingDir rootProject.file('e2e/private-runner/company-runner/handler')
+    commandLine 'bash', '-ec', 'test -z "$(gofmt -l .)" && go test ./... && go vet ./...'
     outputs.upToDateWhen { false }
 }
 
 tasks.register('privateRunnerContractCi') {
     group = 'verification'
-    description = 'Run test-first private Runner domain, Go, and reduced-stack contracts.'
+    description = 'Run test-first private Runner domain, Go, fixture, and reduced-stack contracts.'
     dependsOn ':weave-application-core:test',
             'privateRunnerGoTest',
+            'privateRunnerFixtureGoTest',
             'privateRunnerStackContract'
 }
 
