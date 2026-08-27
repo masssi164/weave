@@ -31,11 +31,21 @@ tasks.register('privateRunnerStackContract', Exec) {
     outputs.upToDateWhen { false }
 }
 
+def goVerificationCommand = '''
+formatted="$(gofmt -l .)"
+if [ -n "$formatted" ]; then
+  printf 'gofmt required for:\n%s\n' "$formatted" >&2
+  exit 1
+fi
+go test ./...
+go vet ./...
+'''.stripIndent().trim()
+
 tasks.register('privateRunnerGoTest', Exec) {
     group = 'verification'
     description = 'Format-check, test, and vet the generic private Runner.'
     workingDir rootProject.file('runner')
-    commandLine 'bash', '-ec', 'test -z "$(gofmt -l .)" && go test ./... && go vet ./...'
+    commandLine 'bash', '-ec', goVerificationCommand
     outputs.upToDateWhen { false }
 }
 
@@ -43,7 +53,7 @@ tasks.register('privateRunnerFixtureGoTest', Exec) {
     group = 'verification'
     description = 'Format-check, compile, and vet the company-derived Runner fixture handler.'
     workingDir rootProject.file('e2e/private-runner/company-runner/handler')
-    commandLine 'bash', '-ec', 'test -z "$(gofmt -l .)" && go test ./... && go vet ./...'
+    commandLine 'bash', '-ec', goVerificationCommand
     outputs.upToDateWhen { false }
 }
 
