@@ -1,0 +1,329 @@
+name: weave-private-runner-e2e
+
+x-all-profiles: &all-profiles
+  - runner-contract
+  - provider-reference
+  - provider-cutover
+
+x-provider-profiles: &provider-profiles
+  - provider-reference
+  - provider-cutover
+
+x-cutover-profiles: &cutover-profiles
+  - provider-cutover
+
+x-hardened-service: &hardened-service
+  restart: "no"
+  init: true
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  weave-postgres:
+    image: docker.io/library/postgres:17.11-bookworm
+    profiles: *all-profiles
+    environment:
+      POSTGRES_DB: weave
+      POSTGRES_USER: weave
+      POSTGRES_PASSWORD_FILE: /run/secrets/weave_db_password
+    secrets:
+      - weave_db_password
+    volumes:
+      - weave-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U weave -d weave"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks:
+      - engine
+
+  weave-server:
+    <<: *hardened-service
+    image: ${WEAVE_SERVER_IMAGE:-ghcr.io/masssi164/weave-server:e2e}
+    profiles: *all-profiles
+    depends_on:
+      weave-postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: private-runner-e2e
+      SPRING_DATASOURCE_URL: jdbc:postgresql://weave-postgres:5432/weave
+      SPRING_DATASOURCE_USERNAME: weave
+      WEAVE_DB_PASSWORD_FILE: /run/secrets/weave_db_password
+      SERVER_PORT: "8443"
+      SERVER_SSL_ENABLED: "true"
+      SERVER_SSL_CERTIFICATE: /run/secrets/engine_tls_certificate
+      SERVER_SSL_CERTIFICATE_PRIVATE_KEY: /run/secrets/engine_tls_private_key
+      SERVER_SSL_TRUST_CERTIFICATE: /run/secrets/runner_ca_certificate
+      SERVER_SSL_CLIENT_AUTH: want
+      WEAVE_RUNNER_ACCESS_ID: e2e-private-runner
+      WEAVE_RUNNER_ENROLLMENT_SECRET_FILE: /run/secrets/runner_enrollment_secret
+      WEAVE_NEXTCLOUD_BASE_URL: http://nextcloud
+      WEAVE_MATRIX_BASE_URL: http://tuwunel:6167
+      WEAVE_NATIVE_FILES_BASE_URL: http://native-files:8080
+    secrets:
+      - weave_db_password
+      - engine_tls_certificate
+      - engine_tls_private_key
+      - runner_ca_certificate
+      - runner_ca_private_key
+      - runner_enrollment_secret
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    ports:
+      - 127.0.0.1:${WEAVE_E2E_ENGINE_PORT:-48443}:8443
+    networks:
+      - engine
+      - runner-egress
+
+  weave-mcp:
+    <<: *hardened-service
+    image: ${WEAVE_MCP_IMAGE:-ghcr.io/masssi164/weave-mcp-server:e2e}
+    profiles: *all-profiles
+    depends_on:
+      weave-server:
+        condition: service_started
+    environment:
+      SERVER_PORT: "8080"
+      WEAVE_API_BASE_URL: https://weave-server:8443
+      WEAVE_API_CA_FILE: /run/secrets/engine_ca_certificate
+    secrets:
+      - engine_ca_certificate
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    ports:
+      - 127.0.0.1:${WEAVE_E2E_MCP_PORT:-48081}:8080
+    networks:
+      - engine
+
+  private-runner:
+    <<: *hardened-service
+    build:
+      context: ./company-runner
+      args:
+        WEAVE_RUNNER_BASE_IMAGE: ${WEAVE_RUNNER_BASE_IMAGE:-ghcr.io/masssi164/weave-runner:e2e}
+    image: ${WEAVE_COMPANY_RUNNER_IMAGE:-weave-company-runner:e2e}
+    profiles: *all-profiles
+    depends_on:
+      weave-server:
+        condition: service_started
+      internal-api:
+        condition: service_healthy
+    environment:
+      WEAVE_ENGINE_URL: https://weave-server:8443
+      WEAVE_IDENTITY_DIRECTORY: /var/lib/weave-runner/identity
+      WEAVE_ACCESS_ID: e2e-private-runner
+      WEAVE_ENROLLMENT_SECRET_FILE: /run/secrets/runner_enrollment_secret
+      WEAVE_BOOTSTRAP_CA_FILE: /run/secrets/engine_ca_certificate
+      WEAVE_CAPABILITY_BUNDLE: /etc/weave/capabilities.json
+    secrets:
+      - runner_enrollment_secret
+      - engine_ca_certificate
+      - internal_api_token
+    volumes:
+      - runner-identity:/var/lib/weave-runner/identity
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+      - /work:size=128m,mode=0700
+    networks:
+      - runner-egress
+      - company-private
+
+  internal-api:
+    <<: *hardened-service
+    build:
+      context: ./fixtures/internal-api
+    image: weave-private-internal-api:e2e
+    profiles: *all-profiles
+    environment:
+      INTERNAL_API_TOKEN_FILE: /run/secrets/internal_api_token
+    secrets:
+      - internal_api_token
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks:
+      - company-private
+
+  keycloak-postgres:
+    image: docker.io/library/postgres:17.11-bookworm
+    profiles: *provider-profiles
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD_FILE: /run/secrets/keycloak_db_password
+    secrets:
+      - keycloak_db_password
+    volumes:
+      - keycloak-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks:
+      - engine
+
+  keycloak:
+    <<: *hardened-service
+    image: quay.io/keycloak/keycloak:26.7.1
+    profiles: *provider-profiles
+    read_only: false
+    depends_on:
+      keycloak-postgres:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-ec"]
+    command:
+      - |
+        export KC_DB_PASSWORD="$$(cat /run/secrets/keycloak_db_password)"
+        exec /opt/keycloak/bin/kc.sh start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+    secrets:
+      - keycloak_db_password
+    volumes:
+      - ./provider-stack/keycloak-realm.json:/opt/keycloak/data/import/weave-e2e-realm.json:ro
+    networks:
+      - engine
+
+  nextcloud-postgres:
+    image: docker.io/library/postgres:17.11-bookworm
+    profiles: *provider-profiles
+    environment:
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD_FILE: /run/secrets/nextcloud_db_password
+    secrets:
+      - nextcloud_db_password
+    volumes:
+      - nextcloud-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nextcloud -d nextcloud"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks:
+      - engine
+
+  nextcloud-redis:
+    image: docker.io/library/redis:8.10.0-alpine
+    profiles: *provider-profiles
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks:
+      - engine
+
+  nextcloud:
+    image: docker.io/library/nextcloud:34.0.3-apache
+    profiles: *provider-profiles
+    depends_on:
+      nextcloud-postgres:
+        condition: service_healthy
+      nextcloud-redis:
+        condition: service_started
+    environment:
+      POSTGRES_HOST: nextcloud-postgres
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD_FILE: /run/secrets/nextcloud_db_password
+      REDIS_HOST: nextcloud-redis
+      NEXTCLOUD_ADMIN_USER: e2e-admin
+      NEXTCLOUD_ADMIN_PASSWORD_FILE: /run/secrets/nextcloud_admin_password
+      NEXTCLOUD_TRUSTED_DOMAINS: nextcloud
+    secrets:
+      - nextcloud_db_password
+      - nextcloud_admin_password
+    volumes:
+      - nextcloud-html:/var/www/html
+    networks:
+      - engine
+
+  nextcloud-cron:
+    image: docker.io/library/nextcloud:34.0.3-apache
+    profiles: *provider-profiles
+    depends_on:
+      nextcloud:
+        condition: service_started
+    entrypoint: ["/cron.sh"]
+    volumes:
+      - nextcloud-html:/var/www/html
+    networks:
+      - engine
+
+  tuwunel:
+    <<: *hardened-service
+    image: ghcr.io/matrix-construct/tuwunel:v1.8.3
+    profiles: *provider-profiles
+    environment:
+      TUWUNEL_CONFIG: /etc/tuwunel/tuwunel.toml
+    volumes:
+      - ./provider-stack/tuwunel.toml:/etc/tuwunel/tuwunel.toml:ro
+      - tuwunel-data:/var/lib/tuwunel
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    networks:
+      - engine
+
+  native-files:
+    <<: *hardened-service
+    image: ${WEAVE_NATIVE_FILES_IMAGE:-ghcr.io/masssi164/weave-provider-files-native:e2e}
+    profiles: *cutover-profiles
+    environment:
+      SERVER_PORT: "8080"
+      WEAVE_NATIVE_FILES_ROOT: /var/lib/weave-native-files
+    volumes:
+      - native-files-data:/var/lib/weave-native-files
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    networks:
+      - engine
+
+networks:
+  engine:
+  runner-egress:
+  company-private:
+    internal: true
+
+volumes:
+  weave-postgres-data:
+  runner-identity:
+  keycloak-postgres-data:
+  nextcloud-postgres-data:
+  nextcloud-html:
+  tuwunel-data:
+  native-files-data:
+
+secrets:
+  weave_db_password:
+    file: ./.state/secrets/weave-db.password
+  keycloak_db_password:
+    file: ./.state/secrets/keycloak-db.password
+  nextcloud_db_password:
+    file: ./.state/secrets/nextcloud-db.password
+  nextcloud_admin_password:
+    file: ./.state/secrets/nextcloud-admin.password
+  runner_enrollment_secret:
+    file: ./.state/secrets/runner-enrollment.secret
+  internal_api_token:
+    file: ./.state/secrets/internal-api.token
+  engine_tls_certificate:
+    file: ./.state/pki/engine-cert.pem
+  engine_tls_private_key:
+    file: ./.state/pki/engine-key.pem
+  engine_ca_certificate:
+    file: ./.state/pki/engine-ca.pem
+  runner_ca_certificate:
+    file: ./.state/pki/runner-ca.pem
+  runner_ca_private_key:
+    file: ./.state/pki/runner-ca-key.pem
