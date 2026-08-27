@@ -1,0 +1,9 @@
+[global]
+server_name = "matrix.e2e"
+database_path = "/var/lib/tuwunel"
+address = "0.0.0.0"
+port = 6167
+log_colors = false
+allow_federation = false
+allow_registration = true
+registration_token_file = "/run/secrets/tuwunel_registration_token"
