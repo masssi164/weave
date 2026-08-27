@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: private-runner-contract-${{ github.event.pull_request.number || github.ref }}
@@ -39,8 +39,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - name: Check out exact source
+      - name: Check out exact source branch
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
 
       - name: Build the Dev Container and run the contract gate
         uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3
@@ -50,9 +52,24 @@ jobs:
             set -euo pipefail
             bash .devcontainer/verify-toolchain.sh
             gofmt -w runner
+            (cd runner && go mod tidy)
             mkdir -p build/runner-format
             tar -czf build/runner-format/formatted-runner.tar.gz runner
             ./gradlew --no-daemon --stacktrace privateRunnerContractCi
+
+      - name: Commit canonical Go formatting and module sums
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'test/private-runner-reference-stack-e2e'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- runner; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add runner
+          git commit -m 'style(runner): normalize Go sources and module sums'
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
 
       - name: Upload canonical formatted Runner sources
         if: always()
