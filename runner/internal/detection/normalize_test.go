@@ -89,8 +89,8 @@ func TestNormalizeRejectsSensitiveAttributes(t *testing.T) {
 		ObservedAt:      now,
 		TTLSeconds:      300,
 		Entities: []protocol.ObservationEntity{{
-			LocalKey:  "service:internal",
-			Kind:      "service",
+			LocalKey:   "service:internal",
+			Kind:       "service",
 			Attributes: map[string]any{"clientSecret": "must-not-leave-runner"},
 		}},
 	}, now)
@@ -161,8 +161,8 @@ func TestNormalizeRejectsNestedAttributes(t *testing.T) {
 		ObservedAt:      now,
 		TTLSeconds:      300,
 		Entities: []protocol.ObservationEntity{{
-			LocalKey:  "service:a",
-			Kind:      "service",
+			LocalKey:   "service:a",
+			Kind:       "service",
 			Attributes: map[string]any{"nested": map[string]any{"value": "forbidden"}},
 		}},
 	}, now)

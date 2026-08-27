@@ -19,17 +19,17 @@ var (
 // Lease contains only Engine-issued execution coordinates. It never contains a local executable,
 // secret reference or internal endpoint.
 type Lease struct {
-	TaskID         string
-	LeaseID        string
-	FencingEpoch   int64
-	CapabilityID   string
+	TaskID            string
+	LeaseID           string
+	FencingEpoch      int64
+	CapabilityID      string
 	CapabilityVersion string
-	Attempt        int
-	IdempotencyKey string
-	LeaseExpiresAt time.Time
-	HardDeadline   time.Time
-	Input          []byte
-	TraceParent    string
+	Attempt           int
+	IdempotencyKey    string
+	LeaseExpiresAt    time.Time
+	HardDeadline      time.Time
+	Input             []byte
+	TraceParent       string
 }
 
 func (lease Lease) Validate(now time.Time) error {
