@@ -49,4 +49,16 @@ jobs:
           runCmd: |
             set -euo pipefail
             bash .devcontainer/verify-toolchain.sh
+            gofmt -w runner
+            mkdir -p build/runner-format
+            tar -czf build/runner-format/formatted-runner.tar.gz runner
             ./gradlew --no-daemon --stacktrace privateRunnerContractCi
+
+      - name: Upload canonical formatted Runner sources
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: formatted-runner-${{ github.sha }}
+          path: build/runner-format/formatted-runner.tar.gz
+          if-no-files-found: warn
+          retention-days: 1
