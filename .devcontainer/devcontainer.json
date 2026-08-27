@@ -1,0 +1,44 @@
+{
+  "name": "Weave Core and Private Runner",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/go:1.3.4": {
+      "version": "1.26.7",
+      "golangciLintVersion": "none"
+    },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1.10.0": {
+      "version": "latest",
+      "moby": true,
+      "dockerDashComposeVersion": "v2",
+      "installDockerBuildx": true
+    }
+  },
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+  "containerEnv": {
+    "GRADLE_USER_HOME": "/home/vscode/.gradle",
+    "WEAVE_DEVCONTAINER": "true"
+  },
+  "postCreateCommand": "bash .devcontainer/verify-toolchain.sh",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "editor.accessibilitySupport": "on",
+        "terminal.integrated.accessibleViewFocusOnCommandExecution": true
+      },
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "golang.Go",
+        "ms-azuretools.vscode-containers"
+      ]
+    }
+  },
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "8gb",
+    "storage": "32gb"
+  }
+}
