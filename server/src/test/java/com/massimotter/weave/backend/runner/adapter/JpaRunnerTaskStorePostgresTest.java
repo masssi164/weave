@@ -3,6 +3,9 @@ package com.massimotter.weave.backend.runner.adapter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.massimotter.weave.backend.runner.application.RunnerCapabilityRegistry;
+import com.massimotter.weave.backend.runner.application.RunnerCapabilityRegistry.CapabilityContract;
+import com.massimotter.weave.backend.runner.application.RunnerCapabilityRegistry.PublicBundlePublication;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.CancellationDisposition;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.CancellationRequest;
@@ -14,9 +17,12 @@ import com.massimotter.weave.backend.runner.application.RunnerTaskStore.Lease;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.LeaseDirective;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.NewTask;
 import com.massimotter.weave.backend.runner.domain.RunnerControl;
+import com.massimotter.weave.backend.runner.domain.RunnerControl.CapabilityDescriptor;
+import com.massimotter.weave.backend.runner.domain.RunnerControl.CapabilityEffect;
 import com.massimotter.weave.backend.runner.domain.RunnerControl.CapabilityId;
 import com.massimotter.weave.backend.runner.domain.RunnerControl.CapabilityRef;
 import com.massimotter.weave.backend.runner.domain.RunnerControl.RunnerId;
+import com.massimotter.weave.backend.runner.domain.RunnerControl.RunnerState;
 import com.massimotter.weave.backend.runner.domain.RunnerControl.TaskState;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Duration;
@@ -43,8 +49,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Tag("postgres")
 class JpaRunnerTaskStorePostgresTest {
 
-    private static final String BUNDLE_DIGEST =
+    private static final String CONTRACT_DIGEST =
+            "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+    private static final String PUBLIC_BUNDLE_DIGEST =
             "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    private static final String INPUT_SCHEMA_DIGEST =
+            "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+    private static final String OUTPUT_SCHEMA_DIGEST =
+            "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
     private static final String OUTCOME_A =
             "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     private static final String OUTCOME_B =
@@ -59,10 +71,11 @@ class JpaRunnerTaskStorePostgresTest {
     @Test
     void competingEngineInstancesLeaseOneAttemptOnly() throws Exception {
         var dataSource = JpaTestDatabase.entityFirstDataSource("runner-single-claim");
+        Instant now = Instant.parse("2026-08-28T08:00:00Z");
+        registerOfferings(dataSource, now.minusSeconds(1));
         RunnerTaskStore first = store(dataSource);
         RunnerTaskStore second = store(dataSource);
         UUID taskId = UUID.fromString("00000000-0000-0000-0000-000000000001");
-        Instant now = Instant.parse("2026-08-28T08:00:00Z");
         first.enqueue(task(taskId, now));
 
         CyclicBarrier start = new CyclicBarrier(2);
@@ -86,6 +99,8 @@ class JpaRunnerTaskStorePostgresTest {
             assertThat(leases.getFirst().taskId()).isEqualTo(taskId);
             assertThat(leases.getFirst().attempt()).isEqualTo(1);
             assertThat(leases.getFirst().fencingToken()).isEqualTo(1);
+            assertThat(leases.getFirst().capabilityContractDigest()).isEqualTo(CONTRACT_DIGEST);
+            assertThat(leases.getFirst().publicBundleDigest()).isEqualTo(PUBLIC_BUNDLE_DIGEST);
         }
 
         var snapshot = first.find(taskId).orElseThrow();
@@ -97,10 +112,11 @@ class JpaRunnerTaskStorePostgresTest {
     @Test
     void skipLockedClaimsAnotherTaskWithoutWaitingForTheLockedCandidate() throws Exception {
         var dataSource = JpaTestDatabase.entityFirstDataSource("runner-skip-locked");
+        Instant now = Instant.parse("2026-08-28T09:00:00Z");
+        registerOfferings(dataSource, now.minusSeconds(1));
         RunnerTaskStore store = store(dataSource);
         UUID firstTask = UUID.fromString("00000000-0000-0000-0000-000000000010");
         UUID secondTask = UUID.fromString("00000000-0000-0000-0000-000000000020");
-        Instant now = Instant.parse("2026-08-28T09:00:00Z");
         store.enqueue(task(firstTask, now));
         store.enqueue(task(secondTask, now));
 
@@ -136,9 +152,10 @@ class JpaRunnerTaskStorePostgresTest {
     @Test
     void expiredLeaseIsFencedAndTheCurrentOutcomeIsIdempotent() {
         var dataSource = JpaTestDatabase.entityFirstDataSource("runner-fencing");
+        Instant firstClaimAt = Instant.parse("2026-08-28T10:00:00Z");
+        registerOfferings(dataSource, firstClaimAt.minusSeconds(1));
         RunnerTaskStore store = store(dataSource);
         UUID taskId = UUID.fromString("00000000-0000-0000-0000-000000000100");
-        Instant firstClaimAt = Instant.parse("2026-08-28T10:00:00Z");
         store.enqueue(task(taskId, firstClaimAt));
 
         Lease first = store.claim(claim(RUNNER_A, firstClaimAt)).orElseThrow();
@@ -169,9 +186,10 @@ class JpaRunnerTaskStorePostgresTest {
     @Test
     void heartbeatExtendsTheLeaseButNeverPastTheHardDeadline() {
         var dataSource = JpaTestDatabase.entityFirstDataSource("runner-heartbeat-deadline");
+        Instant now = Instant.parse("2026-08-28T11:00:00Z");
+        registerOfferings(dataSource, now.minusSeconds(1));
         RunnerTaskStore store = store(dataSource);
         UUID taskId = UUID.fromString("00000000-0000-0000-0000-000000000200");
-        Instant now = Instant.parse("2026-08-28T11:00:00Z");
         Instant deadline = now.plusSeconds(45);
         store.enqueue(task(taskId, now, deadline));
         Lease lease = store.claim(claim(RUNNER_A, now)).orElseThrow();
@@ -196,9 +214,10 @@ class JpaRunnerTaskStorePostgresTest {
     @Test
     void cancellationSurvivesStoreRestartAndStopsLeaseExtensionOrReclaim() {
         var dataSource = JpaTestDatabase.entityFirstDataSource("runner-cancellation");
+        Instant now = Instant.parse("2026-08-28T12:00:00Z");
+        registerOfferings(dataSource, now.minusSeconds(1));
         RunnerTaskStore store = store(dataSource);
         UUID taskId = UUID.fromString("00000000-0000-0000-0000-000000000300");
-        Instant now = Instant.parse("2026-08-28T12:00:00Z");
         store.enqueue(task(taskId, now));
         Lease lease = store.claim(claim(RUNNER_A, now)).orElseThrow();
         CancellationRequest request =
@@ -226,9 +245,10 @@ class JpaRunnerTaskStorePostgresTest {
     @Test
     void staleHeartbeatCannotExtendAReplacementLease() {
         var dataSource = JpaTestDatabase.entityFirstDataSource("runner-stale-heartbeat");
+        Instant now = Instant.parse("2026-08-28T13:00:00Z");
+        registerOfferings(dataSource, now.minusSeconds(1));
         RunnerTaskStore store = store(dataSource);
         UUID taskId = UUID.fromString("00000000-0000-0000-0000-000000000400");
-        Instant now = Instant.parse("2026-08-28T13:00:00Z");
         store.enqueue(task(taskId, now));
         Lease first = store.claim(claim(RUNNER_A, now)).orElseThrow();
         Lease second = store.claim(claim(RUNNER_B, now.plusSeconds(31))).orElseThrow();
@@ -254,6 +274,49 @@ class JpaRunnerTaskStorePostgresTest {
                 new JpaRunnerTaskStore(JpaTestDatabase.entityManager(dataSource)));
     }
 
+    private RunnerCapabilityRegistry registry(DataSource dataSource) {
+        return JpaTestDatabase.transactional(
+                dataSource,
+                new JpaRunnerCapabilityRegistry(JpaTestDatabase.entityManager(dataSource)));
+    }
+
+    private void registerOfferings(DataSource dataSource, Instant observedAt) {
+        RunnerCapabilityRegistry registry = registry(dataSource);
+        CapabilityContract contract = new CapabilityContract(
+                new CapabilityDescriptor(
+                        CAPABILITY,
+                        "Internal asset lookup",
+                        "Returns one bounded internal asset record.",
+                        CapabilityEffect.READ_ONLY,
+                        "{\"additionalProperties\":false,\"type\":\"object\"}",
+                        INPUT_SCHEMA_DIGEST,
+                        "{\"additionalProperties\":false,\"type\":\"object\"}",
+                        OUTPUT_SCHEMA_DIGEST,
+                        Duration.ofSeconds(60),
+                        4096,
+                        Set.of("asset-report")),
+                CONTRACT_DIGEST);
+        registry.publish(publication(RUNNER_A, contract, observedAt));
+        registry.publish(publication(RUNNER_B, contract, observedAt));
+    }
+
+    private PublicBundlePublication publication(
+            RunnerId runnerId,
+            CapabilityContract contract,
+            Instant observedAt) {
+        return new PublicBundlePublication(
+                runnerId,
+                "org:example",
+                "internal.assets",
+                "1.0.0",
+                PUBLIC_BUNDLE_DIGEST,
+                List.of(contract),
+                RunnerState.ONLINE,
+                1,
+                1,
+                observedAt);
+    }
+
     private NewTask task(UUID taskId, Instant createdAt) {
         return task(taskId, createdAt, createdAt.plusSeconds(300));
     }
@@ -263,7 +326,7 @@ class JpaRunnerTaskStorePostgresTest {
                 taskId,
                 "org:example",
                 CAPABILITY,
-                BUNDLE_DIGEST,
+                CONTRACT_DIGEST,
                 "runner-task-idempotency-" + taskId,
                 "{\"assetId\":\"A-42\"}",
                 "[]",
@@ -279,8 +342,7 @@ class JpaRunnerTaskStorePostgresTest {
         return new Claim(
                 "org:example",
                 runnerId,
-                BUNDLE_DIGEST,
-                Set.of(CAPABILITY),
+                PUBLIC_BUNDLE_DIGEST,
                 now,
                 Duration.ofSeconds(30));
     }

@@ -8,7 +8,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -47,7 +46,7 @@ public interface RunnerTaskStore {
             UUID taskId,
             String organizationRef,
             CapabilityRef capability,
-            String bundleDigest,
+            String capabilityContractDigest,
             String idempotencyKey,
             String payloadJson,
             String contextRefsJson,
@@ -62,7 +61,9 @@ public interface RunnerTaskStore {
             taskId = Objects.requireNonNull(taskId, "taskId");
             organizationRef = bounded(required(organizationRef, "organizationRef"), 256, "organizationRef");
             capability = Objects.requireNonNull(capability, "capability");
-            bundleDigest = digest(bundleDigest, "bundleDigest");
+            capabilityContractDigest = digest(
+                    capabilityContractDigest,
+                    "capabilityContractDigest");
             idempotencyKey = required(idempotencyKey, "idempotencyKey");
             if (!IDEMPOTENCY_KEY.matcher(idempotencyKey).matches()) {
                 throw new IllegalArgumentException("idempotencyKey has an invalid format");
@@ -86,32 +87,23 @@ public interface RunnerTaskStore {
         }
     }
 
+    /**
+     * One authenticated Runner claim. The public bundle digest identifies the Runner's loaded
+     * sanitized bundle; capability eligibility comes exclusively from persisted Runner offerings.
+     */
     record Claim(
             String organizationRef,
             RunnerId runnerId,
-            String bundleDigest,
-            Set<CapabilityRef> capabilities,
+            String publicBundleDigest,
             Instant now,
             Duration leaseDuration) {
 
         public Claim {
             organizationRef = bounded(required(organizationRef, "organizationRef"), 256, "organizationRef");
             runnerId = Objects.requireNonNull(runnerId, "runnerId");
-            bundleDigest = digest(bundleDigest, "bundleDigest");
-            capabilities = Set.copyOf(capabilities == null ? Set.of() : capabilities);
-            if (capabilities.isEmpty()
-                    || capabilities.size() > 128
-                    || capabilities.stream().anyMatch(Objects::isNull)) {
-                throw new IllegalArgumentException("capabilities must contain between one and 128 values");
-            }
+            publicBundleDigest = digest(publicBundleDigest, "publicBundleDigest");
             now = Objects.requireNonNull(now, "now");
             leaseDuration = validateLeaseDuration(leaseDuration);
-        }
-
-        public Set<String> capabilityCoordinates() {
-            return capabilities.stream()
-                    .map(CapabilityRef::coordinate)
-                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
         }
     }
 
@@ -121,7 +113,8 @@ public interface RunnerTaskStore {
             long fencingToken,
             RunnerId runnerId,
             CapabilityRef capability,
-            String bundleDigest,
+            String capabilityContractDigest,
+            String publicBundleDigest,
             int attempt,
             String idempotencyKey,
             String payloadJson,
@@ -140,7 +133,10 @@ public interface RunnerTaskStore {
             }
             runnerId = Objects.requireNonNull(runnerId, "runnerId");
             capability = Objects.requireNonNull(capability, "capability");
-            bundleDigest = digest(bundleDigest, "bundleDigest");
+            capabilityContractDigest = digest(
+                    capabilityContractDigest,
+                    "capabilityContractDigest");
+            publicBundleDigest = digest(publicBundleDigest, "publicBundleDigest");
             if (attempt < 1 || attempt > 100) {
                 throw new IllegalArgumentException("attempt must be between one and 100");
             }

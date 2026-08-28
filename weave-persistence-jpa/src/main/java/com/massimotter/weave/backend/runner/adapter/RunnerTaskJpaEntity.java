@@ -28,7 +28,7 @@ import java.util.UUID;
         indexes = {
             @Index(
                     name = "ix_weave_runner_task_claim",
-                    columnList = "organization_ref,bundle_digest,capability_coordinate,task_state,available_at_utc,lease_expires_at_utc,priority,created_at_utc")
+                    columnList = "organization_ref,capability_contract_digest,capability_coordinate,task_state,available_at_utc,lease_expires_at_utc,priority,created_at_utc")
         })
 class RunnerTaskJpaEntity {
 
@@ -48,8 +48,8 @@ class RunnerTaskJpaEntity {
     @Column(name = "capability_coordinate", nullable = false, length = 225, updatable = false)
     private String capabilityCoordinate;
 
-    @Column(name = "bundle_digest", nullable = false, length = 71, updatable = false)
-    private String bundleDigest;
+    @Column(name = "capability_contract_digest", nullable = false, length = 71, updatable = false)
+    private String capabilityContractDigest;
 
     @Column(name = "idempotency_key", nullable = false, length = 256, updatable = false)
     private String idempotencyKey;
@@ -96,6 +96,9 @@ class RunnerTaskJpaEntity {
     @Column(name = "current_runner_id", length = 135)
     private String currentRunnerId;
 
+    @Column(name = "current_public_bundle_digest", length = 71)
+    private String currentPublicBundleDigest;
+
     @Column(name = "lease_issued_at_utc")
     private OffsetDateTime leaseIssuedAt;
 
@@ -139,7 +142,7 @@ class RunnerTaskJpaEntity {
         entity.capabilityId = task.capability().id().value();
         entity.capabilityVersion = task.capability().version();
         entity.capabilityCoordinate = task.capability().coordinate();
-        entity.bundleDigest = task.bundleDigest();
+        entity.capabilityContractDigest = task.capabilityContractDigest();
         entity.idempotencyKey = task.idempotencyKey();
         entity.payloadJson = task.payloadJson();
         entity.contextRefsJson = task.contextRefsJson();
@@ -157,7 +160,7 @@ class RunnerTaskJpaEntity {
         return taskId.equals(task.taskId())
                 && organizationRef.equals(task.organizationRef())
                 && capabilityCoordinate.equals(task.capability().coordinate())
-                && bundleDigest.equals(task.bundleDigest())
+                && capabilityContractDigest.equals(task.capabilityContractDigest())
                 && idempotencyKey.equals(task.idempotencyKey())
                 && payloadJson.equals(task.payloadJson())
                 && contextRefsJson.equals(task.contextRefsJson())
@@ -178,8 +181,6 @@ class RunnerTaskJpaEntity {
         return stateEligible
                 && cancelRequestedAt == null
                 && organizationRef.equals(claim.organizationRef())
-                && bundleDigest.equals(claim.bundleDigest())
-                && claim.capabilityCoordinates().contains(capabilityCoordinate)
                 && !availableAt.toInstant().isAfter(now)
                 && deadlineAt.toInstant().isAfter(now);
     }
@@ -196,6 +197,7 @@ class RunnerTaskJpaEntity {
         currentAttemptId = UUID.randomUUID();
         currentLeaseId = UUID.randomUUID();
         currentRunnerId = claim.runnerId().value();
+        currentPublicBundleDigest = claim.publicBundleDigest();
         leaseIssuedAt = RunnerPersistenceTime.utc(claim.now());
         Instant requestedExpiry = claim.now().plus(claim.leaseDuration());
         Instant boundedExpiry = requestedExpiry.isAfter(deadlineAt.toInstant())
@@ -209,6 +211,8 @@ class RunnerTaskJpaEntity {
                 attemptCount,
                 fencingToken,
                 claim.runnerId(),
+                capabilityContractDigest,
+                currentPublicBundleDigest,
                 claim.now(),
                 boundedExpiry);
     }
@@ -220,7 +224,8 @@ class RunnerTaskJpaEntity {
                 fencingToken,
                 new RunnerId(currentRunnerId),
                 new CapabilityRef(new CapabilityId(capabilityId), capabilityVersion),
-                bundleDigest,
+                capabilityContractDigest,
+                currentPublicBundleDigest,
                 attemptCount,
                 idempotencyKey,
                 payloadJson,
@@ -348,6 +353,8 @@ class RunnerTaskJpaEntity {
             int attempt,
             long fencingToken,
             RunnerId runnerId,
+            String capabilityContractDigest,
+            String publicBundleDigest,
             Instant issuedAt,
             Instant expiresAt) {}
 

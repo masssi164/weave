@@ -121,7 +121,8 @@ paths:
       description: >-
         The Engine waits outside a database transaction and performs a short fenced claim
         transaction. HTTP Prefer controls the bounded wait and never changes PostgreSQL task
-        authority.
+        authority. The request identifies only the authenticated Runner's loaded public bundle
+        and capacity; capability eligibility comes exclusively from persisted Runner offerings.
       security:
         - RunnerMutualTls: []
       parameters:
@@ -535,19 +536,15 @@ components:
     TaskClaimRequest:
       type: object
       additionalProperties: false
-      required: [runnerId, bundleDigest, capabilities, availableSlots]
+      required: [runnerId, bundleDigest, availableSlots]
       properties:
         runnerId:
           $ref: '#/components/schemas/Identifier'
         bundleDigest:
+          description: >-
+            Digest of the sanitized public capability bundle currently loaded by the
+            authenticated Runner. It does not authorize capabilities by itself.
           $ref: '#/components/schemas/Digest'
-        capabilities:
-          type: array
-          minItems: 1
-          maxItems: 128
-          uniqueItems: true
-          items:
-            $ref: '#/components/schemas/CapabilityReference'
         availableSlots:
           type: integer
           minimum: 1

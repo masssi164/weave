@@ -27,15 +27,16 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class RunnerTaskClaimServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-08-28T14:00:00Z");
-    private static final String BUNDLE_DIGEST =
+    private static final String PUBLIC_BUNDLE_DIGEST =
             "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    private static final String CAPABILITY_CONTRACT_DIGEST =
+            "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
     private static final String CERTIFICATE_FINGERPRINT =
             "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     private static final String TRACEPARENT =
@@ -89,7 +90,7 @@ class RunnerTaskClaimServiceTest {
         assertTrue(response.body().isPresent());
         assertEquals("org:trusted", store.lastClaim.organizationRef());
         assertEquals(RUNNER_A, store.lastClaim.runnerId());
-        assertEquals(BUNDLE_DIGEST, store.lastClaim.bundleDigest());
+        assertEquals(PUBLIC_BUNDLE_DIGEST, store.lastClaim.publicBundleDigest());
         assertEquals(NOW, store.lastClaim.now());
     }
 
@@ -128,7 +129,7 @@ class RunnerTaskClaimServiceTest {
     }
 
     private ClaimCommand command(RunnerId runnerId) {
-        return new ClaimCommand(runnerId, BUNDLE_DIGEST, Set.of(CAPABILITY), 1);
+        return new ClaimCommand(runnerId, PUBLIC_BUNDLE_DIGEST, 1);
     }
 
     private Lease lease() {
@@ -138,7 +139,8 @@ class RunnerTaskClaimServiceTest {
                 1,
                 RUNNER_A,
                 CAPABILITY,
-                BUNDLE_DIGEST,
+                CAPABILITY_CONTRACT_DIGEST,
+                PUBLIC_BUNDLE_DIGEST,
                 1,
                 "authenticated-claim-idempotency-key",
                 "{\"assetId\":\"A-42\"}",

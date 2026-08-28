@@ -7,23 +7,17 @@ import com.massimotter.weave.backend.runner.application.RunnerTaskClaimService;
 import com.massimotter.weave.backend.runner.application.RunnerTaskClaimService.ClaimCommand;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.Lease;
 import com.massimotter.weave.backend.runner.application.RunnerWorkloadIdentity.RunnerAuthenticationException;
-import com.massimotter.weave.backend.runner.domain.RunnerControl.CapabilityId;
-import com.massimotter.weave.backend.runner.domain.RunnerControl.CapabilityRef;
 import com.massimotter.weave.backend.runner.domain.RunnerControl.RunnerId;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 import java.time.Instant;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -99,44 +93,16 @@ public class RunnerTaskClaimController {
             @NotBlank
             @Pattern(regexp = "^sha256:[a-f0-9]{64}$")
             String bundleDigest,
-            @NotEmpty
-            @Size(max = 128)
-            List<@Valid @NotNull CapabilityReferenceRequest> capabilities,
             @NotNull
             @Min(1)
             @Max(1024)
             Integer availableSlots) {
 
-        public TaskClaimRequest {
-            capabilities = capabilities == null ? null : List.copyOf(capabilities);
-        }
-
         ClaimCommand toCommand() {
-            LinkedHashSet<CapabilityRef> references = new LinkedHashSet<>();
-            for (CapabilityReferenceRequest capability : capabilities) {
-                references.add(capability.toReference());
-            }
-            if (references.size() != capabilities.size()) {
-                throw new IllegalArgumentException("capabilities must be unique");
-            }
             return new ClaimCommand(
                     new RunnerId(runnerId),
                     bundleDigest,
-                    Set.copyOf(references),
                     availableSlots);
-        }
-    }
-
-    public record CapabilityReferenceRequest(
-            @NotBlank
-            @Pattern(regexp = "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
-            String id,
-            @NotBlank
-            @Pattern(regexp = "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$")
-            String version) {
-
-        CapabilityRef toReference() {
-            return new CapabilityRef(new CapabilityId(id), version);
         }
     }
 
@@ -147,6 +113,7 @@ public class RunnerTaskClaimController {
             long fencingToken,
             String runnerId,
             CapabilityReferenceResponse capability,
+            String capabilityContractDigest,
             String bundleDigest,
             int attempt,
             String idempotencyKey,
@@ -168,7 +135,8 @@ public class RunnerTaskClaimController {
                     new CapabilityReferenceResponse(
                             lease.capability().id().value(),
                             lease.capability().version()),
-                    lease.bundleDigest(),
+                    lease.capabilityContractDigest(),
+                    lease.publicBundleDigest(),
                     lease.attempt(),
                     lease.idempotencyKey(),
                     readJson(objectMapper, lease.payloadJson(), "payload"),

@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,15 +15,21 @@ type observedClaimRequest struct {
 	path     string
 	rawQuery string
 	prefer   string
+	body     map[string]any
 }
 
-func TestClaimUsesPreferWaitHeaderWithoutLegacyQuery(t *testing.T) {
+func TestClaimUsesPreferWaitHeaderWithoutLegacyQueryOrCapabilityAdvertisement(t *testing.T) {
 	observed := make(chan observedClaimRequest, 1)
 	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Errorf("decode claim body: %v", err)
+		}
 		observed <- observedClaimRequest{
 			path:     request.URL.Path,
 			rawQuery: request.URL.RawQuery,
 			prefer:   request.Header.Get("Prefer"),
+			body:     body,
 		}
 		writer.Header().Set("Cache-Control", "no-store")
 		writer.Header().Set("Preference-Applied", "wait=7")
@@ -43,7 +50,6 @@ func TestClaimUsesPreferWaitHeaderWithoutLegacyQuery(t *testing.T) {
 	lease, err := client.Claim(context.Background(), 7, protocol.ClaimRequest{
 		RunnerID:       "runner_contract_01",
 		BundleDigest:   "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Capabilities:   []protocol.CapabilityRef{{ID: "internal.asset.lookup", Version: "1.0.0"}},
 		AvailableSlots: 1,
 	})
 	if err != nil {
@@ -63,6 +69,12 @@ func TestClaimUsesPreferWaitHeaderWithoutLegacyQuery(t *testing.T) {
 	if request.prefer != "wait=7" {
 		t.Fatalf("unexpected Prefer header: %q", request.prefer)
 	}
+	if _, leaked := request.body["capabilities"]; leaked {
+		t.Fatal("claim body still self-advertises capability coordinates")
+	}
+	if request.body["bundleDigest"] == nil || request.body["availableSlots"] == nil {
+		t.Fatalf("claim body lost public bundle or capacity coordinates: %#v", request.body)
+	}
 }
 
 func TestClaimRejectsWaitOutsideProtocolBounds(t *testing.T) {
@@ -77,7 +89,6 @@ func TestClaimRejectsWaitOutsideProtocolBounds(t *testing.T) {
 	request := protocol.ClaimRequest{
 		RunnerID:       "runner_contract_01",
 		BundleDigest:   "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Capabilities:   []protocol.CapabilityRef{{ID: "internal.asset.lookup", Version: "1.0.0"}},
 		AvailableSlots: 1,
 	}
 

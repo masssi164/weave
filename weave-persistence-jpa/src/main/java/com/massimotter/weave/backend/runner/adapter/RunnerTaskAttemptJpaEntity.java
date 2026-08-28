@@ -38,6 +38,12 @@ class RunnerTaskAttemptJpaEntity {
     @Column(name = "runner_id", nullable = false, length = 135, updatable = false)
     private String runnerId;
 
+    @Column(name = "capability_contract_digest", nullable = false, length = 71, updatable = false)
+    private String capabilityContractDigest;
+
+    @Column(name = "public_bundle_digest", nullable = false, length = 71, updatable = false)
+    private String publicBundleDigest;
+
     @Column(name = "fencing_token", nullable = false, updatable = false)
     private long fencingToken;
 
@@ -68,6 +74,8 @@ class RunnerTaskAttemptJpaEntity {
         entity.attemptNumber = coordinates.attempt();
         entity.leaseId = coordinates.leaseId();
         entity.runnerId = coordinates.runnerId().value();
+        entity.capabilityContractDigest = coordinates.capabilityContractDigest();
+        entity.publicBundleDigest = coordinates.publicBundleDigest();
         entity.fencingToken = coordinates.fencingToken();
         entity.state = TaskState.LEASED.name();
         entity.startedAt = RunnerPersistenceTime.utc(coordinates.issuedAt());
