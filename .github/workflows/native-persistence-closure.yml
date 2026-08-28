@@ -75,6 +75,7 @@ jobs:
           test -s server/src/main/resources/db/migration/V6__canonical_transfer_runs.sql
           test -s server/src/main/resources/db/migration/V7__private_runner_task_leasing.sql
           test -s server/src/main/resources/db/migration/V8__private_runner_heartbeat_cancellation.sql
+          test -s server/src/main/resources/db/migration/V9__private_runner_certificates.sql
 
           ! grep -R --line-number 'public\.' server/src/main/resources/db/migration
 
