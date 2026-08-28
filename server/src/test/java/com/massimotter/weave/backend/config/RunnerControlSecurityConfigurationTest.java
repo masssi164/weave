@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.massimotter.weave.backend.controller.RunnerTaskClaimController;
+import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.runner.application.RunnerClaimHttpSemantics.ClaimHttpResponse;
 import com.massimotter.weave.backend.runner.application.RunnerTaskClaimService;
 import com.massimotter.weave.backend.runner.application.RunnerWorkloadIdentity;
@@ -26,14 +28,21 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest
-@AutoConfigureMockMvc
+@WebMvcTest(
+        controllers = RunnerTaskClaimController.class,
+        excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
+@Import({
+        RunnerControlSecurityConfiguration.class,
+        ApiErrorResponseWriter.class,
+        ApiExceptionHandler.class
+})
 class RunnerControlSecurityConfigurationTest {
 
     private static final String PATH = "/runner/v1/tasks:claim";
