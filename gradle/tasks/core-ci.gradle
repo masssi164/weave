@@ -23,6 +23,14 @@ tasks.register('coreDocsCheck', Exec) {
     commandLine 'python3', 'tools/core_docs_check.py'
 }
 
+tasks.register('privateRunnerSchemaContract', Exec) {
+    group = 'verification'
+    description = 'Validate Runner JSON Schemas, OpenAPI paths, mutual TLS, and HTTP long-poll semantics.'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'tools/runner_contract_check.py'
+    outputs.upToDateWhen { false }
+}
+
 tasks.register('privateRunnerStackContract', Exec) {
     group = 'verification'
     description = 'Validate the reduced Runner, provider-reference, and Files-cutover Compose graphs.'
@@ -59,9 +67,10 @@ tasks.register('privateRunnerFixtureGoTest', Exec) {
 
 tasks.register('privateRunnerContractCi') {
     group = 'verification'
-    description = 'Run private Runner domain, PostgreSQL lease, Go, fixture, and reduced-stack contracts.'
+    description = 'Run Runner contracts, PostgreSQL leasing, Go, fixture, and reduced-stack verification.'
     dependsOn ':weave-application-core:test',
             ':server:runnerPostgresLeaseTest',
+            'privateRunnerSchemaContract',
             'privateRunnerGoTest',
             'privateRunnerFixtureGoTest',
             'privateRunnerStackContract'
