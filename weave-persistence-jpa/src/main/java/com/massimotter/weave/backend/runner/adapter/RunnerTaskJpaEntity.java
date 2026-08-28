@@ -279,6 +279,7 @@ class RunnerTaskJpaEntity {
                 currentLeaseId,
                 currentRunnerId == null ? null : new RunnerId(currentRunnerId),
                 leaseExpiresAt == null ? null : leaseExpiresAt.toInstant(),
+                false,
                 terminalOutcomeDigest);
     }
 
