@@ -59,8 +59,9 @@ tasks.register('privateRunnerFixtureGoTest', Exec) {
 
 tasks.register('privateRunnerContractCi') {
     group = 'verification'
-    description = 'Run test-first private Runner domain, Go, fixture, and reduced-stack contracts.'
+    description = 'Run private Runner domain, PostgreSQL lease, Go, fixture, and reduced-stack contracts.'
     dependsOn ':weave-application-core:test',
+            ':server:runnerPostgresLeaseTest',
             'privateRunnerGoTest',
             'privateRunnerFixtureGoTest',
             'privateRunnerStackContract'
