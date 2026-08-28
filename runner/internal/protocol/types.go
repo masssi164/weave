@@ -57,10 +57,9 @@ type Heartbeat struct {
 	ObservedAt    time.Time `json:"observedAt"`
 }
 type ClaimRequest struct {
-	RunnerID       string          `json:"runnerId"`
-	BundleDigest   string          `json:"bundleDigest"`
-	Capabilities   []CapabilityRef `json:"capabilities"`
-	AvailableSlots int             `json:"availableSlots"`
+	RunnerID       string `json:"runnerId"`
+	BundleDigest   string `json:"bundleDigest"`
+	AvailableSlots int    `json:"availableSlots"`
 }
 type ResourceGrant struct {
 	ResourceID      string   `json:"resourceId"`
@@ -69,22 +68,23 @@ type ResourceGrant struct {
 }
 
 type TaskLease struct {
-	SchemaVersion  string          `json:"schemaVersion"`
-	TaskID         string          `json:"taskId"`
-	LeaseID        string          `json:"leaseId"`
-	FencingToken   int64           `json:"fencingToken"`
-	RunnerID       string          `json:"runnerId"`
-	Capability     CapabilityRef   `json:"capability"`
-	BundleDigest   string          `json:"bundleDigest"`
-	Attempt        int             `json:"attempt"`
-	IdempotencyKey string          `json:"idempotencyKey"`
-	Payload        json.RawMessage `json:"payload"`
-	ContextRefs    []string        `json:"contextRefs,omitempty"`
-	ResourceGrants []ResourceGrant `json:"resourceGrants"`
-	IssuedAt       time.Time       `json:"issuedAt"`
-	ExpiresAt      time.Time       `json:"expiresAt"`
-	Deadline       *time.Time      `json:"deadline,omitempty"`
-	Traceparent    string          `json:"traceparent,omitempty"`
+	SchemaVersion            string          `json:"schemaVersion"`
+	TaskID                   string          `json:"taskId"`
+	LeaseID                  string          `json:"leaseId"`
+	FencingToken             int64           `json:"fencingToken"`
+	RunnerID                 string          `json:"runnerId"`
+	Capability               CapabilityRef   `json:"capability"`
+	CapabilityContractDigest string          `json:"capabilityContractDigest"`
+	BundleDigest             string          `json:"bundleDigest"`
+	Attempt                  int             `json:"attempt"`
+	IdempotencyKey           string          `json:"idempotencyKey"`
+	Payload                  json.RawMessage `json:"payload"`
+	ContextRefs              []string        `json:"contextRefs,omitempty"`
+	ResourceGrants           []ResourceGrant `json:"resourceGrants"`
+	IssuedAt                 time.Time       `json:"issuedAt"`
+	ExpiresAt                time.Time       `json:"expiresAt"`
+	Deadline                 *time.Time      `json:"deadline,omitempty"`
+	Traceparent              string          `json:"traceparent,omitempty"`
 }
 
 type LeaseRef struct {
