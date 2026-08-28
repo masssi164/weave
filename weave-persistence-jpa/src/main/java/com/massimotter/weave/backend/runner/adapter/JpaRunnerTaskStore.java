@@ -108,6 +108,20 @@ public class JpaRunnerTaskStore implements RunnerTaskStore {
 
     @Override
     @Transactional
+    public LeaseDirective heartbeat(Heartbeat heartbeat) {
+        throw new UnsupportedOperationException(
+                "fenced heartbeat renewal is the current red TDD boundary");
+    }
+
+    @Override
+    @Transactional
+    public CancellationDisposition requestCancellation(CancellationRequest request) {
+        throw new UnsupportedOperationException(
+                "durable task cancellation is the current red TDD boundary");
+    }
+
+    @Override
+    @Transactional
     public CompletionDisposition complete(Completion completion) {
         Objects.requireNonNull(completion, "completion");
         RunnerTaskJpaEntity task = entityManager.find(
