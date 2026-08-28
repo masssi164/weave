@@ -51,7 +51,8 @@ class JpaRunnerContractSchedulingPostgresTest {
         Lease lease = tasks.claim(claim(RUNNER_B, PUBLIC_BUNDLE_B)).orElseThrow();
 
         assertThat(lease.runnerId()).isEqualTo(RUNNER_B);
-        assertThat(lease.bundleDigest()).isEqualTo(PUBLIC_BUNDLE_B);
+        assertThat(lease.capabilityContractDigest()).isEqualTo(CONTRACT_DIGEST);
+        assertThat(lease.publicBundleDigest()).isEqualTo(PUBLIC_BUNDLE_B);
     }
 
     @Test
@@ -180,7 +181,6 @@ class JpaRunnerContractSchedulingPostgresTest {
                 "org:scheduling-test",
                 runnerId,
                 publicBundleDigest,
-                Set.of(CAPABILITY),
                 NOW,
                 Duration.ofSeconds(30));
     }
