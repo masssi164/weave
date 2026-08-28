@@ -105,7 +105,7 @@ public interface RunnerTaskStore {
                 throw new IllegalArgumentException("capabilities must contain between one and 128 values");
             }
             now = Objects.requireNonNull(now, "now");
-            leaseDuration = leaseDuration(leaseDuration);
+            leaseDuration = validateLeaseDuration(leaseDuration);
         }
 
         public Set<String> capabilityCoordinates() {
@@ -174,7 +174,7 @@ public interface RunnerTaskStore {
             }
             runnerId = Objects.requireNonNull(runnerId, "runnerId");
             observedAt = Objects.requireNonNull(observedAt, "observedAt");
-            leaseDuration = leaseDuration(leaseDuration);
+            leaseDuration = validateLeaseDuration(leaseDuration);
         }
     }
 
@@ -307,7 +307,7 @@ public interface RunnerTaskStore {
         return normalized;
     }
 
-    private static Duration leaseDuration(Duration value) {
+    private static Duration validateLeaseDuration(Duration value) {
         Duration normalized = Objects.requireNonNull(value, "leaseDuration");
         if (normalized.compareTo(Duration.ofSeconds(5)) < 0
                 || normalized.compareTo(Duration.ofMinutes(5)) > 0) {
