@@ -74,6 +74,16 @@ class RunnerTaskAttemptJpaEntity {
         return entity;
     }
 
+    void heartbeat() {
+        if (TaskState.LEASED.name().equals(state)) {
+            state = TaskState.RUNNING.name();
+            return;
+        }
+        if (!TaskState.RUNNING.name().equals(state)) {
+            throw new IllegalStateException("only an active task attempt can receive a heartbeat");
+        }
+    }
+
     void loseLease(Instant instant) {
         state = "LEASE_LOST";
         completedAt = RunnerPersistenceTime.utc(instant);
