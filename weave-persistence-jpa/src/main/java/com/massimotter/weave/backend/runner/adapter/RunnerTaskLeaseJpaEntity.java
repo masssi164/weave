@@ -82,6 +82,17 @@ class RunnerTaskLeaseJpaEntity {
         return "ACTIVE".equals(state);
     }
 
+    void extend(Instant instant) {
+        if (!active()) {
+            throw new IllegalStateException("only an active lease can be extended");
+        }
+        OffsetDateTime requested = RunnerPersistenceTime.utc(instant);
+        if (requested.isBefore(expiresAt)) {
+            throw new IllegalArgumentException("a lease extension must not shorten the lease");
+        }
+        expiresAt = requested;
+    }
+
     void expire(Instant instant) {
         state = "EXPIRED";
         closedAt = RunnerPersistenceTime.utc(instant);
