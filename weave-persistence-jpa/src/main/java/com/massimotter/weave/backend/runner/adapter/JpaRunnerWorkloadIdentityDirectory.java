@@ -8,11 +8,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 import org.springframework.transaction.annotation.Transactional;
 
 /** PostgreSQL-backed Runner certificate directory. */
-public final class JpaRunnerWorkloadIdentityDirectory
+public class JpaRunnerWorkloadIdentityDirectory
         implements RunnerWorkloadIdentityDirectory {
 
     private final EntityManager entityManager;
