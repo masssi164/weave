@@ -41,9 +41,9 @@ func TestClaimUsesPreferWaitHeaderWithoutLegacyQuery(t *testing.T) {
 	}
 
 	lease, err := client.Claim(context.Background(), 7, protocol.ClaimRequest{
-		RunnerID:     "runner_contract_01",
-		BundleDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Capabilities: []protocol.CapabilityRef{{ID: "internal.asset.lookup", Version: "1.0.0"}},
+		RunnerID:       "runner_contract_01",
+		BundleDigest:   "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Capabilities:   []protocol.CapabilityRef{{ID: "internal.asset.lookup", Version: "1.0.0"}},
 		AvailableSlots: 1,
 	})
 	if err != nil {
