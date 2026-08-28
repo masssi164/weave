@@ -65,7 +65,7 @@ tasks.register('openApiContractExport', Test) {
 
 tasks.register('runnerPostgresLeaseTest', Test) {
     group = 'verification'
-    description = 'Run focused PostgreSQL task-control and Runner certificate-directory contracts.'
+    description = 'Run focused PostgreSQL task-control and Runner X.509/HTTP contracts.'
     dependsOn tasks.named('testClasses')
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
@@ -78,6 +78,9 @@ tasks.register('runnerPostgresLeaseTest', Test) {
         includeTestsMatching '*JpaRunnerTaskStorePostgresTest'
         includeTestsMatching '*RunnerTaskQueuePostgresTest'
         includeTestsMatching '*JpaRunnerWorkloadIdentityDirectoryPostgresTest'
+        includeTestsMatching '*RunnerCertificateFingerprintExtractorTest'
+        includeTestsMatching '*RunnerX509UserDetailsServiceTest'
+        includeTestsMatching '*RunnerControlSecurityConfigurationTest'
     }
     useJUnitPlatform {
         includeEngines 'junit-jupiter'
