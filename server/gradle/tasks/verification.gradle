@@ -66,11 +66,10 @@ tasks.register('openApiContractExport', Test) {
 tasks.register('runnerPostgresLeaseTest', Test) {
     group = 'verification'
     description = 'Run focused PostgreSQL task-control and Runner X.509/HTTP contracts.'
-    dependsOn tasks.named('buildMatrixRustCoreJni'), tasks.named('testClasses')
+    dependsOn tasks.named('testClasses')
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     maxParallelForks = 1
-    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
     systemProperty 'weave.test.postgres', 'true'
     testLogging {
         exceptionFormat = 'full'
