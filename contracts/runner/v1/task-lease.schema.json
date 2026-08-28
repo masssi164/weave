@@ -4,7 +4,7 @@
   "title": "Weave Runner task lease v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "taskId", "leaseId", "fencingToken", "runnerId", "capability", "bundleDigest", "attempt", "idempotencyKey", "payload", "resourceGrants", "issuedAt", "expiresAt"],
+  "required": ["schemaVersion", "taskId", "leaseId", "fencingToken", "runnerId", "capability", "capabilityContractDigest", "bundleDigest", "attempt", "idempotencyKey", "payload", "resourceGrants", "issuedAt", "expiresAt"],
   "properties": {
     "schemaVersion": {"const": "weave.runner.task-lease/v1"},
     "taskId": {"type": "string", "format": "uuid"},
@@ -12,7 +12,14 @@
     "fencingToken": {"type": "integer", "minimum": 1},
     "runnerId": {"type": "string", "pattern": "^runner_[A-Za-z0-9_-]{8,128}$"},
     "capability": {"$ref": "#/$defs/capabilityReference"},
-    "bundleDigest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "capabilityContractDigest": {
+      "description": "Immutable digest of the agent-visible capability contract selected by the task.",
+      "$ref": "#/$defs/digest"
+    },
+    "bundleDigest": {
+      "description": "Public sanitized bundle digest currently loaded by the selected Runner. It is not the task identity.",
+      "$ref": "#/$defs/digest"
+    },
     "attempt": {"type": "integer", "minimum": 1, "maximum": 100},
     "idempotencyKey": {"type": "string", "minLength": 16, "maxLength": 256},
     "payload": {},
@@ -24,6 +31,7 @@
     "traceparent": {"type": "string", "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$"}
   },
   "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
     "capabilityReference": {
       "type": "object", "additionalProperties": false, "required": ["id", "version"],
       "properties": {"id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$", "maxLength": 128}, "version": {"type": "string", "maxLength": 96}}
