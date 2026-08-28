@@ -3,14 +3,10 @@ package com.massimotter.weave.backend.runner.application;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.Claim;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.Lease;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.NewTask;
-import com.massimotter.weave.backend.runner.domain.RunnerControl.CapabilityRef;
-import com.massimotter.weave.backend.runner.domain.RunnerControl.RunnerId;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 /** Coordinates post-commit enqueue wake-ups and bounded, transaction-free claim waits. */
 public final class RunnerTaskQueue {
@@ -33,16 +29,31 @@ public final class RunnerTaskQueue {
         availability.signal();
     }
 
-    public Optional<Lease> claim(LongPollClaim request) {
-        Objects.requireNonNull(request, "request");
-        long maximumWaitNanos = request.maximumWait().toNanos();
+    /**
+     * Performs an immediate authoritative database claim and then waits only on a non-authoritative
+     * availability revision. Every retry refreshes the server timestamp while preserving the
+     * authenticated Runner and persisted public-bundle identity.
+     */
+    public Optional<Lease> claim(Claim request, Duration maximumWait) {
+        Claim validated = Objects.requireNonNull(request, "request");
+        Duration wait = Objects.requireNonNull(maximumWait, "maximumWait");
+        if (wait.isNegative() || wait.compareTo(Duration.ofSeconds(30)) > 0) {
+            throw new IllegalArgumentException("maximumWait must be between zero and 30 seconds");
+        }
+        long maximumWaitNanos = wait.toNanos();
         long deadlineNanos = System.nanoTime() + maximumWaitNanos;
 
         while (true) {
             // Observe before the authoritative database check. A signal between this read and
             // awaitChange changes the revision and therefore cannot be lost.
             long observedRevision = availability.revision();
-            Optional<Lease> lease = tasks.claim(request.at(clock.instant()));
+            Claim current = new Claim(
+                    validated.organizationRef(),
+                    validated.runnerId(),
+                    validated.publicBundleDigest(),
+                    clock.instant(),
+                    validated.leaseDuration());
+            Optional<Lease> lease = tasks.claim(current);
             if (lease.isPresent()) {
                 return lease;
             }
@@ -58,44 +69,6 @@ public final class RunnerTaskQueue {
                 Thread.currentThread().interrupt();
                 throw new ClaimInterruptedException(interrupted);
             }
-        }
-    }
-
-    public record LongPollClaim(
-            String organizationRef,
-            RunnerId runnerId,
-            String bundleDigest,
-            Set<CapabilityRef> capabilities,
-            Duration leaseDuration,
-            Duration maximumWait) {
-
-        public LongPollClaim {
-            Claim validated = new Claim(
-                    organizationRef,
-                    runnerId,
-                    bundleDigest,
-                    capabilities,
-                    Instant.EPOCH,
-                    leaseDuration);
-            organizationRef = validated.organizationRef();
-            runnerId = validated.runnerId();
-            bundleDigest = validated.bundleDigest();
-            capabilities = validated.capabilities();
-            leaseDuration = validated.leaseDuration();
-            maximumWait = Objects.requireNonNull(maximumWait, "maximumWait");
-            if (maximumWait.isNegative() || maximumWait.compareTo(Duration.ofSeconds(30)) > 0) {
-                throw new IllegalArgumentException("maximumWait must be between zero and 30 seconds");
-            }
-        }
-
-        Claim at(Instant instant) {
-            return new Claim(
-                    organizationRef,
-                    runnerId,
-                    bundleDigest,
-                    capabilities,
-                    instant,
-                    leaseDuration);
         }
     }
 
