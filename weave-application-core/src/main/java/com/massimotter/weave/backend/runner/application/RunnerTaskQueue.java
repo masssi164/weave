@@ -29,13 +29,36 @@ public final class RunnerTaskQueue {
     }
 
     public void enqueue(NewTask task) {
-        throw new UnsupportedOperationException(
-                "post-commit task signalling is the current red TDD boundary");
+        tasks.enqueue(Objects.requireNonNull(task, "task"));
+        availability.signal();
     }
 
     public Optional<Lease> claim(LongPollClaim request) {
-        throw new UnsupportedOperationException(
-                "bounded transaction-free claim waiting is the current red TDD boundary");
+        Objects.requireNonNull(request, "request");
+        long maximumWaitNanos = request.maximumWait().toNanos();
+        long deadlineNanos = System.nanoTime() + maximumWaitNanos;
+
+        while (true) {
+            // Observe before the authoritative database check. A signal between this read and
+            // awaitChange changes the revision and therefore cannot be lost.
+            long observedRevision = availability.revision();
+            Optional<Lease> lease = tasks.claim(request.at(clock.instant()));
+            if (lease.isPresent()) {
+                return lease;
+            }
+
+            long remainingNanos = deadlineNanos - System.nanoTime();
+            if (remainingNanos <= 0) {
+                return Optional.empty();
+            }
+
+            try {
+                availability.awaitChange(observedRevision, Duration.ofNanos(remainingNanos));
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new ClaimInterruptedException(interrupted);
+            }
+        }
     }
 
     public record LongPollClaim(
