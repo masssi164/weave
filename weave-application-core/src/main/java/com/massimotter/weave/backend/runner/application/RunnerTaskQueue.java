@@ -78,6 +78,8 @@ public final class RunnerTaskQueue {
 
     public static final class ClaimInterruptedException extends RuntimeException {
 
+        private static final long serialVersionUID = 1L;
+
         public ClaimInterruptedException(InterruptedException cause) {
             super("bounded Runner task claim was interrupted", cause);
         }
