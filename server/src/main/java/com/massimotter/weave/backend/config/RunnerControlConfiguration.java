@@ -1,8 +1,10 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.runner.adapter.JpaRunnerCapabilityRegistry;
 import com.massimotter.weave.backend.runner.adapter.JpaRunnerTaskStore;
 import com.massimotter.weave.backend.runner.adapter.JpaRunnerWorkloadIdentityDirectory;
 import com.massimotter.weave.backend.runner.application.InMemoryRunnerTaskAvailabilitySignal;
+import com.massimotter.weave.backend.runner.application.RunnerCapabilityRegistry;
 import com.massimotter.weave.backend.runner.application.RunnerTaskAvailabilitySignal;
 import com.massimotter.weave.backend.runner.application.RunnerTaskClaimService;
 import com.massimotter.weave.backend.runner.application.RunnerTaskQueue;
@@ -23,6 +25,11 @@ public class RunnerControlConfiguration {
     @Bean
     RunnerTaskStore runnerTaskStore(EntityManager entityManager) {
         return new JpaRunnerTaskStore(entityManager);
+    }
+
+    @Bean
+    RunnerCapabilityRegistry runnerCapabilityRegistry(EntityManager entityManager) {
+        return new JpaRunnerCapabilityRegistry(entityManager);
     }
 
     @Bean
