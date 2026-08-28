@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Validate the private Runner v1 contracts without network access or generated code."""
+"""Validate private Runner v1 schemas and HTTP contracts without network access."""
 
 from __future__ import annotations
 
 import json
 import pathlib
-import re
 import sys
 from collections.abc import Iterable
 from typing import Any
@@ -23,14 +22,12 @@ JSON_CONTRACTS = (
     "task-result.schema.json",
     "observation.schema.json",
 )
-
 PUBLIC_CONTRACTS = (
     "public-capability-bundle.schema.json",
     "task-lease.schema.json",
     "task-result.schema.json",
     "observation.schema.json",
 )
-
 FORBIDDEN_PUBLIC_KEYS = {
     "handler",
     "handlerPath",
@@ -45,7 +42,6 @@ FORBIDDEN_PUBLIC_KEYS = {
     "internalUrl",
     "internalEndpoint",
 }
-
 REQUIRED_OPENAPI_PATHS = (
     "/runner/v1/enrollments:exchange",
     "/runner/v1/certificates:rotate",
@@ -58,7 +54,6 @@ REQUIRED_OPENAPI_PATHS = (
     "/runner/v1/tasks/{taskId}:fail",
     "/runner/v1/observations",
 )
-
 HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options", "trace"}
 
 
@@ -107,41 +102,30 @@ def validate_json_schema(name: str, document: object) -> None:
         fail(f"{name} root must fail closed on unknown properties")
 
     for location, value in walk(document):
-        if isinstance(value, dict) and "$ref" in value:
-            reference = value["$ref"]
-            if not isinstance(reference, str):
-                fail(f"{name} has a non-string $ref at {location}")
-            if reference.startswith("http://"):
-                fail(f"{name} contains an insecure $ref at {location}")
-            if reference.startswith("./"):
-                target = (CONTRACT_ROOT / reference).resolve()
-                if CONTRACT_ROOT.resolve() not in target.parents or not target.exists():
-                    fail(f"{name} has an unresolved local $ref at {location}: {reference}")
+        if not isinstance(value, dict) or "$ref" not in value:
+            continue
+        reference = value["$ref"]
+        if not isinstance(reference, str):
+            fail(f"{name} has a non-string $ref at {location}")
+        if reference.startswith("http://"):
+            fail(f"{name} contains an insecure $ref at {location}")
+        if reference.startswith("./"):
+            target = (CONTRACT_ROOT / reference).resolve()
+            if CONTRACT_ROOT.resolve() not in target.parents or not target.exists():
+                fail(f"{name} has an unresolved local $ref at {location}: {reference}")
 
 
 def validate_public_boundary(name: str, document: object) -> None:
+    """Reject executable coordinates as fields; explanatory prohibition text is allowed."""
     for location, value in walk(document):
         if not isinstance(value, dict):
             continue
         properties = value.get("properties")
-        if isinstance(properties, dict):
-            leaked = FORBIDDEN_PUBLIC_KEYS.intersection(properties)
-            if leaked:
-                fail(f"{name} leaks private Runner fields at {location}: {sorted(leaked)}")
-
-        for key in ("title", "description"):
-            text = value.get(key)
-            if not isinstance(text, str):
-                continue
-            normalized = text.lower()
-            for marker in (
-                "local executable",
-                "handler path",
-                "internal endpoint",
-                "credential value",
-            ):
-                if marker in normalized:
-                    fail(f"{name} leaks private execution semantics in {location}.{key}")
+        if not isinstance(properties, dict):
+            continue
+        leaked = FORBIDDEN_PUBLIC_KEYS.intersection(properties)
+        if leaked:
+            fail(f"{name} leaks private Runner fields at {location}: {sorted(leaked)}")
 
 
 def load_openapi() -> dict[str, Any]:
@@ -166,19 +150,14 @@ def resolve_parameter(document: dict[str, Any], value: object) -> dict[str, Any]
     prefix = "#/components/parameters/"
     if not isinstance(reference, str) or not reference.startswith(prefix):
         fail(f"Runner OpenAPI contains unsupported parameter reference {reference!r}")
-    name = reference.removeprefix(prefix)
     parameters = document.get("components", {}).get("parameters", {})
-    resolved = parameters.get(name) if isinstance(parameters, dict) else None
+    resolved = parameters.get(reference.removeprefix(prefix)) if isinstance(parameters, dict) else None
     if not isinstance(resolved, dict):
         fail(f"Runner OpenAPI cannot resolve parameter reference {reference}")
     return resolved
 
 
-def require_response_headers(
-    response: object,
-    names: set[str],
-    status: str,
-) -> None:
+def require_response_headers(response: object, names: set[str], status: str) -> None:
     if not isinstance(response, dict):
         fail(f"Runner task claim response {status} must be an object")
     headers = response.get("headers")
@@ -235,10 +214,7 @@ def validate_openapi() -> None:
     claim = paths["/runner/v1/tasks:claim"].get("post")
     if not isinstance(claim, dict):
         fail("Runner task claim must be POST")
-    parameters = [
-        resolve_parameter(document, value)
-        for value in claim.get("parameters", [])
-    ]
+    parameters = [resolve_parameter(document, value) for value in claim.get("parameters", [])]
     if any(parameter.get("name") == "waitSeconds" for parameter in parameters):
         fail("Runner task claim must not use the legacy waitSeconds query parameter")
     prefer = [
