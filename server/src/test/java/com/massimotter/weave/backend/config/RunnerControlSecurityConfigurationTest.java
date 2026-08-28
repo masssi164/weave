@@ -53,9 +53,6 @@ class RunnerControlSecurityConfigurationTest {
             {
               "runnerId": "runner_security_01",
               "bundleDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-              "capabilities": [
-                {"id": "internal.cmdb.lookup", "version": "1.0.0"}
-              ],
               "availableSlots": 1
             }
             """;
