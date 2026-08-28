@@ -1,6 +1,4 @@
 tasks.withType(Test).configureEach {
-    // The suite intentionally boots many isolated Spring/JPA contexts. Keep one
-    // bounded fork while providing enough heap for the complete architecture gate.
     maxParallelForks = 1
     maxHeapSize = '1g'
 
@@ -67,7 +65,7 @@ tasks.register('openApiContractExport', Test) {
 
 tasks.register('runnerPostgresLeaseTest', Test) {
     group = 'verification'
-    description = 'Run focused PostgreSQL claim, fencing, heartbeat, cancellation, and bounded long-poll contracts.'
+    description = 'Run focused PostgreSQL task-control and Runner X.509/HTTP contracts.'
     dependsOn tasks.named('testClasses')
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
@@ -79,6 +77,10 @@ tasks.register('runnerPostgresLeaseTest', Test) {
     filter {
         includeTestsMatching '*JpaRunnerTaskStorePostgresTest'
         includeTestsMatching '*RunnerTaskQueuePostgresTest'
+        includeTestsMatching '*JpaRunnerWorkloadIdentityDirectoryPostgresTest'
+        includeTestsMatching '*RunnerCertificateFingerprintExtractorTest'
+        includeTestsMatching '*RunnerX509UserDetailsServiceTest'
+        includeTestsMatching '*RunnerControlSecurityConfigurationTest'
     }
     useJUnitPlatform {
         includeEngines 'junit-jupiter'
