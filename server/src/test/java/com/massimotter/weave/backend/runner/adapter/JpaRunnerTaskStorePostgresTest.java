@@ -4,10 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore;
+import com.massimotter.weave.backend.runner.application.RunnerTaskStore.CancellationDisposition;
+import com.massimotter.weave.backend.runner.application.RunnerTaskStore.CancellationRequest;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.Claim;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.Completion;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.CompletionDisposition;
+import com.massimotter.weave.backend.runner.application.RunnerTaskStore.Heartbeat;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.Lease;
+import com.massimotter.weave.backend.runner.application.RunnerTaskStore.LeaseDirective;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.NewTask;
 import com.massimotter.weave.backend.runner.domain.RunnerControl;
 import com.massimotter.weave.backend.runner.domain.RunnerControl.CapabilityId;
@@ -162,6 +166,88 @@ class JpaRunnerTaskStorePostgresTest {
         assertThat(snapshot.outcomeDigest()).isEqualTo(OUTCOME_A);
     }
 
+    @Test
+    void heartbeatExtendsTheLeaseButNeverPastTheHardDeadline() {
+        var dataSource = JpaTestDatabase.entityFirstDataSource("runner-heartbeat-deadline");
+        RunnerTaskStore store = store(dataSource);
+        UUID taskId = UUID.fromString("00000000-0000-0000-0000-000000000200");
+        Instant now = Instant.parse("2026-08-28T11:00:00Z");
+        Instant deadline = now.plusSeconds(45);
+        store.enqueue(task(taskId, now, deadline));
+        Lease lease = store.claim(claim(RUNNER_A, now)).orElseThrow();
+
+        LeaseDirective directive = store.heartbeat(new Heartbeat(
+                taskId,
+                lease.leaseId(),
+                lease.fencingToken(),
+                RUNNER_A,
+                now.plusSeconds(20),
+                Duration.ofSeconds(30)));
+
+        assertThat(directive.leaseId()).isEqualTo(lease.leaseId());
+        assertThat(directive.fencingToken()).isEqualTo(lease.fencingToken());
+        assertThat(directive.expiresAt()).isEqualTo(deadline);
+        assertThat(directive.cancelRequested()).isFalse();
+        var snapshot = store.find(taskId).orElseThrow();
+        assertThat(snapshot.state()).isEqualTo(TaskState.RUNNING);
+        assertThat(snapshot.leaseExpiresAt()).isEqualTo(deadline);
+    }
+
+    @Test
+    void cancellationSurvivesStoreRestartAndStopsLeaseExtensionOrReclaim() {
+        var dataSource = JpaTestDatabase.entityFirstDataSource("runner-cancellation");
+        RunnerTaskStore store = store(dataSource);
+        UUID taskId = UUID.fromString("00000000-0000-0000-0000-000000000300");
+        Instant now = Instant.parse("2026-08-28T12:00:00Z");
+        store.enqueue(task(taskId, now));
+        Lease lease = store.claim(claim(RUNNER_A, now)).orElseThrow();
+        CancellationRequest request =
+                new CancellationRequest(taskId, "org:example", "USER_REQUESTED", now.plusSeconds(5));
+
+        assertThat(store.requestCancellation(request)).isEqualTo(CancellationDisposition.APPLIED);
+        assertThat(store.requestCancellation(request))
+                .isEqualTo(CancellationDisposition.IDEMPOTENT_REPLAY);
+
+        RunnerTaskStore restarted = store(dataSource);
+        LeaseDirective directive = restarted.heartbeat(new Heartbeat(
+                taskId,
+                lease.leaseId(),
+                lease.fencingToken(),
+                RUNNER_A,
+                now.plusSeconds(6),
+                Duration.ofSeconds(30)));
+
+        assertThat(directive.cancelRequested()).isTrue();
+        assertThat(directive.expiresAt()).isEqualTo(lease.expiresAt());
+        assertThat(restarted.find(taskId).orElseThrow().cancelRequested()).isTrue();
+        assertThat(restarted.claim(claim(RUNNER_B, now.plusSeconds(31)))).isEmpty();
+    }
+
+    @Test
+    void staleHeartbeatCannotExtendAReplacementLease() {
+        var dataSource = JpaTestDatabase.entityFirstDataSource("runner-stale-heartbeat");
+        RunnerTaskStore store = store(dataSource);
+        UUID taskId = UUID.fromString("00000000-0000-0000-0000-000000000400");
+        Instant now = Instant.parse("2026-08-28T13:00:00Z");
+        store.enqueue(task(taskId, now));
+        Lease first = store.claim(claim(RUNNER_A, now)).orElseThrow();
+        Lease second = store.claim(claim(RUNNER_B, now.plusSeconds(31))).orElseThrow();
+
+        assertThatThrownBy(() -> store.heartbeat(new Heartbeat(
+                        taskId,
+                        first.leaseId(),
+                        first.fencingToken(),
+                        RUNNER_A,
+                        now.plusSeconds(32),
+                        Duration.ofSeconds(30))))
+                .isInstanceOf(RunnerControl.StaleTaskLeaseException.class);
+
+        var snapshot = store.find(taskId).orElseThrow();
+        assertThat(snapshot.leaseId()).isEqualTo(second.leaseId());
+        assertThat(snapshot.fencingToken()).isEqualTo(second.fencingToken());
+        assertThat(snapshot.leaseExpiresAt()).isEqualTo(second.expiresAt());
+    }
+
     private RunnerTaskStore store(DataSource dataSource) {
         return JpaTestDatabase.transactional(
                 dataSource,
@@ -169,6 +255,10 @@ class JpaRunnerTaskStorePostgresTest {
     }
 
     private NewTask task(UUID taskId, Instant createdAt) {
+        return task(taskId, createdAt, createdAt.plusSeconds(300));
+    }
+
+    private NewTask task(UUID taskId, Instant createdAt, Instant deadline) {
         return new NewTask(
                 taskId,
                 "org:example",
@@ -181,7 +271,7 @@ class JpaRunnerTaskStorePostgresTest {
                 0,
                 createdAt,
                 createdAt,
-                createdAt.plusSeconds(300),
+                deadline,
                 TRACEPARENT);
     }
 
