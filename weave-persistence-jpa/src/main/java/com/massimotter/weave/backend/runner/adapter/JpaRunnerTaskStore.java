@@ -67,6 +67,7 @@ public class JpaRunnerTaskStore implements RunnerTaskStore {
                         where organization_ref = :organizationRef
                           and bundle_digest = :bundleDigest
                           and capability_coordinate in (:capabilityCoordinates)
+                          and cancel_requested_at_utc is null
                           and available_at_utc <= :now
                           and deadline_at_utc > :now
                           and (
@@ -109,15 +110,52 @@ public class JpaRunnerTaskStore implements RunnerTaskStore {
     @Override
     @Transactional
     public LeaseDirective heartbeat(Heartbeat heartbeat) {
-        throw new UnsupportedOperationException(
-                "fenced heartbeat renewal is the current red TDD boundary");
+        Objects.requireNonNull(heartbeat, "heartbeat");
+        RunnerTaskJpaEntity task = entityManager.find(
+                RunnerTaskJpaEntity.class,
+                heartbeat.taskId(),
+                LockModeType.PESSIMISTIC_WRITE);
+        if (task == null) {
+            throw new IllegalArgumentException("task does not exist");
+        }
+
+        RunnerTaskJpaEntity.HeartbeatCoordinates coordinates = task.heartbeat(heartbeat);
+        RunnerTaskAttemptJpaEntity attempt = entityManager.find(
+                RunnerTaskAttemptJpaEntity.class,
+                task.currentAttemptId(),
+                LockModeType.PESSIMISTIC_WRITE);
+        RunnerTaskLeaseJpaEntity lease = entityManager.find(
+                RunnerTaskLeaseJpaEntity.class,
+                heartbeat.leaseId(),
+                LockModeType.PESSIMISTIC_WRITE);
+        if (attempt == null || lease == null || !lease.active()) {
+            throw new RunnerControl.StaleTaskLeaseException(heartbeat.taskId());
+        }
+
+        attempt.heartbeat();
+        lease.extend(coordinates.expiresAt());
+        entityManager.flush();
+        return new LeaseDirective(
+                heartbeat.leaseId(),
+                heartbeat.fencingToken(),
+                coordinates.expiresAt(),
+                coordinates.cancelRequested());
     }
 
     @Override
     @Transactional
     public CancellationDisposition requestCancellation(CancellationRequest request) {
-        throw new UnsupportedOperationException(
-                "durable task cancellation is the current red TDD boundary");
+        Objects.requireNonNull(request, "request");
+        RunnerTaskJpaEntity task = entityManager.find(
+                RunnerTaskJpaEntity.class,
+                request.taskId(),
+                LockModeType.PESSIMISTIC_WRITE);
+        if (task == null) {
+            throw new IllegalArgumentException("task does not exist");
+        }
+        CancellationDisposition disposition = task.requestCancellation(request);
+        entityManager.flush();
+        return disposition;
     }
 
     @Override
