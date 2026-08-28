@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Strict HTTP semantics shared by the Runner claim controller and its OpenAPI contract. */
 public final class RunnerClaimHttpSemantics {
@@ -13,18 +15,48 @@ public final class RunnerClaimHttpSemantics {
     public static final int EMPTY_RETRY_AFTER_SECONDS = 1;
     public static final String CACHE_CONTROL_VALUE = "no-store";
 
+    private static final Pattern WAIT_PREFERENCE =
+            Pattern.compile("wait=(0|[1-9]|[12][0-9]|30)");
+
     private RunnerClaimHttpSemantics() {}
 
     public static ClaimPreference parsePrefer(List<String> values) {
-        throw new UnsupportedOperationException(
-                "strict Prefer parsing is the current red TDD boundary");
+        List<String> headers = List.copyOf(Objects.requireNonNull(values, "values"));
+        if (headers.isEmpty()) {
+            return new ClaimPreference(DEFAULT_WAIT_SECONDS);
+        }
+        if (headers.size() != 1) {
+            throw new IllegalArgumentException("exactly one Prefer header is supported");
+        }
+        String value = Objects.requireNonNull(headers.getFirst(), "Prefer header");
+        Matcher matcher = WAIT_PREFERENCE.matcher(value);
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException(
+                    "Prefer must use the exact form wait=N where N is between zero and 30");
+        }
+        return new ClaimPreference(Integer.parseInt(matcher.group(1)));
     }
 
     public static <T> ClaimHttpResponse<T> respond(
             Optional<T> lease,
             ClaimPreference preference) {
-        throw new UnsupportedOperationException(
-                "deterministic claim response headers are the current red TDD boundary");
+        Optional<T> body = Objects.requireNonNull(lease, "lease");
+        ClaimPreference applied = Objects.requireNonNull(preference, "preference");
+        if (body.isPresent()) {
+            return new ClaimHttpResponse<>(
+                    200,
+                    Map.of(
+                            "Cache-Control", CACHE_CONTROL_VALUE,
+                            "Preference-Applied", applied.appliedHeader()),
+                    body);
+        }
+        return new ClaimHttpResponse<>(
+                204,
+                Map.of(
+                        "Cache-Control", CACHE_CONTROL_VALUE,
+                        "Preference-Applied", applied.appliedHeader(),
+                        "Retry-After", Integer.toString(EMPTY_RETRY_AFTER_SECONDS)),
+                body);
     }
 
     public record ClaimPreference(int waitSeconds) {
