@@ -146,9 +146,9 @@ class RunnerTaskQueuePostgresTest {
         @Override
         public void awaitChange(long observedRevision, Duration maximumWait)
                 throws InterruptedException {
-            transactionSeen.updateAndGet(
-                    current -> current
-                            || TransactionSynchronizationManager.isActualTransactionActive());
+            if (TransactionSynchronizationManager.isActualTransactionActive()) {
+                transactionSeen.set(true);
+            }
             int invocation = waitCount.incrementAndGet();
             if (invocation == 1) {
                 firstWait.countDown();
