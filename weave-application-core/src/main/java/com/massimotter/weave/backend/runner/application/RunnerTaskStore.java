@@ -19,16 +19,26 @@ public interface RunnerTaskStore {
     Pattern IDEMPOTENCY_KEY = Pattern.compile("[^\\s]{16,256}");
     Pattern TRACEPARENT =
             Pattern.compile("[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}");
+    Pattern CANCELLATION_REASON = Pattern.compile("[A-Z][A-Z0-9_]{1,63}");
 
     void enqueue(NewTask task);
 
     Optional<Lease> claim(Claim claim);
+
+    LeaseDirective heartbeat(Heartbeat heartbeat);
+
+    CancellationDisposition requestCancellation(CancellationRequest request);
 
     CompletionDisposition complete(Completion completion);
 
     Optional<TaskSnapshot> find(UUID taskId);
 
     enum CompletionDisposition {
+        APPLIED,
+        IDEMPOTENT_REPLAY
+    }
+
+    enum CancellationDisposition {
         APPLIED,
         IDEMPOTENT_REPLAY
     }
@@ -95,11 +105,7 @@ public interface RunnerTaskStore {
                 throw new IllegalArgumentException("capabilities must contain between one and 128 values");
             }
             now = Objects.requireNonNull(now, "now");
-            leaseDuration = Objects.requireNonNull(leaseDuration, "leaseDuration");
-            if (leaseDuration.compareTo(Duration.ofSeconds(5)) < 0
-                    || leaseDuration.compareTo(Duration.ofMinutes(5)) > 0) {
-                throw new IllegalArgumentException("leaseDuration must be between five seconds and five minutes");
-            }
+            leaseDuration = leaseDuration(leaseDuration);
         }
 
         public Set<String> capabilityCoordinates() {
@@ -152,6 +158,58 @@ public interface RunnerTaskStore {
         }
     }
 
+    record Heartbeat(
+            UUID taskId,
+            UUID leaseId,
+            long fencingToken,
+            RunnerId runnerId,
+            Instant observedAt,
+            Duration leaseDuration) {
+
+        public Heartbeat {
+            taskId = Objects.requireNonNull(taskId, "taskId");
+            leaseId = Objects.requireNonNull(leaseId, "leaseId");
+            if (fencingToken < 1) {
+                throw new IllegalArgumentException("fencingToken must be positive");
+            }
+            runnerId = Objects.requireNonNull(runnerId, "runnerId");
+            observedAt = Objects.requireNonNull(observedAt, "observedAt");
+            leaseDuration = leaseDuration(leaseDuration);
+        }
+    }
+
+    record LeaseDirective(
+            UUID leaseId,
+            long fencingToken,
+            Instant expiresAt,
+            boolean cancelRequested) {
+
+        public LeaseDirective {
+            leaseId = Objects.requireNonNull(leaseId, "leaseId");
+            if (fencingToken < 1) {
+                throw new IllegalArgumentException("fencingToken must be positive");
+            }
+            expiresAt = Objects.requireNonNull(expiresAt, "expiresAt");
+        }
+    }
+
+    record CancellationRequest(
+            UUID taskId,
+            String organizationRef,
+            String reasonCode,
+            Instant requestedAt) {
+
+        public CancellationRequest {
+            taskId = Objects.requireNonNull(taskId, "taskId");
+            organizationRef = bounded(required(organizationRef, "organizationRef"), 256, "organizationRef");
+            reasonCode = required(reasonCode, "reasonCode");
+            if (!CANCELLATION_REASON.matcher(reasonCode).matches()) {
+                throw new IllegalArgumentException("reasonCode has an invalid format");
+            }
+            requestedAt = Objects.requireNonNull(requestedAt, "requestedAt");
+        }
+    }
+
     record Completion(
             UUID taskId,
             UUID leaseId,
@@ -192,6 +250,7 @@ public interface RunnerTaskStore {
             UUID leaseId,
             RunnerId runnerId,
             Instant leaseExpiresAt,
+            boolean cancelRequested,
             String outcomeDigest) {
 
         public TaskSnapshot {
@@ -244,6 +303,15 @@ public interface RunnerTaskStore {
         String normalized = json(value, maximum, field);
         if (!normalized.startsWith("[")) {
             throw new IllegalArgumentException(field + " must be a JSON array");
+        }
+        return normalized;
+    }
+
+    private static Duration leaseDuration(Duration value) {
+        Duration normalized = Objects.requireNonNull(value, "leaseDuration");
+        if (normalized.compareTo(Duration.ofSeconds(5)) < 0
+                || normalized.compareTo(Duration.ofMinutes(5)) > 0) {
+            throw new IllegalArgumentException("leaseDuration must be between five seconds and five minutes");
         }
         return normalized;
     }
