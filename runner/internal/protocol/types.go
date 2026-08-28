@@ -23,6 +23,7 @@ type PublicCapability struct {
 	TimeoutSeconds     int             `json:"timeoutSeconds"`
 	MaxOutputBytes     int64           `json:"maxOutputBytes"`
 	ArtifactTypes      []string        `json:"artifactTypes"`
+	ContractDigest     string          `json:"contractDigest"`
 }
 
 type PublicCapabilityBundle struct {

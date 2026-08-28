@@ -72,9 +72,15 @@ type Capability struct {
 	OutputSchema *jsonschema.Schema
 }
 type Loaded struct {
-	Local        LocalBundle
-	Public       protocol.PublicCapabilityBundle
-	Raw          []byte
+	Local  LocalBundle
+	Public protocol.PublicCapabilityBundle
+	Raw    []byte
+
+	// LocalDigest identifies the private implementation bundle, including handler paths and local
+	// execution bindings. It is never used as the public capability identity.
+	LocalDigest string
+
+	// Digest is retained as a compatibility alias for LocalDigest while callers migrate.
 	Digest       string
 	capabilities map[string]*Capability
 }
@@ -91,8 +97,19 @@ func Load(path string) (*Loaded, error) {
 	if err := validateBundle(&local); err != nil {
 		return nil, err
 	}
-	loaded := &Loaded{Local: local, Raw: append([]byte(nil), raw...), Digest: digest(raw), capabilities: map[string]*Capability{}}
-	loaded.Public = protocol.PublicCapabilityBundle{SchemaVersion: "weave.runner.public-capability-bundle/v1", BundleID: local.BundleID, BundleVersion: local.BundleVersion, BundleDigest: loaded.Digest}
+	localDigest := digest(raw)
+	loaded := &Loaded{
+		Local:        local,
+		Raw:          append([]byte(nil), raw...),
+		LocalDigest:  localDigest,
+		Digest:       localDigest,
+		capabilities: map[string]*Capability{},
+	}
+	loaded.Public = protocol.PublicCapabilityBundle{
+		SchemaVersion: "weave.runner.public-capability-bundle/v1",
+		BundleID:      local.BundleID,
+		BundleVersion: local.BundleVersion,
+	}
 	for _, declaration := range local.Capabilities {
 		capability, public, err := loadCapability(declaration)
 		if err != nil {
@@ -107,6 +124,10 @@ func Load(path string) (*Loaded, error) {
 		}
 		return loaded.Public.Capabilities[i].ID < loaded.Public.Capabilities[j].ID
 	})
+	loaded.Public.BundleDigest, err = publicBundleDigest(loaded.Public)
+	if err != nil {
+		return nil, err
+	}
 	return loaded, nil
 }
 
@@ -137,6 +158,14 @@ func loadCapability(declaration LocalCapability) (*Capability, protocol.PublicCa
 	if err != nil {
 		return nil, protocol.PublicCapability{}, fmt.Errorf("output schema: %w", err)
 	}
+	inputRaw, err = canonicalJSON(inputRaw)
+	if err != nil {
+		return nil, protocol.PublicCapability{}, fmt.Errorf("canonicalize input schema: %w", err)
+	}
+	outputRaw, err = canonicalJSON(outputRaw)
+	if err != nil {
+		return nil, protocol.PublicCapability{}, fmt.Errorf("canonicalize output schema: %w", err)
+	}
 	inputCompiled, err := compileSchema(declaration.ID+"-input", inputRaw)
 	if err != nil {
 		return nil, protocol.PublicCapability{}, err
@@ -145,12 +174,102 @@ func loadCapability(declaration LocalCapability) (*Capability, protocol.PublicCa
 	if err != nil {
 		return nil, protocol.PublicCapability{}, err
 	}
-	inputRaw = compact(inputRaw)
-	outputRaw = compact(outputRaw)
 	ref := protocol.CapabilityRef{ID: declaration.ID, Version: declaration.Version}
-	capability := &Capability{Local: declaration, Reference: ref, InputRaw: inputRaw, OutputRaw: outputRaw, InputSchema: inputCompiled, OutputSchema: outputCompiled}
-	public := protocol.PublicCapability{ID: declaration.ID, Version: declaration.Version, Title: declaration.Title, Description: declaration.Description, Effect: declaration.Effect, InputSchema: inputRaw, InputSchemaDigest: digest(inputRaw), OutputSchema: outputRaw, OutputSchemaDigest: digest(outputRaw), TimeoutSeconds: declaration.Execution.TimeoutSeconds, MaxOutputBytes: declaration.Execution.MaxOutputBytes, ArtifactTypes: append([]string(nil), declaration.ArtifactTypes...)}
+	capability := &Capability{
+		Local:        declaration,
+		Reference:    ref,
+		InputRaw:     inputRaw,
+		OutputRaw:    outputRaw,
+		InputSchema:  inputCompiled,
+		OutputSchema: outputCompiled,
+	}
+	public := protocol.PublicCapability{
+		ID:                 declaration.ID,
+		Version:            declaration.Version,
+		Title:              declaration.Title,
+		Description:        declaration.Description,
+		Effect:             declaration.Effect,
+		InputSchema:        inputRaw,
+		InputSchemaDigest:  digest(inputRaw),
+		OutputSchema:       outputRaw,
+		OutputSchemaDigest: digest(outputRaw),
+		TimeoutSeconds:     declaration.Execution.TimeoutSeconds,
+		MaxOutputBytes:     declaration.Execution.MaxOutputBytes,
+		ArtifactTypes:      canonicalStrings(declaration.ArtifactTypes),
+	}
+	public.ContractDigest, err = publicCapabilityDigest(public)
+	if err != nil {
+		return nil, protocol.PublicCapability{}, err
+	}
 	return capability, public, nil
+}
+
+type publicCapabilityContract struct {
+	SchemaVersion      string   `json:"schemaVersion"`
+	ID                 string   `json:"id"`
+	Version            string   `json:"version"`
+	Title              string   `json:"title"`
+	Description        string   `json:"description"`
+	Effect             string   `json:"effect"`
+	InputSchemaDigest  string   `json:"inputSchemaDigest"`
+	OutputSchemaDigest string   `json:"outputSchemaDigest"`
+	TimeoutSeconds     int      `json:"timeoutSeconds"`
+	MaxOutputBytes     int64    `json:"maxOutputBytes"`
+	ArtifactTypes      []string `json:"artifactTypes"`
+}
+
+func publicCapabilityDigest(value protocol.PublicCapability) (string, error) {
+	contract := publicCapabilityContract{
+		SchemaVersion:      "weave.runner.public-capability-contract/v1",
+		ID:                 value.ID,
+		Version:            value.Version,
+		Title:              value.Title,
+		Description:        value.Description,
+		Effect:             value.Effect,
+		InputSchemaDigest:  value.InputSchemaDigest,
+		OutputSchemaDigest: value.OutputSchemaDigest,
+		TimeoutSeconds:     value.TimeoutSeconds,
+		MaxOutputBytes:     value.MaxOutputBytes,
+		ArtifactTypes:      canonicalStrings(value.ArtifactTypes),
+	}
+	raw, err := json.Marshal(contract)
+	if err != nil {
+		return "", fmt.Errorf("marshal public capability contract: %w", err)
+	}
+	return digest(raw), nil
+}
+
+type publicBundleContract struct {
+	SchemaVersion string                     `json:"schemaVersion"`
+	BundleID      string                     `json:"bundleId"`
+	BundleVersion string                     `json:"bundleVersion"`
+	Capabilities  []publicCapabilityIdentity `json:"capabilities"`
+}
+type publicCapabilityIdentity struct {
+	ID             string `json:"id"`
+	Version        string `json:"version"`
+	ContractDigest string `json:"contractDigest"`
+}
+
+func publicBundleDigest(value protocol.PublicCapabilityBundle) (string, error) {
+	contract := publicBundleContract{
+		SchemaVersion: "weave.runner.public-capability-bundle-contract/v1",
+		BundleID:      value.BundleID,
+		BundleVersion: value.BundleVersion,
+		Capabilities:  make([]publicCapabilityIdentity, 0, len(value.Capabilities)),
+	}
+	for _, capability := range value.Capabilities {
+		contract.Capabilities = append(contract.Capabilities, publicCapabilityIdentity{
+			ID:             capability.ID,
+			Version:        capability.Version,
+			ContractDigest: capability.ContractDigest,
+		})
+	}
+	raw, err := json.Marshal(contract)
+	if err != nil {
+		return "", fmt.Errorf("marshal public capability bundle contract: %w", err)
+	}
+	return digest(raw), nil
 }
 
 func validateBundle(bundle *LocalBundle) error {
@@ -188,7 +307,7 @@ func validateCapability(value *LocalCapability) error {
 	if !identifierPattern.MatchString(value.ID) || !versionPattern.MatchString(value.Version) {
 		return errors.New("id or version is invalid")
 	}
-	if strings.TrimSpace(value.Title) == "" || len(value.Title) > 160 || len(value.Description) > 1000 {
+	if strings.TrimSpace(value.Title) == "" || value.Title != strings.TrimSpace(value.Title) || len(value.Title) > 160 || len(value.Description) > 1000 {
 		return errors.New("title or description is invalid")
 	}
 	switch value.Effect {
@@ -196,8 +315,8 @@ func validateCapability(value *LocalCapability) error {
 	default:
 		return errors.New("effect is unsupported")
 	}
-	if len(value.ArtifactTypes) > 32 {
-		return errors.New("artifactTypes exceed supported bounds")
+	if err := validateArtifactTypes(value.ArtifactTypes); err != nil {
+		return err
 	}
 	if _, err := readSchema(value.InputSchema); err != nil {
 		return fmt.Errorf("inputSchema: %w", err)
@@ -206,6 +325,23 @@ func validateCapability(value *LocalCapability) error {
 		return fmt.Errorf("outputSchema: %w", err)
 	}
 	return validateExecution(&value.Execution)
+}
+
+func validateArtifactTypes(values []string) error {
+	if len(values) > 32 {
+		return errors.New("artifactTypes exceed supported bounds")
+	}
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		if value == "" || value != strings.TrimSpace(value) || len(value) > 160 {
+			return errors.New("artifactTypes contain an invalid value")
+		}
+		if _, exists := seen[value]; exists {
+			return fmt.Errorf("duplicate artifact type %q", value)
+		}
+		seen[value] = struct{}{}
+	}
+	return nil
 }
 
 func validateDetector(value *LocalDetector) error {
@@ -343,12 +479,27 @@ func decodeStrict(raw []byte, target any) error {
 	}
 	return nil
 }
-func compact(raw []byte) []byte {
-	var target bytes.Buffer
-	if err := json.Compact(&target, raw); err != nil {
-		panic(err)
+func canonicalJSON(raw []byte) ([]byte, error) {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
 	}
-	return target.Bytes()
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return nil, errors.New("unexpected trailing JSON")
+	}
+	canonical, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	return canonical, nil
+}
+func canonicalStrings(values []string) []string {
+	result := append([]string(nil), values...)
+	sort.Strings(result)
+	return result
 }
 func digest(raw []byte) string {
 	sum := sha256.Sum256(raw)
