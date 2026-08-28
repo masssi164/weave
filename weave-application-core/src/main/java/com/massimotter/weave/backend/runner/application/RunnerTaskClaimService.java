@@ -35,7 +35,7 @@ public final class RunnerTaskClaimService {
             ClaimCommand command) {
         RunnerWorkloadIdentity workload = Objects.requireNonNull(identity, "identity");
         ClaimCommand request = Objects.requireNonNull(command, "command");
-        workload.requireActive(clock.instant());
+        workload.requireUsableAt(clock.instant());
         workload.requireRunner(request.runnerId());
 
         RunnerClaimHttpSemantics.ClaimPreference preference =
