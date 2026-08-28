@@ -102,6 +102,12 @@ class RunnerTaskJpaEntity {
     @Column(name = "lease_expires_at_utc")
     private OffsetDateTime leaseExpiresAt;
 
+    @Column(name = "cancel_requested_at_utc")
+    private OffsetDateTime cancelRequestedAt;
+
+    @Column(name = "cancel_reason_code", length = 64)
+    private String cancelReasonCode;
+
     @Column(name = "outcome_digest", length = 71)
     private String terminalOutcomeDigest;
 
@@ -170,6 +176,7 @@ class RunnerTaskJpaEntity {
                 || ((current == TaskState.LEASED || current == TaskState.RUNNING)
                         && hasExpiredLease(now));
         return stateEligible
+                && cancelRequestedAt == null
                 && organizationRef.equals(claim.organizationRef())
                 && bundleDigest.equals(claim.bundleDigest())
                 && claim.capabilityCoordinates().contains(capabilityCoordinate)
@@ -225,14 +232,66 @@ class RunnerTaskJpaEntity {
                 traceparent);
     }
 
+    HeartbeatCoordinates heartbeat(RunnerTaskStore.Heartbeat heartbeat) {
+        requireCurrentFence(heartbeat.leaseId(), heartbeat.fencingToken());
+        requireCurrentRunner(heartbeat.runnerId());
+        if (!leaseActiveAt(heartbeat.observedAt())) {
+            throw new RunnerControl.StaleTaskLeaseException(taskId);
+        }
+
+        state = TaskState.RUNNING.name();
+        Instant currentExpiry = leaseExpiresAt.toInstant();
+        if (cancelRequestedAt != null) {
+            return new HeartbeatCoordinates(currentExpiry, true);
+        }
+
+        Instant requestedExpiry = heartbeat.observedAt().plus(heartbeat.leaseDuration());
+        Instant deadline = deadlineAt.toInstant();
+        Instant boundedExpiry = requestedExpiry.isAfter(deadline) ? deadline : requestedExpiry;
+        Instant effectiveExpiry = boundedExpiry.isAfter(currentExpiry) ? boundedExpiry : currentExpiry;
+        leaseExpiresAt = RunnerPersistenceTime.utc(effectiveExpiry);
+        return new HeartbeatCoordinates(effectiveExpiry, false);
+    }
+
+    RunnerTaskStore.CancellationDisposition requestCancellation(
+            RunnerTaskStore.CancellationRequest request) {
+        if (!organizationRef.equals(request.organizationRef())) {
+            throw new IllegalArgumentException("task does not exist");
+        }
+        if (terminal()) {
+            throw new IllegalStateException("a terminal task cannot be cancelled");
+        }
+        if (cancelRequestedAt != null) {
+            if (cancelReasonCode.equals(request.reasonCode())) {
+                return RunnerTaskStore.CancellationDisposition.IDEMPOTENT_REPLAY;
+            }
+            throw new IllegalStateException(
+                    "task cancellation was already requested with a different reason");
+        }
+        if (!leaseActiveAt(request.requestedAt())) {
+            throw new IllegalStateException("task has no active lease to cancel");
+        }
+        cancelRequestedAt = RunnerPersistenceTime.utc(request.requestedAt());
+        cancelReasonCode = request.reasonCode();
+        return RunnerTaskStore.CancellationDisposition.APPLIED;
+    }
+
     void requireCurrentFence(UUID leaseId, long presentedFencingToken) {
         if (!Objects.equals(currentLeaseId, leaseId) || fencingToken != presentedFencingToken) {
             throw new RunnerControl.StaleTaskLeaseException(taskId);
         }
     }
 
+    private void requireCurrentRunner(RunnerId runnerId) {
+        if (!Objects.equals(currentRunnerId, runnerId.value())) {
+            throw new RunnerControl.StaleTaskLeaseException(taskId);
+        }
+    }
+
     boolean leaseActiveAt(Instant instant) {
-        return leaseIssuedAt != null
+        TaskState current = TaskState.valueOf(state);
+        return (current == TaskState.LEASED || current == TaskState.RUNNING)
+                && leaseIssuedAt != null
                 && leaseExpiresAt != null
                 && !instant.isBefore(leaseIssuedAt.toInstant())
                 && instant.isBefore(leaseExpiresAt.toInstant())
@@ -279,7 +338,7 @@ class RunnerTaskJpaEntity {
                 currentLeaseId,
                 currentRunnerId == null ? null : new RunnerId(currentRunnerId),
                 leaseExpiresAt == null ? null : leaseExpiresAt.toInstant(),
-                false,
+                cancelRequestedAt != null,
                 terminalOutcomeDigest);
     }
 
@@ -291,4 +350,6 @@ class RunnerTaskJpaEntity {
             RunnerId runnerId,
             Instant issuedAt,
             Instant expiresAt) {}
+
+    record HeartbeatCoordinates(Instant expiresAt, boolean cancelRequested) {}
 }
