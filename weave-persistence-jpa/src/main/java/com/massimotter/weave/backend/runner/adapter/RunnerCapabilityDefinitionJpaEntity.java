@@ -79,7 +79,7 @@ class RunnerCapabilityDefinitionJpaEntity {
     @Column(name = "maximum_output_bytes", nullable = false, updatable = false)
     private long maximumOutputBytes;
 
-    @ElementCollection(fetch = FetchType.EAGER)
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
             name = "weave_runner_capability_artifact_types",
             joinColumns = @JoinColumn(name = "capability_definition_id"))
