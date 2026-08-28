@@ -128,6 +128,20 @@ def validate_public_boundary(name: str, document: object) -> None:
             fail(f"{name} leaks private Runner fields at {location}: {sorted(leaked)}")
 
 
+def validate_task_lease_contract(document: object) -> None:
+    if not isinstance(document, dict):
+        fail("task-lease.schema.json must contain an object")
+    required = document.get("required")
+    properties = document.get("properties")
+    if not isinstance(required, list) or not isinstance(properties, dict):
+        fail("task lease must declare required fields and properties")
+    for field in ("capabilityContractDigest", "bundleDigest"):
+        if field not in required or field not in properties:
+            fail(f"task lease must expose {field}")
+    if properties["capabilityContractDigest"] == properties["bundleDigest"]:
+        fail("task contract and selected public bundle need distinct schema entries")
+
+
 def load_openapi() -> dict[str, Any]:
     path = CONTRACT_ROOT / "runner-control.openapi.yaml"
     try:
@@ -182,6 +196,13 @@ def validate_openapi() -> None:
         if not isinstance(url, str) or urlparse(url).scheme.lower() != "https":
             fail("Runner control API server URLs must use HTTPS")
 
+    components = document.get("components")
+    if not isinstance(components, dict):
+        fail("Runner control API must declare components")
+    component_schemas = components.get("schemas")
+    if not isinstance(component_schemas, dict):
+        fail("Runner control API must declare component schemas")
+
     paths = document.get("paths")
     if not isinstance(paths, dict):
         fail("Runner control API must declare paths")
@@ -189,7 +210,7 @@ def validate_openapi() -> None:
         if required_path not in paths:
             fail(f"Runner control API is missing path {required_path}")
 
-    security_schemes = document.get("components", {}).get("securitySchemes", {})
+    security_schemes = components.get("securitySchemes", {})
     runner_mtls = security_schemes.get("RunnerMutualTls") if isinstance(security_schemes, dict) else None
     if not isinstance(runner_mtls, dict) or runner_mtls.get("type") != "mutualTLS":
         fail("Runner control API must declare RunnerMutualTls as mutualTLS")
@@ -231,6 +252,18 @@ def validate_openapi() -> None:
     if not isinstance(pattern, str) or "wait=" not in pattern:
         fail("Runner task claim Prefer header must constrain the wait preference")
 
+    claim_schema = component_schemas.get("TaskClaimRequest")
+    if not isinstance(claim_schema, dict):
+        fail("Runner task claim schema is missing")
+    claim_required = claim_schema.get("required")
+    claim_properties = claim_schema.get("properties")
+    if set(claim_required or []) != {"runnerId", "bundleDigest", "availableSlots"}:
+        fail("Runner task claim must contain only Runner, public bundle, and capacity coordinates")
+    if not isinstance(claim_properties, dict):
+        fail("Runner task claim must declare properties")
+    if "capabilities" in claim_properties:
+        fail("Runner task claim must not self-advertise capability coordinates")
+
     responses = claim.get("responses")
     if not isinstance(responses, dict):
         fail("Runner task claim must declare responses")
@@ -262,6 +295,7 @@ def main() -> int:
         documents[name] = document
     for name in PUBLIC_CONTRACTS:
         validate_public_boundary(name, documents[name])
+    validate_task_lease_contract(documents["task-lease.schema.json"])
     validate_openapi()
     print("Private Runner v1 contracts: OK")
     return 0
