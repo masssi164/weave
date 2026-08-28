@@ -14,6 +14,10 @@ The temporary `Gradle CI` compatibility context succeeds only when the real arch
 
 The `Release Notes Label Check` context remains temporarily because current branch protection expects it. It is not part of `coreCheck` and must be removed after branch protection is migrated to the real core contexts.
 
+### `private-runner-contract.yml`
+
+Required while the private execution plane is established. It builds the shared Dev Container and proves the Runner Go contracts, public JSON Schema/OpenAPI boundary, PostgreSQL task/certificate/capability contracts, and exact reduced `runner-contract`, `provider-reference`, and `provider-cutover` profiles. Fold its stable tasks into named `coreCheck` lanes only after #1452–#1456 have equivalent replacement gates.
+
 ## Transitional optional core
 
 ### `native-persistence-closure.yml`
@@ -56,6 +60,7 @@ protocolFacadeFoundationCi
 mcpFoundationCi
 coreDocsCheck
 coreCheck
+privateRunnerContractCi
 ```
 
 Future required commands are introduced only when their tests exist:
