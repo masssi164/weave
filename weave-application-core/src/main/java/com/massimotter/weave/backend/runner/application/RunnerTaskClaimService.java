@@ -1,6 +1,8 @@
 package com.massimotter.weave.backend.runner.application;
 
 import com.massimotter.weave.backend.runner.application.RunnerClaimHttpSemantics.ClaimHttpResponse;
+import com.massimotter.weave.backend.runner.application.RunnerClaimHttpSemantics.ClaimPreference;
+import com.massimotter.weave.backend.runner.application.RunnerTaskQueue.LongPollClaim;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.Lease;
 import com.massimotter.weave.backend.runner.domain.RunnerControl.CapabilityRef;
 import com.massimotter.weave.backend.runner.domain.RunnerControl.RunnerId;
@@ -8,6 +10,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /** Authenticated application boundary for one bounded Runner task claim. */
@@ -35,8 +38,21 @@ public final class RunnerTaskClaimService {
             RunnerWorkloadIdentity identity,
             List<String> preferHeaders,
             ClaimCommand command) {
-        throw new UnsupportedOperationException(
-                "authenticated Runner claim binding is the current red TDD boundary");
+        RunnerWorkloadIdentity authenticated = Objects.requireNonNull(identity, "identity");
+        ClaimCommand request = Objects.requireNonNull(command, "command");
+
+        authenticated.requireUsableAt(clock.instant());
+        authenticated.requireRunner(request.runnerId());
+        ClaimPreference preference = RunnerClaimHttpSemantics.parsePrefer(preferHeaders);
+
+        Optional<Lease> lease = queue.claim(new LongPollClaim(
+                authenticated.organizationRef(),
+                request.runnerId(),
+                request.bundleDigest(),
+                request.capabilities(),
+                leaseDuration,
+                Duration.ofSeconds(preference.waitSeconds())));
+        return RunnerClaimHttpSemantics.respond(lease, preference);
     }
 
     public record ClaimCommand(
