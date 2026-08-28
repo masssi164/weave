@@ -1,17 +1,12 @@
 package com.massimotter.weave.backend.runner.application;
 
 import com.massimotter.weave.backend.runner.application.RunnerClaimHttpSemantics.ClaimHttpResponse;
-import com.massimotter.weave.backend.runner.application.RunnerClaimHttpSemantics.ClaimPreference;
-import com.massimotter.weave.backend.runner.application.RunnerTaskQueue.LongPollClaim;
 import com.massimotter.weave.backend.runner.application.RunnerTaskStore.Lease;
-import com.massimotter.weave.backend.runner.domain.RunnerControl.CapabilityRef;
 import com.massimotter.weave.backend.runner.domain.RunnerControl.RunnerId;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 
 /** Authenticated application boundary for one bounded Runner task claim. */
 public final class RunnerTaskClaimService {
@@ -38,41 +33,37 @@ public final class RunnerTaskClaimService {
             RunnerWorkloadIdentity identity,
             List<String> preferHeaders,
             ClaimCommand command) {
-        RunnerWorkloadIdentity authenticated = Objects.requireNonNull(identity, "identity");
+        RunnerWorkloadIdentity workload = Objects.requireNonNull(identity, "identity");
         ClaimCommand request = Objects.requireNonNull(command, "command");
+        workload.requireActive(clock.instant());
+        workload.requireRunner(request.runnerId());
 
-        authenticated.requireUsableAt(clock.instant());
-        authenticated.requireRunner(request.runnerId());
-        ClaimPreference preference = RunnerClaimHttpSemantics.parsePrefer(preferHeaders);
-
-        Optional<Lease> lease = queue.claim(new LongPollClaim(
-                authenticated.organizationRef(),
-                request.runnerId(),
-                request.bundleDigest(),
-                request.capabilities(),
-                leaseDuration,
-                Duration.ofSeconds(preference.waitSeconds())));
-        return RunnerClaimHttpSemantics.respond(lease, preference);
+        RunnerClaimHttpSemantics.ClaimPreference preference =
+                RunnerClaimHttpSemantics.parsePrefer(preferHeaders);
+        RunnerTaskStore.Claim claim = new RunnerTaskStore.Claim(
+                workload.organizationRef(),
+                workload.runnerId(),
+                request.publicBundleDigest(),
+                clock.instant(),
+                leaseDuration);
+        return RunnerClaimHttpSemantics.respond(
+                queue.claim(claim, Duration.ofSeconds(preference.waitSeconds())),
+                preference);
     }
 
     public record ClaimCommand(
             RunnerId runnerId,
-            String bundleDigest,
-            Set<CapabilityRef> capabilities,
+            String publicBundleDigest,
             int availableSlots) {
 
         public ClaimCommand {
             runnerId = Objects.requireNonNull(runnerId, "runnerId");
-            bundleDigest = Objects.requireNonNull(bundleDigest, "bundleDigest");
-            if (!RunnerTaskStore.SHA256.matcher(bundleDigest).matches()) {
-                throw new IllegalArgumentException("bundleDigest must be a sha256 digest");
-            }
-            capabilities = Set.copyOf(capabilities == null ? Set.of() : capabilities);
-            if (capabilities.isEmpty()
-                    || capabilities.size() > 128
-                    || capabilities.stream().anyMatch(Objects::isNull)) {
+            publicBundleDigest = Objects.requireNonNull(
+                    publicBundleDigest,
+                    "publicBundleDigest");
+            if (!RunnerTaskStore.SHA256.matcher(publicBundleDigest).matches()) {
                 throw new IllegalArgumentException(
-                        "capabilities must contain between one and 128 values");
+                        "publicBundleDigest must be a sha256 digest");
             }
             if (availableSlots < 1 || availableSlots > 1024) {
                 throw new IllegalArgumentException(
