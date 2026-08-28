@@ -51,9 +51,17 @@ func (client *Client) Claim(ctx context.Context, waitSeconds int, request protoc
 	if waitSeconds < 0 || waitSeconds > 30 {
 		return nil, errors.New("waitSeconds is outside supported bounds")
 	}
-	query := url.Values{"waitSeconds": []string{strconv.Itoa(waitSeconds)}}
 	var lease protocol.TaskLease
-	status, err := client.doJSONStatus(ctx, http.MethodPost, "/runner/v1/tasks:claim", query, request, nil, []int{http.StatusOK, http.StatusNoContent}, &lease)
+	status, err := client.doJSONStatus(
+		ctx,
+		http.MethodPost,
+		"/runner/v1/tasks:claim",
+		nil,
+		request,
+		map[string]string{"Prefer": "wait=" + strconv.Itoa(waitSeconds)},
+		[]int{http.StatusOK, http.StatusNoContent},
+		&lease,
+	)
 	if err != nil {
 		return nil, err
 	}
