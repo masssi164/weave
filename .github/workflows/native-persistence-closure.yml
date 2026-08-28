@@ -73,6 +73,7 @@ jobs:
           test -s server/src/main/resources/db/migration/V4__relax_legacy_calendar_timezone_projection.sql
           test -s server/src/main/resources/db/migration/V5__matrix_shared_user_change_journal.sql
           test -s server/src/main/resources/db/migration/V6__canonical_transfer_runs.sql
+          test -s server/src/main/resources/db/migration/V7__private_runner_task_leasing.sql
 
           ! grep -R --line-number 'public\.' server/src/main/resources/db/migration
 
