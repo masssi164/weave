@@ -67,7 +67,7 @@ tasks.register('openApiContractExport', Test) {
 
 tasks.register('runnerPostgresLeaseTest', Test) {
     group = 'verification'
-    description = 'Run the focused PostgreSQL SKIP LOCKED, lease fencing, and idempotent outcome contracts.'
+    description = 'Run focused PostgreSQL claim, fencing, heartbeat, cancellation, and bounded long-poll contracts.'
     dependsOn tasks.named('testClasses')
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
@@ -78,6 +78,7 @@ tasks.register('runnerPostgresLeaseTest', Test) {
     }
     filter {
         includeTestsMatching '*JpaRunnerTaskStorePostgresTest'
+        includeTestsMatching '*RunnerTaskQueuePostgresTest'
     }
     useJUnitPlatform {
         includeEngines 'junit-jupiter'
