@@ -65,6 +65,25 @@ tasks.register('openApiContractExport', Test) {
     outputs.upToDateWhen { false }
 }
 
+tasks.register('runnerPostgresLeaseTest', Test) {
+    group = 'verification'
+    description = 'Run the focused PostgreSQL SKIP LOCKED, lease fencing, and idempotent outcome contracts.'
+    dependsOn tasks.named('buildMatrixRustCoreJni'), tasks.named('testClasses')
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    maxParallelForks = 1
+    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
+    systemProperty 'weave.test.postgres', 'true'
+    testLogging {
+        exceptionFormat = 'full'
+    }
+    filter {
+        includeTestsMatching '*JpaRunnerTaskStorePostgresTest'
+    }
+    useJUnitPlatform()
+    outputs.upToDateWhen { false }
+}
+
 tasks.register('postgresJpaTest', Test) {
     group = 'verification'
     description = 'Run the authoritative JPA repository, constraint, transaction, migration, and restore contracts against PostgreSQL.'
