@@ -1,14 +1,18 @@
 openapi: 3.1.0
 info:
-  title: Weave Runner Control API
+  title: Weave Private Runner Control API
   version: 1.0.0
-  description: Outbound-only protocol for company-operated Weave Runners. The Engine leases only capabilities already published by the Runner and never sends an executable path or arbitrary command.
+  description: >-
+    Outbound-only control protocol used by approved Weave Runners. Local executable paths,
+    fixed arguments, internal endpoints, local secret references and credential values are not
+    part of this API.
 servers:
   - url: https://weave.example
 paths:
   /runner/v1/enrollments:exchange:
     post:
       operationId: exchangeRunnerEnrollment
+      summary: Exchange one-time enrollment material for a Runner workload identity
       security:
         - RunnerAccessId: []
           RunnerEnrollmentSecret: []
@@ -16,288 +20,633 @@ paths:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/EnrollmentExchangeRequest'}
+            schema:
+              $ref: '#/components/schemas/EnrollmentRequest'
       responses:
         '201':
-          description: Runner identity issued
+          description: Runner client certificate and control-plane trust material
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/EnrollmentExchangeResponse'}
-        '400': {$ref: '#/components/responses/Problem'}
-        '401': {$ref: '#/components/responses/Problem'}
-        '409': {$ref: '#/components/responses/Problem'}
+              schema:
+                $ref: '#/components/schemas/EnrollmentResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
   /runner/v1/certificates:rotate:
     post:
       operationId: rotateRunnerCertificate
-      security: [{RunnerMutualTls: []}]
+      summary: Rotate the authenticated Runner certificate using a locally generated CSR
+      security:
+        - RunnerMutualTls: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/CertificateRotationRequest'}
+            schema:
+              $ref: '#/components/schemas/CertificateRotationRequest'
       responses:
         '200':
-          description: Replacement certificate issued
+          description: Rotated certificate material
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/CertificateRotationResponse'}
-        '400': {$ref: '#/components/responses/Problem'}
-        '401': {$ref: '#/components/responses/Problem'}
-        '409': {$ref: '#/components/responses/Problem'}
+              schema:
+                $ref: '#/components/schemas/CertificateRotationResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
   /runner/v1/capability-bundle:
     put:
       operationId: publishRunnerCapabilityBundle
-      security: [{RunnerMutualTls: []}]
-      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      summary: Publish the public capability projection of the local Runner bundle
+      security:
+        - RunnerMutualTls: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: './public-capability-bundle.schema.json'}
+            schema:
+              $ref: './public-capability-bundle.schema.json'
       responses:
-        '204': {description: Bundle accepted or already current}
-        '400': {$ref: '#/components/responses/Problem'}
-        '401': {$ref: '#/components/responses/Problem'}
-        '409': {$ref: '#/components/responses/Problem'}
-        '413': {$ref: '#/components/responses/Problem'}
+        '204':
+          description: Public bundle accepted or already current
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
   /runner/v1/heartbeat:
     post:
-      operationId: observeRunnerHeartbeat
-      security: [{RunnerMutualTls: []}]
+      operationId: heartbeatRunner
+      summary: Refresh Runner liveness and advertised capacity
+      security:
+        - RunnerMutualTls: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/RunnerHeartbeat'}
+            schema:
+              $ref: '#/components/schemas/RunnerHeartbeat'
       responses:
-        '204': {description: Heartbeat accepted}
-        '400': {$ref: '#/components/responses/Problem'}
-        '401': {$ref: '#/components/responses/Problem'}
-        '409': {$ref: '#/components/responses/Problem'}
+        '204':
+          description: Heartbeat accepted
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
   /runner/v1/tasks:claim:
     post:
       operationId: claimRunnerTask
-      summary: Long-poll for one compatible task lease
-      security: [{RunnerMutualTls: []}]
+      summary: Perform one bounded long poll for a task lease
+      description: >-
+        The Engine waits outside a database transaction and performs a short fenced claim
+        transaction. HTTP Prefer controls the bounded wait and never changes PostgreSQL task
+        authority.
+      security:
+        - RunnerMutualTls: []
       parameters:
-        - name: waitSeconds
-          in: query
-          required: false
-          schema: {type: integer, minimum: 0, maximum: 30, default: 25}
+        - $ref: '#/components/parameters/WaitPreference'
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/TaskClaimRequest'}
+            schema:
+              $ref: '#/components/schemas/TaskClaimRequest'
       responses:
         '200':
-          description: Task lease granted
+          description: A fenced task lease
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Preference-Applied:
+              $ref: '#/components/headers/WaitPreferenceApplied'
           content:
             application/json:
-              schema: {$ref: './task-lease.schema.json'}
-        '204': {description: No compatible task became ready}
-        '400': {$ref: '#/components/responses/Problem'}
-        '401': {$ref: '#/components/responses/Problem'}
-        '409': {$ref: '#/components/responses/Problem'}
+              schema:
+                $ref: './task-lease.schema.json'
+        '204':
+          description: No compatible task became available during the bounded wait
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Preference-Applied:
+              $ref: '#/components/headers/WaitPreferenceApplied'
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
   /runner/v1/tasks/{taskId}:heartbeat:
     post:
       operationId: heartbeatRunnerTask
-      security: [{RunnerMutualTls: []}]
-      parameters: [{$ref: '#/components/parameters/TaskId'}]
+      summary: Extend or cancel the current fenced task lease
+      security:
+        - RunnerMutualTls: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/TaskLeaseReference'}
+            schema:
+              $ref: '#/components/schemas/LeaseReference'
       responses:
         '200':
-          description: Lease renewed
+          description: Current lease directive
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/TaskLeaseRenewal'}
-        '400': {$ref: '#/components/responses/Problem'}
-        '401': {$ref: '#/components/responses/Problem'}
-        '409': {$ref: '#/components/responses/Problem'}
-        '410': {$ref: '#/components/responses/Problem'}
+              schema:
+                $ref: '#/components/schemas/LeaseRenewal'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
   /runner/v1/tasks/{taskId}/artifacts/{artifactId}:
     put:
       operationId: uploadRunnerTaskArtifact
-      security: [{RunnerMutualTls: []}]
+      summary: Upload one bounded artifact under the current lease fence
+      security:
+        - RunnerMutualTls: []
       parameters:
-        - {$ref: '#/components/parameters/TaskId'}
-        - name: artifactId
-          in: path
-          required: true
-          schema: {type: string, format: uuid}
-        - {$ref: '#/components/parameters/LeaseId'}
-        - {$ref: '#/components/parameters/FencingToken'}
-        - {$ref: '#/components/parameters/IdempotencyKey'}
-        - name: Content-Digest
-          in: header
-          required: true
-          schema: {type: string, maxLength: 256}
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/ArtifactId'
+        - $ref: '#/components/parameters/LeaseIdHeader'
+        - $ref: '#/components/parameters/FencingTokenHeader'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ContentDigest'
       requestBody:
         required: true
         content:
           application/octet-stream:
-            schema: {type: string, format: binary}
+            schema:
+              type: string
+              contentEncoding: binary
       responses:
         '201':
-          description: Artifact stored
+          description: Artifact stored and digest verified
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ArtifactReceipt'}
-        '200':
-          description: Identical Artifact already stored
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ArtifactReceipt'}
-        '400': {$ref: '#/components/responses/Problem'}
-        '401': {$ref: '#/components/responses/Problem'}
-        '409': {$ref: '#/components/responses/Problem'}
-        '410': {$ref: '#/components/responses/Problem'}
-        '413': {$ref: '#/components/responses/Problem'}
+              schema:
+                $ref: '#/components/schemas/ArtifactReceipt'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
   /runner/v1/tasks/{taskId}:complete:
     post:
       operationId: completeRunnerTask
-      security: [{RunnerMutualTls: []}]
-      parameters: [{$ref: '#/components/parameters/TaskId'}, {$ref: '#/components/parameters/IdempotencyKey'}]
+      summary: Complete the current task attempt idempotently
+      security:
+        - RunnerMutualTls: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: './task-result.schema.json'}
+            schema:
+              $ref: './task-result.schema.json'
       responses:
         '200':
-          description: Completion accepted
+          description: Current task receipt; duplicate current-lease submission is idempotent
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/TaskReceipt'}
-        '400': {$ref: '#/components/responses/Problem'}
-        '401': {$ref: '#/components/responses/Problem'}
-        '409': {$ref: '#/components/responses/Problem'}
-        '410': {$ref: '#/components/responses/Problem'}
+              schema:
+                $ref: '#/components/schemas/TaskReceipt'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
   /runner/v1/tasks/{taskId}:fail:
     post:
       operationId: failRunnerTask
-      security: [{RunnerMutualTls: []}]
-      parameters: [{$ref: '#/components/parameters/TaskId'}, {$ref: '#/components/parameters/IdempotencyKey'}]
+      summary: Fail the current task attempt idempotently
+      security:
+        - RunnerMutualTls: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: './task-result.schema.json'}
+            schema:
+              $ref: './task-result.schema.json'
       responses:
         '200':
-          description: Failure accepted
+          description: Current task receipt; duplicate current-lease submission is idempotent
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/TaskReceipt'}
-        '400': {$ref: '#/components/responses/Problem'}
-        '401': {$ref: '#/components/responses/Problem'}
-        '409': {$ref: '#/components/responses/Problem'}
-        '410': {$ref: '#/components/responses/Problem'}
+              schema:
+                $ref: '#/components/schemas/TaskReceipt'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
   /runner/v1/observations:
     post:
       operationId: publishRunnerObservations
-      security: [{RunnerMutualTls: []}]
-      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      summary: Publish one bounded evidence-backed topology observation batch
+      security:
+        - RunnerMutualTls: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: './observation.schema.json'}
+            schema:
+              $ref: './observation.schema.json'
       responses:
         '202':
-          description: Observation accepted
+          description: Observation batch accepted for reconciliation
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ObservationReceipt'}
-        '400': {$ref: '#/components/responses/Problem'}
-        '401': {$ref: '#/components/responses/Problem'}
-        '409': {$ref: '#/components/responses/Problem'}
+              schema:
+                $ref: '#/components/schemas/ObservationReceipt'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
 components:
   securitySchemes:
-    RunnerAccessId: {type: apiKey, in: header, name: X-Weave-Access-Id}
-    RunnerEnrollmentSecret: {type: http, scheme: bearer, bearerFormat: one-time-enrollment-secret}
-    RunnerMutualTls: {type: mutualTLS}
+    RunnerAccessId:
+      type: apiKey
+      in: header
+      name: X-Weave-Runner-Access-Id
+    RunnerEnrollmentSecret:
+      type: http
+      scheme: bearer
+      bearerFormat: one-time-enrollment-secret
+    RunnerMutualTls:
+      type: mutualTLS
   parameters:
-    TaskId: {name: taskId, in: path, required: true, schema: {type: string, format: uuid}}
-    LeaseId: {name: X-Weave-Lease-Id, in: header, required: true, schema: {type: string, format: uuid}}
-    FencingToken: {name: X-Weave-Fencing-Token, in: header, required: true, schema: {type: integer, minimum: 1}}
-    IdempotencyKey: {name: Idempotency-Key, in: header, required: true, schema: {type: string, minLength: 16, maxLength: 256}}
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Identifier'
+    ArtifactId:
+      name: artifactId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Identifier'
+    LeaseIdHeader:
+      name: X-Weave-Lease-Id
+      in: header
+      required: true
+      schema:
+        $ref: '#/components/schemas/Identifier'
+    FencingTokenHeader:
+      name: X-Weave-Fencing-Token
+      in: header
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 256
+        pattern: '^[^\s]+$'
+    ContentDigest:
+      name: Content-Digest
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: '^sha-256=:[A-Za-z0-9+/]{43}=:$'
+    WaitPreference:
+      name: Prefer
+      in: header
+      required: false
+      description: >-
+        Strict bounded long-poll preference. The only accepted form is wait=N where N is an
+        integer from zero through 30. When omitted, the Engine applies wait=25.
+      schema:
+        type: string
+        pattern: '^wait=(0|[1-9]|[12][0-9]|30)$'
+        default: wait=25
+  headers:
+    CacheControlNoStore:
+      description: Runner control responses are never cacheable.
+      schema:
+        type: string
+        const: no-store
+    WaitPreferenceApplied:
+      description: The bounded wait preference applied by the Engine.
+      schema:
+        type: string
+        pattern: '^wait=(0|[1-9]|[12][0-9]|30)$'
+    RetryAfter:
+      description: Minimum number of seconds before an empty claim should be retried.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 30
+        default: 1
   responses:
     Problem:
-      description: Support-safe protocol or domain problem
+      description: RFC 9457 problem details
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
       content:
         application/problem+json:
-          schema: {$ref: '#/components/schemas/Problem'}
+          schema:
+            $ref: '#/components/schemas/Problem'
   schemas:
-    EnrollmentExchangeRequest:
+    Identifier:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$'
+    Digest:
+      type: string
+      pattern: '^sha256:[a-f0-9]{64}$'
+    Traceparent:
+      type: string
+      pattern: '^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$'
+    CapabilityReference:
+      type: object
+      additionalProperties: false
+      required: [id, version]
+      properties:
+        id:
+          $ref: '#/components/schemas/Identifier'
+        version:
+          type: string
+          minLength: 1
+          maxLength: 96
+    EnrollmentRequest:
       type: object
       additionalProperties: false
       required: [csrPem, bundleDigest, runnerVersion]
       properties:
-        csrPem: {type: string, minLength: 100, maxLength: 16384}
-        bundleDigest: {type: string, pattern: '^sha256:[a-f0-9]{64}$'}
-        runnerVersion: {type: string, minLength: 1, maxLength: 96}
-        labels: {type: object, maxProperties: 32, additionalProperties: {type: string, maxLength: 256}}
-    EnrollmentExchangeResponse:
+        csrPem:
+          type: string
+          minLength: 64
+          maxLength: 16384
+          pattern: '^-----BEGIN CERTIFICATE REQUEST-----'
+        bundleDigest:
+          $ref: '#/components/schemas/Digest'
+        runnerVersion:
+          type: string
+          minLength: 1
+          maxLength: 96
+        labels:
+          type: object
+          maxProperties: 32
+          additionalProperties:
+            type: string
+            maxLength: 256
+    EnrollmentResponse:
       type: object
       additionalProperties: false
       required: [runnerId, clientCertificatePem, caCertificatePem, certificateExpiresAt, controlBaseUrl]
       properties:
-        runnerId: {$ref: '#/components/schemas/RunnerId'}
-        clientCertificatePem: {type: string, minLength: 100, maxLength: 32768}
-        caCertificatePem: {type: string, minLength: 100, maxLength: 65536}
-        certificateExpiresAt: {type: string, format: date-time}
-        controlBaseUrl: {type: string, format: uri, pattern: '^https://'}
-    CertificateRotationRequest: {type: object, additionalProperties: false, required: [csrPem], properties: {csrPem: {type: string, minLength: 100, maxLength: 16384}}}
+        runnerId:
+          $ref: '#/components/schemas/Identifier'
+        clientCertificatePem:
+          type: string
+          minLength: 64
+          maxLength: 32768
+        caCertificatePem:
+          type: string
+          minLength: 64
+          maxLength: 32768
+        certificateExpiresAt:
+          type: string
+          format: date-time
+        controlBaseUrl:
+          type: string
+          format: uri
+          pattern: '^https://'
+    CertificateRotationRequest:
+      type: object
+      additionalProperties: false
+      required: [csrPem]
+      properties:
+        csrPem:
+          type: string
+          minLength: 64
+          maxLength: 16384
+          pattern: '^-----BEGIN CERTIFICATE REQUEST-----'
     CertificateRotationResponse:
       type: object
       additionalProperties: false
       required: [clientCertificatePem, caCertificatePem, certificateExpiresAt]
       properties:
-        clientCertificatePem: {type: string, minLength: 100, maxLength: 32768}
-        caCertificatePem: {type: string, minLength: 100, maxLength: 65536}
-        certificateExpiresAt: {type: string, format: date-time}
+        clientCertificatePem:
+          type: string
+          minLength: 64
+          maxLength: 32768
+        caCertificatePem:
+          type: string
+          minLength: 64
+          maxLength: 32768
+        certificateExpiresAt:
+          type: string
+          format: date-time
     RunnerHeartbeat:
       type: object
       additionalProperties: false
       required: [runnerId, runnerVersion, bundleDigest, runningTasks, capacity, observedAt]
       properties:
-        runnerId: {$ref: '#/components/schemas/RunnerId'}
-        runnerVersion: {type: string, minLength: 1, maxLength: 96}
-        bundleDigest: {type: string, pattern: '^sha256:[a-f0-9]{64}$'}
-        runningTasks: {type: integer, minimum: 0, maximum: 1024}
-        capacity: {type: integer, minimum: 1, maximum: 1024}
-        observedAt: {type: string, format: date-time}
+        runnerId:
+          $ref: '#/components/schemas/Identifier'
+        runnerVersion:
+          type: string
+          minLength: 1
+          maxLength: 96
+        bundleDigest:
+          $ref: '#/components/schemas/Digest'
+        runningTasks:
+          type: integer
+          minimum: 0
+          maximum: 1024
+        capacity:
+          type: integer
+          minimum: 1
+          maximum: 1024
+        observedAt:
+          type: string
+          format: date-time
     TaskClaimRequest:
       type: object
       additionalProperties: false
       required: [runnerId, bundleDigest, capabilities, availableSlots]
       properties:
-        runnerId: {$ref: '#/components/schemas/RunnerId'}
-        bundleDigest: {type: string, pattern: '^sha256:[a-f0-9]{64}$'}
-        capabilities: {type: array, maxItems: 128, items: {$ref: '#/components/schemas/CapabilityReference'}}
-        availableSlots: {type: integer, minimum: 1, maximum: 1024}
-    TaskLeaseReference: {type: object, additionalProperties: false, required: [leaseId, fencingToken], properties: {leaseId: {type: string, format: uuid}, fencingToken: {type: integer, minimum: 1}}}
-    TaskLeaseRenewal:
+        runnerId:
+          $ref: '#/components/schemas/Identifier'
+        bundleDigest:
+          $ref: '#/components/schemas/Digest'
+        capabilities:
+          type: array
+          minItems: 1
+          maxItems: 128
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/CapabilityReference'
+        availableSlots:
+          type: integer
+          minimum: 1
+          maximum: 1024
+    LeaseReference:
+      type: object
+      additionalProperties: false
+      required: [leaseId, fencingToken]
+      properties:
+        leaseId:
+          $ref: '#/components/schemas/Identifier'
+        fencingToken:
+          type: integer
+          format: int64
+          minimum: 1
+    LeaseRenewal:
       type: object
       additionalProperties: false
       required: [leaseId, fencingToken, expiresAt, cancelRequested]
-      properties: {leaseId: {type: string, format: uuid}, fencingToken: {type: integer, minimum: 1}, expiresAt: {type: string, format: date-time}, cancelRequested: {type: boolean}}
+      properties:
+        leaseId:
+          $ref: '#/components/schemas/Identifier'
+        fencingToken:
+          type: integer
+          format: int64
+          minimum: 1
+        expiresAt:
+          type: string
+          format: date-time
+        cancelRequested:
+          type: boolean
     ArtifactReceipt:
       type: object
       additionalProperties: false
       required: [artifactId, digest, size, uri]
-      properties: {artifactId: {type: string, format: uuid}, digest: {type: string, pattern: '^sha256:[a-f0-9]{64}$'}, size: {type: integer, minimum: 0}, uri: {type: string, pattern: '^weave://artifact/[^\\s]+$'}}
+      properties:
+        artifactId:
+          $ref: '#/components/schemas/Identifier'
+        digest:
+          $ref: '#/components/schemas/Digest'
+        size:
+          type: integer
+          format: int64
+          minimum: 0
+        uri:
+          type: string
+          pattern: '^weave://artifact/'
     TaskReceipt:
       type: object
       additionalProperties: false
       required: [taskId, state, stateRevision]
-      properties: {taskId: {type: string, format: uuid}, state: {enum: [SUCCEEDED, FAILED, CANCELLED]}, stateRevision: {type: integer, minimum: 1}, artifactUris: {type: array, maxItems: 128, items: {type: string, pattern: '^weave://artifact/[^\\s]+$'}}}
-    ObservationReceipt: {type: object, additionalProperties: false, required: [batchId, acceptedEntities, acceptedRelations], properties: {batchId: {type: string, format: uuid}, acceptedEntities: {type: integer, minimum: 0}, acceptedRelations: {type: integer, minimum: 0}}}
-    RunnerId: {type: string, pattern: '^runner_[A-Za-z0-9_-]{8,128}$'}
-    CapabilityReference: {type: object, additionalProperties: false, required: [id, version], properties: {id: {type: string, pattern: '^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$', maxLength: 128}, version: {type: string, minLength: 1, maxLength: 96}}}
-    Problem: {type: object, additionalProperties: true, required: [type, title, status], properties: {type: {type: string, format: uri-reference}, title: {type: string, maxLength: 256}, status: {type: integer, minimum: 400, maximum: 599}, detail: {type: string, maxLength: 1000}, instance: {type: string, format: uri-reference}}}
+      properties:
+        taskId:
+          $ref: '#/components/schemas/Identifier'
+        state:
+          enum: [SUCCEEDED, FAILED, CANCELLED]
+        stateRevision:
+          type: integer
+          format: int64
+          minimum: 1
+        artifactUris:
+          type: array
+          maxItems: 64
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^weave://artifact/'
+    ObservationReceipt:
+      type: object
+      additionalProperties: false
+      required: [batchId, acceptedEntities, acceptedRelations]
+      properties:
+        batchId:
+          $ref: '#/components/schemas/Identifier'
+        acceptedEntities:
+          type: integer
+          minimum: 0
+        acceptedRelations:
+          type: integer
+          minimum: 0
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+          maxLength: 1000
+        instance:
+          type: string
+          format: uri-reference
