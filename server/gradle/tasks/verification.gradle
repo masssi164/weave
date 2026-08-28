@@ -79,7 +79,9 @@ tasks.register('runnerPostgresLeaseTest', Test) {
     filter {
         includeTestsMatching '*JpaRunnerTaskStorePostgresTest'
     }
-    useJUnitPlatform()
+    useJUnitPlatform {
+        includeEngines 'junit-jupiter'
+    }
     outputs.upToDateWhen { false }
 }
 
