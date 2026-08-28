@@ -11,7 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Entity-first PostgreSQL task queue with skip-locked claims and fenced outcomes. */
+/** Entity-first PostgreSQL task queue with registry-qualified skip-locked claims. */
 public class JpaRunnerTaskStore implements RunnerTaskStore {
 
     private final EntityManager entityManager;
@@ -62,28 +62,39 @@ public class JpaRunnerTaskStore implements RunnerTaskStore {
         Objects.requireNonNull(claim, "claim");
         List<?> candidates = entityManager.createNativeQuery(
                         """
-                        select task_id
-                        from weave_runner_tasks
-                        where organization_ref = :organizationRef
-                          and bundle_digest = :bundleDigest
-                          and capability_coordinate in (:capabilityCoordinates)
-                          and cancel_requested_at_utc is null
-                          and available_at_utc <= :now
-                          and deadline_at_utc > :now
+                        select task.task_id
+                        from weave_runner_tasks task
+                        join weave_runner_capability_definitions definition
+                          on definition.organization_ref = task.organization_ref
+                         and definition.capability_id = task.capability_id
+                         and definition.capability_version = task.capability_version
+                         and definition.contract_digest = task.capability_contract_digest
+                        join weave_runner_capability_offerings offering
+                          on offering.organization_ref = task.organization_ref
+                         and offering.capability_definition_id = definition.capability_definition_id
+                        where task.organization_ref = :organizationRef
+                          and offering.runner_id = :runnerId
+                          and offering.public_bundle_digest = :publicBundleDigest
+                          and offering.active = true
+                          and offering.runner_state in ('ONLINE', 'DEGRADED')
+                          and offering.available_slots > 0
+                          and task.cancel_requested_at_utc is null
+                          and task.available_at_utc <= :now
+                          and task.deadline_at_utc > :now
                           and (
-                                task_state = 'READY'
+                                task.task_state = 'READY'
                                 or (
-                                    task_state in ('LEASED', 'RUNNING')
-                                    and lease_expires_at_utc <= :now
+                                    task.task_state in ('LEASED', 'RUNNING')
+                                    and task.lease_expires_at_utc <= :now
                                 )
                           )
-                        order by priority desc, created_at_utc, task_id
+                        order by task.priority desc, task.created_at_utc, task.task_id
                         limit 1
-                        for update skip locked
+                        for update of task skip locked
                         """)
                 .setParameter("organizationRef", claim.organizationRef())
-                .setParameter("bundleDigest", claim.bundleDigest())
-                .setParameter("capabilityCoordinates", claim.capabilityCoordinates())
+                .setParameter("runnerId", claim.runnerId().value())
+                .setParameter("publicBundleDigest", claim.publicBundleDigest())
                 .setParameter("now", RunnerPersistenceTime.utc(claim.now()))
                 .getResultList();
         if (candidates.isEmpty()) {
