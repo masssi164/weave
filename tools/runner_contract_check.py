@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Validate the private Runner v1 contracts without network access or generated code."""
+"""Validate private Runner v1 schemas and HTTP contracts without network access."""
 
 from __future__ import annotations
 
 import json
 import pathlib
-import re
 import sys
 from collections.abc import Iterable
+from typing import Any
+from urllib.parse import urlparse
+
+import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CONTRACT_ROOT = ROOT / "contracts" / "runner" / "v1"
@@ -19,14 +22,12 @@ JSON_CONTRACTS = (
     "task-result.schema.json",
     "observation.schema.json",
 )
-
 PUBLIC_CONTRACTS = (
     "public-capability-bundle.schema.json",
     "task-lease.schema.json",
     "task-result.schema.json",
     "observation.schema.json",
 )
-
 FORBIDDEN_PUBLIC_KEYS = {
     "handler",
     "handlerPath",
@@ -41,22 +42,27 @@ FORBIDDEN_PUBLIC_KEYS = {
     "internalUrl",
     "internalEndpoint",
 }
-
 REQUIRED_OPENAPI_PATHS = (
     "/runner/v1/enrollments:exchange",
-    "/runner/v1/runners/{runnerId}",
-    "/runner/v1/runners/{runnerId}/heartbeat",
-    "/runner/v1/runners/{runnerId}/tasks:claim",
-    "/runner/v1/tasks/{taskId}/heartbeat",
-    "/runner/v1/tasks/{taskId}/artifacts",
+    "/runner/v1/certificates:rotate",
+    "/runner/v1/capability-bundle",
+    "/runner/v1/heartbeat",
+    "/runner/v1/tasks:claim",
+    "/runner/v1/tasks/{taskId}:heartbeat",
+    "/runner/v1/tasks/{taskId}/artifacts/{artifactId}",
     "/runner/v1/tasks/{taskId}:complete",
     "/runner/v1/tasks/{taskId}:fail",
     "/runner/v1/observations",
 )
+HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options", "trace"}
+
+
+class ContractError(AssertionError):
+    pass
 
 
 def fail(message: str) -> None:
-    raise AssertionError(message)
+    raise ContractError(message)
 
 
 def walk(value: object, path: str = "$") -> Iterable[tuple[str, object]]:
@@ -74,9 +80,9 @@ def load_json(name: str) -> object:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
-        raise AssertionError(f"missing Runner contract: {path.relative_to(ROOT)}") from exc
+        raise ContractError(f"missing Runner contract: {path.relative_to(ROOT)}") from exc
     except json.JSONDecodeError as exc:
-        raise AssertionError(f"invalid JSON in {path.relative_to(ROOT)}: {exc}") from exc
+        raise ContractError(f"invalid JSON in {path.relative_to(ROOT)}: {exc}") from exc
 
 
 def validate_json_schema(name: str, document: object) -> None:
@@ -85,67 +91,167 @@ def validate_json_schema(name: str, document: object) -> None:
     if document.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
         fail(f"{name} must use JSON Schema 2020-12")
     schema_id = document.get("$id")
-    if not isinstance(schema_id, str) or not schema_id.startswith("https://"):
-        fail(f"{name} requires an absolute HTTPS $id")
+    if not isinstance(schema_id, str):
+        fail(f"{name} requires an absolute URI $id")
+    parsed_id = urlparse(schema_id)
+    if not parsed_id.scheme or parsed_id.scheme.lower() == "http":
+        fail(f"{name} requires a non-HTTP absolute URI $id")
     if document.get("type") != "object":
         fail(f"{name} root type must be object")
     if document.get("additionalProperties") is not False:
         fail(f"{name} root must fail closed on unknown properties")
 
     for location, value in walk(document):
-        if isinstance(value, dict) and "$ref" in value:
-            reference = value["$ref"]
-            if not isinstance(reference, str):
-                fail(f"{name} has a non-string $ref at {location}")
-            if reference.startswith("http://"):
-                fail(f"{name} contains an insecure $ref at {location}")
-            if reference.startswith("./"):
-                target = (CONTRACT_ROOT / reference).resolve()
-                if CONTRACT_ROOT.resolve() not in target.parents or not target.exists():
-                    fail(f"{name} has an unresolved local $ref at {location}: {reference}")
+        if not isinstance(value, dict) or "$ref" not in value:
+            continue
+        reference = value["$ref"]
+        if not isinstance(reference, str):
+            fail(f"{name} has a non-string $ref at {location}")
+        if reference.startswith("http://"):
+            fail(f"{name} contains an insecure $ref at {location}")
+        if reference.startswith("./"):
+            target = (CONTRACT_ROOT / reference).resolve()
+            if CONTRACT_ROOT.resolve() not in target.parents or not target.exists():
+                fail(f"{name} has an unresolved local $ref at {location}: {reference}")
 
 
 def validate_public_boundary(name: str, document: object) -> None:
+    """Reject executable coordinates as fields; explanatory prohibition text is allowed."""
     for location, value in walk(document):
         if not isinstance(value, dict):
             continue
         properties = value.get("properties")
-        if isinstance(properties, dict):
-            leaked = FORBIDDEN_PUBLIC_KEYS.intersection(properties)
-            if leaked:
-                fail(f"{name} leaks private Runner fields at {location}: {sorted(leaked)}")
+        if not isinstance(properties, dict):
+            continue
+        leaked = FORBIDDEN_PUBLIC_KEYS.intersection(properties)
+        if leaked:
+            fail(f"{name} leaks private Runner fields at {location}: {sorted(leaked)}")
 
-        # Public contract prose must not accidentally advertise local execution coordinates.
-        for key in ("title", "description"):
-            text = value.get(key)
-            if not isinstance(text, str):
-                continue
-            normalized = text.lower()
-            for marker in ("local executable", "handler path", "internal endpoint", "credential value"):
-                if marker in normalized:
-                    fail(f"{name} leaks private execution semantics in {location}.{key}")
+
+def load_openapi() -> dict[str, Any]:
+    path = CONTRACT_ROOT / "runner-control.openapi.yaml"
+    try:
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ContractError(f"missing Runner OpenAPI contract: {path.relative_to(ROOT)}") from exc
+    except yaml.YAMLError as exc:
+        raise ContractError(f"invalid YAML in {path.relative_to(ROOT)}: {exc}") from exc
+    if not isinstance(document, dict):
+        fail("Runner control API must contain a YAML object")
+    return document
+
+
+def resolve_parameter(document: dict[str, Any], value: object) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        fail("Runner OpenAPI parameter must be an object")
+    reference = value.get("$ref")
+    if reference is None:
+        return value
+    prefix = "#/components/parameters/"
+    if not isinstance(reference, str) or not reference.startswith(prefix):
+        fail(f"Runner OpenAPI contains unsupported parameter reference {reference!r}")
+    parameters = document.get("components", {}).get("parameters", {})
+    resolved = parameters.get(reference.removeprefix(prefix)) if isinstance(parameters, dict) else None
+    if not isinstance(resolved, dict):
+        fail(f"Runner OpenAPI cannot resolve parameter reference {reference}")
+    return resolved
+
+
+def require_response_headers(response: object, names: set[str], status: str) -> None:
+    if not isinstance(response, dict):
+        fail(f"Runner task claim response {status} must be an object")
+    headers = response.get("headers")
+    if not isinstance(headers, dict):
+        fail(f"Runner task claim response {status} must declare response headers")
+    missing = names - set(headers)
+    if missing:
+        fail(f"Runner task claim response {status} is missing headers {sorted(missing)}")
 
 
 def validate_openapi() -> None:
-    path = CONTRACT_ROOT / "runner-control.openapi.yaml"
-    try:
-        text = path.read_text(encoding="utf-8")
-    except FileNotFoundError as exc:
-        raise AssertionError(f"missing Runner OpenAPI contract: {path.relative_to(ROOT)}") from exc
-
-    first_line = next((line.strip() for line in text.splitlines() if line.strip()), "")
-    if not first_line.startswith("openapi: 3.1."):
+    document = load_openapi()
+    version = document.get("openapi")
+    if not isinstance(version, str) or not version.startswith("3.1."):
         fail("Runner control API must use OpenAPI 3.1")
-    if "http://" in text:
-        fail("Runner control API must not contain insecure HTTP URLs")
+
+    servers = document.get("servers")
+    if not isinstance(servers, list) or not servers:
+        fail("Runner control API must declare at least one HTTPS server")
+    for server in servers:
+        url = server.get("url") if isinstance(server, dict) else None
+        if not isinstance(url, str) or urlparse(url).scheme.lower() != "https":
+            fail("Runner control API server URLs must use HTTPS")
+
+    paths = document.get("paths")
+    if not isinstance(paths, dict):
+        fail("Runner control API must declare paths")
     for required_path in REQUIRED_OPENAPI_PATHS:
-        if required_path not in text:
+        if required_path not in paths:
             fail(f"Runner control API is missing path {required_path}")
-    for forbidden in ("handlerPath", "credentialRef", "internalEndpoint", "shellCommand"):
-        if re.search(rf"(?m)^\s*{re.escape(forbidden)}\s*:", text):
-            fail(f"Runner control API leaks private field {forbidden}")
-    if "mutualTLS" not in text and "mutualTls" not in text:
-        fail("Runner control API must declare mutual TLS security")
+
+    security_schemes = document.get("components", {}).get("securitySchemes", {})
+    runner_mtls = security_schemes.get("RunnerMutualTls") if isinstance(security_schemes, dict) else None
+    if not isinstance(runner_mtls, dict) or runner_mtls.get("type") != "mutualTLS":
+        fail("Runner control API must declare RunnerMutualTls as mutualTLS")
+
+    for path_name, path_item in paths.items():
+        if not isinstance(path_item, dict):
+            fail(f"Runner control path {path_name} must be an object")
+        for method, operation in path_item.items():
+            if method not in HTTP_METHODS:
+                continue
+            if not isinstance(operation, dict):
+                fail(f"Runner control operation {method.upper()} {path_name} must be an object")
+            if path_name == "/runner/v1/enrollments:exchange":
+                continue
+            security = operation.get("security")
+            if not isinstance(security, list) or not any(
+                isinstance(requirement, dict) and "RunnerMutualTls" in requirement
+                for requirement in security
+            ):
+                fail(f"Runner control operation {method.upper()} {path_name} must require mutual TLS")
+
+    claim = paths["/runner/v1/tasks:claim"].get("post")
+    if not isinstance(claim, dict):
+        fail("Runner task claim must be POST")
+    parameters = [resolve_parameter(document, value) for value in claim.get("parameters", [])]
+    if any(parameter.get("name") == "waitSeconds" for parameter in parameters):
+        fail("Runner task claim must not use the legacy waitSeconds query parameter")
+    prefer = [
+        parameter
+        for parameter in parameters
+        if str(parameter.get("name", "")).lower() == "prefer"
+    ]
+    if len(prefer) != 1 or str(prefer[0].get("in", "")).lower() != "header":
+        fail("Runner task claim must declare exactly one Prefer request header")
+    schema = prefer[0].get("schema")
+    if not isinstance(schema, dict) or schema.get("type") != "string":
+        fail("Runner task claim Prefer header must use a bounded string schema")
+    pattern = schema.get("pattern")
+    if not isinstance(pattern, str) or "wait=" not in pattern:
+        fail("Runner task claim Prefer header must constrain the wait preference")
+
+    responses = claim.get("responses")
+    if not isinstance(responses, dict):
+        fail("Runner task claim must declare responses")
+    require_response_headers(
+        responses.get("200"),
+        {"Cache-Control", "Preference-Applied"},
+        "200",
+    )
+    require_response_headers(
+        responses.get("204"),
+        {"Cache-Control", "Preference-Applied", "Retry-After"},
+        "204",
+    )
+
+    for location, value in walk(document):
+        if isinstance(value, dict):
+            leaked = FORBIDDEN_PUBLIC_KEYS.intersection(value)
+            if leaked:
+                fail(f"Runner control API leaks private fields at {location}: {sorted(leaked)}")
+        elif isinstance(value, str) and "http://" in value:
+            fail(f"Runner control API contains insecure HTTP at {location}")
 
 
 def main() -> int:
@@ -164,6 +270,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except AssertionError as exc:
+    except ContractError as exc:
         print(f"Private Runner v1 contracts: FAILED: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc

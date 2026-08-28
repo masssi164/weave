@@ -65,6 +65,27 @@ tasks.register('openApiContractExport', Test) {
     outputs.upToDateWhen { false }
 }
 
+tasks.register('runnerPostgresLeaseTest', Test) {
+    group = 'verification'
+    description = 'Run focused PostgreSQL claim, fencing, heartbeat, cancellation, and bounded long-poll contracts.'
+    dependsOn tasks.named('testClasses')
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    maxParallelForks = 1
+    systemProperty 'weave.test.postgres', 'true'
+    testLogging {
+        exceptionFormat = 'full'
+    }
+    filter {
+        includeTestsMatching '*JpaRunnerTaskStorePostgresTest'
+        includeTestsMatching '*RunnerTaskQueuePostgresTest'
+    }
+    useJUnitPlatform {
+        includeEngines 'junit-jupiter'
+    }
+    outputs.upToDateWhen { false }
+}
+
 tasks.register('postgresJpaTest', Test) {
     group = 'verification'
     description = 'Run the authoritative JPA repository, constraint, transaction, migration, and restore contracts against PostgreSQL.'
