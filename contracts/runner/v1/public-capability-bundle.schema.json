@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:weave:runner:public-capability-bundle:v1",
   "title": "Weave Runner public capability bundle v1",
-  "description": "Sanitized capability contracts published to the Engine. Local handlers, arguments, environment names, internal endpoints and credentials are forbidden.",
+  "description": "Sanitized capability contracts published to the Engine. Local handlers, arguments, environment names, internal endpoints and credentials are forbidden. Digests cover only this public contract and are independent of private execution metadata.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "bundleId", "bundleVersion", "bundleDigest", "capabilities"],
@@ -10,17 +10,21 @@
     "schemaVersion": {"const": "weave.runner.public-capability-bundle/v1"},
     "bundleId": {"$ref": "#/$defs/identifier"},
     "bundleVersion": {"$ref": "#/$defs/semanticVersion"},
-    "bundleDigest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "bundleDigest": {
+      "description": "Canonical digest of the public bundle identity and ordered public capability contract digests. Private handler configuration is excluded.",
+      "$ref": "#/$defs/digest"
+    },
     "capabilities": {"type": "array", "minItems": 1, "maxItems": 128, "items": {"$ref": "#/$defs/capability"}}
   },
   "$defs": {
     "identifier": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$", "minLength": 1, "maxLength": 128},
     "semanticVersion": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$", "maxLength": 96},
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
     "jsonSchema": {"type": ["object", "boolean"]},
     "capability": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "version", "title", "description", "effect", "inputSchema", "inputSchemaDigest", "outputSchema", "outputSchemaDigest", "timeoutSeconds", "maxOutputBytes", "artifactTypes"],
+      "required": ["id", "version", "title", "description", "effect", "inputSchema", "inputSchemaDigest", "outputSchema", "outputSchemaDigest", "timeoutSeconds", "maxOutputBytes", "artifactTypes", "contractDigest"],
       "properties": {
         "id": {"$ref": "#/$defs/identifier"},
         "version": {"$ref": "#/$defs/semanticVersion"},
@@ -28,12 +32,16 @@
         "description": {"type": "string", "maxLength": 1000},
         "effect": {"enum": ["READ_ONLY", "IDEMPOTENT_WRITE", "NON_IDEMPOTENT_WRITE"]},
         "inputSchema": {"$ref": "#/$defs/jsonSchema"},
-        "inputSchemaDigest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "inputSchemaDigest": {"$ref": "#/$defs/digest"},
         "outputSchema": {"$ref": "#/$defs/jsonSchema"},
-        "outputSchemaDigest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "outputSchemaDigest": {"$ref": "#/$defs/digest"},
         "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 3600},
         "maxOutputBytes": {"type": "integer", "minimum": 1024, "maximum": 16777216},
-        "artifactTypes": {"type": "array", "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 160}}
+        "artifactTypes": {"type": "array", "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 160}},
+        "contractDigest": {
+          "description": "Canonical digest of the agent-visible capability contract. It excludes Runner-local implementation and credential coordinates.",
+          "$ref": "#/$defs/digest"
+        }
       }
     }
   }
