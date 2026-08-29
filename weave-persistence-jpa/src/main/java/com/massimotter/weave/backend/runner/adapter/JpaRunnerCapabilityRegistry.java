@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.runner.adapter;
 
 import com.massimotter.weave.backend.runner.application.RunnerCapabilityRegistry;
 import com.massimotter.weave.backend.runner.domain.RunnerControl.CapabilityRef;
+import com.massimotter.weave.backend.runner.domain.RunnerControl.RunnerId;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.util.ArrayList;
@@ -10,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import org.springframework.transaction.annotation.Transactional;
 
 /** PostgreSQL-backed public capability catalog with replaceable Runner offerings. */
@@ -109,6 +111,54 @@ public class JpaRunnerCapabilityRegistry implements RunnerCapabilityRegistry {
     }
 
     @Override
+    @Transactional
+    public AvailabilityResult observeAvailability(AvailabilityObservation observation) {
+        AvailabilityObservation value = Objects.requireNonNull(observation, "observation");
+        List<RunnerCapabilityOfferingJpaEntity> offerings = entityManager.createQuery(
+                        """
+                        select offering
+                        from RunnerCapabilityOfferingJpaEntity offering
+                        where offering.organizationRef = :organizationRef
+                          and offering.runnerId = :runnerId
+                          and offering.publicBundleDigest = :publicBundleDigest
+                          and offering.active = true
+                        order by offering.capabilityId, offering.capabilityVersion
+                        """,
+                        RunnerCapabilityOfferingJpaEntity.class)
+                .setParameter("organizationRef", value.organizationRef())
+                .setParameter("runnerId", value.runnerId().value())
+                .setParameter("publicBundleDigest", value.publicBundleDigest())
+                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+                .getResultList();
+        if (offerings.isEmpty()) {
+            throw new IllegalStateException(
+                    "Runner heartbeat references an unpublished public capability bundle");
+        }
+
+        RunnerSessionJpaEntity session = entityManager.find(
+                RunnerSessionJpaEntity.class,
+                value.runnerId().value(),
+                LockModeType.PESSIMISTIC_WRITE);
+        AvailabilityDisposition disposition;
+        if (session == null) {
+            session = RunnerSessionJpaEntity.create(value);
+            entityManager.persist(session);
+            disposition = AvailabilityDisposition.CREATED;
+        } else {
+            disposition = session.observe(value);
+        }
+
+        for (RunnerCapabilityOfferingJpaEntity offering : offerings) {
+            offering.observeAvailability(value);
+        }
+        entityManager.flush();
+        return new AvailabilityResult(
+                disposition,
+                offerings.size(),
+                value.availableSlots());
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public CatalogSnapshot catalog(String organizationRef) {
         String organization = organization(organizationRef);
@@ -148,6 +198,28 @@ public class JpaRunnerCapabilityRegistry implements RunnerCapabilityRegistry {
                 .stream()
                 .map(RunnerCapabilityOfferingJpaEntity::snapshot)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<RunnerSession> session(
+            String organizationRef,
+            RunnerId runnerId) {
+        String organization = organization(organizationRef);
+        RunnerId runner = Objects.requireNonNull(runnerId, "runnerId");
+        return entityManager.createQuery(
+                        """
+                        select session
+                        from RunnerSessionJpaEntity session
+                        where session.organizationRef = :organizationRef
+                          and session.runnerId = :runnerId
+                        """,
+                        RunnerSessionJpaEntity.class)
+                .setParameter("organizationRef", organization)
+                .setParameter("runnerId", runner.value())
+                .getResultStream()
+                .findFirst()
+                .map(RunnerSessionJpaEntity::snapshot);
     }
 
     private RunnerCapabilityCatalogJpaEntity lockCatalog(PublicBundlePublication publication) {
