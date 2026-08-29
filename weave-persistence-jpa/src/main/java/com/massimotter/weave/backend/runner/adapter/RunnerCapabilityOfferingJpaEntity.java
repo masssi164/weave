@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.runner.adapter;
 
+import com.massimotter.weave.backend.runner.application.RunnerCapabilityRegistry.AvailabilityObservation;
 import com.massimotter.weave.backend.runner.application.RunnerCapabilityRegistry.PublicBundlePublication;
 import com.massimotter.weave.backend.runner.application.RunnerCapabilityRegistry.RunnerOffering;
 import com.massimotter.weave.backend.runner.domain.RunnerControl.CapabilityId;
@@ -135,6 +136,30 @@ class RunnerCapabilityOfferingJpaEntity {
         return true;
     }
 
+    boolean observeAvailability(AvailabilityObservation observation) {
+        requireAvailabilityIdentity(observation);
+        Instant current = observedAt.toInstant();
+        if (observation.observedAt().isBefore(current)) {
+            throw new IllegalStateException("stale Runner availability observation");
+        }
+        boolean sameValues = runnerState.equals(observation.runnerState().name())
+                && capacity == observation.capacity()
+                && availableSlots == observation.availableSlots()
+                && active;
+        if (observation.observedAt().equals(current)) {
+            if (sameValues) {
+                return false;
+            }
+            throw new IllegalStateException(
+                    "conflicting Runner availability observation at the same observedAt");
+        }
+        runnerState = observation.runnerState().name();
+        capacity = observation.capacity();
+        availableSlots = observation.availableSlots();
+        observedAt = RunnerPersistenceTime.utc(observation.observedAt());
+        return true;
+    }
+
     boolean deactivate(Instant publicationObservedAt) {
         Instant current = observedAt.toInstant();
         if (publicationObservedAt.isBefore(current)) {
@@ -184,6 +209,14 @@ class RunnerCapabilityOfferingJpaEntity {
         if (!organizationRef.equals(publication.organizationRef())
                 || !runnerId.equals(publication.runnerId().value())) {
             throw new IllegalArgumentException("Runner offering publication identity mismatch");
+        }
+    }
+
+    private void requireAvailabilityIdentity(AvailabilityObservation observation) {
+        if (!organizationRef.equals(observation.organizationRef())
+                || !runnerId.equals(observation.runnerId().value())
+                || !publicBundleDigest.equals(observation.publicBundleDigest())) {
+            throw new IllegalArgumentException("Runner offering availability identity mismatch");
         }
     }
 

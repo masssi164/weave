@@ -93,6 +93,7 @@ public final class JpaTestDatabase {
   public static synchronized DriverManagerDataSource entityFirstDataSource(String semanticName) {
     DriverManagerDataSource dataSource = dataSource(semanticName);
     initializeSchema(dataSource);
+    seedEntityFirstFixtures(dataSource);
     return dataSource;
   }
 
@@ -180,6 +181,17 @@ public final class JpaTestDatabase {
     EntityManager entityManager =
         SharedEntityManagerCreator.createSharedEntityManager(entityManagerFactory);
     return new Context(entityManager, entityManagerFactory, transactions);
+  }
+
+  private static void seedEntityFirstFixtures(DataSource dataSource) {
+    try (var connection = dataSource.getConnection();
+        var statement = connection.prepareStatement(
+            "insert into weave_runner_capability_catalog_locks (lock_id) values (?)")) {
+      statement.setString(1, "public-capability-catalog");
+      statement.executeUpdate();
+    } catch (SQLException failure) {
+      throw new IllegalStateException("entity-first singleton fixtures could not be seeded", failure);
+    }
   }
 
   private static void register(DataSource dataSource, Context context) {

@@ -8,16 +8,12 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-/**
- * Durable public capability catalog and the replaceable Runner offerings that implement it.
- *
- * <p>The catalog is the northbound tool truth. Offerings are southbound availability and may
- * change without changing the public tool schema or catalog revision.
- */
+/** Durable public capability catalog, Runner offerings, and live Runner session state. */
 public interface RunnerCapabilityRegistry {
 
     Pattern DIGEST = Pattern.compile("sha256:[a-f0-9]{64}");
@@ -28,9 +24,13 @@ public interface RunnerCapabilityRegistry {
 
     PublicationResult publish(PublicBundlePublication publication);
 
+    AvailabilityResult observeAvailability(AvailabilityObservation observation);
+
     CatalogSnapshot catalog(String organizationRef);
 
     List<RunnerOffering> offerings(String organizationRef, CapabilityRef capability);
+
+    Optional<RunnerSession> session(String organizationRef, RunnerId runnerId);
 
     enum PublicationDisposition {
         CREATED,
@@ -38,10 +38,13 @@ public interface RunnerCapabilityRegistry {
         IDEMPOTENT_REPLAY
     }
 
-    record CapabilityContract(
-            CapabilityDescriptor descriptor,
-            String contractDigest) {
+    enum AvailabilityDisposition {
+        CREATED,
+        UPDATED,
+        IDEMPOTENT_REPLAY
+    }
 
+    record CapabilityContract(CapabilityDescriptor descriptor, String contractDigest) {
         public CapabilityContract {
             descriptor = Objects.requireNonNull(descriptor, "descriptor");
             contractDigest = digest(contractDigest, "contractDigest");
@@ -66,15 +69,9 @@ public interface RunnerCapabilityRegistry {
 
         public PublicBundlePublication {
             runnerId = Objects.requireNonNull(runnerId, "runnerId");
-            organizationRef = bounded(required(organizationRef, "organizationRef"), 256, "organizationRef");
-            bundleId = required(bundleId, "bundleId");
-            if (!IDENTIFIER.matcher(bundleId).matches()) {
-                throw new IllegalArgumentException("bundleId has an invalid format");
-            }
-            bundleVersion = required(bundleVersion, "bundleVersion");
-            if (!VERSION.matcher(bundleVersion).matches()) {
-                throw new IllegalArgumentException("bundleVersion has an invalid format");
-            }
+            organizationRef = organization(organizationRef);
+            bundleId = identifier(bundleId, "bundleId");
+            bundleVersion = version(bundleVersion, "bundleVersion");
             publicBundleDigest = digest(publicBundleDigest, "publicBundleDigest");
             capabilities = List.copyOf(capabilities == null ? List.of() : capabilities);
             if (capabilities.isEmpty()
@@ -90,14 +87,45 @@ public interface RunnerCapabilityRegistry {
                 }
             }
             runnerState = Objects.requireNonNull(runnerState, "runnerState");
+            validateCapacity(capacity, availableSlots);
+            observedAt = Objects.requireNonNull(observedAt, "observedAt");
+        }
+    }
+
+    record AvailabilityObservation(
+            RunnerId runnerId,
+            String organizationRef,
+            String publicBundleDigest,
+            String runnerVersion,
+            RunnerState runnerState,
+            int capacity,
+            int runningTasks,
+            Instant observedAt) {
+
+        public AvailabilityObservation {
+            runnerId = Objects.requireNonNull(runnerId, "runnerId");
+            organizationRef = organization(organizationRef);
+            publicBundleDigest = digest(publicBundleDigest, "publicBundleDigest");
+            runnerVersion = version(runnerVersion, "runnerVersion");
+            runnerState = Objects.requireNonNull(runnerState, "runnerState");
+            if (runnerState != RunnerState.ONLINE
+                    && runnerState != RunnerState.DEGRADED
+                    && runnerState != RunnerState.OFFLINE
+                    && runnerState != RunnerState.REVOKED) {
+                throw new IllegalArgumentException("heartbeat Runner state is unsupported");
+            }
             if (capacity < 1 || capacity > 1024) {
                 throw new IllegalArgumentException("capacity must be between one and 1024");
             }
-            if (availableSlots < 0 || availableSlots > capacity) {
+            if (runningTasks < 0 || runningTasks > capacity) {
                 throw new IllegalArgumentException(
-                        "availableSlots must be between zero and capacity");
+                        "runningTasks must be between zero and capacity");
             }
             observedAt = Objects.requireNonNull(observedAt, "observedAt");
+        }
+
+        public int availableSlots() {
+            return capacity - runningTasks;
         }
     }
 
@@ -106,12 +134,23 @@ public interface RunnerCapabilityRegistry {
             PublicationDisposition disposition,
             int capabilityDefinitions,
             int activeOfferings) {
-
         public PublicationResult {
             if (catalogRevision < 0 || capabilityDefinitions < 0 || activeOfferings < 0) {
                 throw new IllegalArgumentException("publication counters must not be negative");
             }
             disposition = Objects.requireNonNull(disposition, "disposition");
+        }
+    }
+
+    record AvailabilityResult(
+            AvailabilityDisposition disposition,
+            int updatedOfferings,
+            int availableSlots) {
+        public AvailabilityResult {
+            disposition = Objects.requireNonNull(disposition, "disposition");
+            if (updatedOfferings < 1 || availableSlots < 0 || availableSlots > 1024) {
+                throw new IllegalArgumentException("availability result counters are invalid");
+            }
         }
     }
 
@@ -121,10 +160,9 @@ public interface RunnerCapabilityRegistry {
             CapabilityContract contract,
             long introducedRevision,
             Instant createdAt) {
-
         public CapabilityDefinition {
             definitionId = Objects.requireNonNull(definitionId, "definitionId");
-            organizationRef = bounded(required(organizationRef, "organizationRef"), 256, "organizationRef");
+            organizationRef = organization(organizationRef);
             contract = Objects.requireNonNull(contract, "contract");
             if (introducedRevision < 1) {
                 throw new IllegalArgumentException("introducedRevision must be positive");
@@ -137,9 +175,8 @@ public interface RunnerCapabilityRegistry {
             String organizationRef,
             long revision,
             List<CapabilityDefinition> definitions) {
-
         public CatalogSnapshot {
-            organizationRef = bounded(required(organizationRef, "organizationRef"), 256, "organizationRef");
+            organizationRef = organization(organizationRef);
             if (revision < 0) {
                 throw new IllegalArgumentException("revision must not be negative");
             }
@@ -161,20 +198,17 @@ public interface RunnerCapabilityRegistry {
             int availableSlots,
             Instant observedAt,
             boolean active) {
-
         public RunnerOffering {
             offeringId = Objects.requireNonNull(offeringId, "offeringId");
-            organizationRef = bounded(required(organizationRef, "organizationRef"), 256, "organizationRef");
+            organizationRef = organization(organizationRef);
             runnerId = Objects.requireNonNull(runnerId, "runnerId");
             capability = Objects.requireNonNull(capability, "capability");
             contractDigest = digest(contractDigest, "contractDigest");
             publicBundleDigest = digest(publicBundleDigest, "publicBundleDigest");
-            bundleId = required(bundleId, "bundleId");
-            bundleVersion = required(bundleVersion, "bundleVersion");
+            bundleId = identifier(bundleId, "bundleId");
+            bundleVersion = version(bundleVersion, "bundleVersion");
             runnerState = Objects.requireNonNull(runnerState, "runnerState");
-            if (capacity < 1 || availableSlots < 0 || availableSlots > capacity) {
-                throw new IllegalArgumentException("offering capacity is invalid");
-            }
+            validateCapacity(capacity, availableSlots);
             observedAt = Objects.requireNonNull(observedAt, "observedAt");
         }
 
@@ -183,6 +217,50 @@ public interface RunnerCapabilityRegistry {
                     && availableSlots > 0
                     && (runnerState == RunnerState.ONLINE || runnerState == RunnerState.DEGRADED);
         }
+    }
+
+    record RunnerSession(
+            RunnerId runnerId,
+            String organizationRef,
+            String publicBundleDigest,
+            String runnerVersion,
+            RunnerState runnerState,
+            int capacity,
+            int runningTasks,
+            int availableSlots,
+            Instant observedAt) {
+        public RunnerSession {
+            runnerId = Objects.requireNonNull(runnerId, "runnerId");
+            organizationRef = organization(organizationRef);
+            publicBundleDigest = digest(publicBundleDigest, "publicBundleDigest");
+            runnerVersion = version(runnerVersion, "runnerVersion");
+            runnerState = Objects.requireNonNull(runnerState, "runnerState");
+            validateCapacity(capacity, availableSlots);
+            if (runningTasks < 0 || runningTasks > capacity || availableSlots != capacity - runningTasks) {
+                throw new IllegalArgumentException("Runner session counters are inconsistent");
+            }
+            observedAt = Objects.requireNonNull(observedAt, "observedAt");
+        }
+    }
+
+    private static String organization(String value) {
+        return bounded(required(value, "organizationRef"), 256, "organizationRef");
+    }
+
+    private static String identifier(String value, String field) {
+        String normalized = required(value, field);
+        if (!IDENTIFIER.matcher(normalized).matches()) {
+            throw new IllegalArgumentException(field + " has an invalid format");
+        }
+        return normalized;
+    }
+
+    private static String version(String value, String field) {
+        String normalized = required(value, field);
+        if (!VERSION.matcher(normalized).matches()) {
+            throw new IllegalArgumentException(field + " has an invalid format");
+        }
+        return normalized;
     }
 
     private static String digest(String value, String field) {
@@ -205,5 +283,15 @@ public interface RunnerCapabilityRegistry {
             throw new IllegalArgumentException(field + " exceeds the supported bound");
         }
         return value;
+    }
+
+    private static void validateCapacity(int capacity, int availableSlots) {
+        if (capacity < 1 || capacity > 1024) {
+            throw new IllegalArgumentException("capacity must be between one and 1024");
+        }
+        if (availableSlots < 0 || availableSlots > capacity) {
+            throw new IllegalArgumentException(
+                    "availableSlots must be between zero and capacity");
+        }
     }
 }

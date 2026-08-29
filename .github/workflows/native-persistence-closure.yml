@@ -78,6 +78,8 @@ jobs:
           test -s server/src/main/resources/db/migration/V9__private_runner_certificates.sql
           test -s server/src/main/resources/db/migration/V10__private_runner_capability_catalog.sql
           test -s server/src/main/resources/db/migration/V11__private_runner_capability_contract_scheduling.sql
+          test -s server/src/main/resources/db/migration/V12__private_runner_sessions.sql
+          test -s server/src/main/resources/db/migration/V13__private_runner_capability_catalog_lock.sql
 
           ! grep -R --line-number 'public\.' server/src/main/resources/db/migration
 
