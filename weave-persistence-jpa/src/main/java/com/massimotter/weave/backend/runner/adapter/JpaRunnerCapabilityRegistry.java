@@ -223,31 +223,24 @@ public class JpaRunnerCapabilityRegistry implements RunnerCapabilityRegistry {
     }
 
     private RunnerCapabilityCatalogJpaEntity lockCatalog(PublicBundlePublication publication) {
-        entityManager.createNativeQuery(
-                        """
-                        insert into weave_runner_capability_catalogs (
-                            organization_ref,
-                            catalog_revision,
-                            updated_at_utc,
-                            version
-                        ) values (
-                            :organizationRef,
-                            0,
-                            :updatedAt,
-                            0
-                        )
-                        on conflict (organization_ref) do nothing
-                        """)
-                .setParameter("organizationRef", publication.organizationRef())
-                .setParameter("updatedAt", RunnerPersistenceTime.utc(publication.observedAt()))
-                .executeUpdate();
-        entityManager.flush();
+        RunnerCapabilityCatalogLockJpaEntity publicationLock = entityManager.find(
+                RunnerCapabilityCatalogLockJpaEntity.class,
+                RunnerCapabilityCatalogLockJpaEntity.PUBLICATION_LOCK_ID,
+                LockModeType.PESSIMISTIC_WRITE);
+        if (publicationLock == null) {
+            throw new IllegalStateException("capability catalog publication lock is missing");
+        }
+
         RunnerCapabilityCatalogJpaEntity catalog = entityManager.find(
                 RunnerCapabilityCatalogJpaEntity.class,
                 publication.organizationRef(),
                 LockModeType.PESSIMISTIC_WRITE);
         if (catalog == null) {
-            throw new IllegalStateException("capability catalog could not be initialized");
+            catalog = RunnerCapabilityCatalogJpaEntity.create(
+                    publication.organizationRef(),
+                    publication.observedAt());
+            entityManager.persist(catalog);
+            entityManager.flush();
         }
         return catalog;
     }
