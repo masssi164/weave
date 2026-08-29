@@ -107,7 +107,7 @@ class JpaRunnerAvailabilityRegistryPostgresTest {
         assertThatThrownBy(() -> registry.observeAvailability(new AvailabilityObservation(
                         RUNNER,
                         "org:live-test",
-                        digest('x'),
+                        digest('f'),
                         "1.2.3",
                         RunnerState.ONLINE,
                         2,
@@ -160,9 +160,9 @@ class JpaRunnerAvailabilityRegistryPostgresTest {
                 "Returns one bounded internal asset record.",
                 CapabilityEffect.READ_ONLY,
                 "{\"additionalProperties\":false,\"type\":\"object\"}",
-                digest('i'),
+                digest('d'),
                 "{\"additionalProperties\":false,\"type\":\"object\"}",
-                digest('o'),
+                digest('e'),
                 Duration.ofSeconds(60),
                 4096,
                 Set.of("cmdb-report"));
