@@ -28,6 +28,14 @@ class RunnerCapabilityCatalogJpaEntity {
 
     protected RunnerCapabilityCatalogJpaEntity() {}
 
+    static RunnerCapabilityCatalogJpaEntity create(String organizationRef, Instant instant) {
+        RunnerCapabilityCatalogJpaEntity entity = new RunnerCapabilityCatalogJpaEntity();
+        entity.organizationRef = organizationRef;
+        entity.catalogRevision = 0;
+        entity.updatedAt = RunnerPersistenceTime.utc(instant);
+        return entity;
+    }
+
     long revision() {
         return catalogRevision;
     }
