@@ -8,3 +8,11 @@ version = '0.1.0'
 
 apply from: "${projectDir}/gradle/scripts/java-and-dependencies.gradle"
 apply from: "${projectDir}/gradle/tasks/product-flow.gradle"
+
+tasks.register('enterpriseBoundaryPoc', JavaExec) {
+    description = 'Runs the contract-only Home Core and Weave enterprise-boundary proof.'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.massimotter.weave.e2e.poc.EnterpriseBoundaryPoc'
+}
