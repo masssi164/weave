@@ -30,10 +30,11 @@ class WeaveS3FilesAdapterMinioTest {
     private static final String SECRET_KEY = "weave-test-secret-key";
     private static final String BUCKET = "weave-files-test";
 
-    // Keep the test on the workspace's immutable image instead of an unavailable release tag.
+    // Preserve the workspace digest through IBM's mirror after upstream registry removal.
+    // https://www.ibm.com/support/pages/minio-image-removal-quay-registry
     @Container
     private static final GenericContainer<?> MINIO = new GenericContainer<>(
-            "minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e")
+            "icr.io/fusion-open/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e")
             .withEnv("MINIO_ROOT_USER", ACCESS_KEY)
             .withEnv("MINIO_ROOT_PASSWORD", SECRET_KEY)
             .withCommand("server", "/data")
@@ -85,7 +86,7 @@ class WeaveS3FilesAdapterMinioTest {
         assertThat(adapter.readiness().available()).isTrue();
 
         adapter.createCollection(new FilePath("/Team"));
-        adapter.createCollection(new FilePath("/Archive"));
+        adapter.createCollection(new FilePath("/Archive/readme.md"));
         var written = adapter.write(new FileWrite(
                 new FilePath("/Team/readme.md"),
                 "portable-core".getBytes(StandardCharsets.UTF_8),
