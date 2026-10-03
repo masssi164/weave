@@ -86,7 +86,7 @@ class WeaveS3FilesAdapterMinioTest {
         assertThat(adapter.readiness().available()).isTrue();
 
         adapter.createCollection(new FilePath("/Team"));
-        adapter.createCollection(new FilePath("/Archive/readme.md"));
+        adapter.createCollection(new FilePath("/Archive"));
         var written = adapter.write(new FileWrite(
                 new FilePath("/Team/readme.md"),
                 "portable-core".getBytes(StandardCharsets.UTF_8),
