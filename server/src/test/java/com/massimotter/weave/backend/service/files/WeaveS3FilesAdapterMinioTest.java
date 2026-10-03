@@ -30,9 +30,11 @@ class WeaveS3FilesAdapterMinioTest {
     private static final String SECRET_KEY = "weave-test-secret-key";
     private static final String BUCKET = "weave-files-test";
 
+    // Preserve the workspace digest through IBM's mirror after upstream registry removal.
+    // https://www.ibm.com/support/pages/minio-image-removal-quay-registry
     @Container
     private static final GenericContainer<?> MINIO = new GenericContainer<>(
-            "minio/minio:RELEASE.2025-02-18T16-25-55Z")
+            "icr.io/fusion-open/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e")
             .withEnv("MINIO_ROOT_USER", ACCESS_KEY)
             .withEnv("MINIO_ROOT_PASSWORD", SECRET_KEY)
             .withCommand("server", "/data")

@@ -143,4 +143,10 @@ Historical documents are not architecture authority. Superseded entry points red
 
 ## License
 
-No repository license file is currently present. Add one before making an open-source distribution claim.
+Copyright © 2026 Massimo (GitHub: masssi164).
+
+Weave-authored code and documentation are licensed under the **EUPL-1.2-or-later**, except where an existing notice or the documented third-party exceptions specify otherwise. See [LICENSE](LICENSE), [Notices](NOTICE.md), and [Third-party notices](THIRD_PARTY_NOTICES.md).
+
+The vendored Matrix SDK crypto code and its upstream-oriented patch series retain their Apache-2.0 licensing and existing file-level notices. They are not relabelled as EUPL.
+
+Contributions follow the applicable licence and [DCO sign-off policy](CONTRIBUTING.md); contributors retain their copyright. AI-assisted contributions and communication are welcome with human review and appropriate disclosure.
