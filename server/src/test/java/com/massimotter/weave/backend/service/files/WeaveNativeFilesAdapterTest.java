@@ -83,6 +83,7 @@ class WeaveNativeFilesAdapterTest {
         assertThat(scoped.supportsConditionalWrite()).isTrue();
         assertThat(scoped.supportsAtomicCollectionCreate()).isTrue();
         assertThat(scoped.supportsConditionalBoundedRead()).isTrue();
+        assertThat(scoped.supportsIdentityBoundConditionalRead()).isTrue();
         var first = scoped.writeIfAbsent(firstWrite);
         var version = scoped.find(path).orElseThrow().version();
         assertThat(scoped.providerObjectRef(path)).contains(first.providerObjectRef());

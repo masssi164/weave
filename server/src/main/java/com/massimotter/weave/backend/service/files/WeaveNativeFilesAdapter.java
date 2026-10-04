@@ -426,6 +426,7 @@ public final class WeaveNativeFilesAdapter implements FilesProviderPort {
         @Override public FileContent readBoundedIfVersion(FileId id, int maxBytes, FileVersion version) { return WeaveNativeFilesAdapter.this.readBoundedIfVersion(scope, id, maxBytes, version); }
         @Override public boolean supportsBoundedRead() { return true; }
         @Override public boolean supportsConditionalBoundedRead() { return true; }
+        @Override public boolean supportsIdentityBoundConditionalRead() { return true; }
         @Override public FileObject write(FileWrite write) { return WeaveNativeFilesAdapter.this.write(scope, write); }
         @Override public CreatedObject writeIfAbsent(FileWrite write) { return WeaveNativeFilesAdapter.this.writeIfAbsent(scope, write); }
         @Override public boolean supportsConditionalWrite() { return true; }
