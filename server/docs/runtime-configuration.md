@@ -99,6 +99,8 @@ The app never receives a Nextcloud credential. Server resolves the active Files 
 
 This resolves private provider accounts; it does not prove Files permission parity or authorize activation of a migration. The release's member data plane is the generated User HTTP API. The older northbound WebDAV facade is a compatibility surface pending retirement, not the accepted product client contract.
 
+The generic Admin provider-selection endpoint rejects a non-dry-run Files selection with `files-provider-activation-unverified`; it cannot change the organization Files binding. Its Files replacement dry-run reports `dry-run-blocked-for-apply` and unmeasured counts until a real source inventory, target readback, effective-rights comparison, consistency boundary and rollback proof exist. It records only the attempted dry-run audit ref, not synthetic migration artifacts.
+
 ## Calendar facade and CalDAV adapter
 
 Normal member event operations use the OIDC-gated CalDAV/iCalendar facade under `/caldav/**`. `/api/calendar/**` is retained only for scopes, readiness, setup, scoped credential lifecycle, and other control-plane metadata. Only the backend adapter talks to the selected southbound calendar provider.

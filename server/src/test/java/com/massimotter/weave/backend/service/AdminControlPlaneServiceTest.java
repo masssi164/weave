@@ -334,6 +334,60 @@ class AdminControlPlaneServiceTest {
     }
 
     @Test
+    void filesSelectionAndUnmeasuredReplacementCannotClaimActivationReadiness() {
+        InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        InMemoryMigrationRunEvidenceRepository migrations = new InMemoryMigrationRunEvidenceRepository();
+        AdminControlPlaneService service = new AdminControlPlaneService(
+                new ProviderRegistry(List.of(), workspaceCapabilityService(), selections),
+                workspaceCapabilityService(),
+                selections,
+                new InMemoryOrganizationBootstrapRepository(),
+                auditPublisher,
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
+                mock(ProductProfileOverrideRepository.class),
+                migrations);
+
+        assertThatThrownBy(() -> service.selectProvider(
+                new com.massimotter.weave.backend.model.admin.ProviderSelectionRequest(
+                        "files", "nextcloud-files", "recommended_self_hosted_default",
+                        "secretref://weave/provider/nextcloud-files", false, List.of(), "switch files"),
+                jwt("admin")))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status().value()).isEqualTo(409);
+                    assertThat(exception.code()).isEqualTo("files-provider-activation-unverified");
+                });
+        assertThat(selections.findByCategory("files")).isEmpty();
+        assertThat(auditPublisher.events()).isEmpty();
+
+        var report = service.dryRunProviderReplacement(
+                new com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunRequest(
+                        "files", "nextcloud-files", "weave-native",
+                        "recommended_self_hosted_default",
+                        "secretref://weave/provider/nextcloud-files", "weave-files-domain",
+                        List.of(), true, Map.of(), "inspect replacement"),
+                jwt("admin"));
+
+        assertThat(report.status()).isEqualTo("dry-run-blocked-for-apply");
+        assertThat(report.readinessState()).isEqualTo("blocked-unverified");
+        assertThat(report.consequencePreview().preservedCount()).isZero();
+        assertThat(report.noUnaccountedDataLossReport().supportedCount()).isZero();
+        assertThat(report.noUnaccountedDataLossReport().releaseClaimBoundaries())
+                .anySatisfy(boundary -> assertThat(boundary).contains("unmeasured"));
+        assertThat(report.boundedProof().productionCutoverAllowed()).isFalse();
+        assertThat(report.readModelComparison().migrationEvidenceRecorded()).isFalse();
+        assertThat(report.evidenceRefs()).isEmpty();
+        assertThat(report.baselineSnapshot().evidenceRefs()).isEmpty();
+        assertThat(report.portableExportImportContract().exportManifestRef()).isNull();
+        assertThat(migrations.findCurrent(report.dryRunId(), "files", Instant.parse("2026-05-31T09:00:00Z")))
+                .isEmpty();
+        assertThat(auditPublisher.events()).singleElement().satisfies(event -> {
+            assertThat(event.payload()).containsEntry("sourceInventoryMeasured", false);
+            assertThat(event.payload()).doesNotContainKeys("migrationEvidenceRef", "baselineComparisonRef");
+        });
+    }
+
+    @Test
     void overviewIncludesSprint16SuiteGoLiveAndWeaverProjectionContracts() throws Exception {
         WorkspaceCapabilityService workspaceCapabilityService = workspaceCapabilityService();
         InMemoryProviderSelectionRepository selectionRepository = new InMemoryProviderSelectionRepository();

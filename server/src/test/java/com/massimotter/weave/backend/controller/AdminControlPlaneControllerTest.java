@@ -593,6 +593,17 @@ class AdminControlPlaneControllerTest {
     }
 
     @Test
+    void genericFilesSelectionCannotActivateAnUnverifiedOrganizationBinding() throws Exception {
+        mockMvc.perform(post("/api/admin/providers/selections")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category\":\"files\",\"providerKey\":\"nextcloud-files\",\"choiceModel\":\"recommended_self_hosted_default\",\"secretRef\":\"secretref://weave/provider/nextcloud-files\",\"dryRun\":false}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("files-provider-activation-unverified"))
+                .andExpect(content().string(not(containsString("secretref://weave/provider/nextcloud-files"))));
+    }
+
+    @Test
     void adminReadinessTestsAndPolicyUpdatesAreAuditedAndRedacted() throws Exception {
         mockMvc.perform(post("/api/admin/providers/selections")
                         .with(adminJwt())
