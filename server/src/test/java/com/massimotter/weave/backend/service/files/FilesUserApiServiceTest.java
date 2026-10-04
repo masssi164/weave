@@ -38,9 +38,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class FilesUserApiServiceTest {
@@ -329,6 +331,7 @@ class FilesUserApiServiceTest {
         assertThat(service.inspect(jwt("org-a", "alice"), folder.fileId()).allowedActions())
                 .containsExactly("inspect", "listChildren")
                 .doesNotContain("createFolder", "upload");
+        clearInvocations(provider, intents);
         assertThatThrownBy(() -> service.createFolder(jwt("org-a", "alice"), folder.fileId(),
                 "new", "*", "0123456789abcdef"))
                 .isInstanceOfSatisfying(ApiErrorException.class,
@@ -337,9 +340,7 @@ class FilesUserApiServiceTest {
                 "new.txt", "text/plain", new byte[] {1}, "*", "fedcba9876543210"))
                 .isInstanceOfSatisfying(ApiErrorException.class,
                         error -> assertThat(error.code()).isEqualTo("files-parent-identity-unavailable"));
-        verify(intents, never()).beginUserApi(any());
-        verify(provider, never()).createCollectionIfAbsent(any());
-        verify(provider, never()).writeIfAbsent(any());
+        verifyNoInteractions(provider, intents);
     }
 
     @Test
