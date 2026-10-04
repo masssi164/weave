@@ -33,7 +33,7 @@ final class GeneratedAdminApi {
         new ApiClient()
             .setHttpClientBuilder(httpClientBuilder)
             .setReadTimeout(Duration.ofSeconds(30));
-    client.updateBaseUri(apiOrigin.toString());
+    client.updateBaseUri(apiOrigin.getScheme() + "://" + apiOrigin.getRawAuthority());
     controlPlane = new AdminControlPlaneApi(client);
   }
 

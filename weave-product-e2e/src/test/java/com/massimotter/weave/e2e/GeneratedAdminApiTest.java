@@ -58,10 +58,12 @@ final class GeneratedAdminApiTest {
   @Test
   void usesGeneratedAdminRouteAndDecodesTypedControlPlane() throws Exception {
     AtomicReference<String> authorization = new AtomicReference<>();
+    AtomicReference<String> requestPath = new AtomicReference<>();
     HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     server.createContext(
         "/api/admin/control-plane",
         request -> {
+          requestPath.set(request.getRequestURI().getRawPath());
           authorization.set(request.getRequestHeaders().getFirst("Authorization"));
           byte[] response =
               "{\"organizationId\":\"org-1\",\"supportSafe\":true}"
@@ -74,9 +76,10 @@ final class GeneratedAdminApiTest {
         });
     server.start();
     try {
-      URI origin = URI.create("http://127.0.0.1:" + server.getAddress().getPort());
+      URI origin = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/");
       AdminControlPlaneResponse result =
           new GeneratedAdminApi(origin, HttpClient.newBuilder()).controlPlane("admin-token");
+      assertThat(requestPath.get()).isEqualTo("/api/admin/control-plane");
       assertThat(authorization.get()).isEqualTo("Bearer admin-token");
       assertThat(result.getOrganizationId()).isEqualTo("org-1");
       assertThat(result.getSupportSafe()).isTrue();
