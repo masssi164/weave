@@ -5609,7 +5609,6 @@ class OrganizationMemberUpdateRequest {
 
 class PlatformConfigResponse {
   const PlatformConfigResponse({
-    this.controlPlaneBaseUrl,
     this.domains,
     this.oidc,
     this.organizationOrigin,
@@ -5617,11 +5616,11 @@ class PlatformConfigResponse {
     this.recoveryActions,
     this.releasePosture,
     this.schemaVersion,
+    this.userApiBaseUrl,
   });
 
   factory PlatformConfigResponse.fromJson(Map<String, dynamic> json) =>
       PlatformConfigResponse(
-        controlPlaneBaseUrl: json["controlPlaneBaseUrl"] as String?,
         domains: (json["domains"] as List<dynamic>?)
             ?.map((e) => DomainCapability.fromJson(e as Map<String, dynamic>))
             .toList(),
@@ -5637,9 +5636,9 @@ class PlatformConfigResponse {
             .toList(),
         releasePosture: json["releasePosture"] as String?,
         schemaVersion: (json["schemaVersion"] as num?)?.toInt(),
+        userApiBaseUrl: json["userApiBaseUrl"] as String?,
       );
 
-  final String? controlPlaneBaseUrl;
   final List<DomainCapability>? domains;
   final Oidc? oidc;
   final String? organizationOrigin;
@@ -5647,9 +5646,9 @@ class PlatformConfigResponse {
   final List<RecoveryAction>? recoveryActions;
   final String? releasePosture;
   final int? schemaVersion;
+  final String? userApiBaseUrl;
 
   Map<String, dynamic> toJson() => {
-    "controlPlaneBaseUrl": _openApiJsonValue(controlPlaneBaseUrl),
     "domains": _openApiJsonValue(domains),
     "oidc": _openApiJsonValue(oidc),
     "organizationOrigin": _openApiJsonValue(organizationOrigin),
@@ -5657,6 +5656,7 @@ class PlatformConfigResponse {
     "recoveryActions": _openApiJsonValue(recoveryActions),
     "releasePosture": _openApiJsonValue(releasePosture),
     "schemaVersion": _openApiJsonValue(schemaVersion),
+    "userApiBaseUrl": _openApiJsonValue(userApiBaseUrl),
   };
 }
 
@@ -6010,25 +6010,15 @@ class ProfileReadinessResponse {
 }
 
 class Protocols {
-  const Protocols({
-    this.calendarCalDavBaseUrl,
-    this.filesWebDavBaseUrl,
-    this.matrixClientServerBaseUrl,
-  });
+  const Protocols({this.matrixClientServerBaseUrl});
 
   factory Protocols.fromJson(Map<String, dynamic> json) => Protocols(
-    calendarCalDavBaseUrl: json["calendarCalDavBaseUrl"] as String?,
-    filesWebDavBaseUrl: json["filesWebDavBaseUrl"] as String?,
     matrixClientServerBaseUrl: json["matrixClientServerBaseUrl"] as String?,
   );
 
-  final String? calendarCalDavBaseUrl;
-  final String? filesWebDavBaseUrl;
   final String? matrixClientServerBaseUrl;
 
   Map<String, dynamic> toJson() => {
-    "calendarCalDavBaseUrl": _openApiJsonValue(calendarCalDavBaseUrl),
-    "filesWebDavBaseUrl": _openApiJsonValue(filesWebDavBaseUrl),
     "matrixClientServerBaseUrl": _openApiJsonValue(matrixClientServerBaseUrl),
   };
 }
