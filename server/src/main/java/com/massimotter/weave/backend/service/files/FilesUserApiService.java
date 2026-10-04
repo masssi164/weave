@@ -446,9 +446,10 @@ public class FilesUserApiService {
         if (resource.kind() != Kind.FILE) throw missing();
         ProviderBinding binding = activeBinding(member.organizationRef());
         FilesProviderPort provider = pinnedProvider(binding, member.organizationRef());
-        if (!provider.supportsBoundedRead() || !provider.supportsConditionalWrite()) {
-            throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-conditional-write-unavailable",
-                    "The active Files provider cannot enforce conditional update.");
+        if (!provider.supportsBoundedRead() || !provider.supportsConditionalWrite()
+                || !provider.supportsIdentityBoundConditionalWrite()) {
+            throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-identity-bound-write-unavailable",
+                    "The active Files provider cannot bind a content update to the expected file identity.");
         }
         VersionedFile observed = requireMapped(binding, provider, resource);
         String nextMediaType = mediaType == null || mediaType.isBlank()
@@ -602,7 +603,8 @@ public class FilesUserApiService {
             actions.addAll(collectionActions(member, provider));
         } else if (item.size() <= MAX_DOWNLOAD_BYTES && provider.supportsBoundedRead()) {
             actions.add("download");
-            if (member.canEdit() && provider.supportsConditionalWrite()) {
+            if (member.canEdit() && provider.supportsConditionalWrite()
+                    && provider.supportsIdentityBoundConditionalWrite()) {
                 actions.add("updateContent");
             }
         }

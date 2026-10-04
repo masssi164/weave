@@ -86,6 +86,11 @@ public interface FilesProviderPort {
         return false;
     }
 
+    /** True only when a replacement atomically checks the expected object identity and version. */
+    default boolean supportsIdentityBoundConditionalWrite() {
+        return false;
+    }
+
     FileObject createCollection(FilePath path);
 
     /** MKCOL-style atomic absent-name creation; a preflight lookup alone is insufficient. */

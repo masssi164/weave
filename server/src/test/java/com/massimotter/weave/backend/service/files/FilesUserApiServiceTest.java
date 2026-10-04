@@ -264,8 +264,8 @@ class FilesUserApiServiceTest {
                 "payload.bin", "application/octet-stream", bytes, "*", "0123456789abcdef");
         assertThat(result.fileId()).isEqualTo("file:upload");
         assertThat(result.displayPath()).isEqualTo("/payload.bin");
-        assertThat(result.allowedActions()).contains("download", "updateContent")
-                .doesNotContain("share", "move", "copy", "delete");
+        assertThat(result.allowedActions()).contains("download")
+                .doesNotContain("updateContent", "share", "move", "copy", "delete");
         assertThat(result.toString()).doesNotContain("nextcloud-object:00000042ocabc");
         verify(provider).writeIfAbsent(org.mockito.ArgumentMatchers.argThat(write ->
                 write.path().equals(path) && java.util.Arrays.equals(write.bytes(), bytes)));
@@ -281,6 +281,25 @@ class FilesUserApiServiceTest {
                 "text/plain", new byte[] {1}, "W/\"sha256-example\"", "0123456789abcdef"))
                 .isInstanceOfSatisfying(ApiErrorException.class,
                         error -> assertThat(error.status().value()).isEqualTo(412));
+        verify(provider, never()).writeIfVersion(any(), any());
+        verify(intents, never()).beginUserApi(any());
+    }
+
+    @Test
+    void pathConditionalWriteWithoutAtomicObjectIdentityNeverDispatches() {
+        FilesUserResource owned = file("alice", 4);
+        when(resources.find("org-a", owned.fileId())).thenReturn(Optional.of(owned));
+        when(provider.supportsBoundedRead()).thenReturn(true);
+        when(provider.supportsConditionalWrite()).thenReturn(true);
+
+        assertThatThrownBy(() -> service.update(jwt("org-a", "alice"), owned.fileId(),
+                "text/plain", new byte[] {1}, "\"sha256-example\"", "0123456789abcdef"))
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status().value()).isEqualTo(503);
+                    assertThat(error.code()).isEqualTo("files-identity-bound-write-unavailable");
+                });
+        verify(provider, never()).find(any());
+        verify(provider, never()).readBoundedIfVersion(any(), eq(FilesUserApiService.MAX_DOWNLOAD_BYTES), any());
         verify(provider, never()).writeIfVersion(any(), any());
         verify(intents, never()).beginUserApi(any());
     }
