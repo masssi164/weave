@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check full User client coverage and deterministic Java generation."""
+"""Check generated JVM client coverage and deterministic Java generation."""
 
 import json
 from pathlib import Path
@@ -17,14 +17,17 @@ def java_sources(root: Path) -> dict[str, bytes]:
 
 def main() -> None:
     contract, generated, comparison = map(Path, sys.argv[1:4])
+    audience = sys.argv[4] if len(sys.argv) > 4 else "user"
+    if audience not in {"user", "admin"}:
+        raise SystemExit("JVM API client audience must be user or admin")
     document = json.loads(contract.read_text(encoding="utf-8"))
     first = java_sources(generated)
     second = java_sources(comparison)
     if first != second:
         different = sorted(key for key in first.keys() | second.keys() if first.get(key) != second.get(key))
-        raise SystemExit(f"JVM User client generation is not reproducible: {different}")
+        raise SystemExit(f"JVM {audience.title()} client generation is not reproducible: {different}")
 
-    package = "com/massimotter/weave/userapi"
+    package = f"com/massimotter/weave/{audience}api"
     expected_models = set(document["components"]["schemas"])
     missing_models = sorted(
         model for model in expected_models if f"{package}/model/{model}.java" not in first
@@ -47,10 +50,10 @@ def main() -> None:
     )
     if missing_models or missing_operations:
         raise SystemExit(
-            f"JVM User client coverage incomplete: models={missing_models}, operations={missing_operations}"
+            f"JVM {audience.title()} client coverage incomplete: models={missing_models}, operations={missing_operations}"
         )
     print(
-        f"Generated JVM User client is reproducible: {len(expected_models)} models, "
+        f"Generated JVM {audience.title()} client is reproducible: {len(expected_models)} models, "
         f"{len(operations)} operations, {len(first)} Java sources"
     )
 

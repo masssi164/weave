@@ -132,6 +132,7 @@ public final class FreshProductFlow {
               "owner-initial-admin");
       validateAdminToken(browser.jwtPayload(adminSession.accessToken()));
       assertSeparatedApiSessions(ownerSession.accessToken(), adminSession.accessToken());
+      assertGeneratedAdminControlPlane(adminSession.accessToken(), organizationId);
       configureRequiredProviders(adminSession.accessToken());
       awaitChatReadiness(ownerSession.accessToken());
 
@@ -706,6 +707,16 @@ public final class FreshProductFlow {
     if (!"unauthorized".equals(adminDenied.path("code").asString())
         || !"unauthorized".equals(userDenied.path("code").asString())) {
       throw new ProductFlowException("User and Admin API sessions were not separated");
+    }
+  }
+
+  private void assertGeneratedAdminControlPlane(String adminToken, String organizationId) {
+    var controlPlane =
+        new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate())
+            .controlPlane(adminToken);
+    if (!organizationId.equals(controlPlane.getOrganizationId())
+        || !Boolean.TRUE.equals(controlPlane.getSupportSafe())) {
+      throw new ProductFlowException("Admin control plane identity or projection did not match");
     }
   }
 

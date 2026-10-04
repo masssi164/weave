@@ -77,10 +77,10 @@ tasks.register('checkUserApiClientReproducible') {
     description = 'Check generated JVM User routes/models cover the artifact and reproduce byte for byte.'
     dependsOn tasks.named('generateUserApiClient'), tasks.named('generateUserApiClientComparison')
     inputs.file(userContract)
-    inputs.file(rootProject.file('tools/check_user_api_client.py'))
+    inputs.file(rootProject.file('tools/check_jvm_api_client.py'))
     doLast {
         exec {
-            commandLine 'python3', rootProject.file('tools/check_user_api_client.py'),
+            commandLine 'python3', rootProject.file('tools/check_jvm_api_client.py'),
                     userContract.absolutePath, generatedRoot.get().asFile.absolutePath,
                     comparisonRoot.get().asFile.absolutePath
         }

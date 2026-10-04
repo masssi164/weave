@@ -19,5 +19,6 @@ include 'weave-application-core',
         'infra',
         'server',
         'weave-user-api-client',
+        'weave-admin-api-client',
         'weave-mcp-server',
         'weave-product-e2e'
