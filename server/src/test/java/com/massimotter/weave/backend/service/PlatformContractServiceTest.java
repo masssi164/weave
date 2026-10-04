@@ -23,7 +23,7 @@ class PlatformContractServiceTest {
         var config = service.config();
         var status = service.status("e2ee-ready-test");
 
-        assertThat(config.protocols().matrixClientServerBaseUrl()).isEqualTo("https://matrix.weave.test");
+        assertThat(config.protocols().matrixClientServerBaseUrl()).isEqualTo("https://api.weave.test");
         assertThat(status.matrix().e2eeEnabled()).isTrue();
         assertThat(status.matrix().e2ee().status()).isEqualTo("validated");
         assertThat(status.matrix().e2ee().source()).isEqualTo("matrix-smoke-e2e");
@@ -80,7 +80,7 @@ class PlatformContractServiceTest {
                         "https://weave.test",
                         "https://api.weave.test/api",
                         "https://auth.weave.test",
-                        "https://matrix.weave.test",
+                        "https://api.weave.test",
                         "https://weave.test/files",
                         "https://weave.test/calendar",
                         "https://files.weave.test",
@@ -91,13 +91,13 @@ class PlatformContractServiceTest {
 
         assertThat(config.schemaVersion()).isEqualTo(2);
         assertThat(config.userApiBaseUrl()).isEqualTo("https://api.weave.test/api");
-        assertThat(config.protocols().matrixClientServerBaseUrl()).isEqualTo("https://matrix.weave.test");
+        assertThat(config.protocols().matrixClientServerBaseUrl()).isEqualTo("https://api.weave.test");
         assertThat(status.nextcloud().readiness()).isEqualTo("ready");
         assertThat(status.nextcloud().message()).contains("Nextcloud");
     }
 
     @Test
-    void respectsConfiguredMatrixHomeserverAndUsesSeparateDefaultHost() {
+    void derivesMatrixFacadeFromUserApiOriginAndBlocksAProviderUrl() {
         PlatformContractService configured = service(
                 new MatrixChatProperties(false, null, null),
                 true,
@@ -125,8 +125,30 @@ class PlatformContractServiceTest {
 
         assertThat(configured.config().protocols().matrixClientServerBaseUrl())
                 .isEqualTo("https://chat.weave.test");
+        assertThat(configured.status("wrong-matrix-url").matrix().readiness()).isEqualTo("blocked");
         assertThat(derived.config().protocols().matrixClientServerBaseUrl())
-                .isEqualTo("https://matrix.weave.test");
+                .isEqualTo("https://api.weave.test");
+        assertThat(derived.status("derived-matrix-url").matrix().readiness()).isEqualTo("ready");
+    }
+
+    @Test
+    void blocksChatReadinessWhenAdvertisedAndRoutedFacadeOrServerNameDiverge() {
+        PlatformContractProperties platform = new PlatformContractProperties(
+                null, "https://api.weave.test:44443/api", null, null, null, null, null, null);
+
+        PlatformContractService wrongRoute = service(
+                new MatrixChatProperties(false, null, null), true, platform,
+                "https://matrix.weave.test:44443", "api.weave.test");
+        PlatformContractService wrongIdentity = service(
+                new MatrixChatProperties(false, null, null), true, platform,
+                "https://api.weave.test:44443", "matrix.weave.test");
+        PlatformContractService aligned = service(
+                new MatrixChatProperties(false, null, null), true, platform,
+                "https://api.weave.test:44443", "api.weave.test");
+
+        assertThat(wrongRoute.status("wrong-route").matrix().readiness()).isEqualTo("blocked");
+        assertThat(wrongIdentity.status("wrong-identity").matrix().readiness()).isEqualTo("blocked");
+        assertThat(aligned.status("aligned").matrix().readiness()).isEqualTo("ready");
     }
 
     private PlatformContractService service(MatrixChatProperties matrixProperties, boolean chatEnabled) {
@@ -140,6 +162,15 @@ class PlatformContractServiceTest {
             MatrixChatProperties matrixProperties,
             boolean chatEnabled,
             PlatformContractProperties platformProperties) {
+        return service(matrixProperties, chatEnabled, platformProperties, "https://api.weave.test", "api.weave.test");
+    }
+
+    private PlatformContractService service(
+            MatrixChatProperties matrixProperties,
+            boolean chatEnabled,
+            PlatformContractProperties platformProperties,
+            String facadeBaseUrl,
+            String facadeServerName) {
         return new PlatformContractService(
                 resourceServerProperties(),
                 platformProperties,
@@ -151,7 +182,9 @@ class PlatformContractServiceTest {
                         new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
                         new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
                         null,
-                        null));
+                        null),
+                facadeBaseUrl,
+                facadeServerName);
     }
 
     private OAuth2ResourceServerProperties resourceServerProperties() {

@@ -436,6 +436,9 @@ def main() -> int:
         prod = load_context(
             "prod", ROOT, str(materialize_example("prod", root / "prod.env"))
         )
+        assert dogfood.env["WEAVE_API_HOST"] == "api.weave.test"
+        assert dogfood.env["WEAVE_API_HOST"] != dogfood.env["WEAVE_MATRIX_HOST"]
+        assert prod.env["WEAVE_API_HOST"] == "api.weave.example"
         assert _image_digest(dogfood) == "sha256:" + "a" * 64
         assert active_volume_keys(dogfood) == (
             "WEAVE_DB_DATA_VOLUME",
