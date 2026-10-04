@@ -8,6 +8,12 @@ import type {
   GeneratedProviderReadinessTestRequest,
   GeneratedProviderReadinessTestResponse,
 } from "./generated/openapi";
+import {
+  AdminControlPlaneApi as GeneratedAdminControlPlaneApi,
+  Configuration as GeneratedConfiguration,
+  OrganizationInvitationsApi as GeneratedOrganizationInvitationsApi,
+  ResponseError as GeneratedResponseError,
+} from "./generated/admin-client";
 
 export type CapabilityState =
   | "ready"
@@ -378,7 +384,9 @@ interface ServerProviderReplacementDryRunReport {
   portableExportImportContract?: Partial<
     ProviderReplacementDryRunReport["portableExportImportContract"]
   >;
-  switchPlan?: Partial<ProviderReplacementDryRunReport["switchPlan"]>;
+  switchPlan?: Partial<
+    Omit<ProviderReplacementDryRunReport["switchPlan"], "memberFacingStateDuringSwitch">
+  > & { memberFacingStateDuringSwitch?: string };
   noUnaccountedDataLossReport?: Partial<
     ProviderReplacementDryRunReport["noUnaccountedDataLossReport"]
   >;
@@ -660,19 +668,54 @@ interface ServerAuditEvent {
 }
 
 export class AdminControlPlaneApi {
+  private readonly generatedControlPlane: GeneratedAdminControlPlaneApi;
+  private readonly generatedInvitations: GeneratedOrganizationInvitationsApi;
+
   constructor(
     private readonly config: AdminConsoleConfig = adminConsoleConfig,
     private readonly fetchImpl: typeof fetch = fetch,
     private readonly tokenProvider: () => string | undefined = () => undefined,
-  ) {}
+  ) {
+    if (!config.apiBaseUrl.endsWith("/api")) {
+      throw new Error("Admin API base URL must end with /api");
+    }
+    const generatedConfig = new GeneratedConfiguration({
+      basePath: config.apiBaseUrl.slice(0, -4),
+      fetchApi: fetchImpl,
+      accessToken: () => tokenProvider() ?? "",
+      headers: { Accept: "application/json" },
+    });
+    this.generatedControlPlane = new GeneratedAdminControlPlaneApi(generatedConfig);
+    this.generatedInvitations = new GeneratedOrganizationInvitationsApi(generatedConfig);
+  }
+
+  private async generated<T>(operation: Promise<T>): Promise<T> {
+    try {
+      return await operation;
+    } catch (error) {
+      if (error instanceof GeneratedResponseError) {
+        throw new AdminApiError(
+          `Admin API request failed with HTTP ${error.response.status}`,
+          error.response.status,
+        );
+      }
+      throw error;
+    }
+  }
 
   async getControlPlane(): Promise<ControlPlaneResponse> {
-    const controlPlane = await this.request<GeneratedAdminControlPlaneResponse>(
-      "/admin/control-plane",
+    const controlPlane = await this.generated(
+      this.generatedControlPlane.getAdminControlPlane(),
     );
     const auditEvents = await this.listAuditEvents().catch(() => []);
     return normalizeControlPlane(
-      controlPlane as ServerControlPlaneResponse,
+      {
+        ...controlPlane,
+        generatedAt:
+          controlPlane.generatedAt && !Number.isNaN(controlPlane.generatedAt.getTime())
+            ? controlPlane.generatedAt.toISOString()
+            : undefined,
+      } as ServerControlPlaneResponse,
       auditEvents,
       this.config.oidcIssuerUrl,
     );
@@ -682,16 +725,14 @@ export class AdminControlPlaneApi {
     allowedCapabilities: string[],
     profileKey = "workspace-admin",
   ): Promise<WhitelistPolicy> {
-    const response = await this.request<GeneratedCapabilityWhitelistResponse>(
-      "/admin/policies/capability-whitelist",
-      {
-        method: "PATCH",
-        body: JSON.stringify({
+    const response = await this.generated(
+      this.generatedControlPlane.updateCapabilityWhitelist({
+        capabilityWhitelistUpdateRequest: {
           profileKey,
           capabilityKeys: allowedCapabilities,
           reason: "Updated through Organization/Admin Console",
-        }),
-      },
+        },
+      }),
     );
     return normalizeWhitelist(response as ServerWhitelistPolicy);
   }
@@ -783,11 +824,9 @@ export class AdminControlPlaneApi {
     targetAdapter: string,
     choiceModel = "external_existing_provider",
   ): Promise<ProviderReplacementDryRunReport> {
-    const response = await this.request<ServerProviderReplacementDryRunReport>(
-      "/admin/providers/replacements/dry-run",
-      {
-        method: "POST",
-        body: JSON.stringify({
+    const response = await this.generated(
+      this.generatedControlPlane.dryRunProviderReplacement({
+        providerReplacementDryRunRequest: {
           category: category.key,
           currentAdapter: category.selectedAdapter,
           targetAdapter,
@@ -807,8 +846,8 @@ export class AdminControlPlaneApi {
           },
           reason:
             "Evaluate provider replacement before activation through Organization/Admin Console",
-        }),
-      },
+        },
+      }),
     );
     return normalizeProviderReplacementDryRun(
       response,
@@ -818,8 +857,8 @@ export class AdminControlPlaneApi {
   }
 
   async getPlatformIdentityReadiness(): Promise<PlatformIdentityReadiness> {
-    const response = await this.request<GeneratedPlatformIdentityReadinessResponse>(
-      "/admin/platform/identity/readiness",
+    const response = await this.generated(
+      this.generatedControlPlane.getPlatformIdentityReadiness(),
     );
     return normalizePlatformIdentityReadiness(
       response as ServerPlatformIdentityReadiness,
@@ -830,12 +869,10 @@ export class AdminControlPlaneApi {
     providerKey: string,
   ): Promise<{ providerKey: string; state: CapabilityState; summary: string }> {
     const request: GeneratedProviderReadinessTestRequest = { providerKey };
-    const response = await this.request<GeneratedProviderReadinessTestResponse>(
-      "/admin/providers/readiness-tests",
-      {
-        method: "POST",
-        body: JSON.stringify(request),
-      },
+    const response = await this.generated(
+      this.generatedControlPlane.testProviderReadiness({
+        providerReadinessTestRequest: request,
+      }),
     );
     return {
       providerKey: response.providerKey ?? providerKey,
@@ -846,71 +883,67 @@ export class AdminControlPlaneApi {
   }
 
   async listAuditEvents(): Promise<AuditEvent[]> {
-    const events = await this.request<GeneratedAdminAuditEventResponse[]>(
-      "/admin/audit/events",
+    const events = await this.generated(
+      this.generatedControlPlane.listAdminAuditEvents(),
     );
-    return events.map((event) => ({
-      id:
-        event.idempotencyKey ??
-        `${event.action ?? "audit"}-${event.occurredAt ?? "unknown"}`,
-      action: event.action ?? "unknown",
-      actor: event.actorRef ?? "unknown-actor",
-      createdAt: event.occurredAt ?? "",
-      summary: supportSafeSummary(event),
-    }));
+    return events.map((event) => {
+      const occurredAt = event.occurredAt?.toISOString();
+      return {
+        id:
+          event.idempotencyKey ??
+          `${event.action ?? "audit"}-${occurredAt ?? "unknown"}`,
+        action: event.action ?? "unknown",
+        actor: event.actorRef ?? "unknown-actor",
+        createdAt: occurredAt ?? "",
+        summary: supportSafeSummary({ ...event, occurredAt }),
+      };
+    });
   }
 
   async listOrganizationInvitations(
     organizationId: string,
   ): Promise<OrganizationInvitation[]> {
-    return this.request<OrganizationInvitation[]>(
-      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations`,
-    );
+    return this.generated(
+      this.generatedInvitations.listOrganizationInvitations({ organizationId }),
+    ) as Promise<OrganizationInvitation[]>;
   }
 
   async createOrganizationInvitation(
     organizationId: string,
     invitation: CreateOrganizationInvitationRequest,
   ): Promise<OrganizationInvitation> {
-    return this.request<OrganizationInvitation>(
-      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations`,
-      {
-        method: "POST",
-        headers: {
-          "Idempotency-Key": invitationIdempotencyKey("create"),
-        },
-        body: JSON.stringify(invitation),
-      },
-    );
+    return this.generated(
+      this.generatedInvitations.createOrganizationInvitation({
+        organizationId,
+        idempotencyKey: invitationIdempotencyKey("create"),
+        memberInvitationRequest: invitation,
+      }),
+    ) as Promise<OrganizationInvitation>;
   }
 
   async resendOrganizationInvitation(
     organizationId: string,
     invitationHandle: string,
   ): Promise<OrganizationInvitation> {
-    return this.request<OrganizationInvitation>(
-      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(invitationHandle)}/resend`,
-      {
-        method: "POST",
-        headers: {
-          "Idempotency-Key": invitationIdempotencyKey("resend"),
-        },
-      },
-    );
+    return this.generated(
+      this.generatedInvitations.resendOrganizationInvitation({
+        organizationId,
+        invitationHandle,
+        idempotencyKey: invitationIdempotencyKey("resend"),
+      }),
+    ) as Promise<OrganizationInvitation>;
   }
 
   async revokeOrganizationInvitation(
     organizationId: string,
     invitationHandle: string,
   ): Promise<void> {
-    await this.request<void>(
-      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(invitationHandle)}`,
-      {
-        method: "DELETE",
-        headers: {
-          "Idempotency-Key": invitationIdempotencyKey("revoke"),
-        },
-      },
+    await this.generated(
+      this.generatedInvitations.revokeOrganizationInvitation({
+        organizationId,
+        invitationHandle,
+        idempotencyKey: invitationIdempotencyKey("revoke"),
+      }),
     );
   }
 
