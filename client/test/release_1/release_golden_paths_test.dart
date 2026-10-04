@@ -68,17 +68,15 @@ void main() {
             expect(request.url.path, '/api/platform/config');
             return http.Response(
               jsonEncode({
-                'schemaVersion': 1,
+                'schemaVersion': 2,
                 'organizationOrigin': 'https://weave.test',
-                'controlPlaneBaseUrl': 'https://api.weave.test/api',
+                'userApiBaseUrl': 'https://api.weave.test/api',
                 'oidc': {
                   'issuer': 'https://auth.weave.test/realms/weave',
                   'clientId': 'weave-app',
                 },
                 'protocols': {
-                  'matrixClientServerBaseUrl': 'https://api.weave.test',
-                  'filesWebDavBaseUrl': 'https://api.weave.test/dav/files',
-                  'calendarCalDavBaseUrl': 'https://api.weave.test/caldav',
+                  'matrixClientServerBaseUrl': 'https://matrix.weave.test',
                 },
                 'releasePosture': 'dogfood',
                 'domains': [
@@ -268,7 +266,7 @@ void main() {
         expect(find.text('Connect Files'), findsWidgets);
         expect(
           filesRepository.lastConfiguredBaseUrl.toString(),
-          'https://api.weave.test/dav/files',
+          'https://api.weave.test/api',
         );
 
         await tester.tap(find.text('Connect Files').first);
@@ -436,8 +434,8 @@ class _ScenarioFilesRepository
       _serverConfigurationRepository
           .configuration
           ?.serviceEndpoints
-          .nextcloudBaseUrl ??
-      Uri.parse('https://files.weave.test');
+          .backendApiBaseUrl ??
+      Uri.parse('https://api.weave.test/api');
 
   @override
   Future<FilesConnectionState> connect() async {

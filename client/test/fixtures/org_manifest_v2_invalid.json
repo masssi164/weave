@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "organizationOrigin": "https://weave.local",
+  "userApiBaseUrl": "https://api.weave.local/api",
+  "oidc": {
+    "issuer": "https://auth.weave.local/realms/weave",
+    "clientId": "weave-app"
+  },
+  "protocols": {
+    "matrixClientServerBaseUrl": "https://matrix.weave.local",
+    "filesWebDavBaseUrl": "https://weave.local/dav/files"
+  },
+  "releasePosture": "development",
+  "domains": [
+    { "domain": "files", "state": "available", "capabilities": ["read"] }
+  ]
+}

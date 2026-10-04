@@ -88,13 +88,9 @@ class ServiceEndpointDeriver {
 
     return ServiceEndpoints(
       matrixHomeserverUrl: Uri.parse('$scheme://matrix.$baseHost'),
-      nextcloudBaseUrl: Uri.parse('$scheme://api.$baseHost/dav/files'),
       backendApiBaseUrl: Uri.parse('$scheme://api.$baseHost/api'),
     );
   }
-
-  Uri filesFacadeFromBackendApi(Uri backendApiBaseUrl) =>
-      backendApiBaseUrl.replace(path: '/dav/files');
 
   String _deriveWorkspaceBaseHost(String issuerHost) {
     final labels = issuerHost.split('.');

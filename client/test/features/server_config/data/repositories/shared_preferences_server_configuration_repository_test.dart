@@ -38,10 +38,6 @@ void main() {
         configuration.serviceEndpoints.matrixHomeserverUrl.toString(),
       );
       expect(
-        loaded?.serviceEndpoints.nextcloudBaseUrl.toString(),
-        'https://api.home.internal/dav/files',
-      );
-      expect(
         loaded?.serviceEndpoints.backendApiBaseUrl.toString(),
         configuration.serviceEndpoints.backendApiBaseUrl.toString(),
       );
@@ -140,6 +136,26 @@ void main() {
         loaded?.serviceEndpoints.matrixHomeserverUrl.toString(),
         'https://matrix.home.internal',
       );
+    });
+
+    test('drops obsolete public DAV URL when resaving legacy state', () async {
+      final store = InMemoryPreferencesStore(
+        buildStoredConfiguration(
+          nextcloudBaseUrl: 'https://files.home.internal/dav/files',
+        ),
+      );
+      final container = ProviderContainer.test(
+        overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+      );
+      addTearDown(container.dispose);
+      final repository = container.read(serverConfigurationRepositoryProvider);
+
+      final loaded = await repository.loadConfiguration();
+      expect(loaded, isNotNull);
+      await repository.saveConfiguration(loaded!);
+      final saved = await store.getString(serverConfigurationStorageKey);
+      expect(saved, isNot(contains('nextcloudBaseUrl')));
+      expect(saved, contains('backendApiBaseUrl'));
     });
 
     test('rejects Matrix URLs with credentials or provider paths', () async {

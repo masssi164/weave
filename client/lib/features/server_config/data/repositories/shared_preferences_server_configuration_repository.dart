@@ -41,13 +41,6 @@ class SharedPreferencesServerConfigurationRepository
       final matrixUrl = _deriver.parseMatrixHomeserverUrl(
         configuration.serviceEndpoints.matrixHomeserverUrl.toString(),
       );
-      final filesUrl = _deriver.filesFacadeFromBackendApi(backendApiUrl);
-      if (configuration.serviceEndpoints.nextcloudBaseUrl != filesUrl) {
-        throw const AppFailure.validation(
-          'The saved organization profile does not match the current Files contract.',
-        );
-      }
-
       return configuration.copyWith(
         oidcIssuerUrl: issuerUrl,
         oidcClientRegistration: configuration.oidcClientRegistration.copyWith(
@@ -55,7 +48,6 @@ class SharedPreferencesServerConfigurationRepository
         ),
         serviceEndpoints: configuration.serviceEndpoints.copyWith(
           matrixHomeserverUrl: matrixUrl,
-          nextcloudBaseUrl: filesUrl,
           backendApiBaseUrl: backendApiUrl,
         ),
       );
@@ -77,9 +69,6 @@ class SharedPreferencesServerConfigurationRepository
         serviceEndpoints: endpoints.copyWith(
           matrixHomeserverUrl: _deriver.parseMatrixHomeserverUrl(
             endpoints.matrixHomeserverUrl.toString(),
-          ),
-          nextcloudBaseUrl: _deriver.filesFacadeFromBackendApi(
-            endpoints.backendApiBaseUrl,
           ),
         ),
       );

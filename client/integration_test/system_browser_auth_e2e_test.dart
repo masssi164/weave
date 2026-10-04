@@ -31,7 +31,6 @@ void main() {
         ),
         serviceEndpoints: ServiceEndpoints(
           matrixHomeserverUrl: config.matrixHomeserverUrl,
-          nextcloudBaseUrl: config.nextcloudBaseUrl,
           backendApiBaseUrl: config.backendApiBaseUrl,
         ),
       );

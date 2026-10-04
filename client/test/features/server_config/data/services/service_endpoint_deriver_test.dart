@@ -15,10 +15,6 @@ void main() {
         'https://matrix.home.internal',
       );
       expect(
-        endpoints.nextcloudBaseUrl.toString(),
-        'https://api.home.internal/dav/files',
-      );
-      expect(
         endpoints.backendApiBaseUrl.toString(),
         'https://api.home.internal/api',
       );
@@ -31,10 +27,6 @@ void main() {
       expect(
         endpoints.matrixHomeserverUrl.toString(),
         'https://matrix.example.com',
-      );
-      expect(
-        endpoints.nextcloudBaseUrl.toString(),
-        'https://api.example.com/dav/files',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
@@ -55,10 +47,6 @@ void main() {
           'https://matrix.workspace.example.com',
         );
         expect(
-          endpoints.nextcloudBaseUrl.toString(),
-          'https://api.workspace.example.com/dav/files',
-        );
-        expect(
           endpoints.backendApiBaseUrl.toString(),
           'https://api.workspace.example.com/api',
         );
@@ -72,10 +60,6 @@ void main() {
       expect(
         endpoints.matrixHomeserverUrl.toString(),
         'http://matrix.home.internal',
-      );
-      expect(
-        endpoints.nextcloudBaseUrl.toString(),
-        'http://api.home.internal/dav/files',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),

@@ -765,7 +765,7 @@ void main() {
           tester.element(find.byType(WeaveApp)),
         );
         final updatedConfiguration = buildTestConfiguration(
-          nextcloudBaseUrl: 'https://files-2.home.internal',
+          backendApiBaseUrl: 'https://api-2.home.internal/api',
         );
         await configurationRepository.saveConfiguration(updatedConfiguration);
         await container
@@ -775,8 +775,7 @@ void main() {
                 configuration: updatedConfiguration,
                 authConfigurationChanged: false,
                 matrixHomeserverChanged: false,
-                nextcloudBaseUrlChanged: true,
-                backendApiBaseUrlChanged: false,
+                backendApiBaseUrlChanged: true,
               ),
             );
         await tester.pumpAndSettle();
