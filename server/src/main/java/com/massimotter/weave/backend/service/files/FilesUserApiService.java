@@ -13,6 +13,7 @@ import com.massimotter.weave.backend.files.application.FilesMutationIntentServic
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
@@ -127,12 +128,15 @@ public class FilesUserApiService {
         }
         ProviderBinding binding = activeBinding(member.organizationRef());
         FilesProviderPort provider = pinnedProvider(binding, member.organizationRef());
+        if (!provider.supportsConditionalBoundedRead()) {
+            throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-conditional-read-unavailable",
+                    "The active Files provider cannot enforce a conditional bounded download.");
+        }
         VersionedFile current = requireMapped(binding, provider, resource);
         if (current.item().size() > MAX_DOWNLOAD_BYTES) {
             throw error(HttpStatus.PAYLOAD_TOO_LARGE, "files-download-too-large", "File exceeds the download limit.");
         }
-        if (!current.version().known() || !current.version().value().startsWith("\"")
-                || !current.version().value().endsWith("\"")) {
+        if (!hasStrongProviderVersion(current.version())) {
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-strong-version-unavailable",
                     "The active Files provider has no strong version for this file.");
         }
@@ -440,7 +444,7 @@ public class FilesUserApiService {
         if (resource.kind() != Kind.FILE) throw missing();
         ProviderBinding binding = activeBinding(member.organizationRef());
         FilesProviderPort provider = pinnedProvider(binding, member.organizationRef());
-        if (!provider.supportsBoundedRead() || !provider.supportsConditionalWrite()
+        if (!provider.supportsConditionalBoundedRead() || !provider.supportsConditionalWrite()
                 || !provider.supportsIdentityBoundConditionalWrite()) {
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-identity-bound-write-unavailable",
                     "The active Files provider cannot bind a content update to the expected file identity.");
@@ -484,8 +488,7 @@ public class FilesUserApiService {
             throw error(HttpStatus.PAYLOAD_TOO_LARGE, "files-update-too-large",
                     "The current file exceeds the update limit.");
         }
-        if (!observed.version().known() || !observed.version().value().startsWith("\"")
-                || !observed.version().value().endsWith("\"")) {
+        if (!hasStrongProviderVersion(observed.version())) {
             intents.fail(mutation, "strong-provider-version-unavailable", mutation.intent().operationRef());
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-strong-version-unavailable",
                     "The active Files provider has no strong version for this file.");
@@ -595,7 +598,8 @@ public class FilesUserApiService {
         actions.add("inspect");
         if (item.kind() == Kind.COLLECTION) {
             actions.addAll(collectionActions(member, provider, false));
-        } else if (item.size() <= MAX_DOWNLOAD_BYTES && provider.supportsBoundedRead()) {
+        } else if (item.size() <= MAX_DOWNLOAD_BYTES && provider.supportsConditionalBoundedRead()
+                && hasStrongProviderVersion(found.version())) {
             actions.add("download");
             if (member.canEdit() && provider.supportsConditionalWrite()
                     && provider.supportsIdentityBoundConditionalWrite()) {
@@ -620,6 +624,11 @@ public class FilesUserApiService {
             actions.add("upload");
         }
         return actions;
+    }
+
+    private boolean hasStrongProviderVersion(FileVersion version) {
+        return version != null && version.known() && version.value().startsWith("\"")
+                && version.value().endsWith("\"");
     }
 
     private ApiErrorException unsupportedParentCreation() {

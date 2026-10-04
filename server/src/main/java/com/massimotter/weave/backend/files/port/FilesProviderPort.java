@@ -70,6 +70,11 @@ public interface FilesProviderPort {
         return false;
     }
 
+    /** True only when bounded reads enforce the expected strong provider version. */
+    default boolean supportsConditionalBoundedRead() {
+        return false;
+    }
+
     FileObject write(FileWrite write);
 
     /** Atomic absent-name creation; implementations must honor the provider precondition. */

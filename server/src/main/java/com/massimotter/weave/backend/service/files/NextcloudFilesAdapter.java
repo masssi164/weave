@@ -700,6 +700,11 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
         return true;
     }
 
+    @Override
+    public boolean supportsConditionalBoundedRead() {
+        return true;
+    }
+
     private FileObject copyOrMove(
             HttpMethod method,
             String operation,
