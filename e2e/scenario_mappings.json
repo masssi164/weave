@@ -122,8 +122,7 @@
       "feature": "e2e/features/target_standard_facade_hard_gate.feature",
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
-        "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP",
-        "OPENAPI_LEGACY_DATA_PLANE_REMOVED"
+        "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -154,17 +153,16 @@
       "feature": "e2e/features/target_standard_facade_hard_gate.feature",
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
-        "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP",
-        "OPENAPI_LEGACY_DATA_PLANE_REMOVED"
+        "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
           "path": "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
           "fragments": [
-            "WeaveMatrixFacadeChatRepository",
-            "Matrix Client-Server projection",
-            "`/api/chat/**` remains a control/product facade"
+            "NativeMatrixChatRepository",
+            "native Rust/Matrix SDK",
+            "Weave User API room bindings remain separate"
           ]
         },
         {
@@ -4857,7 +4855,7 @@
     },
     {
       "tag": "@matrix-connect",
-      "scenario": "OIDC-provisioned member can connect to Matrix",
+      "scenario": "Weave sign-in establishes authorized Matrix access",
       "feature": "e2e/features/chat_matrix_facade.feature",
       "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -4866,11 +4864,25 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
           "fragments": [
             "MATRIX_CONNECT_CONTRACT",
-            "connect opens the OIDC-gated encrypted Rust session",
+            "connect opens the native encrypted Matrix session",
             "cryptoSession.synchronizeValues"
+          ]
+        },
+        {
+          "path": "client/test/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator_test.dart",
+          "fragments": [
+            "ordinary Chat access establishes Matrix through the Weave SSO context",
+            "a different organization cannot reuse the saved Matrix session",
+            "wrong OIDC issuer or audience never starts Matrix sign-in"
+          ]
+        },
+        {
+          "path": "client/test/features/chat/chat_screen_test.dart",
+          "fragments": [
+            "loads Chat without a separate member Connect action"
           ]
         }
       ]
@@ -4886,7 +4898,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
           "fragments": [
             "maps only Rust-projected encrypted rooms into chat entities",
             "MATRIX_SPACES_ROOMS_CONTRACT",
@@ -4906,7 +4918,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
           "fragments": [
             "MATRIX_MESSAGE_CONTRACT",
             "send, decrypt, and receipt stay inside the Rust Matrix core",
@@ -4946,7 +4958,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
           "fragments": [
             "markRoomRead",
             "bridge.receipts",
@@ -5048,7 +5060,7 @@
           "path": "client/test/architecture/backend_facade_contract_test.dart",
           "fragments": [
             "FLUTTER_MATRIX_BOUNDARY_CONTRACT",
-            "WeaveMatrixFacadeChatRepository",
+            "NativeMatrixChatRepository",
             "isNot(contains('BackendChatRepository('))",
             "isNot(contains('matrixSessionServiceProvider'))"
           ]
@@ -5735,7 +5747,7 @@
       "tag": "@matrix-e2ee-fail-closed-client",
       "scenario": "A client without E2EE capability cannot downgrade a room",
       "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+      "executableTest": "client/test/features/chat/data/repositories/native_matrix_chat_repository_test.dart",
       "evidenceMarkers": [
         "MATRIX_E2EE_CLIENT_FAILS_CLOSED"
       ],

@@ -250,6 +250,7 @@ void main() {
 
   test('send, decrypt, and receipt stay inside the Rust Matrix core', () async {
     // MATRIX_MESSAGE_CONTRACT
+    // MATRIX_READ_RECEIPT_CONTRACT
     const roomId = '!general:api.weave.test';
     bridge.messages[roomId] = const <RustMatrixMessageProjection>[
       RustMatrixMessageProjection(

@@ -1,221 +1,125 @@
 #!/usr/bin/env python3
-"""Validate the Matrix/WebDAV/CalDAV hard-gate acceptance evidence."""
+"""Classify legacy DAV proof and guard the current Matrix product boundary.
+
+This is offline source/test evidence. It does not qualify a live user journey.
+"""
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-MARKERS = [
-    "TARGET_STANDARDS_WEBDAV_FILES_CURRENT_PROOF",
-    "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP",
-    "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP",
-]
+FILES_MARKER = "TARGET_STANDARDS_WEBDAV_FILES_CURRENT_PROOF"
+CALENDAR_MARKER = "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP"
+MATRIX_MARKER = "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP"
 
 
 def fail(message: str) -> None:
     print(f"target-standard-facade-hard-gate-check: {message}", file=sys.stderr)
-    sys.exit(1)
+    raise SystemExit(1)
 
 
 def read(path: str) -> str:
-    file_path = ROOT / path
-    if not file_path.exists():
+    source = ROOT / path
+    if not source.is_file():
         fail(f"missing required file {path}")
-    return file_path.read_text(encoding="utf-8")
+    return source.read_text(encoding="utf-8")
 
 
-def require(path: str, *fragments: str) -> str:
-    text = read(path)
+def require(path: str, *fragments: str) -> None:
+    source = read(path)
     for fragment in fragments:
-        if fragment not in text:
+        if fragment not in source:
             fail(f"{path} is missing required fragment: {fragment}")
-    return text
 
 
-def require_absent(path: str, *fragments: str) -> None:
-    text = read(path)
-    for fragment in fragments:
-        if fragment in text:
-            fail(f"{path} still contains forbidden fragment: {fragment}")
-
-
-def require_files_webdav_current_proof() -> None:
+def check_historical_dav() -> None:
+    feature = "e2e/features/target_standard_facade_hard_gate.feature"
     require(
-        "e2e/features/target_standard_facade_hard_gate.feature",
-        "TARGET_STANDARDS_WEBDAV_FILES_CURRENT_PROOF",
-        "#969",
-        "#1018",
+        feature,
+        FILES_MARKER,
+        CALENDAR_MARKER,
+        "historical Core Files implementation",
+        "historical Core Calendar implementation",
+        "does not qualify public DAV as the #1470 Files product boundary",
+        "does not qualify public CalDAV as the #1470 Calendar product boundary",
+        "generated User API Files operations require independent #1473 implementation and tests",
+        "generated User API Calendar operations require independent #1473 implementation and tests",
     )
+    # Older protocol tests still protect integrity and failure behavior.
+    # They do not prove the generated User API replacement.
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
         "propfindDepthOneReturnsChildrenAsDavResponses",
-        "getDownloadsFileThroughFacadePath",
         "putMkcolAndDeleteUseWebDavFacadeWriteUseCases",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
         "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit",
         "webDavPutResponseEtagChangesForSameSizeOverwriteWhenMetadataDoesNotChange",
-        "FILES_WEBDAV_WRITE_COMPLETED",
-    )
-    require(
-        "client/lib/features/files/data/repositories/backend_files_repository.dart",
-        "http.Request('PROPFIND'",
-        "http.StreamedRequest('PUT'",
-        "'PUT'",
-        "'MKCOL'",
-        "'DELETE'",
-        "'dav', 'files'",
-        "_httpClient.get(",
-        "'If-None-Match': '*'",
-        "'If-Match': '*'",
-    )
-    require_absent(
-        "client/lib/features/files/data/repositories/backend_files_repository.dart",
-        "/api/files/upload",
-        "/api/files/folders",
-        "/api/files/{id}/download",
-        "Nextcloud",
-    )
-
-
-def require_caldav_calendar_server_mvp() -> None:
-    require(
-        "e2e/features/target_standard_facade_hard_gate.feature",
-        "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP",
-        "OPENAPI_LEGACY_DATA_PLANE_REMOVED",
-        "#967",
-        "#1018",
-        "#1044",
-        "obsolete Calendar REST event routes are removed",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
-        "calendarClientSetupExposesSecretFreePlatformOptionsWithoutAdapterCredentials",
-        'jsonPath("$.endpoints.serverUrl").value("/caldav")',
-        "calendarNativeSyncSetupExposesWeaveOwnedOsBoundariesWithoutProviderLeaks",
-        "calendarLegacyRestEventDataPlaneIsRemovedInFavorOfCaldavFacade",
-        "status().isNotFound()",
-        "calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks",
         "calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData",
         "calDavReportMultigetAndSyncCollectionUseScopedFacadeCalendars",
-        "calendar-multiget",
-        "sync-collection",
-        "BEGIN:VFREEBUSY",
-        "FREEBUSY:20260708T100000Z/20260708T110000Z",
         "calDavEventReadPutAndDeleteUseCalendarFacadeBoundaryAndStableErrors",
-        "calendar-adapter-not-configured",
-    )
-    require(
-        "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
-        "calendarCalDavMethodsRouteThroughCalendarFacadeUseCases",
     )
 
 
-def require_matrix_chat_server_mvp() -> None:
+def check_matrix_boundary() -> None:
     require(
         "e2e/features/target_standard_facade_hard_gate.feature",
-        "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP",
-        "OPENAPI_LEGACY_DATA_PLANE_REMOVED",
-        "#1017",
-        "#1022",
-        "#1044",
-        "obsolete Chat REST conversation and message routes are removed",
+        MATRIX_MARKER,
+        "Flutter uses its native Rust/Matrix SDK against the Weave facade",
+        "versioned support profile guards every capability",
     )
     require(
         "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
-        "WeaveMatrixFacadeChatRepository",
-        "Matrix Client-Server projection",
-        "`/api/chat/**` remains a control/product facade",
-        "direct Matrix SDK",
+        "NativeMatrixChatRepository",
+        "native Rust/Matrix SDK",
+        "Weave User API room bindings remain separate from Matrix message transport",
     )
     require(
         "client/test/architecture/backend_facade_contract_test.dart",
-        "primary chat provider is wired through the Matrix Client-Server projection",
+        "FLUTTER_MATRIX_BOUNDARY_CONTRACT",
+        "NativeMatrixChatRepository",
         "isNot(contains('BackendChatRepository('))",
-        "isNot(contains('matrixSessionServiceProvider'))",
     )
-    require_absent("client/pubspec.yaml", "matrix:", "flutter_vodozemac")
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
-        "matrixClientServerProjectionRequiresWorkspaceToken",
-        "matrixClientServerProjectionVersionsAdvertisesOidcGatedRustCoreFacade",
-        "matrixClientServerProjectionWhoamiDerivesMatrixIdentityFromOidcPrincipal",
-        "matrixClientServerProjectionSyncsCanonicalChatAsMatrixRoomsWithoutProviderPayloads",
-        "matrixClientServerProjectionSendsViaCanonicalChatFacade",
-        "matrixClientServerProjectionListsJoinedRoomsAndRoomMessages",
-        "!channel-general:weave.local",
-        "northbound-matrix-client-server",
-        "spring-boot-resource-server",
-        "weave_matrix_core",
+        "whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject",
+        "syncProjectsCanonicalChatThroughRustWithStableWeaveCursor",
+        "sendParsesInRustAndForwardsTransactionForCanonicalIdempotency",
+        "joinedRoomsAndMessagesUseCanonicalIdentifiers",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionController.java",
+        '"/_matrix/client/**"',
+        "MatrixProtocolCoreService",
+        "ChatDomainFacadeService",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
         "chatLegacyRestDataPlaneRoutesAreRemovedInFavorOfMatrixFacade",
-        "/api/chat/conversations/channel-general/messages",
-        "status().isNotFound()",
     )
-    require(
-        "server/src/test/java/com/massimotter/weave/backend/controller/OpenApiDocumentationTest.java",
-        "doesNotExist()",
-        "/api/chat/conversations/{conversationId}/messages",
-        "/api/calendar/events/{id}",
-    )
-    require(
-        "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
-        "matrixClientServerProjectionUsesChatFacadeNotBridgeOrRestChatDataPlane",
-        "matrixProtocolCoreBoundaryDefinesRustJniAndFlutterBridgeTarget",
-    )
-    require(
-        "server/src/main/java/com/massimotter/weave/backend/matrix/NativeMatrixCore.java",
-        "public static native String matrixFacadeDescriptorJson",
-        "weave_matrix_core",
-    )
-    require(
-        "server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCoreService.java",
-        "spring-boot-resource-server",
-        "ruma-serde-serde_json-thiserror-tracing",
-        "server-jni-wrapper",
-        "flutter-rust-bridge",
-        "northboundHomeserverDependency",
-    )
-    require(
-        "rust/matrix-core/src/lib.rs",
-        "OwnedRoomId",
-        "OwnedUserId",
-        "matrix_facade_descriptor_json",
-        "Java_com_massimotter_weave_backend_matrix_NativeMatrixCore_matrixFacadeDescriptorJson",
-        "northbound_homeserver_dependency: false",
-    )
-    require(
-        "build.gradle",
-        "matrixRustCoreTest",
-        "cargo",
-        "weave-matrix-core",
-    )
-    require(
-        "client/test/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge_test.dart",
-        "RUST_MATRIX_CORE_BRIDGE_CONTRACT",
-        "flutter-rust-bridge",
-        "spring-boot-resource-server",
-    )
-    require(
-        "client/lib/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart",
-        "RustMatrixCoreBridge",
-        "matrix-client-server-facade",
-        "northboundHomeserverDependency",
-    )
+    for artifact in ("weave-user-openapi", "weave-admin-openapi"):
+        contract = json.loads(read(f"contracts/openapi/{artifact}.json"))
+        if any(
+            path.startswith("/api/chat/conversations/") and "/messages" in path
+            for path in contract.get("paths", {})
+        ):
+            fail(f"{artifact} exposes a proprietary Chat message data plane")
 
 
 def main() -> int:
-    require_files_webdav_current_proof()
-    require_caldav_calendar_server_mvp()
-    require_matrix_chat_server_mvp()
-    for marker in MARKERS:
-        print(marker)
+    check_historical_dav()
+    check_matrix_boundary()
+    print(f"{FILES_MARKER}:historical")
+    print(f"{CALENDAR_MARKER}:historical")
+    print(f"{MATRIX_MARKER}:guarded")
     return 0
 
 
