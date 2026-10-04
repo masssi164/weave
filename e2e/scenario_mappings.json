@@ -14,7 +14,7 @@
     },
     {
       "tag": "@files-webdav-read-list-download",
-      "scenario": "Member lists and reads files through the Weave WebDAV facade",
+      "scenario": "Historical WebDAV read tests retain provider isolation evidence",
       "feature": "e2e/features/files_webdav_facade.feature",
       "executableTest": "tools/files_webdav_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -29,20 +29,12 @@
             "getDownloadsFileThroughFacadePath",
             "not(containsString(\"remote.php\"))"
           ]
-        },
-        {
-          "path": "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
-          "fragments": [
-            "lists files through the Weave WebDAV data plane with the Weave token",
-            "downloads files through the Weave WebDAV data plane",
-            "isNot(contains('WebDAV'))"
-          ]
         }
       ]
     },
     {
       "tag": "@files-webdav-write-mvp",
-      "scenario": "Member writes files through the Weave WebDAV facade with guarded preconditions",
+      "scenario": "Historical WebDAV write tests retain precondition and audit evidence",
       "feature": "e2e/features/files_webdav_facade.feature",
       "executableTest": "tools/files_webdav_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -68,7 +60,7 @@
     },
     {
       "tag": "@files-mcp-facade-no-provider-bypass",
-      "scenario": "Files MCP tools cannot bypass the Files facade",
+      "scenario": "Historical MCP Files contract records provider bypass restrictions",
       "feature": "e2e/features/files_webdav_facade.feature",
       "executableTest": "tools/files_webdav_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -101,17 +93,6 @@
             "propfindDepthOneReturnsChildrenAsDavResponses",
             "getDownloadsFileThroughFacadePath",
             "putMkcolAndDeleteUseWebDavFacadeWriteUseCases"
-          ]
-        },
-        {
-          "path": "client/lib/features/files/data/repositories/backend_files_repository.dart",
-          "fragments": [
-            "http.Request('PROPFIND'",
-            "'dav', 'files'",
-            "'PUT'",
-            "'MKCOL'",
-            "'DELETE'",
-            "'If-None-Match': '*'"
           ]
         }
       ]
@@ -4614,24 +4595,37 @@
     },
     {
       "tag": "@files-flutter-webdav",
-      "scenario": "Flutter Files repository uses /dav/files for all file data-plane operations",
+      "scenario": "Historical Flutter WebDAV target is superseded",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
       "evidenceMarkers": [
-        "FLUTTER_FILES_WEBDAV_DATA_PLANE",
-        "FLUTTER_FILES_WEBDAV_COPY_MOVE"
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@files-user-api-generated-client",
+      "scenario": "Flutter uses generated Files operations and stable Weave references",
+      "feature": "e2e/features/files_user_api_generated.feature",
+      "executableTest": "tools/files_webdav_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "FILES_USER_API_GENERATED_CLIENT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/lib/features/files/data/repositories/backend_files_repository.dart",
+          "path": "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
           "fragments": [
-            "http.Request('PROPFIND'",
-            "http.StreamedRequest('PUT'",
-            "http.Request('MKCOL'",
-            "method: 'COPY'",
-            "method: 'MOVE'",
-            "'DELETE'"
+            "uses the generated User API repository for release members",
+            "download validates exact bytes, length, digest and strong ETag",
+            "unsupported mutations and denied actions never use a fallback route"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/files/FilesUserApiServiceTest.java",
+          "fragments": [
+            "anotherOrganizationCannotResolveTheSameOpaqueFileId",
+            "currentReadOnlyGrantDoesNotAdvertiseMutationOrShareActions"
           ]
         }
       ]

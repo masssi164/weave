@@ -1,36 +1,29 @@
-Feature: Files WebDAV facade data-plane boundary
-  The Files capability exposes member data-plane behavior through the
-  Weave-owned WebDAV facade while OpenAPI remains a control-plane surface and
-  providers stay interchangeable behind server policy.
+Feature: Historical Files WebDAV facade evidence
+  These scenarios retain Core-era server integrity and authorization evidence.
+  Public northbound WebDAV and Flutter WebDAV consumption are outside #1470.
+  Current member Files behavior is covered by files_user_api_generated.feature.
 
   Each scenario has a stable tag in e2e/scenario_mappings.json. The acceptance
   gate maps these scenarios to deterministic checks so this feature cannot stay
   decorative prose.
 
   @files-webdav-read-list-download
-  Scenario: Member lists and reads files through the Weave WebDAV facade
-    Given an authenticated member has Files read capability in a workspace
-    And the workspace has a configured Files provider behind Weave
-    When the member client lists or downloads files
-    Then the request uses the Weave-owned "/dav/files" Files facade
-    And OpenAPI Files calls are used only for discovery, readiness, setup, revoke, credential lifecycle, audit status, or generated control-plane models
-    And the response contains canonical Weave file references and support-safe errors
-    And the response does not expose provider URLs, provider credentials, raw downstream payloads, or provider-shaped member language
+  Scenario: Historical WebDAV read tests retain provider isolation evidence
+    Given the Core-era Weave WebDAV controller is retained
+    When its read and download tests run
+    Then canonical Weave file references and support-safe errors remain protected
+    And these tests do not qualify public DAV as the current Files product boundary
 
   @files-webdav-write-mvp
-  Scenario: Member writes files through the Weave WebDAV facade with guarded preconditions
-    Given an authenticated member has Files edit capability in a workspace
-    And the workspace has a configured Files provider behind Weave
-    When the member client writes through PUT, MKCOL, or DELETE on "/dav/files"
-    Then Weave enforces ETag generation and If-Match or If-None-Match preconditions at the Files facade
-    And conflict, precondition, forbidden, revoked, quota, and storage failures use stable support-safe error codes
-    And support-safe audit evidence records attempted and completed WebDAV mutations
-    And no legacy OpenAPI Files member data endpoint becomes the fallback data plane
+  Scenario: Historical WebDAV write tests retain precondition and audit evidence
+    Given the Core-era Weave WebDAV controller is retained
+    When its guarded mutation tests run
+    Then preconditions, support-safe errors, and mutation audit remain protected
+    And these tests do not qualify public DAV as the current Files product boundary
 
   @files-mcp-facade-no-provider-bypass
-  Scenario: Files MCP tools cannot bypass the Files facade
-    Given a governed MCP Files tool is allowed by organization policy
-    When the tool searches or reads file metadata
-    Then the tool operates through Weave Files facade or WebDAV-backed projection semantics
-    And the tool returns canonical Weave file references and support-safe metadata
-    And the tool does not accept raw provider URLs, provider credentials, downstream payloads, or unrestricted protocol commands
+  Scenario: Historical MCP Files contract records provider bypass restrictions
+    Given the Core-era MCP Files contract is retained
+    When its archived projection is inspected
+    Then raw provider URLs and unrestricted protocol commands remain prohibited
+    And #1474 must prove current MCP tools against generated User operations and server policy

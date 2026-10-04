@@ -305,9 +305,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "WebDAV northbound data plane",
-        "OpenAPI control-plane boundary",
-        "support-safe file read/list/download"
+        "historical WebDAV server read and provider isolation evidence",
+        "not current #1470 Files northbound acceptance"
       ]
     },
     {
@@ -324,10 +323,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "PUT/MKCOL/DELETE WebDAV write behavior",
-        "ETag and conditional preconditions",
-        "support-safe mutation audit",
-        "no OpenAPI data-plane fallback"
+        "historical WebDAV server precondition and audit evidence",
+        "not current #1470 Files northbound acceptance"
       ]
     },
     {
@@ -344,9 +341,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "MCP Files facade projection",
-        "canonical file references",
-        "raw provider bypass rejection"
+        "historical MCP contract rejects raw provider inputs",
+        "#1474 current generated User API MCP proof remains open"
       ]
     },
     {
@@ -362,9 +358,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "WebDAV read/write evidence",
-        "Flutter WebDAV read/download path",
-        "remaining client/native cutover debt"
+        "historical WebDAV server read and write evidence",
+        "generated Files User API client requires independent evidence"
       ]
     },
     {
@@ -3631,9 +3626,24 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "historical public DAV client scenario is superseded",
+        "current Flutter Files uses generated User API"
+      ]
+    },
+    {
+      "tag": "@files-user-api-generated-client",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "generated User API transport and opaque references",
+        "bounded binary integrity and denied action tests",
+        "live provider-backed E2E remains open"
       ]
     },
     {

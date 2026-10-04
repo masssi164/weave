@@ -1,5 +1,6 @@
-Feature: Files full WebDAV facade
-  Files data-plane behavior is exposed through Weave-owned WebDAV at /dav/files.
+Feature: Historical Files full WebDAV facade archive
+  These July 2026 public DAV scenarios remain archived evidence and are not
+  #1470 product acceptance. Current Files consumption uses the generated User API.
 
   @files-webdav-propfind
   Scenario: PROPFIND Depth 0 and 1 list Weave-owned resources with WebDAV properties
@@ -74,7 +75,8 @@ Feature: Files full WebDAV facade
     And the error is support-safe
 
   @files-flutter-webdav
-  Scenario: Flutter Files repository uses /dav/files for all file data-plane operations
-    Given the Flutter Files repository is exercised
-    Then list, download, upload, create folder, delete, move, and copy use the Weave WebDAV facade
-    And OpenAPI Files data-plane routes are not used
+  Scenario: Historical Flutter WebDAV target is superseded
+    Given the July 2026 public DAV target is retained in this archive
+    When the current Files member boundary is checked
+    Then the Flutter Files repository consumes generated User operations
+    And this archived scenario does not require a public DAV client
