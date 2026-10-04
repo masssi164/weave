@@ -1,6 +1,6 @@
 # ADR: separate Matrix server protocol and client crypto boundaries
 
-Status: Accepted for the native-provider closure track; qualification remains gated by PR #1325.
+Status: Superseded for the #1470 consolidation release by the pinned `steering/release-2026-10-product-consolidation.md`. The separation of client-private crypto state remains binding; mandatory server JNI and the permanent northbound facade do not. The decision below records the earlier architecture and is not current implementation guidance.
 
 ## Context
 

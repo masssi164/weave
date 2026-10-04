@@ -1,6 +1,6 @@
 # Matrix Client-Server support profile
 
-This profile describes the permanent northbound Matrix facade. It does not describe a southbound Matrix provider and does not make Synapse or MAS canonical Chat authority.
+Status: historical server-projection profile. The pinned #1470 consolidation contract supersedes its claim that the Weave Server Matrix facade is permanent. Current Flutter and Weaver clients use their native Matrix integrations and a separate Matrix homeserver URL. The former server projection is disabled by default; the endpoint rows below describe only its isolated legacy regression lane and are not current product availability claims.
 
 ## Protocol boundary
 
@@ -31,7 +31,7 @@ The server never owns user private identity keys, Olm/Megolm private session sta
 
 ## Provider invariant
 
-The Matrix facade is permanent. Selecting `weave-native`, Synapse-backed or another future `ChatProviderPort` implementation changes only the southbound provider. It does not change the member Matrix URL or turn the Matrix facade on/off.
+This invariant applied to the retired server projection. Current member Matrix sessions use the configured homeserver directly, and Weave API tokens cannot substitute for Matrix OAuth sessions. The first required provider replacement proof for #1470 is Files, not Chat.
 
 ## Closure marker
 
