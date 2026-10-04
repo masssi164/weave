@@ -151,6 +151,25 @@ class FilesUserApiServiceTest {
     }
 
     @Test
+    void nativeContentDigestVersionAdvertisesOnlyVerifiedDownload() {
+        FilesUserResource owned = file("alice", 4);
+        when(resources.find("org-a", owned.fileId())).thenReturn(Optional.of(owned));
+        when(bindings.mappingByCanonicalId("org-a", "files", 4, owned.fileId()))
+                .thenReturn(Optional.of(mapping(owned)));
+        FilePath path = new FilePath("/x.bin");
+        FileObject object = new FileObject(new FileId("files:/x.bin"), path, Kind.FILE,
+                4, "application/octet-stream", Instant.parse("2026-01-01T00:00:00Z"), false);
+        String digest = "sha256:" + "a".repeat(64);
+        when(provider.find(path)).thenReturn(Optional.of(new VersionedFile(object, new FileVersion(digest))));
+        when(provider.providerObjectRef(path)).thenReturn(Optional.of("nextcloud-fileid:42"));
+        when(provider.supportsConditionalBoundedRead()).thenReturn(true);
+
+        assertThat(service.inspect(jwt("org-a", "alice"), owned.fileId()).allowedActions())
+                .containsExactly("inspect", "download")
+                .doesNotContain("updateContent");
+    }
+
+    @Test
     void providerWithoutConditionalBoundedReadDoesNotAdvertiseDownload() {
         FilesUserResource owned = file("alice", 4);
         when(resources.find("org-a", owned.fileId())).thenReturn(Optional.of(owned));

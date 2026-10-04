@@ -128,15 +128,29 @@ public final class FilesystemBlobStore implements BlobStorePort {
 
     @Override
     public void readStream(BlobScope scope, BlobReference reference, OutputStream target) {
+        readStreamBounded(scope, reference, target, maximumBlobBytes);
+    }
+
+    @Override
+    public void readStreamBounded(
+            BlobScope scope, BlobReference reference, OutputStream target, long maxBytes) {
+        if (maxBytes < 0) {
+            throw new IllegalArgumentException("maximum read size must not be negative");
+        }
+        long limit = Math.min(maxBytes, maximumBlobBytes);
         String key = key(scope, reference);
         try {
             validateSandbox(scope, reference, false);
             if (!exists(key)) throw conflict("files-native-blob-missing");
             long size = operator.stat(key).getContentLength();
             requireWithinLimit(size, "files-native-blob-size-invalid");
+            if (size > limit) throw error(HttpStatus.PAYLOAD_TOO_LARGE,
+                    "files-native-blob-too-large", "The native Files blob exceeds the read limit.");
             byte[] value = operator.read(key);
             requireWithinLimit(value.length, "files-native-blob-size-invalid");
-            long transferred = BlobStorePort.transferBounded(new java.io.ByteArrayInputStream(value), target, maximumBlobBytes);
+            if (value.length > limit) throw error(HttpStatus.PAYLOAD_TOO_LARGE,
+                    "files-native-blob-too-large", "The native Files blob exceeds the read limit.");
+            long transferred = BlobStorePort.transferBounded(new java.io.ByteArrayInputStream(value), target, limit);
             if (transferred != size) {
                 throw error(HttpStatus.CONFLICT, "files-native-blob-size-mismatch", "The native Files blob size did not match its metadata.");
             }

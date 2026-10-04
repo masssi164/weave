@@ -627,8 +627,12 @@ public class FilesUserApiService {
     }
 
     private boolean hasStrongProviderVersion(FileVersion version) {
-        return version != null && version.known() && version.value().startsWith("\"")
-                && version.value().endsWith("\"");
+        if (version == null || !version.known()) {
+            return false;
+        }
+        String token = version.value();
+        return (token.startsWith("\"") && token.endsWith("\""))
+                || token.matches("sha256:[a-f0-9]{64}");
     }
 
     private ApiErrorException unsupportedParentCreation() {

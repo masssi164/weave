@@ -66,7 +66,7 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
             String spaceRef,
             FilePath path) {
         return files
-                .findByIdOrganizationRefAndIdSpaceRefAndCanonicalPath(
+                .findByIdOrganizationRefAndIdSpaceRefAndActivePathKey(
                         organizationRef,
                         spaceRef,
                         path.value())
