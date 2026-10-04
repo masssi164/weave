@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
@@ -16,15 +18,11 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/generated/user_api/api.dart' as user_api;
 import 'package:weave/integrations/weave_api/data/services/weave_user_api_client.dart';
-import 'package:xml/xml.dart';
 
-/// Files repository backed by the Weave backend product facade.
+/// Member Files through the generated, server-owned User HTTP contract.
 ///
-/// Flutter owns the product UI and calls `weave-backend` only. The backend owns
-/// all direct provider access. File list/read data-plane operations use the
-/// Weave WebDAV projection; OpenAPI remains the control plane for discovery,
-/// setup, readiness, revoke, grants, and generated models. File writes use the
-/// same Weave WebDAV projection with fail-closed precondition handling.
+/// Paths are for display and navigation only. Every request uses the opaque
+/// Weave file ID returned by the server, never a provider path or DAV URL.
 class BackendFilesRepository
     implements
         FilesRepository,
@@ -40,6 +38,11 @@ class BackendFilesRepository
        _authSessionRepository = authSessionRepository;
 
   static const accountLabel = 'Weave files';
+  static const rootFileId = 'file:root';
+  static const maxTransferBytes = 25 * 1024 * 1024;
+  static final _opaqueFileId = RegExp(
+    r'^file:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
 
   final http.Client _httpClient;
   final ServerConfigurationRepository _serverConfigurationRepository;
@@ -54,9 +57,9 @@ class BackendFilesRepository
         message: 'Finish server setup before browsing files.',
       );
     }
-
+    final authConfiguration = _authConfiguration(configuration);
     final authState = await _authSessionRepository.restoreSession(
-      _authConfiguration(configuration),
+      authConfiguration,
     );
     if (!authState.isAuthenticated || authState.session == null) {
       return FilesConnectionState.disconnected(
@@ -64,37 +67,44 @@ class BackendFilesRepository
         message: 'Sign in to Weave before browsing files.',
       );
     }
-
     return _connectionForReadiness(
       _BackendFilesContext(
         baseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
         accessToken: authState.session!.accessToken,
-        authConfiguration: _authConfiguration(configuration),
+        authConfiguration: authConfiguration,
       ),
     );
   }
 
   @override
   Future<FilesConnectionState> connect() async {
-    final context = await _requireContext();
-    return _connectionForReadiness(context);
+    return _connectionForReadiness(await _requireContext());
   }
 
   @override
   Future<void> disconnect() async {
-    // The backend-facade path does not own a separate local provider session.
+    // Files uses the ordinary Weave member session.
   }
 
   @override
   Future<DirectoryListing> listDirectory(String path) async {
     final context = await _requireContext();
-    final response = await _sendAuthenticated(context, (accessToken) async {
-      final request = http.Request('PROPFIND', _davUri(context.baseUrl, path))
-        ..headers.addAll(_webdavHeaders(accessToken, depth: '1'));
-      return http.Response.fromStream(await _httpClient.send(request));
-    }, fallbackMessage: 'Unable to load files from the Weave backend.');
-    _ensureSuccess(response, successCodes: const {207});
-    return _decodeWebDavListing(path, response.body);
+    final normalizedPath = _normalizePath(path);
+    final listing = await _listAtPath(context, normalizedPath);
+    return DirectoryListing(
+      path: normalizedPath,
+      parentFileId: listing.parentFileId,
+      allowedActions: listing.allowedActions.toSet(),
+      entries: listing.items
+          .map(
+            (item) => _entry(
+              item,
+              parentId: listing.parentFileId,
+              parentPath: normalizedPath,
+            ),
+          )
+          .toList(growable: false),
+    );
   }
 
   @override
@@ -103,35 +113,65 @@ class BackendFilesRepository
     FileUploadRequest request, {
     FileUploadProgressCallback? onProgress,
   }) async {
+    _validateChildName(request.fileName);
+    if (request.sizeInBytes < 0 || request.sizeInBytes > maxTransferBytes) {
+      throw const FilesFailure.storage('Files uploads are limited to 25 MiB.');
+    }
     final context = await _requireContext();
-    final uploadPath = _childPath(directoryPath, request.fileName);
-    final response = await _sendAuthenticated(
-      context,
-      (accessToken) async {
-        final httpRequest =
-            http.StreamedRequest('PUT', _davUri(context.baseUrl, uploadPath))
-              ..headers.addAll({
-                ..._webdavHeaders(accessToken),
-                'Content-Type': 'application/octet-stream',
-                'If-None-Match': '*',
-              })
-              ..contentLength = request.sizeInBytes;
-        final responseFuture = _httpClient.send(httpRequest);
-        var uploaded = 0;
-        try {
-          await for (final chunk in request.byteStream) {
-            uploaded += chunk.length;
-            httpRequest.sink.add(chunk);
-            onProgress?.call(uploaded, request.sizeInBytes);
-          }
-        } finally {
-          unawaited(httpRequest.sink.close());
+    final listing = await _listAtPath(context, _normalizePath(directoryPath));
+    _requireAction(listing.allowedActions, 'upload');
+
+    // Buffer this bounded transfer before sending. A file-picker stream cannot
+    // be replayed after a 401 refresh, and a partial stream must never become
+    // an apparently successful upload.
+    final bytes = BytesBuilder(copy: false);
+    var count = 0;
+    try {
+      await for (final chunk in request.byteStream) {
+        count += chunk.length;
+        if (count > maxTransferBytes || count > request.sizeInBytes) {
+          throw const FilesFailure.protocol(
+            'The selected file size changed during upload.',
+          );
         }
-        return http.Response.fromStream(await responseFuture);
-      },
-      fallbackMessage: 'Unable to upload the file through the Weave backend.',
+        bytes.add(chunk);
+      }
+    } on FilesFailure {
+      rethrow;
+    } catch (error) {
+      throw FilesFailure.unknown(
+        'Unable to read the selected file.',
+        cause: error,
+      );
+    }
+    if (count != request.sizeInBytes) {
+      throw const FilesFailure.protocol(
+        'The selected file size changed during upload.',
+      );
+    }
+    final content = bytes.takeBytes();
+    final key = _idempotencyKey();
+    final result = await _invoke(
+      context,
+      (api) => api.uploadFilesItemContent(
+        listing.parentFileId,
+        request.fileName,
+        '*',
+        key,
+        _uploadBody(content, onProgress: onProgress),
+      ),
+      fallbackMessage: 'Unable to upload the file through Weave Files.',
     );
-    _ensureSuccess(response, successCodes: const {201, 204});
+    if (result == null) {
+      throw const FilesFailure.protocol(
+        'Weave Files returned no uploaded item.',
+      );
+    }
+    _entry(
+      result,
+      parentId: listing.parentFileId,
+      parentPath: _normalizePath(directoryPath),
+    );
   }
 
   @override
@@ -139,89 +179,74 @@ class BackendFilesRepository
     required String parentPath,
     required String name,
   }) async {
+    _validateChildName(name);
     final context = await _requireContext();
-    final folderPath = _childPath(parentPath, name);
-    final response = await _sendAuthenticated(
+    final listing = await _listAtPath(context, _normalizePath(parentPath));
+    _requireAction(listing.allowedActions, 'createFolder');
+    final result = await _invoke(
       context,
-      (accessToken) async {
-        final request =
-            http.Request('MKCOL', _davUri(context.baseUrl, folderPath))
-              ..headers.addAll({
-                ..._webdavHeaders(accessToken),
-                'If-None-Match': '*',
-              });
-        return http.Response.fromStream(await _httpClient.send(request));
-      },
-      fallbackMessage: 'Unable to create the folder through the Weave backend.',
+      (api) => api.createFilesFolder(
+        '*',
+        _idempotencyKey(),
+        user_api.FilesUserCreateFolderRequest(
+          parentFileId: listing.parentFileId,
+          name: name,
+        ),
+      ),
+      fallbackMessage: 'Unable to create the folder through Weave Files.',
     );
-    _ensureSuccess(response, successCodes: const {201});
-    final createdPath = _pathFromLocation(response.headers) ?? folderPath;
-    return FileEntry(
-      id: createdPath,
-      name: _fallbackNameFromPath(createdPath),
-      path: createdPath,
-      isDirectory: true,
+    if (result == null) {
+      throw const FilesFailure.protocol(
+        'Weave Files returned no created folder.',
+      );
+    }
+    final entry = _entry(
+      result,
+      parentId: listing.parentFileId,
+      parentPath: _normalizePath(parentPath),
     );
+    if (!entry.isDirectory) {
+      throw const FilesFailure.protocol(
+        'Weave Files returned an invalid folder.',
+      );
+    }
+    return entry;
   }
 
   @override
   Future<FileDownload> downloadFile(FileEntry entry) async {
-    if (entry.isDirectory) {
-      throw const FilesFailure.configuration(
-        'Folders cannot be exported as a single file yet.',
+    if (entry.isDirectory ||
+        !_opaqueFileId.hasMatch(entry.id) ||
+        !entry.allows('download')) {
+      throw const FilesFailure.unsupportedPlatform(
+        'This file cannot be downloaded through Weave Files.',
       );
     }
-
     final context = await _requireContext();
-    final response = await _sendAuthenticated(
-      context,
-      (accessToken) => _httpClient.get(
-        _davUri(context.baseUrl, entry.path),
-        headers: {'Accept': '*/*', 'Authorization': 'Bearer $accessToken'},
-      ),
-      fallbackMessage: 'Unable to download the file through the Weave backend.',
-    );
-    _ensureSuccess(response, successCodes: const {200});
+    final response = await _invoke(context, (api) async {
+      final response = await api.downloadFilesItemContentWithHttpInfo(entry.id);
+      if (response.statusCode >= 400) {
+        throw user_api.ApiException(response.statusCode, response.body);
+      }
+      return response;
+    }, fallbackMessage: 'Unable to download the file through Weave Files.');
+    if (response.statusCode != 200) {
+      throw const FilesFailure.protocol(
+        'Weave Files returned an unexpected download status.',
+      );
+    }
+    _verifyDownload(response);
     return FileDownload(
-      fileName: _downloadFileName(response.headers) ?? entry.name,
+      fileName: entry.name,
       bytes: Uint8List.fromList(response.bodyBytes),
     );
   }
 
-  String? _downloadFileName(Map<String, String> headers) {
-    final disposition = headers['content-disposition'];
-    if (disposition == null) {
-      return null;
-    }
-    final filenameStar = RegExp(
-      r"filename\*=UTF-8''([^;]+)",
-      caseSensitive: false,
-    ).firstMatch(disposition);
-    if (filenameStar != null) {
-      return Uri.decodeComponent(filenameStar.group(1)!);
-    }
-    final filename = RegExp(
-      r'filename="?([^";]+)"?',
-      caseSensitive: false,
-    ).firstMatch(disposition);
-    return filename?.group(1);
-  }
-
   @override
   Future<void> deleteEntry(FileEntry entry) async {
-    final context = await _requireContext();
-    final response = await _sendAuthenticated(
-      context,
-      (accessToken) async {
-        final request = http.Request(
-          'DELETE',
-          _davUri(context.baseUrl, entry.path),
-        )..headers.addAll({..._webdavHeaders(accessToken), 'If-Match': '*'});
-        return http.Response.fromStream(await _httpClient.send(request));
-      },
-      fallbackMessage: 'Unable to delete the file through the Weave backend.',
+    throw const FilesFailure.unsupportedPlatform(
+      'Delete is not available through the Weave Files User API yet.',
     );
-    _ensureSuccess(response, successCodes: const {204});
   }
 
   @override
@@ -229,12 +254,9 @@ class BackendFilesRepository
     FileEntry source, {
     required String destinationPath,
     bool overwrite = false,
-  }) {
-    return _relocateEntry(
-      method: 'COPY',
-      source: source,
-      destinationPath: destinationPath,
-      overwrite: overwrite,
+  }) async {
+    throw const FilesFailure.unsupportedPlatform(
+      'Copy is not available through the Weave Files User API yet.',
     );
   }
 
@@ -243,57 +265,185 @@ class BackendFilesRepository
     FileEntry source, {
     required String destinationPath,
     bool overwrite = false,
-  }) {
-    return _relocateEntry(
-      method: 'MOVE',
-      source: source,
-      destinationPath: destinationPath,
-      overwrite: overwrite,
+  }) async {
+    throw const FilesFailure.unsupportedPlatform(
+      'Move is not available through the Weave Files User API yet.',
     );
   }
 
-  Future<FileEntry> _relocateEntry({
-    required String method,
-    required FileEntry source,
-    required String destinationPath,
-    required bool overwrite,
-  }) async {
-    final normalizedDestination = _normalizeFilesPath(destinationPath);
-    if (normalizedDestination == '/') {
+  Future<user_api.FilesUserListResponse> _listAtPath(
+    _BackendFilesContext context,
+    String path,
+  ) async {
+    var listing = await _list(context, rootFileId);
+    if (path == '/') return listing;
+    var walkedPath = '';
+    for (final segment in path.split('/').where((part) => part.isNotEmpty)) {
+      walkedPath += '/$segment';
+      final matches = listing.items.where(
+        (item) =>
+            item.name == segment &&
+            item.displayPath == walkedPath &&
+            item.kind == user_api.FilesUserItemResponseKindEnum.folder &&
+            item.parentFileId == listing.parentFileId &&
+            _opaqueFileId.hasMatch(item.fileId) &&
+            item.allowedActions.contains('listChildren'),
+      );
+      if (matches.length != 1) {
+        throw const FilesFailure.protocol(
+          'This folder is no longer available in Weave Files.',
+        );
+      }
+      listing = await _list(context, matches.single.fileId);
+    }
+    return listing;
+  }
+
+  Future<user_api.FilesUserListResponse> _list(
+    _BackendFilesContext context,
+    String parentId,
+  ) async {
+    if (parentId != rootFileId && !_opaqueFileId.hasMatch(parentId)) {
       throw const FilesFailure.protocol(
-        'The Files root cannot be used as a copy or move destination.',
+        'The Files folder reference is invalid.',
       );
     }
-    final context = await _requireContext();
-    final response = await _sendAuthenticated(
+    final response = await _invoke(
       context,
-      (accessToken) async {
-        final request =
-            http.Request(method, _davUri(context.baseUrl, source.path))
-              ..headers.addAll({
-                ..._webdavHeaders(accessToken),
-                'Destination': _davUri(
-                  context.baseUrl,
-                  normalizedDestination,
-                ).toString(),
-                'Overwrite': overwrite ? 'T' : 'F',
-                'If-Match': '*',
-              });
-        return http.Response.fromStream(await _httpClient.send(request));
-      },
-      fallbackMessage:
-          'Unable to ${method == 'COPY' ? 'copy' : 'move'} the entry through the Weave backend.',
+      (api) => api.listFilesItems(parentId: parentId),
+      fallbackMessage: 'Unable to load files from Weave Files.',
     );
-    _ensureSuccess(response, successCodes: const {201, 204});
-    final resultPath =
-        _pathFromLocation(response.headers) ?? normalizedDestination;
+    if (response == null || response.parentFileId != parentId) {
+      throw const FilesFailure.protocol(
+        'Weave Files returned an invalid directory listing.',
+      );
+    }
+    return response;
+  }
+
+  FileEntry _entry(
+    user_api.FilesUserItemResponse item, {
+    required String parentId,
+    required String parentPath,
+  }) {
+    final path = item.displayPath;
+    final expectedPath = parentPath == '/'
+        ? '/${item.name}'
+        : '$parentPath/${item.name}';
+    if (item.parentFileId != parentId ||
+        !_opaqueFileId.hasMatch(item.fileId) ||
+        path != expectedPath ||
+        item.name.trim().isEmpty ||
+        item.revision.isEmpty ||
+        item.kind != user_api.FilesUserItemResponseKindEnum.file &&
+            item.kind != user_api.FilesUserItemResponseKindEnum.folder) {
+      throw const FilesFailure.protocol(
+        'Weave Files returned an invalid item.',
+      );
+    }
     return FileEntry(
-      id: resultPath,
-      name: _fallbackNameFromPath(resultPath),
-      path: resultPath,
-      isDirectory: source.isDirectory,
-      modifiedAt: source.modifiedAt,
-      sizeInBytes: source.sizeInBytes,
+      id: item.fileId,
+      name: item.name,
+      path: path,
+      isDirectory: item.kind == user_api.FilesUserItemResponseKindEnum.folder,
+      modifiedAt: item.modifiedAt,
+      sizeInBytes: item.kind == user_api.FilesUserItemResponseKindEnum.file
+          ? item.size
+          : null,
+      revision: item.revision,
+      allowedActions: item.allowedActions.toSet(),
+    );
+  }
+
+  void _verifyDownload(http.Response response) {
+    final bytes = response.bodyBytes;
+    final length = int.tryParse(response.headers['content-length'] ?? '');
+    final etag = response.headers['etag'];
+    final contentType = response.headers['content-type'];
+    final digestHeader = response.headers['content-digest'];
+    final contentHash = sha256.convert(bytes);
+    final match = digestHeader == null
+        ? null
+        : RegExp(
+            r'^sha-256=:([A-Za-z0-9+/]+={0,2}):$',
+          ).firstMatch(digestHeader);
+    if (bytes.length > maxTransferBytes ||
+        length != bytes.length ||
+        etag == null ||
+        !RegExp(r'^"[^"\r\n]+"$').hasMatch(etag) ||
+        etag != '"sha256-$contentHash"' ||
+        contentType == null ||
+        contentType.trim().isEmpty ||
+        match == null ||
+        match.group(1) != base64Encode(contentHash.bytes)) {
+      throw const FilesFailure.protocol(
+        'Weave Files returned content that failed integrity validation.',
+      );
+    }
+  }
+
+  void _requireAction(List<String> actions, String action) {
+    if (!actions.contains(action)) {
+      throw const FilesFailure.unsupportedPlatform(
+        'This action is not available for this Weave Files folder.',
+      );
+    }
+  }
+
+  void _validateChildName(String name) {
+    if (name.isEmpty ||
+        name != name.trim() ||
+        name == '.' ||
+        name == '..' ||
+        name.contains('/') ||
+        name.contains('\\') ||
+        name.runes.any((rune) => rune < 0x20)) {
+      throw const FilesFailure.protocol('The file name is not valid.');
+    }
+  }
+
+  String _normalizePath(String path) {
+    final normalized = path.trim().replaceAll(RegExp('/+'), '/');
+    final withLeadingSlash = normalized.startsWith('/')
+        ? normalized
+        : '/$normalized';
+    final result = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
+        ? withLeadingSlash.substring(0, withLeadingSlash.length - 1)
+        : withLeadingSlash;
+    if (result.split('/').any((part) => part == '.' || part == '..')) {
+      throw const FilesFailure.protocol('The Files path is invalid.');
+    }
+    return result;
+  }
+
+  String _idempotencyKey() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(24, (_) => random.nextInt(256));
+    return base64UrlEncode(bytes).replaceAll('=', '');
+  }
+
+  http.MultipartFile _uploadBody(
+    Uint8List content, {
+    FileUploadProgressCallback? onProgress,
+  }) {
+    const chunkSize = 64 * 1024;
+    var sent = 0;
+    final chunks = <List<int>>[
+      for (var offset = 0; offset < content.length; offset += chunkSize)
+        Uint8List.sublistView(
+          content,
+          offset,
+          min(offset + chunkSize, content.length),
+        ),
+    ];
+    return http.MultipartFile(
+      'body',
+      Stream<List<int>>.fromIterable(chunks).map((chunk) {
+        sent += chunk.length;
+        onProgress?.call(sent, content.length);
+        return chunk;
+      }),
+      content.length,
     );
   }
 
@@ -305,7 +455,6 @@ class BackendFilesRepository
         'Finish server setup before browsing files.',
       );
     }
-
     final authConfiguration = _authConfiguration(configuration);
     final authState = await _authSessionRepository.restoreSession(
       authConfiguration,
@@ -316,7 +465,6 @@ class BackendFilesRepository
         'Sign in to Weave before browsing files.',
       );
     }
-
     return _BackendFilesContext(
       baseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
       accessToken: session.accessToken,
@@ -328,7 +476,11 @@ class BackendFilesRepository
     _BackendFilesContext context,
   ) async {
     try {
-      final readiness = await _filesReadiness(context);
+      final readiness = await _invoke(
+        context,
+        (api) => user_api.FilesApi(api.apiClient).getFilesReadiness(),
+        fallbackMessage: 'Files readiness could not be confirmed right now.',
+      );
       final isReady =
           readiness?.enabled == true &&
           readiness?.policyState ==
@@ -350,12 +502,12 @@ class BackendFilesRepository
           accountLabel: accountLabel,
         );
       }
-      final memberImpact = readiness?.memberImpact?.trim();
+      final impact = readiness?.memberImpact?.trim();
       return FilesConnectionState.unavailable(
         baseUrl: context.baseUrl,
-        message: memberImpact == null || memberImpact.isEmpty
+        message: impact == null || impact.isEmpty
             ? 'Files access is not available for this Weave account.'
-            : memberImpact,
+            : impact,
       );
     } on FilesFailure catch (failure) {
       if (failure.type == FilesFailureType.invalidCredentials) {
@@ -372,78 +524,36 @@ class BackendFilesRepository
     }
   }
 
-  Future<user_api.WorkspaceCapabilityStatusResponse?> _filesReadiness(
+  Future<T> _invoke<T>(
     _BackendFilesContext context,
-  ) async {
-    Future<user_api.WorkspaceCapabilityStatusResponse?> request(
-      String accessToken,
-    ) => user_api.FilesApi(
-      weaveUserApiClient(
-        apiBaseUrl: context.baseUrl,
-        accessToken: accessToken,
-        httpClient: _httpClient,
+    Future<T> Function(user_api.FilesUserApi) request, {
+    required String fallbackMessage,
+  }) async {
+    Future<T> send(String token) => request(
+      user_api.FilesUserApi(
+        weaveUserApiClient(
+          apiBaseUrl: context.baseUrl,
+          accessToken: token,
+          httpClient: _httpClient,
+        ),
       ),
-    ).getFilesReadiness().timeout(const Duration(seconds: 20));
-
+    ).timeout(const Duration(seconds: 20));
     try {
-      return await request(context.accessToken);
+      return await send(context.accessToken);
     } on user_api.ApiException catch (error) {
       if (error.code == 401) {
         final refreshed = await _refreshContext(context);
         if (refreshed != null && refreshed.accessToken != context.accessToken) {
           try {
-            return await request(refreshed.accessToken);
+            return await send(refreshed.accessToken);
           } on user_api.ApiException catch (retryError) {
-            throw _filesReadinessFailure(retryError);
+            throw _apiFailure(retryError);
           } catch (retryError) {
-            throw FilesFailure.unknown(
-              'Files readiness could not be confirmed right now.',
-              cause: retryError,
-            );
+            throw FilesFailure.unknown(fallbackMessage, cause: retryError);
           }
         }
       }
-      throw _filesReadinessFailure(error);
-    } catch (error) {
-      throw FilesFailure.unknown(
-        'Files readiness could not be confirmed right now.',
-        cause: error,
-      );
-    }
-  }
-
-  FilesFailure _filesReadinessFailure(user_api.ApiException error) {
-    if (error.code == 401 || error.code == 403) {
-      return FilesFailure.invalidCredentials(
-        'Files access is not allowed for this Weave session.',
-        cause: error.code,
-      );
-    }
-    if (error.code == 503) {
-      return FilesFailure.configuration(
-        'Files need admin attention before members can use them.',
-        cause: error.code,
-      );
-    }
-    return FilesFailure.unknown(
-      'Files readiness could not be confirmed right now.',
-      cause: error.code,
-    );
-  }
-
-  AuthConfiguration _authConfiguration(ServerConfiguration configuration) {
-    return AuthConfiguration(
-      issuer: configuration.oidcIssuerUrl,
-      clientId: configuration.oidcClientRegistration.clientId.trim(),
-    );
-  }
-
-  Future<http.Response> _send(
-    Future<http.Response> Function() request, {
-    required String fallbackMessage,
-  }) async {
-    try {
-      return await request().timeout(const Duration(seconds: 20));
+      throw _apiFailure(error);
     } on FilesFailure {
       rethrow;
     } catch (error) {
@@ -451,28 +561,70 @@ class BackendFilesRepository
     }
   }
 
-  Future<http.Response> _sendAuthenticated(
-    _BackendFilesContext context,
-    Future<http.Response> Function(String accessToken) request, {
-    required String fallbackMessage,
-  }) async {
-    final response = await _send(
-      () => request(context.accessToken),
-      fallbackMessage: fallbackMessage,
+  FilesFailure _apiFailure(user_api.ApiException error) {
+    final message = _errorMessage(error.message);
+    if (error.code == 401) {
+      return FilesFailure.invalidCredentials(
+        message ?? 'Files access is not allowed for this Weave session.',
+        cause: error.code,
+      );
+    }
+    if (error.code == 403) {
+      return FilesFailure.permissionDenied(
+        message ??
+            'This Weave member cannot access the requested Files resource.',
+        cause: error.code,
+      );
+    }
+    if (error.code == 400 ||
+        error.code == 404 ||
+        error.code == 409 ||
+        error.code == 412 ||
+        error.code == 423 ||
+        error.code == 428) {
+      return FilesFailure.protocol(
+        message ?? 'The file operation conflicts with the current state.',
+        cause: error.code,
+      );
+    }
+    if (error.code == 413 || error.code == 507) {
+      return FilesFailure.storage(
+        message ?? 'The file cannot be stored with the current limits.',
+        cause: error.code,
+      );
+    }
+    if (error.code == 503) {
+      return FilesFailure.configuration(
+        message ?? 'Files need admin attention before members can use them.',
+        cause: error.code,
+      );
+    }
+    return FilesFailure.unknown(
+      message ?? 'The Files request could not be completed right now.',
+      cause: error.code,
     );
-    if (response.statusCode != 401) {
-      return response;
-    }
+  }
 
-    final refreshedContext = await _refreshContext(context);
-    if (refreshedContext == null ||
-        refreshedContext.accessToken == context.accessToken) {
-      return response;
+  String? _errorMessage(String? body) {
+    if (body == null || body.isEmpty) return null;
+    try {
+      final payload = jsonDecode(body);
+      if (payload is Map<String, dynamic>) {
+        final impact = payload['memberImpact'];
+        if (impact is String && impact.trim().isNotEmpty) return impact;
+        final message = payload['message'];
+        if (message is String && message.trim().isNotEmpty) return message;
+      }
+    } catch (_) {
+      // Generated transport errors are not guaranteed to have a JSON body.
     }
+    return null;
+  }
 
-    return _send(
-      () => request(refreshedContext.accessToken),
-      fallbackMessage: fallbackMessage,
+  AuthConfiguration _authConfiguration(ServerConfiguration configuration) {
+    return AuthConfiguration(
+      issuer: configuration.oidcIssuerUrl,
+      clientId: configuration.oidcClientRegistration.clientId.trim(),
     );
   }
 
@@ -484,9 +636,7 @@ class BackendFilesRepository
         context.authConfiguration,
       );
       final session = authState.session;
-      if (!authState.isAuthenticated || session == null) {
-        return null;
-      }
+      if (!authState.isAuthenticated || session == null) return null;
       return _BackendFilesContext(
         baseUrl: context.baseUrl,
         accessToken: session.accessToken,
@@ -495,272 +645,6 @@ class BackendFilesRepository
     } catch (_) {
       return null;
     }
-  }
-
-  void _ensureSuccess(
-    http.Response response, {
-    required Set<int> successCodes,
-  }) {
-    if (successCodes.contains(response.statusCode)) {
-      return;
-    }
-
-    final message = _errorMessage(response.body);
-    if (response.statusCode == 401 || response.statusCode == 403) {
-      throw FilesFailure.invalidCredentials(
-        message ?? 'Files access is not allowed for this workspace session.',
-        cause: response.statusCode,
-      );
-    }
-    if (response.statusCode == 400 || response.statusCode == 404) {
-      throw FilesFailure.protocol(
-        message ?? 'The files request could not be completed.',
-        cause: response.statusCode,
-      );
-    }
-    if (response.statusCode == 409 ||
-        response.statusCode == 412 ||
-        response.statusCode == 423) {
-      throw FilesFailure.protocol(
-        message ??
-            'The file operation conflicts with the current workspace state.',
-        cause: response.statusCode,
-      );
-    }
-    if (response.statusCode == 413 || response.statusCode == 507) {
-      throw FilesFailure.storage(
-        message ??
-            'There is not enough storage available to complete this file operation.',
-        cause: response.statusCode,
-      );
-    }
-    if (response.statusCode == 503) {
-      throw FilesFailure.configuration(
-        message ??
-            'Files need admin attention before members can use them reliably.',
-        cause: response.statusCode,
-      );
-    }
-
-    throw FilesFailure.unknown(
-      message ?? 'The files request could not be completed right now.',
-      cause: response.statusCode,
-    );
-  }
-
-  DirectoryListing _decodeWebDavListing(String requestedPath, String body) {
-    try {
-      final normalizedRequestedPath = _normalizeFilesPath(requestedPath);
-      final document = XmlDocument.parse(body);
-      final entries = <FileEntry>[];
-      for (final response in document.descendants.whereType<XmlElement>()) {
-        if (response.name.local != 'response') {
-          continue;
-        }
-        final href = _firstElementText(response, 'href');
-        if (href == null || href.isEmpty) {
-          continue;
-        }
-        final path = _pathFromDavHref(href);
-        if (path == normalizedRequestedPath) {
-          continue;
-        }
-        final displayName =
-            _firstElementText(response, 'displayname') ??
-            _fallbackNameFromPath(path);
-        final isDirectory = response.descendants.whereType<XmlElement>().any(
-          (element) => element.name.local == 'collection',
-        );
-        final size = int.tryParse(
-          _firstElementText(response, 'getcontentlength') ?? '',
-        );
-        final modifiedAt = _parseHttpDate(
-          _firstElementText(response, 'getlastmodified'),
-        );
-        entries.add(
-          FileEntry(
-            id: path,
-            name: displayName,
-            path: path,
-            isDirectory: isDirectory,
-            modifiedAt: modifiedAt,
-            sizeInBytes: isDirectory ? null : size,
-          ),
-        );
-      }
-      return DirectoryListing(path: normalizedRequestedPath, entries: entries);
-    } catch (error) {
-      throw const FilesFailure.protocol(
-        'The Weave backend returned an invalid WebDAV files listing.',
-      );
-    }
-  }
-
-  String? _errorMessage(String body) {
-    try {
-      final payload = jsonDecode(body);
-      if (payload is Map<String, dynamic>) {
-        final memberImpact = payload['memberImpact'];
-        if (memberImpact is String && memberImpact.trim().isNotEmpty) {
-          return memberImpact;
-        }
-        final message = payload['message'];
-        if (message is String && message.trim().isNotEmpty) {
-          return message;
-        }
-      }
-    } catch (_) {
-      final description = RegExp(
-        r'<[^:>]*:?responsedescription>([^<]+)</[^:>]*:?responsedescription>',
-        caseSensitive: false,
-      ).firstMatch(body);
-      return description == null
-          ? null
-          : _decodeXmlText(description.group(1) ?? '');
-    }
-    return null;
-  }
-
-  Map<String, String> _webdavHeaders(String accessToken, {String? depth}) {
-    return {
-      'Accept': 'application/xml',
-      if (depth != null) 'Depth': depth,
-      'Authorization': 'Bearer $accessToken',
-    };
-  }
-
-  Uri _davUri(Uri baseUrl, String path) {
-    final baseSegments = baseUrl.pathSegments
-        .where((segment) => segment.isNotEmpty)
-        .toList(growable: true);
-    if (baseSegments.isNotEmpty && baseSegments.last == 'api') {
-      baseSegments.removeLast();
-    }
-    final pathSegments = _normalizeFilesPath(
-      path,
-    ).split('/').where((segment) => segment.isNotEmpty).toList(growable: false);
-    return baseUrl.replace(
-      pathSegments: [...baseSegments, 'dav', 'files', ...pathSegments],
-      queryParameters: null,
-    );
-  }
-
-  String _childPath(String parentPath, String childName) {
-    final normalizedParent = _normalizeFilesPath(parentPath);
-    final safeName = childName.trim();
-    if (_isUnsafeChildName(safeName)) {
-      throw const FilesFailure.protocol(
-        'The file name is not valid for the Weave Files facade.',
-      );
-    }
-    if (normalizedParent == '/') {
-      return '/$safeName';
-    }
-    return '$normalizedParent/$safeName';
-  }
-
-  bool _isUnsafeChildName(String childName) {
-    return childName.isEmpty ||
-        childName == '.' ||
-        childName == '..' ||
-        childName.contains('/') ||
-        childName.contains('\\') ||
-        childName.codeUnits.any((codeUnit) => codeUnit < 0x20);
-  }
-
-  String _normalizeFilesPath(String path) {
-    final collapsed = path.trim().replaceAll(RegExp('/+'), '/');
-    if (collapsed.isEmpty || collapsed == '/') {
-      return '/';
-    }
-    final withLeadingSlash = collapsed.startsWith('/')
-        ? collapsed
-        : '/$collapsed';
-    return withLeadingSlash.endsWith('/') && withLeadingSlash.length > 1
-        ? withLeadingSlash.substring(0, withLeadingSlash.length - 1)
-        : withLeadingSlash;
-  }
-
-  String _pathFromDavHref(String href) {
-    final rawPath = Uri.parse(href).path;
-    final decoded = Uri.decodeComponent(rawPath);
-    const marker = '/dav/files';
-    final markerIndex = decoded.indexOf(marker);
-    final suffix = markerIndex < 0
-        ? decoded
-        : decoded.substring(markerIndex + marker.length);
-    return _normalizeFilesPath(suffix);
-  }
-
-  String? _pathFromLocation(Map<String, String> headers) {
-    final location = headers['location'];
-    if (location == null || location.trim().isEmpty) {
-      return null;
-    }
-    return _pathFromDavHref(location);
-  }
-
-  String? _firstElementText(XmlElement parent, String localName) {
-    for (final element in parent.descendants.whereType<XmlElement>()) {
-      if (element.name.local == localName) {
-        final text = element.innerText.trim();
-        return text.isEmpty ? null : text;
-      }
-    }
-    return null;
-  }
-
-  String _fallbackNameFromPath(String path) {
-    if (path == '/') {
-      return 'Files';
-    }
-    return path.substring(path.lastIndexOf('/') + 1);
-  }
-
-  DateTime? _parseHttpDate(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return null;
-    }
-    final match = RegExp(
-      r'^[A-Za-z]{3},\s+(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})\s+(\d{2}):(\d{2}):(\d{2})\s+GMT$',
-    ).firstMatch(value);
-    if (match == null) {
-      return null;
-    }
-    final month = const {
-      'Jan': 1,
-      'Feb': 2,
-      'Mar': 3,
-      'Apr': 4,
-      'May': 5,
-      'Jun': 6,
-      'Jul': 7,
-      'Aug': 8,
-      'Sep': 9,
-      'Oct': 10,
-      'Nov': 11,
-      'Dec': 12,
-    }[match.group(2)];
-    if (month == null) {
-      return null;
-    }
-    return DateTime.utc(
-      int.parse(match.group(3)!),
-      month,
-      int.parse(match.group(1)!),
-      int.parse(match.group(4)!),
-      int.parse(match.group(5)!),
-      int.parse(match.group(6)!),
-    );
-  }
-
-  String _decodeXmlText(String value) {
-    return value
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&apos;', "'")
-        .replaceAll('&amp;', '&');
   }
 }
 

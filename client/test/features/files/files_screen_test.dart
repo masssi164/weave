@@ -28,7 +28,7 @@ class _FakeFilesRepository
     this.listDirectoryHandler,
     this.uploadFileHandler,
     this.createFolderHandler,
-    this.deleteEntryHandler,
+    this.grantActions = true,
   });
 
   final FilesConnectionState connectionState;
@@ -42,7 +42,7 @@ class _FakeFilesRepository
   uploadFileHandler;
   final Future<FileEntry> Function(String parentPath, String name)?
   createFolderHandler;
-  final Future<void> Function(FileEntry entry)? deleteEntryHandler;
+  final bool grantActions;
   final List<String> requestedPaths = <String>[];
 
   @override
@@ -56,9 +56,38 @@ class _FakeFilesRepository
     requestedPaths.add(path);
     final handler = listDirectoryHandler;
     if (handler != null) {
-      return handler(path);
+      return _withTestActions(await handler(path));
     }
-    return listings[path] ?? const DirectoryListing(path: '/', entries: []);
+    return _withTestActions(
+      listings[path] ?? const DirectoryListing(path: '/', entries: []),
+    );
+  }
+
+  DirectoryListing _withTestActions(DirectoryListing listing) {
+    if (!grantActions) return listing;
+    // Existing widget fixtures exercise supported actions through a fake
+    // repository. Explicit fixture actions remain visible to negative tests.
+    return DirectoryListing(
+      path: listing.path,
+      parentFileId: listing.parentFileId,
+      allowedActions: const {'listChildren', 'createFolder', 'upload'},
+      entries: listing.entries
+          .map(
+            (entry) => FileEntry(
+              id: entry.id,
+              name: entry.name,
+              path: entry.path,
+              isDirectory: entry.isDirectory,
+              modifiedAt: entry.modifiedAt,
+              sizeInBytes: entry.sizeInBytes,
+              revision: entry.revision,
+              allowedActions: entry.isDirectory
+                  ? {...entry.allowedActions, 'inspect', 'listChildren'}
+                  : {...entry.allowedActions, 'inspect', 'download'},
+            ),
+          )
+          .toList(growable: false),
+    );
   }
 
   @override
@@ -91,7 +120,7 @@ class _FakeFilesRepository
 
   @override
   Future<void> deleteEntry(FileEntry entry) async {
-    await deleteEntryHandler?.call(entry);
+    throw UnimplementedError('No generated User delete operation exists.');
   }
 
   @override
@@ -241,6 +270,57 @@ void main() {
       expect(find.text('Refresh'), findsAtLeastNWidgets(1));
       expect(find.text('https://files.home.internal'), findsNothing);
       expect(find.text('Nextcloud'), findsNothing);
+    });
+
+    testWidgets('hides file actions absent from server grants', (tester) async {
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://api.home.internal/api'),
+          accountLabel: 'alice',
+        ),
+        grantActions: false,
+        listings: const {
+          '/': DirectoryListing(
+            path: '/',
+            entries: [
+              FileEntry(
+                id: 'file:folder',
+                name: 'Folder',
+                path: '/Folder',
+                isDirectory: true,
+              ),
+              FileEntry(
+                id: 'file:note',
+                name: 'note.txt',
+                path: '/note.txt',
+                isDirectory: false,
+              ),
+            ],
+          ),
+        },
+      );
+      await tester.pumpWidget(
+        createTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('New folder'), findsNothing);
+      expect(find.text('Upload'), findsNothing);
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
+      expect(find.byIcon(Icons.file_download_outlined), findsNothing);
+      final folderTile = tester.widget<ListTile>(
+        find.ancestor(of: find.text('Folder'), matching: find.byType(ListTile)),
+      );
+      expect(folderTile.onTap, isNull);
     });
 
     testWidgets('renders directory contents and allows folder navigation', (
@@ -910,31 +990,23 @@ void main() {
       );
     });
 
-    testWidgets('confirms deletion, removes the entry, and shows feedback', (
+    testWidgets('does not offer delete without a generated User operation', (
       tester,
     ) async {
-      FileEntry? deletedEntry;
-      var deletionComplete = false;
       const fileEntry = FileEntry(
         id: 'file-1',
         name: 'old.txt',
         path: '/old.txt',
         isDirectory: false,
+        allowedActions: {'delete'},
       );
       final repository = _FakeFilesRepository(
         connectionState: FilesConnectionState.connected(
-          baseUrl: Uri.parse('https://files.home.internal'),
+          baseUrl: Uri.parse('https://api.home.internal/api'),
           accountLabel: 'alice',
         ),
-        listDirectoryHandler: (path) async {
-          return DirectoryListing(
-            path: '/',
-            entries: deletionComplete ? const [] : const [fileEntry],
-          );
-        },
-        deleteEntryHandler: (entry) async {
-          deletedEntry = entry;
-          deletionComplete = true;
+        listings: const {
+          '/': DirectoryListing(path: '/', entries: [fileEntry]),
         },
       );
 
@@ -952,19 +1024,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Delete old.txt'));
-      await tester.pumpAndSettle();
-      expect(find.text('Delete old.txt?'), findsOneWidget);
-      await tester.tap(find.text('Delete').last);
-      await tester.pumpAndSettle();
-
-      expect(deletedEntry, fileEntry);
-      expect(find.text('Deleted old.txt.'), findsOneWidget);
-      expect(find.text('old.txt'), findsNothing);
-      expect(
-        find.bySemanticsLabel('Deleted old.txt.'),
-        findsAtLeastNWidgets(1),
-      );
+      expect(find.text('old.txt'), findsOneWidget);
+      expect(find.byTooltip('Delete old.txt'), findsNothing);
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
     });
 
     testWidgets('meets androidTapTargetGuideline', (tester) async {

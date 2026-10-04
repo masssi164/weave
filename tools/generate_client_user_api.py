@@ -65,6 +65,7 @@ def generate(destination: Path) -> None:
         shutil.copytree(work / "lib", destination)
     preserve_partial_profile_update(destination)
     correct_enum_map_decoding(destination)
+    propagate_binary_upload_errors(destination)
     subprocess.run(["dart", "format", str(destination)], check=True, stdout=subprocess.DEVNULL)
 
 
@@ -114,6 +115,28 @@ def correct_enum_map_decoding(destination: Path) -> None:
     if source.count(before) != 1:
         raise RuntimeError("OpenAPI Generator manifest enum map projection changed")
     model.write_text(source.replace(before, after, 1))
+
+
+def propagate_binary_upload_errors(destination: Path) -> None:
+    """Keep a failed upload byte stream from looking like a completed request.
+
+    Generator 7.17.0 closes the HTTP request when a MultipartFile source emits
+    an error, but drops that error. The server could then receive a truncated
+    body without the client observing the source failure. Forward the error to
+    the request stream so the generated operation fails instead.
+    """
+    client = destination / "api_client.dart"
+    source = client.read_text()
+    before = "onError: (Object error, StackTrace trace) => request.sink.close(),"
+    after = (
+        "onError: (Object error, StackTrace trace) {\n"
+        "  request.sink.addError(error, trace);\n"
+        "  unawaited(request.sink.close());\n"
+        "},"
+    )
+    if source.count(before) != 1:
+        raise RuntimeError("OpenAPI Generator binary upload handling changed")
+    client.write_text(source.replace(before, after, 1))
 
 
 def same_sources(left: Path, right: Path) -> bool:

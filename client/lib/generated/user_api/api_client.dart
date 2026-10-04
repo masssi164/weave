@@ -71,12 +71,15 @@ class ApiClient {
         request.headers.addAll(headerParams);
         request.contentLength = body.length;
         body.finalize().listen(
-              request.sink.add,
-              onDone: request.sink.close,
-              // ignore: avoid_types_on_closure_parameters
-              onError: (Object error, StackTrace trace) => request.sink.close(),
-              cancelOnError: true,
-            );
+          request.sink.add,
+          onDone: request.sink.close,
+          // ignore: avoid_types_on_closure_parameters
+          onError: (Object error, StackTrace trace) {
+            request.sink.addError(error, trace);
+            unawaited(request.sink.close());
+          },
+          cancelOnError: true,
+        );
         final response = await _client.send(request);
         return Response.fromStream(response);
       }
@@ -345,6 +348,12 @@ class ApiClient {
           return FileSetupCredentialRequest.fromJson(value);
         case 'FileSetupCredentialResponse':
           return FileSetupCredentialResponse.fromJson(value);
+        case 'FilesUserCreateFolderRequest':
+          return FilesUserCreateFolderRequest.fromJson(value);
+        case 'FilesUserItemResponse':
+          return FilesUserItemResponse.fromJson(value);
+        case 'FilesUserListResponse':
+          return FilesUserListResponse.fromJson(value);
         case 'GuestAccessContractResponse':
           return GuestAccessContractResponse.fromJson(value);
         case 'GuestInvitationRequest':

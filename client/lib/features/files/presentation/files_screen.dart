@@ -419,32 +419,36 @@ class _DirectoryToolbar extends ConsumerWidget {
               semanticLabel: l10n.filesRefreshCurrentFolderSemantic,
               child: Text(l10n.filesRefreshButton),
             ),
-            AccessibleButton(
-              outlined: true,
-              onPressed: state.isBusy
-                  ? null
-                  : () async {
-                      final folderName = await showDialog<String>(
-                        context: context,
-                        builder: (context) => const _CreateFolderDialog(),
-                      );
-                      if (folderName == null) {
-                        return;
-                      }
-                      ref.read(filesProvider.notifier).createFolder(folderName);
-                    },
-              semanticLabel: l10n.filesCreateFolderCurrentFolderSemantic,
-              child: Text(l10n.filesCreateFolderButton),
-            ),
-            AccessibleButton(
-              onPressed: state.isBusy
-                  ? null
-                  : () {
-                      ref.read(filesProvider.notifier).pickAndUpload();
-                    },
-              semanticLabel: l10n.filesUploadCurrentFolderSemantic,
-              child: Text(l10n.filesUploadButton),
-            ),
+            if (listing?.allows('createFolder') == true)
+              AccessibleButton(
+                outlined: true,
+                onPressed: state.isBusy
+                    ? null
+                    : () async {
+                        final folderName = await showDialog<String>(
+                          context: context,
+                          builder: (context) => const _CreateFolderDialog(),
+                        );
+                        if (folderName == null) {
+                          return;
+                        }
+                        ref
+                            .read(filesProvider.notifier)
+                            .createFolder(folderName);
+                      },
+                semanticLabel: l10n.filesCreateFolderCurrentFolderSemantic,
+                child: Text(l10n.filesCreateFolderButton),
+              ),
+            if (listing?.allows('upload') == true)
+              AccessibleButton(
+                onPressed: state.isBusy
+                    ? null
+                    : () {
+                        ref.read(filesProvider.notifier).pickAndUpload();
+                      },
+                semanticLabel: l10n.filesUploadCurrentFolderSemantic,
+                child: Text(l10n.filesUploadButton),
+              ),
           ],
         ),
       ],
@@ -928,37 +932,6 @@ class _CreateFolderDialogState extends State<_CreateFolderDialog> {
   }
 }
 
-class _DeleteEntryDialog extends StatelessWidget {
-  const _DeleteEntryDialog({required this.entry});
-
-  final FileEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-
-    return AlertDialog(
-      title: Text(l10n.filesDeleteEntryDialogTitle(entry.name)),
-      content: Text(l10n.filesDeleteEntryDialogMessage),
-      actions: [
-        TextButton(
-          onPressed: () {
-            Navigator.of(context).pop(false);
-          },
-          child: Text(l10n.filesCancelButton),
-        ),
-        FilledButton.tonalIcon(
-          onPressed: () {
-            Navigator.of(context).pop(true);
-          },
-          icon: const Icon(Icons.delete_outline),
-          label: Text(l10n.filesDeleteButton),
-        ),
-      ],
-    );
-  }
-}
-
 class _FileEntryTile extends ConsumerWidget {
   const _FileEntryTile({required this.entry, required this.isBusy});
 
@@ -990,7 +963,7 @@ class _FileEntryTile extends ConsumerWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!entry.isDirectory)
+            if (!entry.isDirectory && entry.allows('download'))
               IconButton(
                 tooltip: l10n.filesExportEntrySemantic(entry.name),
                 onPressed: isBusy
@@ -1000,27 +973,11 @@ class _FileEntryTile extends ConsumerWidget {
                       },
                 icon: const Icon(Icons.file_download_outlined),
               ),
-            IconButton(
-              tooltip: l10n.filesDeleteEntrySemantic(entry.name),
-              onPressed: isBusy
-                  ? null
-                  : () async {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => _DeleteEntryDialog(entry: entry),
-                      );
-                      if (confirmed != true) {
-                        return;
-                      }
-                      ref.read(filesProvider.notifier).deleteEntry(entry);
-                    },
-              icon: const Icon(Icons.delete_outline),
-            ),
             if (entry.isDirectory)
               const ExcludeSemantics(child: Icon(Icons.chevron_right)),
           ],
         ),
-        onTap: !entry.isDirectory || isBusy
+        onTap: !entry.isDirectory || !entry.allows('listChildren') || isBusy
             ? null
             : () {
                 ref.read(filesProvider.notifier).openDirectory(entry.path);
