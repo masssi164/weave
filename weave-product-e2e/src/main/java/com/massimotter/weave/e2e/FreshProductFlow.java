@@ -122,7 +122,17 @@ public final class FreshProductFlow {
               browser, ownerSession, "owner", ownerEmail, ownerPassword);
       ownerSession = awaitAuthority(browser, ownerSession, "/owners", "owner");
       validateHumanWorkspaceToken(browser.jwtPayload(ownerSession.accessToken()), "weave-app");
-      configureRequiredProviders(ownerSession.accessToken());
+      adminSession =
+          browser.authorize(
+              "weave-admin-console",
+              environment.productOrigin().resolve("/admin-console/"),
+              List.of("openid", "profile", "email", "agent-runtime.admin"),
+              ownerEmail,
+              ownerPassword,
+              "owner-initial-admin");
+      validateAdminToken(browser.jwtPayload(adminSession.accessToken()));
+      assertSeparatedApiSessions(ownerSession.accessToken(), adminSession.accessToken());
+      configureRequiredProviders(adminSession.accessToken());
       awaitChatReadiness(ownerSession.accessToken());
 
       Instant memberInvitedAt = Instant.now();
@@ -131,7 +141,7 @@ public final class FreshProductFlow {
           memberEmail,
           "Weave E2E Member",
           "member",
-          ownerSession.accessToken());
+          adminSession.accessToken());
       MailpitActivationInbox memberInbox =
           new MailpitActivationInbox(
               http,
@@ -162,7 +172,7 @@ public final class FreshProductFlow {
           reconcileIdentitySession(
               browser, memberSession, "member", memberEmail, memberPassword);
       setWeaverEntitlement(
-          organizationId, memberEmail, ownerSession.accessToken(), true, "initial");
+          organizationId, memberEmail, adminSession.accessToken(), true, "initial");
       memberSession =
           awaitAuthority(
               browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
@@ -181,7 +191,7 @@ public final class FreshProductFlow {
           outsiderEmail,
           "Weave E2E Outsider",
           "guest",
-          ownerSession.accessToken());
+          adminSession.accessToken());
       MailpitActivationInbox outsiderInbox =
           new MailpitActivationInbox(
               http,
@@ -295,7 +305,7 @@ public final class FreshProductFlow {
 
       String originalSubject = memberSession.subject();
       setWeaverEntitlement(
-          organizationId, memberEmail, ownerSession.accessToken(), false, "revoke");
+          organizationId, memberEmail, adminSession.accessToken(), false, "revoke");
       memberSession =
           awaitAuthorityAbsent(
               browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
@@ -314,7 +324,7 @@ public final class FreshProductFlow {
       }
 
       setWeaverEntitlement(
-          organizationId, memberEmail, ownerSession.accessToken(), true, "regrant");
+          organizationId, memberEmail, adminSession.accessToken(), true, "regrant");
       memberSession =
           awaitAuthority(
               browser, memberSession, "/capabilities/weaver", "agent-runtime.entitled");
@@ -636,6 +646,29 @@ public final class FreshProductFlow {
         || !organizationGroups(claims).contains("/owners")
         || !organizationRoles(claims, "weave-app").contains("owner")) {
       throw new ProductFlowException("Agent Runtime admin token is not exact");
+    }
+  }
+
+  private void assertSeparatedApiSessions(String userToken, String adminToken) {
+    JsonNode adminDenied =
+        http.json(
+            "reject User session at Admin API",
+            "GET",
+            environment.api("/api/admin/control-plane"),
+            bearer(userToken, Map.of()),
+            null,
+            Set.of(401));
+    JsonNode userDenied =
+        http.json(
+            "reject Admin session at User API",
+            "GET",
+            environment.api("/api/me"),
+            bearer(adminToken, Map.of()),
+            null,
+            Set.of(401));
+    if (!"unauthorized".equals(adminDenied.path("code").asString())
+        || !"unauthorized".equals(userDenied.path("code").asString())) {
+      throw new ProductFlowException("User and Admin API sessions were not separated");
     }
   }
 

@@ -3,7 +3,9 @@ package com.massimotter.weave.backend.controller;
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.config.AdminApiSecurityConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.model.migration.MigrationApplyGateResponse;
 import com.massimotter.weave.backend.model.migration.MigrationDryRunResponse;
@@ -17,6 +19,9 @@ import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OA
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Bean;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -34,11 +39,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = MigrationController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        AdminApiSecurityConfiguration.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
         ApiErrorResponseWriter.class,
-        ApiExceptionHandler.class
+        ApiExceptionHandler.class,
+        MigrationControllerSecurityTest.UserDecoder.class
 })
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave"
@@ -48,8 +55,17 @@ class MigrationControllerSecurityTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private JwtDecoder jwtDecoder;
+    @MockitoBean(name = "adminApiJwtDecoder")
+    private JwtDecoder adminApiJwtDecoder;
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class UserDecoder {
+        @Bean
+        @Primary
+        JwtDecoder jwtDecoder() {
+            return org.mockito.Mockito.mock(JwtDecoder.class);
+        }
+    }
 
     @MockitoBean
     private MigrationDryRunService migrationDryRunService;
@@ -82,7 +98,8 @@ class MigrationControllerSecurityTest {
         when(migrationDryRunService.dryRun(any())).thenReturn(dryRunResponse());
 
         mockMvc.perform(post("/api/migration/dry-runs")
-                        .with(jwt().authorities(
+                        .with(jwt().jwt(jwt -> jwt.claim("organization",
+                                        HumanJwtTestSupport.organizationWithRole("admin"))).authorities(
                                 new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                                 new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -109,7 +126,8 @@ class MigrationControllerSecurityTest {
                         "migration-chat-001", "chat", "blocked", Map.of(), List.of(), List.of(), List.of(), List.of(), "support_safe")));
 
         mockMvc.perform(post("/api/migration/apply-gates")
-                        .with(jwt().authorities(
+                        .with(jwt().jwt(jwt -> jwt.claim("organization",
+                                        HumanJwtTestSupport.organizationWithRole("owner"))).authorities(
                                 new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                                 new SimpleGrantedAuthority("ROLE_OWNER")))
                         .contentType(MediaType.APPLICATION_JSON)
