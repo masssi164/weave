@@ -18,5 +18,6 @@ include 'weave-application-core',
         'weave-runtime-security-adapters',
         'infra',
         'server',
+        'weave-user-api-client',
         'weave-mcp-server',
         'weave-product-e2e'
