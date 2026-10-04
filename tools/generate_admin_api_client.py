@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import json
+import re
 import shutil
 import subprocess
 import sys
@@ -29,6 +31,26 @@ def normalized_typescript(source: str) -> str:
     return "\n".join(line.rstrip() for line in source.splitlines()).rstrip() + "\n"
 
 
+def check_operation_coverage(generated: dict[str, bytes]) -> None:
+    document = json.loads(CONTRACT.read_text())
+    implementations = "\n".join(
+        contents.decode() for path, contents in generated.items() if path.startswith("apis/")
+    )
+    operation_ids = {
+        operation["operationId"]
+        for methods in document["paths"].values()
+        for method, operation in methods.items()
+        if method.lower() in {"get", "post", "put", "patch", "delete"}
+    }
+    missing = sorted(
+        operation_id
+        for operation_id in operation_ids
+        if not re.search(rf"\basync\s+{re.escape(operation_id)}\(", implementations)
+    )
+    if missing:
+        raise RuntimeError(f"Admin client is missing generated operations: {missing}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--jar", required=True, type=Path)
@@ -50,6 +72,7 @@ def main() -> int:
         expected = types_at(generated)
         if not expected:
             raise RuntimeError("Admin client generation produced no TypeScript sources")
+        check_operation_coverage(expected)
         if args.check:
             if not OUTPUT.is_dir() or types_at(OUTPUT) != expected:
                 print(
