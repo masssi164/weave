@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MigrationDryRunServiceTest {
 
     @Test
-    void dryRunIncludesSupportSafeChatAndFilesMappingEvidence() {
+    void dryRunKeepsFilesMappingBlockedWithoutInventingServerEvidence() {
         var repository = new InMemoryMigrationRunEvidenceRepository();
         var service = new MigrationDryRunService(new IdempotencyKeyService(), repository);
 
@@ -43,7 +43,17 @@ class MigrationDryRunServiceTest {
                     assertThat(report.accountedForNoDataLoss()).isTrue();
                 });
         assertThat(response.domainMappings()).extracting("mappingClass")
-                .contains("portable", "lossy", "manual_review", "archive_only");
+                .contains("portable", "lossy", "manual_review", "blocked_nonportable");
+        assertThat(response.domainMappings()).filteredOn(mapping -> mapping.domain().equals("files"))
+                .singleElement()
+                .satisfies(mapping -> {
+                    assertThat(mapping.mappingStatus()).isEqualTo("blocked_unmeasured");
+                    assertThat(mapping.mappingClass()).isEqualTo("blocked_nonportable");
+                    assertThat(mapping.assumptions()).anySatisfy(assumption ->
+                            assertThat(assumption).contains("caller-supplied"));
+                });
+        assertThat(response.cutoverGates()).anySatisfy(gate ->
+                assertThat(gate).contains("Files counts are caller-supplied and unmeasured"));
         assertThat(response.domainMappings())
                 .anySatisfy(mapping -> assertThat(mapping.weaveDomainObject()).contains("weave:files"))
                 .anySatisfy(mapping -> assertThat(mapping.weaveDomainObject()).contains("weave:calendar"))
@@ -54,7 +64,7 @@ class MigrationDryRunServiceTest {
                 .doesNotContain("Authorization")
                 .doesNotContain("Bearer")
                 .doesNotContain("token");
-        assertThat(repository.findCurrent(response.jobId(), "files", java.time.Instant.now())).isPresent();
+        assertThat(repository.findCurrent(response.jobId(), "files", java.time.Instant.now())).isEmpty();
         assertThat(repository.findCurrent(response.jobId(), "calendar", java.time.Instant.now())).isPresent();
         assertThat(repository.findCurrent(response.jobId(), "boards", java.time.Instant.now())).isPresent();
         assertThat(repository.findCurrent(response.jobId(), "chat", java.time.Instant.now())).isPresent();
@@ -96,6 +106,36 @@ class MigrationDryRunServiceTest {
                 });
         assertThat(response.toString().toLowerCase(Locale.ROOT))
                 .doesNotContain("mxc://", "access_token", "homeserverurl", "https://matrix");
+    }
+
+    @Test
+    void callerSuppliedFilesCountsNeverBecomeMeasuredSourceInventory() {
+        var repository = new InMemoryMigrationRunEvidenceRepository();
+        var service = new MigrationDryRunService(new IdempotencyKeyService(), repository);
+
+        for (String source : List.of("nextcloud-webdav", "nextcloud-files", "weave-native")) {
+            for (int callerCount : List.of(0, 13)) {
+                var response = service.dryRun(new MigrationDryRunRequest(
+                        source,
+                        new MigrationDryRunRequest.SourceInventory(
+                                1, 0, 1, callerCount, 0, List.of("files:read"))));
+
+                assertThat(response.sourceProvider()).isEqualTo(source);
+                assertThat(response.status()).isEqualTo("blocked");
+                assertThat(response.reportDownloadPath()).isNull();
+                assertThat(response.inventory()).isNull();
+                assertThat(response.mappingProposal()).isNull();
+                assertThat(response.domainMappings()).singleElement()
+                        .satisfies(mapping -> {
+                            assertThat(mapping.domain()).isEqualTo("files");
+                            assertThat(mapping.mappingStatus()).isEqualTo("blocked_unmeasured");
+                            assertThat(mapping.mappingClass()).isEqualTo("blocked_nonportable");
+                        });
+                for (String domain : List.of("files", "calendar", "boards", "chat")) {
+                    assertThat(repository.findCurrent(response.jobId(), domain, java.time.Instant.now())).isEmpty();
+                }
+            }
+        }
     }
 
     @Test

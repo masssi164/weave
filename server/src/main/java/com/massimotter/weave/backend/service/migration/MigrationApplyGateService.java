@@ -58,9 +58,34 @@ public class MigrationApplyGateService {
     }
 
     public MigrationApplyGateResponse evaluate(MigrationApplyGateRequest request) {
+        if ("files".equals(request.domainKey().trim().toLowerCase(Locale.ROOT))) {
+            return blockedForUnverifiedFiles(request);
+        }
         return evidenceRepository.findCurrent(request.runId(), request.domainKey(), Instant.now())
                 .map(evidence -> evaluatePersistedEvidence(request, evidence))
                 .orElseGet(() -> blockedForMissingEvidence(request));
+    }
+
+    private MigrationApplyGateResponse blockedForUnverifiedFiles(MigrationApplyGateRequest request) {
+        List<String> required = requiredArtifacts("files");
+        String safeRunId = redact(request.runId());
+        List<String> blockers = List.of(
+                "Files apply blocked until real source inventory, target readback and effective-permission parity are verified",
+                "Caller counts, synthetic artifact names and approval flags are not Files migration proof");
+        return new MigrationApplyGateResponse(
+                safeRunId,
+                "files",
+                "blocked",
+                false,
+                true,
+                true,
+                required,
+                required,
+                blockers,
+                List.of("Keep the current Files binding active until a verified replacement run owns cutover and rollback."),
+                new MigrationApplyGateResponse.SupportSafeEvidenceBundle(
+                        safeRunId, "files", "blocked", Map.of(), List.of(), List.of(),
+                        List.of(), List.of(), "support_safe"));
     }
 
     private MigrationApplyGateResponse evaluatePersistedEvidence(
