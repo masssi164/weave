@@ -44,6 +44,10 @@ class OpenApiDocumentationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/admin/control-plane']").exists())
                 .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation']").exists())
+                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.operationId")
+                        .value("listOrganizationInvitations"))
+                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.security[0]['bearer-jwt']")
+                        .exists())
                 .andExpect(jsonPath("$.paths['/api/me']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/admin/agent-runtimes/{personRef}']").doesNotExist())
                 .andReturn();

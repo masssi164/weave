@@ -7066,7 +7066,7 @@
     },
     "/api/admin/organizations/{organizationId}/invitations": {
       "get": {
-        "operationId": "list",
+        "operationId": "listOrganizationInvitations",
         "parameters": [
           {
             "in": "path",
@@ -7078,26 +7078,38 @@
           }
         ],
         "responses": {
-          "200": {
+          "401": {
             "content": {
               "*/*": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/MemberInvitationResponse"
-                  },
-                  "type": "array"
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "OK"
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The caller cannot administer this organization."
           }
         },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
         "tags": [
-          "member-invitation-controller"
+          "Organization invitations"
         ]
       },
       "post": {
-        "operationId": "create",
+        "operationId": "createOrganizationInvitation",
         "parameters": [
           {
             "in": "path",
@@ -7136,16 +7148,41 @@
               }
             },
             "description": "Created"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The caller cannot administer this organization."
           }
         },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
         "tags": [
-          "member-invitation-controller"
+          "Organization invitations"
         ]
       }
     },
     "/api/admin/organizations/{organizationId}/invitations/{invitationHandle}": {
       "delete": {
-        "operationId": "revoke",
+        "operationId": "revokeOrganizationInvitation",
         "parameters": [
           {
             "in": "path",
@@ -7175,16 +7212,41 @@
         "responses": {
           "204": {
             "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The caller cannot administer this organization."
           }
         },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
         "tags": [
-          "member-invitation-controller"
+          "Organization invitations"
         ]
       }
     },
     "/api/admin/organizations/{organizationId}/invitations/{invitationHandle}/resend": {
       "post": {
-        "operationId": "resend",
+        "operationId": "resendOrganizationInvitation",
         "parameters": [
           {
             "in": "path",
@@ -7212,19 +7274,34 @@
           }
         ],
         "responses": {
-          "200": {
+          "401": {
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/MemberInvitationResponse"
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "OK"
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "The caller cannot administer this organization."
           }
         },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
         "tags": [
-          "member-invitation-controller"
+          "Organization invitations"
         ]
       }
     },
@@ -11143,6 +11220,10 @@
     {
       "description": "Public platform configuration and module status endpoints.",
       "name": "Platform"
+    },
+    {
+      "description": "Organization-scoped member invitations.",
+      "name": "Organization invitations"
     },
     {
       "description": "Backend-owned provider capability/readiness registry for optional provider-stack modules.",

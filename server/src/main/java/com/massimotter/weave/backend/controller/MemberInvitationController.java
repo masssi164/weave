@@ -1,8 +1,16 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.model.ApiErrorResponse;
 import com.massimotter.weave.backend.model.identity.MemberInvitationRequest;
 import com.massimotter.weave.backend.model.identity.MemberInvitationResponse;
 import com.massimotter.weave.backend.service.MemberInvitationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -22,6 +30,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/organizations/{organizationId}/invitations")
 @PreAuthorize("hasAuthority('SCOPE_weave:workspace') and (hasRole('OWNER') or hasRole('ADMIN'))")
+@Tag(name = "Organization invitations", description = "Organization-scoped member invitations.")
+@SecurityRequirement(name = "bearer-jwt")
+@ApiResponses({
+        @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
+                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+        @ApiResponse(responseCode = "403", description = "The caller cannot administer this organization.",
+                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+})
 public class MemberInvitationController {
     private final MemberInvitationService service;
 
@@ -31,6 +47,7 @@ public class MemberInvitationController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(operationId = "createOrganizationInvitation")
     public MemberInvitationResponse create(@PathVariable String organizationId,
             @Valid @RequestBody MemberInvitationRequest request,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
@@ -39,11 +56,13 @@ public class MemberInvitationController {
     }
 
     @GetMapping
+    @Operation(operationId = "listOrganizationInvitations")
     public List<MemberInvitationResponse> list(@PathVariable String organizationId, @AuthenticationPrincipal Jwt jwt) {
         return service.list(organizationId, jwt);
     }
 
     @PostMapping("/{invitationHandle}/resend")
+    @Operation(operationId = "resendOrganizationInvitation")
     public MemberInvitationResponse resend(@PathVariable String organizationId, @PathVariable String invitationHandle,
             @RequestHeader("Idempotency-Key") String idempotencyKey, @AuthenticationPrincipal Jwt jwt) {
         return service.resend(organizationId, invitationHandle, idempotencyKey, jwt);
@@ -51,6 +70,7 @@ public class MemberInvitationController {
 
     @DeleteMapping("/{invitationHandle}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(operationId = "revokeOrganizationInvitation")
     public void revoke(@PathVariable String organizationId, @PathVariable String invitationHandle,
             @RequestHeader("Idempotency-Key") String idempotencyKey, @AuthenticationPrincipal Jwt jwt) {
         service.revoke(organizationId, invitationHandle, idempotencyKey, jwt);
