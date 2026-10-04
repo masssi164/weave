@@ -244,6 +244,15 @@ validate_runtime_image \
   "Weave Keycloak Runtime" \
   "keycloak-26.7.1-downstream-built-in-policy"
 
+# The former upstream MinIO Community registry digest is no longer published.
+# Build the optional S3 E2E dependency from pinned upstream source and pass its
+# exact local image ID to the isolated Compose project. This does not mutate
+# any persistent dogfood deployment or publish a runtime image.
+export WEAVE_RUNTIME_STATE_IMAGE
+WEAVE_RUNTIME_STATE_IMAGE="$(
+  bash "${WORKSPACE_ROOT}/scripts/build_runtime_state_image.sh"
+)"
+
 if [[ -n "${candidate_manifest_path}" ]]; then
   jq -e \
     --arg source_candidate_commit "${image_source_commit}" \
