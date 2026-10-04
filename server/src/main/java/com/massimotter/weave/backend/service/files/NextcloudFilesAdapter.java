@@ -35,6 +35,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.LinkedHashSet;
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -77,6 +79,20 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
               </d:prop>
             </d:propfind>
             """;
+
+    private static final String ACCESS_PROPFIND_BODY = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
+              <d:prop>
+                <d:getetag />
+                <oc:fileid />
+                <oc:owner-id />
+                <oc:permissions />
+                <oc:share-types />
+              </d:prop>
+            </d:propfind>
+            """;
+    private static final int MAX_ACCESS_RESPONSE_BYTES = 1024 * 1024;
 
     private final NextcloudFilesProperties properties;
     private final NextcloudFilesAccountResolver accounts;
@@ -161,16 +177,208 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
                 "files",
                 "nextcloud-webdav",
                 Set.of("list", "read", "write", "create_collection", "delete", "copy", "move", "versions", "quota"),
-                Map.of(
-                        "path", MappingClass.PORTABLE,
-                        "content", MappingClass.PORTABLE,
-                        "mediaType", MappingClass.PORTABLE,
-                        "version", MappingClass.PORTABLE,
-                        "lock", MappingClass.MANUAL_REVIEW,
-                        "share", MappingClass.LOSSY),
+                Map.ofEntries(
+                        Map.entry("path", MappingClass.PORTABLE),
+                        Map.entry("content", MappingClass.PORTABLE),
+                        Map.entry("mediaType", MappingClass.PORTABLE),
+                        Map.entry("version", MappingClass.PORTABLE),
+                        Map.entry("lock", MappingClass.MANUAL_REVIEW),
+                        Map.entry("share", MappingClass.LOSSY),
+                        Map.entry("sourceOwner", MappingClass.MANUAL_REVIEW),
+                        Map.entry("userGrant", MappingClass.LOSSY),
+                        Map.entry("groupGrant", MappingClass.LOSSY),
+                        Map.entry("inheritedGrant", MappingClass.UNSUPPORTED),
+                        Map.entry("shareCondition", MappingClass.LOSSY),
+                        Map.entry("effectiveAccess", MappingClass.MANUAL_REVIEW)),
                 true,
                 true,
                 true);
+    }
+
+    /** Reads DAV actor properties and OCS shares without treating either as complete permission parity. */
+    public FilesAccessInspection inspectAccessRoot(FilePath root) {
+        ensureConfigured();
+        Set<String> blocking = new LinkedHashSet<>();
+        blocking.add("source-full-inventory-unverified");
+        blocking.add("source-effective-access-unverified");
+        AccessDav dav = null;
+        ShareSummary shares = null;
+        try {
+            dav = readAccessDav(root);
+            if (!dav.ownerObserved()) blocking.add("source-owner-unobserved");
+            if (!dav.actorPermissionsObserved()) blocking.add("source-actor-permissions-unobserved");
+            if (!dav.versionObserved()) blocking.add("source-version-unobserved");
+            if (!dav.fileIdObserved()) blocking.add("source-file-id-unobserved");
+            if (dav.nonActorOwner()) blocking.add("source-owner-mapping-unverified");
+            if (dav.shareIndicator()) blocking.add("source-dav-share-indicator-unresolved");
+            if (dav.actorPermissionsObserved() && !dav.permissionsRecognized()) {
+                blocking.add("source-actor-permission-encoding-unrecognized");
+            }
+        } catch (ApiErrorException exception) {
+            blocking.add("source-dav-access-unavailable");
+        }
+        try {
+            shares = readOcsShares(root);
+            if (shares.total() > 0) {
+                blocking.add("source-shares-require-target-enforcement");
+            }
+        } catch (ApiErrorException exception) {
+            blocking.add("source-share-inventory-unavailable");
+        }
+        AccessDav observedDav = dav == null
+                ? new AccessDav(false, false, false, false, false, false, false) : dav;
+        return new FilesAccessInspection(
+                dav != null,
+                shares != null,
+                shares == null ? null : shares.total(),
+                shares == null ? null : shares.users(),
+                shares == null ? null : shares.groups(),
+                shares == null ? null : shares.links(),
+                shares == null ? null : shares.other(),
+                shares == null ? null : shares.conditioned(),
+                observedDav.ownerObserved(),
+                observedDav.actorPermissionsObserved(),
+                observedDav.versionObserved(),
+                observedDav.fileIdObserved(),
+                observedDav.shareIndicator(),
+                blocking);
+    }
+
+    private AccessDav readAccessDav(FilePath root) {
+        try {
+            return restClient.method(PROPFIND)
+                    .uri(webdavUri(root.value(), true))
+                    .headers(this::applyActorHeaders)
+                    .header("Depth", "0")
+                    .contentType(MediaType.APPLICATION_XML)
+                    .body(ACCESS_PROPFIND_BODY)
+                    .exchange((request, response) -> {
+                        if (response.getStatusCode().value() != 207) {
+                            throw mapStatus(response.getStatusCode(), "inspect-access", root.value());
+                        }
+                        Document document = parseAccessXml(response.getBody());
+                        NodeList responses = document.getElementsByTagNameNS("*", "response");
+                        if (responses.getLength() != 1) throw invalidAccessResponse();
+                        Element prop = successfulAccessProp((Element) responses.item(0));
+                        if (prop == null) throw invalidAccessResponse();
+                        String owner = childText(prop, "owner-id");
+                        String permissions = childText(prop, "permissions");
+                        return new AccessDav(
+                                StringUtils.hasText(owner),
+                                StringUtils.hasText(permissions),
+                                StringUtils.hasText(childText(prop, "getetag")),
+                                StringUtils.hasText(childText(prop, "fileid")),
+                                StringUtils.hasText(owner) && !owner.equals(properties.actorUsername()),
+                                firstElement(prop, "share-type") != null,
+                                StringUtils.hasText(permissions)
+                                        && ("0".equals(permissions) || permissions.matches("[SRMGDNVWCK]+")));
+                    });
+        } catch (ApiErrorException exception) {
+            throw exception;
+        } catch (ResourceAccessException exception) {
+            throw downstreamUnavailable("inspect-access", exception);
+        } catch (RestClientException exception) {
+            throw downstreamFailure("inspect-access", exception);
+        }
+    }
+
+    private ShareSummary readOcsShares(FilePath root) {
+        String path = UriUtils.encodeQueryParam(root.value(), StandardCharsets.UTF_8);
+        URI uri = URI.create(properties.baseUri()
+                + "/ocs/v2.php/apps/files_sharing/api/v1/shares?path=" + path
+                + "&reshares=true&subfiles=true");
+        try {
+            return restClient.get()
+                    .uri(uri)
+                    .headers(this::applyActorHeaders)
+                    .exchange((request, response) -> {
+                        if (!response.getStatusCode().is2xxSuccessful()) {
+                            throw mapStatus(response.getStatusCode(), "inspect-shares", root.value());
+                        }
+                        Document document = parseAccessXml(response.getBody());
+                        Element meta = firstElement(document.getDocumentElement(), "meta");
+                        Element data = firstElement(document.getDocumentElement(), "data");
+                        if (meta == null || data == null
+                                || !"100".equals(childText(meta, "statuscode"))) {
+                            throw invalidAccessResponse();
+                        }
+                        int users = 0, groups = 0, links = 0, other = 0, conditioned = 0;
+                        NodeList rows = data.getChildNodes();
+                        for (int index = 0; index < rows.getLength(); index++) {
+                            Node row = rows.item(index);
+                            if (!(row instanceof Element share)) continue;
+                            if (!"element".equals(share.getLocalName())) throw invalidAccessResponse();
+                            String type = childText(share, "share_type");
+                            if ("0".equals(type)) users++;
+                            else if ("1".equals(type)) groups++;
+                            else if ("3".equals(type)) links++;
+                            else other++;
+                            if (StringUtils.hasText(childText(share, "expiration"))
+                                    || StringUtils.hasText(childText(share, "password"))
+                                    || StringUtils.hasText(childText(share, "attributes"))) {
+                                conditioned++;
+                            }
+                        }
+                        return new ShareSummary(users, groups, links, other, conditioned);
+                    });
+        } catch (ApiErrorException exception) {
+            throw exception;
+        } catch (ResourceAccessException exception) {
+            throw downstreamUnavailable("inspect-shares", exception);
+        } catch (RestClientException exception) {
+            throw downstreamFailure("inspect-shares", exception);
+        }
+    }
+
+    private Document parseAccessXml(InputStream body) {
+        try {
+            byte[] bounded = body.readNBytes(MAX_ACCESS_RESPONSE_BYTES + 1);
+            if (bounded.length > MAX_ACCESS_RESPONSE_BYTES) throw invalidAccessResponse();
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+            return factory.newDocumentBuilder().parse(new java.io.ByteArrayInputStream(bounded));
+        } catch (ApiErrorException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw invalidAccessResponse();
+        }
+    }
+
+    private Element successfulAccessProp(Element response) {
+        NodeList propstats = response.getElementsByTagNameNS("*", "propstat");
+        for (int index = 0; index < propstats.getLength(); index++) {
+            Element propstat = (Element) propstats.item(index);
+            String status = childText(propstat, "status");
+            if (status != null && status.matches("HTTP/\\d(?:\\.\\d)? 200(?:\\s.*)?")) {
+                return firstElement(propstat, "prop");
+            }
+        }
+        return null;
+    }
+
+    private ApiErrorException invalidAccessResponse() {
+        return new ApiErrorException(HttpStatus.BAD_GATEWAY, "nextcloud-access-response-invalid",
+                "Files access evidence could not be read.",
+                Map.of("module", "files", "operation", "inspect-access", "diagnosticsRedacted", true));
+    }
+
+    private record AccessDav(
+            boolean ownerObserved,
+            boolean actorPermissionsObserved,
+            boolean versionObserved,
+            boolean fileIdObserved,
+            boolean nonActorOwner,
+            boolean shareIndicator,
+            boolean permissionsRecognized) {}
+
+    private record ShareSummary(int users, int groups, int links, int other, int conditioned) {
+        int total() { return users + groups + links + other; }
     }
 
     @Override
