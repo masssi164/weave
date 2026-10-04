@@ -357,7 +357,9 @@ class ServerConfigurationFormController
         state.backendApiBaseUrl,
         fieldName: 'the backend API URL',
       );
-      final matrixUrl = deriver.matrixFacadeFromBackendApi(backendApiUrl);
+      final matrixUrl = deriver.parseMatrixHomeserverUrl(
+        state.matrixHomeserverUrl,
+      );
       final nextcloudUrl = deriver.filesFacadeFromBackendApi(backendApiUrl);
 
       state = state.copyWith(

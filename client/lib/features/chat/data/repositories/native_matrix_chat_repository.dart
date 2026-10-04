@@ -1,28 +1,18 @@
-import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
-import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
-import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
-import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
-class WeaveMatrixFacadeChatRepository implements ChatRepository {
-  WeaveMatrixFacadeChatRepository({
-    required ServerConfigurationRepository serverConfigurationRepository,
-    required AuthSessionRepository authSessionRepository,
+class NativeMatrixChatRepository implements ChatRepository {
+  NativeMatrixChatRepository({
     required MatrixCryptoSessionPort matrixCryptoSessionCoordinator,
     RustMatrixCoreBridge rustMatrixCoreBridge = const RustMatrixCoreBridge(),
-  }) : _serverConfigurationRepository = serverConfigurationRepository,
-       _authSessionRepository = authSessionRepository,
-       _matrixCryptoSessionCoordinator = matrixCryptoSessionCoordinator,
+  }) : _matrixCryptoSessionCoordinator = matrixCryptoSessionCoordinator,
        _rustMatrixCoreBridge = rustMatrixCoreBridge;
 
-  final ServerConfigurationRepository _serverConfigurationRepository;
-  final AuthSessionRepository _authSessionRepository;
   final MatrixCryptoSessionPort _matrixCryptoSessionCoordinator;
   final RustMatrixCoreBridge _rustMatrixCoreBridge;
   final Map<String, String> _latestEventByRoom = <String, String>{};
@@ -58,6 +48,12 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
       });
       return conversations;
     } on RustMatrixCoreBridgeException catch (error) {
+      if (isMatrixSessionExpiredCode(error.code)) {
+        throw ChatFailure.sessionRequired(
+          'Reconnect Matrix Chat to authorize this device.',
+          cause: error,
+        );
+      }
       throw ChatFailure.protocol(
         'Weave Chat could not establish the encrypted timeline.',
         cause: error,
@@ -95,6 +91,12 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
         isDirectMessage: false,
       );
     } on RustMatrixCoreBridgeException catch (error) {
+      if (isMatrixSessionExpiredCode(error.code)) {
+        throw ChatFailure.sessionRequired(
+          'Reconnect Matrix Chat to authorize this device.',
+          cause: error,
+        );
+      }
       if (error.code == 'M_INVALID_PARAM') {
         throw const ChatFailure.configuration(
           'Give the encrypted conversation a name between 1 and 200 characters.',
@@ -137,6 +139,12 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
             .toList(growable: false),
       );
     } on RustMatrixCoreBridgeException catch (error) {
+      if (isMatrixSessionExpiredCode(error.code)) {
+        throw ChatFailure.sessionRequired(
+          'Reconnect Matrix Chat to authorize this device.',
+          cause: error,
+        );
+      }
       throw ChatFailure.protocol(
         'Weave Chat could not decrypt this timeline.',
         cause: error,
@@ -159,6 +167,12 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
         body: message,
       );
     } on RustMatrixCoreBridgeException catch (error) {
+      if (isMatrixSessionExpiredCode(error.code)) {
+        throw ChatFailure.sessionRequired(
+          'Reconnect Matrix Chat to authorize this device.',
+          cause: error,
+        );
+      }
       if (error.code == 'M_INVALID_PARAM') {
         throw const ChatFailure.configuration(
           'Write a message before sending it through Weave Chat.',
@@ -183,30 +197,33 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
     if (eventId == null) {
       return;
     }
-    final session = await _matrixCryptoSessionCoordinator.open(
-      synchronize: false,
-    );
-    await _rustMatrixCoreBridge.markRead(
-      profileKey: session.profileKey,
-      roomId: roomId,
-      eventId: eventId,
-    );
+    try {
+      final session = await _matrixCryptoSessionCoordinator.open(
+        synchronize: false,
+      );
+      await _rustMatrixCoreBridge.markRead(
+        profileKey: session.profileKey,
+        roomId: roomId,
+        eventId: eventId,
+      );
+    } on RustMatrixCoreBridgeException catch (error) {
+      if (isMatrixSessionExpiredCode(error.code)) {
+        throw ChatFailure.sessionRequired(
+          'Reconnect Matrix Chat to authorize this device.',
+          cause: error,
+        );
+      }
+      rethrow;
+    }
   }
 
   @override
   Future<void> connect() async {
-    final configuration = await _loadConfiguration();
     try {
-      final descriptor = await _rustMatrixCoreBridge.descriptor(
-        serverName: configuration.serviceEndpoints.matrixHomeserverUrl.host,
-      );
-      if (!descriptor.isWeaveFacade) {
-        throw const RustMatrixCoreBridgeException('M_WEAVE_MATRIX_CORE_ERROR');
-      }
-      await _matrixCryptoSessionCoordinator.open();
+      await _matrixCryptoSessionCoordinator.open(allowInteractiveSignIn: true);
     } on RustMatrixCoreBridgeException catch (error) {
       throw ChatFailure.configuration(
-        'The encrypted Matrix facade is not compatible with this Weave client.',
+        'The selected Matrix homeserver could not establish an encrypted client session.',
         cause: error,
       );
     }
@@ -214,33 +231,12 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
 
   @override
   Future<void> signOut() async {
-    final configuration = await _loadConfiguration();
-    await _matrixCryptoSessionCoordinator.disposePreservingCryptoState();
-    await _authSessionRepository.signOut(_authConfiguration(configuration));
+    await _matrixCryptoSessionCoordinator.endSession();
   }
 
   @override
   Future<void> clearSession() async {
     await _matrixCryptoSessionCoordinator.disposePreservingCryptoState();
-    await _authSessionRepository.clearLocalSession();
-  }
-
-  Future<ServerConfiguration> _loadConfiguration() async {
-    final configuration = await _serverConfigurationRepository
-        .loadConfiguration();
-    if (configuration == null) {
-      throw const ChatFailure.configuration(
-        'Finish setup before opening Weave Chat.',
-      );
-    }
-    return configuration;
-  }
-
-  AuthConfiguration _authConfiguration(ServerConfiguration configuration) {
-    return AuthConfiguration(
-      issuer: configuration.oidcIssuerUrl,
-      clientId: configuration.oidcClientRegistration.clientId.trim(),
-    );
   }
 
   ChatMessage _messageFromProjection(

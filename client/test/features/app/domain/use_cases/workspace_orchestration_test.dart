@@ -50,6 +50,7 @@ class _FakeAppAuthPort implements AppAuthPort {
 class _FakeChatSessionPort implements ChatSessionPort {
   int signOutCalls = 0;
   int clearSessionCalls = 0;
+  bool failSignOut = false;
 
   @override
   Future<void> clearSession() async {
@@ -59,6 +60,7 @@ class _FakeChatSessionPort implements ChatSessionPort {
   @override
   Future<void> signOut() async {
     signOutCalls++;
+    if (failSignOut) throw StateError('Matrix sign-out failed');
   }
 }
 
@@ -180,6 +182,32 @@ void main() {
 
       expect(authPort.clearLocalSessionCalls, 1);
       expect(authPort.signOutCalls, 0);
+    });
+
+    test('clears Weave and Files even if Matrix sign-out fails', () async {
+      final authPort = _FakeAppAuthPort();
+      final chatSessionPort = _FakeChatSessionPort()..failSignOut = true;
+      final filesSessionPort = _FakeFilesSessionPort();
+      final invalidationPort = _FakeWorkspaceInvalidationPort();
+      final useCase = SignOutWorkspace(
+        authPort: authPort,
+        chatSessionPort: chatSessionPort,
+        filesSessionPort: filesSessionPort,
+        serverConfigurationPort: _FakeServerConfigurationPort(
+          configuration: buildTestConfiguration(),
+        ),
+        workspaceInvalidationPort: invalidationPort,
+      );
+
+      await expectLater(useCase.call(), throwsStateError);
+
+      expect(chatSessionPort.signOutCalls, 1);
+      expect(authPort.signOutCalls, 1);
+      expect(filesSessionPort.disconnectCalls, 1);
+      expect(
+        invalidationPort.lastReasonFor(WorkspaceIntegration.chat),
+        IntegrationInvalidationReason.explicitSignOut,
+      );
     });
   });
 

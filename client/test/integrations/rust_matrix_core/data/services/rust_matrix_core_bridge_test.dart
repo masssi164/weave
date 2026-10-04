@@ -69,26 +69,21 @@ test-certificate
   });
 
   test(
-    'descriptor points Flutter at the OIDC gated Rust Matrix facade',
+    'legacy protocol descriptor remains a support-safe diagnostic only',
     () async {
       const bridge = RustMatrixCoreBridge();
 
       final descriptor = await bridge.descriptor();
 
-      expect(descriptor.protocolSurface, 'matrix-client-server-facade');
-      expect(descriptor.oidcGatekeeper, 'spring-boot-resource-server');
-      expect(descriptor.northboundHomeserverDependency, isFalse);
       expect(
         descriptor.rustProtocolCore,
         'ruma-serde-serde_json-thiserror-tracing',
       );
-      expect(descriptor.serverJniBoundary, 'server-jni-wrapper');
       expect(descriptor.flutterBridgeBoundary, 'flutter-rust-bridge');
       expect(descriptor.nativeLinked, isTrue);
       expect(descriptor.serverName, 'api.weave.test');
       expect(descriptor.supportedMatrixVersions, ['v1.18']);
       expect(descriptor.supportedEndpoints, contains(contains('/sync')));
-      expect(descriptor.isWeaveFacade, isTrue);
     },
   );
 

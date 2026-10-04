@@ -44,7 +44,12 @@ class TestConfig {
       matrixHomeserverUrl: _configuredOrDefault(
         'WEAVE_MATRIX_HOMESERVER_URL',
         const String.fromEnvironment('WEAVE_MATRIX_HOMESERVER_URL'),
-        _apiOrigin(backendApiBaseUrl),
+        backendApiBaseUrl.replace(
+          host: 'matrix.$workspaceHost',
+          pathSegments: const [],
+          query: null,
+          fragment: null,
+        ),
       ),
       nextcloudBaseUrl: _configuredOrDefault(
         'WEAVE_NEXTCLOUD_BASE_URL',
@@ -120,16 +125,6 @@ class TestConfig {
       );
     }
     return parsed;
-  }
-
-  static Uri _apiOrigin(Uri uri) {
-    final segments = uri.pathSegments
-        .where((segment) => segment.isNotEmpty)
-        .toList(growable: true);
-    if (segments.isNotEmpty && segments.last == 'api') {
-      segments.removeLast();
-    }
-    return uri.replace(pathSegments: segments, query: null, fragment: null);
   }
 
   static String _workspaceHost(String host) {

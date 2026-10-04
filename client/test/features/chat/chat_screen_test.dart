@@ -69,7 +69,7 @@ void main() {
       expect(find.text('Loading conversations…'), findsOneWidget);
     });
 
-    testWidgets('auto-connects when no Matrix session is available', (
+    testWidgets('starts Matrix browser sign-in only after Connect is tapped', (
       tester,
     ) async {
       final connectCompleter = Completer<void>();
@@ -110,6 +110,11 @@ void main() {
       await tester.pump();
       await tester.pump();
 
+      expect(find.text('Connect chat'), findsOneWidget);
+      expect(repository.connectCalls, 0);
+
+      await tester.tap(find.text('Connect chat'));
+      await tester.pump();
       expect(find.text('Connecting to chat…'), findsOneWidget);
       expect(repository.connectCalls, 1);
 
@@ -153,6 +158,10 @@ void main() {
         );
         await tester.pump();
         await tester.pump();
+
+        expect(repository.connectCalls, 0);
+        await tester.tap(find.text('Connect chat'));
+        await tester.pumpAndSettle();
 
         expect(
           find.textContaining('Chat setup needs admin attention'),
@@ -214,6 +223,12 @@ void main() {
       await tester.pump();
       await tester.pump();
 
+      expect(find.text('Connect chat'), findsOneWidget);
+      expect(repository.connectCalls, 0);
+
+      await tester.tap(find.text('Connect chat'));
+      await tester.pumpAndSettle();
+      expect(repository.connectCalls, 1);
       expect(find.text('Connect chat'), findsOneWidget);
 
       await tester.tap(find.text('Connect chat'));

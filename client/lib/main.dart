@@ -25,6 +25,7 @@ import 'package:weave/features/onboarding/presentation/member_handoff_screen.dar
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/matrix_oauth_browser.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 const _pendingDeepLinkKey = 'pending_deep_link_url';
@@ -133,6 +134,9 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
     } catch (_) {}
     final uri = Uri.tryParse(pendingDeepLink);
     if (uri != null) {
+      if (isMatrixOAuthRedirect(uri)) {
+        return;
+      }
       final location = initialLocationForDefaultRoute(uri.toString());
       if (location != AppRoutes.organizationAccess) {
         setStartupInitialLocation(location);
@@ -142,6 +146,9 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
   }
 
   Future<void> _openAppLink(Uri uri) async {
+    if (isMatrixOAuthRedirect(uri)) {
+      return;
+    }
     final location = initialLocationForDefaultRoute(uri.toString());
     if (location == AppRoutes.organizationAccess || !mounted) {
       return;

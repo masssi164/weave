@@ -24,12 +24,10 @@ void main() {
       expect(config.apiUri('/api/me').path, '/api/me');
     });
 
-    test('Flutter consumes Weave-owned open protocol facades', () {
+    test('Flutter keeps the User API and native Matrix endpoints distinct', () {
       // OIDC_PROTOCOL_ACCESS_CONTRACT
-      final apiOrigin = _apiOrigin(config.backendApiBaseUrl);
       final surfaces = <Uri>[
-        _facadeUri(config.backendApiBaseUrl, const ['dav', 'files']),
-        _facadeUri(config.backendApiBaseUrl, const ['caldav']),
+        config.apiUri('/api/me'),
         config.matrixHomeserverUrl.replace(
           pathSegments: const ['_matrix', 'client', 'versions'],
           query: null,
@@ -37,10 +35,9 @@ void main() {
         ),
       ];
 
-      expect(surfaces[0].path, '/dav/files');
-      expect(surfaces[1].path, '/caldav');
-      expect(surfaces[2].path, '/_matrix/client/versions');
-      expect(config.matrixHomeserverUrl, apiOrigin);
+      expect(surfaces[0].path, '/api/me');
+      expect(surfaces[1].path, '/_matrix/client/versions');
+      expect(config.matrixHomeserverUrl.path, anyOf('', '/'));
       for (final surface in surfaces) {
         expect(surface.scheme, anyOf('http', 'https'));
         expect(surface.userInfo, isEmpty);
@@ -71,30 +68,6 @@ void main() {
       expect(offenders, isEmpty);
     });
   });
-}
-
-Uri _facadeUri(Uri backendApiBaseUrl, List<String> segments) {
-  final normalized =
-      backendApiBaseUrl.pathSegments
-          .where((segment) => segment.isNotEmpty && segment != 'api')
-          .toList(growable: true)
-        ..addAll(segments);
-  return backendApiBaseUrl.replace(
-    pathSegments: normalized,
-    query: null,
-    fragment: null,
-  );
-}
-
-Uri _apiOrigin(Uri backendApiBaseUrl) {
-  final segments = backendApiBaseUrl.pathSegments
-      .where((segment) => segment.isNotEmpty && segment != 'api')
-      .toList(growable: false);
-  return backendApiBaseUrl.replace(
-    pathSegments: segments,
-    query: null,
-    fragment: null,
-  );
 }
 
 bool _containsProviderSecret(String value) => RegExp(

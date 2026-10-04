@@ -345,7 +345,7 @@
   "@chatErrorAdminGuidance": {
     "description": "Provider-neutral guidance when chat setup or configuration is not member-actionable"
   },
-  "chatErrorSessionRequiredGuidance": "Chat is not connected for this workspace session. Connect chat to continue.",
+  "chatErrorSessionRequiredGuidance": "Connect chat to sign in to Matrix in your system browser. Your Matrix session is separate from your Weave sign-in.",
   "@chatErrorSessionRequiredGuidance": {
     "description": "Provider-neutral guidance when a chat session is required"
   },
@@ -2968,7 +2968,7 @@
   "@serverConfigurationServicesLabel": {
     "description": "Section title for derived service endpoints"
   },
-  "serverConfigurationServicesHelper": "The Matrix facade is fixed to the backend API origin. Files and backend product endpoints are derived from the issuer host.",
+  "serverConfigurationServicesHelper": "Matrix, Files, and backend defaults are derived from the issuer host. Set the real Matrix homeserver origin if it differs; Matrix sign-in uses a separate browser session.",
   "@serverConfigurationServicesHelper": {
     "description": "Helper text for the service endpoints section"
   },
@@ -2984,9 +2984,9 @@
   "@serverConfigurationIdentityEndpointHelper": {
     "description": "Helper text for the identity endpoint section in setup and settings"
   },
-  "serverConfigurationMatrixLabel": "Weave Matrix Facade URL",
+  "serverConfigurationMatrixLabel": "Matrix homeserver URL",
   "@serverConfigurationMatrixLabel": {
-    "description": "Label for the Weave-owned Matrix facade URL field"
+    "description": "Label for the real Matrix homeserver URL field"
   },
   "serverConfigurationNextcloudLabel": "Nextcloud Base URL",
   "@serverConfigurationNextcloudLabel": {

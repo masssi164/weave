@@ -48,7 +48,6 @@ class ChatUiState {
 
 class ChatController extends Notifier<ChatUiState> {
   int? _sessionGeneration;
-  bool _autoConnectAttempted = false;
 
   @override
   ChatUiState build() {
@@ -58,10 +57,7 @@ class ChatController extends Notifier<ChatUiState> {
     final sessionGeneration = invalidation?.sequence ?? 0;
     if (_sessionGeneration != sessionGeneration) {
       _sessionGeneration = sessionGeneration;
-      _autoConnectAttempted = false;
-      Future<void>.microtask(
-        () => _loadInitial(invalidationReason: invalidation?.reason),
-      );
+      Future<void>.microtask(() => _loadConversations());
     }
 
     return const ChatUiState.loading();
@@ -71,15 +67,12 @@ class ChatController extends Notifier<ChatUiState> {
     final cachedConversations = state.conversations;
     if (cachedConversations.isEmpty) {
       state = const ChatUiState.loading();
-      await _loadConversations(allowAutoConnect: false);
+      await _loadConversations();
       return;
     }
 
     state = ChatUiState.content(cachedConversations, isRefreshing: true);
-    await _loadConversations(
-      allowAutoConnect: false,
-      staleConversations: cachedConversations,
-    );
+    await _loadConversations(staleConversations: cachedConversations);
   }
 
   Future<void> connect() async {
@@ -91,7 +84,7 @@ class ChatController extends Notifier<ChatUiState> {
 
     try {
       await ref.read(chatRepositoryProvider).connect();
-      await _loadConversations(allowAutoConnect: false);
+      await _loadConversations();
     } on ChatFailure catch (failure) {
       state = _stateForFailure(failure);
     } catch (error) {
@@ -116,16 +109,7 @@ class ChatController extends Notifier<ChatUiState> {
     return conversation;
   }
 
-  Future<void> _loadInitial({
-    IntegrationInvalidationReason? invalidationReason,
-  }) async {
-    await _loadConversations(
-      allowAutoConnect: _shouldAutoConnect(invalidationReason),
-    );
-  }
-
   Future<void> _loadConversations({
-    required bool allowAutoConnect,
     List<ChatConversation>? staleConversations,
   }) async {
     final repository = ref.read(chatRepositoryProvider);
@@ -136,14 +120,6 @@ class ChatController extends Notifier<ChatUiState> {
           ? const ChatUiState.empty()
           : ChatUiState.content(conversations);
     } on ChatFailure catch (failure) {
-      if (failure.type == ChatFailureType.sessionRequired &&
-          allowAutoConnect &&
-          !_autoConnectAttempted) {
-        _autoConnectAttempted = true;
-        await connect();
-        return;
-      }
-
       state = _stateForLoadFailure(failure, staleConversations);
     } catch (error) {
       state = _stateForLoadFailure(
@@ -172,18 +148,6 @@ class ChatController extends Notifier<ChatUiState> {
       ChatFailureType.unsupportedConfiguration ||
       ChatFailureType.unsupportedPlatform => ChatUiState.unsupported(failure),
       _ => ChatUiState.error(failure),
-    };
-  }
-
-  bool _shouldAutoConnect(IntegrationInvalidationReason? invalidationReason) {
-    return switch (invalidationReason) {
-      null => true,
-      IntegrationInvalidationReason.chatConfigurationChanged ||
-      IntegrationInvalidationReason.explicitSignOut ||
-      IntegrationInvalidationReason.restartSetup => false,
-      IntegrationInvalidationReason.authConfigurationChanged ||
-      IntegrationInvalidationReason.filesConfigurationChanged ||
-      IntegrationInvalidationReason.backendApiBaseUrlChanged => true,
     };
   }
 }

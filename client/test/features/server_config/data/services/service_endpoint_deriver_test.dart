@@ -12,7 +12,7 @@ void main() {
 
       expect(
         endpoints.matrixHomeserverUrl.toString(),
-        'https://api.home.internal',
+        'https://matrix.home.internal',
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
@@ -30,7 +30,7 @@ void main() {
 
       expect(
         endpoints.matrixHomeserverUrl.toString(),
-        'https://api.example.com',
+        'https://matrix.example.com',
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
@@ -52,7 +52,7 @@ void main() {
 
         expect(
           endpoints.matrixHomeserverUrl.toString(),
-          'https://api.workspace.example.com',
+          'https://matrix.workspace.example.com',
         );
         expect(
           endpoints.nextcloudBaseUrl.toString(),
@@ -71,7 +71,7 @@ void main() {
 
       expect(
         endpoints.matrixHomeserverUrl.toString(),
-        'http://api.home.internal',
+        'http://matrix.home.internal',
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
@@ -120,6 +120,23 @@ void main() {
         () => deriver.parseServiceUrl(
           'https://api.home.internal',
           fieldName: 'the backend API URL',
+        ),
+        throwsA(isA<AppFailure>()),
+      );
+    });
+
+    test('accepts an independent Matrix homeserver origin only', () {
+      expect(
+        deriver.parseMatrixHomeserverUrl('https://matrix.example.com/'),
+        Uri.parse('https://matrix.example.com'),
+      );
+      expect(
+        () => deriver.parseMatrixHomeserverUrl('https://api.example.com/api'),
+        throwsA(isA<AppFailure>()),
+      );
+      expect(
+        () => deriver.parseMatrixHomeserverUrl(
+          'https://user:secret@matrix.example.com',
         ),
         throwsA(isA<AppFailure>()),
       );

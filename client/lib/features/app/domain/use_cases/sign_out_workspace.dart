@@ -28,15 +28,32 @@ class SignOutWorkspace {
 
   Future<void> call() async {
     final configuration = await _serverConfigurationPort.loadConfiguration();
-
-    if (configuration != null && configuration.hasCompleteAuthConfiguration) {
-      await _authPort.signOut(_toAuthConfiguration(configuration));
-    } else {
-      await _authPort.clearLocalSession();
+    Object? firstFailure;
+    StackTrace? firstFailureStack;
+    try {
+      // Matrix owns a separate OAuth session. End it before the Weave OIDC
+      // session so remote revocation can still use the Matrix SDK session.
+      await _chatSessionPort.signOut();
+    } on Object catch (error, stack) {
+      firstFailure = error;
+      firstFailureStack = stack;
     }
-
-    await _chatSessionPort.signOut();
-    await _filesSessionPort.disconnect();
+    try {
+      if (configuration != null && configuration.hasCompleteAuthConfiguration) {
+        await _authPort.signOut(_toAuthConfiguration(configuration));
+      } else {
+        await _authPort.clearLocalSession();
+      }
+    } on Object catch (error, stack) {
+      firstFailure ??= error;
+      firstFailureStack ??= stack;
+    }
+    try {
+      await _filesSessionPort.disconnect();
+    } on Object catch (error, stack) {
+      firstFailure ??= error;
+      firstFailureStack ??= stack;
+    }
     _workspaceInvalidationPort.invalidate(
       integration: WorkspaceIntegration.appAuth,
       reason: IntegrationInvalidationReason.explicitSignOut,
@@ -53,6 +70,9 @@ class SignOutWorkspace {
       integration: WorkspaceIntegration.weaveBackend,
       reason: IntegrationInvalidationReason.explicitSignOut,
     );
+    if (firstFailure != null) {
+      Error.throwWithStackTrace(firstFailure, firstFailureStack!);
+    }
   }
 
   AuthConfiguration _toAuthConfiguration(ServerConfiguration configuration) {
