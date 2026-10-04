@@ -1,0 +1,93 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'com.massimotter.weave'
+version = '0.1.0'
+
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+
+def generatorVersion = '7.17.0'
+def userContract = rootProject.file('contracts/openapi/weave-user-openapi.json')
+def generatedRoot = layout.buildDirectory.dir('generated/openapi-user')
+def comparisonRoot = layout.buildDirectory.dir('generated/openapi-user-comparison')
+def generatorArguments = { output ->
+    ['generate', '-g', 'java', '-i', userContract.absolutePath,
+     '-o', output.get().asFile.absolutePath,
+     '--additional-properties',
+     'library=native,serializationLibrary=jackson,dateLibrary=java8,hideGenerationTimestamp=true,' +
+     'sourceFolder=src/main/java,invokerPackage=com.massimotter.weave.userapi.invoker,' +
+     'apiPackage=com.massimotter.weave.userapi.api,modelPackage=com.massimotter.weave.userapi.model,' +
+     'apiDocs=false,apiTests=false,modelDocs=false,modelTests=false']
+}
+
+configurations { openApiGenerator }
+
+dependencies {
+    openApiGenerator "org.openapitools:openapi-generator-cli:${generatorVersion}"
+    api 'com.fasterxml.jackson.core:jackson-databind:2.20.1'
+    api 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.20.1'
+    api 'javax.annotation:javax.annotation-api:1.3.2'
+    api 'com.google.code.findbugs:jsr305:3.0.2'
+    api 'org.openapitools:jackson-databind-nullable:0.2.7'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.12.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.12.2'
+}
+
+tasks.register('generateUserApiClient', JavaExec) {
+    group = 'build'
+    description = 'Generate the pinned JVM User HTTP client from the server-owned OpenAPI artifact.'
+    classpath = configurations.openApiGenerator
+    mainClass = 'org.openapitools.codegen.OpenAPIGenerator'
+    args generatorArguments(generatedRoot)
+    inputs.file(userContract)
+    inputs.property('generatorVersion', generatorVersion)
+    inputs.file(rootProject.file('tools/patch_openapi_java_enum_query.py'))
+    outputs.dir(generatedRoot)
+    doFirst { delete(generatedRoot) }
+    doLast {
+        exec {
+            commandLine 'python3', rootProject.file('tools/patch_openapi_java_enum_query.py'),
+                    generatedRoot.get().asFile.absolutePath
+        }
+    }
+}
+
+tasks.register('generateUserApiClientComparison', JavaExec) {
+    group = 'verification'
+    description = 'Regenerate the User client independently for reproducibility verification.'
+    classpath = configurations.openApiGenerator
+    mainClass = 'org.openapitools.codegen.OpenAPIGenerator'
+    args generatorArguments(comparisonRoot)
+    inputs.file(userContract)
+    inputs.property('generatorVersion', generatorVersion)
+    inputs.file(rootProject.file('tools/patch_openapi_java_enum_query.py'))
+    outputs.dir(comparisonRoot)
+    doFirst { delete(comparisonRoot) }
+    doLast {
+        exec {
+            commandLine 'python3', rootProject.file('tools/patch_openapi_java_enum_query.py'),
+                    comparisonRoot.get().asFile.absolutePath
+        }
+    }
+}
+
+tasks.register('checkUserApiClientReproducible') {
+    group = 'verification'
+    description = 'Check generated JVM User routes/models cover the artifact and reproduce byte for byte.'
+    dependsOn tasks.named('generateUserApiClient'), tasks.named('generateUserApiClientComparison')
+    inputs.file(userContract)
+    inputs.file(rootProject.file('tools/check_user_api_client.py'))
+    doLast {
+        exec {
+            commandLine 'python3', rootProject.file('tools/check_user_api_client.py'),
+                    userContract.absolutePath, generatedRoot.get().asFile.absolutePath,
+                    comparisonRoot.get().asFile.absolutePath
+        }
+    }
+}
+
+sourceSets.main.java.srcDir(generatedRoot.map { it.dir('src/main/java') })
+tasks.named('compileJava') { dependsOn tasks.named('generateUserApiClient') }
+tasks.named('test') { useJUnitPlatform() }
+tasks.named('check') { dependsOn tasks.named('checkUserApiClientReproducible') }
