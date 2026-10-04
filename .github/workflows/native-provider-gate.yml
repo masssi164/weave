@@ -30,6 +30,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Prepare verified source-built S3 test fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_id="$(infra/weave-workspace/scripts/build_runtime_state_image.sh)"
+          docker tag "$image_id" weave-runtime-state:ci-s3
+          echo 'WEAVE_MINIO_TEST_IMAGE=weave-runtime-state:ci-s3' >> "$GITHUB_ENV"
       - name: Compile server and focused native-provider tests
         run: |
           set -euo pipefail
@@ -48,11 +55,11 @@ jobs:
         run: |
           set -euo pipefail
           test ! -d rust/matrix-core
-          ! grep -R --line-number --exclude-dir=target -E 'matrix-sdk|matrix_sdk' rust/matrix-protocol
-          ! grep -R --line-number -E 'MatrixE2eeSnapshot(Store|JpaEntity|JpaRepository)' server/src/main weave-persistence-jpa/src/main
-          ! grep -R --line-number -E 'weave\.chat\.matrix-facade\.enabled|facadeEnabled|weave\.matrix\.core\.library\.path|matrixCoreLibrary|weave_matrix_core' server gradle .github rust Cargo.toml Cargo.lock
+          if grep -R --line-number --exclude-dir=target -E 'matrix-sdk|matrix_sdk' rust/matrix-protocol; then exit 1; fi
+          if grep -R --line-number -E 'MatrixE2eeSnapshot(Store|JpaEntity|JpaRepository)' server/src/main weave-persistence-jpa/src/main; then exit 1; fi
+          if grep -R --line-number -E 'weave\.chat\.matrix-facade\.enabled|facadeEnabled|weave\.matrix\.core\.library\.path|matrixCoreLibrary|weave_matrix_core' server gradle .github rust Cargo.toml Cargo.lock; then exit 1; fi
           grep -q 'org.apache.opendal' server/src/main/java/com/massimotter/weave/backend/service/files/FilesystemBlobStore.java
-          ! grep -q 'software.amazon.awssdk' server/src/main/java/com/massimotter/weave/backend/service/files/FilesystemBlobStore.java
+          if grep -q 'software.amazon.awssdk' server/src/main/java/com/massimotter/weave/backend/service/files/FilesystemBlobStore.java; then exit 1; fi
           test ! -e server/src/main/java/com/massimotter/weave/backend/service/files/S3BlobStore.java
           test ! -e server/src/test/java/com/massimotter/weave/backend/service/files/S3BlobStoreTest.java
-          ! grep -R --line-number -E 'S3_COMPATIBLE|weave\.files\.native\.blob-store' server weave-files-core weave-application-core docs README.md
+          if grep -R --line-number -E 'S3_COMPATIBLE|weave\.files\.native\.blob-store' server weave-files-core weave-application-core docs README.md; then exit 1; fi
