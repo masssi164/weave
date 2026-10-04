@@ -25,7 +25,7 @@ npm run generate:openapi
 npm run check:openapi
 ```
 
-OpenAPI consumer types are generated from the server-owned artifact at `contracts/openapi/weave-openapi.json`. Use the root commands `./gradlew generateOpenApiContract generateAdminOpenApiTypes` after server contract changes and `./gradlew checkOpenApiContractFresh checkAdminOpenApiTypesFresh` to fail on stale generated artifacts.
+OpenAPI consumer types and the fetch client are generated from the separate server-owned `contracts/openapi/weave-admin-openapi.json` artifact. The generator version is pinned in `gradle/tasks/verification.gradle`. Use `npm run generate:openapi` after server contract changes and `npm run check:openapi` to fail on stale generated artifacts. The invitation, control-plane, audit, whitelist, identity readiness, provider readiness, and replacement dry-run operations use the generated client. Older agent-runtime and provider-selection UI calls are still being reconciled with the approved API and migration evidence contract; their presence does not establish release readiness.
 
 ## Dependency update policy
 
