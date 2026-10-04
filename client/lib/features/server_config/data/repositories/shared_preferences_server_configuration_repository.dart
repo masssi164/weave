@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:weave/features/server_config/data/dtos/server_configuration_dto.dart';
@@ -28,7 +30,16 @@ class SharedPreferencesServerConfigurationRepository
 
       // Re-validate persisted values on load so presentation never receives
       // malformed configuration from storage.
-      final dto = ServerConfigurationDto.decode(raw);
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Invalid saved configuration');
+      }
+      if (decoded['schemaVersion'] != 2) {
+        // A v1 Matrix URL could name a concrete provider. Keep the saved
+        // value intact for support, but require a new OrgManifest handoff.
+        return null;
+      }
+      final dto = ServerConfigurationDto.fromJson(decoded);
       final issuerUrl = _deriver.parseIssuerUrl(dto.oidcIssuerUrl);
       final configuration = dto.toConfiguration();
       final clientId = _requiredClientId(

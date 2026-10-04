@@ -13,6 +13,7 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/matrix_oauth_browser.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/matrix_session_access.dart';
 
 import '../../../../helpers/auth_test_data.dart';
 import '../../../../helpers/fake_matrix_crypto.dart';
@@ -100,6 +101,29 @@ class _FakeMatrixOAuthBrowser implements MatrixOAuthBrowser {
   }
 }
 
+class _FakeMatrixSessionAccess implements MatrixSessionAccessPort {
+  String organizationId = 'org-one';
+  bool allowed = true;
+  int calls = 0;
+
+  @override
+  Future<MatrixSessionAccess> authorize({
+    required Uri userApiBaseUrl,
+    required String weaveAccessToken,
+    required String expectedSubject,
+    required Uri expectedIssuer,
+  }) async {
+    calls++;
+    if (!allowed) {
+      throw const ChatFailure.sessionRequired('Chat access was revoked.');
+    }
+    return MatrixSessionAccess(
+      organizationId: organizationId,
+      subject: expectedSubject,
+    );
+  }
+}
+
 String _idToken({
   String issuer = 'https://auth.home.internal',
   String audience = 'weave-app',
@@ -117,6 +141,7 @@ void main() {
   late _AuthRepository authRepository;
   late FakeRustMatrixCoreBridge bridge;
   late _FakeMatrixOAuthBrowser browser;
+  late _FakeMatrixSessionAccess access;
 
   MatrixCryptoSessionCoordinator buildCoordinator({required int randomSeed}) {
     return MatrixCryptoSessionCoordinator(
@@ -126,6 +151,7 @@ void main() {
         secureStore: secureStore,
         random: Random(randomSeed),
       ),
+      matrixSessionAccess: access,
       secureStore: secureStore,
       rustMatrixCoreBridge: bridge,
       oauthBrowser: browser,
@@ -145,7 +171,9 @@ void main() {
       buildTestAuthSession(idToken: _idToken()),
     );
     bridge = FakeRustMatrixCoreBridge();
+    bridge.oauthUserId = '@person-1:api.weave.test';
     browser = _FakeMatrixOAuthBrowser();
+    access = _FakeMatrixSessionAccess();
   });
 
   tearDown(() async {
@@ -155,23 +183,16 @@ void main() {
   });
 
   test(
-    'ordinary Matrix reads never launch a browser without a session',
+    'ordinary Chat access establishes Matrix through the Weave SSO context',
     () async {
       final coordinator = buildCoordinator(randomSeed: 1);
 
-      await expectLater(
-        coordinator.open(),
-        throwsA(
-          isA<ChatFailure>().having(
-            (failure) => failure.type,
-            'type',
-            ChatFailureType.sessionRequired,
-          ),
-        ),
-      );
+      final session = await coordinator.open();
 
-      expect(bridge.oauthStarts, isEmpty);
-      expect(browser.opened, isEmpty);
+      expect(session.userId, '@person-1:api.weave.test');
+      expect(bridge.oauthStarts, hasLength(1));
+      expect(browser.opened, hasLength(1));
+      expect(access.calls, 1);
     },
   );
 
@@ -232,7 +253,7 @@ void main() {
   );
 
   test(
-    'expired Matrix grant requires deliberate same-account reconnect',
+    'expired Matrix grant recovers automatically for the same account',
     () async {
       final coordinator = buildCoordinator(randomSeed: 1);
       final first = await coordinator.open(allowInteractiveSignIn: true);
@@ -244,21 +265,11 @@ void main() {
       final tokenFile = File('$storePath/weave-matrix-oauth-session.v1');
       await tokenFile.writeAsString('encrypted Matrix session test fixture');
 
-      bridge.expiredSyncsRemaining = 3;
-      await expectLater(
-        coordinator.open(),
-        throwsA(
-          isA<ChatFailure>().having(
-            (failure) => failure.type,
-            'type',
-            ChatFailureType.sessionRequired,
-          ),
-        ),
-      );
-      expect(browser.opened, hasLength(1));
+      bridge.expiredSyncsRemaining = 2;
+      final reconnected = await coordinator.open();
+      expect(browser.opened, hasLength(2));
       expect(await tokenFile.readAsString(), isNotEmpty);
 
-      final reconnected = await coordinator.open(allowInteractiveSignIn: true);
       expect(reconnected.profileKey, first.profileKey);
       expect(bridge.oauthStarts, hasLength(2));
       expect(browser.opened, hasLength(2));
@@ -364,6 +375,93 @@ void main() {
       expect(restored.profileKey, session.profileKey);
       expect(bridge.oauthRestores, hasLength(1));
       expect(browser.opened, hasLength(1));
+    },
+  );
+
+  test(
+    'revoked Chat access drops the active client but preserves E2EE',
+    () async {
+      final coordinator = buildCoordinator(randomSeed: 1);
+      final session = await coordinator.open(synchronize: false);
+      final bindingKey = await secureStore.read(matrixOAuthCurrentBindingKey);
+      final storePath = bridge.oauthActivations.single['storePath']!;
+
+      access.allowed = false;
+      await expectLater(
+        coordinator.open(synchronize: false),
+        throwsA(
+          isA<ChatFailure>().having(
+            (failure) => failure.type,
+            'type',
+            ChatFailureType.sessionRequired,
+          ),
+        ),
+      );
+
+      expect(bridge.disposedProfiles, contains(session.profileKey));
+      expect(await secureStore.read(matrixOAuthCurrentBindingKey), bindingKey);
+      expect(await Directory(storePath).exists(), isTrue);
+      expect(browser.opened, hasLength(1));
+    },
+  );
+
+  test('unauthorized Chat never starts Matrix OAuth', () async {
+    access.allowed = false;
+
+    await expectLater(
+      buildCoordinator(randomSeed: 1).open(),
+      throwsA(isA<ChatFailure>()),
+    );
+
+    expect(bridge.oauthStarts, isEmpty);
+    expect(browser.opened, isEmpty);
+  });
+
+  test(
+    'a different organization cannot reuse the saved Matrix session',
+    () async {
+      final coordinator = buildCoordinator(randomSeed: 1);
+      final session = await coordinator.open(synchronize: false);
+      final storePath = bridge.oauthActivations.single['storePath']!;
+
+      access.organizationId = 'org-two';
+      await expectLater(
+        coordinator.open(synchronize: false),
+        throwsA(isA<ChatFailure>()),
+      );
+
+      expect(bridge.disposedProfiles, contains(session.profileKey));
+      expect(await Directory(storePath).exists(), isTrue);
+      expect(browser.opened, hasLength(1));
+    },
+  );
+
+  test(
+    'binds an existing verified Matrix store to its Weave organization',
+    () async {
+      final first = buildCoordinator(randomSeed: 1);
+      final session = await first.open(synchronize: false);
+      final bindingKey = (await secureStore.read(
+        matrixOAuthCurrentBindingKey,
+      ))!;
+      final raw =
+          jsonDecode((await secureStore.read(bindingKey))!)
+              as Map<String, dynamic>;
+      raw.remove('organizationId');
+      await secureStore.write(bindingKey, jsonEncode(raw));
+      await first.disposePreservingCryptoState();
+
+      final restored = await buildCoordinator(
+        randomSeed: 2,
+      ).open(synchronize: false);
+      final migrated =
+          jsonDecode((await secureStore.read(bindingKey))!)
+              as Map<String, dynamic>;
+
+      expect(restored.profileKey, session.profileKey);
+      expect(migrated['organizationId'], 'org-one');
+      expect(bridge.oauthRestores, hasLength(1));
+      expect(bridge.oauthActivations, hasLength(1));
     },
   );
 
@@ -500,7 +598,7 @@ void main() {
           isA<ChatFailure>().having(
             (failure) => failure.type,
             'type',
-            ChatFailureType.storage,
+            ChatFailureType.protocol,
           ),
         ),
       );
@@ -517,6 +615,7 @@ void main() {
     'dispose waits for an in-flight owner startup before shutdown',
     () async {
       final controlledBridge = _ControlledInitializationBridge();
+      controlledBridge.oauthUserId = '@person-1:api.weave.test';
       bridge = controlledBridge;
       final coordinator = buildCoordinator(randomSeed: 1);
 

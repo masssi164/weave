@@ -12,7 +12,7 @@ void main() {
 
       expect(
         endpoints.matrixHomeserverUrl.toString(),
-        'https://matrix.home.internal',
+        'https://api.home.internal',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
@@ -26,7 +26,7 @@ void main() {
 
       expect(
         endpoints.matrixHomeserverUrl.toString(),
-        'https://matrix.example.com',
+        'https://api.example.com',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
@@ -44,7 +44,7 @@ void main() {
 
         expect(
           endpoints.matrixHomeserverUrl.toString(),
-          'https://matrix.workspace.example.com',
+          'https://api.workspace.example.com',
         );
         expect(
           endpoints.backendApiBaseUrl.toString(),
@@ -59,7 +59,7 @@ void main() {
 
       expect(
         endpoints.matrixHomeserverUrl.toString(),
-        'http://matrix.home.internal',
+        'http://api.home.internal',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),

@@ -301,7 +301,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatErrorCancelledGuidance =>
-      'Die Chat-Anmeldung wurde abgebrochen. Verbinde Chat, um es erneut zu versuchen.';
+      'Die Chat-Anmeldung wurde nicht abgeschlossen. Versuche es mit deiner aktuellen Weave-Anmeldung erneut.';
 
   @override
   String get chatErrorAdminGuidance =>
@@ -309,7 +309,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatErrorSessionRequiredGuidance =>
-      'Verbinde Chat, um dich im Systembrowser bei Matrix anzumelden. Deine Matrix-Sitzung ist von der Weave-Anmeldung getrennt.';
+      'Der Chat-Zugriff konnte mit deiner aktuellen Weave-Anmeldung nicht eingerichtet werden. Versuche es erneut oder bitte einen Admin, deinen Zugriff zu prüfen.';
 
   @override
   String get chatErrorUnsupportedPlatformGuidance =>
@@ -459,16 +459,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get chatLoadingHint =>
       'Deine aktuellen Räume und der letzte Gesprächsstand werden geladen.';
-
-  @override
-  String get chatConnectingLabel => 'Verbinde mit Chat…';
-
-  @override
-  String get chatConnectingHint =>
-      'Die sichere Weave-Chat-Sitzung wird geöffnet und die erste Unterhaltungsliste synchronisiert.';
-
-  @override
-  String get chatConnectButton => 'Chat verbinden';
 
   @override
   String get chatRefreshingRoomsLabel => 'Chaträume werden aktualisiert';
@@ -2477,7 +2467,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get serverConfigurationServicesHelper =>
-      'Standardwerte für Matrix, Dateien und die Backend-API werden aus dem Issuer-Host abgeleitet. Trage die echte Matrix-Homeserver-Adresse ein, falls sie abweicht; Matrix verwendet eine eigene Browser-Anmeldung.';
+      'Standardwerte für Weave Matrix und die Backend-API werden aus dem Issuer-Host abgeleitet. Falls sie abweicht, verwende die Weave Matrix Client-Server-Adresse aus dem Organisationsprofil. Der Chat wird nach der Weave-Anmeldung automatisch autorisiert.';
 
   @override
   String get serverConfigurationBackendApiHelper =>
@@ -2491,7 +2481,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Provider-Auswahl gehört in die Weave Admin Console und Backend-Control-Plane. Dieser Mitglieder-Client speichert nur kanonische Weave-Endpunkte für die Anmeldung.';
 
   @override
-  String get serverConfigurationMatrixLabel => 'Matrix-Homeserver-URL';
+  String get serverConfigurationMatrixLabel => 'Weave Matrix Client-Server-URL';
 
   @override
   String get serverConfigurationNextcloudLabel => 'Nextcloud-Basis-URL';

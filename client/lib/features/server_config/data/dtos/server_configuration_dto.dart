@@ -70,6 +70,7 @@ class ServerConfigurationDto {
 
   Map<String, dynamic> toJson() {
     return {
+      'schemaVersion': 2,
       'providerType': providerType,
       'oidcIssuerUrl': oidcIssuerUrl,
       'oidcClientRegistrationMode': oidcClientRegistrationMode,

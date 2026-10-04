@@ -597,7 +597,7 @@ abstract class AppLocalizations {
   /// Provider-neutral guidance after chat sign-in cancellation
   ///
   /// In en, this message translates to:
-  /// **'Chat sign-in was cancelled. Connect chat to try again.'**
+  /// **'Chat sign-in did not finish. Retry with your current Weave sign-in.'**
   String get chatErrorCancelledGuidance;
 
   /// Provider-neutral guidance when chat setup or configuration is not member-actionable
@@ -609,7 +609,7 @@ abstract class AppLocalizations {
   /// Provider-neutral guidance when a chat session is required
   ///
   /// In en, this message translates to:
-  /// **'Connect chat to sign in to Matrix in your system browser. Your Matrix session is separate from your Weave sign-in.'**
+  /// **'Chat access could not be established with your current Weave sign-in. Retry, or ask an admin to review your access.'**
   String get chatErrorSessionRequiredGuidance;
 
   /// Provider-neutral guidance when chat cannot run on the current platform
@@ -809,24 +809,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Gathering your latest rooms and recent conversation state.'**
   String get chatLoadingHint;
-
-  /// Message shown while Matrix OAuth sign-in is in progress
-  ///
-  /// In en, this message translates to:
-  /// **'Connecting to chat…'**
-  String get chatConnectingLabel;
-
-  /// Supporting copy shown while Matrix sign-in is connecting
-  ///
-  /// In en, this message translates to:
-  /// **'We are opening your secure Weave chat session and syncing the first conversation list.'**
-  String get chatConnectingHint;
-
-  /// Button label to start or retry Matrix sign-in
-  ///
-  /// In en, this message translates to:
-  /// **'Connect chat'**
-  String get chatConnectButton;
 
   /// Accessibility label for the progress indicator shown while the existing chat room list is refreshing
   ///
@@ -4106,7 +4088,7 @@ abstract class AppLocalizations {
   /// Helper text for the service endpoints section
   ///
   /// In en, this message translates to:
-  /// **'Matrix, Files, and backend defaults are derived from the issuer host. Set the real Matrix homeserver origin if it differs; Matrix sign-in uses a separate browser session.'**
+  /// **'Weave Matrix and backend defaults are derived from the issuer host. Use the Weave Matrix Client-Server origin from your organization profile if it differs. Chat authorization follows your Weave sign-in automatically.'**
   String get serverConfigurationServicesHelper;
 
   /// Helper text for backend API-only member handoff/recovery configuration
@@ -4127,10 +4109,10 @@ abstract class AppLocalizations {
   /// **'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.'**
   String get serverConfigurationIdentityEndpointHelper;
 
-  /// Label for the real Matrix homeserver URL field
+  /// Label for the Weave Matrix northbound Client-Server origin
   ///
   /// In en, this message translates to:
-  /// **'Matrix homeserver URL'**
+  /// **'Weave Matrix Client-Server URL'**
   String get serverConfigurationMatrixLabel;
 
   /// Label for the Nextcloud base URL field

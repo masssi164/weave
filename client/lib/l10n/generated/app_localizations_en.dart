@@ -296,7 +296,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatErrorCancelledGuidance =>
-      'Chat sign-in was cancelled. Connect chat to try again.';
+      'Chat sign-in did not finish. Retry with your current Weave sign-in.';
 
   @override
   String get chatErrorAdminGuidance =>
@@ -304,7 +304,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatErrorSessionRequiredGuidance =>
-      'Connect chat to sign in to Matrix in your system browser. Your Matrix session is separate from your Weave sign-in.';
+      'Chat access could not be established with your current Weave sign-in. Retry, or ask an admin to review your access.';
 
   @override
   String get chatErrorUnsupportedPlatformGuidance =>
@@ -453,16 +453,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chatLoadingHint =>
       'Gathering your latest rooms and recent conversation state.';
-
-  @override
-  String get chatConnectingLabel => 'Connecting to chat…';
-
-  @override
-  String get chatConnectingHint =>
-      'We are opening your secure Weave chat session and syncing the first conversation list.';
-
-  @override
-  String get chatConnectButton => 'Connect chat';
 
   @override
   String get chatRefreshingRoomsLabel => 'Refreshing chat rooms';
@@ -2442,7 +2432,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serverConfigurationServicesHelper =>
-      'Matrix, Files, and backend defaults are derived from the issuer host. Set the real Matrix homeserver origin if it differs; Matrix sign-in uses a separate browser session.';
+      'Weave Matrix and backend defaults are derived from the issuer host. Use the Weave Matrix Client-Server origin from your organization profile if it differs. Chat authorization follows your Weave sign-in automatically.';
 
   @override
   String get serverConfigurationBackendApiHelper =>
@@ -2456,7 +2446,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.';
 
   @override
-  String get serverConfigurationMatrixLabel => 'Matrix homeserver URL';
+  String get serverConfigurationMatrixLabel => 'Weave Matrix Client-Server URL';
 
   @override
   String get serverConfigurationNextcloudLabel => 'Nextcloud Base URL';

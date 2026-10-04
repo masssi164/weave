@@ -69,32 +69,23 @@ void main() {
       expect(find.text('Loading conversations…'), findsOneWidget);
     });
 
-    testWidgets('starts Matrix browser sign-in only after Connect is tapped', (
+    testWidgets('loads Chat without a separate member Connect action', (
       tester,
     ) async {
-      final connectCompleter = Completer<void>();
       final repository = FakeChatRepository();
       final securityRepository = buildSecurityRepository();
-      repository.loadConversationsHandler = () async {
-        if (repository.connectCalls == 0) {
-          throw const ChatFailure.sessionRequired(
-            'Connect chat to load conversations.',
-          );
-        }
-
-        return const <ChatConversation>[
-          ChatConversation(
-            id: '!abc:home.internal',
-            title: 'Family',
-            previewType: ChatConversationPreviewType.text,
-            previewText: 'Dinner is ready',
-            unreadCount: 2,
-            isInvite: false,
-            isDirectMessage: false,
-          ),
-        ];
-      };
-      repository.connectHandler = () => connectCompleter.future;
+      repository.loadConversationsHandler = () async =>
+          const <ChatConversation>[
+            ChatConversation(
+              id: '!abc:home.internal',
+              title: 'Family',
+              previewType: ChatConversationPreviewType.text,
+              previewText: 'Dinner is ready',
+              unreadCount: 2,
+              isInvite: false,
+              isDirectMessage: false,
+            ),
+          ];
 
       await tester.pumpWidget(
         createTestApp(
@@ -107,19 +98,10 @@ void main() {
           ],
         ),
       );
-      await tester.pump();
-      await tester.pump();
-
-      expect(find.text('Connect chat'), findsOneWidget);
-      expect(repository.connectCalls, 0);
-
-      await tester.tap(find.text('Connect chat'));
-      await tester.pump();
-      expect(find.text('Connecting to chat…'), findsOneWidget);
-      expect(repository.connectCalls, 1);
-
-      connectCompleter.complete();
       await tester.pumpAndSettle();
+
+      expect(find.text('Connect chat'), findsNothing);
+      expect(repository.connectCalls, 0);
 
       expect(find.text('Family'), findsOneWidget);
       expect(find.text('Dinner is ready'), findsOneWidget);
@@ -131,17 +113,8 @@ void main() {
         final repository = FakeChatRepository();
         final securityRepository = buildSecurityRepository();
         repository.loadConversationsHandler = () async {
-          if (repository.connectCalls == 0) {
-            throw const ChatFailure.sessionRequired(
-              'Connect chat to load conversations.',
-            );
-          }
-
-          return const <ChatConversation>[];
-        };
-        repository.connectHandler = () async {
           throw const ChatFailure.unsupportedConfiguration(
-            'Chat provider setup is unavailable to this member.',
+            'Weave Matrix support is unavailable to this member.',
           );
         };
 
@@ -159,33 +132,26 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        expect(repository.connectCalls, 0);
-        await tester.tap(find.text('Connect chat'));
-        await tester.pumpAndSettle();
-
         expect(
           find.textContaining('Chat setup needs admin attention'),
           findsOneWidget,
         );
-        expect(find.text('Connect chat'), findsOneWidget);
+        expect(find.text('Connect chat'), findsNothing);
+        expect(find.text('Retry'), findsOneWidget);
       },
     );
 
-    testWidgets('shows a connect action after a cancelled Matrix sign-in', (
+    testWidgets('offers a retry after automatic Chat sign-in is interrupted', (
       tester,
     ) async {
       final repository = FakeChatRepository();
       final securityRepository = buildSecurityRepository();
+      var loadCalls = 0;
       repository.loadConversationsHandler = () async {
-        if (repository.connectCalls == 0) {
-          throw const ChatFailure.sessionRequired(
-            'Connect chat to load conversations.',
-          );
-        }
-
-        if (repository.connectCalls == 1) {
-          throw const ChatFailure.sessionRequired(
-            'Connect chat to load conversations.',
+        loadCalls++;
+        if (loadCalls == 1) {
+          throw const ChatFailure.cancelled(
+            'Automatic Chat sign-in was interrupted.',
           );
         }
 
@@ -200,13 +166,6 @@ void main() {
             isDirectMessage: true,
           ),
         ];
-      };
-      repository.connectHandler = () async {
-        if (repository.connectCalls == 1) {
-          throw const ChatFailure.cancelled(
-            'Chat sign-in was cancelled before it completed.',
-          );
-        }
       };
 
       await tester.pumpWidget(
@@ -223,88 +182,83 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Connect chat'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+      expect(find.text('Connect chat'), findsNothing);
       expect(repository.connectCalls, 0);
 
-      await tester.tap(find.text('Connect chat'));
-      await tester.pumpAndSettle();
-      expect(repository.connectCalls, 1);
-      expect(find.text('Connect chat'), findsOneWidget);
-
-      await tester.tap(find.text('Connect chat'));
+      await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
 
       expect(find.text('Sam'), findsOneWidget);
-      expect(repository.connectCalls, 2);
+      expect(loadCalls, 2);
+      expect(repository.connectCalls, 0);
     });
 
-    testWidgets(
-      'does not auto-connect again after a typed Matrix homeserver invalidation',
-      (tester) async {
-        var homeserverChanged = false;
-        final repository = FakeChatRepository(
-          loadConversationsHandler: () async {
-            if (homeserverChanged) {
-              throw const ChatFailure.sessionRequired(
-                'Connect chat to load conversations.',
-              );
-            }
-
-            return const <ChatConversation>[
-              ChatConversation(
-                id: '!abc:home.internal',
-                title: 'Family',
-                previewType: ChatConversationPreviewType.text,
-                previewText: 'Dinner is ready',
-                unreadCount: 2,
-                isInvite: false,
-                isDirectMessage: false,
-              ),
-            ];
-          },
-        );
-        final securityRepository = buildSecurityRepository();
-        final container = ProviderContainer.test(
-          overrides: [
-            chatRepositoryProvider.overrideWithValue(repository),
-            chatSecurityRepositoryProvider.overrideWithValue(
-              securityRepository,
-            ),
-          ],
-        );
-        addTearDown(container.dispose);
-
-        await tester.pumpWidget(
-          UncontrolledProviderScope(
-            container: container,
-            child: MaterialApp(
-              theme: AppTheme.light,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: const Scaffold(body: ChatScreen()),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        expect(find.text('Family'), findsOneWidget);
-        expect(repository.connectCalls, 0);
-
-        homeserverChanged = true;
-        container
-            .read(workspaceInvalidationProvider.notifier)
-            .invalidate(
-              integration: WorkspaceIntegration.chat,
-              reason: IntegrationInvalidationReason.chatConfigurationChanged,
+    testWidgets('rechecks Chat after a typed Matrix endpoint invalidation', (
+      tester,
+    ) async {
+      var homeserverChanged = false;
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () async {
+          if (homeserverChanged) {
+            throw const ChatFailure.sessionRequired(
+              'Chat access could not be confirmed.',
             );
+          }
 
-        await tester.pump();
-        await tester.pump();
+          return const <ChatConversation>[
+            ChatConversation(
+              id: '!abc:home.internal',
+              title: 'Family',
+              previewType: ChatConversationPreviewType.text,
+              previewText: 'Dinner is ready',
+              unreadCount: 2,
+              isInvite: false,
+              isDirectMessage: false,
+            ),
+          ];
+        },
+      );
+      final securityRepository = buildSecurityRepository();
+      final container = ProviderContainer.test(
+        overrides: [
+          chatRepositoryProvider.overrideWithValue(repository),
+          chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
+        ],
+      );
+      addTearDown(container.dispose);
 
-        expect(repository.connectCalls, 0);
-        expect(find.text('Connect chat'), findsOneWidget);
-      },
-    );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.light,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(body: ChatScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Family'), findsOneWidget);
+      expect(repository.connectCalls, 0);
+
+      homeserverChanged = true;
+      container
+          .read(workspaceInvalidationProvider.notifier)
+          .invalidate(
+            integration: WorkspaceIntegration.chat,
+            reason: IntegrationInvalidationReason.chatConfigurationChanged,
+          );
+
+      await tester.pump();
+      await tester.pump();
+
+      expect(repository.connectCalls, 0);
+      expect(find.text('Connect chat'), findsNothing);
+      expect(find.text('Retry'), findsOneWidget);
+    });
 
     testWidgets('shows the empty state when there are no conversations', (
       tester,

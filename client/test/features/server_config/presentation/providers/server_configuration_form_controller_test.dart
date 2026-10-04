@@ -4,7 +4,7 @@ import 'package:weave/features/server_config/presentation/providers/server_confi
 
 void main() {
   group('ServerConfigurationFormController', () {
-    test('derives a separate Matrix homeserver from the issuer host', () {
+    test('derives the Weave Matrix facade from the API origin', () {
       final container = ProviderContainer.test();
       addTearDown(container.dispose);
 
@@ -21,8 +21,8 @@ void main() {
 
       final state = container.read(serverConfigurationFormControllerProvider);
 
-      expect(state.derivedMatrixHomeserverUrl, 'https://matrix.example.com');
-      expect(state.matrixHomeserverUrl, 'https://matrix.example.com');
+      expect(state.derivedMatrixHomeserverUrl, 'https://api.example.com');
+      expect(state.matrixHomeserverUrl, 'https://api.example.com');
       expect(state.matrixError, isNull);
     });
   });

@@ -7,12 +7,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_session.dart';
+import 'package:weave/features/auth/domain/entities/auth_state.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
 import 'package:weave/features/chat/data/repositories/matrix_device_identity_repository.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 
 import 'matrix_oauth_browser.dart';
+import 'matrix_session_access.dart';
 import 'rust_matrix_core_bridge.dart';
 
 const matrixCryptoStorePassphraseKeyPrefix =
@@ -39,7 +41,7 @@ class MatrixCryptoSession {
 abstract interface class MatrixCryptoSessionPort {
   Future<MatrixCryptoSession> open({
     bool synchronize = true,
-    bool allowInteractiveSignIn = false,
+    bool allowInteractiveSignIn = true,
   });
 
   Future<void> disposePreservingCryptoState();
@@ -54,6 +56,7 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
     required ServerConfigurationRepository serverConfigurationRepository,
     required AuthSessionRepository authSessionRepository,
     required MatrixDeviceIdentityRepository matrixDeviceIdentityRepository,
+    required MatrixSessionAccessPort matrixSessionAccess,
     required SecureStore secureStore,
     RustMatrixCoreBridge rustMatrixCoreBridge = const RustMatrixCoreBridge(),
     MatrixOAuthBrowser? oauthBrowser,
@@ -62,6 +65,7 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
   }) : _serverConfigurationRepository = serverConfigurationRepository,
        _authSessionRepository = authSessionRepository,
        _matrixDeviceIdentityRepository = matrixDeviceIdentityRepository,
+       _matrixSessionAccess = matrixSessionAccess,
        _secureStore = secureStore,
        _rustMatrixCoreBridge = rustMatrixCoreBridge,
        _oauthBrowser = oauthBrowser ?? SystemMatrixOAuthBrowser(),
@@ -71,6 +75,7 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
   final ServerConfigurationRepository _serverConfigurationRepository;
   final AuthSessionRepository _authSessionRepository;
   final MatrixDeviceIdentityRepository _matrixDeviceIdentityRepository;
+  final MatrixSessionAccessPort _matrixSessionAccess;
   final SecureStore _secureStore;
   final RustMatrixCoreBridge _rustMatrixCoreBridge;
   final MatrixOAuthBrowser _oauthBrowser;
@@ -86,7 +91,7 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
   @override
   Future<MatrixCryptoSession> open({
     bool synchronize = true,
-    bool allowInteractiveSignIn = false,
+    bool allowInteractiveSignIn = true,
   }) async {
     final disposing = _disposing;
     if (disposing != null) {
@@ -94,11 +99,13 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
     }
     final pending = _opening;
     if (pending != null) {
-      final session = await pending;
-      if (synchronize) {
-        await _rustMatrixCoreBridge.syncClient(profileKey: session.profileKey);
-      }
-      return session;
+      await pending;
+      // The Weave member or selected organization may have changed while the
+      // first request waited for OAuth. Recheck access before sharing it.
+      return _open(
+        synchronize: synchronize,
+        allowInteractiveSignIn: allowInteractiveSignIn,
+      );
     }
 
     final opening = _open(
@@ -282,21 +289,55 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
       issuer: configuration.oidcIssuerUrl,
       clientId: configuration.oidcClientRegistration.clientId,
     );
-    final authState = await _authSessionRepository.restoreSession(
-      authConfiguration,
-    );
+    final AuthState authState;
+    try {
+      authState = await _authSessionRepository.restoreSession(
+        authConfiguration,
+      );
+    } on Object {
+      await _dropActiveClient();
+      rethrow;
+    }
     final authSession = authState.session;
     if (!authState.isAuthenticated || authSession == null) {
+      await _dropActiveClient();
       throw const ChatFailure.sessionRequired(
         'Sign in before opening Weave Chat.',
       );
     }
-    final subject = _validatedSubject(authSession, authConfiguration);
+    final String subject;
+    try {
+      subject = _validatedSubject(authSession, authConfiguration);
+    } on Object {
+      await _dropActiveClient();
+      rethrow;
+    }
+    final MatrixSessionAccess access;
+    try {
+      access = await _matrixSessionAccess.authorize(
+        userApiBaseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
+        weaveAccessToken: authSession.accessToken,
+        expectedSubject: subject,
+        expectedIssuer: authConfiguration.issuer,
+      );
+    } on Object {
+      // Revoked or uncertain current access cannot keep an active Matrix
+      // client. Disposing it leaves the encrypted device store untouched.
+      await _dropActiveClient();
+      rethrow;
+    }
     final deviceId = await _matrixDeviceIdentityRepository.loadOrCreate();
     final homeserver = configuration.serviceEndpoints.matrixHomeserverUrl;
     final bindingKey =
         '$matrixOAuthBindingKeyPrefix${_digest('${authConfiguration.issuer}|$subject|${_matrixStoreHomeserverIdentity(homeserver)}|$deviceId')}';
     final binding = await _loadBinding(bindingKey);
+    if (binding?.organizationId != null &&
+        binding!.organizationId != access.organizationId) {
+      await _dropActiveClient();
+      throw const ChatFailure.sessionRequired(
+        'This Matrix session belongs to another Weave organization.',
+      );
+    }
     final fingerprint = '$bindingKey|${binding?.profileKey ?? ''}';
     final active = _activeSession;
     if (_activeFingerprint == fingerprint && active != null) {
@@ -307,16 +348,11 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
           if (!isMatrixSessionExpiredCode(error.code)) rethrow;
           if (!allowInteractiveSignIn) {
             throw ChatFailure.sessionRequired(
-              'Reconnect Matrix Chat to authorize this device.',
+              'Chat authorization expired. Retry with your Weave sign-in.',
               cause: error,
             );
           }
-          await _rustMatrixCoreBridge.disposeClient(
-            profileKey: active.profileKey,
-          );
-          _activeSession = null;
-          _activeFingerprint = null;
-          _activeBindingKey = null;
+          await _dropActiveClient();
         }
       }
       if (_activeSession != null) return active;
@@ -324,16 +360,14 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
     if (active != null && _activeSession != null) {
       // A new Weave account cannot keep using the previous account's active
       // native Matrix client while its own OAuth authorization is pending.
-      await _rustMatrixCoreBridge.disposeClient(profileKey: active.profileKey);
-      _activeSession = null;
-      _activeFingerprint = null;
-      _activeBindingKey = null;
+      await _dropActiveClient();
     }
     late MatrixCryptoSession opened;
     var synchronized = false;
     if (binding != null) {
       if (binding.homeserverUrl != homeserver.toString() ||
           binding.deviceId != deviceId ||
+          binding.userId != _expectedMatrixUserId(subject, homeserver) ||
           binding.profileKey !=
               _profileKey(homeserver, binding.userId, deviceId)) {
         throw const ChatFailure.storage(
@@ -373,7 +407,7 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
         if (!isMatrixSessionExpiredCode(error.code)) rethrow;
         if (!allowInteractiveSignIn) {
           throw ChatFailure.sessionRequired(
-            'Reconnect Matrix Chat to authorize this device.',
+            'Chat authorization expired. Retry with your Weave sign-in.',
             cause: error,
           );
         }
@@ -387,6 +421,8 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
           homeserver: homeserver,
           bindingKey: bindingKey,
           deviceId: deviceId,
+          subject: subject,
+          organizationId: access.organizationId,
           expectedBinding: binding,
         );
       }
@@ -394,16 +430,26 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
         '$matrixOAuthProfileOwnerKeyPrefix${binding.profileKey}',
         bindingKey,
       );
+      if (binding.organizationId == null) {
+        await _secureStore.write(
+          bindingKey,
+          jsonEncode(
+            binding.toJson()..['organizationId'] = access.organizationId,
+          ),
+        );
+      }
     } else {
       if (!allowInteractiveSignIn) {
         throw const ChatFailure.sessionRequired(
-          'Connect Matrix Chat to authorize this device.',
+          'Chat authorization requires your Weave sign-in.',
         );
       }
       opened = await _authorizeMatrixAccount(
         homeserver: homeserver,
         bindingKey: bindingKey,
         deviceId: deviceId,
+        subject: subject,
+        organizationId: access.organizationId,
       );
     }
     if (synchronize && !synchronized) {
@@ -420,6 +466,8 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
     required Uri homeserver,
     required String bindingKey,
     required String deviceId,
+    required String subject,
+    required String organizationId,
     _MatrixOAuthBinding? expectedBinding,
   }) async {
     final loginKey = _digest('$bindingKey|${homeserver.toString()}');
@@ -440,6 +488,7 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
         callbackUrl: callback,
       );
       if (identity.deviceId != deviceId ||
+          identity.userId != _expectedMatrixUserId(subject, homeserver) ||
           (expectedBinding != null &&
               identity.userId != expectedBinding.userId)) {
         throw const ChatFailure.protocol(
@@ -475,6 +524,7 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
           'userId': identity.userId,
           'deviceId': deviceId,
           'profileKey': profileKey,
+          'organizationId': organizationId,
         }),
       );
       return MatrixCryptoSession(
@@ -503,6 +553,16 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
       throw const ChatFailure.storage(
         'Saved Matrix account binding is invalid.',
       );
+    }
+  }
+
+  Future<void> _dropActiveClient() async {
+    final active = _activeSession;
+    _activeSession = null;
+    _activeFingerprint = null;
+    _activeBindingKey = null;
+    if (active != null) {
+      await _rustMatrixCoreBridge.disposeClient(profileKey: active.profileKey);
     }
   }
 
@@ -545,6 +605,7 @@ class _MatrixOAuthBinding {
     required this.userId,
     required this.deviceId,
     required this.profileKey,
+    this.organizationId,
   });
 
   factory _MatrixOAuthBinding.fromJson(Map<String, dynamic> json) {
@@ -552,6 +613,7 @@ class _MatrixOAuthBinding {
     final userId = json['userId'];
     final deviceId = json['deviceId'];
     final profileKey = json['profileKey'];
+    final organizationId = json['organizationId'];
     if (homeserverUrl is! String ||
         userId is! String ||
         deviceId is! String ||
@@ -562,11 +624,16 @@ class _MatrixOAuthBinding {
         profileKey.isEmpty) {
       throw const FormatException('Invalid Matrix account binding');
     }
+    if (organizationId != null &&
+        (organizationId is! String || organizationId.trim().isEmpty)) {
+      throw const FormatException('Invalid Matrix organization binding');
+    }
     return _MatrixOAuthBinding(
       homeserverUrl: homeserverUrl,
       userId: userId,
       deviceId: deviceId,
       profileKey: profileKey,
+      organizationId: organizationId,
     );
   }
 
@@ -574,6 +641,15 @@ class _MatrixOAuthBinding {
   final String userId;
   final String deviceId;
   final String profileKey;
+  final String? organizationId;
+
+  Map<String, String> toJson() => {
+    'homeserverUrl': homeserverUrl,
+    'userId': userId,
+    'deviceId': deviceId,
+    'profileKey': profileKey,
+    if (organizationId != null) 'organizationId': organizationId!,
+  };
 }
 
 String _digest(String value) => sha256.convert(utf8.encode(value)).toString();
@@ -590,6 +666,25 @@ String _matrixStoreHomeserverIdentity(Uri homeserver) =>
     homeserver.path.isEmpty || homeserver.path == '/'
     ? homeserver.origin
     : homeserver.toString();
+
+String _expectedMatrixUserId(String subject, Uri homeserver) {
+  // Match the accepted Weave Matrix northbound identity projection. The
+  // southbound provider's account naming is never used as a member identity.
+  final source = subject.split(':').last.replaceFirst(RegExp(r'^@'), '');
+  final localpart = source
+      .trim()
+      .runes
+      .map((rune) {
+        final character = String.fromCharCode(rune).toLowerCase();
+        return RegExp(r'[a-z0-9._=/\-]').hasMatch(character) ? character : '_';
+      })
+      .join()
+      .replaceAll(RegExp(r'^_+|_+$'), '');
+  if (localpart.isEmpty) {
+    throw const ChatFailure.sessionRequired('Matrix identity is invalid.');
+  }
+  return '@$localpart:${homeserver.authority}';
+}
 
 String _validatedSubject(AuthSession session, AuthConfiguration configuration) {
   // These claims key local account isolation only. Matrix access is authorized

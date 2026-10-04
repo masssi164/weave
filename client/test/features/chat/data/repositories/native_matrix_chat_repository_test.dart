@@ -39,7 +39,7 @@ class _FailingMatrixSessionPort extends FakeMatrixCryptoSessionPort {
   @override
   Future<MatrixCryptoSession> open({
     bool synchronize = true,
-    bool allowInteractiveSignIn = false,
+    bool allowInteractiveSignIn = true,
   }) async {
     throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_SYNC');
   }
@@ -187,7 +187,7 @@ void main() {
     );
     expect(conversations.first.previewText, isNull);
     expect(conversations.first.unreadCount, 2);
-    expect(cryptoSession.interactiveValues, <bool>[false]);
+    expect(cryptoSession.interactiveValues, <bool>[true]);
   });
 
   test(

@@ -242,12 +242,14 @@ void main() {
     expect(screen, isNot(contains('chat_security_banner.dart')));
 
     final memberChatCopy = <String>[
-      l10n['chatConnectingLabel'] as String,
-      l10n['chatConnectingHint'] as String,
-      l10n['chatConnectButton'] as String,
+      l10n['chatLoadingLabel'] as String,
+      l10n['chatErrorSessionRequiredGuidance'] as String,
       l10n['chatStaleRoomsGuidance'] as String,
       l10n['helpChatBody'] as String,
     ].join('\n');
+
+    expect(l10n, isNot(contains('chatConnectButton')));
+    expect(screen, isNot(contains('onConnect')));
 
     for (final forbidden in <String>[
       'Connect'

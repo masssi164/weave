@@ -25,6 +25,7 @@ ServerConfiguration buildTestConfiguration({
 }
 
 String encodeTestConfiguration({
+  int schemaVersion = 2,
   OidcProviderType providerType = OidcProviderType.oidc,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
@@ -33,6 +34,7 @@ String encodeTestConfiguration({
   String? backendApiBaseUrl = 'https://api.home.internal/api',
 }) {
   final json = <String, Object?>{
+    'schemaVersion': schemaVersion,
     'providerType': providerType.name,
     'oidcIssuerUrl': issuerUrl,
     'oidcClientRegistrationMode': 'manual',
@@ -47,6 +49,7 @@ String encodeTestConfiguration({
 }
 
 Map<String, Object> buildStoredConfiguration({
+  int schemaVersion = 2,
   OidcProviderType providerType = OidcProviderType.oidc,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
@@ -57,6 +60,7 @@ Map<String, Object> buildStoredConfiguration({
   return {
     serverConfigurationStorageKey: encodeTestConfiguration(
       providerType: providerType,
+      schemaVersion: schemaVersion,
       issuerUrl: issuerUrl,
       clientId: clientId,
       matrixHomeserverUrl: matrixHomeserverUrl,

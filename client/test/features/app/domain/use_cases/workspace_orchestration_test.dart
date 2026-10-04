@@ -48,6 +48,9 @@ class _FakeAppAuthPort implements AppAuthPort {
 }
 
 class _FakeChatSessionPort implements ChatSessionPort {
+  @override
+  Future<void> ensureSession() async {}
+
   int signOutCalls = 0;
   int clearSessionCalls = 0;
   bool failSignOut = false;
