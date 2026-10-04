@@ -31,13 +31,18 @@ public final class FilesMutationIntentService {
 
     public PinnedMutation begin(Command command) {
         Objects.requireNonNull(command, "command must not be null");
-        ProviderBinding binding = bindings.current(command.organizationRef(), DOMAIN)
-                .filter(candidate -> candidate.state() == State.ACTIVE)
-                .orElseThrow(() -> new ProviderBindingUnavailableException(command.organizationRef()));
         String argumentsDigest = digest(command.canonicalArguments());
         String idempotencyKey = normalizeIdempotencyKey(
                 command.idempotencyKey(), command.organizationRef(), command.personRef(),
                 command.operation(), argumentsDigest);
+        ProviderBinding binding = intents.findByIdempotencyKey(command.organizationRef(), idempotencyKey)
+                .map(existing -> bindings.revision(
+                                command.organizationRef(), DOMAIN, existing.providerBindingRevision())
+                        .filter(candidate -> candidate.state() != State.REVOKED)
+                        .orElseThrow(() -> new ProviderBindingUnavailableException(command.organizationRef())))
+                .orElseGet(() -> bindings.current(command.organizationRef(), DOMAIN)
+                        .filter(candidate -> candidate.state() == State.ACTIVE)
+                        .orElseThrow(() -> new ProviderBindingUnavailableException(command.organizationRef())));
         var result = intents.begin(new BeginCommand(
                 idempotencyKey,
                 command.organizationRef(),

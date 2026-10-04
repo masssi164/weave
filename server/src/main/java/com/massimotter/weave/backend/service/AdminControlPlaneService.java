@@ -226,6 +226,13 @@ public class AdminControlPlaneService {
         workspaceCapabilityService.requireCapability(jwt, "admin.provider.configure", "admin-control-plane", "select-provider");
         ProviderSelection selection = validateProviderSelection(request, jwt);
         boolean dryRun = request.dryRun();
+        if ("files".equals(selection.category()) && !dryRun) {
+            throw new ApiErrorException(
+                    HttpStatus.CONFLICT,
+                    "files-provider-activation-unverified",
+                    "Files provider activation requires a verified organization-scoped replacement run.",
+                    Map.of("category", "files", "supportSafe", true));
+        }
         ProviderSelection applied = dryRun ? selection : providerSelectionRepository.save(selection);
         if (!dryRun) {
             auditEventPublisher.publish(new AuditEvent(
@@ -250,7 +257,10 @@ public class AdminControlPlaneService {
                             Map.entry("dryRunEvidenceRequired", selection.migrationDryRunRequired()),
                             Map.entry("token", "not-stored"))));
         }
-        return toSelectionResponse(applied, dryRun, dryRun ? "dry_run_valid" : "admin_selected_pending_readiness");
+        return toSelectionResponse(applied, dryRun,
+                "files".equals(selection.category())
+                        ? "blocked-unverified"
+                        : dryRun ? "dry_run_valid" : "admin_selected_pending_readiness");
     }
 
     public ProviderReplacementDryRunResponse dryRunProviderReplacement(ProviderReplacementDryRunRequest request, Jwt jwt) {
@@ -285,6 +295,11 @@ public class AdminControlPlaneService {
         requiredSecretRef(request.secretRef());
         String declaredSourceOfTruth = safeSourceOfTruth(request.sourceOfTruth());
         List<String> adminNotes = safeLossyMappingNotes(request.lossyMappingNotes());
+        if ("files".equals(category)) {
+            return blockedFilesReplacementDryRun(
+                    jwt, category, currentAdapter, targetAdapter, choiceModel,
+                    declaredSourceOfTruth, adminNotes);
+        }
         boolean matrixChatDryRun = "chat".equals(category) && (isMatrixChatAdapter(currentAdapter) || isMatrixChatAdapter(targetAdapter));
         List<String> conflicts = new ArrayList<>();
         if (currentAdapter.equalsIgnoreCase(targetAdapter)) {
@@ -410,6 +425,103 @@ public class AdminControlPlaneService {
                                 "Readiness test and migration dry-run evidence are reviewed before activation."),
                 memberImpactStates,
                 evidenceRefs,
+                true,
+                true,
+                List.of(auditRef));
+    }
+
+    private ProviderReplacementDryRunResponse blockedFilesReplacementDryRun(
+            Jwt jwt,
+            String category,
+            String currentAdapter,
+            String targetAdapter,
+            String choiceModel,
+            String declaredSourceOfTruth,
+            List<String> adminNotes) {
+        String dryRunId = "provider-replacement-dry-run-files-" + Instant.now(clock).toEpochMilli();
+        String auditRef = "provider-replacement-dry-run-files-" + Instant.now(clock).toEpochMilli();
+        List<String> blockers = List.of(
+                "Source Files inventory and effective rights have not been measured.",
+                "Target readback, permission parity, write fencing and rollback have not been verified.",
+                "The legacy category-wide selection cannot activate an organization Files binding.");
+        ProviderReplacementDryRunResponse.BaselineSnapshot observed =
+                baselineSnapshot(category, currentAdapter, jwt, dryRunId, auditRef);
+        ProviderReplacementDryRunResponse.BaselineSnapshot baseline =
+                new ProviderReplacementDryRunResponse.BaselineSnapshot(
+                        observed.category(), observed.persistedProviderKey(), observed.persistedChoiceModel(),
+                        observed.providerSelectionPersistencePosture(), observed.persistedSelectionMatchesRequest(),
+                        observed.profileOverridePersistencePosture(), observed.profileOverridePresent(),
+                        observed.stableMemberImpactStates(), List.of());
+        auditEventPublisher.publish(new AuditEvent(
+                organizationId(jwt),
+                "admin-control-plane",
+                actorRef(jwt),
+                "provider-replacement-dry-run",
+                AuditAction.PROVIDER_REPLACEMENT_DRY_RUN,
+                Instant.now(clock),
+                auditRef,
+                AuditRedactionLevel.SECRET_REDACTED,
+                Map.of(
+                        "category", "files",
+                        "currentAdapter", currentAdapter,
+                        "targetAdapter", targetAdapter,
+                        "sourceInventoryMeasured", false,
+                        "effectivePermissionsVerified", false,
+                        "targetReadbackVerified", false,
+                        "rollbackVerified", false,
+                        "result", "blocked-unverified")));
+        return new ProviderReplacementDryRunResponse(
+                dryRunId,
+                "dry-run-blocked-for-apply",
+                "dry-run",
+                category,
+                currentAdapter,
+                targetAdapter,
+                choiceModel,
+                declaredSourceOfTruth,
+                true,
+                "blocked-unverified",
+                true,
+                new ProviderReplacementDryRunResponse.LossyMappingReport(
+                        ProviderCapabilityContracts.canonicalObjects(category),
+                        ProviderCapabilityContracts.lossyMappingRisks(category),
+                        adminNotes,
+                        blockers,
+                        ProviderCapabilityContracts.replacementRequirement(category)),
+                new ProviderReplacementDryRunResponse.LifecycleExpectations(
+                        ProviderCapabilityContracts.sourceOfTruth(category),
+                        ProviderCapabilityContracts.exportDeleteExpectation(category),
+                        ProviderCapabilityContracts.exportDeleteExpectation(category),
+                        "Source data and rights remain authoritative until verified cutover.",
+                        "Rollback requires retained source and independently verified parity."),
+                new ProviderReplacementDryRunResponse.PortableExportImportContract(
+                        null, null,
+                        "No source inventory or target import has been measured.",
+                        List.of("Files activation remains blocked"),
+                        List.of()),
+                new ProviderReplacementDryRunResponse.SwitchPlan(
+                        null, true, true, true, "available",
+                        List.of("Keep the current Files binding active; no cutover has occurred.")),
+                new ProviderReplacementDryRunResponse.ConsequencePreview(
+                        0, 0, 0, 0, 0,
+                        List.of("Impact counts are unmeasured; the active source remains unchanged."),
+                        List.of("Rollback has not been exercised."),
+                        blockers),
+                new ProviderReplacementDryRunResponse.NoUnaccountedDataLossReport(
+                        0, 0, 0, 0, 0, 0,
+                        List.of(), List.of(),
+                        List.of("Rollback has not been exercised."),
+                        List.of("All counts are unmeasured, including zero unsupported objects; no lossless migration claim is authorized.")),
+                new ProviderReplacementDryRunResponse.BoundedApplyCutoverRollbackProof(
+                        "files-preflight-unavailable", false, false, true, List.of(), blockers),
+                List.of(),
+                baseline,
+                new ProviderReplacementDryRunResponse.ReadModelComparison(
+                        true, false, true, false,
+                        List.of("No Files migration evidence was recorded; the active binding was not changed.")),
+                blockers,
+                List.of("available", "degraded", "unavailable"),
+                List.of(),
                 true,
                 true,
                 List.of(auditRef));

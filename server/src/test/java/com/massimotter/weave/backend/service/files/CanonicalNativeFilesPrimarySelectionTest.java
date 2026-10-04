@@ -10,7 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-/** Proves the complete native runtime exposes one direct canonical Files provider bean. */
+/** Proves candidate adapters can coexist without changing the native default composition. */
 @SpringBootTest(properties = {
         "weave.files.provider=weave-native",
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
@@ -21,14 +21,20 @@ class CanonicalNativeFilesPrimarySelectionTest {
     @Autowired
     private Map<String, FilesProviderPort> filesProviders;
 
+    @Autowired
+    private FilesProviderPort primaryFilesProvider;
+
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @Test
-    void directCanonicalProviderIsTheOnlyFilesPortBeanInTheApplicationContext() {
+    void nativeAndNextcloudProvidersCoexistWithNativeAsLegacyPrimary() {
         assertThat(filesProviders)
-                .containsOnlyKeys("weaveNativeFilesAdapter");
+                .containsOnlyKeys("weaveNativeFilesAdapter", "nextcloudFilesAdapter");
         assertThat(filesProviders.get("weaveNativeFilesAdapter"))
                 .isInstanceOf(WeaveNativeFilesAdapter.class);
+        assertThat(filesProviders.get("nextcloudFilesAdapter"))
+                .isInstanceOf(NextcloudFilesAdapter.class);
+        assertThat(primaryFilesProvider).isSameAs(filesProviders.get("weaveNativeFilesAdapter"));
     }
 }

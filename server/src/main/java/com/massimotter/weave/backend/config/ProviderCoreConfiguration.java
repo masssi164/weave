@@ -50,8 +50,14 @@ public class ProviderCoreConfiguration {
     }
 
     @Bean
-    ProviderPort filesProviderRegistrySeam(ObjectProvider<FilesProviderPort> filesProviderPort) {
-        FilesProviderPort runtime = filesProviderPort.getIfAvailable();
+    ProviderPort filesProviderRegistrySeam(
+            ObjectProvider<FilesProviderPort> filesProviderPort,
+            FilesRuntimeProperties filesRuntimeProperties) {
+        FilesProviderPort runtime = filesProviderPort.orderedStream()
+                .filter(candidate -> filesRuntimeProperties.provider()
+                        .equals(candidate.conformanceProfile().adapterKey()))
+                .findFirst()
+                .orElse(null);
         if (runtime == null) {
             return StaticProviderPort.pending(
                     ProviderModule.FILES,

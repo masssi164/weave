@@ -37,7 +37,6 @@ import java.util.Optional;
 import java.util.Set;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -57,7 +56,6 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 @Component
-@ConditionalOnProperty(name = "weave.files.provider", havingValue = "nextcloud-webdav")
 public class NextcloudFilesAdapter implements FilesProviderPort {
 
     private static final HttpMethod PROPFIND = HttpMethod.valueOf("PROPFIND");
@@ -81,23 +79,52 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
             """;
 
     private final NextcloudFilesProperties properties;
+    private final NextcloudFilesAccountResolver accounts;
     private final RestClient restClient;
 
     @Autowired
+    public NextcloudFilesAdapter(
+            NextcloudFilesProperties properties,
+            NextcloudFilesAccountResolver accounts,
+            RestClient.Builder restClientBuilder) {
+        this(properties, accounts, restClientBuilder
+                .requestFactory(new JdkClientHttpRequestFactory())
+                .build());
+    }
+
     public NextcloudFilesAdapter(NextcloudFilesProperties properties, RestClient.Builder restClientBuilder) {
-        this(properties, restClientBuilder
+        this(properties, null, restClientBuilder
                 .requestFactory(new JdkClientHttpRequestFactory())
                 .build());
     }
 
     NextcloudFilesAdapter(NextcloudFilesProperties properties, RestClient restClient) {
+        this(properties, null, restClient);
+    }
+
+    NextcloudFilesAdapter(
+            NextcloudFilesProperties properties,
+            NextcloudFilesAccountResolver accounts,
+            RestClient restClient) {
         this.properties = properties;
+        this.accounts = accounts;
         this.restClient = restClient;
     }
 
     @Override
+    public FilesProviderPort scoped(FilesRequestScope scope) {
+        if (accounts == null || scope.configurationRef() == null) {
+            throw notConfigured();
+        }
+        NextcloudFilesProperties account = accounts.resolve(scope.organizationRef(), scope.configurationRef())
+                .filter(NextcloudFilesProperties::isConfigured)
+                .orElseThrow(this::notConfigured);
+        return new NextcloudFilesAdapter(account, restClient);
+    }
+
+    @Override
     public boolean configured() {
-        return properties.isConfigured();
+        return accounts == null ? properties.isConfigured() : accounts.available();
     }
 
     @Override
@@ -349,16 +376,18 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
     }
 
     private void ensureConfigured() {
-        if (!configured()) {
-            throw new ApiErrorException(
-                    HttpStatus.SERVICE_UNAVAILABLE,
-                    "nextcloud-adapter-not-configured",
-                    "Files facade is available, but the downstream Nextcloud adapter is not configured yet.",
-                    Map.of(
-                            "module", "files",
-                            "actorModel", properties.actorModel(),
-                            "supportedActorModels", List.of("backend-service-account")));
+        if (accounts != null || !configured()) {
+            throw notConfigured();
         }
+    }
+
+    private ApiErrorException notConfigured() {
+        return new ApiErrorException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "nextcloud-adapter-not-configured",
+                "Files facade is available, but the downstream Nextcloud adapter is not configured yet.",
+                Map.of("module", "files", "actorModel", properties.actorModel(),
+                        "supportedActorModels", List.of("backend-service-account")));
     }
 
     private URI webdavUri(String productPath, boolean trailingSlashForRoot) {

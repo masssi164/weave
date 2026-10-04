@@ -154,6 +154,9 @@ class FilesCalendarFacadeControllerTest {
     @MockitoBean
     private FilesMutationIntentService filesMutationIntentService;
 
+    @MockitoBean
+    private com.massimotter.weave.backend.service.files.FilesProviderResolver filesProviderResolver;
+
     @BeforeEach
     void allowContextAccess() {
         when(contextAuthorizationPort.check(any()))
