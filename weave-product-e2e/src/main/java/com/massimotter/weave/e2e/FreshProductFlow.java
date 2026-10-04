@@ -551,7 +551,6 @@ public final class FreshProductFlow {
     List<ProviderSelection> requiredProviders =
         List.of(
             new ProviderSelection("chat", "weave-native"),
-            new ProviderSelection("files", "weave-native"),
             new ProviderSelection("calendar", "weave-native"));
     for (ProviderSelection selection : requiredProviders) {
       ObjectNode request = http.mapper().createObjectNode();
@@ -579,6 +578,44 @@ public final class FreshProductFlow {
         throw new ProductFlowException(
             selection.category() + " provider selection did not converge");
       }
+    }
+
+    // The fresh stack starts with its native Files binding. An Admin selection
+    // must not silently replace it until a real migration has verified data,
+    // references, and effective permissions against both providers.
+    ObjectNode filesRequest = http.mapper().createObjectNode();
+    filesRequest.put("category", "files");
+    filesRequest.put("providerKey", "weave-native");
+    filesRequest.put("choiceModel", "recommended_self_hosted_default");
+    filesRequest.put("dryRun", true);
+    filesRequest.putArray("lossyMappingNotes");
+    filesRequest.put("reason", "verify Files activation remains fenced");
+    JsonNode dryRun =
+        http.json(
+            "inspect Files provider selection",
+            "POST",
+            environment.api("/api/admin/providers/selections"),
+            bearer(ownerToken, Map.of()),
+            filesRequest,
+            Set.of(200));
+    if (!"files".equals(dryRun.path("category").asString())
+        || !dryRun.path("dryRun").asBoolean(false)
+        || dryRun.path("applied").asBoolean(true)
+        || !dryRun.path("supportSafe").asBoolean(false)) {
+      throw new ProductFlowException("Files selection dry-run was not support-safe and unapplied");
+    }
+
+    filesRequest.put("dryRun", false);
+    JsonNode blocked =
+        http.json(
+            "reject unverified Files provider activation",
+            "POST",
+            environment.api("/api/admin/providers/selections"),
+            bearer(ownerToken, Map.of()),
+            filesRequest,
+            Set.of(409));
+    if (!"files-provider-activation-unverified".equals(blocked.path("code").asString())) {
+      throw new ProductFlowException("unverified Files provider activation did not fail closed");
     }
   }
 
