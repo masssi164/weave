@@ -6338,18 +6338,31 @@
             "headers": {
               "Content-Digest": {
                 "description": "RFC 9530 SHA-256 digest of the returned bytes.",
+                "schema": {
+                  "type": "string"
+                },
                 "style": "simple"
               },
               "Content-Length": {
                 "description": "Exact returned byte count.",
+                "schema": {
+                  "format": "int64",
+                  "type": "integer"
+                },
                 "style": "simple"
               },
               "Content-Type": {
                 "description": "Returned binary media type.",
+                "schema": {
+                  "type": "string"
+                },
                 "style": "simple"
               },
               "ETag": {
                 "description": "Strong SHA-256 content validator.",
+                "schema": {
+                  "type": "string"
+                },
                 "style": "simple"
               }
             }
@@ -6359,6 +6372,9 @@
             "headers": {
               "ETag": {
                 "description": "Matching strong content validator.",
+                "schema": {
+                  "type": "string"
+                },
                 "style": "simple"
               }
             }
