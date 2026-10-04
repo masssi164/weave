@@ -1,6 +1,6 @@
 # Chat Feature Instructions
 
-`chat` owns Matrix integration boundaries. Matrix Client-Server payloads from the Weave northbound facade must be mapped inside this feature before presentation consumes them.
+`chat` owns the product boundary to the native Rust Matrix SDK. Map Matrix events returned by the chat repository before presentation consumes them. The selected Matrix homeserver is discovered independently of the Weave User API, and its OAuth session is separate from Weave OIDC credentials.
 
 Rules:
 - keep Matrix event mapping in `data/` and chat-facing entities/view models in `domain/` or presentation-facing adapters
