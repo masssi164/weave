@@ -108,7 +108,7 @@ class MatrixClientServerProjectionControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockitoBean
+    @MockitoBean(name = "jwtDecoder")
     private JwtDecoder jwtDecoder;
 
     @MockitoBean(name = "matrixJwtDecoder")
@@ -1199,9 +1199,12 @@ class MatrixClientServerProjectionControllerTest {
             String subject,
             boolean includeIssuer,
             String deviceId) {
+        Instant now = Instant.now();
         return jwt().jwt(jwt -> jwt
                         .tokenValue(tokenValue)
                         .subject(subject)
+                        .issuedAt(now.minusSeconds(30))
+                        .expiresAt(now.plusSeconds(300))
                         .claim("jti", tokenValue)
                         .claim("sid", "weave-test-session-" + tokenValue)
                         .claim("aud", List.of("https://api.weave.test/_matrix/client"))
@@ -1210,7 +1213,7 @@ class MatrixClientServerProjectionControllerTest {
                         .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                         .claims(claims -> {
                             if (includeIssuer) {
-                                claims.put("iss", "https://auth.example.invalid/realms/acme");
+                                claims.put("iss", "https://auth.example.invalid/realms/weave");
                             } else {
                                 claims.remove("iss");
                             }
