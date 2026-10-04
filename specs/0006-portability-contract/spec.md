@@ -24,6 +24,8 @@ evidence_gates:
 
 Define reusable provider replacement schemas so every migration classifies loss, records counts and hashes, links provider mappings and audit references, and blocks apply until a successful dry run exists.
 
+For the #1470 release, the pinned consolidation contract supersedes the earlier generic Files feasibility interpretation. The Files dry-run fixture in this packet is a blocked conformance example: caller counts, synthetic hashes, archive-only field treatment, and manual review do not establish source inventory, effective-permission parity, target readback, or rollback proof. Files activation stays blocked until real provider evidence satisfies all of those gates. The generic schema and older examples remain reusable only where they do not imply a successful Files switch.
+
 2026-07-26 architecture correction: provider portability uses a strict **no unaccounted data loss** policy, not a broad lossless-migration promise. This contract applies to replaceable collaboration southbound adapters. Platform identity is excluded: Keycloak is the fixed authority, while OIDC/SAML and LDAP/AD systems attach only as upstream federation or brokering sources.
 
 
