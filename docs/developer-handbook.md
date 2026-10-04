@@ -51,7 +51,7 @@ dart run build_runner build --delete-conflicting-outputs
 flutter run
 ```
 
-The app accepts local development product URLs such as `https://api.weave.test/api` and `https://auth.weave.test` when a live stack is available. Chat uses the Matrix Client-Server facade on `https://api.weave.test`; `https://matrix.weave.test` is the southbound provider/operator route and must not be configured in the member client. `https://files.weave.test` is likewise a technical Nextcloud route, while member Files and Calendar data use the WebDAV and CalDAV facades on the API origin.
+The app accepts local development product URLs such as `https://api.weave.test/api` and `https://auth.weave.test` when a live stack is available. The public organization manifest supplies the separately configured Matrix homeserver base, such as `https://matrix.weave.test`, for native Matrix SDK/OAuth use. Its Matrix session and audience are distinct from the Weave User API session. Member Files and Calendar use the generated Weave User API; Nextcloud WebDAV/OCS and CalDAV remain southbound provider-adapter mechanisms.
 
 Android debug/profile runs use the production package identity `com.massimotter.weave` and the same OIDC redirect scheme. Keep identity-provider clients configured for `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout`. Release artifact tasks require a local untracked `client/android/key.properties` file and keystore; they fail closed instead of using debug signing keys.
 
