@@ -33,6 +33,37 @@ class OpenApiDocumentationTest {
     private JwtDecoder jwtDecoder;
 
     @Test
+    void separatesUserAndAdminOperations() throws Exception {
+        MvcResult user = mockMvc.perform(get("/v3/api-docs/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/me']").exists())
+                .andExpect(jsonPath("$.paths['/api/admin/control-plane']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation']").doesNotExist())
+                .andReturn();
+        MvcResult admin = mockMvc.perform(get("/v3/api-docs/admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/admin/control-plane']").exists())
+                .andExpect(jsonPath("$.paths['/api/bootstrap/owner-invitation']").exists())
+                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.operationId")
+                        .value("listOrganizationInvitations"))
+                .andExpect(jsonPath("$.paths['/api/admin/organizations/{organizationId}/invitations'].get.security[0]['bearer-jwt']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/me']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/admin/agent-runtimes/{personRef}']").doesNotExist())
+                .andReturn();
+
+        String exportPath = System.getProperty("weave.openapi.export.path");
+        if (exportPath != null && !exportPath.isBlank()) {
+            Path directory = Path.of(exportPath).getParent();
+            Files.createDirectories(directory);
+            Files.writeString(directory.resolve("weave-user-openapi.raw.json"),
+                    user.getResponse().getContentAsString());
+            Files.writeString(directory.resolve("weave-admin-openapi.raw.json"),
+                    admin.getResponse().getContentAsString());
+        }
+    }
+
+    @Test
     void exposesOpenApiDescription() throws Exception {
         MvcResult result = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())

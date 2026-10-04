@@ -21,12 +21,13 @@ tasks.register('serverCi') {
 registerCommandTask('adminCi', file('admin-console'), ['npm', 'run', 'ci'], 'Run admin console npm CI checks.')
 registerRootCommandTask('generateOpenApiContract', ['bash', 'tools/generate_openapi_contract.sh'], 'Generate the server-owned OpenAPI artifact used by typed consumers.')
 registerRootCommandTask('checkOpenApiContractFresh', ['bash', 'tools/check_openapi_contract_fresh.sh'], 'Fail when the checked-in server OpenAPI artifact is stale.')
+registerRootCommandTask('openApiNormalizationContractTest', ['python3', '-m', 'unittest', 'tools/normalize_openapi_contracts_test.py'], 'Verify generated OpenAPI partitioning and lossless normalization.')
 tasks.named('generateOpenApiContract') {
     dependsOn ':server:openApiContractExport'
     environment 'WEAVE_OPENAPI_SKIP_EXPORT', 'true'
 }
 tasks.named('checkOpenApiContractFresh') {
-    dependsOn ':server:openApiContractExport'
+    dependsOn ':server:openApiContractExport', 'openApiNormalizationContractTest'
     environment 'WEAVE_OPENAPI_SKIP_EXPORT', 'true'
 }
 registerRootCommandTask('generateAdminOpenApiTypes', ['python3', 'tools/generate_admin_openapi_types.py'], 'Generate Admin Console TypeScript types from the server-owned OpenAPI artifact.')
