@@ -66,7 +66,7 @@ public class OrganizationManifestService {
                         "accept organization auth URL, invite link, or deep link",
                         "complete OIDC Authorization Code with PKCE through the organization authority",
                         "consume effective organization manifest and capability states",
-                        "render only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later member states"),
+                        "render only currently authorized and available member capabilities"),
                 List.of(
                         "create and bootstrap organizations",
                         "manage Keycloak identity, upstream federation, and selectable category providers",
@@ -180,8 +180,6 @@ public class OrganizationManifestService {
         states.put("files-docs", memberState(capabilities.files()));
         states.put("boards-tasks", memberState(capabilities.boards()));
         states.put("calendar-events", memberState(capabilities.calendar()));
-        states.put("meetings", memberState(capabilities.meetingsCalls()));
-        states.put("forms-contacts", CapabilityManifestState.COMING_LATER);
         return states;
     }
 
@@ -208,7 +206,6 @@ public class OrganizationManifestService {
         access.put("files", filesAccess());
         access.put("calendar", calendarAccess());
         access.put("chat", chatAccess());
-        access.put("meetings-calls", meetingsCallsAccess());
         return access;
     }
 
@@ -218,18 +215,12 @@ public class OrganizationManifestService {
                 "/api/files",
                 "Files",
                 List.of(
-                        surface("openapi", "Weave Files control API", "/api/files", "control_plane_available",
-                                "Generated contract for discovery, readiness, setup, revoke, and credential lifecycle; Files list/read/write data-plane operations belong to the WebDAV facade."),
-                        surface("standard-protocol", "Weave WebDAV projection", "/dav/files", "data_plane_read_write_available",
-                                "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, and MKCOL are exposed through Weave policy, audit, file IDs, ETags, and support-safe conflict/precondition/storage errors."),
-                        surface("native-os", "iOS File Provider and Android DocumentsProvider setup", "/api/files/native-provider-setup", "contract_ready_implementation_blocked",
-                                "Native providers call Weave file facade paths only and must prove device revocation before availability.")),
+                        surface("openapi", "Weave Files User API", "/api/files", "data_plane_guarded",
+                                "Server-generated User operations are authorized by current member, organization, Space and resource rights. Available actions depend on the selected provider. Public WebDAV client access is outside this release.")),
                 credentialLifecycle(
-                        "revocable_device_grants_available",
-                        List.of(
-                                "/api/files/client-setup/credentials",
-                                "/api/files/native-provider-setup"),
-                        List.of("physical native device proof")),
+                        "member_oidc_session",
+                        List.of(),
+                        List.of()),
                 true,
                 false);
     }
@@ -240,20 +231,12 @@ public class OrganizationManifestService {
                 "/api/calendar",
                 "Calendar",
                 List.of(
-                        surface("openapi", "Weave Calendar control API", "/api/calendar", "control_plane_available",
-                                "Generated contract for discovery, policy, setup, and credential lifecycle; Calendar event data-plane operations belong to the CalDAV/iCalendar facade."),
-                        surface("standard-protocol", "Weave CalDAV/iCalendar projection", "/caldav", "data_plane_read_write_available",
-                                "Discovery, query, multiget, sync, free-busy, event reads/writes, recurrence, and scoped device credentials run through Weave policy and canonical events."),
-                        surface("native-os", "iOS CalDAV profile and Android SyncAdapter setup", "/api/calendar/native-sync-setup", "contract_ready_implementation_blocked",
-                                "Native sync stays scoped to workspace, team, and channel calendars until platform integration and physical-device proof exist."),
-                        surface("mcp", "Governed Calendar MCP tools", null, "planned_allowlist",
-                                "MCP consumes semantic Weave event capabilities and audit receipts, not raw CalDAV credentials.")),
+                        surface("openapi", "Weave Calendar User API", "/api/calendar", "data_plane_guarded",
+                                "Calendar User operations require authorized scopes and exact event time semantics before readiness. CalDAV is private to the selected provider adapter in this release.")),
                 credentialLifecycle(
-                        "revocable_device_grants_available",
-                        List.of(
-                                "/api/calendar/client-setup/credentials",
-                                "/api/calendar/client-setup/apple.mobileconfig"),
-                        List.of("signed profile delivery", "native sync physical-device evidence")),
+                        "member_oidc_session",
+                        List.of(),
+                        List.of()),
                 true,
                 false);
     }
@@ -265,37 +248,13 @@ public class OrganizationManifestService {
                 "Chat domain",
                 List.of(
                         surface("openapi", "Weave Chat control and context API", "/api/chat", "control_plane_available",
-                                "Generated contract for readiness, decisions, meeting capsules, Weaver context, and migration review; conversation/message data-plane operations belong to the Matrix Client-Server facade."),
-                        surface("standard-protocol", "Weave Matrix Client-Server projection", "/_matrix/client", "encrypted_data_plane_available",
-                                "OIDC-gated room sync, encrypted timelines, sends, receipts, verification, and recovery project the canonical Chat domain through the client-owned Rust crypto core; federation stays disabled by default."),
-                        surface("mcp", "Governed Chat MCP tools", null, "planned_allowlist",
-                                "MCP receives semantic Weave chat operations, consented summaries, and decision references rather than raw Matrix access.")),
+                                "Generated User operations expose Chat readiness and context; Matrix Client-Server is the separate conversation protocol."),
+                        surface("standard-protocol", "Weave Matrix Client-Server projection", "/_matrix/client", "compatibility_guarded",
+                                "The versioned Matrix support profile defines the bounded surface. OAuth metadata, independent-client interoperability and E2EE remain guarded until demonstrated; federation is disabled by default.")),
                 credentialLifecycle(
-                        "session_bound_no_raw_matrix_credentials",
+                        "matrix_oauth_session_guarded",
                         List.of("/api/chat/readiness"),
-                        List.of("decrypted-content consent gates", "retention and moderation policy proof", "federation isolation evidence")),
-                true,
-                false);
-    }
-
-    private ClientAccessDiscoveryResponse meetingsCallsAccess() {
-        return new ClientAccessDiscoveryResponse(
-                "meetings-calls",
-                "/_matrix/client",
-                "Calls",
-                List.of(
-                        surface("standard-protocol", "MatrixRTC Profile 0 signaling", "/_matrix/client", "experimental_guarded",
-                                "Matrix v1.19 plus Weave MatrixRTC Profile 0 is the only member signaling shape; no member Calls REST API or proprietary join grant exists."),
-                        surface("native-os", "CallKit and Android Core-Telecom boundary", null, "guarded_physical_device_evidence_required",
-                                "Native call UI follows MatrixRTC invitation and membership state; provider transport credentials remain internal."),
-                        surface("standard-protocol", "WebRTC media and meeting context", null, "rtc_authorizer_required",
-                                "Calendar and chat link meeting context while an internal RTC Authorizer independently validates current Matrix room, slot, member, device, policy, nonce, audience, and expiry.")),
-                credentialLifecycle(
-                        "matrix_native_oauth_distinct_from_sfu_tokens",
-                        List.of(
-                                "/_matrix/client/v1/auth_metadata",
-                                "/_matrix/client/v3/user/{userId}/openid/request_token"),
-                        List.of("RTC Authorizer evidence", "MatrixRTC media E2EE", "native call UI proof", "TURN/reconnect evidence")),
+                        List.of("registered Matrix OAuth client and device scopes", "independent-client interoperability")),
                 true,
                 false);
     }
