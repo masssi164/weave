@@ -27,7 +27,7 @@ public class AdminApiSecurityConfiguration {
             ApiAuthenticationEntryPoint authenticationEntryPoint,
             ApiAccessDeniedHandler accessDeniedHandler) throws Exception {
         return http
-                .securityMatcher("/api/admin/**")
+                .securityMatcher("/api/admin/**", "/api/migration/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exceptions -> exceptions
