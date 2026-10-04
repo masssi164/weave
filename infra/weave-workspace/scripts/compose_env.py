@@ -43,6 +43,7 @@ DEPLOYMENT_PROCESS_OVERRIDES = {
     "WEAVE_BACKEND_IMAGE",
     "WEAVE_KEYCLOAK_IMAGE",
     "WEAVE_MCP_IMAGE",
+    "WEAVE_RUNTIME_STATE_IMAGE",
 }
 OPERATOR_PROCESS_INPUTS = {
     "WEAVE_BACKUP_ROOT",
@@ -534,6 +535,9 @@ def _validate_environment(environment: str, profile: str, env: Mapping[str, str]
             # exact local image IDs so the current checkout can be tested
             # without publishing; production still requires registry digests.
             local_candidate_images.add("WEAVE_KEYCLOAK_IMAGE")
+            # The optional S3 test image is built from pinned upstream source
+            # and addressed by its exact local image ID for this isolated run.
+            local_candidate_images.add("WEAVE_RUNTIME_STATE_IMAGE")
         unpinned = [
             name for name in image_names
             if not PUBLISHED_DIGEST_IMAGE_RE.fullmatch(env[name])
