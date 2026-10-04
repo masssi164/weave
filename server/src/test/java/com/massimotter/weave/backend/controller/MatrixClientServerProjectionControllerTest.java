@@ -39,10 +39,14 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -59,9 +63,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -78,6 +84,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = MatrixClientServerProjectionController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        MatrixClientServerProjectionControllerTest.ApiDecoderFixture.class,
         SecurityConfig.class,
         MatrixResourceServerSecurityConfiguration.class,
         ApiAuthenticationEntryPoint.class,
@@ -100,6 +107,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class MatrixClientServerProjectionControllerTest {
 
+    @TestConfiguration(proxyBeanMethods = false)
+    static class ApiDecoderFixture {
+        @Bean("jwtDecoder")
+        @Primary
+        JwtDecoder jwtDecoder() {
+            return mock(JwtDecoder.class);
+        }
+    }
+
     // WEAVE_CHAT_DOMAIN_FACADE
 
     @Autowired
@@ -108,7 +124,8 @@ class MatrixClientServerProjectionControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockitoBean(name = "jwtDecoder")
+    @Autowired
+    @Qualifier("jwtDecoder")
     private JwtDecoder jwtDecoder;
 
     @MockitoBean(name = "matrixJwtDecoder")
@@ -237,7 +254,10 @@ class MatrixClientServerProjectionControllerTest {
                         .with(workspaceJwtForDevice("MATRIXDEVICE123")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
-        verifyNoInteractions(stateStore, chatDomainFacadeService);
+        verify(stateStore).deleteExpiredSessions(any());
+        verify(stateStore).isSessionRevoked(any(), any());
+        verifyNoMoreInteractions(stateStore);
+        verifyNoInteractions(chatDomainFacadeService);
     }
 
     @Test
