@@ -108,6 +108,15 @@ class JwtDecoderConfigTest {
             assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
                     signingKey, ISSUER_URI, List.of("https://api.weave.test/_matrix/client"),
                     "weave-matrix-client", null, "weave:workspace")));
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
+                    signingKey, ISSUER_URI, List.of("https://api.weave.test/_matrix/client"),
+                    "weave-matrix-client", null,
+                    "weave:workspace urn:matrix:org.matrix.msc2967.client:api:* "
+                            + "urn:matrix:org.matrix.msc2967.client:device:DEVICE123456")));
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
+                    signingKey, ISSUER_URI, List.of("https://api.weave.test/_matrix/client"),
+                    "weave-matrix-client", null,
+                    matrixScopes + " urn:matrix:org.matrix.msc2967.client:device:DEVICE123456")));
         }
     }
 

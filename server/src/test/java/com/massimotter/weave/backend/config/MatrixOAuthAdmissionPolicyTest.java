@@ -36,8 +36,19 @@ class MatrixOAuthAdmissionPolicyTest {
                 .isTrue();
         assertThat(policy.validate(token(MATRIX_AUDIENCE, "weave-matrix-client",
                 SCOPES + " urn:matrix:client:device:OTHERDEVICE12")).hasErrors()).isTrue();
+        assertThat(policy.validate(token(MATRIX_AUDIENCE, "weave-matrix-client",
+                "weave:workspace urn:matrix:org.matrix.msc2967.client:api:* "
+                        + "urn:matrix:org.matrix.msc2967.client:device:DEVICE123456")).hasErrors())
+                .isTrue();
+        assertThat(policy.validate(token(MATRIX_AUDIENCE, "weave-matrix-client",
+                SCOPES + " urn:matrix:org.matrix.msc2967.client:device:DEVICE123456")).hasErrors())
+                .isTrue();
         assertThatThrownBy(() -> MatrixOAuthAdmissionPolicy.requiredDeviceId(token(
                 MATRIX_AUDIENCE, "weave-matrix-client", SCOPES + " urn:matrix:client:device:OTHERDEVICE12")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> MatrixOAuthAdmissionPolicy.requiredDeviceId(token(
+                MATRIX_AUDIENCE, "weave-matrix-client",
+                SCOPES + " urn:matrix:org.matrix.msc2967.client:device:DEVICE123456")))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

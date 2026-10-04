@@ -16,6 +16,7 @@ public final class MatrixOAuthAdmissionPolicy implements OAuth2TokenValidator<Jw
 
     public static final String API_SCOPE = "urn:matrix:client:api:*";
     private static final String DEVICE_SCOPE_PREFIX = "urn:matrix:client:device:";
+    private static final String LEGACY_SCOPE_PREFIX = "urn:matrix:org.matrix.msc2967.client:";
     private static final String WORKSPACE_SCOPE = "weave:workspace";
     private static final Set<String> NON_MATRIX_CLIENTS =
             Set.of("weave-app", "weave-admin-console", "weave-mcp-server",
@@ -64,7 +65,11 @@ public final class MatrixOAuthAdmissionPolicy implements OAuth2TokenValidator<Jw
         if (!(rawScope instanceof String scope) || scope.isBlank()) {
             throw new IllegalArgumentException("A Matrix device scope is required.");
         }
-        List<String> devices = Arrays.stream(scope.trim().split("\\s+"))
+        List<String> values = Arrays.asList(scope.trim().split("\\s+"));
+        if (values.stream().anyMatch(value -> value.startsWith(LEGACY_SCOPE_PREFIX))) {
+            throw new IllegalArgumentException("Legacy Matrix OAuth scopes are unsupported.");
+        }
+        List<String> devices = values.stream()
                 .filter(value -> value.startsWith(DEVICE_SCOPE_PREFIX))
                 .map(value -> value.substring(DEVICE_SCOPE_PREFIX.length()))
                 .toList();
@@ -99,7 +104,8 @@ public final class MatrixOAuthAdmissionPolicy implements OAuth2TokenValidator<Jw
         List<String> values = Arrays.asList(scope.trim().split("\\s+"));
         if (Set.copyOf(values).size() != values.size()
                 || !values.contains(WORKSPACE_SCOPE)
-                || !values.contains(API_SCOPE)) {
+                || !values.contains(API_SCOPE)
+                || values.stream().anyMatch(value -> value.startsWith(LEGACY_SCOPE_PREFIX))) {
             return false;
         }
         try {
