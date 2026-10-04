@@ -21,7 +21,7 @@ policies:
   - If repo reality conflicts with the pinned corpus, open either a spec-corpus change or an implementation conformance fix.
   - Deletion or migration of transitional packets must preserve any fixture/evidence value that gates still consume.
   - Weaver/OpenClaw runtime specifications live in their own repository and are dependency/runtime evidence only for Weave product work.
-  - The pinned 2026-10 consolidation release profile supersedes the PR #1043 northbound gateway direction for this release; preserve substantive security, integrity, permission, and recovery requirements from historical packets.
+  - The pinned 2026-10 consolidation release profile supersedes conflicting historical northbound DAV, proprietary Chat REST, and provider-specific Matrix gateway directions; preserve substantive security, integrity, permission, and recovery requirements from historical packets.
 obsoleteLocalMeanings:
   - scope: files
     obsolete: Public northbound WebDAV as the member release boundary or direct provider calls from consumers
@@ -30,8 +30,8 @@ obsoleteLocalMeanings:
     obsolete: Public northbound CalDAV as the member release boundary
     canonicalReplacement: Generated User API over server-owned Calendar routes; CalDAV may remain southbound in adapters
   - scope: chat
-    obsolete: Mandatory server Matrix facade/JNI or proprietary Weave chat-message REST
-    canonicalReplacement: Native Flutter Rust/Matrix SDK and existing Weaver/OpenClaw Matrix integration
+    obsolete: Direct southbound homeserver as product northbound contract or proprietary Weave chat-message REST
+    canonicalReplacement: Weave Matrix Client-Server facade with narrowly scoped Rust/Ruma/JNI, ChatProviderPort routing, native Flutter Rust/Matrix SDK, and Weaver/OpenClaw Matrix integration
   - scope: weaver-mcp
     obsolete: Handwritten HTTP transport DTOs and routes for Weave product operations
     canonicalReplacement: Generated User API client and transport models within the existing MCP runtime
@@ -83,7 +83,7 @@ artifacts:
       - domains/chat/spec.md
       - domains/boards-tasks/spec.md
       - contracts/jsonschema/portability-report.schema.json
-    notes: JSON dry-run and negative fixtures are implementation evidence unless promoted to corpus contracts. The Files v2 dry-run fixture is a blocked, unmeasured conformance example under the pinned #1470 release contract; archive/manual-review classifications never authorize Files activation.
+    notes: JSON dry-run and negative fixtures are implementation evidence unless promoted to corpus contracts. The Files v2 dry-run fixture is a blocked, unmeasured conformance example for #1498 portability; archive/manual-review classifications never authorize Files activation.
   - path: specs/0007-governed-weaver-runtime
     status: obsolete-historical
     action: retain-only-as-implementation-conformance-evidence-until-scenario-mapping-is-pruned

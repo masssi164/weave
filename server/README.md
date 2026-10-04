@@ -108,7 +108,7 @@ docker build -t weave-backend:e2e .
 - Product shell: `https://weave.test`
 - Backend API base: `https://api.weave.test/api`
 - Keycloak issuer: `https://auth.weave.test/realms/weave`
-- Matrix homeserver: `https://matrix.weave.test`
+- Current dev southbound Matrix provider: `https://matrix.weave.test` (technical legacy route, not the #1475 product contract). OrgManifest/gateway conformance must advertise and route to the Weave Matrix Client-Server facade before claiming the current release's Chat journey.
 - Weave files/calendar product routes: `https://weave.test/files` and `https://weave.test/calendar`
 - Raw Nextcloud technical/admin/protocol fallback: `https://files.weave.test`
 

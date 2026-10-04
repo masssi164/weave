@@ -15,7 +15,7 @@ Directory tree behavior:
 - preserve predictable parent/child relationships when refreshing nested folders
 
 Boundary reminders:
-- the server-owned User API is the release boundary for Files; preserve stable Weave resource references and effective permissions across provider changes
+- the server-owned User API is the #1470 release boundary for Files; keep stable Weave resource references and current effective permissions in ordinary operations. #1498 owns proof of preservation across provider adoption, migration, cutover, and rollback
 - provider-specific diagnostics or migration helpers must live outside normal member presentation/providers and need explicit admin/debug scope
 - future provider-backed Files behavior should extend server-owned User API contracts and regenerate consumers instead of importing provider clients in `features/files/`
 
