@@ -462,6 +462,7 @@ def main() -> int:
             "WEAVE_BACKEND_IMAGE": "sha256:" + "b" * 64,
             "WEAVE_MCP_IMAGE": "sha256:" + "b" * 64,
             "WEAVE_KEYCLOAK_IMAGE": "sha256:" + "b" * 64,
+            "WEAVE_RUNTIME_STATE_IMAGE": "sha256:" + "c" * 64,
         }
         previous = {key: os.environ.get(key) for key in isolated_overrides}
         try:
@@ -471,6 +472,7 @@ def main() -> int:
             )
             assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
             assert _image_digest(isolated) == "sha256:" + "b" * 64
+            assert isolated.env["WEAVE_RUNTIME_STATE_IMAGE"] == "sha256:" + "c" * 64
             network_labels = compose_runtime_module.labels(
                 isolated, "network", isolated.env["WEAVE_DOCKER_NETWORK"]
             )
