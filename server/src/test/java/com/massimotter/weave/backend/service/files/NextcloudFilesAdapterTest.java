@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -28,6 +29,7 @@ import org.springframework.web.client.RestClient;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -40,6 +42,23 @@ class NextcloudFilesAdapterTest {
 
     private MockRestServiceServer server;
     private NextcloudFilesAdapter adapter;
+
+    private static final String ACCESS_DAV = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
+              <d:response><d:href>/remote.php/dav/files/weave-service/</d:href>
+                <d:propstat><d:prop><d:getetag>"revision-1"</d:getetag>
+                  <oc:fileid>42</oc:fileid><oc:owner-id>weave-service</oc:owner-id>
+                  <oc:permissions>RGDNVW</oc:permissions></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+            </d:multistatus>
+            """;
+
+    private static final String EMPTY_SHARES = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <ocs><meta><statuscode>100</statuscode></meta><data/></ocs>
+            """;
 
     @BeforeEach
     void setUp() {
@@ -61,6 +80,152 @@ class NextcloudFilesAdapterTest {
 
         assertThat(unconfigured.configured()).isFalse();
         assertThat(unconfigured.healthProbe().state().value()).isEqualTo("unavailable");
+    }
+
+    @Test
+    void accessInspectionReadsDavAndOcsSharesButBlocksUnsupportedNativeGrantParity() {
+        expectAccessDav(ACCESS_DAV);
+        server.expect(requestTo("https://files.example.test/ocs/v2.php/apps/files_sharing/api/v1/shares"
+                        + "?path=/&reshares=true&subfiles=true"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, AUTH_HEADER))
+                .andExpect(header("OCS-APIRequest", "true"))
+                .andRespond(withSuccess("""
+                        <ocs><meta><statuscode>100</statuscode></meta><data>
+                          <element><share_type>0</share_type><permissions>1</permissions></element>
+                          <element><share_type>1</share_type><permissions>31</permissions></element>
+                          <element><share_type>3</share_type><expiration>2026-10-30</expiration>
+                            <password>redacted-value</password></element>
+                        </data></ocs>
+                        """, MediaType.APPLICATION_XML));
+
+        FilesAccessInspection inspection = adapter.inspectAccessRoot(new FilePath("/"));
+
+        assertThat(inspection.davObserved()).isTrue();
+        assertThat(inspection.sharesObserved()).isTrue();
+        assertThat(inspection.ownerObserved()).isTrue();
+        assertThat(inspection.actorPermissionsObserved()).isTrue();
+        assertThat(inspection.versionObserved()).isTrue();
+        assertThat(inspection.providerFileIdObserved()).isTrue();
+        assertThat(inspection.observedShareCount()).isEqualTo(3);
+        assertThat(inspection.userShareCount()).isEqualTo(1);
+        assertThat(inspection.groupShareCount()).isEqualTo(1);
+        assertThat(inspection.linkShareCount()).isEqualTo(1);
+        assertThat(inspection.conditionedShareCount()).isEqualTo(1);
+        assertThat(inspection.blocked()).isTrue();
+        assertThat(inspection.blockingReasons()).contains(
+                "source-shares-require-target-enforcement",
+                "source-effective-access-unverified",
+                "source-full-inventory-unverified");
+        assertThat(inspection.toString()).doesNotContain("redacted-value", "weave-service", "2026-10-30");
+        server.verify();
+    }
+
+    @Test
+    void zeroSharesStillBlocksUntilEveryEffectiveRightIsProven() {
+        expectAccessDav(ACCESS_DAV);
+        server.expect(requestTo("https://files.example.test/ocs/v2.php/apps/files_sharing/api/v1/shares"
+                        + "?path=/&reshares=true&subfiles=true"))
+                .andRespond(withSuccess(EMPTY_SHARES, MediaType.APPLICATION_XML));
+
+        FilesAccessInspection inspection = adapter.inspectAccessRoot(new FilePath("/"));
+
+        assertThat(inspection.sharesObserved()).isTrue();
+        assertThat(inspection.observedShareCount()).isZero();
+        assertThat(inspection.blockingReasons()).contains("source-effective-access-unverified");
+        assertThat(inspection.blocked()).isTrue();
+        server.verify();
+    }
+
+    @Test
+    void accessCapabilityProfileDoesNotClaimSharesOrGrantsArePortable() {
+        assertThat(adapter.conformanceProfile().fieldMappings())
+                .containsEntry("share", MappingClass.LOSSY)
+                .containsEntry("sourceOwner", MappingClass.MANUAL_REVIEW)
+                .containsEntry("userGrant", MappingClass.LOSSY)
+                .containsEntry("groupGrant", MappingClass.LOSSY)
+                .containsEntry("inheritedGrant", MappingClass.UNSUPPORTED)
+                .containsEntry("shareCondition", MappingClass.LOSSY)
+                .containsEntry("effectiveAccess", MappingClass.MANUAL_REVIEW);
+    }
+
+    @Test
+    void unavailableOcsInventoryCannotBeMistakenForNoShares() {
+        expectAccessDav(ACCESS_DAV);
+        server.expect(requestTo("https://files.example.test/ocs/v2.php/apps/files_sharing/api/v1/shares"
+                        + "?path=/&reshares=true&subfiles=true"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+
+        FilesAccessInspection inspection = adapter.inspectAccessRoot(new FilePath("/"));
+
+        assertThat(inspection.sharesObserved()).isFalse();
+        assertThat(inspection.observedShareCount()).isNull();
+        assertThat(inspection.blockingReasons()).contains("source-share-inventory-unavailable");
+        assertThat(inspection.blocked()).isTrue();
+        server.verify();
+    }
+
+    @Test
+    void davShareIndicatorCannotBeClearedByEmptyOcsResponse() {
+        expectAccessDav(ACCESS_DAV.replace(
+                "<oc:permissions>RGDNVW</oc:permissions>",
+                "<oc:permissions>RGDNVW</oc:permissions>"
+                        + "<oc:share-types><oc:share-type>3</oc:share-type></oc:share-types>"));
+        server.expect(requestTo("https://files.example.test/ocs/v2.php/apps/files_sharing/api/v1/shares"
+                        + "?path=/&reshares=true&subfiles=true"))
+                .andRespond(withSuccess(EMPTY_SHARES, MediaType.APPLICATION_XML));
+
+        FilesAccessInspection inspection = adapter.inspectAccessRoot(new FilePath("/"));
+
+        assertThat(inspection.davShareIndicatorObserved()).isTrue();
+        assertThat(inspection.blockingReasons()).contains("source-dav-share-indicator-unresolved");
+        assertThat(inspection.blocked()).isTrue();
+        server.verify();
+    }
+
+    @Test
+    void malformedShareInventoryDoesNotReportObservedZeroShares() {
+        expectAccessDav(ACCESS_DAV);
+        server.expect(requestTo("https://files.example.test/ocs/v2.php/apps/files_sharing/api/v1/shares"
+                        + "?path=/&reshares=true&subfiles=true"))
+                .andRespond(withSuccess("""
+                        <ocs><meta><statuscode>100</statuscode></meta>
+                        <data><unexpected>unknown shape</unexpected></data></ocs>
+                        """, MediaType.APPLICATION_XML));
+
+        FilesAccessInspection inspection = adapter.inspectAccessRoot(new FilePath("/"));
+
+        assertThat(inspection.sharesObserved()).isFalse();
+        assertThat(inspection.observedShareCount()).isNull();
+        assertThat(inspection.blockingReasons()).contains("source-share-inventory-unavailable");
+        server.verify();
+    }
+
+    @Test
+    void failedDavPropstatIsNotTreatedAsOwnerOrPermissionEvidence() {
+        expectAccessDav(ACCESS_DAV.replace("HTTP/1.1 200 OK", "HTTP/1.1 403 Forbidden"));
+        server.expect(requestTo("https://files.example.test/ocs/v2.php/apps/files_sharing/api/v1/shares"
+                        + "?path=/&reshares=true&subfiles=true"))
+                .andRespond(withSuccess(EMPTY_SHARES, MediaType.APPLICATION_XML));
+
+        FilesAccessInspection inspection = adapter.inspectAccessRoot(new FilePath("/"));
+
+        assertThat(inspection.davObserved()).isFalse();
+        assertThat(inspection.ownerObserved()).isFalse();
+        assertThat(inspection.actorPermissionsObserved()).isFalse();
+        assertThat(inspection.blockingReasons()).contains("source-dav-access-unavailable");
+        server.verify();
+    }
+
+    private void expectAccessDav(String xml) {
+        server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/"))
+                .andExpect(method(HttpMethod.valueOf("PROPFIND")))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, AUTH_HEADER))
+                .andExpect(header("Depth", "0"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<oc:owner-id")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<oc:permissions")))
+                .andRespond(withStatus(HttpStatus.MULTI_STATUS)
+                        .contentType(MediaType.APPLICATION_XML).body(xml));
     }
 
     @Test
@@ -96,6 +261,8 @@ class NextcloudFilesAdapterTest {
 
         var scopedA = staged.scoped(new FilesRequestScope("org-a", "workspace-default", 1, "profile:a"));
         var scopedB = staged.scoped(new FilesRequestScope("org-b", "workspace-default", 2, "profile:b"));
+        assertThatThrownBy(() -> staged.inspectAccessRoot(new FilePath("/")))
+                .isInstanceOf(ApiErrorException.class);
         assertThat(new String(scopedA.read(new FileId(FilePathCodec.toId("/report.md"))).bytes(), StandardCharsets.UTF_8))
                 .isEqualTo("a");
         assertThat(new String(scopedB.read(new FileId(FilePathCodec.toId("/report.md"))).bytes(), StandardCharsets.UTF_8))
