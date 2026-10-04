@@ -98,6 +98,16 @@ public class JpaFilesAuthorityRepository implements FilesAuthorityRepository {
     }
 
     @Override
+    public List<StoredFileRecord> storedFiles(String organizationRef, String spaceRef) {
+        return files
+                .findByIdOrganizationRefAndIdSpaceRefOrderByCanonicalPath(
+                        organizationRef, spaceRef)
+                .stream()
+                .map(FileObjectJpaEntity::toStoredRecord)
+                .toList();
+    }
+
+    @Override
     @Transactional
     public List<StoredFileRecord> replace(
             List<StoredFileRecord> tombstones,

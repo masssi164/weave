@@ -224,6 +224,7 @@ public class FilesWebDavController {
         filesFacadeService.deleteWebDavPath(
                 productPath(request),
                 request.getHeader(HttpHeaders.IF_MATCH),
+                request.getHeader(HttpHeaders.IF_NONE_MATCH),
                 request.getHeader("If"),
                 request.getHeader("Idempotency-Key"));
         return ResponseEntity.noContent().build();
@@ -235,6 +236,7 @@ public class FilesWebDavController {
                 destinationPath(request),
                 overwrite(request),
                 request.getHeader(HttpHeaders.IF_MATCH),
+                request.getHeader(HttpHeaders.IF_NONE_MATCH),
                 request.getHeader("If"),
                 request.getHeader("Idempotency-Key"));
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.NO_CONTENT)
@@ -249,6 +251,7 @@ public class FilesWebDavController {
                 destinationPath(request),
                 overwrite(request),
                 request.getHeader(HttpHeaders.IF_MATCH),
+                request.getHeader(HttpHeaders.IF_NONE_MATCH),
                 request.getHeader("If"),
                 request.getHeader("Idempotency-Key"));
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.NO_CONTENT)

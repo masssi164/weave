@@ -70,6 +70,7 @@ def service(name: str) -> str:
 schema = service("schema-init")
 backend = service("backend")
 mcp = service("mcp")
+postgres_reconcile = service("postgres-reconcile")
 assert "weave.identity.invitations.keycloak.private-key-jwt-audience:" in backend
 assert "weave.agent-runtime.workload-identity.issuer:" in backend
 assert "weave.security.required-audience:" in backend
@@ -77,6 +78,14 @@ assert "weave.mcp.resource-uri:" in mcp
 assert "weave.mcp.authorization-server:" in mcp
 assert "weave.identity.invitations.keycloak.private-key-jwt-audience:" not in schema
 assert "weave.mcp.resource-uri:" not in backend
+assert "SPRING_DATASOURCE_USERNAME: ${WEAVE_BACKEND_MIGRATOR_DB_USERNAME:-weave_backend_migrator}" in schema
+assert "WEAVE_SERVING_DB_USERNAME: ${WEAVE_BACKEND_DB_USERNAME:-weave_backend}" in schema
+assert "source: backend-migrator-db-password" in schema
+assert "source: backend-db-password" not in schema
+assert "source: backend-db-password" in backend
+assert "backend-migrator-db-password" not in backend
+assert "backend-migrator-db-password" in postgres_reconcile
+assert "backend-db-password" in postgres_reconcile
 PY
 require "${ROOT_DIR}/compose.yaml" \
   'target: /run/secrets/identity-admin/weave-identity-admin-private-jwk.json'
@@ -119,6 +128,12 @@ require "${ROOT_DIR}/scripts/compose_env.py" 'OPERATOR_ENVIRONMENTS = ("dev", "d
 require "${ROOT_DIR}/scripts/compose_env.py" 'refusing to deploy {environment} from an example environment file'
 require "${ROOT_DIR}/scripts/compose_env.py" 'persistent-dogfood'
 require "${ROOT_DIR}/scripts/compose_runtime.py" 'refusing unowned existing Docker'
+require "${ROOT_DIR}/database/postgres-reconcile.sh" \
+  'REASSIGN OWNED BY %I TO %I'
+require "${ROOT_DIR}/database/postgres-reconcile.sh" \
+  'backend migrator and serving database roles must be distinct'
+require "${ROOT_DIR}/database/postgres-reconcile.sh" \
+  'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM :"backend_user"'
 reject "${ROOT_DIR}/scripts/compose_runtime.py" 'WEAVE_ADOPTION_RECEIPT'
 [[ ! -e "${ROOT_DIR}/keycloak/identity_ops.py" ]] || fail "general Identity Ops authority remains"
 [[ ! -e "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" ]] || fail "Identity Ops image remains"

@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding.Stat
 import com.massimotter.weave.backend.providerbinding.domain.ProviderObjectMapping;
 import java.time.Instant;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -16,6 +17,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
+@Tag("postgres")
 class JpaProviderBindingRepositoryPostgresTest {
 
     @Container

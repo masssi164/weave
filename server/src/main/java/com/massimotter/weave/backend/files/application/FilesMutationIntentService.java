@@ -8,12 +8,14 @@ import com.massimotter.weave.backend.operation.domain.OperationIntent.ProtocolPr
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding.State;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
+import com.massimotter.weave.backend.files.port.FilesMutationPlan.Sealed;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /** Pins the active Files provider binding before any protocol mutation may reach an adapter. */
 public final class FilesMutationIntentService {
@@ -23,22 +25,47 @@ public final class FilesMutationIntentService {
 
     private final OperationIntentService intents;
     private final ProviderBindingRepository bindings;
+    private final NativeFilesMutationRepository nativeMutations;
 
     public FilesMutationIntentService(OperationIntentService intents, ProviderBindingRepository bindings) {
+        this(intents, bindings, null);
+    }
+
+    public FilesMutationIntentService(
+            OperationIntentService intents,
+            ProviderBindingRepository bindings,
+            NativeFilesMutationRepository nativeMutations) {
         this.intents = Objects.requireNonNull(intents, "intents must not be null");
         this.bindings = Objects.requireNonNull(bindings, "bindings must not be null");
+        this.nativeMutations = nativeMutations;
     }
 
     public PinnedMutation begin(Command command) {
+        PreparedMutation prepared = prepare(command);
+        var result = intents.begin(prepared.beginCommand());
+        return new PinnedMutation(result.intent(), prepared.binding(), result.retry());
+    }
+
+    public PreparedMutation prepare(Command command) {
         Objects.requireNonNull(command, "command must not be null");
-        ProviderBinding binding = bindings.current(command.organizationRef(), DOMAIN)
-                .filter(candidate -> candidate.state() == State.ACTIVE)
-                .orElseThrow(() -> new ProviderBindingUnavailableException(command.organizationRef()));
         String argumentsDigest = digest(command.canonicalArguments());
-        String idempotencyKey = normalizeIdempotencyKey(
-                command.idempotencyKey(), command.organizationRef(), command.personRef(),
-                command.operation(), argumentsDigest);
-        var result = intents.begin(new BeginCommand(
+        String suppliedKey = suppliedIdempotencyKey(command.idempotencyKey());
+        OperationIntent existing = suppliedKey == null
+                ? null
+                : intents.findExisting(command.organizationRef(), suppliedKey).orElse(null);
+        ProviderBinding binding = existing == null
+                ? currentBinding(command.organizationRef())
+                : bindings.revision(command.organizationRef(), DOMAIN, existing.providerBindingRevision())
+                        .orElseThrow(() -> new ProviderBindingUnavailableException(command.organizationRef()));
+        String idempotencyKey = suppliedKey == null
+                ? automaticIdempotencyKey(
+                        command.organizationRef(),
+                        command.personRef(),
+                        command.operation(),
+                        argumentsDigest,
+                        binding.revision())
+                : suppliedKey;
+        BeginCommand beginCommand = new BeginCommand(
                 idempotencyKey,
                 command.organizationRef(),
                 new HumanActor(command.personRef(), command.subjectRef()),
@@ -49,8 +76,76 @@ public final class FilesMutationIntentService {
                 command.objectRefs(),
                 command.policyRevision(),
                 command.entitlementRevision(),
-                binding.revision()));
-        return new PinnedMutation(result.intent(), binding, result.retry());
+                binding.revision());
+        if (existing == null) {
+            existing = intents.findExisting(command.organizationRef(), idempotencyKey)
+                    .map(intent -> intents.requireEquivalent(intent, beginCommand).intent())
+                    .orElse(null);
+        } else {
+            existing = intents.requireEquivalent(existing, beginCommand).intent();
+        }
+        return new PreparedMutation(
+                existing == null ? intents.prepare(beginCommand) : existing,
+                binding,
+                beginCommand,
+                existing != null);
+    }
+
+    public NativePinnedMutation beginNative(PreparedMutation prepared, Sealed plan) {
+        return beginNative(
+                prepared,
+                new FilesScope(plan.organizationRef(), plan.spaceRef()),
+                () -> plan);
+    }
+
+    public NativePinnedMutation beginNative(
+            PreparedMutation prepared,
+            FilesScope scope,
+            Supplier<Sealed> planFactory) {
+        if (nativeMutations == null) {
+            throw new IllegalStateException("native Files mutation repository is unavailable");
+        }
+        PreparedMutation requested = Objects.requireNonNull(prepared, "prepared must not be null");
+        FilesScope requiredScope = Objects.requireNonNull(scope, "scope must not be null");
+        NativeFilesMutationRepository.BeginResult result = nativeMutations.begin(
+                requested.candidate(),
+                requiredScope,
+                Objects.requireNonNull(planFactory, "planFactory must not be null"));
+        intents.requireEquivalent(result.intent(), requested.beginCommand());
+        return new NativePinnedMutation(
+                result.intent(),
+                requested.binding(),
+                result.plan(),
+                !result.created());
+    }
+
+    public NativePinnedMutation resumeNative(PreparedMutation prepared) {
+        if (nativeMutations == null) {
+            throw new IllegalStateException("native Files mutation repository is unavailable");
+        }
+        PreparedMutation requested = Objects.requireNonNull(prepared, "prepared must not be null");
+        if (!requested.retry()) {
+            throw new IllegalArgumentException("a new native Files mutation has no committed plan to resume");
+        }
+        return new NativePinnedMutation(
+                requested.candidate(),
+                requested.binding(),
+                nativeMutations.requireSealed(requested.candidate().operationRef()),
+                true);
+    }
+
+    public OperationIntent failNative(
+            NativePinnedMutation mutation,
+            String canonicalResult,
+            String auditRef) {
+        if (nativeMutations == null) {
+            throw new IllegalStateException("native Files mutation repository is unavailable");
+        }
+        return nativeMutations.recordFailure(
+                mutation.intent(),
+                false,
+                digest(canonicalResult),
+                auditRef);
     }
 
     public PinnedMutation dispatch(PinnedMutation mutation) {
@@ -61,8 +156,20 @@ public final class FilesMutationIntentService {
     }
 
     public void requireAdapter(PinnedMutation mutation, String adapterKey) {
-        if (!mutation.binding().adapterKey().equals(adapterKey)) {
-            throw new PinnedAdapterMismatchException(mutation.binding().adapterKey(), adapterKey);
+        requireAdapter(mutation.binding(), adapterKey);
+    }
+
+    public void requireAdapter(PreparedMutation mutation, String adapterKey) {
+        requireAdapter(mutation.binding(), adapterKey);
+    }
+
+    public void requireAdapter(NativePinnedMutation mutation, String adapterKey) {
+        requireAdapter(mutation.binding(), adapterKey);
+    }
+
+    private void requireAdapter(ProviderBinding binding, String adapterKey) {
+        if (!binding.adapterKey().equals(adapterKey)) {
+            throw new PinnedAdapterMismatchException(binding.adapterKey(), adapterKey);
         }
     }
 
@@ -86,8 +193,13 @@ public final class FilesMutationIntentService {
         return mutation.withIntent(intents.fail(mutation.intent(), digest(canonicalResult), auditRef));
     }
 
-    private String normalizeIdempotencyKey(
-            String supplied, String organizationRef, String personRef, String operation, String argumentsDigest) {
+    private ProviderBinding currentBinding(String organizationRef) {
+        return bindings.current(organizationRef, DOMAIN)
+                .filter(candidate -> candidate.state() == State.ACTIVE)
+                .orElseThrow(() -> new ProviderBindingUnavailableException(organizationRef));
+    }
+
+    private String suppliedIdempotencyKey(String supplied) {
         if (supplied != null && !supplied.isBlank()) {
             String normalized = supplied.trim();
             if (normalized.length() < 16 || normalized.length() > 128) {
@@ -95,7 +207,20 @@ public final class FilesMutationIntentService {
             }
             return normalized;
         }
-        return "webdav-auto:" + digest(organizationRef + "\n" + personRef + "\n" + operation + "\n" + argumentsDigest)
+        return null;
+    }
+
+    private String automaticIdempotencyKey(
+            String organizationRef,
+            String personRef,
+            String operation,
+            String argumentsDigest,
+            long providerBindingRevision) {
+        return "webdav-auto:" + digest(organizationRef
+                        + "\n" + personRef
+                        + "\n" + operation
+                        + "\n" + argumentsDigest
+                        + "\n" + providerBindingRevision)
                 .substring("sha256:".length());
     }
 
@@ -132,6 +257,20 @@ public final class FilesMutationIntentService {
         private PinnedMutation withIntent(OperationIntent updated) {
             return new PinnedMutation(updated, binding, retry);
         }
+    }
+
+    public record PreparedMutation(
+            OperationIntent candidate,
+            ProviderBinding binding,
+            BeginCommand beginCommand,
+            boolean retry) {
+    }
+
+    public record NativePinnedMutation(
+            OperationIntent intent,
+            ProviderBinding binding,
+            Sealed plan,
+            boolean retry) {
     }
 
     public static final class ProviderBindingUnavailableException extends RuntimeException {

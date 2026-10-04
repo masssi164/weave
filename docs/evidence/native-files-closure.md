@@ -1,6 +1,8 @@
 # Native Files transition evidence
 
-Status: partial structural qualification on PR #1442 under issue #1326. This is not complete Files closure evidence. Issue #1326 remains open until its real-HTTP WebDAV, durable journal, operation-intent and coordinated recovery requirements pass on an exact final head.
+Status: historical partial structural qualification on PR #1442 under issue #1326. This is not
+complete Files closure evidence. Later incremental evidence is linked below; issue #1326 remains
+open until its real-HTTP WebDAV, portability and recovery requirements pass on one exact final head.
 
 ## Architecture under test
 
@@ -35,7 +37,11 @@ The transition-specific tests prove:
 
 Previously merged Files qualification continues to cover restart, tenant isolation, immutable publication and digest verification, concurrent activation, path containment, size/streaming bounds, and quiesced PostgreSQL-plus-blob backup/restore. Those results are prerequisites, not proof of the remaining #1326 vertical.
 
-The complete #1326 closure still requires real-HTTP WebDAV equivalence after isolated restore, adapter-private blob bindings, a durable Files change journal and stream head, coherent metadata/journal/outbox/intent transactions, provider connector round-trip conformance, and the remaining standards decisions recorded in the pinned contract.
+The later [private blob-binding evidence](native-files-private-blob-binding.md) and
+[V7 durability evidence](native-files-v7-durability.md) cover subsequent implementation slices
+that were still open at PR #1442. Complete #1326 closure still requires real-HTTP WebDAV
+equivalence after isolated restore, provider connector round-trip conformance, two-instance and
+restart proof, and the remaining accepted WebDAV use cases.
 
 ## Commands
 

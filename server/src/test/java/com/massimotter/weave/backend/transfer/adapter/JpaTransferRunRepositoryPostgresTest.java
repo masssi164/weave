@@ -13,6 +13,7 @@ import com.massimotter.weave.backend.transfer.domain.TransferRun;
 import java.time.Instant;
 import java.util.List;
 import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -20,6 +21,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
+@Tag("postgres")
 class JpaTransferRunRepositoryPostgresTest {
 
     @Container

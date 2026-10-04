@@ -45,14 +45,26 @@ class CanonicalPostgresBackupRestoreTest {
   static {
     SOURCE.start();
     TARGET.start();
+    try {
+      SchemaAuthorityTestSupport.ensureServingRole(
+          SOURCE.getJdbcUrl(), SOURCE.getUsername(), SOURCE.getPassword());
+      SchemaAuthorityTestSupport.ensureServingRole(
+          TARGET.getJdbcUrl(), TARGET.getUsername(), TARGET.getPassword());
+    } catch (Exception failure) {
+      throw new ExceptionInInitializerError(failure);
+    }
   }
 
   @Test
   void restoresCanonicalTransferStateIntoIndependentPostgresAndResumesCheckpoint(
       @TempDir Path directory) throws Exception {
-    Environment source = environment(SOURCE, directory.resolve("source-schema-receipt.json"));
+    Environment source =
+        environment(SOURCE, directory.resolve("source-schema-receipt.json"), true);
     SchemaAuthorityInitializer.run(source.values());
     SchemaReceiptVerifier.verify(source.values());
+    Path sourcePayload = source.blobRoot().resolve("weave-native/v1/backup-fixture/payload");
+    Files.createDirectories(sourcePayload.getParent());
+    Files.writeString(sourcePayload, "native Files backup payload");
 
     JpaTransferRunRepository sourceRepository =
         TransferRunJpaTestFactory.create(dataSource(SOURCE));
@@ -107,7 +119,11 @@ class CanonicalPostgresBackupRestoreTest {
             + firstDifference(sourceCatalog.canonicalJson(), restoredCatalog.canonicalJson()))
         .isEqualTo(sourceCatalog.sha256());
 
-    Environment target = environment(TARGET, directory.resolve("target-schema-receipt.json"));
+    Environment target =
+        environment(TARGET, directory.resolve("target-schema-receipt.json"), false);
+    copyTree(source.blobRoot(), target.blobRoot());
+    Files.copy(source.receipt(), target.receipt());
+    SchemaReceiptVerifier.verify(target.values());
     SchemaAuthorityInitializer.run(target.values());
     SchemaReceiptVerifier.verify(target.values());
     JsonNode sourceReceipt = receipt(source.receipt());
@@ -115,6 +131,10 @@ class CanonicalPostgresBackupRestoreTest {
     assertThat(targetReceipt.path("migrationsExecuted").asInt()).isZero();
     assertThat(targetReceipt.path("catalogFingerprint").asText())
         .isEqualTo(sourceReceipt.path("catalogFingerprint").asText());
+    assertThat(targetReceipt.path("nativeFilesVolumeAuthority"))
+        .isEqualTo(sourceReceipt.path("nativeFilesVolumeAuthority"));
+    assertThat(Files.readString(target.blobRoot().resolve("weave-native/v1/backup-fixture/payload")))
+        .isEqualTo("native Files backup payload");
 
     DriverManagerDataSource targetDataSource = dataSource(TARGET);
     JpaTestDatabase.validateSchema(targetDataSource);
@@ -147,14 +167,46 @@ class CanonicalPostgresBackupRestoreTest {
 
   private static Environment environment(
       PostgreSQLContainer<?> postgres,
-      Path receipt) {
+      Path receipt,
+      boolean authorizeInitialProvision) throws Exception {
+    Path blobRoot = receipt.resolveSibling(receipt.getFileName() + "-blobs");
+    Files.createDirectories(blobRoot);
+    if (authorizeInitialProvision) {
+      Map<String, Object> transitionContext = new LinkedHashMap<>();
+      transitionContext.put(
+          "schemaVersion", NativeFilesVolumeAuthority.TRANSITION_CONTEXT_FORMAT);
+      transitionContext.put("transitionKind", "INITIAL_PROVISION");
+      transitionContext.put("composeProject", "weave-backup-test");
+      transitionContext.put("runScope", "backup-source");
+      transitionContext.put("candidateCommit", CANDIDATE);
+      Files.writeString(
+          receipt.getParent().resolve(
+              NativeFilesVolumeAuthority.TRANSITION_CONTEXT_FILE_NAME),
+          new ObjectMapper().writeValueAsString(transitionContext));
+    }
     Map<String, String> values = new LinkedHashMap<>();
     values.put("WEAVE_PERSISTENCE_URL", postgres.getJdbcUrl());
     values.put("WEAVE_PERSISTENCE_USERNAME", postgres.getUsername());
     values.put("WEAVE_PERSISTENCE_PASSWORD", postgres.getPassword());
+    values.put("WEAVE_SERVING_DB_USERNAME", SchemaAuthorityTestSupport.SERVING_USERNAME);
     values.put("WEAVE_CANDIDATE_COMMIT", CANDIDATE);
     values.put("WEAVE_SCHEMA_INIT_RECEIPT_FILE", receipt.toString());
-    return new Environment(receipt, values);
+    values.put("WEAVE_NATIVE_FILES_BLOB_ROOT", blobRoot.toString());
+    return new Environment(receipt, blobRoot, values);
+  }
+
+  private static void copyTree(Path source, Path target) throws Exception {
+    try (var paths = Files.walk(source)) {
+      for (Path path : paths.toList()) {
+        Path destination = target.resolve(source.relativize(path));
+        if (Files.isDirectory(path)) {
+          Files.createDirectories(destination);
+        } else {
+          Files.createDirectories(destination.getParent());
+          Files.copy(path, destination);
+        }
+      }
+    }
   }
 
   private static DriverManagerDataSource dataSource(PostgreSQLContainer<?> postgres) {
@@ -224,7 +276,7 @@ class CanonicalPostgresBackupRestoreTest {
     return safe.replace(secret, "<redacted>").replaceAll("[\\r\\n]+", " ").strip();
   }
 
-  private record Environment(Path receipt, Map<String, String> values) {
+  private record Environment(Path receipt, Path blobRoot, Map<String, String> values) {
     private Environment {
       values = Map.copyOf(values);
     }

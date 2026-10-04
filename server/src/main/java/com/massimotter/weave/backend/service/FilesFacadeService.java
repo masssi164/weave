@@ -13,11 +13,21 @@ import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.files.application.FilesEtags;
 import com.massimotter.weave.backend.files.application.FilesLockService;
 import com.massimotter.weave.backend.files.application.FilesLockService.FileLockedException;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService.Command;
+import com.massimotter.weave.backend.files.application.FilesMutationIntentService.NativePinnedMutation;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService.PinnedMutation;
+import com.massimotter.weave.backend.files.application.FilesMutationIntentService.PreparedMutation;
+import com.massimotter.weave.backend.files.application.FilesScope;
+import com.massimotter.weave.backend.files.application.NativeFilesLockRepository;
+import com.massimotter.weave.backend.files.application.NativeFilesLockRepository.CorruptLockOperationException;
+import com.massimotter.weave.backend.files.application.NativeFilesLockRepository.LockAuthorizationDeniedException;
+import com.massimotter.weave.backend.files.application.NativeFilesLockRepository.LockResult;
+import com.massimotter.weave.backend.files.application.NativeFilesLockRepository.TerminalLockOperationException;
+import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository.CorruptMutationStateException;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileListing;
@@ -31,6 +41,11 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
+import com.massimotter.weave.backend.files.port.FilesAuthorityRepository.LockConflictException;
+import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort;
+import com.massimotter.weave.backend.files.port.FilesMutationPlan.EntityTagCondition;
+import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort.NativeLockMove;
+import com.massimotter.weave.backend.files.port.NativeFilesDurableMutationPort.NativeResult;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
@@ -40,6 +55,7 @@ import com.massimotter.weave.backend.model.files.FileSetupCredentialListResponse
 import com.massimotter.weave.backend.model.files.FileSetupCredentialRequest;
 import com.massimotter.weave.backend.model.files.FileSetupCredentialResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
+import com.massimotter.weave.backend.operation.domain.OperationIntent;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilePathCodec;
 import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
@@ -58,6 +74,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.ArrayDeque;
 import java.util.Base64;
@@ -96,6 +113,7 @@ public class FilesFacadeService {
     private final DeviceCredentialService deviceCredentialService;
     private final FilesLockService filesLockService;
     private final FilesMutationIntentService filesMutationIntentService;
+    private final NativeFilesLockRepository nativeFilesLockRepository;
     private final McpWorkloadAuthorizationService mcpWorkloadAuthorizationService;
     private final McpExchangedTokenPolicy mcpExchangedTokenPolicy;
 
@@ -110,6 +128,7 @@ public class FilesFacadeService {
             AuditEventPublisher auditEventPublisher,
             FilesLockService filesLockService,
             FilesMutationIntentService filesMutationIntentService,
+            NativeFilesLockRepository nativeFilesLockRepository,
             ObjectProvider<McpWorkloadAuthorizationService> mcpWorkloadAuthorizationServiceProvider,
             ObjectProvider<McpExchangedTokenPolicy> mcpExchangedTokenPolicyProvider) {
         this(
@@ -122,6 +141,7 @@ public class FilesFacadeService {
                 auditEventPublisher,
                 filesLockService,
                 filesMutationIntentService,
+                nativeFilesLockRepository,
                 mcpWorkloadAuthorizationServiceProvider.getIfAvailable(),
                 mcpExchangedTokenPolicyProvider.getIfAvailable());
     }
@@ -147,6 +167,7 @@ public class FilesFacadeService {
                 auditEventPublisher,
                 filesLockService,
                 filesMutationIntentService,
+                null,
                 mcpWorkloadAuthorizationService,
                 mcpExchangedTokenPolicy);
     }
@@ -163,6 +184,34 @@ public class FilesFacadeService {
             FilesMutationIntentService filesMutationIntentService,
             McpWorkloadAuthorizationService mcpWorkloadAuthorizationService,
             McpExchangedTokenPolicy mcpExchangedTokenPolicy) {
+        this(
+                filesProviderPortProvider,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                identityContexts,
+                workspaceCapabilityService,
+                deviceCredentialService,
+                auditEventPublisher,
+                filesLockService,
+                filesMutationIntentService,
+                null,
+                mcpWorkloadAuthorizationService,
+                mcpExchangedTokenPolicy);
+    }
+
+    FilesFacadeService(
+            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            OrganizationIdentityContextResolver identityContexts,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            DeviceCredentialService deviceCredentialService,
+            AuditEventPublisher auditEventPublisher,
+            FilesLockService filesLockService,
+            FilesMutationIntentService filesMutationIntentService,
+            NativeFilesLockRepository nativeFilesLockRepository,
+            McpWorkloadAuthorizationService mcpWorkloadAuthorizationService,
+            McpExchangedTokenPolicy mcpExchangedTokenPolicy) {
         this.filesProviderPort = filesProviderPortProvider.getIfAvailable();
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
@@ -172,6 +221,7 @@ public class FilesFacadeService {
         this.auditEventPublisher = auditEventPublisher;
         this.filesLockService = filesLockService;
         this.filesMutationIntentService = filesMutationIntentService;
+        this.nativeFilesLockRepository = nativeFilesLockRepository;
         this.mcpWorkloadAuthorizationService = mcpWorkloadAuthorizationService;
         this.mcpExchangedTokenPolicy = mcpExchangedTokenPolicy;
     }
@@ -395,6 +445,8 @@ public class FilesFacadeService {
             String idempotencyKey) {
         String operation = "webdav-put";
         String normalizedPath = requireMutableWebDavPath(path, operation);
+        EntityTagCondition matchCondition = parseEntityTagCondition(ifMatch, operation, "If-Match");
+        EntityTagCondition noneMatchCondition = parseEntityTagCondition(ifNoneMatch, operation, "If-None-Match");
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
         enforceUnlocked(normalizedPath, ifHeader, operation, principal);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "PUT", "attempted");
@@ -402,8 +454,9 @@ public class FilesFacadeService {
         String arguments = String.join("\n",
                 normalizedPath,
                 firstNonBlank(contentType, "application/octet-stream"),
-                firstNonBlank(ifMatch, ""),
-                firstNonBlank(ifNoneMatch, ""),
+                matchCondition.canonicalValue(),
+                noneMatchCondition.canonicalValue(),
+                lockTokenRef(ifHeader),
                 FilesMutationIntentService.digest(writeContent));
         try {
             return executeMutation(
@@ -411,10 +464,32 @@ public class FilesFacadeService {
                     principal,
                     operation,
                     arguments,
-                    List.of("file-path:" + FilesMutationIntentService.digest(normalizedPath)),
+                    List.of(
+                            "file-path:" + FilesMutationIntentService.digest(normalizedPath),
+                            lockTokenRef(ifHeader)),
+                    new NativeFilesDurableMutationPort.Put(
+                            new FileWrite(new FilePath(normalizedPath), writeContent, contentType),
+                            matchCondition,
+                            noneMatchCondition),
                     adapter -> {
                         VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, true);
-                        enforcePreconditions(existing, ifMatch, ifNoneMatch, operation);
+                        enforcePreconditions(existing, matchCondition, noneMatchCondition, operation);
+                        if (existing != null && existing.item().kind() != Kind.FILE) {
+                            throw fileConflict(operation, normalizedPath, "PUT cannot replace a collection.");
+                        }
+                        if (existing == null) {
+                            requireParentCollection(adapter, normalizedPath, operation);
+                        }
+                    },
+                    null,
+                    result -> {
+                        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal,
+                                normalizedPath, "PUT", "completed");
+                        return webDavMutationResult(result, operation);
+                    },
+                    adapter -> {
+                        VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, true);
+                        enforcePreconditions(existing, matchCondition, noneMatchCondition, operation);
                         if (existing != null && existing.item().kind() != Kind.FILE) {
                             throw fileConflict(operation, normalizedPath, "PUT cannot replace a collection.");
                         }
@@ -449,17 +524,39 @@ public class FilesFacadeService {
             String path, String ifMatch, String ifNoneMatch, String ifHeader, String idempotencyKey) {
         String operation = "webdav-mkcol";
         String normalizedPath = requireMutableWebDavPath(path, operation);
+        EntityTagCondition matchCondition = parseEntityTagCondition(ifMatch, operation, "If-Match");
+        EntityTagCondition noneMatchCondition = parseEntityTagCondition(ifNoneMatch, operation, "If-None-Match");
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
         enforceUnlocked(normalizedPath, ifHeader, operation, principal);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "MKCOL", "attempted");
         try {
             return executeMutation(
                     idempotencyKey, principal, operation,
-                    String.join("\n", normalizedPath, firstNonBlank(ifMatch, ""), firstNonBlank(ifNoneMatch, "")),
-                    List.of("file-path:" + FilesMutationIntentService.digest(normalizedPath)),
+                    String.join("\n", normalizedPath, matchCondition.canonicalValue(),
+                            noneMatchCondition.canonicalValue(), lockTokenRef(ifHeader)),
+                    List.of(
+                            "file-path:" + FilesMutationIntentService.digest(normalizedPath),
+                            lockTokenRef(ifHeader)),
+                    new NativeFilesDurableMutationPort.MakeCollection(
+                            new FilePath(normalizedPath), matchCondition, noneMatchCondition),
                     adapter -> {
                         VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, true);
-                        enforcePreconditions(existing, ifMatch, ifNoneMatch, operation);
+                        enforcePreconditions(existing, matchCondition, noneMatchCondition, operation);
+                        if (existing != null) {
+                            throw fileConflict(operation, normalizedPath,
+                                    "A collection or file already exists at this path.");
+                        }
+                        requireParentCollection(adapter, normalizedPath, operation);
+                    },
+                    null,
+                    result -> {
+                        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal,
+                                normalizedPath, "MKCOL", "completed");
+                        return webDavMutationResult(result, operation);
+                    },
+                    adapter -> {
+                        VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, true);
+                        enforcePreconditions(existing, matchCondition, noneMatchCondition, operation);
                         if (existing != null) {
                             throw fileConflict(operation, normalizedPath,
                                     "A collection or file already exists at this path.");
@@ -481,24 +578,41 @@ public class FilesFacadeService {
     }
 
     public void deleteWebDavPath(String path, String ifMatch) {
-        deleteWebDavPath(path, ifMatch, null);
+        deleteWebDavPath(path, ifMatch, null, null, null);
     }
 
     public void deleteWebDavPath(String path, String ifMatch, String ifHeader) {
-        deleteWebDavPath(path, ifMatch, ifHeader, null);
+        deleteWebDavPath(path, ifMatch, null, ifHeader, null);
     }
 
     public void deleteWebDavPath(String path, String ifMatch, String ifHeader, String idempotencyKey) {
+        deleteWebDavPath(path, ifMatch, null, ifHeader, idempotencyKey);
+    }
+
+    public void deleteWebDavPath(
+            String path,
+            String ifMatch,
+            String ifNoneMatch,
+            String ifHeader,
+            String idempotencyKey) {
         String operation = "webdav-delete";
         String normalizedPath = requireMutableWebDavPath(path, operation);
+        EntityTagCondition matchCondition = parseEntityTagCondition(ifMatch, operation, "If-Match");
+        EntityTagCondition noneMatchCondition = parseEntityTagCondition(ifNoneMatch, operation, "If-None-Match");
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
         enforceUnlocked(normalizedPath, ifHeader, operation, principal);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "DELETE", "attempted");
         try {
             executeMutation(
                     idempotencyKey, principal, operation,
-                    normalizedPath + "\n" + firstNonBlank(ifMatch, ""),
-                    List.of("file-path:" + FilesMutationIntentService.digest(normalizedPath)),
+                    String.join("\n", normalizedPath, matchCondition.canonicalValue(),
+                            noneMatchCondition.canonicalValue(), lockTokenRef(ifHeader)),
+                    List.of(
+                            "file-path:" + FilesMutationIntentService.digest(normalizedPath),
+                            lockTokenRef(ifHeader)),
+                    new NativeFilesDurableMutationPort.Delete(
+                            new FilePath(normalizedPath), FileVersion.unknown(),
+                            matchCondition, noneMatchCondition),
                     adapter -> {
                         VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, false);
                         if (existing == null) {
@@ -506,7 +620,22 @@ public class FilesFacadeService {
                                     "The requested file or folder was not found.",
                                     Map.of("module", "files", "operation", operation));
                         }
-                        enforcePreconditions(existing, ifMatch, null, operation);
+                        enforcePreconditions(existing, matchCondition, noneMatchCondition, operation);
+                    },
+                    null,
+                    result -> {
+                        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal,
+                                normalizedPath, "DELETE", "completed");
+                        return Boolean.TRUE;
+                    },
+                    adapter -> {
+                        VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, false);
+                        if (existing == null) {
+                            throw new ApiErrorException(HttpStatus.NOT_FOUND, "file-not-found",
+                                    "The requested file or folder was not found.",
+                                    Map.of("module", "files", "operation", operation));
+                        }
+                        enforcePreconditions(existing, matchCondition, noneMatchCondition, operation);
                         adapter.delete(new FilePath(normalizedPath), existing.version());
                         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal,
                                 normalizedPath, "DELETE", "completed");
@@ -525,7 +654,7 @@ public class FilesFacadeService {
             boolean overwrite,
             String ifMatch,
             String ifHeader) {
-        return copyWebDavPath(sourcePath, destinationPath, overwrite, ifMatch, ifHeader, null);
+        return copyWebDavPath(sourcePath, destinationPath, overwrite, ifMatch, null, ifHeader, null);
     }
 
     public WebDavMutationResult copyWebDavPath(
@@ -535,9 +664,23 @@ public class FilesFacadeService {
             String ifMatch,
             String ifHeader,
             String idempotencyKey) {
+        return copyWebDavPath(
+                sourcePath, destinationPath, overwrite, ifMatch, null, ifHeader, idempotencyKey);
+    }
+
+    public WebDavMutationResult copyWebDavPath(
+            String sourcePath,
+            String destinationPath,
+            boolean overwrite,
+            String ifMatch,
+            String ifNoneMatch,
+            String ifHeader,
+            String idempotencyKey) {
         String operation = "webdav-copy";
         String normalizedSource = requireMutableWebDavPath(sourcePath, operation);
         String normalizedDestination = requireMutableWebDavPath(destinationPath, operation);
+        EntityTagCondition matchCondition = parseEntityTagCondition(ifMatch, operation, "If-Match");
+        EntityTagCondition noneMatchCondition = parseEntityTagCondition(ifNoneMatch, operation, "If-None-Match");
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
         enforceUnlocked(normalizedDestination, ifHeader, operation, principal);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedSource, "COPY", "attempted");
@@ -545,9 +688,14 @@ public class FilesFacadeService {
             return executeMutation(
                     idempotencyKey, principal, operation,
                     String.join("\n", normalizedSource, normalizedDestination, Boolean.toString(overwrite),
-                            firstNonBlank(ifMatch, "")),
+                            matchCondition.canonicalValue(), noneMatchCondition.canonicalValue(),
+                            lockTokenRef(ifHeader)),
                     List.of("file-path:" + FilesMutationIntentService.digest(normalizedSource),
-                            "file-path:" + FilesMutationIntentService.digest(normalizedDestination)),
+                            "file-path:" + FilesMutationIntentService.digest(normalizedDestination),
+                            lockTokenRef(ifHeader)),
+                    new NativeFilesDurableMutationPort.Copy(
+                            new FilePath(normalizedSource), new FilePath(normalizedDestination), overwrite,
+                            matchCondition, noneMatchCondition),
                     adapter -> {
                         VersionedFileItem source = existingVersionedItem(adapter, normalizedSource, operation, false);
                         if (source == null) {
@@ -555,7 +703,31 @@ public class FilesFacadeService {
                                     "The requested file or folder was not found.",
                                     Map.of("module", "files", "operation", operation));
                         }
-                        enforcePreconditions(source, ifMatch, null, operation);
+                        enforcePreconditions(source, matchCondition, noneMatchCondition, operation);
+                        VersionedFileItem destination = existingVersionedItem(
+                                adapter, normalizedDestination, operation, true);
+                        if (destination != null && !overwrite) {
+                            throw preconditionFailed(operation,
+                                    "Overwrite is false and the destination already exists.");
+                        }
+                        if (destination == null) {
+                            requireParentCollection(adapter, normalizedDestination, operation);
+                        }
+                    },
+                    null,
+                    result -> {
+                        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal,
+                                normalizedDestination, "COPY", "completed");
+                        return webDavMutationResult(result, operation);
+                    },
+                    adapter -> {
+                        VersionedFileItem source = existingVersionedItem(adapter, normalizedSource, operation, false);
+                        if (source == null) {
+                            throw new ApiErrorException(HttpStatus.NOT_FOUND, "file-not-found",
+                                    "The requested file or folder was not found.",
+                                    Map.of("module", "files", "operation", operation));
+                        }
+                        enforcePreconditions(source, matchCondition, noneMatchCondition, operation);
                         VersionedFileItem destination = existingVersionedItem(
                                 adapter, normalizedDestination, operation, true);
                         if (destination != null && !overwrite) {
@@ -589,7 +761,7 @@ public class FilesFacadeService {
             boolean overwrite,
             String ifMatch,
             String ifHeader) {
-        return moveWebDavPath(sourcePath, destinationPath, overwrite, ifMatch, ifHeader, null);
+        return moveWebDavPath(sourcePath, destinationPath, overwrite, ifMatch, null, ifHeader, null);
     }
 
     public WebDavMutationResult moveWebDavPath(
@@ -599,20 +771,47 @@ public class FilesFacadeService {
             String ifMatch,
             String ifHeader,
             String idempotencyKey) {
+        return moveWebDavPath(
+                sourcePath, destinationPath, overwrite, ifMatch, null, ifHeader, idempotencyKey);
+    }
+
+    public WebDavMutationResult moveWebDavPath(
+            String sourcePath,
+            String destinationPath,
+            boolean overwrite,
+            String ifMatch,
+            String ifNoneMatch,
+            String ifHeader,
+            String idempotencyKey) {
         String operation = "webdav-move";
         String normalizedSource = requireMutableWebDavPath(sourcePath, operation);
         String normalizedDestination = requireMutableWebDavPath(destinationPath, operation);
+        EntityTagCondition matchCondition = parseEntityTagCondition(ifMatch, operation, "If-Match");
+        EntityTagCondition noneMatchCondition = parseEntityTagCondition(ifNoneMatch, operation, "If-None-Match");
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
         enforceUnlocked(normalizedSource, ifHeader, operation, principal);
         enforceUnlocked(normalizedDestination, ifHeader, operation, principal);
+        String moveToken = presentedLockToken(ifHeader);
+        NativeLockMove nativeLockMove = moveToken == null
+                ? null
+                : new NativeLockMove(
+                        new FilePath(normalizedSource),
+                        new FilePath(normalizedDestination),
+                        requiredLockService(operation).tokenDigest(moveToken),
+                        principal.principalRef());
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedSource, "MOVE", "attempted");
         try {
             return executeMutation(
                     idempotencyKey, principal, operation,
                     String.join("\n", normalizedSource, normalizedDestination, Boolean.toString(overwrite),
-                            firstNonBlank(ifMatch, "")),
+                            matchCondition.canonicalValue(), noneMatchCondition.canonicalValue(),
+                            lockTokenRef(ifHeader)),
                     List.of("file-path:" + FilesMutationIntentService.digest(normalizedSource),
-                            "file-path:" + FilesMutationIntentService.digest(normalizedDestination)),
+                            "file-path:" + FilesMutationIntentService.digest(normalizedDestination),
+                            lockTokenRef(ifHeader)),
+                    new NativeFilesDurableMutationPort.Move(
+                            new FilePath(normalizedSource), new FilePath(normalizedDestination), overwrite,
+                            matchCondition, noneMatchCondition),
                     adapter -> {
                         VersionedFileItem source = existingVersionedItem(adapter, normalizedSource, operation, false);
                         if (source == null) {
@@ -620,7 +819,31 @@ public class FilesFacadeService {
                                     "The requested file or folder was not found.",
                                     Map.of("module", "files", "operation", operation));
                         }
-                        enforcePreconditions(source, ifMatch, null, operation);
+                        enforcePreconditions(source, matchCondition, noneMatchCondition, operation);
+                        VersionedFileItem destination = existingVersionedItem(
+                                adapter, normalizedDestination, operation, true);
+                        if (destination != null && !overwrite) {
+                            throw preconditionFailed(operation,
+                                    "Overwrite is false and the destination already exists.");
+                        }
+                        if (destination == null) {
+                            requireParentCollection(adapter, normalizedDestination, operation);
+                        }
+                    },
+                    nativeLockMove,
+                    result -> {
+                        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal,
+                                normalizedDestination, "MOVE", "completed");
+                        return webDavMutationResult(result, operation);
+                    },
+                    adapter -> {
+                        VersionedFileItem source = existingVersionedItem(adapter, normalizedSource, operation, false);
+                        if (source == null) {
+                            throw new ApiErrorException(HttpStatus.NOT_FOUND, "file-not-found",
+                                    "The requested file or folder was not found.",
+                                    Map.of("module", "files", "operation", operation));
+                        }
+                        enforcePreconditions(source, matchCondition, noneMatchCondition, operation);
                         VersionedFileItem destination = existingVersionedItem(
                                 adapter, normalizedDestination, operation, true);
                         if (destination != null && !overwrite) {
@@ -660,6 +883,16 @@ public class FilesFacadeService {
         String operation = "webdav-lock";
         String normalizedPath = requireMutableWebDavPath(path, operation);
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
+        FilesProviderPort configuredRoot = configuredAdapter(operation);
+        if (weaveNative(configuredRoot)) {
+            return lockNativeWebDavPath(
+                    normalizedPath,
+                    presentedLockToken(ifHeader),
+                    idempotencyKey,
+                    operation,
+                    principal,
+                    configuredRoot);
+        }
         enforceUnlocked(normalizedPath, ifHeader, operation, principal);
         try {
             return executeMutation(
@@ -699,6 +932,17 @@ public class FilesFacadeService {
         String operation = "webdav-unlock";
         String normalizedPath = requireMutableWebDavPath(path, operation);
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
+        FilesProviderPort configuredRoot = configuredAdapter(operation);
+        if (weaveNative(configuredRoot)) {
+            unlockNativeWebDavPath(
+                    normalizedPath,
+                    presentedLockToken(lockTokenHeader),
+                    idempotencyKey,
+                    operation,
+                    principal,
+                    configuredRoot);
+            return;
+        }
         try {
             executeMutation(
                     idempotencyKey, principal, operation,
@@ -729,8 +973,215 @@ public class FilesFacadeService {
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedPath, "UNLOCK", "completed");
     }
 
+    private WebDavLockResult lockNativeWebDavPath(
+            String normalizedPath,
+            String presentedToken,
+            String idempotencyKey,
+            String operation,
+            PrincipalContext principal,
+            FilesProviderPort adapter) {
+        NativeFilesLockRepository locks = requiredNativeLockRepository(operation);
+        String canonicalArguments = presentedToken == null
+                ? normalizedPath + "\nacquire"
+                : normalizedPath + "\nrefresh\n" + FilesMutationIntentService.digest(presentedToken);
+        PreparedMutation prepared = prepareNativeLock(
+                idempotencyKey,
+                principal,
+                operation,
+                canonicalArguments,
+                normalizedPath,
+                adapter);
+        String auditRef = publishNativeOperationIntentAudit(prepared.candidate());
+        try {
+            LockResult result = presentedToken == null
+                    ? locks.acquire(
+                            prepared.candidate(),
+                            prepared.beginCommand(),
+                            DEFAULT_CONTEXT_ID,
+                            new FilePath(normalizedPath),
+                            Duration.ofHours(1),
+                            auditRef)
+                    : locks.refresh(
+                            prepared.candidate(),
+                            prepared.beginCommand(),
+                            DEFAULT_CONTEXT_ID,
+                            new FilePath(normalizedPath),
+                            presentedToken,
+                            Duration.ofHours(1),
+                            auditRef);
+            return lockResult(result, normalizedPath, operation, principal);
+        } catch (LockConflictException exception) {
+            throw locked(operation, normalizedPath);
+        } catch (LockAuthorizationDeniedException exception) {
+            throw nativeLockAuthorizationDenied(operation);
+        } catch (TerminalLockOperationException exception) {
+            throw idempotencyKeyConflict(operation, prepared.candidate().operationRef());
+        } catch (CorruptLockOperationException exception) {
+            throw nativeLockCorrupt(operation);
+        } catch (com.massimotter.weave.backend.operation.application.OperationIntentService.IdempotencyKeyConflictException exception) {
+            throw idempotencyKeyConflict(operation, exception.operationRef());
+        }
+    }
+
+    private void unlockNativeWebDavPath(
+            String normalizedPath,
+            String presentedToken,
+            String idempotencyKey,
+            String operation,
+            PrincipalContext principal,
+            FilesProviderPort adapter) {
+        if (presentedToken == null) {
+            throw locked(operation, normalizedPath);
+        }
+        PreparedMutation prepared = prepareNativeLock(
+                idempotencyKey,
+                principal,
+                operation,
+                normalizedPath + "\n" + FilesMutationIntentService.digest(presentedToken),
+                normalizedPath,
+                adapter);
+        String auditRef = publishNativeOperationIntentAudit(prepared.candidate());
+        try {
+            requiredNativeLockRepository(operation).unlock(
+                    prepared.candidate(),
+                    prepared.beginCommand(),
+                    DEFAULT_CONTEXT_ID,
+                    new FilePath(normalizedPath),
+                    presentedToken,
+                    auditRef);
+        } catch (LockConflictException exception) {
+            throw locked(operation, normalizedPath);
+        } catch (LockAuthorizationDeniedException exception) {
+            throw nativeLockAuthorizationDenied(operation);
+        } catch (TerminalLockOperationException exception) {
+            throw idempotencyKeyConflict(operation, prepared.candidate().operationRef());
+        } catch (CorruptLockOperationException exception) {
+            throw nativeLockCorrupt(operation);
+        } catch (com.massimotter.weave.backend.operation.application.OperationIntentService.IdempotencyKeyConflictException exception) {
+            throw idempotencyKeyConflict(operation, exception.operationRef());
+        }
+        publishWriteAudit(
+                AuditAction.FILES_WEBDAV_WRITE_COMPLETED,
+                operation,
+                principal,
+                normalizedPath,
+                "UNLOCK",
+                "completed");
+    }
+
+    private PreparedMutation prepareNativeLock(
+            String idempotencyKey,
+            PrincipalContext principal,
+            String operation,
+            String canonicalArguments,
+            String normalizedPath,
+            FilesProviderPort adapter) {
+        if (filesMutationIntentService == null) {
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "files-native-lock-intent-unavailable",
+                    "The native Files lock intent authority is unavailable.",
+                    Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+        }
+        PreparedMutation prepared = null;
+        try {
+            prepared = filesMutationIntentService.prepare(new Command(
+                    idempotencyKey,
+                    principal.tenantId(),
+                    principal.principalRef(),
+                    principal.subject(),
+                    operation,
+                    canonicalArguments,
+                    List.of("file-path:" + FilesMutationIntentService.digest(normalizedPath)),
+                    principal.policyRevision(),
+                    principal.entitlementRevision()));
+            filesMutationIntentService.requireAdapter(
+                    prepared,
+                    adapter.conformanceProfile().adapterKey());
+            return prepared;
+        } catch (FilesMutationIntentService.ProviderBindingUnavailableException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "files-provider-binding-unavailable",
+                    "The active Files provider binding is unavailable.",
+                    Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+        } catch (FilesMutationIntentService.InvalidIdempotencyKeyException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "files-idempotency-key-invalid",
+                    "Idempotency-Key must contain between 16 and 128 characters.",
+                    Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+        } catch (FilesMutationIntentService.PinnedAdapterMismatchException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "files-provider-binding-mismatch",
+                    "The configured Files adapter does not match the pinned provider binding.",
+                    Map.of(
+                            "module", "files",
+                            "operation", operation,
+                            "providerBindingRevision", prepared == null
+                                    ? 0
+                                    : prepared.binding().revision(),
+                            "diagnosticsRedacted", true));
+        } catch (com.massimotter.weave.backend.operation.application.OperationIntentService.IdempotencyKeyConflictException exception) {
+            throw idempotencyKeyConflict(operation, exception.operationRef());
+        }
+    }
+
+    private boolean weaveNative(FilesProviderPort adapter) {
+        return adapter instanceof NativeFilesDurableMutationPort
+                && adapter.conformanceProfile() != null
+                && "weave-native".equals(adapter.conformanceProfile().adapterKey());
+    }
+
+    private NativeFilesLockRepository requiredNativeLockRepository(String operation) {
+        if (nativeFilesLockRepository == null) {
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "files-native-lock-authority-unavailable",
+                    "The native Files lock transaction authority is unavailable.",
+                    Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+        }
+        return nativeFilesLockRepository;
+    }
+
+    private ApiErrorException nativeLockCorrupt(String operation) {
+        return new ApiErrorException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "files-native-lock-state-corrupt",
+                "The native Files lock state is inconsistent.",
+                Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+    }
+
+    private ApiErrorException nativeMutationCorrupt(String operation) {
+        return new ApiErrorException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "files-native-mutation-state-corrupt",
+                "The native Files mutation state is inconsistent.",
+                Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+    }
+
+    private ApiErrorException nativeLockAuthorizationDenied(String operation) {
+        return new ApiErrorException(
+                HttpStatus.FORBIDDEN,
+                "files-native-lock-authorization-denied",
+                "Files authorization changed before the lock operation completed.",
+                Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+    }
+
     private WebDavLockResult lockResult(
             FilesLockService.GrantedLock granted,
+            String normalizedPath,
+            String operation,
+            PrincipalContext principal) {
+        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal,
+                normalizedPath, "LOCK", "completed");
+        return new WebDavLockResult(normalizedPath, granted.token(),
+                Math.toIntExact(Math.max(1, Duration.between(Instant.now(), granted.expiresAt()).toSeconds())));
+    }
+
+    private WebDavLockResult lockResult(
+            LockResult granted,
             String normalizedPath,
             String operation,
             PrincipalContext principal) {
@@ -1090,6 +1541,121 @@ public class FilesFacadeService {
             String operation,
             String canonicalArguments,
             List<String> objectRefs,
+            NativeFilesDurableMutationPort.Mutation nativeMutation,
+            NativePlanCheck nativePlanCheck,
+            NativeLockMove nativeLockMove,
+            Function<NativeResult, T> nativeResult,
+            ProviderMutation<T> apply,
+            ProviderMutation<T> reconcile,
+            Function<T, String> canonicalResult) {
+        FilesProviderPort adapter = configuredAdapter(operation);
+        if (filesMutationIntentService == null || !(adapter instanceof NativeFilesDurableMutationPort nativeAdapter)) {
+            return executeMutation(
+                    idempotencyKey,
+                    principal,
+                    operation,
+                    canonicalArguments,
+                    objectRefs,
+                    apply,
+                    reconcile,
+                    canonicalResult);
+        }
+
+        PreparedMutation prepared;
+        try {
+            prepared = filesMutationIntentService.prepare(new Command(
+                    idempotencyKey,
+                    principal.tenantId(),
+                    principal.principalRef(),
+                    principal.subject(),
+                    operation,
+                    canonicalArguments,
+                    objectRefs,
+                    principal.policyRevision(),
+                    principal.entitlementRevision()));
+        } catch (FilesMutationIntentService.ProviderBindingUnavailableException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "files-provider-binding-unavailable",
+                    "The active Files provider binding is unavailable.",
+                    Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+        } catch (FilesMutationIntentService.InvalidIdempotencyKeyException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "files-idempotency-key-invalid",
+                    "Idempotency-Key must contain between 16 and 128 characters.",
+                    Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+        } catch (com.massimotter.weave.backend.operation.application.OperationIntentService.IdempotencyKeyConflictException exception) {
+            throw idempotencyKeyConflict(operation, exception.operationRef());
+        }
+        try {
+            filesMutationIntentService.requireAdapter(
+                    prepared,
+                    adapter.conformanceProfile().adapterKey());
+        } catch (FilesMutationIntentService.PinnedAdapterMismatchException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "files-provider-binding-mismatch",
+                    "The configured Files adapter does not match the pinned provider binding.",
+                    Map.of(
+                            "module", "files",
+                            "operation", operation,
+                            "providerBindingRevision", prepared.binding().revision(),
+                            "diagnosticsRedacted", true));
+        }
+
+        FilesRequestScope scope = new FilesRequestScope(
+                principal.tenantId(),
+                DEFAULT_CONTEXT_ID,
+                prepared.binding().revision());
+        NativePinnedMutation mutation = null;
+        try {
+            if (prepared.retry()) {
+                mutation = filesMutationIntentService.resumeNative(prepared);
+            } else {
+                mutation = filesMutationIntentService.beginNative(
+                        prepared,
+                        new FilesScope(scope.organizationRef(), scope.spaceRef()),
+                        () -> nativeAdapter.plan(prepared.candidate(), scope, nativeMutation));
+            }
+            filesMutationIntentService.requireAdapter(
+                    mutation,
+                    adapter.conformanceProfile().adapterKey());
+            requireNativeMutationRunnable(mutation, operation);
+            String auditRef = publishNativeOperationIntentAudit(mutation);
+            return nativeResult.apply(nativeAdapter.execute(
+                    mutation.intent(),
+                    scope,
+                    mutation.plan(),
+                    nativeMutation,
+                    auditRef,
+                    nativeLockMove));
+        } catch (FilesMutationIntentService.PinnedAdapterMismatchException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "files-provider-binding-mismatch",
+                    "The configured Files adapter does not match the pinned provider binding.",
+                    Map.of(
+                            "module", "files",
+                            "operation", operation,
+                            "providerBindingRevision", mutation == null
+                                    ? prepared.binding().revision()
+                                    : mutation.binding().revision(),
+                            "diagnosticsRedacted", true));
+        } catch (CorruptMutationStateException exception) {
+            throw nativeMutationCorrupt(operation);
+        } catch (ApiErrorException exception) {
+            settleFailedNativeMutation(mutation, exception);
+            throw exception;
+        }
+    }
+
+    private <T> T executeMutation(
+            String idempotencyKey,
+            PrincipalContext principal,
+            String operation,
+            String canonicalArguments,
+            List<String> objectRefs,
             ProviderMutation<T> apply,
             ProviderMutation<T> reconcile,
             Function<T, String> canonicalResult) {
@@ -1121,6 +1687,8 @@ public class FilesFacadeService {
                     "files-idempotency-key-invalid",
                     "Idempotency-Key must contain between 16 and 128 characters.",
                     Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+        } catch (com.massimotter.weave.backend.operation.application.OperationIntentService.IdempotencyKeyConflictException exception) {
+            throw idempotencyKeyConflict(operation, exception.operationRef());
         }
         FilesProviderPort adapter = configuredAdapter(operation);
         try {
@@ -1174,6 +1742,44 @@ public class FilesFacadeService {
         };
     }
 
+    private void requireNativeMutationRunnable(NativePinnedMutation mutation, String operation) {
+        switch (mutation.intent().state()) {
+            case CREATED, AMBIGUOUS, RECONCILING, SUCCEEDED -> {
+                return;
+            }
+            case DISPATCHING, DENIED, FAILED -> throw new ApiErrorException(
+                    HttpStatus.CONFLICT,
+                    "files-idempotent-operation-terminal",
+                    "The idempotency key cannot be resumed through the native Files transaction.",
+                    Map.of(
+                            "module", "files",
+                            "operation", operation,
+                            "operationRef", mutation.intent().operationRef(),
+                            "diagnosticsRedacted", true));
+        }
+    }
+
+    private void settleFailedNativeMutation(
+            NativePinnedMutation mutation,
+            ApiErrorException exception) {
+        if (mutation == null
+                || mutation.intent().state().terminal()
+                || exception.status().is5xxServerError()) {
+            return;
+        }
+        var state = mutation.intent().state();
+        if (state != com.massimotter.weave.backend.operation.domain.OperationIntent.State.CREATED
+                && state != com.massimotter.weave.backend.operation.domain.OperationIntent.State.RECONCILING) {
+            return;
+        }
+        String auditRef = publishNativeOperationIntentAudit(mutation);
+        try {
+            filesMutationIntentService.failNative(mutation, exception.code(), auditRef);
+        } catch (RuntimeException transitionFailure) {
+            LOGGER.warn("Failed to record proven native Files failure for {}", mutation.intent().operationRef());
+        }
+    }
+
     private void settleFailedMutation(
             PinnedMutation mutation,
             ApiErrorException exception,
@@ -1201,7 +1807,45 @@ public class FilesFacadeService {
 
     private String publishOperationIntentAudit(
             PinnedMutation mutation, PrincipalContext principal, String operation, String result) {
-        String auditRef = "files-operation-intent:" + mutation.intent().operationRef();
+        return publishOperationIntentAudit(
+                mutation.intent(), mutation.binding().revision(), principal, operation, result);
+    }
+
+    private String publishNativeOperationIntentAudit(NativePinnedMutation mutation) {
+        return publishNativeOperationIntentAudit(mutation.intent());
+    }
+
+    private String publishNativeOperationIntentAudit(OperationIntent intent) {
+        if (!(intent.projection() instanceof OperationIntent.ProtocolProjection projection)) {
+            throw new IllegalArgumentException("native Files mutation requires one protocol projection");
+        }
+        String auditRef = "files-operation-intent:" + intent.operationRef();
+        auditEventPublisher.publish(new AuditEvent(
+                intent.organizationRef(),
+                DEFAULT_CONTEXT_ID,
+                intent.actor().personRef(),
+                "files:operation-intent",
+                AuditAction.FILES_OPERATION_INTENT_RECORDED,
+                intent.createdAt().truncatedTo(ChronoUnit.MICROS),
+                auditRef,
+                AuditRedactionLevel.SUPPORT_SAFE,
+                Map.of(
+                        "domain", "files",
+                        "operation", projection.operation(),
+                        "operationRef", intent.operationRef(),
+                        "providerBindingRevision", Long.toString(intent.providerBindingRevision()),
+                        "result", "recorded",
+                        "supportSafe", true)));
+        return auditRef;
+    }
+
+    private String publishOperationIntentAudit(
+            com.massimotter.weave.backend.operation.domain.OperationIntent intent,
+            long providerBindingRevision,
+            PrincipalContext principal,
+            String operation,
+            String result) {
+        String auditRef = "files-operation-intent:" + intent.operationRef();
         auditEventPublisher.publish(new AuditEvent(
                 principal.tenantId(),
                 DEFAULT_CONTEXT_ID,
@@ -1214,8 +1858,8 @@ public class FilesFacadeService {
                 Map.of(
                         "domain", "files",
                         "operation", operation,
-                        "operationRef", mutation.intent().operationRef(),
-                        "providerBindingRevision", mutation.binding().revision(),
+                        "operationRef", intent.operationRef(),
+                        "providerBindingRevision", providerBindingRevision,
                         "result", result,
                         "supportSafe", true)));
         return auditRef;
@@ -1304,6 +1948,34 @@ public class FilesFacadeService {
                         "path", FilePathCodec.normalizeProductPath(path), "diagnosticsRedacted", true));
     }
 
+    private ApiErrorException idempotencyKeyConflict(String operation, String operationRef) {
+        return new ApiErrorException(
+                HttpStatus.CONFLICT,
+                "files-idempotency-key-conflict",
+                "The idempotency key is already bound to different Files arguments.",
+                Map.of(
+                        "module", "files",
+                        "operation", operation,
+                        "operationRef", operationRef,
+                        "diagnosticsRedacted", true));
+    }
+
+    private WebDavMutationResult webDavMutationResult(NativeResult result, String operation) {
+        if (result == null || result.item() == null || result.etag() == null) {
+            throw new ApiErrorException(
+                    HttpStatus.CONFLICT,
+                    "files-native-result-invalid",
+                    "The native Files mutation did not produce the expected result.",
+                    Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+        }
+        return new WebDavMutationResult(toResponse(result.item()), result.etag(), result.created());
+    }
+
+    @FunctionalInterface
+    private interface NativePlanCheck {
+        void validate(FilesProviderPort adapter);
+    }
+
     @FunctionalInterface
     private interface ProviderMutation<T> {
         T execute(FilesProviderPort adapter);
@@ -1356,6 +2028,13 @@ public class FilesFacadeService {
             end++;
         }
         return headerValue.substring(start, end);
+    }
+
+    private String lockTokenRef(String headerValue) {
+        String token = presentedLockToken(headerValue);
+        return "lock-token:" + (token == null
+                ? "none"
+                : FilesMutationIntentService.digest(token));
     }
 
     private ApiErrorException locked(String operation, String path) {
@@ -1574,44 +2253,31 @@ public class FilesFacadeService {
 
     private void enforcePreconditions(
             VersionedFileItem existing,
-            String ifMatch,
-            String ifNoneMatch,
+            EntityTagCondition ifMatch,
+            EntityTagCondition ifNoneMatch,
             String operation) {
-        if (ifMatch != null && !ifMatch.isBlank()) {
-            if (existing == null || !etagMatches(etag(existing), ifMatch)) {
-                throw preconditionFailed(operation, "If-Match did not match the current file state.");
-            }
+        String currentEtag = existing == null ? null : etag(existing);
+        if (ifMatch.supplied() && !ifMatch.matches(currentEtag, true)) {
+            throw preconditionFailed(operation, "If-Match did not match the current file state.");
         }
-        if (ifNoneMatch != null && !ifNoneMatch.isBlank()) {
-            if ("*".equals(ifNoneMatch.trim()) && existing != null) {
-                throw preconditionFailed(operation, "If-None-Match requires the target path to be absent.");
-            }
-            if (existing != null && etagMatches(etag(existing), ifNoneMatch)) {
-                throw preconditionFailed(operation, "If-None-Match matched the current file state.");
-            }
+        if (ifNoneMatch.supplied() && ifNoneMatch.matches(currentEtag, false)) {
+            throw preconditionFailed(operation, "If-None-Match matched the current file state.");
         }
     }
 
-    private boolean etagMatches(String currentEtag, String candidateHeader) {
-        if (candidateHeader == null || candidateHeader.isBlank()) {
-            return false;
+    private EntityTagCondition parseEntityTagCondition(
+            String value,
+            String operation,
+            String headerName) {
+        try {
+            return EntityTagCondition.parseHeader(value);
+        } catch (IllegalArgumentException invalid) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "files-webdav-precondition-invalid",
+                    headerName + " is not a valid entity-tag condition.",
+                    Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
         }
-        return Arrays.stream(candidateHeader.split(","))
-                .map(String::trim)
-                .filter(value -> !value.isBlank())
-                .anyMatch(value -> "*".equals(value)
-                        || Objects.equals(normalizeEtagToken(currentEtag), normalizeEtagToken(value)));
-    }
-
-    private String normalizeEtagToken(String value) {
-        String normalized = value == null ? "" : value.trim();
-        if (normalized.startsWith("W/")) {
-            normalized = normalized.substring(2).trim();
-        }
-        if (normalized.length() >= 2 && normalized.startsWith("\"") && normalized.endsWith("\"")) {
-            normalized = normalized.substring(1, normalized.length() - 1);
-        }
-        return normalized;
     }
 
     private ApiErrorException preconditionFailed(String operation, String message) {
@@ -1650,14 +2316,7 @@ public class FilesFacadeService {
     }
 
     private String etag(FileObject item, FileVersion version) {
-        String material = String.join("|",
-                item.path().value(),
-                item.kind().name(),
-                String.valueOf(item.size()),
-                timestamp(item.modifiedAt()),
-                item.mediaType() == null ? "" : item.mediaType(),
-                version == null || !version.known() ? "" : version.value());
-        return "\"" + sha256(material) + "\"";
+        return FilesEtags.strong(item, version);
     }
 
     private String contentVersionToken(byte[] content) {
@@ -1676,10 +2335,6 @@ public class FilesFacadeService {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 digest is required for WebDAV ETags", exception);
         }
-    }
-
-    private String timestamp(Instant value) {
-        return value == null ? "" : value.toString();
     }
 
     private String parentPath(String path) {

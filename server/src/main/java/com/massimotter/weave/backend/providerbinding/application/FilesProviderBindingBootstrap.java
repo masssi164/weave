@@ -14,14 +14,24 @@ public final class FilesProviderBindingBootstrap implements ApplicationRunner {
     private final ProviderBindingRepository repository;
     private final ProviderBindingBootstrapProperties properties;
     private final Clock clock;
+    private final ReconciledBindingObserver observer;
 
     public FilesProviderBindingBootstrap(
             ProviderBindingRepository repository,
             ProviderBindingBootstrapProperties properties,
             Clock clock) {
+        this(repository, properties, clock, (binding, reconciledAt) -> { });
+    }
+
+    public FilesProviderBindingBootstrap(
+            ProviderBindingRepository repository,
+            ProviderBindingBootstrapProperties properties,
+            Clock clock,
+            ReconciledBindingObserver observer) {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
         this.properties = Objects.requireNonNull(properties, "properties must not be null");
         this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.observer = Objects.requireNonNull(observer, "observer must not be null");
     }
 
     @Override
@@ -33,10 +43,13 @@ public final class FilesProviderBindingBootstrap implements ApplicationRunner {
         String organizationRef = properties.requiredOrganizationRef();
         String adapterKey = properties.requiredAdapterKey();
         String configurationRef = properties.requiredConfigurationRef();
-        return repository.current(organizationRef, "files")
+        Instant reconciledAt = Instant.now(clock);
+        ProviderBinding binding = repository.current(organizationRef, "files")
                 .map(current -> requireEquivalent(current, adapterKey, configurationRef))
                 .orElseGet(() -> repository.activate(
-                        organizationRef, "files", 0, adapterKey, configurationRef, Instant.now(clock)));
+                        organizationRef, "files", 0, adapterKey, configurationRef, reconciledAt));
+        observer.reconciled(binding, reconciledAt);
+        return binding;
     }
 
     private ProviderBinding requireEquivalent(
@@ -51,5 +64,10 @@ public final class FilesProviderBindingBootstrap implements ApplicationRunner {
         public ProviderBindingBootstrapConflictException(ProviderBinding current) {
             super("Files provider binding bootstrap conflicts with active revision " + current.revision());
         }
+    }
+
+    @FunctionalInterface
+    public interface ReconciledBindingObserver {
+        void reconciled(ProviderBinding binding, Instant reconciledAt);
     }
 }

@@ -2,15 +2,22 @@ package com.massimotter.weave.backend.service.files;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.adapter.FilesAuthorityJpaTestFactory;
+import com.massimotter.weave.backend.files.application.FilesDigests;
+import com.massimotter.weave.backend.files.application.FilesMutationTargetCodec;
+import com.massimotter.weave.backend.files.application.FilesScope;
+import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.port.BlobStorePort.BlobScope;
+import com.massimotter.weave.backend.files.port.BlobStorePort.BlobReference;
 import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
@@ -22,10 +29,12 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import tools.jackson.databind.json.JsonMapper;
 
 class WeaveNativeFilesAdapterTest {
 
@@ -105,6 +114,41 @@ class WeaveNativeFilesAdapterTest {
         assertThat(report.orphanBlobsDeleted()).isEqualTo(1);
         assertThat(report.inconsistentMetadataRecords()).isZero();
         assertThat(blobs.inventory(blobScope(ALPHA), 10)).isEmpty();
+    }
+
+    @Test
+    void reconciliationUsesDurableMutationBindingsAsBlobProtection() {
+        BlobReference protectedBinding = new BlobReference("v1/plans/created/result");
+        BlobReference terminalBinding = new BlobReference("v1/plans/terminal/result");
+        byte[] protectedContent = "protected".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] terminalContent = "terminal".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        blobs.put(
+                blobScope(ALPHA),
+                protectedBinding,
+                protectedContent,
+                FilesDigests.sha256(protectedContent));
+        blobs.put(
+                blobScope(ALPHA),
+                terminalBinding,
+                terminalContent,
+                FilesDigests.sha256(terminalContent));
+        NativeFilesMutationRepository mutations = mock(NativeFilesMutationRepository.class);
+        when(mutations.protectedBindings(new FilesScope(
+                ALPHA.organizationRef(), ALPHA.spaceRef())))
+                .thenReturn(Set.of(protectedBinding));
+        WeaveNativeFilesAdapter adapter = new WeaveNativeFilesAdapter(
+                authority,
+                blobs,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                100,
+                mutations,
+                new FilesMutationTargetCodec(
+                        JsonMapper.builder().findAndAddModules().build()));
+
+        var report = adapter.reconcile(ALPHA);
+
+        assertThat(report.orphanBlobsDeleted()).isEqualTo(1);
+        assertThat(blobs.inventory(blobScope(ALPHA), 10)).containsExactly(protectedBinding);
     }
 
     @Test

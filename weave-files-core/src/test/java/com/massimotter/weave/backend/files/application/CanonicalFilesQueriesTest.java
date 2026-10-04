@@ -4,6 +4,7 @@ import static com.massimotter.weave.backend.files.application.FilesApplicationEx
 import static com.massimotter.weave.backend.files.application.FilesApplicationException.Code.INVALID_BLOB_REFERENCE;
 import static com.massimotter.weave.backend.files.application.FilesApplicationException.Code.NOT_FOUND;
 import static com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle.ACTIVE;
+import static com.massimotter.weave.backend.files.domain.FilesAuthority.Lifecycle.TOMBSTONED;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -142,6 +143,51 @@ class CanonicalFilesQueriesTest {
         assertFalse(blobs.values.containsKey(orphan));
     }
 
+    @Test
+    void reconciliationProtectsTombstoneAndNonterminalPlanBindings() {
+        BlobStorePort.BlobReference tombstoneBinding = new BlobStorePort.BlobReference("v1/tombstone/blob");
+        BlobStorePort.BlobReference plannedBinding = new BlobStorePort.BlobReference("v1/planned/blob");
+        BlobStorePort.BlobReference terminalPlanBinding =
+                new BlobStorePort.BlobReference("v1/terminal-plan/blob");
+        BlobStorePort.BlobReference orphan = new BlobStorePort.BlobReference("v1/real-orphan/blob");
+        StoredFileRecord tombstone = new StoredFileRecord(
+                new CanonicalFileRecord(
+                        SCOPE.organizationRef(),
+                        SCOPE.spaceRef(),
+                        new FileObject(
+                                new FileId("file-tombstone"),
+                                new FilePath("/docs/deleted.txt"),
+                                Kind.FILE,
+                                7,
+                                "text/plain",
+                                NOW,
+                                false),
+                        new FileVersion(FilesDigests.sha256("deleted")),
+                        FilesDigests.sha256("deleted"),
+                        1,
+                        TOMBSTONED,
+                        NOW),
+                new BlobBinding(tombstoneBinding.value()));
+        authority.records.add(tombstone);
+        blobs.values.put(tombstoneBinding, "deleted".getBytes());
+        blobs.values.put(plannedBinding, "planned".getBytes());
+        blobs.values.put(terminalPlanBinding, "terminal".getBytes());
+        blobs.values.put(orphan, "orphan".getBytes());
+        CanonicalFilesQueries protectedQueries = new CanonicalFilesQueries(
+                authority,
+                blobs,
+                scope -> java.util.Set.of(plannedBinding),
+                100);
+
+        CanonicalFilesQueries.ReconciliationReport report = protectedQueries.reconcile(SCOPE);
+
+        assertEquals(2, report.orphanBlobsDeleted());
+        assertTrue(blobs.values.containsKey(tombstoneBinding));
+        assertTrue(blobs.values.containsKey(plannedBinding));
+        assertFalse(blobs.values.containsKey(terminalPlanBinding));
+        assertFalse(blobs.values.containsKey(orphan));
+    }
+
     private StoredFileRecord record(
             String id,
             String path,
@@ -203,6 +249,14 @@ class CanonicalFilesQueriesTest {
         @Override
         public List<StoredFileRecord> activeFiles(String organizationRef, String spaceRef) {
             return records.stream().filter(record -> matches(record, organizationRef, spaceRef)).toList();
+        }
+
+        @Override
+        public List<StoredFileRecord> storedFiles(String organizationRef, String spaceRef) {
+            return records.stream()
+                    .filter(record -> record.metadata().organizationRef().equals(organizationRef)
+                            && record.metadata().spaceRef().equals(spaceRef))
+                    .toList();
         }
 
         private boolean matches(

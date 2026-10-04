@@ -174,6 +174,10 @@ RETIRED_DOGFOOD_VOLUMES = (
     "weave_synapse_data",
 )
 RETIRED_DOGFOOD_NETWORK = "weave_network"
+FILES_VOLUME_TRANSITION_CONTEXT_SCHEMA = "weave.files-volume-transition-context/v1"
+FILES_VOLUME_TRANSITION_CONTEXT_FILE = "files-volume-transition-context-v1.json"
+FILES_VOLUME_TRANSITION_CONTEXT_MAX_BYTES = 4 * 1024
+E2E_EMPTY_NAMESPACE_PROOF_MAX_BYTES = 1024 * 1024
 
 
 def script(context: ComposeContext, name: str) -> None:
@@ -197,6 +201,187 @@ def runtime_root_services(context: ComposeContext) -> tuple[str, ...]:
 
 def compose(context: ComposeContext, *arguments: str, capture: bool = False) -> subprocess.CompletedProcess[str]:
     return run((*context.compose_base_command, *arguments), context, capture=capture)
+
+
+def _files_volume_transition_path(context: ComposeContext) -> Path:
+    return context.generated_root / "schema-init" / FILES_VOLUME_TRANSITION_CONTEXT_FILE
+
+
+def _read_bounded_regular_file(
+    path: Path, maximum_bytes: int, description: str
+) -> bytes:
+    if maximum_bytes < 1:
+        raise ContractError(f"{description} read bound is invalid")
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise ContractError(f"{description} is unavailable or unsafe") from error
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > maximum_bytes:
+            raise ContractError(f"{description} is unavailable, oversized, or unsafe")
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            value = stream.read(maximum_bytes + 1)
+        if len(value) > maximum_bytes:
+            raise ContractError(f"{description} is oversized")
+        return value
+    finally:
+        os.close(descriptor)
+
+
+def _force_directory(path: Path) -> None:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_DIRECTORY", 0)
+    descriptor = os.open(path, flags)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _files_volume_transition_payload(
+    context: ComposeContext, transition_kind: str
+) -> dict[str, str]:
+    if transition_kind not in {"INITIAL_PROVISION", "AUTHORIZED_RESET"}:
+        raise ContractError("native Files volume transition kind is invalid")
+    return {
+        "schemaVersion": FILES_VOLUME_TRANSITION_CONTEXT_SCHEMA,
+        "transitionKind": transition_kind,
+        "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
+        "runScope": context.env["WEAVE_DEPLOYMENT_INSTANCE"],
+        "candidateCommit": context.env["WEAVE_CANDIDATE_COMMIT"],
+    }
+
+
+def _read_files_volume_transition_context(path: Path) -> dict[str, str] | None:
+    if not path.exists() and not path.is_symlink():
+        return None
+    if path.is_symlink() or not path.is_file():
+        raise ContractError("native Files volume transition context is unsafe")
+    try:
+        value = json.loads(
+            _read_bounded_regular_file(
+                path,
+                FILES_VOLUME_TRANSITION_CONTEXT_MAX_BYTES,
+                "native Files volume transition context",
+            )
+        )
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise ContractError("native Files volume transition context is invalid") from error
+    if not isinstance(value, dict) or set(value) != {
+        "schemaVersion",
+        "transitionKind",
+        "composeProject",
+        "runScope",
+        "candidateCommit",
+    } or not all(isinstance(item, str) for item in value.values()):
+        raise ContractError("native Files volume transition context has an invalid shape")
+    return value
+
+
+def _require_transition_resources_absent(context: ComposeContext) -> None:
+    present = [
+        f"{kind}:{name}"
+        for kind, name in sorted(resource_inventory(context))
+        if inspect_resource(context, kind, name)[0]
+    ]
+    if present:
+        raise ContractError(
+            "native Files volume transition requires an empty exact resource scope: "
+            + ", ".join(present)
+        )
+
+
+def _require_isolated_first_provision(context: ComposeContext) -> None:
+    if context.environment != "e2e" or context.isolated_namespace is None:
+        raise ContractError("native Files initial provision requires isolated E2E")
+    proof_value = os.environ.get("WEAVE_E2E_EMPTY_NAMESPACE_PROOF", "").strip()
+    if not proof_value:
+        raise ContractError("native Files initial provision requires an empty-namespace proof")
+    proof_path = Path(proof_value).expanduser().absolute()
+    if proof_path.is_symlink() or not proof_path.is_file():
+        raise ContractError("native Files empty-namespace proof is missing or unsafe")
+    try:
+        proof = json.loads(
+            _read_bounded_regular_file(
+                proof_path,
+                E2E_EMPTY_NAMESPACE_PROOF_MAX_BYTES,
+                "native Files empty-namespace proof",
+            )
+        )
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise ContractError("native Files empty-namespace proof is malformed") from error
+    expected_resources = {
+        (kind, name) for kind, name in resource_inventory(context)
+    }
+    observed_resources = proof.get("resources") if isinstance(proof, dict) else None
+    observed_coordinates = (
+        {
+            (resource.get("kind"), resource.get("name"))
+            for resource in observed_resources
+            if isinstance(resource, dict) and resource.get("absent") is True
+        }
+        if isinstance(observed_resources, list)
+        else set()
+    )
+    if (
+        not isinstance(proof, dict)
+        or proof.get("schemaVersion") != "weave.e2e-empty-namespace-proof/v1"
+        or proof.get("supportSafe") is not True
+        or proof.get("containsSecretValues") is not False
+        or proof.get("environment") != "e2e"
+        or proof.get("deploymentContext") != "disposable"
+        or proof.get("runId") != context.env["WEAVE_E2E_RUN_ID"]
+        or proof.get("namespace") != context.isolated_namespace
+        or proof.get("composeProject") != context.env["WEAVE_COMPOSE_PROJECT"]
+        or proof.get("candidateCommit") != context.env["WEAVE_CANDIDATE_COMMIT"]
+        or proof.get("candidateManifestDigest")
+        != context.env["WEAVE_CANDIDATE_MANIFEST_DIGEST"]
+        or proof.get("composeContainersAbsent") is not True
+        or proof.get("verifiedBeforeResourceCreation") is not True
+        or observed_coordinates != expected_resources
+        or len(observed_resources) != len(expected_resources)
+    ):
+        raise ContractError("native Files empty-namespace proof is stale or outside run scope")
+
+
+def _write_files_volume_transition_context(
+    context: ComposeContext,
+    value: dict[str, str],
+    *,
+    replace_existing: bool,
+) -> None:
+    path = _files_volume_transition_path(context)
+    parent = path.parent
+    if parent.is_symlink() or not parent.is_dir():
+        raise ContractError("native Files transition-context directory is unavailable")
+    existing = _read_files_volume_transition_context(path)
+    if existing is not None and not replace_existing:
+        if existing == value:
+            return
+        raise ContractError("native Files transition context belongs to another call path")
+    temporary = parent / f".{FILES_VOLUME_TRANSITION_CONTEXT_FILE}.{secrets.token_hex(8)}"
+    serialized = (
+        json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+        + "\n"
+    ).encode("utf-8")
+    if len(serialized) > FILES_VOLUME_TRANSITION_CONTEXT_MAX_BYTES:
+        raise ContractError("native Files transition context is oversized")
+    try:
+        descriptor = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0),
+            0o600,
+        )
+        with os.fdopen(descriptor, "wb", closefd=True) as output:
+            output.write(serialized)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, path)
+        _force_directory(parent)
+    finally:
+        if temporary.exists() or temporary.is_symlink():
+            temporary.unlink()
 
 
 def _collaboration_remaining(deadline: float) -> float:
@@ -1844,10 +2029,21 @@ def reset_dogfood(context: ComposeContext) -> None:
     ):
         _remove_exact_dogfood_resource("volume", context.env[key])
     _remove_exact_dogfood_resource("network", context.env["WEAVE_DOCKER_NETWORK"])
-    execute(context, "up", [])
+    execute(
+        context,
+        "up",
+        [],
+        files_volume_transition_kind="AUTHORIZED_RESET",
+    )
 
 
-def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
+def execute(
+    context: ComposeContext,
+    command: str,
+    extra: list[str],
+    *,
+    files_volume_transition_kind: str | None = None,
+) -> None:
     if command == "secrets-init":
         script(context, "init_secrets.py")
     elif command == "render":
@@ -1869,8 +2065,44 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
     elif command == "bootstrap-owner":
         owner_bootstrap(context, extra)
     elif command == "up":
+        transition_context = _read_files_volume_transition_context(
+            _files_volume_transition_path(context)
+        )
+        transition_payload: dict[str, str] | None = None
+        replace_transition_context = False
+        if files_volume_transition_kind == "AUTHORIZED_RESET":
+            if context.environment != "dogfood":
+                raise ContractError("authorized native Files reset is dogfood-only")
+            transition_payload = _files_volume_transition_payload(
+                context, files_volume_transition_kind
+            )
+            replace_transition_context = True
+            _require_transition_resources_absent(context)
+        elif files_volume_transition_kind is not None:
+            raise ContractError("unsupported native Files volume transition call path")
+        elif context.environment == "e2e":
+            _require_isolated_first_provision(context)
+            transition_payload = _files_volume_transition_payload(
+                context, "INITIAL_PROVISION"
+            )
+            if transition_context is None:
+                _require_transition_resources_absent(context)
+            elif transition_context != transition_payload:
+                raise ContractError(
+                    "native Files initial-provision context belongs to another run"
+                )
+        elif transition_context is not None:
+            raise ContractError(
+                "ordinary startup cannot consume or repair a native Files volume transition"
+            )
         script(context, "init_secrets.py")
         script(context, "render_config.py")
+        if transition_payload is not None:
+            _write_files_volume_transition_context(
+                context,
+                transition_payload,
+                replace_existing=replace_transition_context,
+            )
         prepare(context)
         if context.profile == "dev":
             # Explicitly targeting a Compose service activates its otherwise

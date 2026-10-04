@@ -3,8 +3,16 @@ package com.massimotter.weave.backend.config;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.JpaAuditEventPublisher;
 import com.massimotter.weave.backend.files.adapter.JpaFilesAuthorityRepository;
+import com.massimotter.weave.backend.files.adapter.FilesVolumeAuthorityJpaRepository;
 import com.massimotter.weave.backend.files.application.FilesLockService;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
+import com.massimotter.weave.backend.files.application.NativeFilesMutationRepository;
+import com.massimotter.weave.backend.files.application.NativeFilesScopeProvisioner;
+import com.massimotter.weave.backend.files.application.NativeFilesBindingScopeObserver;
+import com.massimotter.weave.backend.files.application.NativeFilesFinalizationAuthorization;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
+import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.identity.invitation.JpaProvisioningIntentRepository;
 import com.massimotter.weave.backend.operation.adapter.JpaOperationIntentRepository;
 import com.massimotter.weave.backend.operation.application.OperationIntentService;
@@ -16,6 +24,7 @@ import com.massimotter.weave.backend.persistence.jpa.provider.ProviderSelectionJ
 import com.massimotter.weave.backend.persistence.jpa.readiness.JpaPersistenceReadinessProbe;
 import com.massimotter.weave.backend.persistence.jpa.security.DeviceCredentialJpaRepository;
 import com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaRepository;
+import com.massimotter.weave.backend.schema.NativeFilesVolumeAuthorityReadiness;
 import com.massimotter.weave.backend.provider.JpaProviderSelectionRepository;
 import com.massimotter.weave.backend.providerbinding.adapter.JpaProviderBindingRepository;
 import com.massimotter.weave.backend.providerbinding.application.FilesProviderBindingBootstrap;
@@ -49,14 +58,27 @@ public class WeavePersistenceConfiguration {
   JpaPersistenceReadinessProbe jpaPersistenceReadinessProbe(
       EntityManagerFactory entityManagerFactory,
       SchemaAuthorityJpaRepository schemaAuthority,
+      FilesVolumeAuthorityJpaRepository filesVolumeAuthority,
+      WeaveNativeFilesProperties nativeFilesProperties,
       Environment environment) {
     Set<String> markerProfiles = Set.of("test", "dogfood", "prod", "e2e");
     boolean markerRequired =
         markerProfiles.contains(environment.getProperty("weave.deployment.profile", ""))
             || Arrays.stream(environment.getActiveProfiles()).anyMatch(markerProfiles::contains);
     String candidate = environment.getProperty("weave.candidate.commit", "");
+    String receiptFile = environment.getProperty("weave.schema-init.receipt-file", "");
+    NativeFilesVolumeAuthorityReadiness nativeFilesAuthority =
+        new NativeFilesVolumeAuthorityReadiness(
+            filesVolumeAuthority,
+            nativeFilesProperties.filesystemRoot(),
+            java.nio.file.Path.of(receiptFile),
+            candidate);
     return new JpaPersistenceReadinessProbe(
-        entityManagerFactory, schemaAuthority, markerRequired, candidate);
+        entityManagerFactory,
+        schemaAuthority,
+        markerRequired,
+        candidate,
+        nativeFilesAuthority::isReady);
   }
 
   @Bean
@@ -106,10 +128,24 @@ public class WeavePersistenceConfiguration {
   }
 
   @Bean
+  NativeFilesFinalizationAuthorization nativeFilesFinalizationAuthorization(
+      ContextAuthorizationPort authorization) {
+    return (intent, spaceRef) -> authorization.check(new ContextAuthorizationRequest(
+        intent.organizationRef(),
+        spaceRef,
+        intent.actor().personRef(),
+        ContextPermission.EDIT)).allowed();
+  }
+
+  @Bean
   FilesMutationIntentService filesMutationIntentService(
       OperationIntentService operationIntentService,
-      JpaProviderBindingRepository providerBindingRepository) {
-    return new FilesMutationIntentService(operationIntentService, providerBindingRepository);
+      JpaProviderBindingRepository providerBindingRepository,
+      NativeFilesMutationRepository nativeFilesMutationRepository) {
+    return new FilesMutationIntentService(
+        operationIntentService,
+        providerBindingRepository,
+        nativeFilesMutationRepository);
   }
 
   @Bean
@@ -118,9 +154,13 @@ public class WeavePersistenceConfiguration {
       havingValue = "true")
   FilesProviderBindingBootstrap filesProviderBindingBootstrap(
       JpaProviderBindingRepository providerBindingRepository,
-      ProviderBindingBootstrapProperties properties) {
+      ProviderBindingBootstrapProperties properties,
+      NativeFilesScopeProvisioner scopeProvisioner) {
     return new FilesProviderBindingBootstrap(
-        providerBindingRepository, properties, Clock.systemUTC());
+        providerBindingRepository,
+        properties,
+        Clock.systemUTC(),
+        new NativeFilesBindingScopeObserver(scopeProvisioner));
   }
 
 }

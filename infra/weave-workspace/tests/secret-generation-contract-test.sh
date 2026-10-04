@@ -21,6 +21,8 @@ sys.path.insert(0, str(root / "scripts"))
 
 import init_secrets  # noqa: E402
 
+assert "backend-migrator-db-password" in init_secrets.CORE_TEXT_SECRETS
+assert "backend-db-password" in init_secrets.CORE_TEXT_SECRETS
 assert set(init_secrets.CLI_ARGUMENT_SECRETS) == {
     "nextcloud-admin-password",
     "nextcloud-db-password",

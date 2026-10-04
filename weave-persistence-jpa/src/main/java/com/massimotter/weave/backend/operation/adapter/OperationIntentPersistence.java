@@ -19,6 +19,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
@@ -32,6 +33,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
 @Entity
@@ -326,6 +328,10 @@ interface OperationIntentJpaRepository
             String organizationRef,
             String idempotencyKey);
 
+    boolean existsByOrganizationRefAndDomain(
+            String organizationRef,
+            String domain);
+
     /**
      * Selects reconciliation work through portable JPQL and holds write locks
      * until the surrounding lease transaction commits.
@@ -385,6 +391,21 @@ class OperationOutboxJpaEntity {
     @Column(name = "next_attempt_at_utc")
     private OffsetDateTime nextAttemptAt;
 
+    @Column(name = "available_at_utc")
+    private OffsetDateTime availableAt;
+
+    @Column(name = "lease_token", length = 255)
+    private String leaseToken;
+
+    @Column(name = "lease_owner", length = 255)
+    private String leaseOwner;
+
+    @Column(name = "lease_until_utc")
+    private OffsetDateTime leaseUntil;
+
+    @Column(name = "last_diagnostic_code", length = 120)
+    private String lastDiagnosticCode;
+
     @Column(name = "created_at_utc", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -407,12 +428,206 @@ class OperationOutboxJpaEntity {
         entity.deliveryState = "PENDING";
         entity.attemptCount = 0;
         entity.createdAt = OperationPersistenceTime.utc(event.createdAt());
+        entity.availableAt = entity.createdAt;
         return entity;
     }
+
+    void lease(
+            Instant requiredLeaseUntil,
+            String requiredLeaseToken,
+            String requiredLeaseOwner,
+            int maximumAttempts) {
+        if ("DELIVERED".equals(deliveryState) || "FAILED".equals(deliveryState)) {
+            throw new IllegalStateException("terminal operation outbox work cannot be leased");
+        }
+        OffsetDateTime persistedLeaseUntil = OperationPersistenceTime.utc(requiredLeaseUntil);
+        if (persistedLeaseUntil == null) {
+            throw new IllegalArgumentException("outbox leaseUntil must not be null");
+        }
+        boolean terminalSettlementRecovery = "DELIVERING".equals(deliveryState)
+                && attemptCount == maximumAttempts;
+        if (attemptCount > maximumAttempts
+                || ("PENDING".equals(deliveryState)
+                        && attemptCount >= maximumAttempts)) {
+            throw new IllegalStateException(
+                    "operation outbox attempt bound is exhausted");
+        }
+        deliveryState = "DELIVERING";
+        if (!terminalSettlementRecovery) {
+            attemptCount = Math.addExact(attemptCount, 1);
+        }
+        availableAt = persistedLeaseUntil;
+        leaseToken = requiredLeaseValue(requiredLeaseToken, "leaseToken");
+        leaseOwner = requiredLeaseValue(requiredLeaseOwner, "leaseOwner");
+        leaseUntil = persistedLeaseUntil;
+        nextAttemptAt = null;
+        deliveredAt = null;
+    }
+
+    boolean eligibleForCleanupLease(Instant now, int maximumAttempts) {
+        OffsetDateTime requiredNow = OperationPersistenceTime.utc(now);
+        if (deliveredAt != null || attemptCount > maximumAttempts) {
+            return false;
+        }
+        if ("PENDING".equals(deliveryState)) {
+            return attemptCount < maximumAttempts
+                    && availableAt != null
+                    && !availableAt.isAfter(requiredNow)
+                    && leaseToken == null
+                    && leaseOwner == null
+                    && leaseUntil == null;
+        }
+        return "DELIVERING".equals(deliveryState)
+                && availableAt != null
+                && !availableAt.isAfter(requiredNow)
+                && leaseToken != null
+                && leaseOwner != null
+                && leaseUntil != null
+                && !leaseUntil.isAfter(requiredNow);
+    }
+
+    boolean ownsLease(
+            String expectedOutboxRef,
+            String expectedOperationRef,
+            String expectedEventType,
+            int expectedAttemptCount,
+            String expectedLeaseToken,
+            String expectedLeaseOwner,
+            Instant expectedLeaseUntil) {
+        return "DELIVERING".equals(deliveryState)
+                && outboxRef.equals(expectedOutboxRef)
+                && operationRef.equals(expectedOperationRef)
+                && eventType.equals(expectedEventType)
+                && attemptCount == expectedAttemptCount
+                && leaseToken != null
+                && leaseToken.equals(expectedLeaseToken)
+                && leaseOwner != null
+                && leaseOwner.equals(expectedLeaseOwner)
+                && leaseUntil != null
+                && leaseUntil.equals(OperationPersistenceTime.utc(expectedLeaseUntil));
+    }
+
+    boolean leaseActiveAt(Instant instant) {
+        OffsetDateTime requiredInstant = OperationPersistenceTime.utc(instant);
+        return leaseUntil != null
+                && requiredInstant != null
+                && leaseUntil.isAfter(requiredInstant);
+    }
+
+    void delivered(Instant now) {
+        deliveryState = "DELIVERED";
+        availableAt = null;
+        clearLease();
+        lastDiagnosticCode = null;
+        nextAttemptAt = null;
+        deliveredAt = OperationPersistenceTime.utc(now);
+    }
+
+    void retryAt(Instant retryAt, String diagnosticCode) {
+        deliveryState = "PENDING";
+        availableAt = OperationPersistenceTime.utc(retryAt);
+        if (availableAt == null) {
+            throw new IllegalArgumentException("outbox availableAt must not be null");
+        }
+        clearLease();
+        lastDiagnosticCode = diagnosticCode(diagnosticCode);
+        nextAttemptAt = null;
+        deliveredAt = null;
+    }
+
+    void failClosed(String diagnosticCode) {
+        deliveryState = "FAILED";
+        availableAt = null;
+        clearLease();
+        lastDiagnosticCode = diagnosticCode(diagnosticCode);
+        nextAttemptAt = null;
+        deliveredAt = null;
+    }
+
+    private void clearLease() {
+        leaseToken = null;
+        leaseOwner = null;
+        leaseUntil = null;
+    }
+
+    private static String requiredLeaseValue(String value, String field) {
+        if (value == null || value.isBlank() || value.length() > 255) {
+            throw new IllegalArgumentException("outbox " + field + " is invalid");
+        }
+        return value;
+    }
+
+    private static String diagnosticCode(String value) {
+        if (value == null || !value.matches("[a-z0-9][a-z0-9._-]{0,119}")) {
+            throw new IllegalArgumentException("outbox diagnosticCode is invalid");
+        }
+        return value;
+    }
+
+    Long sequenceId() { return sequenceId; }
+    String outboxRef() { return outboxRef; }
+    String operationRef() { return operationRef; }
+    String eventType() { return eventType; }
+    String deliveryState() { return deliveryState; }
+    int attemptCount() { return attemptCount; }
+    Instant availableAt() { return OperationPersistenceTime.instant(availableAt); }
+    String leaseToken() { return leaseToken; }
+    String leaseOwner() { return leaseOwner; }
+    Instant leaseUntil() { return OperationPersistenceTime.instant(leaseUntil); }
+    String lastDiagnosticCode() { return lastDiagnosticCode; }
+    Instant deliveredAt() { return OperationPersistenceTime.instant(deliveredAt); }
 }
 
 interface OperationOutboxJpaRepository
         extends JpaRepository<OperationOutboxJpaEntity, Long> {
+    List<OperationOutboxJpaEntity> findByOperationRefOrderBySequenceId(String operationRef);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "1000"))
+    @Query("""
+            select outbox
+            from OperationOutboxJpaEntity outbox,
+                 OperationIntentJpaEntity intent,
+                 FilesMutationPlanJpaEntity plan
+            where plan.operationRef = outbox.operationRef
+              and intent.operationRef = outbox.operationRef
+              and plan.planState = 'SEALED'
+              and intent.domain = 'files'
+              and outbox.outboxRef = intent.initialOutboxRef
+              and ((outbox.eventType = 'operation.denied'
+                    and intent.state = 'DENIED')
+                   or (outbox.eventType = 'operation.failed'
+                    and intent.state = 'FAILED'))
+              and outbox.deliveredAt is null
+              and outbox.availableAt is not null
+              and outbox.availableAt <= :now
+              and ((outbox.deliveryState = 'PENDING'
+                    and outbox.attemptCount < :maximumAttempts
+                    and outbox.leaseToken is null
+                    and outbox.leaseOwner is null
+                    and outbox.leaseUntil is null)
+                   or (outbox.deliveryState = 'DELIVERING'
+                    and outbox.attemptCount <= :maximumAttempts
+                    and outbox.leaseToken is not null
+                    and outbox.leaseOwner is not null
+                    and outbox.leaseUntil <= :now))
+            order by outbox.availableAt, outbox.sequenceId
+            """)
+    List<OperationOutboxJpaEntity> lockNativeFilesCleanupCandidates(
+            @Param("now") OffsetDateTime now,
+            @Param("maximumAttempts") int maximumAttempts,
+            Pageable pageable);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select outbox
+            from OperationOutboxJpaEntity outbox
+            where outbox.sequenceId = :sequenceId
+              and outbox.outboxRef = :outboxRef
+            """)
+    Optional<OperationOutboxJpaEntity> lockBySequenceIdAndOutboxRef(
+            @Param("sequenceId") long sequenceId,
+            @Param("outboxRef") String outboxRef);
 }
 
 final class OperationPersistenceTime {

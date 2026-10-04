@@ -7,13 +7,35 @@ Weave applies backend-owned PostgreSQL schema changes with Flyway before the bac
 The deployment contract is:
 
 ```text
-postgres provision/reconcile
-    -> schema-init
+postgres provision/reconcile + native Files volume initialization
+    -> schema-init (relational history + Files volume row/marker authority)
         -> schema-receipt-check
             -> backend (Hibernate validate)
 ```
 
 `schema-init` is a one-shot process. A failed migration blocks the backend instead of allowing Hibernate to repair the database implicitly.
+
+Only the PostgreSQL role-reconciliation one-shot and `schema-init` receive the private
+`backend-migrator-db-password` SecretRef: reconciliation creates or rotates the role, and
+`schema-init` connects as that configurable migrator, which owns the backend database, schema,
+Flyway history, and migration objects. No long-running service receives that credential. The
+long-running backend receives only `backend-db-password` and connects as a non-owner serving role.
+A post-Flyway reconciliation grants bounded application DML and sequence use while leaving Flyway
+history, schema authority, and Files volume authority read-only. Missing, shared, or
+over-privileged role configuration blocks initialization.
+
+The V7 transition additionally requires the private native Files blob root to be empty before V7
+is first applied. V7 creates the authority table but never infers a generation from that empty
+path. Only the existing isolated first-provision path or the same exact dogfood reset invocation
+that recreated its session volumes writes a private one-shot transition context. While holding the
+schema acceptance lock, `schema-init` validates empty relational/physical Files state, mints the
+row and immutable marker, and emits schema receipt v6 binding their digests. Routine `up`, normal
+initialization and serving cannot create or repair the pair.
+
+The one-shot transition context and schema receipt use bounded reads, private permissions,
+exclusive temporary files, atomic replacement, and file/directory durability barriers. This keeps
+the accepted call resumable across a host crash between relational-row and root-marker publication
+without turning retained evidence into a reusable reset capability.
 
 ## Migration files
 

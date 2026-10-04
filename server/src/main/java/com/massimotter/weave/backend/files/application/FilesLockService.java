@@ -35,7 +35,7 @@ public final class FilesLockService {
         FileLockRecord stored;
         try {
             stored = repository.acquireLock(new FileLockRecord(
-                    organizationRef, spaceRef, path, digest(token), ownerRef, 1, now.plus(bounded), now), now);
+                    organizationRef, spaceRef, path, tokenDigest(token), ownerRef, 1, now.plus(bounded), now), now);
         } catch (LockConflictException exception) {
             throw new FileLockedException(path);
         }
@@ -51,7 +51,7 @@ public final class FilesLockService {
             if (presentedToken == null
                     || !MessageDigest.isEqual(
                             lock.tokenDigest().getBytes(StandardCharsets.US_ASCII),
-                            digest(presentedToken).getBytes(StandardCharsets.US_ASCII))
+                            tokenDigest(presentedToken).getBytes(StandardCharsets.US_ASCII))
                     || !lock.ownerRef().equals(actorRef)) {
                 throw new FileLockedException(path);
             }
@@ -73,7 +73,7 @@ public final class FilesLockService {
         }
         try {
             repository.releaseLock(
-                    organizationRef, spaceRef, path, digest(presentedToken), actorRef, Instant.now(clock));
+                    organizationRef, spaceRef, path, tokenDigest(presentedToken), actorRef, Instant.now(clock));
         } catch (LockConflictException exception) {
             throw new FileLockedException(path);
         }
@@ -90,7 +90,7 @@ public final class FilesLockService {
         if (presentedToken == null
                 || !MessageDigest.isEqual(
                         active.tokenDigest().getBytes(StandardCharsets.US_ASCII),
-                        digest(presentedToken).getBytes(StandardCharsets.US_ASCII))
+                        tokenDigest(presentedToken).getBytes(StandardCharsets.US_ASCII))
                 || !active.ownerRef().equals(actorRef)) {
             throw new FileLockedException(path);
         }
@@ -116,14 +116,17 @@ public final class FilesLockService {
         }
         try {
             repository.moveLock(
-                    organizationRef, spaceRef, source, destination, digest(presentedToken), actorRef,
+                    organizationRef, spaceRef, source, destination, tokenDigest(presentedToken), actorRef,
                     Instant.now(clock));
         } catch (LockConflictException exception) {
             throw new FileLockedException(source);
         }
     }
 
-    private String digest(String token) {
+    public String tokenDigest(String token) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("lock token must not be blank");
+        }
         try {
             return "sha256:" + HexFormat.of().formatHex(
                     MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
