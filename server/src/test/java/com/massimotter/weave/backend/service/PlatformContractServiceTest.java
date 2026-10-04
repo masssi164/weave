@@ -23,7 +23,7 @@ class PlatformContractServiceTest {
         var config = service.config();
         var status = service.status("e2ee-ready-test");
 
-        assertThat(config.protocols().matrixClientServerBaseUrl()).isEqualTo("https://api.weave.test");
+        assertThat(config.protocols().matrixClientServerBaseUrl()).isEqualTo("https://matrix.weave.test");
         assertThat(status.matrix().e2eeEnabled()).isTrue();
         assertThat(status.matrix().e2ee().status()).isEqualTo("validated");
         assertThat(status.matrix().e2ee().source()).isEqualTo("matrix-smoke-e2e");
@@ -72,7 +72,7 @@ class PlatformContractServiceTest {
     }
 
     @Test
-    void exposesWeaveOwnedProtocolFacadesWithoutSouthboundProviderUrls() {
+    void exposesOnlyNativeMatrixProtocolWithoutPublicDavUrls() {
         PlatformContractService service = service(
                 new MatrixChatProperties(false, null, null),
                 true,
@@ -89,14 +89,15 @@ class PlatformContractServiceTest {
         var config = service.config();
         var status = service.status("nextcloud-route-test");
 
-        assertThat(config.protocols().filesWebDavBaseUrl()).isEqualTo("https://api.weave.test/dav/files");
-        assertThat(config.protocols().calendarCalDavBaseUrl()).isEqualTo("https://api.weave.test/caldav");
+        assertThat(config.schemaVersion()).isEqualTo(2);
+        assertThat(config.userApiBaseUrl()).isEqualTo("https://api.weave.test/api");
+        assertThat(config.protocols().matrixClientServerBaseUrl()).isEqualTo("https://matrix.weave.test");
         assertThat(status.nextcloud().readiness()).isEqualTo("ready");
         assertThat(status.nextcloud().message()).contains("Nextcloud");
     }
 
     @Test
-    void respectsConfiguredMatrixFacadeUrlAndNormalizesDefaultProjectionUrl() {
+    void respectsConfiguredMatrixHomeserverAndUsesSeparateDefaultHost() {
         PlatformContractService configured = service(
                 new MatrixChatProperties(false, null, null),
                 true,
@@ -125,7 +126,7 @@ class PlatformContractServiceTest {
         assertThat(configured.config().protocols().matrixClientServerBaseUrl())
                 .isEqualTo("https://chat.weave.test");
         assertThat(derived.config().protocols().matrixClientServerBaseUrl())
-                .isEqualTo("https://api.weave.test");
+                .isEqualTo("https://matrix.weave.test");
     }
 
     private PlatformContractService service(MatrixChatProperties matrixProperties, boolean chatEnabled) {
