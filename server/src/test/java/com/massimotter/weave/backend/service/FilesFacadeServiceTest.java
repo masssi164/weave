@@ -32,12 +32,15 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
+import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
+import com.massimotter.weave.backend.service.files.FilesProviderResolver;
 import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import com.massimotter.weave.backend.service.files.WebDavSearchRequest;
@@ -46,7 +49,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -55,7 +57,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -90,7 +91,7 @@ class FilesFacadeServiceTest {
     @Test
     void failsClosedWhenAdapterIsMissingOrUnconfigured() {
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
-        FilesFacadeService missing = service(null);
+        FilesFacadeService missing = service((FilesProviderPort) null);
         FilesFacadeService unconfigured = service(new StubAdapter(false));
 
         assertThatThrownBy(() -> missing.list("/"))
@@ -119,6 +120,56 @@ class FilesFacadeServiceTest {
 
         assertThat(response.path()).isEqualTo("/Team");
         assertThat(response.items()).extracting(FileItemResponse::name).containsExactly("readme.md");
+    }
+
+    @Test
+    void configuredAdapterWithoutExplicitBindingIsNotAFileRoute() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        FilesFacadeService service = service(new FilesProviderResolver(
+                mock(ProviderBindingRepository.class), List.of(new StubAdapter(true))));
+
+        assertThatThrownBy(() -> service.list("/Team"))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(exception.code()).isEqualTo("files-storage-not-configured");
+                });
+    }
+
+    @Test
+    void searchKeepsOneProviderWhenBindingChangesDuringTraversal() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        ProviderBinding first = binding("tenant-default", 1, "first");
+        ProviderBinding second = binding("tenant-default", 2, "second");
+        AtomicReference<ProviderBinding> active = new AtomicReference<>(first);
+        ProviderBindingRepository bindings = mock(ProviderBindingRepository.class);
+        when(bindings.current("tenant-default", "files"))
+                .thenAnswer(ignored -> Optional.of(active.get()));
+        StubAdapter firstAdapter = new StubAdapter(true, "first") {
+            @Override
+            public VersionedListing list(FilePath path) {
+                if ("/".equals(path.value())) {
+                    active.set(second);
+                    FileObject team = new FileObject(new FileId("files:/Team"), new FilePath("/Team"),
+                            Kind.COLLECTION, 0, null, null, false);
+                    return new VersionedListing(
+                            new FileListing(path, List.of(team), FileQuota.unknown()),
+                            FileVersion.unknown(), Map.of());
+                }
+                return super.list(path);
+            }
+        };
+        StubAdapter secondAdapter = new StubAdapter(true, "second");
+        FilesFacadeService service = service(new FilesProviderResolver(
+                bindings, List.of(firstAdapter, secondAdapter)));
+
+        var result = service.webDavSearch(new WebDavSearchRequest(
+                "/", "readme", 25, WebDavSearchRequest.MatchField.DISPLAY_NAME_OR_PATH));
+
+        assertThat(result.resources()).hasSize(1);
+        assertThat(firstAdapter.listWithVersionTokenCalls).isEqualTo(1);
+        assertThat(secondAdapter.listWithVersionTokenCalls).isZero();
+        assertThat(service.list("/Team").items()).hasSize(1);
+        assertThat(secondAdapter.listWithVersionTokenCalls).isEqualTo(1);
     }
 
     @Test
@@ -204,7 +255,7 @@ class FilesFacadeServiceTest {
         InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
         AtomicReference<ContextAuthorizationRequest> contextRequest = new AtomicReference<>();
         FilesFacadeService service = new FilesFacadeService(
-                provider(new StubAdapter(true)),
+                resolver(new StubAdapter(true)),
                 request -> {
                     contextRequest.set(request);
                     return ContextAuthorizationDecision.allow("active member binding");
@@ -762,8 +813,21 @@ class FilesFacadeServiceTest {
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
             InMemoryAuditEventPublisher auditEventPublisher) {
+        return service(resolver(adapter), contextAuthorizationPort, contextAuthorizationProperties, auditEventPublisher);
+    }
+
+    private FilesFacadeService service(FilesProviderResolver resolver) {
+        return service(resolver, request -> ContextAuthorizationDecision.allow("test allow"),
+                defaultContextAuthorizationProperties(), new InMemoryAuditEventPublisher());
+    }
+
+    private FilesFacadeService service(
+            FilesProviderResolver resolver,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            InMemoryAuditEventPublisher auditEventPublisher) {
         return new FilesFacadeService(
-                provider(adapter),
+                resolver,
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 workspaceCapabilityService(),
@@ -812,38 +876,24 @@ class FilesFacadeServiceTest {
     static class ContextAuthorizationTestConfiguration {
     }
 
-    private ObjectProvider<FilesProviderPort> provider(FilesProviderPort adapter) {
-        return new ObjectProvider<>() {
-            @Override
-            public FilesProviderPort getObject(Object... args) {
-                return adapter;
-            }
+    private FilesProviderResolver resolver(FilesProviderPort adapter) {
+        ProviderBindingRepository bindings = mock(ProviderBindingRepository.class);
+        if (adapter != null) {
+            when(bindings.current("tenant-default", "files"))
+                    .thenReturn(Optional.of(binding("tenant-default", 1, adapter.conformanceProfile().adapterKey())));
+        }
+        return new FilesProviderResolver(bindings, adapter == null ? List.of() : List.of(adapter));
+    }
 
-            @Override
-            public FilesProviderPort getIfAvailable() {
-                return adapter;
-            }
-
-            @Override
-            public FilesProviderPort getIfUnique() {
-                return adapter;
-            }
-
-            @Override
-            public FilesProviderPort getObject() {
-                return adapter;
-            }
-
-            @Override
-            public Iterator<FilesProviderPort> iterator() {
-                return adapter == null ? List.<FilesProviderPort>of().iterator() : List.of(adapter).iterator();
-            }
-        };
+    private ProviderBinding binding(String organizationRef, long revision, String adapterKey) {
+        return new ProviderBinding(organizationRef, "files", revision, adapterKey,
+                "test:files", ProviderBinding.State.ACTIVE, Instant.parse("2026-10-04T00:00:00Z"));
     }
 
     private static class StubAdapter implements FilesProviderPort {
 
         private final boolean configured;
+        private final String adapterKey;
         private final Map<String, byte[]> contentByPath = new HashMap<>(Map.of(
                 "/Team/readme.md", "aaaaaaaaaaaa".getBytes(StandardCharsets.UTF_8)));
         private final Set<String> collections = new java.util.HashSet<>(Set.of("/", "/Team"));
@@ -857,7 +907,12 @@ class FilesFacadeServiceTest {
         private int versionTokenCalls;
 
         private StubAdapter(boolean configured) {
+            this(configured, "test-memory");
+        }
+
+        private StubAdapter(boolean configured, String adapterKey) {
             this.configured = configured;
+            this.adapterKey = adapterKey;
         }
 
         @Override
@@ -876,7 +931,7 @@ class FilesFacadeServiceTest {
         public ProviderConformanceProfile conformanceProfile() {
             return new ProviderConformanceProfile(
                     "files",
-                    "test-memory",
+                    adapterKey,
                     Set.of("list", "read", "write", "create-collection", "delete"),
                     Map.of(),
                     true,
