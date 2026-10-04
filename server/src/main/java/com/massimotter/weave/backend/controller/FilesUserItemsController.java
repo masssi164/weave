@@ -190,15 +190,20 @@ public class FilesUserItemsController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exact content bytes with strong content ETag and SHA-256 digest.",
                     headers = {
-                            @Header(name = HttpHeaders.ETAG, description = "Strong SHA-256 content validator."),
-                            @Header(name = "Content-Digest", description = "RFC 9530 SHA-256 digest of the returned bytes."),
-                            @Header(name = HttpHeaders.CONTENT_LENGTH, description = "Exact returned byte count."),
-                            @Header(name = HttpHeaders.CONTENT_TYPE, description = "Returned binary media type.")
+                            @Header(name = HttpHeaders.ETAG, description = "Strong SHA-256 content validator.",
+                                    schema = @Schema(type = "string")),
+                            @Header(name = "Content-Digest", description = "RFC 9530 SHA-256 digest of the returned bytes.",
+                                    schema = @Schema(type = "string")),
+                            @Header(name = HttpHeaders.CONTENT_LENGTH, description = "Exact returned byte count.",
+                                    schema = @Schema(type = "integer", format = "int64")),
+                            @Header(name = HttpHeaders.CONTENT_TYPE, description = "Returned binary media type.",
+                                    schema = @Schema(type = "string"))
                     },
                     content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE,
                             schema = @Schema(type = "string", format = "binary"))),
             @ApiResponse(responseCode = "304", description = "Strong content ETag matches If-None-Match.",
-                    headers = @Header(name = HttpHeaders.ETAG, description = "Matching strong content validator."),
+                    headers = @Header(name = HttpHeaders.ETAG, description = "Matching strong content validator.",
+                            schema = @Schema(type = "string")),
                     content = @Content(schema = @Schema(hidden = true))),
             @ApiResponse(responseCode = "412", description = "Provider content changed during conditional download.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,

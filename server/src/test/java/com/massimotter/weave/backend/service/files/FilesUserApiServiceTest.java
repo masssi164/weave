@@ -145,6 +145,28 @@ class FilesUserApiServiceTest {
     }
 
     @Test
+    void observedPathReplacementDuringDownloadFailsClosed() {
+        FilesUserResource owned = file("alice", 4);
+        when(resources.find("org-a", owned.fileId())).thenReturn(Optional.of(owned));
+        when(bindings.mappingByCanonicalId("org-a", "files", 4, owned.fileId()))
+                .thenReturn(Optional.of(mapping(owned)));
+        FileObject object = new FileObject(new FileId("files:/x.bin"), new FilePath("/x.bin"), Kind.FILE,
+                4, "application/octet-stream", Instant.parse("2026-01-01T00:00:00Z"), false);
+        when(provider.find(new FilePath("/x.bin"))).thenReturn(Optional.of(
+                new VersionedFile(object, new FileVersion("\"provider-v1\""))));
+        when(provider.providerObjectRef(new FilePath("/x.bin")))
+                .thenReturn(Optional.of("nextcloud-fileid:42"), Optional.of("nextcloud-fileid:99"));
+        when(provider.readBoundedIfVersion(object.id(), FilesUserApiService.MAX_DOWNLOAD_BYTES,
+                new FileVersion("\"provider-v1\""))).thenReturn(new FileContent(object, new byte[] {1, 2, 3, 4}));
+
+        assertThatThrownBy(() -> service.download(jwt("org-a", "alice"), owned.fileId()))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.code()).isEqualTo("files-mapping-stale"));
+        verify(provider).readBoundedIfVersion(object.id(), FilesUserApiService.MAX_DOWNLOAD_BYTES,
+                new FileVersion("\"provider-v1\""));
+    }
+
+    @Test
     void providerFailureDoesNotExposePrivatePathOrActorInUserError() {
         FilesUserResource owned = file("alice", 4);
         when(resources.find("org-a", owned.fileId())).thenReturn(Optional.of(owned));
