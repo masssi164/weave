@@ -13,6 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /** Coordinates durable intent transitions; provider I/O belongs between these short transactional calls. */
@@ -31,6 +32,10 @@ public final class OperationIntentService {
         return repository.findByIdempotencyKey(command.organizationRef(), command.idempotencyKey())
                 .map(existing -> equivalentRetry(existing, command))
                 .orElseGet(() -> create(command));
+    }
+
+    public Optional<OperationIntent> findByIdempotencyKey(String organizationRef, String idempotencyKey) {
+        return repository.findByIdempotencyKey(organizationRef, idempotencyKey);
     }
 
     public OperationIntent markDispatching(OperationIntent current) {

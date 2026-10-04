@@ -39,8 +39,10 @@ class FilesProviderResolverTest {
         ArgumentCaptor<FilesRequestScope> nativeScope = ArgumentCaptor.forClass(FilesRequestScope.class);
         verify(nextcloud).scoped(nextcloudScope.capture());
         verify(nativeFiles).scoped(nativeScope.capture());
-        assertThat(nextcloudScope.getValue()).isEqualTo(new FilesRequestScope("org-a", "workspace-default", 3));
-        assertThat(nativeScope.getValue()).isEqualTo(new FilesRequestScope("org-b", "workspace-default", 7));
+        assertThat(nextcloudScope.getValue())
+                .isEqualTo(new FilesRequestScope("org-a", "workspace-default", 3, "test:files"));
+        assertThat(nativeScope.getValue())
+                .isEqualTo(new FilesRequestScope("org-b", "workspace-default", 7, "test:files"));
     }
 
     @Test
@@ -72,6 +74,7 @@ class FilesProviderResolverTest {
     void stalePinnedMutationDoesNotDispatchToEitherProvider() {
         ProviderBindingRepository bindings = mock(ProviderBindingRepository.class);
         ProviderBinding pinned = binding("org-a", 1, "nextcloud-webdav");
+        when(bindings.revision("org-a", "files", 1)).thenReturn(Optional.of(pinned));
         when(bindings.current("org-a", "files"))
                 .thenReturn(Optional.of(binding("org-a", 2, "weave-native")));
         FilesProviderPort nextcloud = adapter("nextcloud-webdav", true);
@@ -82,11 +85,29 @@ class FilesProviderResolverTest {
                 .isInstanceOf(FilesProviderResolver.StaleBindingException.class);
         assertThatThrownBy(() -> resolver.pinned(binding("org-b", 2, "weave-native"),
                 "org-a", "workspace-default"))
-                .isInstanceOf(FilesProviderResolver.StaleBindingException.class);
+                .isInstanceOf(FilesProviderResolver.ProviderUnavailableException.class);
         org.mockito.Mockito.verify(nextcloud, org.mockito.Mockito.never())
                 .scoped(org.mockito.ArgumentMatchers.any());
         org.mockito.Mockito.verify(nativeFiles, org.mockito.Mockito.never())
                 .scoped(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void retiredBindingIsAvailableOnlyForAnExistingReconciliation() {
+        ProviderBindingRepository bindings = mock(ProviderBindingRepository.class);
+        ProviderBinding retired = new ProviderBinding("org-a", "files", 1, "nextcloud-webdav",
+                "test:files", State.RETIRED, Instant.parse("2026-10-04T00:00:00Z"));
+        when(bindings.revision("org-a", "files", 1)).thenReturn(Optional.of(retired));
+        when(bindings.current("org-a", "files"))
+                .thenReturn(Optional.of(binding("org-a", 2, "weave-native")));
+        FilesProviderPort source = adapter("nextcloud-webdav", true);
+        FilesProviderResolver resolver = new FilesProviderResolver(bindings, List.of(source));
+
+        assertThatThrownBy(() -> resolver.pinned(retired, "org-a", "workspace-default"))
+                .isInstanceOf(FilesProviderResolver.StaleBindingException.class);
+        assertThat(resolver.pinned(retired, "org-a", "workspace-default", true)).isSameAs(source);
+        assertThatThrownBy(() -> resolver.current("org-a", "workspace-default"))
+                .isInstanceOf(FilesProviderResolver.ProviderUnavailableException.class);
     }
 
     private ProviderBinding binding(String organizationRef, long revision, String adapterKey) {

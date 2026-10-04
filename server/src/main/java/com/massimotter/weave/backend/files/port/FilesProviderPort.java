@@ -57,13 +57,19 @@ public interface FilesProviderPort {
 
     void delete(FilePath path, FileVersion expectedVersion);
 
-    record FilesRequestScope(String organizationRef, String spaceRef, long providerBindingRevision) {
+    record FilesRequestScope(
+            String organizationRef, String spaceRef, long providerBindingRevision, String configurationRef) {
+        public FilesRequestScope(String organizationRef, String spaceRef, long providerBindingRevision) {
+            this(organizationRef, spaceRef, providerBindingRevision, null);
+        }
+
         public FilesRequestScope {
             organizationRef = required(organizationRef, "organizationRef");
             spaceRef = required(spaceRef, "spaceRef");
             if (providerBindingRevision < 1) {
                 throw new IllegalArgumentException("providerBindingRevision must be positive");
             }
+            configurationRef = configurationRef == null ? null : required(configurationRef, "configurationRef");
         }
 
         private static String required(String value, String field) {

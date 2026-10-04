@@ -1,6 +1,5 @@
 package com.massimotter.weave.backend.service.files;
 
-import com.massimotter.weave.backend.config.FilesRuntimeProperties;
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.files.application.CanonicalFilesCommands;
@@ -32,7 +31,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -46,10 +45,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Primary
-@ConditionalOnProperty(
-        name = "weave.files.provider",
-        havingValue = FilesRuntimeProperties.WEAVE_NATIVE,
-        matchIfMissing = true)
+@ConditionalOnExpression("'${weave.files.provider:weave-native}' != 'weave-s3-minio'")
 public final class WeaveNativeFilesAdapter implements FilesProviderPort {
 
     public static final String ADAPTER_KEY = "weave-native";

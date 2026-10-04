@@ -1076,9 +1076,9 @@ public class FilesFacadeService {
     }
 
     private FilesProviderPort configuredAdapter(
-            String operation, PrincipalContext principal, ProviderBinding binding) {
+            String operation, PrincipalContext principal, ProviderBinding binding, boolean allowRetired) {
         try {
-            return filesProviderResolver.pinned(binding, principal.tenantId(), DEFAULT_CONTEXT_ID);
+            return filesProviderResolver.pinned(binding, principal.tenantId(), DEFAULT_CONTEXT_ID, allowRetired);
         } catch (FilesProviderResolver.StaleBindingException exception) {
             throw new ApiErrorException(
                     HttpStatus.CONFLICT,
@@ -1130,7 +1130,10 @@ public class FilesFacadeService {
         }
         FilesProviderPort adapter;
         try {
-            adapter = configuredAdapter(operation, principal, mutation.binding());
+            adapter = configuredAdapter(operation, principal, mutation.binding(),
+                    mutation.retry()
+                            && mutation.intent().state()
+                            != com.massimotter.weave.backend.operation.domain.OperationIntent.State.CREATED);
             if (mutation.retry()) {
                 mutation = prepareRetry(mutation, operation);
                 T reconciled = reconcile.execute(adapter);

@@ -40,14 +40,27 @@ public final class FilesProviderResolver {
     }
 
     public FilesProviderPort pinned(ProviderBinding binding, String organizationRef, String spaceRef) {
+        return pinned(binding, organizationRef, spaceRef, false);
+    }
+
+    public FilesProviderPort pinned(
+            ProviderBinding binding, String organizationRef, String spaceRef, boolean allowRetired) {
         Objects.requireNonNull(binding, "binding must not be null");
+        ProviderBinding stored = bindings.revision(organizationRef, DOMAIN, binding.revision())
+                .orElseThrow(ProviderUnavailableException::new);
+        if (!stored.equals(binding) || stored.state() == State.REVOKED) {
+            throw new StaleBindingException();
+        }
+        if (stored.state() == State.RETIRED && allowRetired) {
+            return scoped(stored, organizationRef, spaceRef);
+        }
         ProviderBinding current = bindings.current(organizationRef, DOMAIN)
                 .filter(candidate -> candidate.state() == State.ACTIVE)
                 .orElseThrow(ProviderUnavailableException::new);
-        if (!current.equals(binding)) {
+        if (!current.equals(stored)) {
             throw new StaleBindingException();
         }
-        return scoped(current, organizationRef, spaceRef);
+        return scoped(stored, organizationRef, spaceRef);
     }
 
     private FilesProviderPort scoped(ProviderBinding binding, String organizationRef, String spaceRef) {
@@ -58,7 +71,8 @@ public final class FilesProviderResolver {
         if (adapter == null || !adapter.configured()) {
             throw new ProviderUnavailableException();
         }
-        return adapter.scoped(new FilesRequestScope(organizationRef, spaceRef, binding.revision()));
+        return adapter.scoped(new FilesRequestScope(
+                organizationRef, spaceRef, binding.revision(), binding.configurationRef()));
     }
 
     public static final class ProviderUnavailableException extends RuntimeException {}
