@@ -690,8 +690,8 @@
           "path": "e2e/README.md",
           "fragments": [
             "provider-neutral",
-            "The Server independently enforces User/Admin",
-            "DAV is southbound inside providers"
+            "Server authorization still enforces User/Admin",
+            "DAV remains private inside"
           ]
         },
         {
@@ -759,7 +759,7 @@
         {
           "path": "e2e/README.md",
           "fragments": [
-            "organization, and resource authorization",
+            "organization, Space, member, and resource boundaries",
             "MCP has no provider or IAM"
           ]
         }
@@ -778,15 +778,15 @@
         {
           "path": "docs/specification-source-of-truth.md",
           "fragments": [
-            "northbound DAV/Matrix-facade, Runner, and Calls plans"
+            "Weave's Matrix Client-Server facade is the accepted Chat northbound protocol boundary"
           ]
         },
         {
           "path": "e2e/README.md",
           "fragments": [
-            "existing Weaver/OpenClaw Matrix channel",
+            "Weaver/OpenClaw integration retain",
             "MCP has no provider or IAM",
-            "Private Runner work is deferred"
+            "Private Runners are deferred"
           ]
         }
       ],
@@ -3977,7 +3977,7 @@
           "path": "e2e/README.md",
           "fragments": [
             "separate User and Admin OpenAPI artifacts",
-            "required Files proof is permission-preserving"
+            "#1498 owns provider adoption and portability"
           ]
         }
       ]
@@ -3996,8 +3996,8 @@
           "path": "e2e/README.md",
           "fragments": [
             "separate User and Admin OpenAPI artifacts",
-            "Native Flutter Rust/Matrix SDK",
-            "DAV is southbound inside providers",
+            "Flutter native Matrix SDK",
+            "DAV remains private inside",
             "MCP has no provider or IAM"
           ]
         },
@@ -4005,7 +4005,7 @@
           "path": "specs/spec-inventory.yaml",
           "fragments": [
             "Generated User API over server-owned Files routes",
-            "Native Flutter Rust/Matrix SDK and existing Weaver/OpenClaw Matrix integration"
+            "Weave Matrix Client-Server facade with narrowly scoped Rust/Ruma/JNI"
           ]
         }
       ]
@@ -4024,7 +4024,7 @@
           "path": "e2e/README.md",
           "fragments": [
             "separate User and Admin OpenAPI artifacts",
-            "The Server independently enforces User/Admin",
+            "Server authorization still enforces User/Admin",
             "generated User API"
           ]
         },
@@ -4032,7 +4032,7 @@
           "path": "docs/specification-source-of-truth.md",
           "fragments": [
             "accepted release profile",
-            "northbound DAV/Matrix-facade, Runner, and Calls plans"
+            "Weave's Matrix Client-Server facade is the accepted Chat northbound protocol boundary"
           ]
         }
       ]
@@ -4058,7 +4058,7 @@
           "path": "specs/spec-inventory.yaml",
           "fragments": [
             "obsoleteLocalMeanings",
-            "Mandatory server Matrix facade/JNI",
+            "Weave Matrix Client-Server facade with narrowly scoped Rust/Ruma/JNI",
             "Generated User API over server-owned Files routes"
           ]
         }
@@ -4285,7 +4285,7 @@
     },
     {
       "tag": "@open-standards-manifest",
-      "scenario": "Authenticated member discovers standard protocol entrypoints",
+      "scenario": "Authenticated member discovers release access surfaces",
       "feature": "e2e/features/open_standards_gateway_manifest.feature",
       "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
       "evidenceMarkers": [
@@ -4296,34 +4296,34 @@
         {
           "path": "server/src/test/resources/features/open-standards-gateway-control-plane.feature",
           "fragments": [
-            "Authenticated member discovers standard protocol entrypoints",
-            "Files advertises the Weave WebDAV facade",
-            "Calendar advertises the Weave CalDAV facade",
-            "Chat advertises a Matrix Client-Server endpoint"
+            "Authenticated member discovers release access surfaces",
+            "Files advertises the guarded generated User API without public WebDAV",
+            "Calendar advertises the guarded generated User API without public CalDAV",
+            "Chat advertises the guarded Weave Matrix Client-Server endpoint"
           ]
         }
       ]
     },
     {
-      "tag": "@openapi-control-only",
-      "scenario": "OpenAPI is only control and generated convenience",
+      "tag": "@openapi-domain-boundaries",
+      "scenario": "OpenAPI retains domain boundaries",
       "feature": "e2e/features/open_standards_gateway_manifest.feature",
       "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
       "evidenceMarkers": [
-        "OPENAPI_CONTROL_PLANE_CONTRACT",
-        "OPENAPI_LEGACY_DATA_PLANE_REMOVED"
+        "OPENAPI_USER_DOMAIN_BOUNDARY",
+        "OPENAPI_PROTOCOL_BOUNDARY"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/OpenApiDocumentationTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
           "fragments": [
-            "/api/files/client-setup/credentials",
-            "/api/files/client-setup/credentials/{credentialId}",
-            "/api/files/{id}/download",
-            "/api/calendar/events",
+            "/api/files/readiness",
+            "/api/calendar/scopes",
+            "/api/chat/readiness",
             "/api/chat/conversations",
-            "doesNotExist()"
+            "/dav/files",
+            "/caldav"
           ]
         }
       ]
@@ -4341,10 +4341,10 @@
         {
           "path": "server/src/main/java/com/massimotter/weave/backend/service/OrganizationManifestService.java",
           "fragments": [
-            "disabled_by_policy",
-            "not_configured",
-            "degraded",
-            "coming_later"
+            "CapabilityManifestState.DISABLED_BY_POLICY",
+            "CapabilityManifestState.NOT_CONFIGURED",
+            "CapabilityManifestState.DEGRADED",
+            "CapabilityManifestState.UNAVAILABLE"
           ]
         }
       ]

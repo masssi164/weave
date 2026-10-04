@@ -117,36 +117,36 @@ public class OpenStandardsGatewayStepDefinitions {
         assertThat(lastJson.path("secretMaterialReturned").asBoolean()).isFalse();
     }
 
-    @Then("Files advertises the Weave WebDAV facade at {string}")
-    public void filesAdvertisesTheWeaveWebdavFacadeAt(String path) {
+    @Then("Files advertises the guarded generated User API without public WebDAV")
+    public void filesAdvertisesTheGuardedGeneratedUserApi() {
         // OPEN_STANDARDS_MANIFEST_CONTRACT
-        assertThat(lastJson.at("/clientAccessDiscovery/files/surfaces").toString()).contains(path);
+        assertThat(lastJson.at("/clientAccessDiscovery/files/surfaces").toString())
+                .contains("Weave Files User API", "data_plane_guarded")
+                .doesNotContain("/dav/files");
         assertThat(lastJson.at("/clientAccessDiscovery/files/credentialLifecycle/status").asString())
-                .isEqualTo("revocable_device_grants_available");
-        assertThat(lastJson.at("/clientAccessDiscovery/files/credentialLifecycle/lifecyclePaths").toString())
-                .contains("/api/files/client-setup/credentials");
+                .isEqualTo("member_oidc_session");
+        assertThat(lastJson.at("/clientAccessDiscovery/files/credentialLifecycle/lifecyclePaths").isEmpty())
+                .isTrue();
     }
 
-    @Then("Calendar advertises the Weave CalDAV facade at {string}")
-    public void calendarAdvertisesTheWeaveCaldavFacadeAt(String path) {
-        assertThat(lastJson.at("/clientAccessDiscovery/calendar/surfaces").toString()).contains(path);
+    @Then("Calendar advertises the guarded generated User API without public CalDAV")
+    public void calendarAdvertisesTheGuardedGeneratedUserApi() {
+        assertThat(lastJson.at("/clientAccessDiscovery/calendar/surfaces").toString())
+                .contains("Weave Calendar User API", "data_plane_guarded")
+                .doesNotContain("/caldav");
     }
 
-    @Then("Chat advertises a Matrix Client-Server endpoint")
-    public void chatAdvertisesAMatrixClientServerEndpoint() {
+    @Then("Chat advertises the guarded Weave Matrix Client-Server endpoint")
+    public void chatAdvertisesTheGuardedMatrixClientServerEndpoint() {
         assertThat(lastJson.at("/clientAccessDiscovery/chat/surfaces").toString())
                 .contains("Weave Matrix Client-Server projection")
-                .contains("encrypted_data_plane_available")
+                .contains("compatibility_guarded")
                 .contains("/_matrix/client");
     }
 
-    @Then("Calls advertises MatrixRTC Profile 0 without a member Calls API")
-    public void callsAdvertisesMatrixRtcProfileZeroWithoutAMemberCallsApi() {
-        assertThat(lastJson.at("/clientAccessDiscovery/meetings-calls/productApiBasePath").asString())
-                .isEqualTo("/_matrix/client");
-        assertThat(lastJson.at("/clientAccessDiscovery/meetings-calls/surfaces").toString())
-                .contains("MatrixRTC Profile 0")
-                .doesNotContain("/api/calls");
+    @Then("Calls is absent from member access discovery")
+    public void callsIsAbsentFromMemberAccessDiscovery() {
+        assertThat(lastJson.at("/clientAccessDiscovery/meetings-calls").isMissingNode()).isTrue();
     }
 
     @Then("no provider URL, provider credential, raw provider payload, SecretRef value, or admin diagnostic is exposed")
@@ -154,36 +154,26 @@ public class OpenStandardsGatewayStepDefinitions {
         assertSupportSafeResponses();
     }
 
-    @Then("it contains only setup, readiness, revoke, manifest, admin, and generated convenience surfaces")
-    public void itContainsOnlySetupReadinessRevokeManifestAdminAndGeneratedConvenienceSurfaces() {
-        // OPENAPI_CONTROL_PLANE_CONTRACT
+    @Then("it contains generated User domain entrypoints")
+    public void itContainsGeneratedUserDomainEntrypoints() {
+        // OPENAPI_USER_DOMAIN_BOUNDARY
         JsonNode paths = lastJson.path("paths");
         assertThat(paths.has("/api/files/readiness")).isTrue();
-        assertThat(paths.has("/api/files/native-provider-setup")).isTrue();
-        assertThat(paths.has("/api/files/client-setup/credentials")).isTrue();
-        assertThat(paths.has("/api/files/client-setup/credentials/{credentialId}")).isTrue();
-        assertThat(paths.has("/api/calendar/native-sync-setup")).isTrue();
-        assertThat(paths.has("/api/calendar/client-setup/credentials")).isTrue();
+        assertThat(paths.has("/api/calendar/scopes")).isTrue();
         assertThat(paths.has("/api/chat/readiness")).isTrue();
     }
 
-    @Then("obsolete Calendar and Chat REST data-plane routes are absent from OpenAPI")
-    public void obsoleteCalendarAndChatRestDataPlaneRoutesAreAbsentFromOpenapi() {
-        // OPENAPI_LEGACY_DATA_PLANE_REMOVED
+    @Then("it excludes public DAV and proprietary Chat REST routes")
+    public void itExcludesPublicDavAndProprietaryChatRestRoutes() {
+        // OPENAPI_PROTOCOL_BOUNDARY
         JsonNode paths = lastJson.path("paths");
-        assertThat(paths.has("/api/calendar/events")).isFalse();
-        assertThat(paths.has("/api/calendar/events/{id}")).isFalse();
+        paths.properties().forEach(entry -> {
+            assertThat(entry.getKey()).doesNotStartWith("/dav/files");
+            assertThat(entry.getKey()).doesNotStartWith("/caldav");
+        });
         assertThat(paths.has("/api/chat/conversations")).isFalse();
         assertThat(paths.has("/api/chat/conversations/{conversationId}/messages")).isFalse();
-    }
-
-    @Then("it does not expose durable Files, Calendar, or Chat member data-plane routes")
-    public void itDoesNotExposeDurableFilesCalendarOrChatMemberDataPlaneRoutes() {
-        JsonNode paths = lastJson.path("paths");
-        assertThat(paths.has("/api/files/{id}/download")).isFalse();
-        assertThat(paths.has("/api/files/{id}")).isFalse();
         assertThat(paths.has("/api/chat/messages")).isFalse();
-        assertThat(paths.has("/api/calendar/caldav/{path}")).isFalse();
     }
 
     @Then("no provider credential, provider URL, SecretRef value, bearer token value, app password, or raw downstream payload is exposed")

@@ -12,34 +12,42 @@ This directory contains the product-language acceptance spine for Weave.
 
 ## Current consolidation scope
 
-The pinned `WEAVE-STEERING-RELEASE-2026-10-CONSOLIDATION` profile governs #1470/#1480.
-The current HTTP contract is generated as separate User and Admin OpenAPI artifacts from
-Server code. Flutter, MCP, Admin UI, and product E2E consume the appropriate generated
-clients and transport models. The Server independently enforces User/Admin,
-organization, and resource authorization. Native Flutter Rust/Matrix SDK and the
-existing Weaver/OpenClaw Matrix channel retain separate supported sessions. Files
-and Calendar use the generated User API; DAV is southbound inside providers.
-Member capability states remain provider-neutral. MCP has no provider or IAM
-administrator credential, and its workload identity never replaces current
-member or resource authorization. Private Runner work is deferred.
+The pinned `WEAVE-STEERING-RELEASE-2026-10-CONSOLIDATION` profile governs
+#1470/#1480. Server code generates separate User and Admin OpenAPI artifacts.
+Flutter, MCP, Admin UI, and product E2E must consume the appropriate generated
+clients and transport models. Server authorization still enforces User/Admin,
+organization, Space, member, and resource boundaries independently. Files and
+Calendar product data must use the generated User API; DAV remains private inside
+provider adapters for this release. The Weave Matrix Client-Server facade is a
+separate, bounded northbound protocol defined by
+`docs/reference/matrix-client-server-support-profile.md`; its Rust/Ruma/JNI
+boundary handles Matrix wire behavior while ChatProviderPort selects a provider
+southbound. Flutter native Matrix SDK and Weaver/OpenClaw integration retain
+supported Matrix sessions. One Weave login must prepare all authorized member
+capabilities without another member Connect or token workflow. Independent
+Matrix-client interoperability remains required. Member capability states remain
+provider-neutral. MCP has no provider or IAM administrator credential; its workload identity never
+replaces current member or resource authorization. Private Runners are deferred.
 
-Exactly one provider is active per organization/module. A successful Files switch
-requires real Nextcloud source and native target readback, unchanged data and stable
-references, equal effective allow and deny permissions, and verified rollback.
-Unsupported source properties or grants block activation. Offline dry-run/JPA tests
-do not establish this live provider journey.
-The required Files proof is permission-preserving across activation and rollback.
+#1498 owns provider adoption and portability. #1477/#1478 cover data migration,
+effective permission preservation, activation, reconciliation, failure recovery,
+and rollback. Unsupported source properties or grants block activation, including
+differences in effective allow and deny permissions. Offline dry-run/JPA tests
+are not live migration or rollback proof. These are separate from #1470/#1480
+closure evidence.
 
 Historical tags in `enterprise_target_architecture.feature` are stable mapping IDs.
-Their current scenarios supersede earlier gateway, public DAV, Server Matrix facade,
-Calls, and private Runner wording. `docs/architecture.md` and ADR-004/006/007 are
-historical link targets; they are not current acceptance or runtime evidence.
+Their current scenarios supersede earlier public DAV, Calls, and private Runner
+wording while preserving the bounded Weave Matrix facade. `docs/architecture.md`
+and ADR-004/006/007 are historical link targets; they are not current acceptance
+or runtime evidence.
 
 The current contract mapping is an offline specification check. Release-grade
-evidence is still missing until one integrated commit proves native Matrix,
-generated User/Admin/MCP consumers, provider-backed Calendar, Files cutover,
-effective permission parity, failure/resume, restart, restore, and rollback with
-independent expected-result assertions and support-safe artifacts.
+evidence is still missing until integrated runs prove native and independent
+Matrix clients, generated User/Admin/MCP consumers, provider-backed Files and
+Calendar, member authorization, restart and recovery behavior, and support-safe
+artifacts with independently asserted expected results. #1498 tracks the
+provider-switch and rollback journey separately.
 
 ## Rule
 

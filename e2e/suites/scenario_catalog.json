@@ -3211,18 +3211,17 @@
         "files",
         "calendar",
         "chat",
-        "meetings-calls",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "OpenAPI stays setup/readiness/revoke/manifest/admin/generated convenience",
-        "transitional Chat and Calendar REST data-plane routes are deprecated with cleanup issue evidence",
-        "Files REST data-plane routes remain absent"
+        "member manifest advertises generated User domain APIs",
+        "bounded Weave Matrix Client-Server compatibility remains guarded",
+        "deferred public DAV and Calls surfaces are absent from member discovery"
       ]
     },
     {
-      "tag": "@openapi-control-only",
+      "tag": "@openapi-domain-boundaries",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member",
@@ -3233,14 +3232,13 @@
         "files",
         "calendar",
         "chat",
-        "meetings-calls",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "OIDC bearer authentication gates the Matrix facade",
-        "versions and whoami are shaped by the shared Rust core",
-        "provider credentials and southbound URLs are absent"
+        "generated User OpenAPI contains Files, Calendar, and Chat domain entrypoints",
+        "public DAV is absent from the generated User API",
+        "conversation data uses the bounded Matrix protocol rather than proprietary Chat REST routes"
       ]
     },
     {
