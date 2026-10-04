@@ -1,23 +1,22 @@
-Feature: Open Standards Gateway manifest and control-plane boundary
-  Weave exposes domain protocol entrypoints while OpenAPI remains control/admin/setup/readiness/revoke/manifest/generated convenience.
+Feature: Weave northbound access manifest
+  Weave exposes generated User operations and the guarded Matrix Client-Server profile without claiming deferred public DAV or Calls support.
 
   @open-standards-manifest
-  Scenario: Authenticated member discovers standard protocol entrypoints
+  Scenario: Authenticated member discovers release access surfaces
     Given an authenticated member has a valid Weave OIDC session
     When the member loads the organization manifest
-    Then Files advertises the Weave WebDAV facade at "/dav/files"
-    And Calendar advertises the Weave CalDAV facade at "/caldav"
-    And Chat advertises a Matrix Client-Server endpoint
-    And Calls advertises MatrixRTC Profile 0 without a member Calls API
+    Then Files advertises the guarded generated User API without public WebDAV
+    And Calendar advertises the guarded generated User API without public CalDAV
+    And Chat advertises the guarded Weave Matrix Client-Server endpoint
+    And Calls is absent from member access discovery
     And no provider URL, provider credential, raw provider payload, SecretRef value, or admin diagnostic is exposed
 
-  @openapi-control-only
-  Scenario: OpenAPI is only control and generated convenience
+  @openapi-domain-boundaries
+  Scenario: OpenAPI retains domain boundaries
     Given the OpenAPI contract is generated
     When the contract is inspected for Files, Calendar, and Chat
-    Then it contains only setup, readiness, revoke, manifest, admin, and generated convenience surfaces
-    And obsolete Calendar and Chat REST data-plane routes are absent from OpenAPI
-    And it does not expose durable Files, Calendar, or Chat member data-plane routes
+    Then it contains generated User domain entrypoints
+    And it excludes public DAV and proprietary Chat REST routes
 
   @support-safe-capability-states
   Scenario: Disabled or degraded domains return support-safe capability states

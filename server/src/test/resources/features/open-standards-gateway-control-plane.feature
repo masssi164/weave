@@ -1,20 +1,20 @@
-Feature: Open standards gateway control plane
-  Weave advertises standard protocol entrypoints while keeping OpenAPI to setup, readiness, revoke, and manifest control-plane work.
+Feature: Weave northbound access boundaries
+  Weave advertises its generated User API and guarded Matrix profile without exposing deferred public DAV or Calls surfaces.
 
-  Scenario: Authenticated member discovers standard protocol entrypoints
+  Scenario: Authenticated member discovers release access surfaces
     Given an authenticated member has a valid Weave OIDC session
     When the member loads the organization manifest
-    Then Files advertises the Weave WebDAV facade at "/dav/files"
-    And Calendar advertises the Weave CalDAV facade at "/caldav"
-    And Chat advertises a Matrix Client-Server endpoint
-    And Calls advertises MatrixRTC Profile 0 without a member Calls API
+    Then Files advertises the guarded generated User API without public WebDAV
+    And Calendar advertises the guarded generated User API without public CalDAV
+    And Chat advertises the guarded Weave Matrix Client-Server endpoint
+    And Calls is absent from member access discovery
     And no provider URL, provider credential, raw provider payload, SecretRef value, or admin diagnostic is exposed
 
-  Scenario: OpenAPI is only control and generated convenience
+  Scenario: OpenAPI retains domain boundaries
     Given the OpenAPI contract is generated
     When the contract is inspected for Files, Calendar, and Chat
-    Then it contains only setup, readiness, revoke, manifest, admin, and generated convenience surfaces
-    And it does not expose durable Files, Calendar, or Chat member data-plane routes
+    Then it contains generated User domain entrypoints
+    And it excludes public DAV and proprietary Chat REST routes
 
   Scenario: Files setup credentials return a Weave secret once without exposing provider credentials
     Given a member creates a scoped Files WebDAV device credential
