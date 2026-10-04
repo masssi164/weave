@@ -129,6 +129,51 @@ class JpaProviderBindingRepositoryPostgresTest {
     }
 
     @Test
+    void concurrentFilesDiscoveryCannotAssignTwoCanonicalIdsToOneProviderObject() throws Exception {
+        DriverManagerDataSource dataSource = migratedDataSource();
+        var repository = ProviderBindingJpaTestFactory.create(dataSource);
+        Instant now = Instant.parse("2026-10-04T12:00:00Z");
+        var binding = repository.activate(
+                "org:files-race", "files", 0, "nextcloud-webdav", "secretref:files-race", now);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var workers = Executors.newFixedThreadPool(2)) {
+            List<Callable<Object>> attempts = List.of("file:first", "file:second").stream()
+                    .<Callable<Object>>map(fileId -> () -> {
+                        ready.countDown();
+                        if (!start.await(10, TimeUnit.SECONDS)) {
+                            throw new IllegalStateException("concurrent mapping start timed out");
+                        }
+                        try {
+                            return repository.saveMapping(new ProviderObjectMapping(
+                                    "org:files-race", "files", binding.revision(), fileId,
+                                    "nextcloud-fileid:42", "authorized-discovery", now, now));
+                        } catch (RuntimeException failure) {
+                            return failure;
+                        }
+                    }).toList();
+            var first = workers.submit(attempts.get(0));
+            var second = workers.submit(attempts.get(1));
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            List<Object> outcomes = List.of(first.get(30, TimeUnit.SECONDS), second.get(30, TimeUnit.SECONDS));
+            assertThat(outcomes).filteredOn(ProviderObjectMapping.class::isInstance).hasSize(1);
+            assertThat(outcomes).filteredOn(RuntimeException.class::isInstance).hasSize(1);
+        }
+
+        assertThat(new JdbcTemplate(dataSource).queryForObject("""
+                select count(*) from weave_provider_object_mappings
+                where organization_ref = ? and domain_key = ? and binding_revision = ?
+                  and provider_object_ref = ?
+                """, Integer.class, "org:files-race", "files", binding.revision(), "nextcloud-fileid:42"))
+                .isEqualTo(1);
+        assertThat(repository.mappingByProviderRef(
+                "org:files-race", "files", binding.revision(), "nextcloud-fileid:42"))
+                .isPresent();
+    }
+
+    @Test
     void flywayRejectsPreexistingDuplicateActiveBindingsWithoutChangingThem() {
         DriverManagerDataSource dataSource = isolatedDataSource();
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration")
