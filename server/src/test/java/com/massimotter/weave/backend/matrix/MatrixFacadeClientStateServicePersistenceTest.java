@@ -225,6 +225,8 @@ class MatrixFacadeClientStateServicePersistenceTest {
                 .issuedAt(issuedAt)
                 .expiresAt(issuedAt.plusSeconds(3600))
                 .claim("sid", sessionId)
+                .claim("scope", "weave:workspace urn:matrix:client:api:* "
+                        + "urn:matrix:client:device:WEAVEDEVICEPROJECTION")
                 .build();
     }
 

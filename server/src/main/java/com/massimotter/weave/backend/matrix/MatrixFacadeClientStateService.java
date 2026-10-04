@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatIdentityRef;
 import com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.config.MatrixOAuthAdmissionPolicy;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.service.OrganizationIdentityContext;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
@@ -250,33 +251,23 @@ public class MatrixFacadeClientStateService {
     }
 
     private String deviceId(Jwt jwt, String requestedDeviceId) {
-        if (requestedDeviceId != null && !requestedDeviceId.isBlank()) {
-            return requireDeviceId(requestedDeviceId.trim());
+        final String scopedDeviceId;
+        try {
+            scopedDeviceId = MatrixOAuthAdmissionPolicy.requiredDeviceId(jwt);
+        } catch (IllegalArgumentException invalidScope) {
+            throw new MatrixProtocolException("M_UNKNOWN_TOKEN", "The Matrix device scope is invalid.");
         }
-        for (String claim : List.of("weave_matrix_device_id", "device_id", "sid")) {
-            String value = jwt.getClaimAsString(claim);
-            if (value != null && !value.isBlank()) {
-                String trimmed = value.trim();
-                if (validDeviceId(trimmed)) {
-                    return trimmed;
-                }
-                return "WEAVE" + tokenHash(claim + ":" + trimmed).substring(0, 36);
+        if (requestedDeviceId != null && !scopedDeviceId.equals(requestedDeviceId)) {
+            throw new MatrixProtocolException("M_UNKNOWN_TOKEN", "The Matrix device binding does not match.");
+        }
+        for (String claim : List.of("weave_matrix_device_id", "device_id")) {
+            Object value = jwt.getClaims().get(claim);
+            if (value != null && !(value instanceof String text
+                    && scopedDeviceId.equals(text))) {
+                throw new MatrixProtocolException("M_UNKNOWN_TOKEN", "The Matrix device binding does not match.");
             }
         }
-        throw new MatrixProtocolException(
-                "M_INVALID_PARAM",
-                "A stable Matrix device identity is required for this OIDC session.");
-    }
-
-    private String requireDeviceId(String value) {
-        if (!validDeviceId(value)) {
-            throw new MatrixProtocolException("M_INVALID_PARAM", "The Matrix device identity is invalid.");
-        }
-        return value;
-    }
-
-    private boolean validDeviceId(String value) {
-        return value.matches("[A-Za-z0-9._=-]{8,128}");
+        return scopedDeviceId;
     }
 
     public record MatrixIdentity(

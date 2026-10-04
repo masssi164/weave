@@ -70,6 +70,44 @@ class JwtDecoderConfigTest {
             assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
                     signingKey, ISSUER_URI,
                     List.of("https://api.weave.test/api"), "weave-admin-console")));
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
+                    signingKey, ISSUER_URI,
+                    List.of("https://api.weave.test/_matrix/client"), "weave-matrix-client")));
+        }
+    }
+
+    @Test
+    void matrixDecoderAcceptsOnlySignedAudienceClientAndDeviceScopedTokens() throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey)) {
+            OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+            properties.getJwt().setIssuerUri(ISSUER_URI);
+            properties.getJwt().setJwkSetUri(jwksServer.jwkSetUri());
+            MatrixOAuthAdmissionPolicy policy = new MatrixOAuthAdmissionPolicy(
+                    "https://api.weave.test/_matrix/client", "weave-matrix-client",
+                    "https://api.weave.test", "https://api.weave.test/api", "weave-app");
+            JwtDecoder decoder = new MatrixResourceServerSecurityConfiguration()
+                    .matrixJwtDecoder(properties, policy);
+            String matrixScopes = "weave:workspace urn:matrix:client:api:* "
+                    + "urn:matrix:client:device:DEVICE123456";
+
+            assertThat(decoder.decode(signedToken(signingKey, ISSUER_URI,
+                    List.of("https://api.weave.test/_matrix/client"), "weave-matrix-client",
+                    null, matrixScopes)).getAudience())
+                    .containsExactly("https://api.weave.test/_matrix/client");
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
+                    signingKey, ISSUER_URI, List.of("https://api.weave.test/api"),
+                    "weave-matrix-client", null, matrixScopes)));
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
+                    signingKey, ISSUER_URI, List.of("https://api.weave.test/_matrix/client"),
+                    "weave-app", null, matrixScopes)));
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
+                    signingKey, "https://wrong.example.invalid/realms/weave",
+                    List.of("https://api.weave.test/_matrix/client"),
+                    "weave-matrix-client", null, matrixScopes)));
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
+                    signingKey, ISSUER_URI, List.of("https://api.weave.test/_matrix/client"),
+                    "weave-matrix-client", null, "weave:workspace")));
         }
     }
 
@@ -281,13 +319,23 @@ class JwtDecoderConfigTest {
             List<String> audiences,
             String authorizedParty,
             JOSEObjectType type) throws Exception {
+        return signedToken(signingKey, issuerUri, audiences, authorizedParty, type, "weave:workspace");
+    }
+
+    private static String signedToken(
+            RSAKey signingKey,
+            String issuerUri,
+            List<String> audiences,
+            String authorizedParty,
+            JOSEObjectType type,
+            String scope) throws Exception {
         Instant now = Instant.now();
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .issuer(issuerUri)
                 .subject("user-123")
                 .audience(audiences)
                 .claim("azp", authorizedParty)
-                .claim("scope", "weave:workspace")
+                .claim("scope", scope)
                 .issueTime(Date.from(now))
                 .notBeforeTime(Date.from(now.minusSeconds(30)))
                 .expirationTime(Date.from(now.plusSeconds(300)))

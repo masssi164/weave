@@ -176,6 +176,9 @@ weave:
       backend-token: ${WEAVE_CALDAV_BACKEND_TOKEN:}
       request-timeout-seconds: ${WEAVE_CALDAV_REQUEST_TIMEOUT_SECONDS:10}
   matrix:
+    oidc:
+      required-audience: ${WEAVE_MATRIX_OIDC_REQUIRED_AUDIENCE:}
+      allowed-client-ids: ${WEAVE_MATRIX_OIDC_ALLOWED_CLIENT_IDS:}
     facade:
       # Stable Weave-owned Matrix server name. It identifies the northbound projection,
       # not a southbound homeserver and must not change during provider replacement.

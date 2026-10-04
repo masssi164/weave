@@ -303,7 +303,7 @@ class FilesCalendarFacadeControllerTest {
         mockMvc.perform(get("/api/files/readiness").with(httpBasic(credentialId, secret)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("unauthorized"));
-        mockMvc.perform(get("/_matrix/client/versions").with(httpBasic(credentialId, secret)))
+        mockMvc.perform(get("/_matrix/client/v3/sync").with(httpBasic(credentialId, secret)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("unauthorized"));
 

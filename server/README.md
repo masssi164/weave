@@ -107,11 +107,13 @@ docker build -t weave-backend:e2e .
 - Product shell: `https://weave.test`
 - Backend API base: `https://api.weave.test/api`
 - Keycloak issuer: `https://auth.weave.test/realms/weave`
-- Matrix homeserver: `https://matrix.weave.test`
+- Weave Matrix Client-Server facade: `https://api.weave.test/_matrix/client` (the optional southbound Matrix provider may use `https://matrix.weave.test`)
 - Weave files/calendar product routes: `https://weave.test/files` and `https://weave.test/calendar`
 - Raw Nextcloud technical/admin/protocol fallback: `https://files.weave.test`
 
 Protected `/api/**` routes require a bearer token whose issuer, audience, authorized party/client id, and scope match the first-party Weave app contract. Public health, platform config/status, and OpenAPI endpoints support bootstrap and diagnostics.
+
+Authenticated `/_matrix/client/**` routes use a separate Matrix resource-server decoder. Set `WEAVE_MATRIX_OIDC_REQUIRED_AUDIENCE` to the advertised HTTPS facade origin plus `/_matrix/client`, and `WEAVE_MATRIX_OIDC_ALLOWED_CLIENT_IDS` to an explicit comma-separated set of registered Matrix OAuth client IDs. Blank or mismatched values block authenticated Matrix requests; a Weave User/Admin API bearer is never a Matrix bearer. Matrix tokens also require `weave:workspace`, `urn:matrix:client:api:*`, exactly one `urn:matrix:client:device:<device_id>` scope, and the selected organization role. `/.well-known/matrix/client` and `/versions` do not create a device session. This admission boundary does not by itself qualify Matrix OAuth discovery, registration, refresh, revocation, or independent-client interoperability.
 
 Matrix E2EE diagnostics are conservative by design: `/api/platform/status` does not claim E2EE completion until encrypted-room, device, recovery, multi-device, metadata-boundary, and accessibility gates are validated.
 

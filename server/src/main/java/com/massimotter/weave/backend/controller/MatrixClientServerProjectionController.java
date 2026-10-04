@@ -105,10 +105,14 @@ public class MatrixClientServerProjectionController {
         }
         try {
             String path = requestPath(request);
+            if ("GET".equals(method) && isVersions(path)) return matrixOk(matrixProtocolCoreService.versions());
+            if ("GET".equals(method) && path.equals("/_matrix/client/v1/auth_metadata")) {
+                return matrixError(HttpStatus.NOT_FOUND, "M_UNRECOGNIZED",
+                        "Matrix OAuth metadata is not available for this deployment.");
+            }
             if (matrixClientStateService.revoked(jwt) && !isLogout(path)) throw new MatrixProtocolException("M_UNKNOWN_TOKEN", "The Matrix access token was revoked.");
             MatrixFacadeClientStateService.MatrixIdentity identity = matrixClientStateService.register(jwt, request.getHeader(MatrixFacadeClientStateService.DEVICE_ID_HEADER));
             matrixE2eeStateService.requireActive(identity);
-            if ("GET".equals(method) && isVersions(path)) return matrixOk(matrixProtocolCoreService.versions());
             if ("GET".equals(method) && isLogin(path)) return matrixOk(loginFlows());
             if ("POST".equals(method) && isLogout(path)) { matrixClientStateService.revoke(jwt); return matrixOk(Map.of()); }
             if ("GET".equals(method) && isWhoami(path)) return matrixOk(matrixProtocolCoreService.whoami(jwt.getSubject(), identity.deviceId()));

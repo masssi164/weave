@@ -23,6 +23,7 @@ import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
+import com.massimotter.weave.backend.config.MatrixResourceServerSecurityConfiguration;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateStore;
@@ -46,6 +47,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -58,6 +60,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -75,6 +78,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
         SecurityConfig.class,
+        MatrixResourceServerSecurityConfiguration.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
         ApiErrorResponseWriter.class,
@@ -89,7 +93,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
         "weave.matrix.facade.server-name=api.weave.test",
-        "weave.matrix.facade.base-url=https://api.weave.test"
+        "weave.matrix.facade.base-url=https://api.weave.test",
+        "weave.matrix.oidc.required-audience=https://api.weave.test/_matrix/client",
+        "weave.matrix.oidc.allowed-client-ids=weave-matrix-client"
 })
 class MatrixClientServerProjectionControllerTest {
 
@@ -104,6 +110,9 @@ class MatrixClientServerProjectionControllerTest {
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
+    @MockitoBean(name = "matrixJwtDecoder")
+    private JwtDecoder matrixJwtDecoder;
+
     @MockitoBean
     private ChatDomainFacadeService chatDomainFacadeService;
 
@@ -113,10 +122,12 @@ class MatrixClientServerProjectionControllerTest {
     @Test
     void matrixClientServerProjectionRequiresWorkspaceToken() throws Exception {
         mockMvc.perform(get("/_matrix/client/v3/sync"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
 
         mockMvc.perform(get("/_matrix/client/v3/sync").with(jwt()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errcode").value("M_FORBIDDEN"));
     }
 
     @Test
@@ -138,7 +149,7 @@ class MatrixClientServerProjectionControllerTest {
 
     @Test
     void versionsIsSerializedByTheLinkedRustRumaCore() throws Exception {
-        mockMvc.perform(get("/_matrix/client/versions").with(workspaceJwt()))
+        mockMvc.perform(get("/_matrix/client/versions"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.versions[0]").value("v1.18"))
                 .andExpect(jsonPath("$.matrixCore.protocolSurface").value("matrix-client-server-facade"))
@@ -149,13 +160,77 @@ class MatrixClientServerProjectionControllerTest {
                 .andExpect(jsonPath("$.matrixCore.supportedEndpoints[2]").value(containsString("/sync")))
                 .andExpect(content().string(not(containsString("Synapse"))))
                 .andExpect(content().string(not(containsString("access_token"))));
+        verifyNoInteractions(stateStore);
+    }
+
+    @Test
+    void unavailableOauthMetadataFailsPubliclyWithoutCreatingADevice() throws Exception {
+        mockMvc.perform(get("/_matrix/client/v1/auth_metadata"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errcode").value("M_UNRECOGNIZED"));
+        verifyNoInteractions(stateStore, chatDomainFacadeService);
+    }
+
+    @Test
+    void realBearerHeaderUsesOnlyMatrixAdmissionAndRejectsApiTokensBeforeRegistration() throws Exception {
+        when(matrixJwtDecoder.decode("user-api-token")).thenReturn(bearerJwt(
+                "user-api-token", "https://api.weave.test/api", "weave-app", "weave:workspace"));
+        when(matrixJwtDecoder.decode("admin-api-token")).thenReturn(bearerJwt(
+                "admin-api-token", "https://api.weave.test/api", "weave-admin-console", "weave:workspace"));
+
+        for (String bearer : List.of("user-api-token", "admin-api-token")) {
+            mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + bearer))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.errcode").value("M_FORBIDDEN"));
+            verify(matrixJwtDecoder).decode(bearer);
+            verify(jwtDecoder, never()).decode(bearer);
+        }
+        verifyNoInteractions(stateStore, chatDomainFacadeService);
+    }
+
+    @Test
+    void matrixBearerHeaderCanReachWhoamiWithDistinctAudienceAndDevice() throws Exception {
+        when(matrixJwtDecoder.decode("matrix-token")).thenReturn(bearerJwt(
+                "matrix-token", "https://api.weave.test/_matrix/client", "weave-matrix-client",
+                "weave:workspace urn:matrix:client:api:* urn:matrix:client:device:MATRIXDEVICE123"));
+
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer matrix-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.device_id").value("MATRIXDEVICE123"));
+        verify(jwtDecoder, never()).decode("matrix-token");
+    }
+
+    @Test
+    void matrixBearerWithoutSelectedOrganizationRoleIsDeniedBeforeRegistration() throws Exception {
+        when(matrixJwtDecoder.decode("matrix-no-role")).thenReturn(bearerJwt(
+                "matrix-no-role", "https://api.weave.test/_matrix/client", "weave-matrix-client",
+                "weave:workspace urn:matrix:client:api:* urn:matrix:client:device:MATRIXDEVICE123",
+                "observer"));
+
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer matrix-no-role"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errcode").value("M_FORBIDDEN"));
+        verifyNoInteractions(stateStore, chatDomainFacadeService);
+    }
+
+    @Test
+    void mismatchedDeviceHeaderIsDeniedBeforeRegistration() throws Exception {
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "DIFFERENTDEVICE123")
+                        .with(workspaceJwtForDevice("MATRIXDEVICE123")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
+        verifyNoInteractions(stateStore, chatDomainFacadeService);
     }
 
     @Test
     void whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject() throws Exception {
         mockMvc.perform(get("/_matrix/client/v3/account/whoami")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVE0123456789abcdef0123456789abcdef0123")
-                        .with(workspaceJwt()))
+                        .with(workspaceJwtForDevice("WEAVE0123456789abcdef0123456789abcdef0123")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.user_id").value("@user_example.com:api.weave.test"))
                 .andExpect(jsonPath("$.device_id").value("WEAVE0123456789abcdef0123456789abcdef0123"))
@@ -186,7 +261,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/account/whoami")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEBOUNDONE")
-                        .with(workspaceJwt(token)))
+                        .with(workspaceJwtForDevice(token, "WEAVEDEVICEBOUNDONE")))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/_matrix/client/v3/account/whoami")
@@ -448,7 +523,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/query")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
-                        .with(workspaceJwt("trusted-session"))
+                        .with(workspaceJwtForDevice("trusted-session", trustedDevice))
                         .contentType("application/json")
                         .content("""
                                 {"device_keys":{"%s":[]}}
@@ -460,7 +535,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/claim")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
-                        .with(workspaceJwt("trusted-session"))
+                        .with(workspaceJwtForDevice("trusted-session", trustedDevice))
                         .contentType("application/json")
                         .content("""
                                 {"one_time_keys":{"%s":{"%s":"signed_curve25519"}}}
@@ -472,7 +547,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(put("/_matrix/client/v3/sendToDevice/m.room_key_request/txn-device-1")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
-                        .with(workspaceJwt("trusted-session"))
+                        .with(workspaceJwtForDevice("trusted-session", trustedDevice))
                         .contentType("application/json")
                         .content("""
                                 {"messages":{"%s":{"%s":{"request_id":"request-1"}}}}
@@ -481,7 +556,7 @@ class MatrixClientServerProjectionControllerTest {
 
         String firstSync = mockMvc.perform(get("/_matrix/client/v3/sync")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, secondDevice)
-                        .with(workspaceJwt("second-session")))
+                        .with(workspaceJwtForDevice("second-session", secondDevice)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.to_device.events[0].type").value("m.room_key_request"))
                 .andExpect(jsonPath("$.to_device.events[0].content.request_id").value("request-1"))
@@ -493,13 +568,13 @@ class MatrixClientServerProjectionControllerTest {
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .queryParam("since", nextBatch)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, secondDevice)
-                        .with(workspaceJwt("second-session")))
+                        .with(workspaceJwtForDevice("second-session", secondDevice)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.to_device.events").isEmpty());
 
         mockMvc.perform(delete("/_matrix/client/v3/devices/{deviceId}", secondDevice)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
-                        .with(workspaceJwt("trusted-session"))
+                        .with(workspaceJwtForDevice("trusted-session", trustedDevice))
                         .contentType("application/json")
                         .content("{}"))
                 .andExpect(status().isOk());
@@ -507,7 +582,7 @@ class MatrixClientServerProjectionControllerTest {
         // MATRIX_E2EE_LOST_DEVICE_REVOKED
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, secondDevice)
-                        .with(workspaceJwt("second-session")))
+                        .with(workspaceJwtForDevice("second-session", secondDevice)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
     }
@@ -520,7 +595,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/upload")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
-                        .with(workspaceJwt(sessionId))
+                        .with(workspaceJwtForDevice(sessionId, deviceId))
                         .contentType("application/json")
                         .content("""
                                 {
@@ -545,7 +620,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/signatures/upload")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
-                        .with(workspaceJwt(sessionId))
+                        .with(workspaceJwtForDevice(sessionId, deviceId))
                         .contentType("application/json")
                         .content("""
                                 {
@@ -580,7 +655,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/query")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
-                        .with(workspaceJwt(sessionId))
+                        .with(workspaceJwtForDevice(sessionId, deviceId))
                         .contentType("application/json")
                         .content("""
                                 {"device_keys":{"%s":[]}}
@@ -609,7 +684,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(post("/_matrix/client/v3/keys/upload")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
-                        .with(workspaceJwt("fallback-target-session"))
+                        .with(workspaceJwtForDevice("fallback-target-session", targetDevice))
                         .contentType("application/json")
                         .content("""
                                 {
@@ -634,7 +709,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
-                        .with(workspaceJwt("fallback-target-session")))
+                        .with(workspaceJwtForDevice("fallback-target-session", targetDevice)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.device_unused_fallback_key_types[0]")
                         .value("signed_curve25519"));
@@ -642,7 +717,7 @@ class MatrixClientServerProjectionControllerTest {
         for (int attempt = 0; attempt < 2; attempt++) {
             mockMvc.perform(post("/_matrix/client/v3/keys/claim")
                             .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, claimantDevice)
-                            .with(workspaceJwt("fallback-claimant-session"))
+                            .with(workspaceJwtForDevice("fallback-claimant-session", claimantDevice))
                             .contentType("application/json")
                             .content("""
                                     {"one_time_keys":{"%s":{"%s":"signed_curve25519"}}}
@@ -655,7 +730,7 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/sync")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
-                        .with(workspaceJwt("fallback-target-session")))
+                        .with(workspaceJwtForDevice("fallback-target-session", targetDevice)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.device_unused_fallback_key_types").isEmpty());
     }
@@ -665,7 +740,7 @@ class MatrixClientServerProjectionControllerTest {
         String deviceId = "WEAVEBACKUPDEVICE";
         String created = mockMvc.perform(post("/_matrix/client/v3/room_keys/version")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
-                        .with(workspaceJwt("backup-session"))
+                        .with(workspaceJwtForDevice("backup-session", deviceId))
                         .contentType("application/json")
                         .content("""
                                 {
@@ -683,7 +758,7 @@ class MatrixClientServerProjectionControllerTest {
                         "!channel-general:api.weave.test", "session-1")
                         .queryParam("version", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
-                        .with(workspaceJwt("backup-session"))
+                        .with(workspaceJwtForDevice("backup-session", deviceId))
                         .contentType("application/json")
                         .content("""
                                 {
@@ -700,7 +775,7 @@ class MatrixClientServerProjectionControllerTest {
                         "!channel-general:api.weave.test", "session-1")
                         .queryParam("version", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
-                        .with(workspaceJwt("backup-session")))
+                        .with(workspaceJwtForDevice("backup-session", deviceId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.session_data.ciphertext").value("opaque-backup"))
                 .andExpect(content().string(not(containsString("recoveryKey"))))
@@ -708,18 +783,18 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/room_keys/version/{version}", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
-                        .with(workspaceJwt("backup-session")))
+                        .with(workspaceJwtForDevice("backup-session", deviceId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(1))
                 .andExpect(jsonPath("$.algorithm").value("m.megolm_backup.v1.curve25519-aes-sha2"));
 
         mockMvc.perform(delete("/_matrix/client/v3/room_keys/version/{version}", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
-                        .with(workspaceJwt("backup-session")))
+                        .with(workspaceJwtForDevice("backup-session", deviceId)))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/_matrix/client/v3/room_keys/version/{version}", version)
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
-                        .with(workspaceJwt("backup-session")))
+                        .with(workspaceJwtForDevice("backup-session", deviceId)))
                 .andExpect(status().isNotFound());
     }
 
@@ -1045,7 +1120,7 @@ class MatrixClientServerProjectionControllerTest {
                   """.formatted(oneTimeKey).trim();
         mockMvc.perform(post("/_matrix/client/v3/keys/upload")
                         .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
-                        .with(workspaceJwt(deviceId + "-session"))
+                        .with(workspaceJwtForDevice(deviceId + "-session", deviceId))
                         .contentType("application/json")
                         .content("""
                                 {
@@ -1071,27 +1146,41 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt(String tokenValue) {
-        return workspaceJwtWithSubject(tokenValue, "user@example.com", true);
+        return workspaceJwtWithSubject(tokenValue, "user@example.com", true, "WEAVEDEFAULTDEVICE");
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtForDevice(String deviceId) {
+        return workspaceJwtForDevice(UUID.randomUUID().toString(), deviceId);
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtForDevice(
+            String tokenValue, String deviceId) {
+        return workspaceJwtWithSubject(tokenValue, "user@example.com", true, deviceId);
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithoutIssuer() {
-        return workspaceJwtWithSubject("missing-issuer-token", "user@example.com", false);
+        return workspaceJwtWithSubject("missing-issuer-token", "user@example.com", false,
+                "WEAVEDEVICEINVALIDIDENTITY");
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithSubject(String subject) {
-        return workspaceJwtWithSubject("invalid-subject-token", subject, true);
+        return workspaceJwtWithSubject("invalid-subject-token", subject, true,
+                "WEAVEDEVICEINVALIDSUBJECT");
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithSubject(
             String tokenValue,
             String subject,
-            boolean includeIssuer) {
+            boolean includeIssuer,
+            String deviceId) {
         return jwt().jwt(jwt -> jwt
                         .tokenValue(tokenValue)
                         .subject(subject)
                         .claim("jti", tokenValue)
                         .claim("sid", "weave-test-session-" + tokenValue)
-                        .claim("aud", List.of("weave-app"))
+                        .claim("aud", List.of("https://api.weave.test/_matrix/client"))
+                        .claim("azp", "weave-matrix-client")
+                        .claim("scope", "weave:workspace urn:matrix:client:api:* urn:matrix:client:device:" + deviceId)
                         .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
                         .claims(claims -> {
                             if (includeIssuer) {
@@ -1101,5 +1190,26 @@ class MatrixClientServerProjectionControllerTest {
                             }
                         }))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
+    }
+
+    private Jwt bearerJwt(String tokenValue, String audience, String clientId, String scope) {
+        return bearerJwt(tokenValue, audience, clientId, scope, "member");
+    }
+
+    private Jwt bearerJwt(String tokenValue, String audience, String clientId, String scope,
+                          String role) {
+        Instant now = Instant.now();
+        return Jwt.withTokenValue(tokenValue)
+                .header("alg", "RS256")
+                .issuer("https://auth.example.invalid/realms/weave")
+                .subject("user@example.com")
+                .audience(List.of(audience))
+                .issuedAt(now.minusSeconds(30))
+                .expiresAt(now.plusSeconds(300))
+                .claim("azp", clientId)
+                .claim("sid", "matrix-session-" + tokenValue)
+                .claim("scope", scope)
+                .claim("organization", HumanJwtTestSupport.organizationWithRole(role))
+                .build();
     }
 }
