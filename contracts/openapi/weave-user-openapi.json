@@ -2885,9 +2885,6 @@
       "PlatformConfigResponse": {
         "description": "Provider-neutral organization manifest consumed by Weave clients.",
         "properties": {
-          "controlPlaneBaseUrl": {
-            "type": "string"
-          },
           "domains": {
             "items": {
               "$ref": "#/components/schemas/DomainCapability"
@@ -2915,6 +2912,9 @@
           "schemaVersion": {
             "format": "int32",
             "type": "integer"
+          },
+          "userApiBaseUrl": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -3050,12 +3050,6 @@
       },
       "Protocols": {
         "properties": {
-          "calendarCalDavBaseUrl": {
-            "type": "string"
-          },
-          "filesWebDavBaseUrl": {
-            "type": "string"
-          },
           "matrixClientServerBaseUrl": {
             "type": "string"
           }
