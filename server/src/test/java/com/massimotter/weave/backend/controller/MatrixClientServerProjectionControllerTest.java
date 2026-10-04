@@ -46,6 +46,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.TestPropertySource;
@@ -186,6 +187,19 @@ class MatrixClientServerProjectionControllerTest {
             verify(matrixJwtDecoder).decode(bearer);
             verify(jwtDecoder, never()).decode(bearer);
         }
+        verifyNoInteractions(stateStore, chatDomainFacadeService);
+    }
+
+    @Test
+    void rejectedMatrixBearerUsesMatrixUnauthorizedShapeBeforeRegistration() throws Exception {
+        when(matrixJwtDecoder.decode("wrong-audience-token"))
+                .thenThrow(new BadJwtException("The Matrix audience is invalid."));
+
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer wrong-audience-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
+        verify(jwtDecoder, never()).decode("wrong-audience-token");
         verifyNoInteractions(stateStore, chatDomainFacadeService);
     }
 
