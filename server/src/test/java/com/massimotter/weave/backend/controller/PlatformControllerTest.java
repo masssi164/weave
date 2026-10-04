@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.MatrixChatProperties;
@@ -16,6 +17,8 @@ import com.massimotter.weave.backend.service.ProviderCapabilityHealthService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import java.util.HashSet;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
@@ -32,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @WebMvcTest(
         controllers = {PlatformController.class, HealthController.class},
@@ -80,26 +84,38 @@ class PlatformControllerTest {
 
     @Test
     void exposesPublicPlatformConfig() throws Exception {
-        mockMvc.perform(get("/api/platform/config"))
+        var result = mockMvc.perform(get("/api/platform/config"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.schemaVersion").value(1))
+                .andExpect(jsonPath("$.schemaVersion").value(2))
                 .andExpect(jsonPath("$.organizationOrigin").value("https://weave.test"))
-                .andExpect(jsonPath("$.controlPlaneBaseUrl").value("https://api.weave.test/api"))
+                .andExpect(jsonPath("$.userApiBaseUrl").value("https://api.weave.test/api"))
                 .andExpect(jsonPath("$.oidc.issuer").value("https://auth.weave.test/realms/weave"))
                 .andExpect(jsonPath("$.oidc.clientId").value("weave-app"))
-                .andExpect(jsonPath("$.protocols.matrixClientServerBaseUrl").value("https://api.weave.test"))
-                .andExpect(jsonPath("$.protocols.filesWebDavBaseUrl").value("https://api.weave.test/dav/files"))
-                .andExpect(jsonPath("$.protocols.calendarCalDavBaseUrl").value("https://api.weave.test/caldav"))
+                .andExpect(jsonPath("$.protocols.matrixClientServerBaseUrl").value("https://matrix.weave.test"))
+                .andExpect(jsonPath("$.protocols.filesWebDavBaseUrl").doesNotExist())
+                .andExpect(jsonPath("$.protocols.calendarCalDavBaseUrl").doesNotExist())
                 .andExpect(jsonPath("$.releasePosture").value("dogfood"))
                 .andExpect(jsonPath("$.domains.length()").value(6))
+                .andExpect(jsonPath("$.domains[?(@.domain == 'identity')].state").value("available"))
                 .andExpect(jsonPath("$.domains[?(@.domain == 'chat')].state").value("available"))
                 .andExpect(jsonPath("$.domains[?(@.domain == 'boards')].state").value("not_configured"))
                 .andExpect(jsonPath("$.recoveryActions").isEmpty())
                 .andExpect(jsonPath("$.publicBaseUrl").doesNotExist())
+                .andExpect(jsonPath("$.controlPlaneBaseUrl").doesNotExist())
                 .andExpect(jsonPath("$.matrixHomeserverUrl").doesNotExist())
                 .andExpect(jsonPath("$.nextcloudBaseUrl").doesNotExist())
                 .andExpect(jsonPath("$.targets").doesNotExist())
-                .andExpect(jsonPath("$.features").doesNotExist());
+                .andExpect(jsonPath("$.features").doesNotExist())
+                .andReturn();
+
+        var manifest = new ObjectMapper().readTree(result.getResponse().getContentAsString());
+        Set<String> manifestFields = new HashSet<>();
+        manifest.fieldNames().forEachRemaining(manifestFields::add);
+        assertThat(manifestFields).containsExactlyInAnyOrder("schemaVersion", "organizationOrigin",
+                "userApiBaseUrl", "oidc", "protocols", "releasePosture", "domains", "recoveryActions");
+        Set<String> protocolFields = new HashSet<>();
+        manifest.path("protocols").fieldNames().forEachRemaining(protocolFields::add);
+        assertThat(protocolFields).containsExactly("matrixClientServerBaseUrl");
     }
 
     @Test

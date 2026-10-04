@@ -129,7 +129,7 @@ Use `weave-workspace/release-verify.sh` with:
 - `WEAVE_PUBLIC_BASE_URL`.
 - `WEAVE_OIDC_ISSUER_URL`.
 - `WEAVE_NEXTCLOUD_BASE_URL`.
-- `WEAVE_MATRIX_HOMESERVER_URL` for the northbound facade on the API origin.
+- `WEAVE_MATRIX_HOMESERVER_URL` for the separately configured Matrix homeserver exposed to native Matrix clients; it is not the Weave API origin or a destination for Weave API bearer tokens.
 - `WEAVE_MATRIX_PROVIDER_URL` for the southbound Matrix provider.
 - optional `WEAVE_TLS_CA_FILE` when a private CA is required.
 
