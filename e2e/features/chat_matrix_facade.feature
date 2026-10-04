@@ -1,12 +1,14 @@
 Feature: Chat Matrix facade
-  Chat data-plane behavior is exposed through the OIDC-gated Weave Matrix
-  Client-Server facade backed by the shared Rust Matrix core.
+  Chat data-plane behavior targets the OIDC-gated Weave Matrix Client-Server
+  facade. Flutter keeps its native Rust/Matrix SDK client, while the server
+  uses the narrow Rust/Ruma/JNI wire boundary and ChatProviderPort.
 
   @matrix-connect
-  Scenario: OIDC-provisioned member can connect to Matrix
+  Scenario: Weave sign-in establishes authorized Matrix access
     Given a Weave member has Chat capability
-    When the member opens Chat
-    Then the member reaches the Weave Matrix facade with the Weave OIDC token support-safely
+    When the member opens Chat after one Weave sign-in
+    Then the native Matrix client reaches the Weave facade through a separate Matrix OAuth session
+    And no additional member Connect action, credential prompt, or Weave API bearer reuse occurs
 
   @matrix-spaces-rooms
   Scenario: Weave organization spaces and channels map to Matrix spaces and rooms
@@ -68,7 +70,7 @@ Feature: Chat Matrix facade
   Scenario: Matrix wire behavior is owned by the shared native core
     Given the Spring Matrix facade and Flutter Chat client are running
     When Matrix versions, sync, timeline, and message payloads are processed
-    Then JNI and flutter_rust_bridge call the same Rust and Ruma protocol core
+    Then server JNI calls the narrow Rust/Ruma wire core and Flutter uses its native Rust/Matrix SDK
     And no handwritten Java or Dart Matrix protocol fallback is used
 
   @matrix-idempotent-send
