@@ -1,5 +1,6 @@
 package com.massimotter.weave.e2e;
 
+import com.massimotter.weave.userapi.model.AuthenticatedUserResponse;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -472,13 +473,16 @@ final class CollaborationJourney {
       if (platform.isMissingNode() || platform.isNull()) {
         throw new ProductFlowException("platform configuration failed during Chat outage");
       }
-      http.json(
-          "keep authenticated member surface reachable during Chat outage",
-          "GET",
-          environment.api("/api/me"),
-          bearer(author.token(), Map.of()),
-          null,
-          Set.of(200));
+      AuthenticatedUserResponse member =
+          new GeneratedUserApi(environment.apiOrigin(), environment.caCertificate())
+              .authenticatedUser(author.token());
+      if (!author.issuer().equals(member.getIdentityIssuer())
+          || !author.actorRef().equals("user:" + member.getSubject())
+          || !author.tenant().equals(member.getOrganizationId())
+          || !(("issuer+subject:" + author.issuer() + "#" + member.getSubject())
+              .equals(member.getPrimaryIdentityKey()))) {
+        throw new ProductFlowException("authenticated member identity changed during Chat outage");
+      }
       JsonHttpClient.Response unavailable =
           http.send(
               "reject Chat send while Synapse is unavailable",

@@ -74,6 +74,7 @@ tasks.register('ci') {
             'matrixRustCoreTest',
             'clientCi',
             'serverCi',
+            ':weave-user-api-client:check',
             'mcpCi',
             'testAppContract',
             'infraStatic',
