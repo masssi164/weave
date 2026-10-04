@@ -75,6 +75,7 @@ tasks.register('ci') {
             'clientCi',
             'serverCi',
             ':weave-user-api-client:check',
+            ':weave-admin-api-client:check',
             'mcpCi',
             'testAppContract',
             'infraStatic',

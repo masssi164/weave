@@ -28,7 +28,7 @@ final class GeneratedUserApi {
         new ApiClient()
             .setHttpClientBuilder(httpClientBuilder)
             .setReadTimeout(Duration.ofSeconds(30));
-    client.updateBaseUri(apiOrigin.toString());
+    client.updateBaseUri(apiOrigin.getScheme() + "://" + apiOrigin.getRawAuthority());
     identity = new IdentityApi(client);
   }
 
