@@ -1,44 +1,40 @@
 {
-  "reportId": "s12-files-dry-run-v2",
+  "reportId": "consolidation-files-unmeasured-dry-run",
   "domainKey": "files",
-  "sourceProvider": "current-provider",
-  "targetProvider": "candidate-provider",
-  "feasibility": "feasible_with_manual_review",
+  "sourceProvider": "nextcloud-webdav",
+  "targetProvider": "weave-native",
+  "feasibility": "blocked",
   "fieldClasses": [
-    "portable",
-    "manual_review",
-    "archive_only"
+    "unsupported"
   ],
-  "objectCounts": {
-    "Object": 3
-  },
-  "contentHashes": [
-    "sha256:66696c6573000000000000000000000000000000000000000000000000000000"
+  "blockers": [
+    "Source content, metadata, stable references and effective permissions have not been measured at a stable revision.",
+    "Target readback and permission parity have not been verified.",
+    "Rollback to the retained source has not been verified."
   ],
+  "objectCounts": {},
+  "contentHashes": [],
   "lossyFields": [
     {
       "canonicalObject": "Files",
       "field": "provider_extension",
-      "fieldClass": "archive_only",
-      "reason": "Support-safe Sprint 12 fixture; raw provider data is not embedded."
+      "fieldClass": "unsupported",
+      "reason": "No source property is marked portable until real source and target evidence exists."
     }
   ],
   "conflicts": [
     {
       "canonicalObject": "Files",
-      "reason": "Manual review required before apply."
+      "reason": "Unmeasured source and target state blocks apply."
     }
   ],
   "permissionImpacts": [
     {
       "canonicalObject": "Files",
-      "impact": "Admin-visible summary only; member preview uses stable capability states.",
-      "fieldClass": "manual_review"
+      "impact": "User/group grants, inheritance, share conditions, expiration, revocation and denial parity are unverified.",
+      "fieldClass": "unsupported"
     }
   ],
-  "archiveRefs": [
-    "archive:s12:files:redacted"
-  ],
-  "rollbackRetentionRef": "rollback:s12:files:retention",
+  "archiveRefs": [],
   "redaction": "support_safe"
 }
