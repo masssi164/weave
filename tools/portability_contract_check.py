@@ -68,6 +68,14 @@ def main():
   if fixture.get('domainKey') != domain or fixture.get('redaction') != 'support_safe': fail(f'{domain} v2 dry-run fixture must be support_safe')
   classes=fixture.get('fieldClasses', [])
   if not classes or any(item not in LOSS for item in classes): fail(f'{domain} fixture must use v2 field classes')
+ files=load(FIXTURES/'provider-portability-v2-files-dry-run.json')
+ if files.get('feasibility')!='blocked' or 'unsupported' not in files.get('fieldClasses', []):
+  fail('Files dry-run fixture must block unverified replacement under the pinned release contract')
+ if files.get('objectCounts') or files.get('contentHashes') or files.get('archiveRefs') or files.get('rollbackRetentionRef'):
+  fail('Files dry-run fixture must not present synthetic counts, hashes, archive or rollback refs as evidence')
+ files_blockers=' '.join(files.get('blockers', [])).lower()
+ for required in ['source content', 'effective permissions', 'target readback', 'rollback']:
+  if required not in files_blockers: fail(f'Files dry-run fixture must block on {required}')
  matrix=load(FIXTURES/'provider-portability-v2-chat-matrix-dry-run.json')
  if matrix.get('domainKey')!='chat' or matrix.get('sourceProvider')!='matrix-synapse-chat' or matrix.get('redaction')!='support_safe':
   fail('Matrix Chat Sprint 14 dry-run fixture must be support_safe chat evidence for matrix-synapse-chat')
