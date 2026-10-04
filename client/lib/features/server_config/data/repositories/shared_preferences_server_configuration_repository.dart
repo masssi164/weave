@@ -38,12 +38,13 @@ class SharedPreferencesServerConfigurationRepository
         configuration.serviceEndpoints.backendApiBaseUrl.toString(),
         fieldName: 'the backend API URL',
       );
-      final matrixUrl = _deriver.matrixFacadeFromBackendApi(backendApiUrl);
+      final matrixUrl = _deriver.parseMatrixHomeserverUrl(
+        configuration.serviceEndpoints.matrixHomeserverUrl.toString(),
+      );
       final filesUrl = _deriver.filesFacadeFromBackendApi(backendApiUrl);
-      if (configuration.serviceEndpoints.matrixHomeserverUrl != matrixUrl ||
-          configuration.serviceEndpoints.nextcloudBaseUrl != filesUrl) {
+      if (configuration.serviceEndpoints.nextcloudBaseUrl != filesUrl) {
         throw const AppFailure.validation(
-          'The saved organization profile does not match the current Weave facade contract.',
+          'The saved organization profile does not match the current Files contract.',
         );
       }
 
@@ -74,8 +75,8 @@ class SharedPreferencesServerConfigurationRepository
       final endpoints = configuration.serviceEndpoints;
       final normalized = configuration.copyWith(
         serviceEndpoints: endpoints.copyWith(
-          matrixHomeserverUrl: _deriver.matrixFacadeFromBackendApi(
-            endpoints.backendApiBaseUrl,
+          matrixHomeserverUrl: _deriver.parseMatrixHomeserverUrl(
+            endpoints.matrixHomeserverUrl.toString(),
           ),
           nextcloudBaseUrl: _deriver.filesFacadeFromBackendApi(
             endpoints.backendApiBaseUrl,
