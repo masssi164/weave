@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PlatformContractServiceTest {
 
@@ -149,6 +150,22 @@ class PlatformContractServiceTest {
         assertThat(wrongRoute.status("wrong-route").matrix().readiness()).isEqualTo("blocked");
         assertThat(wrongIdentity.status("wrong-identity").matrix().readiness()).isEqualTo("blocked");
         assertThat(aligned.status("aligned").matrix().readiness()).isEqualTo("ready");
+    }
+
+    @Test
+    void rejectsCredentialsOrPathsInAdvertisedMatrixOrigin() {
+        assertThatThrownBy(() -> new PlatformContractProperties(
+                null, "https://member:secret@api.weave.test/api", null, null,
+                null, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new PlatformContractProperties(
+                null, null, null, "https://member:secret@api.weave.test",
+                null, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new PlatformContractProperties(
+                null, null, null, "https://api.weave.test/_matrix/client",
+                null, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     private PlatformContractService service(MatrixChatProperties matrixProperties, boolean chatEnabled) {
