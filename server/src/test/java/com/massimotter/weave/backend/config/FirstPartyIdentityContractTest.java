@@ -50,12 +50,16 @@ class FirstPartyIdentityContractTest {
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
+    @MockitoBean(name = "adminApiJwtDecoder")
+    private JwtDecoder adminApiJwtDecoder;
+
     @MockitoBean
     private MemberInvitationService invitations;
 
     @BeforeEach
     void configureJwtDecoder() {
         given(jwtDecoder.decode(anyString())).willAnswer(invocation -> decode(invocation.getArgument(0)));
+        given(adminApiJwtDecoder.decode(anyString())).willAnswer(invocation -> decodeAdmin(invocation.getArgument(0)));
     }
 
     @Test
@@ -147,7 +151,7 @@ class FirstPartyIdentityContractTest {
     @Test
     void grantsMethodSecurityRolesFromSelectedOrganizationResourceAccess() throws Exception {
         mockMvc.perform(get("/api/admin/policies/effective")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer client-admin-role"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer admin-console-admin-role"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orgRoles[0]").value("admin"));
     }
@@ -155,8 +159,15 @@ class FirstPartyIdentityContractTest {
     @Test
     void rejectsTopLevelClientRoleWithoutSelectedOrganizationRole() throws Exception {
         mockMvc.perform(get("/api/admin/policies/effective")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer top-level-admin-role"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer admin-console-top-level-role"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void rejectsNativeUserTokenOnAdminRouteEvenWithAdminRole() throws Exception {
+        mockMvc.perform(get("/api/admin/policies/effective")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer client-admin-role"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -257,6 +268,26 @@ class FirstPartyIdentityContractTest {
                     validation.getErrors());
         }
 
+        return jwt;
+    }
+
+    private Jwt decodeAdmin(String tokenValue) {
+        Jwt jwt = switch (tokenValue) {
+            case "admin-console-admin-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                    Map.of("azp", "weave-admin-console", "organization", organizationWithRole("admin")));
+            case "admin-console-top-level-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                    Map.of("azp", "weave-admin-console",
+                            "resource_access", Map.of(FIRST_PARTY_CLIENT_ID, Map.of("roles", List.of("admin")))));
+            default -> throw new org.springframework.security.oauth2.jwt.BadJwtException(
+                    "The Admin API requires an Admin Console token.");
+        };
+        var validator = new org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator<Jwt>(
+                JwtDecoderConfig.exactAudienceValidator(java.util.Set.of(REQUIRED_AUDIENCE)),
+                JwtDecoderConfig.requiredAuthorizedPartyValidator("weave-admin-console"));
+        OAuth2TokenValidatorResult validation = validator.validate(jwt);
+        if (validation.hasErrors()) {
+            throw new JwtValidationException("JWT does not satisfy the Admin API contract.", validation.getErrors());
+        }
         return jwt;
     }
 
