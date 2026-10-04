@@ -1,6 +1,6 @@
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
-import 'package:weave/generated/openapi_models.dart' as openapi;
+import 'package:weave/generated/user_api/api.dart' as openapi;
 
 extension AuthenticatedUserResponseMapper on openapi.AuthenticatedUserResponse {
   UserProfile toDomain() {
@@ -13,8 +13,8 @@ extension AuthenticatedUserResponseMapper on openapi.AuthenticatedUserResponse {
       displayName: _optionalNonBlank(displayName) ?? requiredUsername,
       locale: _optionalNonBlank(locale) ?? 'en',
       timezone: _optionalNonBlank(timezone) ?? 'UTC',
-      roles: roles ?? const <String>[],
-      groups: groups ?? const <String>[],
+      roles: roles,
+      groups: groups,
     );
   }
 }
