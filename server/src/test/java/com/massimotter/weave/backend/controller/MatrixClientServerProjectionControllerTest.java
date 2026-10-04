@@ -58,6 +58,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -779,6 +780,18 @@ class MatrixClientServerProjectionControllerTest {
                 .andExpect(jsonPath("$.errcode").value("M_UNSUPPORTED"));
 
         verify(chatDomainFacadeService, never()).sendEvent(any(), any(), any(), any());
+    }
+
+    @Test
+    void unimplementedClientServerRouteFailsExplicitlyWithoutChatMutation() throws Exception {
+        mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/upgrade")
+                        .with(workspaceJwt()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errcode").value("M_NOT_FOUND"))
+                .andExpect(jsonPath("$.error").value(containsString("not implemented")))
+                .andExpect(content().string(not(containsString("Synapse"))));
+
+        verifyNoInteractions(chatDomainFacadeService);
     }
 
     @Test
