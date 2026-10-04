@@ -46,6 +46,9 @@ weave:
   files:
     # JPA canonical metadata plus private blob storage is the Weave server default.
     provider: ${WEAVE_FILES_PROVIDER:weave-native}
+    provider-accounts:
+      # Additional accounts come from operator-owned Spring configuration; only mounted credentials are read.
+      secret-root: /run/secrets/weave-files
     native:
       blob-store: ${WEAVE_FILES_NATIVE_BLOB_STORE:filesystem}
       filesystem-root: ${WEAVE_FILES_NATIVE_FILESYSTEM_ROOT:.weave/files/blobs}
