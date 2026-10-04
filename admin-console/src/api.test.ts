@@ -3,6 +3,64 @@ import { AdminControlPlaneApi, sampleControlPlane } from "./api";
 
 // V01_ADMIN_CONSOLE_MVP: Admin Console may call only Weave backend admin APIs, not optional provider APIs.
 describe("AdminControlPlaneApi provider boundary", () => {
+  it("does not render an invalid generated audit timestamp", async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify([{ action: "provider-check", occurredAt: "not-a-date" }]),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const api = new AdminControlPlaneApi(
+      {
+        apiBaseUrl: "https://api.example.invalid/api",
+        oidcIssuerUrl: "https://auth.example.invalid",
+        oidcClientId: "weave-admin-console",
+      },
+      fetchImpl as typeof fetch,
+    );
+
+    const events = await api.listAuditEvents();
+    expect(events[0]?.createdAt).toBe("");
+    expect(events[0]?.id).toBe("provider-check-unknown");
+  });
+
+  it("reads the current Admin bearer for each generated request and preserves HTTP denial", async () => {
+    let token = "admin-session-one";
+    const received: Array<string | null> = [];
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const bearer = new Headers(init?.headers).get("Authorization");
+      received.push(bearer);
+      return bearer === "Bearer member-session"
+        ? new Response(null, { status: 403 })
+        : new Response("[]", {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+    });
+    const api = new AdminControlPlaneApi(
+      {
+        apiBaseUrl: "https://api.example.invalid/api",
+        oidcIssuerUrl: "https://auth.example.invalid",
+        oidcClientId: "weave-admin-console",
+      },
+      fetchImpl as typeof fetch,
+      () => token,
+    );
+
+    await api.listOrganizationInvitations("acme");
+    token = "admin-session-two";
+    await api.listOrganizationInvitations("acme");
+    token = "member-session";
+    await expect(api.listOrganizationInvitations("acme")).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(received).toEqual([
+      "Bearer admin-session-one",
+      "Bearer admin-session-two",
+      "Bearer member-session",
+    ]);
+  });
+
   it("uses only Weave admin APIs for Keycloak invitation lifecycle", async () => {
     const calls: Array<{
       url: string;
@@ -440,7 +498,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
     const controlPlane = await api.getControlPlane();
 
     expect(controlPlane.providerCategories[0]?.lastCheckedAt).toBe(
-      "2099-01-01T00:00:00Z",
+      "2099-01-01T00:00:00.000Z",
     );
     expect(controlPlane.providerCategories[0]?.evidenceFreshness).toBe(
       "missing",
