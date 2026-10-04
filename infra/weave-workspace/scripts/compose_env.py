@@ -361,6 +361,9 @@ def load_context(selector: str, root: Path, supplied_env_file: str | None = None
     env.setdefault("WEAVE_RUNTIME_UID", str(os.getuid()))
     env.setdefault("WEAVE_RUNTIME_GID", str(os.getgid()))
     env.setdefault("WEAVE_MATRIX_HOST", urlsplit(env.get("WEAVE_MATRIX_URL", "")).hostname or "")
+    # The public Weave Matrix server name follows the API facade host, not the
+    # selected southbound Matrix provider host.
+    env["WEAVE_API_HOST"] = urlsplit(env.get("WEAVE_API_ORIGIN", "")).hostname or ""
     public = urlsplit(env.get("WEAVE_PUBLIC_URL", ""))
     admin_host = f"{env.get('WEAVE_ADMIN_SUBDOMAIN', 'admin')}.{env.get('WEAVE_TENANT_DOMAIN', '')}"
     admin_authority = admin_host + (f":{public.port}" if public.port is not None else "")
