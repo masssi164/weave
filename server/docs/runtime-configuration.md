@@ -91,15 +91,13 @@ Provider readiness is `configured` only when LiveKit is enabled and either `WEAV
 
 ## Files facade and Nextcloud WebDAV adapter
 
-The app never sends raw Nextcloud credentials to this backend. Files operations use a backend-owned actor for WebDAV calls.
+The app never receives a Nextcloud credential. Server resolves the active Files binding for the member's organization before southbound WebDAV access. A binding carries an opaque configuration reference, not an endpoint or secret.
 
-- `WEAVE_NEXTCLOUD_FILES_ACTOR_MODEL`: backend-to-Nextcloud token model, currently only `backend-service-account`; other values fail closed until implemented.
-- `WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME`: backend-owned Nextcloud actor username for WebDAV calls. Blank keeps the facade unavailable.
-- `WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN`: backend-owned Nextcloud app password/token for WebDAV calls. Blank keeps the facade unavailable.
-- `WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN`: provider actor token supplied through the canonical SecretRef wiring.
-- `WEAVE_NEXTCLOUD_FILES_WEBDAV_ROOT_PATH`: Nextcloud WebDAV files root path, defaults to `/remote.php/dav/files`.
+- `weave.files.provider-accounts.nextcloud[]` is an operator-owned Spring configuration list. Each entry supplies `organization-ref`, `configuration-ref`, `base-url`, `webdav-root-path`, `actor-username`, and `credential-ref`. Entries are matched by both organization and binding reference. Duplicate pairs, malformed endpoints and invalid SecretRefs fail at startup.
+- `credential-ref` must have the form `secretref://weave/files/<name>`. Server reads the corresponding regular, non-symlink, owner-readable file under `weave.files.provider-accounts.secret-root` on each dispatch. A missing, removed, over-broadly readable or invalid file blocks that account. The default root is `/run/secrets/weave-files`; an operator may override it through private Spring configuration. Neither a different organization's account nor a global actor is a fallback.
+- The existing `WEAVE_NEXTCLOUD_FILES_ACTOR_MODEL`, `WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME`, `WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN`, and `WEAVE_NEXTCLOUD_FILES_WEBDAV_ROOT_PATH` variables remain a single explicit bootstrap account only when the Files bootstrap binding matches the same organization and configuration reference. They do not authorize another binding.
 
-If the actor model, username, or token is missing, files endpoints fail closed with `nextcloud-adapter-not-configured`. The northbound WebDAV facade implements listing with quota, folder creation, upload, download, delete, guarded copy/move, and lock/unlock behavior. Provider-native sharing is not part of that member data plane.
+This resolves private provider accounts; it does not prove Files permission parity or authorize activation of a migration. The release's member data plane is the generated User HTTP API. The older northbound WebDAV facade is a compatibility surface pending retirement, not the accepted product client contract.
 
 ## Calendar facade and CalDAV adapter
 
