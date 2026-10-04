@@ -6,11 +6,17 @@ import static org.mockito.Mockito.when;
 
 import com.massimotter.weave.backend.boards.local.LocalWorkspaceBoardsRepository;
 import com.massimotter.weave.backend.chat.port.ChatProviderPort;
+import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
 import com.massimotter.weave.backend.provider.ProviderRealityLevel;
 import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 class ProviderCoreConfigurationTest {
 
@@ -40,6 +46,31 @@ class ProviderCoreConfigurationTest {
                 .containsEntry("runtimeBindingObserved", true)
                 .containsEntry("secretsReturned", false)
                 .containsEntry("rawProviderErrorsReturned", false);
+    }
+
+    @Test
+    void filesRegistryKeepsPermissionCapabilityDetailsOutOfSupportStatus() {
+        FilesProviderPort runtime = mock(FilesProviderPort.class);
+        when(runtime.configured()).thenReturn(true);
+        when(runtime.conformanceProfile()).thenReturn(new ProviderConformanceProfile(
+                "files", "weave-native", Set.of("list", "read"),
+                Map.of("userGrant", MappingClass.UNSUPPORTED,
+                        "effectiveAccess", MappingClass.UNSUPPORTED),
+                true, true, true));
+        @SuppressWarnings("unchecked")
+        ObjectProvider<FilesProviderPort> candidates = mock(ObjectProvider.class);
+        when(candidates.orderedStream()).thenReturn(Stream.of(runtime));
+
+        ProviderStatusResponse status = configuration.filesProviderRegistrySeam(
+                candidates, new FilesRuntimeProperties("weave-native")).status();
+
+        assertThat(status.readiness()).isEqualTo("configured_pending_cached_health");
+        assertThat(status.failClosed()).isTrue();
+        assertThat(status.supportSafe()).isTrue();
+        assertThat(status.diagnostics())
+                .containsEntry("secretsReturned", false)
+                .containsEntry("rawProviderErrorsReturned", false)
+                .doesNotContainKeys("fieldMappings", "userGrant", "effectiveAccess");
     }
 
     @Test
