@@ -15,6 +15,7 @@ import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
 import com.massimotter.weave.backend.files.port.StoredFileRecord;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -45,6 +46,17 @@ class WeaveNativeFilesAdapterTest {
         dataSource = JpaTestDatabase.entityFirstDataSource("weave_native_files");
         authority = FilesAuthorityJpaTestFactory.create(dataSource);
         blobs = new FilesystemBlobStore(properties());
+    }
+
+    @Test
+    void nativeCapabilityProfileBlocksUnimplementedResourceGrantsAndShareConditions() {
+        assertThat(adapter(authority).conformanceProfile().fieldMappings())
+                .containsEntry("sourceOwner", MappingClass.UNSUPPORTED)
+                .containsEntry("userGrant", MappingClass.UNSUPPORTED)
+                .containsEntry("groupGrant", MappingClass.UNSUPPORTED)
+                .containsEntry("inheritedGrant", MappingClass.UNSUPPORTED)
+                .containsEntry("shareCondition", MappingClass.UNSUPPORTED)
+                .containsEntry("effectiveAccess", MappingClass.UNSUPPORTED);
     }
 
     @Test
