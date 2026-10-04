@@ -871,6 +871,18 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void unimplementedClientServerRouteFailsExplicitlyWithoutChatMutation() throws Exception {
+        mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/upgrade")
+                        .with(workspaceJwt()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errcode").value("M_NOT_FOUND"))
+                .andExpect(jsonPath("$.error").value(containsString("not implemented")))
+                .andExpect(content().string(not(containsString("Synapse"))));
+
+        verifyNoInteractions(chatDomainFacadeService);
+    }
+
+    @Test
     void joinedRoomsAndMessagesUseCanonicalIdentifiers() throws Exception {
         stubConversation();
 

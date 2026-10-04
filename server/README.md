@@ -107,7 +107,8 @@ docker build -t weave-backend:e2e .
 - Product shell: `https://weave.test`
 - Backend API base: `https://api.weave.test/api`
 - Keycloak issuer: `https://auth.weave.test/realms/weave`
-- Weave Matrix Client-Server facade: `https://api.weave.test/_matrix/client` (the optional southbound Matrix provider may use `https://matrix.weave.test`)
+- Weave Matrix Client-Server facade contract: `https://api.weave.test/_matrix/client` (public gateway and OrgManifest conformance remain unqualified).
+- Current dev southbound Matrix provider: `https://matrix.weave.test` (technical legacy route, not the member product endpoint).
 - Weave files/calendar product routes: `https://weave.test/files` and `https://weave.test/calendar`
 - Raw Nextcloud technical/admin/protocol fallback: `https://files.weave.test`
 
