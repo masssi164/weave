@@ -887,7 +887,10 @@ export class AdminControlPlaneApi {
       this.generatedControlPlane.listAdminAuditEvents(),
     );
     return events.map((event) => {
-      const occurredAt = event.occurredAt?.toISOString();
+      const occurredAt =
+        event.occurredAt && !Number.isNaN(event.occurredAt.getTime())
+          ? event.occurredAt.toISOString()
+          : undefined;
       return {
         id:
           event.idempotencyKey ??

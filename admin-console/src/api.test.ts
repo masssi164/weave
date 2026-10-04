@@ -3,6 +3,27 @@ import { AdminControlPlaneApi, sampleControlPlane } from "./api";
 
 // V01_ADMIN_CONSOLE_MVP: Admin Console may call only Weave backend admin APIs, not optional provider APIs.
 describe("AdminControlPlaneApi provider boundary", () => {
+  it("does not render an invalid generated audit timestamp", async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify([{ action: "provider-check", occurredAt: "not-a-date" }]),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const api = new AdminControlPlaneApi(
+      {
+        apiBaseUrl: "https://api.example.invalid/api",
+        oidcIssuerUrl: "https://auth.example.invalid",
+        oidcClientId: "weave-admin-console",
+      },
+      fetchImpl as typeof fetch,
+    );
+
+    const events = await api.listAuditEvents();
+    expect(events[0]?.createdAt).toBe("");
+    expect(events[0]?.id).toBe("provider-check-unknown");
+  });
+
   it("reads the current Admin bearer for each generated request and preserves HTTP denial", async () => {
     let token = "admin-session-one";
     const received: Array<string | null> = [];
