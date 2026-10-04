@@ -4,6 +4,8 @@ import com.massimotter.weave.adminapi.api.AdminControlPlaneApi;
 import com.massimotter.weave.adminapi.invoker.ApiClient;
 import com.massimotter.weave.adminapi.invoker.ApiException;
 import com.massimotter.weave.adminapi.model.AdminControlPlaneResponse;
+import com.massimotter.weave.adminapi.model.ProviderSelectionRequest;
+import com.massimotter.weave.adminapi.model.ProviderSelectionResponse;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.nio.file.Path;
@@ -33,12 +35,9 @@ final class GeneratedAdminApi {
   }
 
   AdminControlPlaneResponse controlPlane(String bearer) {
-    if (bearer == null || bearer.isBlank()) {
-      throw new IllegalArgumentException("Admin access token is unavailable");
-    }
     try {
       AdminControlPlaneResponse result =
-          controlPlane.getAdminControlPlane(Map.of("Authorization", "Bearer " + bearer));
+          controlPlane.getAdminControlPlane(authHeaders(bearer));
       if (result == null) {
         throw new ProductFlowException("Admin control plane returned an empty response");
       }
@@ -47,5 +46,24 @@ final class GeneratedAdminApi {
       // Generated exceptions include raw bodies. Keep E2E diagnostics support-safe.
       throw new ProductFlowException("Admin control plane failed with HTTP " + failure.getCode());
     }
+  }
+
+  ProviderSelectionResponse selectProvider(String bearer, ProviderSelectionRequest request) {
+    try {
+      ProviderSelectionResponse result = controlPlane.selectProvider(request, authHeaders(bearer));
+      if (result == null) {
+        throw new ProductFlowException("Admin provider selection returned an empty response");
+      }
+      return result;
+    } catch (ApiException failure) {
+      throw new ProductFlowException("Admin provider selection failed with HTTP " + failure.getCode());
+    }
+  }
+
+  private Map<String, String> authHeaders(String bearer) {
+    if (bearer == null || bearer.isBlank()) {
+      throw new IllegalArgumentException("Admin access token is unavailable");
+    }
+    return Map.of("Authorization", "Bearer " + bearer);
   }
 }

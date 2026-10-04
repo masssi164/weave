@@ -1,5 +1,7 @@
 package com.massimotter.weave.e2e;
 
+import com.massimotter.weave.adminapi.model.ProviderSelectionRequest;
+import com.massimotter.weave.adminapi.model.ProviderSelectionResponse;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -549,33 +551,29 @@ public final class FreshProductFlow {
   }
 
   private void configureRequiredProviders(String ownerToken) {
+    GeneratedAdminApi adminApi =
+        new GeneratedAdminApi(environment.apiOrigin(), environment.caCertificate());
     List<ProviderSelection> requiredProviders =
         List.of(
             new ProviderSelection("chat", "weave-native"),
             new ProviderSelection("calendar", "weave-native"));
     for (ProviderSelection selection : requiredProviders) {
-      ObjectNode request = http.mapper().createObjectNode();
-      request.put("category", selection.category());
-      request.put("providerKey", selection.providerKey());
-      request.put("choiceModel", "recommended_self_hosted_default");
-      request.put("dryRun", false);
-      request.putArray("lossyMappingNotes");
-      request.put("reason", "configure the isolated Fresh Stack product path");
-      JsonNode response =
-          http.json(
-              "apply " + selection.category() + " provider selection",
-              "POST",
-              environment.api("/api/admin/providers/selections"),
-              bearer(ownerToken, Map.of()),
-              request,
-              Set.of(200));
-      if (!selection.category().equals(response.path("category").asString())
-          || !selection.providerKey().equals(response.path("providerKey").asString())
-          || !"recommended_self_hosted_default".equals(
-              response.path("choiceModel").asString())
-          || !response.path("applied").asBoolean(false)
-          || response.path("dryRun").asBoolean(true)
-          || !response.path("supportSafe").asBoolean(false)) {
+      ProviderSelectionResponse response =
+          adminApi.selectProvider(
+              ownerToken,
+              new ProviderSelectionRequest()
+                  .category(selection.category())
+                  .providerKey(selection.providerKey())
+                  .choiceModel("recommended_self_hosted_default")
+                  .dryRun(false)
+                  .lossyMappingNotes(List.of())
+                  .reason("configure the isolated Fresh Stack product path"));
+      if (!selection.category().equals(response.getCategory())
+          || !selection.providerKey().equals(response.getProviderKey())
+          || !"recommended_self_hosted_default".equals(response.getChoiceModel())
+          || !Boolean.TRUE.equals(response.getApplied())
+          || !Boolean.FALSE.equals(response.getDryRun())
+          || !Boolean.TRUE.equals(response.getSupportSafe())) {
         throw new ProductFlowException(
             selection.category() + " provider selection did not converge");
       }
@@ -584,28 +582,29 @@ public final class FreshProductFlow {
     // The fresh stack starts with its native Files binding. An Admin selection
     // must not silently replace it until a real migration has verified data,
     // references, and effective permissions against both providers.
+    ProviderSelectionResponse dryRun =
+        adminApi.selectProvider(
+            ownerToken,
+            new ProviderSelectionRequest()
+                .category("files")
+                .providerKey("weave-native")
+                .choiceModel("recommended_self_hosted_default")
+                .dryRun(true)
+                .lossyMappingNotes(List.of())
+                .reason("verify Files activation remains fenced"));
+    if (!"files".equals(dryRun.getCategory())
+        || !Boolean.TRUE.equals(dryRun.getDryRun())
+        || !Boolean.FALSE.equals(dryRun.getApplied())
+        || !Boolean.TRUE.equals(dryRun.getSupportSafe())) {
+      throw new ProductFlowException("Files selection dry-run was not support-safe and unapplied");
+    }
+
     ObjectNode filesRequest = http.mapper().createObjectNode();
     filesRequest.put("category", "files");
     filesRequest.put("providerKey", "weave-native");
     filesRequest.put("choiceModel", "recommended_self_hosted_default");
-    filesRequest.put("dryRun", true);
     filesRequest.putArray("lossyMappingNotes");
     filesRequest.put("reason", "verify Files activation remains fenced");
-    JsonNode dryRun =
-        http.json(
-            "inspect Files provider selection",
-            "POST",
-            environment.api("/api/admin/providers/selections"),
-            bearer(ownerToken, Map.of()),
-            filesRequest,
-            Set.of(200));
-    if (!"files".equals(dryRun.path("category").asString())
-        || !dryRun.path("dryRun").asBoolean(false)
-        || dryRun.path("applied").asBoolean(true)
-        || !dryRun.path("supportSafe").asBoolean(false)) {
-      throw new ProductFlowException("Files selection dry-run was not support-safe and unapplied");
-    }
-
     filesRequest.put("dryRun", false);
     JsonNode blocked =
         http.json(
