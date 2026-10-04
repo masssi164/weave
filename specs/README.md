@@ -9,12 +9,12 @@ Canonical specification truth lives in the pinned Weave Specification Corpus ref
 
 This implementation repository is the **conformance and evidence truth**. It contains code, tests, CI gates, release evidence, generated projections, and historical repo-local specs that must conform to the pinned spec corpus.
 
-For PR #1043 and later open-standards gateway work, repo-local packets that still describe OpenAPI/REST as a normal member data plane for Files, Calendar events, or Chat conversations/messages are obsolete. The canonical northbound collaboration data planes are:
+For the approved #1470 release, read corpus file `steering/release-2026-10-product-consolidation.md` first. Its release boundary supersedes the earlier PR #1043 gateway direction and conflicting repo-local packets:
 
-- Files: Weave WebDAV at `/dav/files/**`.
-- Calendar: Weave CalDAV/iCalendar at `/caldav/**`.
-- Chat: Weave Matrix Client-Server facade at `/_matrix/client/**`.
-- OpenAPI: control plane only for readiness, setup, credentials, revoke, admin/provider decisions, generated convenience models, and support-safe evidence.
+- The server-owned code-first User API is the Files and Calendar northbound HTTP boundary. User and Admin OpenAPI artifacts generate clients and transport models for Flutter, MCP, Admin UI, and product E2E.
+- Flutter chat uses its native Rust/Matrix SDK path and Weaver retains its established Matrix integration. A server-side Matrix facade/JNI is not mandatory, and Weave does not replace Matrix chat with proprietary REST.
+- Public northbound WebDAV/CalDAV and the server Matrix facade are outside this release. DAV remains appropriate inside provider adapters.
+- Exactly one provider is active per organization and module. Files activation and rollback require preserved data, stable references, and effective permissions; unsupported source properties block activation.
 
 ## Truth boundary
 

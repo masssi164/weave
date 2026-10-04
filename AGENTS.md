@@ -6,9 +6,11 @@ Old `weave-backend` and `weave-infra` checkouts are stale. Ignore them.
 
 Truth split: the canonical fachliche specification truth is the pinned Weave Specification Corpus in `specs/weave-specs.lock.json` (local default `../weave-specs`). This repo is implementation/evidence truth: code, tests, CI, release evidence, GitHub issues/PRs/milestones, and generated or transitional spec projections. Use `docs/specification-source-of-truth.md` and `specs/spec-inventory.yaml` before citing, editing, deleting, or migrating repo-local specs. If corpus and repo reality disagree, create an explicit spec-change or conformance-fix task; never let implementation state silently redefine product/domain meaning.
 
+The approved consolidation contract is corpus file `steering/release-2026-10-product-consolidation.md` and [epic #1470](https://github.com/masssi164/weave/issues/1470). It takes precedence for this release over older Core plans, protocol facade tests, and repo-local instructions where they conflict. Preserve their substantive security, integrity, permission, and recovery requirements. Stories #1471–#1481 define delivery acceptance; do not expand this release with deferred Runner, Calls, northbound DAV, or orchestration work.
+
 Language policy: every `AGENTS.md`, agent prompt, checked-in project instruction, PR body, issue body, code comment, and documentation change must be written in English unless a user-facing localization file explicitly requires another language.
 
-Product-line truth: read `docs/product-line-and-weaver-plan.md` before product direction, admin/provider, RBAC/whitelist, or Weaver work. Preserve the order: Weave provider-neutral organization suite first; admin portal/IDM/RBAC/readiness/whitelisting second; Weaver governed per-user PA runtime later. Do not regress to agent-first planning or a fixed Nextcloud/Matrix-only product boundary.
+Product-line background: read `docs/product-line-and-weaver-plan.md` for historical context, then apply the pinned release profile above for the current implementation. Weave remains an independently usable provider-neutral organization suite; Weaver is optional.
 
 v0.1 is dogfood-production, not preview. No scaffold, roadmap, or coming-soon UX in normal member paths.
 

@@ -10,6 +10,8 @@ Weave uses a split source-of-truth model so product meaning, implementation proo
 2. **Implementation/evidence truth** lives in this repository: code, tests, CI, generated contracts, support-safe evidence, release notes, GitHub issues/PRs/checks, and milestones.
 3. **Runtime dependency truth** for Weaver/OpenClaw behavior lives in the Weaver/OpenClaw runtime repository and its own specs, docs, source, tests, and CI. Those artifacts can prove runtime capability, but they do not override the Weave product corpus.
 
+For the #1470 consolidation release, the corpus file `steering/release-2026-10-product-consolidation.md` is the accepted release profile. It supersedes conflicting older Core, northbound DAV/Matrix-facade, Runner, and Calls plans for this release. Older text remains useful for security, integrity, permission, recovery, and historical evidence when consistent with that profile.
+
 ## Local repo specs
 
 The `specs/` directory in this repository is not a second product corpus. It contains transitional Spec Kit packets, conformance projections, fixtures, and implementation evidence that must conform to the pinned corpus.

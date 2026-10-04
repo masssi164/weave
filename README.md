@@ -14,7 +14,7 @@ A collaboration platform should let you choose its building blocks, not require 
 
 **Choose providers by capability.** Files, Calendar, and Chat are product concepts, not vendor names. Replaceable adapters connect the services behind them. Provider-neutral does not mean every provider is already supported.
 
-**Keep the context, not just an export.** A file, an event, and a conversation can belong to the same Space. Stable `weave://` references and cross-domain relationships are central to the design: changing a provider should not mean rebuilding every link around your work. A real transfer must account for unsupported data and rollback limits rather than promise magical losslessness.
+**Keep the context, not just an export.** A file, an event, and a conversation can belong to the same Space. Stable `weave://` references and cross-domain relationships are central to the design. The approved Files replacement must preserve data, stable references, and effective permissions, including during verified rollback. Activation must stop if a source property or permission cannot be preserved.
 
 **Build the workspace you need.** The broader vision includes documents, tasks, and meetings as modular capabilities. The immediate implementation work concentrates on the Files, Calendar, and Chat foundation and its integration boundaries. The wider vision is not a list of already shipped features.
 
@@ -30,9 +30,7 @@ Weave does not require an agent to be useful. Weaver adds another way to work wi
 
 This is an existing codebase with substantial implementation, tests, and infrastructure, undergoing architectural consolidation. A passing component test or build is not evidence that every planned integration is ready for daily use.
 
-The active [architecture epic #1299](https://github.com/masssi164/weave/issues/1299) tracks provider-neutral resources, real Files cutover and rollback, and a planned private execution plane. Protocol conformance, authorization, restart, and backup/restore must be proven for the actual candidate.
-
-Some older implementation documents and the pinned specification snapshot do not yet match that newer roadmap. [Reconciliation #1469](https://github.com/masssi164/weave/issues/1469) tracks the discrepancy explicitly; this README neither changes the specification pin nor presents roadmap proposals as completed runtime behavior.
+The approved [product consolidation epic #1470](https://github.com/masssi164/weave/issues/1470) and [pinned specification policy](docs/specification-source-of-truth.md) define the current delivery contract. The implementation stories are [#1471–#1481](https://github.com/masssi164/weave/issues/1471). Acceptance requires integrated user, admin, MCP, and provider-switch journeys, not compilation alone. Older Core and gateway work remains historical or reusable only as classified in the epic.
 
 ## Develop and test
 
@@ -47,16 +45,13 @@ python3 tools/core_docs_check.py
 Use **Java 21** for the foundation gates below. Container tooling is needed for checks that actually start PostgreSQL, IAM, protocol, or full-system infrastructure. Run the checks relevant to your change; these are developer commands, not a production installer.
 
 ```bash
-./gradlew coreArchitectureCi
-./gradlew canonicalDataCi
-./gradlew postgresPersistenceCi
-./gradlew protocolFacadeFoundationCi
-./gradlew mcpFoundationCi
-./gradlew coreDocsCheck
-./gradlew coreCheck
+./gradlew specCorpusConformance
+./gradlew acceptanceContract
+./gradlew clientCi serverCi adminCi
+./gradlew infraStatic docsCheck
 ```
 
-Follow the [core development workflow](docs/development/core-workflow.md) for scope and prerequisites. The current branch also documents future focused gates named `protocolFacadeCi`, `providerConnectorCi`, `mcpFilesCalendarCi`, and `coreSystemE2e`; do not assume they are available until their owning implementation lands.
+Follow the [developer handbook](docs/developer-handbook.md) and [Gitflow workflow](docs/gitflow-pr-workflow.md) for prerequisites and protected promotion. Run focused checks for the area you change; full-stack checks require the corresponding local services.
 
 Flutter, Node, Xcode, TestFlight, and manual release evidence are not prerequisites for unrelated Server/Data/MCP work.
 
@@ -79,25 +74,16 @@ People and their interfaces       Optional Weaver assistant
 
 In words: Weave connects collaboration capabilities through its own product concepts and stable references. Provider-specific identifiers and behavior stay at adapter boundaries. Weaver remains an optional runtime integration; it does not define the collaboration platform or replace its authorization.
 
-The current roadmap also explores private outbound Runners for organization-local capabilities. That is a distinct execution component, not another name for Weaver, and not a capability advertised as ready here.
-
-Detailed protocol and persistence choices belong to the [pinned specification policy](docs/specification-source-of-truth.md) and the owning implementation tasks. See [#1469](https://github.com/masssi164/weave/issues/1469) before treating older architecture documents as the reconciled target.
+The current release boundary is a server-owned code-first User/Admin API with generated consumers, native Matrix chat, and a real Files provider replacement. Exactly one provider is active per organization and module. Public northbound WebDAV/CalDAV, private Runners, Calls, and broad orchestration are outside this release. Detailed contracts belong to the [pinned specification policy](docs/specification-source-of-truth.md) and [epic #1470](https://github.com/masssi164/weave/issues/1470).
 
 ## Ordered roadmap
 
-[Issue #1299](https://github.com/masssi164/weave/issues/1299) owns the current implementation sequence and acceptance criteria:
-
-1. **Kernel and persistence:** [boundaries #1024](https://github.com/masssi164/weave/issues/1024), [resources and migration #1012](https://github.com/masssi164/weave/issues/1012), and [persistence #1320](https://github.com/masssi164/weave/issues/1320).
-2. **Collaboration integration:** [Files #1326](https://github.com/masssi164/weave/issues/1326), [Calendar #1301](https://github.com/masssi164/weave/issues/1301), [Matrix/Chat #1302](https://github.com/masssi164/weave/issues/1302), and [MCP #1263](https://github.com/masssi164/weave/issues/1263) / [#1415](https://github.com/masssi164/weave/issues/1415).
-3. **Real portability and deployment proof:** [Files cutover #1014](https://github.com/masssi164/weave/issues/1014), [identity #1304](https://github.com/masssi164/weave/issues/1304), [topology #1306](https://github.com/masssi164/weave/issues/1306), and [system E2E #1412](https://github.com/masssi164/weave/issues/1412).
-4. **Private execution:** [Runner contracts #1452](https://github.com/masssi164/weave/issues/1452), [task and lease authority #1453](https://github.com/masssi164/weave/issues/1453), [context #1454](https://github.com/masssi164/weave/issues/1454), [MCP projection #1455](https://github.com/masssi164/weave/issues/1455), and [reference E2E #1456](https://github.com/masssi164/weave/issues/1456).
-
-[CI #1307](https://github.com/masssi164/weave/issues/1307) and [documentation #1416](https://github.com/masssi164/weave/issues/1416) accompany the implementation. The documented `dev` to `main` convergence path remains [PR #1413](https://github.com/masssi164/weave/pull/1413); this README does not promote that work or introduce a release date.
+[Epic #1470](https://github.com/masssi164/weave/issues/1470) owns the acceptance criteria and dependency graph. Its stories cover specification alignment (#1471), the code-first API and generated consumers (#1472–#1473), authorization and identity (#1474, #1478), native Matrix integration (#1475), Files replacement and rollback (#1476–#1477), integrated E2E and release evidence (#1479–#1480), and licensing/runtime documentation (#1481). The epic classifies earlier work as superseded, re-scoped, reuse-only, or deferred. Delivery status is tracked by those issues and the protected branch checks; a roadmap entry is not a shipped capability.
 
 ## Documentation
 
-- **Start contributing:** [Development workflow](docs/development/core-workflow.md), [test strategy](docs/testing/core-test-strategy.md), and [contribution guide](CONTRIBUTING.md).
-- **Read implementation notes:** [Data-sovereignty core](docs/architecture/data-sovereignty-core.md), [package boundaries](docs/architecture/core-package-boundaries.md), and [transfer kernel](docs/architecture/canonical-transfer-kernel.md). Read these with the reconciliation note above.
+- **Start contributing:** [Developer handbook](docs/developer-handbook.md), [Gitflow workflow](docs/gitflow-pr-workflow.md), and [contribution guide](CONTRIBUTING.md).
+- **Read implementation notes:** [Data-sovereignty core](docs/architecture/data-sovereignty-core.md), [package boundaries](docs/architecture/core-package-boundaries.md), and [transfer kernel](docs/architecture/canonical-transfer-kernel.md). Apply the current release profile when older plans conflict.
 - **Check the evidence:** [Workflow disposition](docs/development/workflow-disposition.md), [documentation audit](docs/documentation-audit.md), and [CI runs](https://github.com/masssi164/weave/actions).
 
 ## Get involved

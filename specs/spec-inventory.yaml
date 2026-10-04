@@ -21,20 +21,20 @@ policies:
   - If repo reality conflicts with the pinned corpus, open either a spec-corpus change or an implementation conformance fix.
   - Deletion or migration of transitional packets must preserve any fixture/evidence value that gates still consume.
   - Weaver/OpenClaw runtime specifications live in their own repository and are dependency/runtime evidence only for Weave product work.
-  - For PR #1043 and later, repo-local text that preserves member OpenAPI/REST data-plane access for Files, Calendar events, or Chat messages is obsolete unless explicitly scoped as admin/control/evidence only.
+  - The pinned 2026-10 consolidation release profile supersedes the PR #1043 northbound gateway direction for this release; preserve substantive security, integrity, permission, and recovery requirements from historical packets.
 obsoleteLocalMeanings:
   - scope: files
-    obsolete: OpenAPI or provider-shaped member file list/read/write data plane
-    canonicalReplacement: /dav/files/**
+    obsolete: Public northbound WebDAV as the member release boundary or direct provider calls from consumers
+    canonicalReplacement: Generated User API over server-owned Files routes; DAV may remain southbound in adapters
   - scope: calendar
-    obsolete: /api/calendar/events/** as normal member event data plane
-    canonicalReplacement: /caldav/**
+    obsolete: Public northbound CalDAV as the member release boundary
+    canonicalReplacement: Generated User API over server-owned Calendar routes; CalDAV may remain southbound in adapters
   - scope: chat
-    obsolete: /api/chat/conversations/** as normal member message data plane
-    canonicalReplacement: /_matrix/client/**
+    obsolete: Mandatory server Matrix facade/JNI or proprietary Weave chat-message REST
+    canonicalReplacement: Native Flutter Rust/Matrix SDK and existing Weaver/OpenClaw Matrix integration
   - scope: weaver-mcp
-    obsolete: Python/FastMCP OpenAPI route maps or handwritten JSON-RPC as an active MCP runtime
-    canonicalReplacement: Spring AI 2.0 stateful Streamable HTTP over canonical domain use cases and form elicitation
+    obsolete: Handwritten HTTP transport DTOs and routes for Weave product operations
+    canonicalReplacement: Generated User API client and transport models within the existing MCP runtime
 artifacts:
   - path: specs/0000-weave-spec-framework
     status: transitional-conformance

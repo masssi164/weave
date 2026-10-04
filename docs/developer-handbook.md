@@ -2,6 +2,8 @@
 
 This handbook is the practical entry point for contributing to the Weave monorepo, especially the Flutter client. It complements the repo README and links to deeper docs instead of repeating every contract.
 
+For #1470 delivery, apply the pinned corpus release profile at `steering/release-2026-10-product-consolidation.md` before older Core workflow or gateway instructions. Server code generates separate User and Admin API artifacts; product HTTP consumers use generated clients and transport models. Native Flutter and Weaver Matrix integrations remain in place. The server Matrix facade/JNI and public northbound DAV are outside the release boundary. Run independent authorization, permission, rollback, and real-journey checks in addition to generation freshness.
+
 ## Repository role
 
 Weave is now a monorepo product stack:
@@ -12,8 +14,8 @@ Weave is now a monorepo product stack:
 | `server/` | Product API/BFF, auth/profile facade, files/calendar/boards facades, authorization, audit, readiness, and backend contract tests. |
 | `weave-application-core/`, `weave-files-core/` | Framework-free canonical values, use cases, and ports. |
 | `weave-persistence-jpa/`, `weave-runtime-*-adapters/` | Portable entity persistence and explicitly composed provider/security adapters. |
-| `weave-mcp-server/` | Separate workload-only Spring AI MCP process over Weave open standards. |
-| `weave-product-e2e/` | Plain-Java real-browser/OIDC/WebDAV/MCP product proof; no runtime beans or implementation-module dependency. |
+| `weave-mcp-server/` | Separate workload-only Spring AI MCP process using the generated Weave User API client for product HTTP calls. |
+| `weave-product-e2e/` | Plain-Java real-browser/OIDC/User API/MCP product proof; no runtime beans or implementation-module dependency. |
 | `infra/` | Local/dev stack, Caddy, Keycloak, optional providers, Docker Compose orchestration, live-stack smoke and E2E environment. |
 | `e2e/` | Binding product-language Gherkin scenarios, scenario mapping, and sanitized evidence contract. |
 | `release/` | Stack manifests and release compatibility metadata. |

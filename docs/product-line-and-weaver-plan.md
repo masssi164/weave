@@ -2,7 +2,7 @@
 
 Positioning line: **Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms.** This line is valid only with the claim gates in the product trust matrix and Sprint 30 evidence pack.
 
-Status: active product direction, reconciled to the 2026-07-19 specification corpus.
+Status: historical product-line background. For the active #1470 release, the pinned corpus file `steering/release-2026-10-product-consolidation.md` governs where this plan conflicts. In particular, the current release uses separate generated User/Admin APIs, native Matrix clients, and a permission-preserving Files replacement; public northbound DAV, the server Matrix facade, Runners, and Calls are deferred.
 
 ## Decision lock
 

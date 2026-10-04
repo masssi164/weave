@@ -1,6 +1,6 @@
 # Files Feature Instructions
 
-`files` owns Weave file browsing behavior, upload/download actions, and internal file entities/view state. Normal member file data-plane flows go through the Weave WebDAV facade; discovery/readiness/revoke/setup uses the Weave OpenAPI control plane. Direct provider WebDAV/Nextcloud clients are obsolete in release client code.
+`files` owns Weave file browsing behavior, upload/download actions, and internal file entities/view state. Normal member operations use the generated Weave User HTTP client and transport models. Direct provider WebDAV/Nextcloud clients are obsolete in release client code; DAV may be used southbound by server adapters.
 
 Rules:
 - keep backend facade DTO mapping and file-specific failure mapping in `data/`
@@ -15,9 +15,9 @@ Directory tree behavior:
 - preserve predictable parent/child relationships when refreshing nested folders
 
 Boundary reminders:
-- the backend-owned Weave WebDAV facade is the release data-plane boundary for Files
+- the server-owned User API is the release boundary for Files; preserve stable Weave resource references and effective permissions across provider changes
 - provider-specific diagnostics or migration helpers must live outside normal member presentation/providers and need explicit admin/debug scope
-- future provider-backed file data-plane features should extend the Weave WebDAV facade; OpenAPI remains for control/discovery/readiness/revoke contracts instead of importing provider clients in `features/files/`
+- future provider-backed Files behavior should extend server-owned User API contracts and regenerate consumers instead of importing provider clients in `features/files/`
 
 Accessibility:
 - each file row should be understandable as one unit when appropriate
