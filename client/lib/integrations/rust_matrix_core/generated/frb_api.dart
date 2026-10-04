@@ -16,24 +16,67 @@ Future<String> projectMatrixJson({
   serverName: serverName,
 );
 
-Future<String> initializeMatrixClient({
+Future<String> matrixOauthStart({
+  required String loginKey,
+  required String homeserverUrl,
+  required String deviceId,
+  required String redirectUri,
+  required String extraRootCertificatePem,
+}) => RustLib.instance.api.crateFrbApiMatrixOauthStart(
+  loginKey: loginKey,
+  homeserverUrl: homeserverUrl,
+  deviceId: deviceId,
+  redirectUri: redirectUri,
+  extraRootCertificatePem: extraRootCertificatePem,
+);
+
+Future<String> matrixOauthFinish({
+  required String loginKey,
+  required String callbackUrl,
+}) => RustLib.instance.api.crateFrbApiMatrixOauthFinish(
+  loginKey: loginKey,
+  callbackUrl: callbackUrl,
+);
+
+Future<String> matrixOauthAbort({required String loginKey}) =>
+    RustLib.instance.api.crateFrbApiMatrixOauthAbort(loginKey: loginKey);
+
+Future<String> matrixOauthActivate({
+  required String loginKey,
+  required String profileKey,
+  required String storePath,
+  required String storePassphrase,
+}) => RustLib.instance.api.crateFrbApiMatrixOauthActivate(
+  loginKey: loginKey,
+  profileKey: profileKey,
+  storePath: storePath,
+  storePassphrase: storePassphrase,
+);
+
+Future<String> matrixOauthRestore({
   required String profileKey,
   required String homeserverUrl,
   required String userId,
   required String deviceId,
-  required String accessToken,
   required String storePath,
   required String storePassphrase,
   required String extraRootCertificatePem,
-}) => RustLib.instance.api.crateFrbApiInitializeMatrixClient(
+}) => RustLib.instance.api.crateFrbApiMatrixOauthRestore(
   profileKey: profileKey,
   homeserverUrl: homeserverUrl,
   userId: userId,
   deviceId: deviceId,
-  accessToken: accessToken,
   storePath: storePath,
   storePassphrase: storePassphrase,
   extraRootCertificatePem: extraRootCertificatePem,
+);
+
+Future<String> matrixOauthEndSession({
+  required String profileKey,
+  required String storePath,
+}) => RustLib.instance.api.crateFrbApiMatrixOauthEndSession(
+  profileKey: profileKey,
+  storePath: storePath,
 );
 
 Future<String> syncMatrixClient({required String profileKey}) =>

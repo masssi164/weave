@@ -8,6 +8,7 @@ import 'package:weave/features/auth/data/repositories/oidc_auth_session_reposito
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
+import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -101,5 +102,50 @@ void main() {
       );
       expect(chatRepository.signOutCalls, 1);
     });
+
+    test(
+      'Matrix revocation warning still refreshes the signed-out shell',
+      () async {
+        final secureStore = InMemorySecureStore();
+        final chatRepository = FakeChatRepository(
+          signOutHandler: () async => throw const ChatFailure.protocol(
+            'Matrix remote revocation could not be confirmed.',
+          ),
+        );
+        await secureStore.write(
+          authSessionStorageKey,
+          AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) => _FakeServerConfigurationRepository(
+                configuration: buildTestConfiguration(),
+              ),
+            ),
+            secureStoreProvider.overrideWithValue(secureStore),
+            oidcClientProvider.overrideWithValue(_FakeOidcClient()),
+            identitySessionPortProvider.overrideWithValue(
+              FakeIdentitySessionPort(),
+            ),
+            chatRepositoryProvider.overrideWithValue(chatRepository),
+          ],
+        );
+        addTearDown(container.dispose);
+        expect(
+          (await container.read(appBootstrapProvider.future)).phase,
+          BootstrapPhase.ready,
+        );
+
+        await container.read(authFlowControllerProvider.notifier).signOut();
+
+        expect(await secureStore.read(authSessionStorageKey), isNull);
+        expect(
+          container.read(appBootstrapProvider).requireValue.phase,
+          BootstrapPhase.needsSignIn,
+        );
+        expect(container.read(authFlowControllerProvider).failure, isNotNull);
+      },
+    );
   });
 }

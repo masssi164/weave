@@ -65,22 +65,33 @@ class ServiceEndpointDeriver {
     return uri;
   }
 
+  Uri parseMatrixHomeserverUrl(String rawValue) {
+    final uri = Uri.tryParse(rawValue.trim());
+    if (uri == null ||
+        !uri.isAbsolute ||
+        uri.host.isEmpty ||
+        !const {'http', 'https'}.contains(uri.scheme) ||
+        (uri.path.isNotEmpty && uri.path != '/') ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        uri.userInfo.isNotEmpty) {
+      throw const AppFailure.validation(
+        'Enter the Matrix homeserver origin using HTTP or HTTPS.',
+      );
+    }
+    return uri.replace(path: '');
+  }
+
   ServiceEndpoints derive(Uri issuerUrl) {
     final baseHost = _deriveWorkspaceBaseHost(issuerUrl.host);
     final scheme = issuerUrl.scheme;
 
     return ServiceEndpoints(
-      matrixHomeserverUrl: Uri.parse('$scheme://api.$baseHost'),
+      matrixHomeserverUrl: Uri.parse('$scheme://matrix.$baseHost'),
       nextcloudBaseUrl: Uri.parse('$scheme://api.$baseHost/dav/files'),
       backendApiBaseUrl: Uri.parse('$scheme://api.$baseHost/api'),
     );
   }
-
-  Uri matrixFacadeFromBackendApi(Uri backendApiBaseUrl) => Uri(
-    scheme: backendApiBaseUrl.scheme,
-    host: backendApiBaseUrl.host,
-    port: backendApiBaseUrl.hasPort ? backendApiBaseUrl.port : null,
-  );
 
   Uri filesFacadeFromBackendApi(Uri backendApiBaseUrl) =>
       backendApiBaseUrl.replace(path: '/dav/files');

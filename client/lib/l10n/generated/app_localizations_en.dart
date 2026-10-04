@@ -304,7 +304,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatErrorSessionRequiredGuidance =>
-      'Chat is not connected for this workspace session. Connect chat to continue.';
+      'Connect chat to sign in to Matrix in your system browser. Your Matrix session is separate from your Weave sign-in.';
 
   @override
   String get chatErrorUnsupportedPlatformGuidance =>
@@ -2442,7 +2442,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serverConfigurationServicesHelper =>
-      'The Matrix facade is fixed to the backend API origin. Files and backend product endpoints are derived from the issuer host.';
+      'Matrix, Files, and backend defaults are derived from the issuer host. Set the real Matrix homeserver origin if it differs; Matrix sign-in uses a separate browser session.';
 
   @override
   String get serverConfigurationBackendApiHelper =>
@@ -2456,7 +2456,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.';
 
   @override
-  String get serverConfigurationMatrixLabel => 'Weave Matrix Facade URL';
+  String get serverConfigurationMatrixLabel => 'Matrix homeserver URL';
 
   @override
   String get serverConfigurationNextcloudLabel => 'Nextcloud Base URL';

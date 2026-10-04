@@ -4,19 +4,18 @@
 
 Own here:
 - app-facing descriptors for the Rust/Ruma Matrix protocol core
-- the future `flutter_rust_bridge` generated binding handoff
+- the generated `flutter_rust_bridge` binding handoff to Matrix SDK 0.18
 - support-safe bridge readiness states that features can consume without importing provider SDKs
 
 Do not own here:
 - Weave Chat presentation state
-- raw Matrix provider or homeserver credentials
-- direct Synapse/MAS/provider setup flows
-- generated bridge code until the native build is wired into the Flutter target
+- server-side Synapse/MAS/provider setup flows
+- reuse of Weave User API bearer tokens as Matrix credentials
 
 Boundary rules:
-- Flutter continues to authenticate through the Weave OIDC session before calling the Weave Matrix facade.
-- The shared Rust core is a protocol helper, not a provider SDK escape hatch.
-- The legacy Dart Matrix SDK seam has been retired; future E2EE and device-state behavior must come through the Rust Matrix core Flutter bridge.
+- Flutter uses the system browser for Matrix OAuth Authorization Code with SDK-managed PKCE and state.
+- Matrix OAuth tokens and refresh state stay separate from Weave OIDC credentials and are restored from encrypted client-owned storage.
+- The native Rust Matrix SDK owns Matrix transport, sync and E2EE. The legacy Dart Matrix SDK seam remains retired.
 
 ## Global Weave agent baseline
 
