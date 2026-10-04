@@ -479,17 +479,14 @@
           "fragments": [
             "Weave Client and Organization/Admin Console split",
             "The Weave Client owns member work surfaces",
-            "The Organization/Admin Console owns organization bootstrap",
-            "collaborative-domain provider choice, policy, readiness, diagnostics, and",
-            "whitelisting"
+            "The Organization/Admin Console owns organization bootstrap"
           ]
         },
         {
-          "path": "docs/architecture.md",
+          "path": "docs/specification-source-of-truth.md",
           "fragments": [
-            "Organization discovery and manifest contract",
-            "provider setup, endpoint rotation, diagnostics, and whitelisting are never member-client responsibilities",
-            "Those states are limited to `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`"
+            "For the #1470 consolidation release",
+            "accepted release profile"
           ]
         },
         {
@@ -692,18 +689,18 @@
       ],
       "additionalEvidence": [
         {
-          "path": "docs/canonical-feature-models.md",
+          "path": "e2e/README.md",
           "fragments": [
-            "The member client and Admin Console consume stable Weave contracts",
-            "Admin/provider policy and readiness decide whether a member manifest capability state is `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`.",
-            "Raw secrets, bearer tokens, provider URLs with credentials, downstream bodies, and provider-internal IDs do not appear in member responses"
+            "provider-neutral",
+            "The Server independently enforces User/Admin",
+            "DAV is southbound inside providers"
           ]
         },
         {
-          "path": "docs/architecture.md",
+          "path": "docs/specification-source-of-truth.md",
           "fragments": [
-            "Server facades expose Weave-owned models per capability",
-            "must not leak provider IDs, raw provider payloads, secrets, or downstream diagnostics"
+            "Implementation/evidence truth",
+            "pinned Weave Specification Corpus"
           ]
         }
       ],
@@ -762,11 +759,10 @@
           ]
         },
         {
-          "path": "docs/architecture.md",
+          "path": "e2e/README.md",
           "fragments": [
-            "Platform identity and RBAC capability profile contract",
-            "Keycloak is the platform authority",
-            "category-level capability keys"
+            "organization, and resource authorization",
+            "MCP has no provider or IAM"
           ]
         }
       ],
@@ -774,53 +770,25 @@
     },
     {
       "tag": "@weave-v01-agent-runtime-control-policy",
-      "scenario": "Runtime cells derive from current organization entitlement and policy",
+      "scenario": "Weaver workload access is bounded while private Runner work is deferred",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/AgentRuntimeAdminControllerTest.java",
+      "executableTest": "tools/enterprise_target_architecture_spine_check.py",
       "evidenceMarkers": [
         "V01_AGENT_RUNTIME_CONTROL_POLICY"
       ],
       "additionalEvidence": [
         {
-          "path": "docs/product-line-and-weaver-plan.md",
+          "path": "docs/specification-source-of-truth.md",
           "fragments": [
-            "Agent Runtime Control integration",
-            "signed RuntimeProfile v2",
-            "cell owns zero durable bytes"
+            "northbound DAV/Matrix-facade, Runner, and Calls plans"
           ]
         },
         {
-          "path": "docs/architecture.md",
+          "path": "e2e/README.md",
           "fragments": [
-            "## Agent Runtime Control contract",
-            "RuntimeProfile v2 is a signed, short-lived desired-state projection",
-            "The active MCP catalog is limited to the read-only Files projection over WebDAV"
-          ]
-        },
-        {
-          "path": "docs/admin-provisioned-first-use.md",
-          "fragments": [
-            "## Agent Runtime Control policy",
-            "Exact native Keycloak Organization membership `/capabilities/weaver` is the sole self-hosted coarse entitlement source",
-            "profile generation is audited"
-          ]
-        },
-        {
-          "path": "infra/docs/weaver-runtime-lifecycle.md",
-          "fragments": [
-            "Each cell gets a dedicated confidential Keycloak client",
-            "Signed RuntimeProfile input",
-            "Zero durable cell-local bytes",
-            "DELETE_RUNTIME_STATE_ONLY"
-          ]
-        },
-        {
-          "path": "infra/weave-workspace/weaver-runtime-lifecycle.contract.json",
-          "fragments": [
-            "weave-weaver-runtime-lifecycle-contract-v2",
-            "signed-RuntimeProfile-v2",
-            "zeroDurableCellLocalBytes",
-            "confirmed-delete-runtime-state-identity-credential-and-ephemeral-material"
+            "existing Weaver/OpenClaw Matrix channel",
+            "MCP has no provider or IAM",
+            "Private Runner work is deferred"
           ]
         }
       ],
@@ -3992,7 +3960,7 @@
     },
     {
       "tag": "@enterprise-target-decision-lock",
-      "scenario": "Enterprise hard-plan decisions are locked before implementation lanes expand",
+      "scenario": "The approved consolidation release governs architecture evidence",
       "feature": "e2e/features/enterprise_target_architecture.feature",
       "executableTest": "tools/enterprise_target_architecture_spine_check.py",
       "evidenceMarkers": [
@@ -4001,18 +3969,24 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
+          "path": "docs/specification-source-of-truth.md",
           "fragments": [
-            "Domain kernel",
-            "OpenAPI is demoted to control",
-            "#1011"
+            "steering/release-2026-10-product-consolidation.md",
+            "supersedes conflicting older Core"
+          ]
+        },
+        {
+          "path": "e2e/README.md",
+          "fragments": [
+            "separate User and Admin OpenAPI artifacts",
+            "required Files proof is permission-preserving"
           ]
         }
       ]
     },
     {
       "tag": "@enterprise-target-open-standard-northbound",
-      "scenario": "Northbound standards stay separate from southbound providers",
+      "scenario": "Current client boundaries separate generated HTTP, native Matrix, and private adapters",
       "feature": "e2e/features/enterprise_target_architecture.feature",
       "executableTest": "tools/enterprise_target_architecture_spine_check.py",
       "evidenceMarkers": [
@@ -4021,48 +3995,26 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
+          "path": "e2e/README.md",
           "fragments": [
-            "OIDC/OAuth2-governed Open Standards Gateway",
-            "LiveKit is the first SFU candidate",
-            "Open standards are northbound projections or southbound adapter seams"
+            "separate User and Admin OpenAPI artifacts",
+            "Native Flutter Rust/Matrix SDK",
+            "DAV is southbound inside providers",
+            "MCP has no provider or IAM"
           ]
         },
         {
-          "path": "docs/architecture.md",
+          "path": "specs/spec-inventory.yaml",
           "fragments": [
-            "OIDC/OAuth2 for identity",
-            "WebDAV for Files",
-            "CalDAV/iCalendar for",
-            "Calendar",
-            "Matrix Client-Server API for Chat",
-            "pinned MatrixRTC Profile 0 plus",
-            "WebRTC for Calls",
-            "workload-only MCP for Agents"
-          ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
-          "fragments": [
-            "calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks",
-            "calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData",
-            "calDavEventReadPutAndDeleteUseCalendarFacadeBoundaryAndStableErrors"
-          ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
-          "fragments": [
-            "syncProjectsCanonicalChatThroughRustWithStableWeaveCursor",
-            "sendParsesInRustAndForwardsTransactionForCanonicalIdempotency",
-            "rust-ruma-jni",
-            "!channel-general:api.weave.test"
+            "Generated User API over server-owned Files routes",
+            "Native Flutter Rust/Matrix SDK and existing Weaver/OpenClaw Matrix integration"
           ]
         }
       ]
     },
     {
       "tag": "@enterprise-target-openapi-control-plane-only",
-      "scenario": "OpenAPI does not become the normal collaboration data plane",
+      "scenario": "Separate User and Admin OpenAPI artifacts govern current HTTP access",
       "feature": "e2e/features/enterprise_target_architecture.feature",
       "executableTest": "tools/enterprise_target_architecture_spine_check.py",
       "evidenceMarkers": [
@@ -4071,36 +4023,25 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-004-server-openapi-contract-authority.md",
+          "path": "e2e/README.md",
           "fragments": [
-            "superseded for normal Files, Calendar, and Chat data planes",
-            "OpenAPI/REST is not the normal Files, Calendar, or Chat data plane",
-            "Files: WebDAV",
-            "Calendar: CalDAV plus iCalendar",
-            "Chat: Matrix Client-Server API projection"
+            "separate User and Admin OpenAPI artifacts",
+            "The Server independently enforces User/Admin",
+            "generated User API"
           ]
         },
         {
-          "path": "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
+          "path": "docs/specification-source-of-truth.md",
           "fragments": [
-            "Matrix Client-Server projection as the chat data plane",
-            "`/api/chat/**` remains a control/product facade",
-            "OpenAPI/REST"
-          ]
-        },
-        {
-          "path": "client/test/architecture/backend_facade_contract_test.dart",
-          "fragments": [
-            "primary chat provider is wired through the Matrix Client-Server projection",
-            "BackendChatRepository(",
-            "isNot(contains('matrixSessionServiceProvider'))"
+            "accepted release profile",
+            "northbound DAV/Matrix-facade, Runner, and Calls plans"
           ]
         }
       ]
     },
     {
       "tag": "@enterprise-target-no-transitional-compatibility",
-      "scenario": "Transitional behavior is not preserved as architecture",
+      "scenario": "Superseded architecture stays historical while current safeguards remain",
       "feature": "e2e/features/enterprise_target_architecture.feature",
       "executableTest": "tools/enterprise_target_architecture_spine_check.py",
       "evidenceMarkers": [
@@ -4109,18 +4050,18 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-008-no-transitional-compatibility-as-architecture.md",
+          "path": "docs/specification-source-of-truth.md",
           "fragments": [
-            "Transitional behavior is not architecture",
-            "fixture-fenced",
-            "Strategic JSON/file runtime truth is not preserved as the target"
+            "Cleanup policy",
+            "preserve evidence and gates"
           ]
         },
         {
-          "path": "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
+          "path": "specs/spec-inventory.yaml",
           "fragments": [
-            "direct target-implementation issue DAG",
-            "#1031"
+            "obsoleteLocalMeanings",
+            "Mandatory server Matrix facade/JNI",
+            "Generated User API over server-owned Files routes"
           ]
         }
       ]
@@ -4180,7 +4121,7 @@
     },
     {
       "tag": "@enterprise-target-persistence-foundation",
-      "scenario": "Strategic control-plane state gains a gated relational persistence foundation",
+      "scenario": "Weave-owned strategic state has one gated relational persistence foundation",
       "feature": "e2e/features/enterprise_target_architecture.feature",
       "executableTest": "server/src/test/java/com/massimotter/weave/backend/provider/JpaProviderSelectionRepositoryTest.java",
       "evidenceMarkers": [
@@ -4189,12 +4130,11 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
+          "path": "docs/architecture/database-schema-authority.md",
           "fragments": [
-            "one persistent, non-cancelling schema initializer",
-            "Testcontainers JUnit/PostgreSQL",
-            "H2 only for fast development/unit feedback",
-            "PostgreSQL as the authoritative integration"
+            "versioned Flyway SQL migrations",
+            "Hibernate validates mappings",
+            "H2 remains limited to fast tests"
           ]
         },
         {
@@ -4238,11 +4178,10 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
+          "path": "docs/architecture/database-schema-authority.md",
           "fragments": [
-            "the only production storage mode for strategic Weave-owned state",
-            "append-only evidence streams",
-            "they are not alternative strategic database authorities"
+            "one production schema authority",
+            "Hibernate validates mappings"
           ]
         },
         {
@@ -4279,11 +4218,11 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
+          "path": "docs/architecture/database-schema-authority.md",
           "fragments": [
-            "the only production storage mode for strategic Weave-owned state",
-            "migration evidence",
-            "they are not alternative strategic database authorities"
+            "one production schema authority",
+            "PostgreSQL is authoritative",
+            "restored Flyway history"
           ]
         },
         {
@@ -4312,7 +4251,7 @@
     },
     {
       "tag": "@enterprise-target-provider-switch-no-drift-foundation",
-      "scenario": "Provider replacement dry-run records no-drift evidence without provider semantics leaking northbound",
+      "scenario": "Provider replacement dry-run remains a prerequisite rather than cutover proof",
       "feature": "e2e/features/enterprise_target_architecture.feature",
       "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
       "evidenceMarkers": [
@@ -4321,11 +4260,11 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
+          "path": "e2e/README.md",
           "fragments": [
-            "ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION",
-            "provider-switch no-drift foundation",
-            "#1025"
+            "Unsupported source properties or grants block activation",
+            "Offline dry-run/JPA tests",
+            "effective allow and deny permissions"
           ]
         },
         {

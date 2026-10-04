@@ -390,7 +390,7 @@ final class JsonHttpClient {
     }
   }
 
-  private static SSLContext sslContext(Path caCertificate) {
+  static SSLContext sslContext(Path caCertificate) {
     try {
       byte[] bytes = Files.readAllBytes(caCertificate);
       Certificate certificate;

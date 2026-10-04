@@ -11,6 +11,7 @@ dependencyManagement {
 }
 
 dependencies {
+    implementation project(':weave-user-api-client')
     implementation libs.playwright
     implementation libs.nimbus.jose.jwt
     implementation 'tools.jackson.core:jackson-databind'
