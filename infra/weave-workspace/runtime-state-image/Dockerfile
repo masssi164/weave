@@ -11,7 +11,10 @@ ARG MC_REVISION=77f82e18b5401a65958f1619df6ebb994634bd88
 RUN git clone --depth 1 --branch RELEASE.2025-10-15T17-29-55Z \
       https://github.com/minio/minio.git /src/minio \
     && test "$(git -C /src/minio rev-parse HEAD)" = "$MINIO_REVISION" \
-    && git clone --depth 1 https://github.com/minio/mc.git /src/mc \
+    && git init -q /src/mc \
+    && git -C /src/mc remote add origin https://github.com/minio/mc.git \
+    && git -C /src/mc fetch --depth 1 origin "$MC_REVISION" \
+    && git -C /src/mc checkout --detach FETCH_HEAD \
     && test "$(git -C /src/mc rev-parse HEAD)" = "$MC_REVISION"
 
 RUN mkdir -p /out && cd /src/minio \
