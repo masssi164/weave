@@ -7078,6 +7078,19 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MemberInvitationResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Organization invitations."
+          },
           "401": {
             "content": {
               "*/*": {
@@ -7274,6 +7287,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberInvitationResponse"
+                }
+              }
+            },
+            "description": "Resent organization invitation."
+          },
           "401": {
             "content": {
               "*/*": {
