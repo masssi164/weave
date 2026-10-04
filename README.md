@@ -14,7 +14,7 @@ A collaboration platform should let you choose its building blocks, not require 
 
 **Choose providers by capability.** Files, Calendar, and Chat are product concepts, not vendor names. Replaceable adapters connect the services behind them. Provider-neutral does not mean every provider is already supported.
 
-**Keep the context, not just an export.** A file, an event, and a conversation can belong to the same Space. Stable `weave://` references and cross-domain relationships are central to the design. The approved Files replacement must preserve data, stable references, and effective permissions, including during verified rollback. Activation must stop if a source property or permission cannot be preserved.
+**Keep the context, not just an export.** A file, an event, and a conversation can belong to the same Space. Stable `weave://` references and cross-domain relationships are central to the design. The separate [provider portability epic #1498](https://github.com/masssi164/weave/issues/1498) requires Files adoption and replacement to preserve data, stable references, and effective permissions. Activation must stop if a required source property or permission cannot be preserved.
 
 **Build the workspace you need.** The broader vision includes documents, tasks, and meetings as modular capabilities. The immediate implementation work concentrates on the Files, Calendar, and Chat foundation and its integration boundaries. The wider vision is not a list of already shipped features.
 
@@ -30,7 +30,7 @@ Weave does not require an agent to be useful. Weaver adds another way to work wi
 
 This is an existing codebase with substantial implementation, tests, and infrastructure, undergoing architectural consolidation. A passing component test or build is not evidence that every planned integration is ready for daily use.
 
-The approved [product consolidation epic #1470](https://github.com/masssi164/weave/issues/1470) and [pinned specification policy](docs/specification-source-of-truth.md) define the current delivery contract. The implementation stories are [#1471–#1481](https://github.com/masssi164/weave/issues/1471). Acceptance requires integrated user, admin, MCP, and provider-switch journeys, not compilation alone. Older Core and gateway work remains historical or reusable only as classified in the epic.
+The approved [product consolidation epic #1470](https://github.com/masssi164/weave/issues/1470) and [pinned specification policy](docs/specification-source-of-truth.md) define the current standalone-product delivery contract. Its stories are #1471–#1476 and #1479–#1481; #1477–#1478 belong to [provider portability epic #1498](https://github.com/masssi164/weave/issues/1498). #1470 acceptance requires integrated user, admin, MCP, Matrix, Files, and Calendar journeys, not compilation alone. Provider adoption, migration, cutover, and rollback are #1498 acceptance. Older Core and gateway work remains historical or reusable only as classified in the epics.
 
 ## Develop and test
 
@@ -74,11 +74,11 @@ People and their interfaces       Optional Weaver assistant
 
 In words: Weave connects collaboration capabilities through its own product concepts and stable references. Provider-specific identifiers and behavior stay at adapter boundaries. Weaver remains an optional runtime integration; it does not define the collaboration platform or replace its authorization.
 
-The current release boundary is a server-owned code-first User/Admin API with generated consumers, native Matrix chat, and a real Files provider replacement. Exactly one provider is active per organization and module. Public northbound WebDAV/CalDAV, private Runners, Calls, and broad orchestration are outside this release. Detailed contracts belong to the [pinned specification policy](docs/specification-source-of-truth.md) and [epic #1470](https://github.com/masssi164/weave/issues/1470).
+The current release boundary is a server-owned code-first User/Admin API with generated consumers, a Weave Matrix Client-Server northbound facade for native and independent Matrix clients, and provider-neutral Files and Calendar operations. Rust/Ruma/JNI handles Matrix wire parsing and projection; the Weave Chat domain authorizes and routes through `ChatProviderPort`. Exactly one provider is active per organization and module. One member-facing Weave login makes authorized capabilities ready with separate audience-bound sessions. Public northbound WebDAV/CalDAV, private Runners, Calls, and broad orchestration are outside this release. Detailed contracts belong to the [pinned specification policy](docs/specification-source-of-truth.md), [Matrix support profile](docs/reference/matrix-client-server-support-profile.md), and [epic #1470](https://github.com/masssi164/weave/issues/1470).
 
 ## Ordered roadmap
 
-[Epic #1470](https://github.com/masssi164/weave/issues/1470) owns the acceptance criteria and dependency graph. Its stories cover specification alignment (#1471), the code-first API and generated consumers (#1472–#1473), authorization and identity (#1474, #1478), native Matrix integration (#1475), Files replacement and rollback (#1476–#1477), integrated E2E and release evidence (#1479–#1480), and licensing/runtime documentation (#1481). The epic classifies earlier work as superseded, re-scoped, reuse-only, or deferred. Delivery status is tracked by those issues and the protected branch checks; a roadmap entry is not a shipped capability.
+[Epic #1470](https://github.com/masssi164/weave/issues/1470) owns the standalone product: scope alignment (#1471), the code-first API and generated consumers (#1472–#1473), identity and authorization (#1474), Matrix interoperability (#1475), durable resources and one active binding (#1476), product flows (#1479), integrated E2E (#1480), and mainline closure (#1481). [Epic #1498](https://github.com/masssi164/weave/issues/1498) owns provider adoption and migration, including Files profiles (#1477), cutover, recovery, and rollback (#1478). Delivery status is tracked by those issues and protected branch checks; a roadmap entry is not a shipped capability.
 
 ## Documentation
 

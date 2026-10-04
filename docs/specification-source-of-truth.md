@@ -10,7 +10,7 @@ Weave uses a split source-of-truth model so product meaning, implementation proo
 2. **Implementation/evidence truth** lives in this repository: code, tests, CI, generated contracts, support-safe evidence, release notes, GitHub issues/PRs/checks, and milestones.
 3. **Runtime dependency truth** for Weaver/OpenClaw behavior lives in the Weaver/OpenClaw runtime repository and its own specs, docs, source, tests, and CI. Those artifacts can prove runtime capability, but they do not override the Weave product corpus.
 
-For the #1470 consolidation release, the corpus file `steering/release-2026-10-product-consolidation.md` is the accepted release profile. It supersedes conflicting older Core, northbound DAV/Matrix-facade, Runner, and Calls plans for this release. Older text remains useful for security, integrity, permission, recovery, and historical evidence when consistent with that profile.
+For the #1470 consolidation release, the corpus file `steering/release-2026-10-product-consolidation.md` is the accepted release profile. It supersedes conflicting older Core, public northbound DAV, direct-provider Matrix gateway, proprietary Chat REST, Runner, and Calls plans. Weave's Matrix Client-Server facade is the accepted Chat northbound protocol boundary. Provider adoption and migration are governed separately by #1498. Older text remains useful for security, integrity, permission, recovery, and historical evidence when consistent with those profiles.
 
 ## Local repo specs
 

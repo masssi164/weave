@@ -1,12 +1,12 @@
 # Weave data-sovereignty core
 
-Status: binding architecture for the current Files, Calendar, Chat, and Files/Calendar MCP roadmap.
+Status: historical Core architecture and implementation evidence. For the current release, the pinned corpus `steering/release-2026-10-product-consolidation.md` and #1470 govern the product boundary; #1498 governs provider adoption and migration. The historical northbound DAV and MCP-over-DAV assertions below are not current release requirements. Retain security, integrity, provenance, permission, and recovery requirements where the corresponding capability is enabled.
 
 ## Mission
 
 Weave gives organizations data sovereignty over collaboration data.
 
-Data sovereignty means that an organization can use stable open protocols, retain a provider-independent canonical representation, back up and restore it, import and export through connectors, and account explicitly for unsupported or lossy fields.
+Data sovereignty means that an organization can use stable product contracts, retain provider-independent resource references and authorization intent, back up and restore them, and account explicitly for unsupported or lossy provider fields. #1498 defines the concrete source inventory, transfer and rollback proof.
 
 Weave does not promise universal lossless conversion. It promises no unaccounted data loss.
 
@@ -27,9 +27,9 @@ Provider identities may map to canonical identities but never replace them.
 ## Layers
 
 ```text
-WebDAV        CalDAV/iCalendar        Matrix Client-Server
-   \                 |                       /
-        northbound protocol projections
+Generated User API (Files/Calendar)    Matrix Client-Server (Chat)
+                  \                         /
+                  northbound projections
                        |
           canonical application services
              Files | Calendar | Chat
@@ -41,19 +41,19 @@ WebDAV        CalDAV/iCalendar        Matrix Client-Server
  JPA/Flyway and BlobStore      source/target connectors
 ```
 
-Textual equivalent: open-standard projections translate requests into canonical commands and queries. Application services enforce authorization, revisions, idempotency, synchronization, and errors. Domain models express provider-independent meaning. Persistence adapters store canonical state. Provider connectors translate external state to and from canonical values.
+Textual equivalent: the generated Weave User API and the Matrix protocol facade translate requests into canonical commands and queries. Application services enforce authorization, revisions, idempotency, synchronization, and errors. Domain models express provider-independent meaning. Persistence adapters store canonical state. Provider connectors translate external state to and from canonical values.
 
 Dependency direction points inward.
 
 ## Northbound projections
 
-### Files
+### Files (historical northbound DAV proposal)
 
-WebDAV is the stable Files data plane. XML, HTTP headers, paths, ETags, locks, and status codes stay in the projection. WebDAV calls canonical Files use cases, never JPA, OpenDAL, S3, Nextcloud, or another provider directly.
+The current Files northbound is the generated Weave User API. WebDAV may remain inside a southbound provider adapter. The earlier public WebDAV projection is historical protocol design, not a current member endpoint.
 
-### Calendar
+### Calendar (historical northbound DAV proposal)
 
-CalDAV and iCalendar are the stable Calendar data plane. Discovery, REPORT payloads, multistatus responses, ICS syntax, ETags, and sync tokens stay in the projection. iCal4j may sit behind narrow codec and recurrence ports; its types never enter the canonical domain.
+The current Calendar northbound is the generated Weave User API. CalDAV/iCalendar may remain inside a southbound provider adapter or narrow codec; their types never enter the canonical domain.
 
 ### Chat
 
@@ -86,7 +86,7 @@ Flyway schema version, canonical model version, transfer format version, and pro
 
 PostgreSQL stores canonical metadata and transfer state. Flyway owns schema evolution; Hibernate validates mappings in production-capable profiles.
 
-Files content uses a BlobStore port. The initial adapter uses OpenDAL filesystem storage. A later S3-compatible BlobStore adapter may implement the same port without changing canonical identity or WebDAV behavior.
+Files content uses a BlobStore port. The initial adapter uses OpenDAL filesystem storage. A later S3-compatible BlobStore adapter may implement the same port without changing canonical identity or the member-facing User API.
 
 Because PostgreSQL and blob publication are not one ACID transaction, Files mutations require durable operation intent, immutable publication, integrity verification, and reconciliation.
 
@@ -108,7 +108,7 @@ A large native adapter that owns application policy, persistence, protocol, and 
 
 ## MCP and Weaver
 
-The Weave MCP Server is a separate process. Its v1 catalog contains Files and Calendar only and reaches Weave Server through typed WebDAV and CalDAV clients.
+The Weave MCP Server is a separate process. Its current curated Files and Calendar tools reach Weave Server through the same generated JVM User API client and transport models used by product E2E, with a distinct workload identity and current member/resource authorization. The earlier typed WebDAV/CalDAV transport is historical.
 
 It contains no Chat catalog, DataSource, Flyway migration, JPA repository, BlobStore mount, provider adapter, Keycloak administration authority, or independent domain/approval workflow.
 
@@ -122,7 +122,7 @@ Northbound projections must not call JPA or providers directly. Persistence adap
 
 ## System acceptance
 
-One exact commit must prove:
+The historical Core program proposed that one exact commit prove:
 
 1. empty-state startup and Flyway migration;
 2. Files through WebDAV;
@@ -136,8 +136,8 @@ One exact commit must prove:
 10. backup and isolated restore;
 11. no mandatory external collaboration provider.
 
-Issue #1412 owns this proof.
+Current #1470 acceptance is governed by #1480's real user/admin/MCP/Matrix/Files/Calendar journeys. Provider adoption, transfer, cutover, and rollback evidence belongs to #1498. The numbered list above remains historical context for #1412; it is not the #1470 closure checklist.
 
 ## Deferred
 
-Named provider cutover, historical data migration, Home-core integration, federation, Calls, complete client E2EE, Flutter/native acceptance, TestFlight, and public release are outside the current core.
+Named provider cutover and historical data migration moved to #1498. Home-core is not a Weave dependency. Federation, Calls, and broad Runner/orchestration work are deferred. E2EE is not complete until its separate client-owned encrypted-room/device/recovery/accessibility evidence passes. Flutter/native interoperability is active #1475/#1480 acceptance.
