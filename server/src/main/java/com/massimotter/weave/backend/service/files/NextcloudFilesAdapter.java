@@ -85,6 +85,7 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
             <d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
               <d:prop>
                 <d:getetag />
+                <oc:id />
                 <oc:fileid />
                 <oc:owner-id />
                 <oc:permissions />
@@ -282,6 +283,49 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
         }
     }
 
+    @Override
+    public Optional<String> providerObjectRef(FilePath path) {
+        ensureConfigured();
+        try {
+            return restClient.method(PROPFIND)
+                    .uri(webdavUri(path.value(), path.root()))
+                    .headers(this::applyActorHeaders)
+                    .header("Depth", "0")
+                    .contentType(MediaType.APPLICATION_XML)
+                    .body(ACCESS_PROPFIND_BODY)
+                    .exchange((request, response) -> {
+                        if (response.getStatusCode().value() != 207) {
+                            throw mapStatus(response.getStatusCode(), "resolve-file-identity", path.value());
+                        }
+                        Document document = parseAccessXml(response.getBody());
+                        NodeList rows = document.getElementsByTagNameNS("*", "response");
+                        if (rows.getLength() != 1) throw invalidAccessResponse();
+                        Element row = (Element) rows.item(0);
+                        String href = childText(row, "href");
+                        if (!StringUtils.hasText(href) || !path.value().equals(productPathFromHref(href))) {
+                            throw invalidAccessResponse();
+                        }
+                        Element prop = successfulAccessProp(row);
+                        String objectId = prop == null ? null : childText(prop, "id");
+                        if (!validGlobalObjectId(objectId)) {
+                            throw invalidAccessResponse();
+                        }
+                        return Optional.of("nextcloud-object:" + objectId);
+                    });
+        } catch (ApiErrorException exception) {
+            throw exception;
+        } catch (ResourceAccessException exception) {
+            throw downstreamUnavailable("resolve-file-identity", exception);
+        } catch (RestClientException exception) {
+            throw downstreamFailure("resolve-file-identity", exception);
+        }
+    }
+
+    @Override
+    public boolean supportsStableObjectRefs() {
+        return true;
+    }
+
     private ShareSummary readOcsShares(FilePath root) {
         String path = UriUtils.encodeQueryParam(root.value(), StandardCharsets.UTF_8);
         URI uri = URI.create(properties.baseUri()
@@ -465,7 +509,66 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
     }
 
     @Override
+    public CreatedObject createCollectionIfAbsent(FilePath path) {
+        ensureConfigured();
+        try {
+            return restClient.method(MKCOL)
+                    .uri(webdavUri(path.value(), false))
+                    .headers(this::applyActorHeaders)
+                    .exchange((request, response) -> {
+                        if (response.getStatusCode().value() == 201) {
+                            return new CreatedObject(collectionObject(path, null),
+                                    responseObjectRef(response.getHeaders()));
+                        }
+                        if (response.getStatusCode().is2xxSuccessful()) {
+                            throw new ApiErrorException(HttpStatus.CONFLICT, "files-folder-already-exists",
+                                    "The provider did not confirm creation at an absent name.",
+                                    Map.of("module", "files", "operation", "create-folder"));
+                        }
+                        throw mapStatus(response.getStatusCode(), "create-folder", path.value());
+                    });
+        } catch (ApiErrorException exception) {
+            throw exception;
+        } catch (ResourceAccessException exception) {
+            throw downstreamUnavailable("create-folder", exception);
+        } catch (RestClientException exception) {
+            throw downstreamFailure("create-folder", exception);
+        }
+    }
+
+    @Override
+    public boolean supportsAtomicCollectionCreate() {
+        return true;
+    }
+
+    @Override
     public FileObject write(FileWrite write) {
+        return conditionalWrite(write, null, null, false).item();
+    }
+
+    @Override
+    public CreatedObject writeIfAbsent(FileWrite write) {
+        WriteResult result = conditionalWrite(write, "*", null, true);
+        return new CreatedObject(result.item(), result.providerObjectRef());
+    }
+
+    @Override
+    public FileObject writeIfVersion(FileWrite write, FileVersion expectedVersion) {
+        if (expectedVersion == null || !expectedVersion.known()
+                || !expectedVersion.value().startsWith("\"")
+                || !expectedVersion.value().endsWith("\"")) {
+            throw new IllegalArgumentException("a strong provider version is required");
+        }
+        return conditionalWrite(write, null, expectedVersion.value(), false).item();
+    }
+
+    @Override
+    public boolean supportsConditionalWrite() {
+        return true;
+    }
+
+    private WriteResult conditionalWrite(FileWrite write, String ifNoneMatch, String ifMatch,
+            boolean requireResponseIdentity) {
         ensureConfigured();
         String targetPath = write.path().value();
         byte[] body = write.bytes();
@@ -475,11 +578,19 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
                     .headers(headers -> {
                         applyActorHeaders(headers);
                         headers.setContentType(mediaType(write.mediaType()));
+                        if (ifNoneMatch != null) headers.set(HttpHeaders.IF_NONE_MATCH, ifNoneMatch);
+                        if (ifMatch != null) headers.set(HttpHeaders.IF_MATCH, ifMatch);
                     })
                     .body(body)
                     .exchange((request, response) -> {
                         if (response.getStatusCode().is2xxSuccessful()) {
-                            return fileObject(write.path(), write.mediaType(), body.length, null);
+                            return new WriteResult(fileObject(write.path(), write.mediaType(), body.length, null),
+                                    requireResponseIdentity ? responseObjectRef(response.getHeaders()) : null);
+                        }
+                        if (response.getStatusCode().value() == 412) {
+                            throw new ApiErrorException(HttpStatus.PRECONDITION_FAILED,
+                                    "files-precondition-failed", "The file version changed.",
+                                    Map.of("module", "files", "operation", "write-file"));
                         }
                         throw mapStatus(response.getStatusCode(), "webdav-put", targetPath);
                     });
@@ -490,6 +601,18 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
         } catch (RestClientException exception) {
             throw downstreamFailure("webdav-put", exception);
         }
+    }
+
+    private record WriteResult(FileObject item, String providerObjectRef) {}
+
+    private String responseObjectRef(HttpHeaders headers) {
+        String value = headers.getFirst("OC-FileId");
+        if (!validGlobalObjectId(value)) throw invalidAccessResponse();
+        return "nextcloud-object:" + value;
+    }
+
+    private boolean validGlobalObjectId(String value) {
+        return value != null && value.matches("[0-9]{8,}[A-Za-z0-9]{1,64}");
     }
 
     @Override
@@ -504,18 +627,64 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
 
     @Override
     public FileContent read(FileId id) {
+        return readBounded(id, Integer.MAX_VALUE);
+    }
+
+    @Override
+    public FileContent readBounded(FileId id, int maxBytes) {
+        return readWithVersion(id, maxBytes, null);
+    }
+
+    @Override
+    public FileContent readBoundedIfVersion(FileId id, int maxBytes, FileVersion expectedVersion) {
+        if (expectedVersion == null || !expectedVersion.known()
+                || !expectedVersion.value().startsWith("\"")
+                || !expectedVersion.value().endsWith("\"")) {
+            throw new IllegalArgumentException("a strong provider version is required");
+        }
+        return readWithVersion(id, maxBytes, expectedVersion.value());
+    }
+
+    private FileContent readWithVersion(FileId id, int maxBytes, String expectedVersion) {
+        if (maxBytes < 0) {
+            throw new IllegalArgumentException("maxBytes must not be negative");
+        }
         ensureConfigured();
         FilePath path = new FilePath(FilePathCodec.pathFromId(id.value()));
         try {
             return restClient.get()
                     .uri(webdavUri(path.value(), false))
-                    .headers(this::applyActorHeaders)
+                    .headers(headers -> {
+                        applyActorHeaders(headers);
+                        if (expectedVersion != null) headers.set(HttpHeaders.IF_MATCH, expectedVersion);
+                    })
                     .exchange((request, response) -> {
                         if (response.getStatusCode().is2xxSuccessful()) {
-                            byte[] body = StreamUtils.copyToByteArray(response.getBody());
+                            if (expectedVersion != null
+                                    && !expectedVersion.equals(response.getHeaders().getETag())) {
+                                throw new ApiErrorException(HttpStatus.PRECONDITION_FAILED,
+                                        "files-precondition-failed", "The file version changed during download.",
+                                        Map.of("module", "files", "operation", "download-file"));
+                            }
+                            byte[] body;
+                            try (InputStream limited = response.getBody()) {
+                                body = maxBytes == Integer.MAX_VALUE
+                                        ? StreamUtils.copyToByteArray(limited)
+                                        : limited.readNBytes(maxBytes + 1);
+                            }
+                            if (body.length > maxBytes) {
+                                throw new ApiErrorException(HttpStatus.PAYLOAD_TOO_LARGE,
+                                        "files-download-too-large", "The file exceeds the bounded download limit.",
+                                        Map.of("module", "files", "operation", "download-file"));
+                            }
                             MediaType mediaType = response.getHeaders().getContentType();
                             String contentType = mediaType == null ? MediaType.APPLICATION_OCTET_STREAM_VALUE : mediaType.toString();
                             return new FileContent(fileObject(path, contentType, body.length, null), body);
+                        }
+                        if (expectedVersion != null && response.getStatusCode().value() == 412) {
+                            throw new ApiErrorException(HttpStatus.PRECONDITION_FAILED,
+                                    "files-precondition-failed", "The file version changed during download.",
+                                    Map.of("module", "files", "operation", "download-file"));
                         }
                         throw mapStatus(response.getStatusCode(), "download-file", path.value());
                     });
@@ -524,6 +693,11 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
         } catch (RestClientException exception) {
             throw downstreamFailure("download-file", exception);
         }
+    }
+
+    @Override
+    public boolean supportsBoundedRead() {
+        return true;
     }
 
     private FileObject copyOrMove(

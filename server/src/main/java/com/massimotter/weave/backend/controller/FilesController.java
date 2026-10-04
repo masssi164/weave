@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @Validated
-@Tag(name = "Files", description = "Authenticated Files control plane. File data-plane operations use the Weave WebDAV facade at /dav/files.")
+@Tag(name = "Files", description = "Authenticated Files setup and readiness. Generated User data-plane operations are under /api/files/items; the WebDAV facade remains a separate compatibility surface.")
 @SecurityRequirement(name = "bearer-jwt")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",

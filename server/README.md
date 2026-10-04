@@ -24,7 +24,7 @@ It is intentionally not a generic proxy for Matrix, Nextcloud, Keycloak, OpenPro
 - Generic credential brokering or bearer-token forwarding to clients.
 - A custom login proxy in front of standards-based OIDC/Matrix flows.
 - Direct Flutter-to-provider contracts for Nextcloud WebDAV/OCS/CalDAV, OpenProject, GitLab, ONLYOFFICE, Collabora, Slack, Teams, or other provider runtimes.
-- Provider writes until authorization, audit, consent, smoke/E2E, export/recovery, and accessibility gates are promoted.
+- Provider writes without current authorization, audit, preconditions, and recovery evidence.
 
 ## Active API scope
 
@@ -40,14 +40,15 @@ Currently implemented or contract-backed surfaces:
 - Admin/operator Chat provider replacement dry-run at `/api/admin/chat/provider-replacements/dry-run` with lossy-mapping warnings, conflict evidence, and redacted provider diagnostics.
 - Canonical domain registry v1 in `/api/providers/status` from `src/main/resources/canonical-domain-registry-v1.json`, copied deterministically from `specs/0004-domain-registry/canonical-domain-registry-v1.json` and guarded by `./gradlew domainRegistryCheck`, covering identity, people, spaces, chat, files, documents, calendar, boards, calls, decisions, notifications, health, and Weaver with member/admin states, compatibility aliases, portability metadata, and no-unaccounted-data-loss migration primitives.
 - Canonical non-Chat domain facade contracts for Files/Documents, Calendar/Meetings, Boards/Tasks, and Identity/Admin/Policy. These server-side seams evaluate Weave capability policy before provider lookup, fail closed for unknown capabilities, expose SecretRef-only admin mappings, and return empty Weave-domain skeleton collections until concrete adapters are promoted.
-- Files facade backed by Nextcloud when a backend actor is configured; otherwise fail-closed.
+- Generated User Files routes under `/api/files/items` list and inspect explicitly Weave-attached items, download exact bounded bytes, and create folders or upload/update bounded content through the active Nextcloud binding. Writes require explicit idempotency keys and strong creation/content preconditions; the User response keeps an opaque Weave `FileId`, a display-only path, and actions evaluated at the current member/Space boundary. Binary transfers are limited to 25 MiB.
+- The User Files route exposes only records created or explicitly attached with a known Weave Space and owner grant. Unmapped pre-existing Nextcloud objects, even if visible to the backend service account, remain hidden until #1498 adoption and effective-permission import. Creation captures Nextcloud `OC-FileId` from the atomic response and compares it to `oc:id` on readback before publishing the private mapping; a reused path cannot inherit a prior Weave `FileId`. Share, move, copy, and delete are not advertised by this route until their effective rights and identity transitions are proven. A binding revision with existing Files mappings currently blocks credential rotation or provider replacement pending verified same-namespace identity carry-forward or #1498 replacement.
 - CalDAV/iCalendar facade for workspace/team/channel collections, including stable canonical context and meeting-thread metadata on northbound `VEVENT` projections; unsafe private-personal calendar templates fail closed.
 - Secret-free calendar client setup metadata at `GET /api/calendar/client-setup`.
 - Provider stack readiness at `GET /api/providers/status`, including Nextcloud WebDAV/CalDAV/CardDAV/Forms, Keycloak OIDC, Synapse/Matrix, MAS, fail-closed meeting support, and OpenProject readiness seams.
 - DevOps readiness through backend facades; disabled/unconfigured providers expose support-safe, fail-closed status without product data leakage.
 - Documents/collaboration and Office-style launch seams remain postponed behind backend facades; any existing experimental launch errors stay support-safe and fail closed.
 - Boards/Tasks workspace facade and OpenProject workspace-sync validation contracts behind explicit runtime, authorization, and audit gates.
-- OpenAPI JSON at `/v3/api-docs`.
+- Separate generated User/Admin OpenAPI JSON at `/v3/api-docs/user` and `/v3/api-docs/admin` (plus the combined diagnostic document at `/v3/api-docs`).
 
 ## Provider and readiness posture
 
