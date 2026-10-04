@@ -22,6 +22,8 @@ const matrixCryptoStorePassphraseKeyPrefix =
 const matrixOAuthBindingKeyPrefix = 'matrix_oauth_binding_v1_';
 const matrixOAuthCurrentBindingKey = 'matrix_oauth_current_binding_v1';
 const matrixOAuthProfileOwnerKeyPrefix = 'matrix_oauth_profile_owner_v1_';
+const matrixOAuthProfileOrganizationKeyPrefix =
+    'matrix_oauth_profile_organization_v1_';
 const _matrixOAuthSessionFile = 'weave-matrix-oauth-session.v1';
 
 typedef MatrixStoreRootLoader = Future<Directory> Function();
@@ -182,6 +184,9 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
     if (await _secureStore.read(ownerKey) == bindingKey) {
       await _secureStore.delete(ownerKey);
     }
+    await _secureStore.delete(
+      '$matrixOAuthProfileOrganizationKeyPrefix${binding.profileKey}',
+    );
     final root = await _storeRootLoader();
     final store = Directory(
       '${root.path}${Platform.pathSeparator}matrix-e2ee${Platform.pathSeparator}${binding.profileKey}',
@@ -330,9 +335,35 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
     final homeserver = configuration.serviceEndpoints.matrixHomeserverUrl;
     final bindingKey =
         '$matrixOAuthBindingKeyPrefix${_digest('${authConfiguration.issuer}|$subject|${_matrixStoreHomeserverIdentity(homeserver)}|$deviceId')}';
+    if (_activeSession != null && _activeBindingKey != bindingKey) {
+      // A newly authenticated Weave account cannot retain the previous
+      // account's native client while its own store check runs.
+      await _dropActiveClient();
+    }
     final binding = await _loadBinding(bindingKey);
-    if (binding?.organizationId != null &&
-        binding!.organizationId != access.organizationId) {
+    if (binding == null) {
+      // The projected identity is known before OAuth. Reject an existing
+      // store from another organization before opening the system browser.
+      await _assertProfileOwner(
+        _profileKey(
+          homeserver,
+          _expectedMatrixUserId(subject, homeserver),
+          deviceId,
+        ),
+        bindingKey,
+        organizationId: access.organizationId,
+        verifiedExistingBinding: false,
+      );
+    }
+    if (binding != null && binding.organizationId == null) {
+      // A pre-organization binding cannot prove which tenant owns its E2EE
+      // store. Retain its bytes for recovery, but never silently adopt it.
+      await _dropActiveClient();
+      throw const ChatFailure.storage(
+        'Saved Matrix session has no verified Weave organization binding.',
+      );
+    }
+    if (binding != null && binding.organizationId != access.organizationId) {
       await _dropActiveClient();
       throw const ChatFailure.sessionRequired(
         'This Matrix session belongs to another Weave organization.',
@@ -382,7 +413,16 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
           'The Matrix encryption store cannot be unlocked.',
         );
       }
-      await _assertProfileOwner(binding.profileKey, bindingKey);
+      await _assertProfileOwner(
+        binding.profileKey,
+        bindingKey,
+        organizationId: access.organizationId,
+        verifiedExistingBinding: true,
+      );
+      await _secureStore.write(
+        '$matrixOAuthProfileOrganizationKeyPrefix${binding.profileKey}',
+        access.organizationId,
+      );
       try {
         await _rustMatrixCoreBridge.restoreOAuth(
           profileKey: binding.profileKey,
@@ -430,14 +470,6 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
         '$matrixOAuthProfileOwnerKeyPrefix${binding.profileKey}',
         bindingKey,
       );
-      if (binding.organizationId == null) {
-        await _secureStore.write(
-          bindingKey,
-          jsonEncode(
-            binding.toJson()..['organizationId'] = access.organizationId,
-          ),
-        );
-      }
     } else {
       if (!allowInteractiveSignIn) {
         throw const ChatFailure.sessionRequired(
@@ -501,7 +533,16 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
           'Saved Matrix account binding does not match this device.',
         );
       }
-      await _assertProfileOwner(profileKey, bindingKey);
+      await _assertProfileOwner(
+        profileKey,
+        bindingKey,
+        organizationId: organizationId,
+        verifiedExistingBinding: expectedBinding != null,
+      );
+      await _secureStore.write(
+        '$matrixOAuthProfileOrganizationKeyPrefix$profileKey',
+        organizationId,
+      );
       final passphrase = expectedBinding == null
           ? await _loadOrCreateStorePassphrase(profileKey)
           : (await _secureStore.read(
@@ -566,7 +607,12 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
     }
   }
 
-  Future<void> _assertProfileOwner(String profileKey, String bindingKey) async {
+  Future<void> _assertProfileOwner(
+    String profileKey,
+    String bindingKey, {
+    required String organizationId,
+    required bool verifiedExistingBinding,
+  }) async {
     final owner = await _secureStore.read(
       '$matrixOAuthProfileOwnerKeyPrefix$profileKey',
     );
@@ -574,6 +620,24 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
       throw const ChatFailure.storage(
         'This Matrix account is already bound to another Weave account on this device.',
       );
+    }
+    final profileOrganization = await _secureStore.read(
+      '$matrixOAuthProfileOrganizationKeyPrefix$profileKey',
+    );
+    if (profileOrganization != null && profileOrganization != organizationId) {
+      throw const ChatFailure.storage(
+        'This Matrix encryption store belongs to another Weave organization.',
+      );
+    }
+    if (profileOrganization == null && !verifiedExistingBinding) {
+      final existingPassphrase = await _secureStore.read(
+        '$matrixCryptoStorePassphraseKeyPrefix$profileKey',
+      );
+      if (existingPassphrase != null) {
+        throw const ChatFailure.storage(
+          'The Matrix encryption store has no verified Weave organization binding.',
+        );
+      }
     }
   }
 
@@ -642,14 +706,6 @@ class _MatrixOAuthBinding {
   final String deviceId;
   final String profileKey;
   final String? organizationId;
-
-  Map<String, String> toJson() => {
-    'homeserverUrl': homeserverUrl,
-    'userId': userId,
-    'deviceId': deviceId,
-    'profileKey': profileKey,
-    if (organizationId != null) 'organizationId': organizationId!,
-  };
 }
 
 String _digest(String value) => sha256.convert(utf8.encode(value)).toString();
@@ -670,13 +726,19 @@ String _matrixStoreHomeserverIdentity(Uri homeserver) =>
 String _expectedMatrixUserId(String subject, Uri homeserver) {
   // Match the accepted Weave Matrix northbound identity projection. The
   // southbound provider's account naming is never used as a member identity.
-  final source = subject.split(':').last.replaceFirst(RegExp(r'^@'), '');
+  final source = subject.split(':').last.replaceFirst(RegExp(r'^@+'), '');
   final localpart = source
       .trim()
       .runes
       .map((rune) {
-        final character = String.fromCharCode(rune).toLowerCase();
-        return RegExp(r'[a-z0-9._=/\-]').hasMatch(character) ? character : '_';
+        // Match rust/matrix-protocol canonical_localpart exactly: lowercase
+        // ASCII only, then replace each disallowed Unicode scalar with one _.
+        final lower = rune >= 65 && rune <= 90 ? rune + 32 : rune;
+        final allowed =
+            (lower >= 97 && lower <= 122) ||
+            (lower >= 48 && lower <= 57) ||
+            const {46, 95, 45, 61, 47}.contains(lower);
+        return allowed ? String.fromCharCode(lower) : '_';
       })
       .join()
       .replaceAll(RegExp(r'^_+|_+$'), '');

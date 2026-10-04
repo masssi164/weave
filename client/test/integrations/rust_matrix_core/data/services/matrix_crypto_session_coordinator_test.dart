@@ -437,13 +437,17 @@ void main() {
   );
 
   test(
-    'binds an existing verified Matrix store to its Weave organization',
+    'unscoped legacy Matrix binding fails closed without deleting E2EE',
     () async {
       final first = buildCoordinator(randomSeed: 1);
       final session = await first.open(synchronize: false);
+      final storePath = bridge.oauthActivations.single['storePath']!;
       final bindingKey = (await secureStore.read(
         matrixOAuthCurrentBindingKey,
       ))!;
+      final passphraseKey =
+          '$matrixCryptoStorePassphraseKeyPrefix${session.profileKey}';
+      final passphrase = await secureStore.read(passphraseKey);
       final raw =
           jsonDecode((await secureStore.read(bindingKey))!)
               as Map<String, dynamic>;
@@ -451,16 +455,38 @@ void main() {
       await secureStore.write(bindingKey, jsonEncode(raw));
       await first.disposePreservingCryptoState();
 
-      final restored = await buildCoordinator(
-        randomSeed: 2,
-      ).open(synchronize: false);
-      final migrated =
-          jsonDecode((await secureStore.read(bindingKey))!)
-              as Map<String, dynamic>;
+      await expectLater(
+        buildCoordinator(randomSeed: 2).open(synchronize: false),
+        throwsA(
+          isA<ChatFailure>().having(
+            (failure) => failure.type,
+            'type',
+            ChatFailureType.storage,
+          ),
+        ),
+      );
 
-      expect(restored.profileKey, session.profileKey);
-      expect(migrated['organizationId'], 'org-one');
-      expect(bridge.oauthRestores, hasLength(1));
+      expect(await secureStore.read(bindingKey), jsonEncode(raw));
+      expect(await secureStore.read(passphraseKey), passphrase);
+      expect(await Directory(storePath).exists(), isTrue);
+      expect(bridge.oauthRestores, isEmpty);
+      expect(bridge.oauthActivations, hasLength(1));
+    },
+  );
+
+  test(
+    'Matrix user projection follows Rust ASCII-only normalization',
+    () async {
+      authRepository.state = AuthState.authenticated(
+        buildTestAuthSession(idToken: _idToken(subject: 'İX')),
+      );
+      bridge.oauthUserId = '@x:api.weave.test';
+
+      final session = await buildCoordinator(
+        randomSeed: 1,
+      ).open(synchronize: false);
+
+      expect(session.userId, '@x:api.weave.test');
       expect(bridge.oauthActivations, hasLength(1));
     },
   );
@@ -487,6 +513,42 @@ void main() {
       expect(await tokenFile.exists(), isFalse);
       expect(await Directory(storePath).exists(), isTrue);
       expect(await secureStore.read(matrixDeviceIdentityStorageKey), isNotNull);
+    },
+  );
+
+  test(
+    'sign-out cannot rebind a preserved Matrix store to another organization',
+    () async {
+      final coordinator = buildCoordinator(randomSeed: 1);
+      final session = await coordinator.open(synchronize: false);
+      final storePath = bridge.oauthActivations.single['storePath']!;
+      final passphraseKey =
+          '$matrixCryptoStorePassphraseKeyPrefix${session.profileKey}';
+      final passphrase = await secureStore.read(passphraseKey);
+
+      await coordinator.endSession();
+      access.organizationId = 'org-two';
+
+      await expectLater(
+        coordinator.open(synchronize: false),
+        throwsA(
+          isA<ChatFailure>().having(
+            (failure) => failure.type,
+            'type',
+            ChatFailureType.storage,
+          ),
+        ),
+      );
+      expect(
+        await secureStore.read(
+          '$matrixOAuthProfileOrganizationKeyPrefix${session.profileKey}',
+        ),
+        'org-one',
+      );
+      expect(await secureStore.read(passphraseKey), passphrase);
+      expect(await Directory(storePath).exists(), isTrue);
+      expect(bridge.oauthActivations, hasLength(1));
+      expect(browser.opened, hasLength(1));
     },
   );
 
@@ -608,6 +670,31 @@ void main() {
       expect(bridge.oauthAborts, hasLength(1));
       expect(await secureStore.read(firstOwnerKey), firstOwner);
       expect(await Directory(firstStorePath).exists(), isTrue);
+    },
+  );
+
+  test(
+    'a projected ID collision disposes the previous native client',
+    () async {
+      final coordinator = buildCoordinator(randomSeed: 1);
+      final first = await coordinator.open(synchronize: false);
+      authRepository.state = AuthState.authenticated(
+        buildTestAuthSession(idToken: _idToken(subject: 'PERSON-1')),
+      );
+
+      await expectLater(
+        coordinator.open(synchronize: false),
+        throwsA(
+          isA<ChatFailure>().having(
+            (failure) => failure.type,
+            'type',
+            ChatFailureType.storage,
+          ),
+        ),
+      );
+
+      expect(bridge.disposedProfiles, contains(first.profileKey));
+      expect(browser.opened, hasLength(1));
     },
   );
 
