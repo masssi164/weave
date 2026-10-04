@@ -305,6 +305,44 @@ class FilesUserApiServiceTest {
     }
 
     @Test
+    void mappedFolderCreationIsNotAdvertisedOrDispatchedWithoutAtomicParentIdentity() {
+        Instant now = Instant.parse("2026-01-01T00:00:00Z");
+        FilesUserResource folder = new FilesUserResource("org-a", "file:folder", 4,
+                "workspace-default", FilesUserApiService.ROOT_ID, "/folder", Kind.COLLECTION,
+                "user:alice", FilesUserResource.State.ACTIVE, now, now);
+        when(resources.find("org-a", folder.fileId())).thenReturn(Optional.of(folder));
+        when(bindings.mappingByCanonicalId("org-a", "files", 4, folder.fileId()))
+                .thenReturn(Optional.of(mapping(folder)));
+        FileObject item = new FileObject(new FileId("files:/folder"), new FilePath("/folder"),
+                Kind.COLLECTION, 0, null, now, false);
+        when(provider.find(item.path())).thenReturn(Optional.of(
+                new VersionedFile(item, new FileVersion("\"folder-v1\""))));
+        when(provider.providerObjectRef(item.path())).thenReturn(Optional.of("nextcloud-fileid:42"));
+        when(provider.supportsStableObjectRefs()).thenReturn(true);
+        when(provider.supportsAtomicCollectionCreate()).thenReturn(true);
+        when(provider.supportsConditionalWrite()).thenReturn(true);
+        when(provider.supportsBoundedRead()).thenReturn(true);
+        when(provider.conformanceProfile()).thenReturn(new ProviderConformanceProfile(
+                "files", "nextcloud-webdav", java.util.Set.of("create_collection"),
+                java.util.Map.of(), true, true, true));
+
+        assertThat(service.inspect(jwt("org-a", "alice"), folder.fileId()).allowedActions())
+                .containsExactly("inspect", "listChildren")
+                .doesNotContain("createFolder", "upload");
+        assertThatThrownBy(() -> service.createFolder(jwt("org-a", "alice"), folder.fileId(),
+                "new", "*", "0123456789abcdef"))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.code()).isEqualTo("files-parent-identity-unavailable"));
+        assertThatThrownBy(() -> service.upload(jwt("org-a", "alice"), folder.fileId(),
+                "new.txt", "text/plain", new byte[] {1}, "*", "fedcba9876543210"))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        error -> assertThat(error.code()).isEqualTo("files-parent-identity-unavailable"));
+        verify(intents, never()).beginUserApi(any());
+        verify(provider, never()).createCollectionIfAbsent(any());
+        verify(provider, never()).writeIfAbsent(any());
+    }
+
+    @Test
     void successfulIntentRetryNeverReturnsChangedCurrentMetadataAsRecordedResult() {
         OperationIntent intent = mock(OperationIntent.class);
         when(intent.operationRef()).thenReturn("operation:123");

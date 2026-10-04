@@ -100,7 +100,7 @@ public class FilesUserApiService {
         }
         ProviderBinding binding = activeBinding(member.organizationRef());
         FilesProviderPort provider = pinnedProvider(binding, member.organizationRef());
-        List<String> parentActions = collectionActions(member, provider);
+        List<String> parentActions = collectionActions(member, provider, true);
         if (parentResource != null) {
             parentActions = project(member, binding, provider, parentResource).allowedActions();
         }
@@ -172,17 +172,14 @@ public class FilesUserApiService {
                     "A 16 to 128 character Idempotency-Key is required.");
         }
         String parent = parentFileId == null ? ROOT_ID : parentFileId;
-        FilePath parentPath;
-        FilesUserResource parentResource = null;
-        if (ROOT_ID.equals(parent)) {
-            parentPath = new FilePath("/");
-        } else {
-            parentResource = requireOwned(member, parent);
-            if (parentResource.kind() != Kind.COLLECTION) {
+        if (!ROOT_ID.equals(parent)) {
+            FilesUserResource requestedParent = requireOwned(member, parent);
+            if (requestedParent.kind() != Kind.COLLECTION) {
                 throw missing();
             }
-            parentPath = new FilePath(parentResource.path());
+            throw unsupportedParentCreation();
         }
+        FilePath parentPath = new FilePath("/");
         FilePath path;
         try {
             path = childPath(parentPath, name);
@@ -213,9 +210,6 @@ public class FilesUserApiService {
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-stable-identity-unavailable",
                     "The active Files provider cannot create a verifiable folder.");
         }
-        if (parentResource != null) {
-            requireMapped(binding, provider, parentResource);
-        }
         String fileId = "file:" + mutation.intent().operationRef().substring("operation:".length());
         if (mutation.retry()) {
             FilesUserResource existing = resources.find(member.organizationRef(), fileId).orElse(null);
@@ -244,7 +238,6 @@ public class FilesUserApiService {
             if (!createdProviderRef.equals(provider.providerObjectRef(path).orElse(null))) {
                 throw new IllegalStateException("provider identity changed after folder creation");
             }
-            if (parentResource != null) requireMapped(binding, provider, parentResource);
         } catch (ApiErrorException rejected) {
             HttpStatus status = userStatus(rejected);
             if (status == HttpStatus.CONFLICT || status == HttpStatus.LOCKED
@@ -307,9 +300,12 @@ public class FilesUserApiService {
         mediaType = mediaType == null || mediaType.isBlank() ? "application/octet-stream" : mediaType;
         mediaType = validatedMediaType(mediaType);
         String parent = parentFileId == null ? ROOT_ID : parentFileId;
-        FilesUserResource parentResource = ROOT_ID.equals(parent) ? null : requireOwned(member, parent);
-        if (parentResource != null && parentResource.kind() != Kind.COLLECTION) throw missing();
-        FilePath parentPath = parentResource == null ? new FilePath("/") : new FilePath(parentResource.path());
+        if (!ROOT_ID.equals(parent)) {
+            FilesUserResource requestedParent = requireOwned(member, parent);
+            if (requestedParent.kind() != Kind.COLLECTION) throw missing();
+            throw unsupportedParentCreation();
+        }
+        FilePath parentPath = new FilePath("/");
         FilePath path;
         try {
             path = childPath(parentPath, name);
@@ -342,7 +338,6 @@ public class FilesUserApiService {
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "files-conditional-write-unavailable",
                     "The active Files provider cannot enforce conditional upload.");
         }
-        if (parentResource != null) requireMapped(binding, provider, parentResource);
         String fileId = "file:" + mutation.intent().operationRef().substring("operation:".length());
         if (mutation.retry()) {
             FilesUserResource existing = resources.find(member.organizationRef(), fileId).orElse(null);
@@ -377,7 +372,6 @@ public class FilesUserApiService {
             if (!createdProviderRef.equals(provider.providerObjectRef(path).orElse(null))) {
                 throw new IllegalStateException("provider identity changed after upload");
             }
-            if (parentResource != null) requireMapped(binding, provider, parentResource);
         } catch (ApiErrorException rejected) {
             HttpStatus status = userStatus(rejected);
             if (status == HttpStatus.CONFLICT || status == HttpStatus.LOCKED
@@ -600,7 +594,7 @@ public class FilesUserApiService {
         List<String> actions = new ArrayList<>();
         actions.add("inspect");
         if (item.kind() == Kind.COLLECTION) {
-            actions.addAll(collectionActions(member, provider));
+            actions.addAll(collectionActions(member, provider, false));
         } else if (item.size() <= MAX_DOWNLOAD_BYTES && provider.supportsBoundedRead()) {
             actions.add("download");
             if (member.canEdit() && provider.supportsConditionalWrite()
@@ -613,19 +607,24 @@ public class FilesUserApiService {
                 item.modifiedAt(), revision, actions);
     }
 
-    private List<String> collectionActions(Member member, FilesProviderPort provider) {
+    private List<String> collectionActions(Member member, FilesProviderPort provider, boolean root) {
         List<String> actions = new ArrayList<>();
         actions.add("listChildren");
-        if (member.canEdit() && provider.supportsStableObjectRefs()
+        if (root && member.canEdit() && provider.supportsStableObjectRefs()
                 && provider.supportsAtomicCollectionCreate()
                 && provider.conformanceProfile().supports("create_collection")) {
             actions.add("createFolder");
         }
-        if (member.canEdit() && provider.supportsStableObjectRefs()
+        if (root && member.canEdit() && provider.supportsStableObjectRefs()
                 && provider.supportsConditionalWrite() && provider.supportsBoundedRead()) {
             actions.add("upload");
         }
         return actions;
+    }
+
+    private ApiErrorException unsupportedParentCreation() {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "files-parent-identity-unavailable",
+                "The active Files provider cannot atomically bind creation to this folder identity.");
     }
 
     private VersionedFile requireMapped(ProviderBinding binding, FilesProviderPort provider,
