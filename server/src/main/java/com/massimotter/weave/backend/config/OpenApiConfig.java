@@ -11,6 +11,7 @@ import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -27,6 +28,25 @@ import org.springframework.context.annotation.Configuration;
         paramName = "X-Weave-Bootstrap-Token",
         description = "Rotatable SecretRef credential for the empty-realm owner invitation only.")
 public class OpenApiConfig {
+
+    @Bean
+    GroupedOpenApi userApi() {
+        return GroupedOpenApi.builder()
+                .group("user")
+                .pathsToMatch("/api/**")
+                .pathsToExclude("/api/admin/**", "/api/bootstrap/**", "/api/migration/**",
+                        "/api/v1/agent-runtime/**")
+                .build();
+    }
+
+    @Bean
+    GroupedOpenApi adminApi() {
+        return GroupedOpenApi.builder()
+                .group("admin")
+                .pathsToMatch("/api/admin/**", "/api/bootstrap/**", "/api/migration/**")
+                .pathsToExclude("/api/admin/agent-runtimes/**")
+                .build();
+    }
 
     @Bean
     OpenAPI weaveOpenApi() {
