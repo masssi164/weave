@@ -13,7 +13,6 @@ part of weave_user_api;
 class PlatformConfigResponse {
   /// Returns a new [PlatformConfigResponse] instance.
   PlatformConfigResponse({
-    this.controlPlaneBaseUrl,
     this.domains = const [],
     this.oidc,
     this.organizationOrigin,
@@ -21,15 +20,8 @@ class PlatformConfigResponse {
     this.recoveryActions = const [],
     this.releasePosture,
     this.schemaVersion,
+    this.userApiBaseUrl,
   });
-
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? controlPlaneBaseUrl;
 
   List<DomainCapability> domains;
 
@@ -75,42 +67,45 @@ class PlatformConfigResponse {
   ///
   int? schemaVersion;
 
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? userApiBaseUrl;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is PlatformConfigResponse &&
-          other.controlPlaneBaseUrl == controlPlaneBaseUrl &&
           _deepEquality.equals(other.domains, domains) &&
           other.oidc == oidc &&
           other.organizationOrigin == organizationOrigin &&
           other.protocols == protocols &&
           _deepEquality.equals(other.recoveryActions, recoveryActions) &&
           other.releasePosture == releasePosture &&
-          other.schemaVersion == schemaVersion;
+          other.schemaVersion == schemaVersion &&
+          other.userApiBaseUrl == userApiBaseUrl;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (controlPlaneBaseUrl == null ? 0 : controlPlaneBaseUrl!.hashCode) +
       (domains.hashCode) +
       (oidc == null ? 0 : oidc!.hashCode) +
       (organizationOrigin == null ? 0 : organizationOrigin!.hashCode) +
       (protocols == null ? 0 : protocols!.hashCode) +
       (recoveryActions.hashCode) +
       (releasePosture == null ? 0 : releasePosture!.hashCode) +
-      (schemaVersion == null ? 0 : schemaVersion!.hashCode);
+      (schemaVersion == null ? 0 : schemaVersion!.hashCode) +
+      (userApiBaseUrl == null ? 0 : userApiBaseUrl!.hashCode);
 
   @override
   String toString() =>
-      'PlatformConfigResponse[controlPlaneBaseUrl=$controlPlaneBaseUrl, domains=$domains, oidc=$oidc, organizationOrigin=$organizationOrigin, protocols=$protocols, recoveryActions=$recoveryActions, releasePosture=$releasePosture, schemaVersion=$schemaVersion]';
+      'PlatformConfigResponse[domains=$domains, oidc=$oidc, organizationOrigin=$organizationOrigin, protocols=$protocols, recoveryActions=$recoveryActions, releasePosture=$releasePosture, schemaVersion=$schemaVersion, userApiBaseUrl=$userApiBaseUrl]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
-    if (this.controlPlaneBaseUrl != null) {
-      json[r'controlPlaneBaseUrl'] = this.controlPlaneBaseUrl;
-    } else {
-      json[r'controlPlaneBaseUrl'] = null;
-    }
     json[r'domains'] = this.domains;
     if (this.oidc != null) {
       json[r'oidc'] = this.oidc;
@@ -138,6 +133,11 @@ class PlatformConfigResponse {
     } else {
       json[r'schemaVersion'] = null;
     }
+    if (this.userApiBaseUrl != null) {
+      json[r'userApiBaseUrl'] = this.userApiBaseUrl;
+    } else {
+      json[r'userApiBaseUrl'] = null;
+    }
     return json;
   }
 
@@ -162,8 +162,6 @@ class PlatformConfigResponse {
       }());
 
       return PlatformConfigResponse(
-        controlPlaneBaseUrl:
-            mapValueOfType<String>(json, r'controlPlaneBaseUrl'),
         domains: DomainCapability.listFromJson(json[r'domains']),
         oidc: Oidc.fromJson(json[r'oidc']),
         organizationOrigin: mapValueOfType<String>(json, r'organizationOrigin'),
@@ -171,6 +169,7 @@ class PlatformConfigResponse {
         recoveryActions: RecoveryAction.listFromJson(json[r'recoveryActions']),
         releasePosture: mapValueOfType<String>(json, r'releasePosture'),
         schemaVersion: mapValueOfType<int>(json, r'schemaVersion'),
+        userApiBaseUrl: mapValueOfType<String>(json, r'userApiBaseUrl'),
       );
     }
     return null;

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/generated/user_api/api.dart' as user_api;
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
@@ -212,7 +213,11 @@ class AppStartDiscoveryClient {
   ) async {
     final http.Response response;
     try {
-      response = await _httpClient.get(uri, headers: _headers(access));
+      final client = user_api.ApiClient(
+        basePath: uri.replace(path: '', query: null, fragment: null).toString(),
+      )..client = _httpClient;
+      _headers(access).forEach(client.addDefaultHeader);
+      response = await user_api.PlatformApi(client).configWithHttpInfo();
     } catch (error) {
       throw AppFailure.bootstrap(
         '${_transportErrorCode(error)}: The workspace start configuration could not be reached.',
@@ -275,10 +280,13 @@ class AppStartDiscoveryClient {
   String _transportErrorCode(Object error) {
     final type = error.runtimeType.toString();
     final message = error.toString().toLowerCase();
-    if (type.contains('TimeoutException')) {
+    if (type.contains('TimeoutException') ||
+        message.contains('timeoutexception') ||
+        message.contains('timed out')) {
       return 'WEAVE-APP-START-TIMEOUT';
     }
     if (type.contains('HandshakeException') ||
+        message.contains('handshake') ||
         message.contains('certificate') ||
         message.contains('cert_verify') ||
         message.contains('trust')) {
@@ -357,8 +365,8 @@ class AppStartDiscoveryClient {
     _requireExactKeys(oidc, const {'issuer', 'clientId'});
     final protocols = _object(json['protocols'], fieldName: 'protocols');
     _requireExactKeys(protocols, const {'matrixClientServerBaseUrl'});
-    final oidcIssuerUrl = _uri(oidc['issuer'], fieldName: 'oidc.issuer');
-    final oidcClientId = _clientId(oidc['clientId']);
+    _uri(oidc['issuer'], fieldName: 'oidc.issuer');
+    _clientId(oidc['clientId']);
     final userApiBaseUrl = _uri(
       json['userApiBaseUrl'],
       fieldName: 'userApiBaseUrl',
@@ -383,11 +391,24 @@ class AppStartDiscoveryClient {
     }
     _validateDomains(json['domains']);
 
+    // Exact field validation above rejects unknown public protocol surfaces;
+    // the generated transport model then supplies the values consumed by the
+    // client configuration. Its decoder alone tolerates unknown JSON fields.
+    final transport = user_api.PlatformConfigResponse.fromJson(json)!;
+    final transportOidc = transport.oidc!;
+    final transportProtocols = transport.protocols!;
+
     return AppStartConfiguration(
-      oidcIssuerUrl: oidcIssuerUrl,
-      oidcClientId: oidcClientId,
-      userApiBaseUrl: userApiBaseUrl,
-      matrixClientServerBaseUrl: matrixClientServerBaseUrl.replace(path: ''),
+      oidcIssuerUrl: _uri(transportOidc.issuer, fieldName: 'oidc.issuer'),
+      oidcClientId: _clientId(transportOidc.clientId),
+      userApiBaseUrl: _uri(
+        transport.userApiBaseUrl,
+        fieldName: 'userApiBaseUrl',
+      ),
+      matrixClientServerBaseUrl: _uri(
+        transportProtocols.matrixClientServerBaseUrl,
+        fieldName: 'protocols.matrixClientServerBaseUrl',
+      ).replace(path: ''),
     );
   }
 

@@ -13,26 +13,8 @@ part of weave_user_api;
 class Protocols {
   /// Returns a new [Protocols] instance.
   Protocols({
-    this.calendarCalDavBaseUrl,
-    this.filesWebDavBaseUrl,
     this.matrixClientServerBaseUrl,
   });
-
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? calendarCalDavBaseUrl;
-
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? filesWebDavBaseUrl;
 
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
@@ -46,35 +28,21 @@ class Protocols {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is Protocols &&
-          other.calendarCalDavBaseUrl == calendarCalDavBaseUrl &&
-          other.filesWebDavBaseUrl == filesWebDavBaseUrl &&
           other.matrixClientServerBaseUrl == matrixClientServerBaseUrl;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (calendarCalDavBaseUrl == null ? 0 : calendarCalDavBaseUrl!.hashCode) +
-      (filesWebDavBaseUrl == null ? 0 : filesWebDavBaseUrl!.hashCode) +
       (matrixClientServerBaseUrl == null
           ? 0
           : matrixClientServerBaseUrl!.hashCode);
 
   @override
   String toString() =>
-      'Protocols[calendarCalDavBaseUrl=$calendarCalDavBaseUrl, filesWebDavBaseUrl=$filesWebDavBaseUrl, matrixClientServerBaseUrl=$matrixClientServerBaseUrl]';
+      'Protocols[matrixClientServerBaseUrl=$matrixClientServerBaseUrl]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
-    if (this.calendarCalDavBaseUrl != null) {
-      json[r'calendarCalDavBaseUrl'] = this.calendarCalDavBaseUrl;
-    } else {
-      json[r'calendarCalDavBaseUrl'] = null;
-    }
-    if (this.filesWebDavBaseUrl != null) {
-      json[r'filesWebDavBaseUrl'] = this.filesWebDavBaseUrl;
-    } else {
-      json[r'filesWebDavBaseUrl'] = null;
-    }
     if (this.matrixClientServerBaseUrl != null) {
       json[r'matrixClientServerBaseUrl'] = this.matrixClientServerBaseUrl;
     } else {
@@ -104,9 +72,6 @@ class Protocols {
       }());
 
       return Protocols(
-        calendarCalDavBaseUrl:
-            mapValueOfType<String>(json, r'calendarCalDavBaseUrl'),
-        filesWebDavBaseUrl: mapValueOfType<String>(json, r'filesWebDavBaseUrl'),
         matrixClientServerBaseUrl:
             mapValueOfType<String>(json, r'matrixClientServerBaseUrl'),
       );
