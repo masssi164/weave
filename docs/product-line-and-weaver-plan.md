@@ -2,7 +2,7 @@
 
 Positioning line: **Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms.** This line is valid only with the claim gates in the product trust matrix and Sprint 30 evidence pack.
 
-Status: historical product-line background. For the active #1470 release, the pinned corpus file `steering/release-2026-10-product-consolidation.md` governs where this plan conflicts. In particular, the current release uses separate generated User/Admin APIs, native Matrix clients, and a permission-preserving Files replacement; public northbound DAV, the server Matrix facade, Runners, and Calls are deferred.
+Status: historical product-line background. For the active #1470 release, the pinned corpus file `steering/release-2026-10-product-consolidation.md` governs where this plan conflicts. The current release uses separate generated User/Admin APIs and Weave's Matrix Client-Server facade with native Flutter and Weaver Matrix clients. Public northbound DAV, Runners, and Calls are deferred. Provider adoption, permission-preserving Files migration, cutover, and rollback belong to #1498 and are not #1470 closure requirements.
 
 ## Decision lock
 

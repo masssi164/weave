@@ -12,9 +12,10 @@ This implementation repository is the **conformance and evidence truth**. It con
 For the approved #1470 release, read corpus file `steering/release-2026-10-product-consolidation.md` first. Its release boundary supersedes the earlier PR #1043 gateway direction and conflicting repo-local packets:
 
 - The server-owned code-first User API is the Files and Calendar northbound HTTP boundary. User and Admin OpenAPI artifacts generate clients and transport models for Flutter, MCP, Admin UI, and product E2E.
-- Flutter chat uses its native Rust/Matrix SDK path and Weaver retains its established Matrix integration. A server-side Matrix facade/JNI is not mandatory, and Weave does not replace Matrix chat with proprietary REST.
-- Public northbound WebDAV/CalDAV and the server Matrix facade are outside this release. DAV remains appropriate inside provider adapters.
-- Exactly one provider is active per organization and module. Files activation and rollback require preserved data, stable references, and effective permissions; unsupported source properties block activation.
+- Weave's Matrix Client-Server facade is the Chat northbound contract. Flutter retains its native Rust/Matrix SDK, Weaver retains its Matrix integration, and an independent Matrix client must interoperate through the same Weave endpoint. Rust/Ruma/JNI owns Matrix wire parsing and projection; the Weave Chat domain authorizes and routes through `ChatProviderPort`. The [support profile](../docs/reference/matrix-client-server-support-profile.md) defines the supported protocol subset.
+- One Weave OIDC sign-in makes authorized capabilities ready without another member-facing Connect or login action. Weave API and Matrix sessions have separate audiences and lifetimes.
+- Public northbound WebDAV/CalDAV and proprietary Chat-message REST are outside this release. DAV remains appropriate inside provider adapters.
+- Exactly one provider is active per organization and module. #1470 proves the provider-neutral product boundary; [#1498](https://github.com/masssi164/weave/issues/1498) owns Files adoption, data and permission migration, cutover, recovery, and rollback.
 
 ## Truth boundary
 
