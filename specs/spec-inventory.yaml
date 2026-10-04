@@ -83,7 +83,7 @@ artifacts:
       - domains/chat/spec.md
       - domains/boards-tasks/spec.md
       - contracts/jsonschema/portability-report.schema.json
-    notes: JSON dry-run and negative fixtures are implementation evidence unless promoted to corpus contracts.
+    notes: JSON dry-run and negative fixtures are implementation evidence unless promoted to corpus contracts. The Files v2 dry-run fixture is a blocked, unmeasured conformance example under the pinned #1470 release contract; archive/manual-review classifications never authorize Files activation.
   - path: specs/0007-governed-weaver-runtime
     status: obsolete-historical
     action: retain-only-as-implementation-conformance-evidence-until-scenario-mapping-is-pruned
