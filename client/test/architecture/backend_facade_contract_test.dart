@@ -53,57 +53,74 @@ void main() {
     expect(client, isNot(contains('UserProfileDto.fromJson')));
   });
 
-  test('Chat uses Matrix facade and Files uses WebDAV in data only', () async {
-    final chatRepository = await File(
-      'lib/features/chat/data/repositories/weave_matrix_facade_chat_repository.dart',
-    ).readAsString();
-    final filesRepository = await File(
-      'lib/features/files/data/repositories/backend_files_repository.dart',
-    ).readAsString();
-    expect(chatRepository, contains('RustMatrixCoreBridge'));
-    expect(chatRepository, contains('loadEncryptedRooms'));
-    expect(chatRepository, contains('loadEncryptedRoomMessages'));
-    expect(chatRepository, contains('sendEncryptedText'));
-    expect(chatRepository, isNot(contains('http.Client')));
-    expect(chatRepository, isNot(contains('/_matrix/client/')));
-    expect(chatRepository, isNot(contains('/api/chat/conversations')));
-    expect(chatRepository, isNot(contains('BackendChatRepository')));
-
-    expect(filesRepository, contains('PROPFIND'));
-    expect(filesRepository, contains('/dav/files'));
-    expect(filesRepository, contains("http.StreamedRequest('PUT'"));
-    expect(filesRepository, contains("'PUT'"));
-    expect(filesRepository, contains("'MKCOL'"));
-    expect(filesRepository, contains("'DELETE'"));
-    expect(filesRepository, contains("'If-None-Match': '*'"));
-    expect(filesRepository, contains("'If-Match': '*'"));
-    expect(filesRepository, isNot(contains('generated/openapi_models.dart')));
-    expect(filesRepository, isNot(contains('/api/files/upload')));
-    expect(filesRepository, isNot(contains('/api/files/folders')));
-    expect(filesRepository, isNot(contains('Nextcloud')));
-
-    final featureBoundaryFiles = <String>[
-      'lib/features/chat/domain',
-      'lib/features/chat/presentation',
-      'lib/features/files/domain',
-      'lib/features/files/presentation',
-    ].expand(_dartFilesUnder);
-
-    for (final file in featureBoundaryFiles) {
-      final source = await File(file).readAsString();
+  test(
+    'Chat uses native Matrix SDK without Weave token reuse; Files stays in data',
+    () async {
+      final chatRepository = await File(
+        'lib/features/chat/data/repositories/native_matrix_chat_repository.dart',
+      ).readAsString();
+      final matrixCoordinator = await File(
+        'lib/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart',
+      ).readAsString();
+      final matrixBridge = await File(
+        'lib/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart',
+      ).readAsString();
+      final filesRepository = await File(
+        'lib/features/files/data/repositories/backend_files_repository.dart',
+      ).readAsString();
+      expect(chatRepository, contains('RustMatrixCoreBridge'));
+      expect(chatRepository, contains('loadEncryptedRooms'));
+      expect(chatRepository, contains('loadEncryptedRoomMessages'));
+      expect(chatRepository, contains('sendEncryptedText'));
+      expect(chatRepository, isNot(contains('http.Client')));
+      expect(chatRepository, isNot(contains('/_matrix/client/')));
+      expect(chatRepository, isNot(contains('/api/chat/conversations')));
+      expect(chatRepository, isNot(contains('BackendChatRepository')));
+      expect(matrixCoordinator, contains('startOAuth('));
+      expect(matrixCoordinator, contains('restoreOAuth('));
+      expect(matrixCoordinator, isNot(contains('authSession.accessToken')));
       expect(
-        source,
-        isNot(contains('generated/openapi_models.dart')),
-        reason:
-            '$file must consume feature domain models, not raw OpenAPI DTOs.',
+        matrixCoordinator,
+        isNot(contains('/_matrix/client/v3/account/whoami')),
       );
-      expect(
-        source,
-        isNot(contains('BackendChatRepository')),
-        reason: '$file must not reference the obsolete REST chat repository.',
-      );
-    }
-  });
+      expect(matrixBridge, isNot(contains('initializeClient(')));
+
+      expect(filesRepository, contains('PROPFIND'));
+      expect(filesRepository, contains('/dav/files'));
+      expect(filesRepository, contains("http.StreamedRequest('PUT'"));
+      expect(filesRepository, contains("'PUT'"));
+      expect(filesRepository, contains("'MKCOL'"));
+      expect(filesRepository, contains("'DELETE'"));
+      expect(filesRepository, contains("'If-None-Match': '*'"));
+      expect(filesRepository, contains("'If-Match': '*'"));
+      expect(filesRepository, isNot(contains('generated/openapi_models.dart')));
+      expect(filesRepository, isNot(contains('/api/files/upload')));
+      expect(filesRepository, isNot(contains('/api/files/folders')));
+      expect(filesRepository, isNot(contains('Nextcloud')));
+
+      final featureBoundaryFiles = <String>[
+        'lib/features/chat/domain',
+        'lib/features/chat/presentation',
+        'lib/features/files/domain',
+        'lib/features/files/presentation',
+      ].expand(_dartFilesUnder);
+
+      for (final file in featureBoundaryFiles) {
+        final source = await File(file).readAsString();
+        expect(
+          source,
+          isNot(contains('generated/openapi_models.dart')),
+          reason:
+              '$file must consume feature domain models, not raw OpenAPI DTOs.',
+        );
+        expect(
+          source,
+          isNot(contains('BackendChatRepository')),
+          reason: '$file must not reference the obsolete REST chat repository.',
+        );
+      }
+    },
+  );
 
   test('workspace API DTOs use generated OpenAPI response models', () async {
     final client = await File(
@@ -152,19 +169,19 @@ void main() {
   });
 
   test(
-    'primary chat provider is wired through the Matrix Client-Server projection',
+    'primary chat provider wires the native Matrix SDK without a REST chat dependency',
     () async {
       // FLUTTER_MATRIX_BOUNDARY_CONTRACT
       final source = await File(
         'lib/features/chat/presentation/providers/chat_repository_provider.dart',
       ).readAsString();
 
-      expect(source, contains('WeaveMatrixFacadeChatRepository'));
-      expect(source, contains('Matrix Client-Server projection'));
-      expect(source, contains('/api/chat/**'));
-      expect(source, contains('control/product facade'));
-      expect(source, contains('OpenAPI/REST'));
-      expect(source, contains('direct Matrix SDK'));
+      expect(source, contains('NativeMatrixChatRepository'));
+      expect(source, contains('native Rust/Matrix SDK'));
+      expect(source, contains('matrixCryptoSessionCoordinatorProvider'));
+      expect(source, contains('Weave User API room bindings remain separate'));
+      expect(source, isNot(contains('authSessionRepositoryProvider')));
+      expect(source, isNot(contains('/api/chat/')));
       expect(source, isNot(contains('FeatureFlags.legacyDirectMatrixChat')));
       expect(source, isNot(contains('BackendChatRepository(')));
       expect(source, isNot(contains('matrixSessionServiceProvider')));

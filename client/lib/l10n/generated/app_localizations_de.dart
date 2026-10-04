@@ -309,7 +309,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatErrorSessionRequiredGuidance =>
-      'Chat ist für diese Workspace-Sitzung nicht verbunden. Verbinde Chat, um fortzufahren.';
+      'Verbinde Chat, um dich im Systembrowser bei Matrix anzumelden. Deine Matrix-Sitzung ist von der Weave-Anmeldung getrennt.';
 
   @override
   String get chatErrorUnsupportedPlatformGuidance =>
@@ -2477,7 +2477,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get serverConfigurationServicesHelper =>
-      'Standardwerte für Matrix, Nextcloud und die Backend-API werden aus dem Issuer-Host abgeleitet. Ändere sie, wenn deine Dienste anderswo liegen.';
+      'Standardwerte für Matrix, Dateien und die Backend-API werden aus dem Issuer-Host abgeleitet. Trage die echte Matrix-Homeserver-Adresse ein, falls sie abweicht; Matrix verwendet eine eigene Browser-Anmeldung.';
 
   @override
   String get serverConfigurationBackendApiHelper =>

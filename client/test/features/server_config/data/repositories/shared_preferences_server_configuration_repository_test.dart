@@ -122,7 +122,7 @@ void main() {
       );
     });
 
-    test('rejects stale provider-shaped Matrix state', () async {
+    test('preserves a Matrix homeserver separate from the Weave API', () async {
       final store = InMemoryPreferencesStore(
         buildStoredConfiguration(
           matrixHomeserverUrl: 'https://matrix.home.internal',
@@ -135,10 +135,34 @@ void main() {
       addTearDown(container.dispose);
       final repository = container.read(serverConfigurationRepositoryProvider);
 
-      await expectLater(
-        repository.loadConfiguration,
-        throwsA(isA<AppFailure>()),
+      final loaded = await repository.loadConfiguration();
+      expect(
+        loaded?.serviceEndpoints.matrixHomeserverUrl.toString(),
+        'https://matrix.home.internal',
       );
+    });
+
+    test('rejects Matrix URLs with credentials or provider paths', () async {
+      for (final matrixUrl in <String>[
+        'https://person:secret@matrix.home.internal',
+        'https://matrix.home.internal/_matrix/client',
+      ]) {
+        final store = InMemoryPreferencesStore(
+          buildStoredConfiguration(matrixHomeserverUrl: matrixUrl),
+        );
+        final container = ProviderContainer.test(
+          overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+        );
+        addTearDown(container.dispose);
+        final repository = container.read(
+          serverConfigurationRepositoryProvider,
+        );
+
+        await expectLater(
+          repository.loadConfiguration,
+          throwsA(isA<AppFailure>()),
+        );
+      }
     });
   });
 }

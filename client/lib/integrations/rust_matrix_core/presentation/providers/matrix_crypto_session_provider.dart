@@ -4,7 +4,6 @@ import 'package:weave/features/auth/presentation/providers/auth_session_reposito
 import 'package:weave/features/chat/data/repositories/matrix_device_identity_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart';
-import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 
 final matrixCryptoSessionCoordinatorProvider =
     Provider<MatrixCryptoSessionCoordinator>((ref) {
@@ -18,7 +17,6 @@ final matrixCryptoSessionCoordinatorProvider =
           secureStore: secureStore,
         ),
         secureStore: secureStore,
-        httpClient: ref.watch(weaveApiHttpClientProvider),
       );
       ref.onDispose(coordinator.disposePreservingCryptoState);
       return coordinator;

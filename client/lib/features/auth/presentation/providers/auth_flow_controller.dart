@@ -61,8 +61,13 @@ class AuthFlowController extends Notifier<AuthFlowState> {
     state = state.copyWith(isBusy: true, clearFailure: true);
 
     try {
-      await ref.read(signOutWorkspaceProvider).call();
-      await ref.read(appBootstrapProvider.notifier).retry();
+      try {
+        await ref.read(signOutWorkspaceProvider).call();
+      } finally {
+        // A remote Matrix revocation failure still clears local sessions.
+        // Refresh the shell after that cleanup so it cannot show stale auth.
+        await ref.read(appBootstrapProvider.notifier).retry();
+      }
       state = state.copyWith(isBusy: false, clearFailure: true);
     } on AuthFailure catch (failure) {
       state = state.copyWith(isBusy: false, failure: failure);
