@@ -6,6 +6,8 @@ import com.massimotter.weave.adminapi.invoker.ApiException;
 import com.massimotter.weave.adminapi.model.AdminControlPlaneResponse;
 import com.massimotter.weave.adminapi.model.ProviderSelectionRequest;
 import com.massimotter.weave.adminapi.model.ProviderSelectionResponse;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.nio.file.Path;
@@ -14,6 +16,7 @@ import java.util.Map;
 
 /** TLS-bound consumer of the generated server-owned Admin contract. */
 final class GeneratedAdminApi {
+  private static final ObjectMapper ERROR_MAPPER = new ObjectMapper();
   private final AdminControlPlaneApi controlPlane;
 
   GeneratedAdminApi(URI apiOrigin, Path caCertificate) {
@@ -44,7 +47,22 @@ final class GeneratedAdminApi {
       return result;
     } catch (ApiException failure) {
       // Generated exceptions include raw bodies. Keep E2E diagnostics support-safe.
-      throw new ProductFlowException("Admin control plane failed with HTTP " + failure.getCode());
+      throw new ProductFlowException("Admin control plane failed with HTTP " + failure.getCode()
+          + supportSafeErrorCode(failure));
+    }
+  }
+
+  private static String supportSafeErrorCode(ApiException failure) {
+    String body = failure.getResponseBody();
+    if (body == null || body.length() > 8192) {
+      return "";
+    }
+    try {
+      JsonNode code = ERROR_MAPPER.readTree(body).path("code");
+      String value = code.isTextual() ? code.textValue() : "";
+      return value.matches("[a-z0-9-]{1,80}") ? " (code=" + value + ")" : "";
+    } catch (Exception ignored) {
+      return "";
     }
   }
 

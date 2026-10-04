@@ -108,4 +108,31 @@ final class GeneratedAdminApiTest {
       server.stop(0);
     }
   }
+
+  @Test
+  void generatedFailureReportsOnlyValidatedErrorCode() throws Exception {
+    HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext(
+        "/api/admin/control-plane",
+        request -> {
+          byte[] response =
+              "{\"code\":\"organization-context-missing\",\"details\":{\"secret\":\"private-value\"}}"
+                  .getBytes(StandardCharsets.UTF_8);
+          request.getResponseHeaders().set("Content-Type", "application/json");
+          request.sendResponseHeaders(400, response.length);
+          try (var body = request.getResponseBody()) {
+            body.write(response);
+          }
+        });
+    server.start();
+    try {
+      URI origin = URI.create("http://127.0.0.1:" + server.getAddress().getPort());
+      assertThatThrownBy(
+              () -> new GeneratedAdminApi(origin, HttpClient.newBuilder()).controlPlane("admin-token"))
+          .isInstanceOf(ProductFlowException.class)
+          .hasMessage("Admin control plane failed with HTTP 400 (code=organization-context-missing)");
+    } finally {
+      server.stop(0);
+    }
+  }
 }
