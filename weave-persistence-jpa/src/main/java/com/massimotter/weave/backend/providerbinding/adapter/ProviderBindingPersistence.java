@@ -331,6 +331,9 @@ class ProviderObjectMappingId implements Serializable {
 interface ProviderObjectMappingJpaRepository
         extends JpaRepository<ProviderObjectMappingJpaEntity, ProviderObjectMappingId> {
 
+    boolean existsByIdOrganizationRefAndIdDomainAndIdBindingRevision(
+            String organizationRef, String domain, long bindingRevision);
+
     Optional<ProviderObjectMappingJpaEntity>
             findByIdOrganizationRefAndIdDomainAndIdBindingRevisionAndProviderObjectRef(
                     String organizationRef,

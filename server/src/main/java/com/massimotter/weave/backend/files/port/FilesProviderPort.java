@@ -45,11 +45,77 @@ public interface FilesProviderPort {
 
     Optional<VersionedFile> find(FilePath path);
 
+    /** Stable, private object identity independent of the display path; absent means no User mapping. */
+    default Optional<String> providerObjectRef(FilePath path) {
+        return Optional.empty();
+    }
+
+    default boolean supportsStableObjectRefs() {
+        return false;
+    }
+
     FileContent read(FileId id);
+
+    /** The User HTTP plane must never allocate an unbounded provider response. */
+    default FileContent readBounded(FileId id, int maxBytes) {
+        throw new UnsupportedOperationException("bounded Files read is unsupported by this provider");
+    }
+
+    /** Bounded GET whose provider enforces and returns the observed strong version. */
+    default FileContent readBoundedIfVersion(FileId id, int maxBytes, FileVersion expectedVersion) {
+        throw new UnsupportedOperationException("conditional bounded Files read is unsupported by this provider");
+    }
+
+    default boolean supportsBoundedRead() {
+        return false;
+    }
+
+    /** True only when bounded reads enforce the expected strong provider version. */
+    default boolean supportsConditionalBoundedRead() {
+        return false;
+    }
 
     FileObject write(FileWrite write);
 
+    /** Atomic absent-name creation; implementations must honor the provider precondition. */
+    default CreatedObject writeIfAbsent(FileWrite write) {
+        throw new UnsupportedOperationException("conditional Files create is unsupported by this provider");
+    }
+
+    /** Atomic replacement against the currently observed strong provider version. */
+    default FileObject writeIfVersion(FileWrite write, FileVersion expectedVersion) {
+        throw new UnsupportedOperationException("conditional Files update is unsupported by this provider");
+    }
+
+    default boolean supportsConditionalWrite() {
+        return false;
+    }
+
+    /** True only when a replacement atomically checks the expected object identity and version. */
+    default boolean supportsIdentityBoundConditionalWrite() {
+        return false;
+    }
+
     FileObject createCollection(FilePath path);
+
+    /** MKCOL-style atomic absent-name creation; a preflight lookup alone is insufficient. */
+    default CreatedObject createCollectionIfAbsent(FilePath path) {
+        throw new UnsupportedOperationException("atomic Files folder creation is unsupported by this provider");
+    }
+
+    default boolean supportsAtomicCollectionCreate() {
+        return false;
+    }
+
+    /** The provider's object identity captured in the atomic creation response. */
+    record CreatedObject(FileObject item, String providerObjectRef) {
+        public CreatedObject {
+            java.util.Objects.requireNonNull(item, "item");
+            if (providerObjectRef == null || providerObjectRef.isBlank()) {
+                throw new IllegalArgumentException("providerObjectRef is required");
+            }
+        }
+    }
 
     FileObject copy(FilePath source, FilePath destination, boolean overwrite);
 

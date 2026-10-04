@@ -207,9 +207,13 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
-    void filesOpenApiControllerRemainsControlPlaneOnly() throws IOException {
+    void filesMemberDataPlaneIsServerOwnedAndCodeFirst() throws IOException {
         JavaSource filesController = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("controller", "FilesController.java")))
+                .findFirst()
+                .orElseThrow();
+        JavaSource userController = productionSources().stream()
+                .filter(source -> source.path().endsWith(Path.of("controller", "FilesUserItemsController.java")))
                 .findFirst()
                 .orElseThrow();
 
@@ -218,6 +222,13 @@ class ServerArchitectureBoundaryTest {
                 .doesNotContain("@PostMapping(\"/api/files/upload\")")
                 .doesNotContain("@PostMapping(\"/api/files/folders\")")
                 .doesNotContain("@DeleteMapping(\"/api/files/{id}\")");
+        assertThat(userController.text())
+                .contains("@GetMapping(value = \"/api/files/items\"")
+                .contains("@GetMapping(value = \"/api/files/items/{fileId}\"")
+                .contains("@GetMapping(\"/api/files/items/{fileId}/content\")")
+                .contains("@PostMapping(value = \"/api/files/items/folders\"")
+                .contains("@PostMapping(value = \"/api/files/items/uploads\"")
+                .contains("@PutMapping(value = \"/api/files/items/{fileId}/content\"");
     }
 
     @Test

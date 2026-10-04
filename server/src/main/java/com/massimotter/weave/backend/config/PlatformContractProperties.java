@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.config;
 
+import java.net.URI;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "weave.platform")
@@ -17,7 +18,7 @@ public record PlatformContractProperties(
         publicBaseUrl = defaultIfBlank(publicBaseUrl, "https://weave.test");
         apiBaseUrl = defaultIfBlank(apiBaseUrl, "https://api.weave.test/api");
         authBaseUrl = defaultIfBlank(authBaseUrl, "https://auth.weave.test");
-        matrixHomeserverUrl = defaultIfBlank(matrixHomeserverUrl, "https://matrix.weave.test");
+        matrixHomeserverUrl = matrixFacadeOrigin(defaultIfBlank(matrixHomeserverUrl, apiOrigin(apiBaseUrl)));
         filesProductUrl = defaultIfBlank(filesProductUrl, "https://weave.test/files");
         calendarProductUrl = defaultIfBlank(calendarProductUrl, "https://weave.test/calendar");
         nextcloudBaseUrl = defaultIfBlank(nextcloudBaseUrl, "https://files.weave.test");
@@ -29,6 +30,27 @@ public record PlatformContractProperties(
             return fallback;
         }
         return value.trim();
+    }
+
+    private static String apiOrigin(String apiBaseUrl) {
+        URI api = URI.create(apiBaseUrl);
+        if (!"https".equalsIgnoreCase(api.getScheme()) || api.getHost() == null || api.getRawAuthority() == null
+                || api.getRawUserInfo() != null || api.getRawQuery() != null || api.getRawFragment() != null) {
+            throw new IllegalArgumentException("The Weave User API base must have a DNS-hosted HTTPS origin");
+        }
+        return "https://" + api.getRawAuthority();
+    }
+
+    private static String matrixFacadeOrigin(String value) {
+        URI facade = URI.create(value);
+        if (!"https".equalsIgnoreCase(facade.getScheme()) || facade.getHost() == null
+                || facade.getRawAuthority() == null || facade.getRawUserInfo() != null
+                || facade.getRawQuery() != null || facade.getRawFragment() != null
+                || (facade.getRawPath() != null && !facade.getRawPath().isEmpty()
+                && !"/".equals(facade.getRawPath()))) {
+            throw new IllegalArgumentException("The advertised Weave Matrix facade must be a credential-free HTTPS origin");
+        }
+        return "https://" + facade.getRawAuthority();
     }
 
     public String agentRuntimeControlResource() {
