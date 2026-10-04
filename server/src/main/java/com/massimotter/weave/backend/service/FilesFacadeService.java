@@ -30,7 +30,8 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
-import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
+import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
+import com.massimotter.weave.backend.service.files.FilesProviderResolver;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
@@ -87,7 +88,7 @@ public class FilesFacadeService {
     private static final String DEFAULT_CONTEXT_ID = "workspace-default";
     private static final Logger LOGGER = LoggerFactory.getLogger(FilesFacadeService.class);
 
-    private final FilesProviderPort filesProviderPort;
+    private final FilesProviderResolver filesProviderResolver;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final OrganizationIdentityContextResolver identityContexts;
@@ -101,7 +102,7 @@ public class FilesFacadeService {
 
     @Autowired
     public FilesFacadeService(
-            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
+            FilesProviderResolver filesProviderResolver,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
             OrganizationIdentityContextResolver identityContexts,
@@ -113,7 +114,7 @@ public class FilesFacadeService {
             ObjectProvider<McpWorkloadAuthorizationService> mcpWorkloadAuthorizationServiceProvider,
             ObjectProvider<McpExchangedTokenPolicy> mcpExchangedTokenPolicyProvider) {
         this(
-                filesProviderPortProvider,
+                filesProviderResolver,
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 identityContexts,
@@ -127,7 +128,7 @@ public class FilesFacadeService {
     }
 
     FilesFacadeService(
-            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
+            FilesProviderResolver filesProviderResolver,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
@@ -138,7 +139,7 @@ public class FilesFacadeService {
             McpWorkloadAuthorizationService mcpWorkloadAuthorizationService,
             McpExchangedTokenPolicy mcpExchangedTokenPolicy) {
         this(
-                filesProviderPortProvider,
+                filesProviderResolver,
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 OrganizationIdentityContextResolver.configured(contextAuthorizationProperties),
@@ -152,7 +153,7 @@ public class FilesFacadeService {
     }
 
     FilesFacadeService(
-            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
+            FilesProviderResolver filesProviderResolver,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
             OrganizationIdentityContextResolver identityContexts,
@@ -163,7 +164,7 @@ public class FilesFacadeService {
             FilesMutationIntentService filesMutationIntentService,
             McpWorkloadAuthorizationService mcpWorkloadAuthorizationService,
             McpExchangedTokenPolicy mcpExchangedTokenPolicy) {
-        this.filesProviderPort = filesProviderPortProvider.getIfAvailable();
+        this.filesProviderResolver = Objects.requireNonNull(filesProviderResolver, "filesProviderResolver");
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
         this.identityContexts = Objects.requireNonNull(identityContexts, "identityContexts");
@@ -177,32 +178,32 @@ public class FilesFacadeService {
     }
 
     public FilesFacadeService(
-            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
+            FilesProviderResolver filesProviderResolver,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
             DeviceCredentialService deviceCredentialService,
             AuditEventPublisher auditEventPublisher) {
-        this(filesProviderPortProvider, contextAuthorizationPort, contextAuthorizationProperties,
+        this(filesProviderResolver, contextAuthorizationPort, contextAuthorizationProperties,
                 workspaceCapabilityService, deviceCredentialService, auditEventPublisher, null, null,
                 (McpWorkloadAuthorizationService) null, (McpExchangedTokenPolicy) null);
     }
 
     public FilesFacadeService(
-            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
+            FilesProviderResolver filesProviderResolver,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
             DeviceCredentialService deviceCredentialService,
             AuditEventPublisher auditEventPublisher,
             FilesLockService filesLockService) {
-        this(filesProviderPortProvider, contextAuthorizationPort, contextAuthorizationProperties,
+        this(filesProviderResolver, contextAuthorizationPort, contextAuthorizationProperties,
                 workspaceCapabilityService, deviceCredentialService, auditEventPublisher, filesLockService, null,
                 (McpWorkloadAuthorizationService) null, (McpExchangedTokenPolicy) null);
     }
 
     FilesFacadeService(
-            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
+            FilesProviderResolver filesProviderResolver,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
@@ -211,7 +212,7 @@ public class FilesFacadeService {
             McpWorkloadAuthorizationService mcpWorkloadAuthorizationService,
             McpExchangedTokenPolicy mcpExchangedTokenPolicy) {
         this(
-                filesProviderPortProvider,
+                filesProviderResolver,
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 workspaceCapabilityService,
@@ -1066,22 +1067,27 @@ public class FilesFacadeService {
     private record SearchNode(String path, int depth) {
     }
 
-    private FilesProviderPort configuredAdapter(String operation) {
-        if (filesProviderPort == null || !filesProviderPort.configured()) {
+    private FilesProviderPort configuredAdapter(String operation, PrincipalContext principal) {
+        try {
+            return filesProviderResolver.current(principal.tenantId(), DEFAULT_CONTEXT_ID);
+        } catch (FilesProviderResolver.ProviderUnavailableException exception) {
             throw adapterNotConfigured(operation);
         }
-        return filesProviderPort;
-    }
-
-    private FilesProviderPort configuredAdapter(String operation, PrincipalContext principal) {
-        return configuredAdapter(operation).scoped(new FilesRequestScope(
-                principal.tenantId(), DEFAULT_CONTEXT_ID, 1));
     }
 
     private FilesProviderPort configuredAdapter(
-            String operation, PrincipalContext principal, long providerBindingRevision) {
-        return configuredAdapter(operation).scoped(new FilesRequestScope(
-                principal.tenantId(), DEFAULT_CONTEXT_ID, providerBindingRevision));
+            String operation, PrincipalContext principal, ProviderBinding binding, boolean allowRetired) {
+        try {
+            return filesProviderResolver.pinned(binding, principal.tenantId(), DEFAULT_CONTEXT_ID, allowRetired);
+        } catch (FilesProviderResolver.StaleBindingException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.CONFLICT,
+                    "files-provider-binding-stale",
+                    "The active Files provider binding changed before the operation could be dispatched.",
+                    Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+        } catch (FilesProviderResolver.ProviderUnavailableException exception) {
+            throw adapterNotConfigured(operation);
+        }
     }
 
     private <T> T executeMutation(
@@ -1122,20 +1128,12 @@ public class FilesFacadeService {
                     "Idempotency-Key must contain between 16 and 128 characters.",
                     Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
         }
-        FilesProviderPort adapter = configuredAdapter(operation);
+        FilesProviderPort adapter;
         try {
-            try {
-                filesMutationIntentService.requireAdapter(mutation, adapter.conformanceProfile().adapterKey());
-            } catch (FilesMutationIntentService.PinnedAdapterMismatchException exception) {
-                throw new ApiErrorException(
-                        HttpStatus.SERVICE_UNAVAILABLE,
-                        "files-provider-binding-mismatch",
-                        "The configured Files adapter does not match the pinned provider binding.",
-                        Map.of("module", "files", "operation", operation,
-                                "providerBindingRevision", mutation.binding().revision(),
-                                "diagnosticsRedacted", true));
-            }
-            adapter = configuredAdapter(operation, principal, mutation.binding().revision());
+            adapter = configuredAdapter(operation, principal, mutation.binding(),
+                    mutation.retry()
+                            && mutation.intent().state()
+                            != com.massimotter.weave.backend.operation.domain.OperationIntent.State.CREATED);
             if (mutation.retry()) {
                 mutation = prepareRetry(mutation, operation);
                 T reconciled = reconcile.execute(adapter);

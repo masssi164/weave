@@ -57,6 +57,30 @@ class FilesMutationIntentServicePostgresTest {
     }
 
     @Test
+    void ambiguousRetryKeepsRetiredSourceBindingAfterActivation() {
+        Fixture fixture = fixture();
+        var source = fixture.bindings().activate(
+                fixture.organizationRef(), "files", 0, "nextcloud-webdav", "profile:nextcloud", fixture.now());
+        var first = fixture.service().begin(command(
+                fixture, "retry-across-provider-change-0001", "/Team/plan.md"));
+        var ambiguous = fixture.service().ambiguous(fixture.service().dispatch(first), "timeout");
+        fixture.bindings().activate(
+                fixture.organizationRef(), "files", source.revision(), "weave-native", "profile:native",
+                fixture.now().plusSeconds(1));
+
+        var retry = fixture.service().begin(command(
+                fixture, "retry-across-provider-change-0001", "/Team/plan.md"));
+
+        assertThat(ambiguous.intent().state()).isEqualTo(State.AMBIGUOUS);
+        assertThat(retry.retry()).isTrue();
+        assertThat(retry.intent().operationRef()).isEqualTo(first.intent().operationRef());
+        assertThat(retry.binding().revision()).isEqualTo(source.revision());
+        assertThat(retry.binding().state()).isEqualTo(com.massimotter.weave.backend.providerbinding.domain.ProviderBinding.State.RETIRED);
+        assertThat(fixture.bindings().current(fixture.organizationRef(), "files")
+                .orElseThrow().adapterKey()).isEqualTo("weave-native");
+    }
+
+    @Test
     void failsClosedWithoutAnActiveFilesBinding() {
         Fixture fixture = fixture();
 
@@ -110,6 +134,33 @@ class FilesMutationIntentServicePostgresTest {
         assertThatThrownBy(conflicting::reconcile)
                 .isInstanceOf(ProviderBindingBootstrapConflictException.class);
         assertThat(fixture.bindings().current(fixture.organizationRef(), "files")).contains(first);
+    }
+
+    @Test
+    void bootstrapRestartDoesNotReverseActivatedCandidateOrVerifiedRollback() {
+        Fixture fixture = fixture();
+        var properties = new ProviderBindingBootstrapProperties(
+                true, fixture.organizationRef(), "nextcloud-webdav", "profile:nextcloud");
+        var bootstrap = new FilesProviderBindingBootstrap(
+                fixture.bindings(), properties, Clock.fixed(fixture.now(), ZoneOffset.UTC));
+        var source = bootstrap.reconcile();
+        var nativeFiles = fixture.bindings().activate(
+                fixture.organizationRef(), "files", source.revision(), "weave-native", "profile:native",
+                fixture.now().plusSeconds(1));
+
+        assertThat(new FilesProviderBindingBootstrap(
+                fixture.bindings(), properties, Clock.fixed(fixture.now().plusSeconds(2), ZoneOffset.UTC))
+                .reconcile()).isEqualTo(nativeFiles);
+        var rollback = fixture.bindings().activate(
+                fixture.organizationRef(), "files", nativeFiles.revision(), "nextcloud-webdav",
+                "profile:nextcloud", fixture.now().plusSeconds(3));
+        assertThat(new FilesProviderBindingBootstrap(
+                fixture.bindings(), properties, Clock.fixed(fixture.now().plusSeconds(4), ZoneOffset.UTC))
+                .reconcile()).isEqualTo(rollback);
+        assertThat(fixture.bindings().current(fixture.organizationRef(), "files")).contains(rollback);
+        assertThat(fixture.jdbc().queryForObject(
+                "select count(*) from weave_provider_bindings where organization_ref = ?",
+                Integer.class, fixture.organizationRef())).isEqualTo(3);
     }
 
     private Command command(Fixture fixture, String idempotencyKey, String path) {

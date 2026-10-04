@@ -6,6 +6,7 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
+import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.sun.net.httpserver.HttpServer;
@@ -13,6 +14,8 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -58,6 +61,49 @@ class NextcloudFilesAdapterTest {
 
         assertThat(unconfigured.configured()).isFalse();
         assertThat(unconfigured.healthProbe().state().value()).isEqualTo("unavailable");
+    }
+
+    @Test
+    void scopedRequestsUseOnlyTheirOrganizationAndConfigurationAccount() {
+        NextcloudFilesProperties accountA = configuredProperties();
+        NextcloudFilesProperties accountB = new NextcloudFilesProperties(
+                "https://files.example.test", "/remote.php/dav/files",
+                "backend-service-account", "service-b", "password-b");
+        Map<String, NextcloudFilesProperties> accounts = Map.of(
+                "org-a/profile:a", accountA,
+                "org-b/profile:b", accountB);
+        NextcloudFilesAccountResolver resolver = new NextcloudFilesAccountResolver() {
+            @Override
+            public Optional<NextcloudFilesProperties> resolve(String organizationRef, String configurationRef) {
+                return Optional.ofNullable(accounts.get(organizationRef + "/" + configurationRef));
+            }
+
+            @Override
+            public boolean available() {
+                return true;
+            }
+        };
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer scopedServer = MockRestServiceServer.bindTo(builder).build();
+        NextcloudFilesAdapter staged = new NextcloudFilesAdapter(accountA, resolver, builder.build());
+        scopedServer.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/report.md"))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, AUTH_HEADER))
+                .andRespond(withSuccess("a", MediaType.TEXT_PLAIN));
+        scopedServer.expect(requestTo("https://files.example.test/remote.php/dav/files/service-b/report.md"))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder()
+                        .encodeToString("service-b:password-b".getBytes(StandardCharsets.UTF_8))))
+                .andRespond(withSuccess("b", MediaType.TEXT_PLAIN));
+
+        var scopedA = staged.scoped(new FilesRequestScope("org-a", "workspace-default", 1, "profile:a"));
+        var scopedB = staged.scoped(new FilesRequestScope("org-b", "workspace-default", 2, "profile:b"));
+        assertThat(new String(scopedA.read(new FileId(FilePathCodec.toId("/report.md"))).bytes(), StandardCharsets.UTF_8))
+                .isEqualTo("a");
+        assertThat(new String(scopedB.read(new FileId(FilePathCodec.toId("/report.md"))).bytes(), StandardCharsets.UTF_8))
+                .isEqualTo("b");
+        assertThatThrownBy(() -> staged.scoped(
+                new FilesRequestScope("org-b", "workspace-default", 2, "profile:a")))
+                .isInstanceOf(ApiErrorException.class);
+        scopedServer.verify();
     }
 
     @Test

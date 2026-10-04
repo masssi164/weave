@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.service;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.chat.port.ChatSouthboundProvider;
 import com.massimotter.weave.backend.config.ProviderHealthProperties;
+import com.massimotter.weave.backend.config.FilesRuntimeProperties;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.model.admin.ProviderCapabilityHealthResponse;
 import com.massimotter.weave.backend.portability.ProviderCapabilityProbeResult;
@@ -48,10 +49,14 @@ public class ProviderCapabilityHealthService {
             ObjectProvider<FilesProviderPort> filesProvider,
             ObjectProvider<CalendarProviderPort> calendarProvider,
             ObjectProvider<ChatSouthboundProvider> chatProvider,
+            FilesRuntimeProperties filesRuntimeProperties,
             ProviderHealthProperties properties,
             MeterRegistry meterRegistry) {
         this(
-                filesProvider.getIfUnique(),
+                filesProvider.orderedStream()
+                        .filter(candidate -> filesRuntimeProperties.provider()
+                                .equals(candidate.conformanceProfile().adapterKey()))
+                        .findFirst().orElse(null),
                 calendarProvider.getIfUnique(),
                 chatProvider.getIfUnique(),
                 properties,

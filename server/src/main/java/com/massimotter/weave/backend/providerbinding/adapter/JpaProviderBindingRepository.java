@@ -61,7 +61,11 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
                         domain,
                         ProviderBinding.State.ACTIVE)
                 .orElse(null);
-        long actual = current == null ? 0 : current.revision();
+        Long latestRevision = bindings.maxRevision(organizationRef, domain);
+        long actual = latestRevision == null ? 0 : latestRevision;
+        if (current != null && current.revision() != actual) {
+            throw new IllegalStateException("active provider binding is not the latest revision");
+        }
         if (actual != expectedRevision) {
             throw new StaleProviderBindingException(
                     organizationRef,
