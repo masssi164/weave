@@ -32,7 +32,9 @@ class WeaveS3FilesAdapterMinioTest {
 
     @Container
     private static final GenericContainer<?> MINIO = new GenericContainer<>(
-            "minio/minio:RELEASE.2025-02-18T16-25-55Z")
+            // The original MinIO registries removed their historical image tags. This mirror
+            // retains the published immutable MinIO manifest digest for the test fixture.
+            "ghcr.io/l33tlamer/minio-backup@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e")
             .withEnv("MINIO_ROOT_USER", ACCESS_KEY)
             .withEnv("MINIO_ROOT_PASSWORD", SECRET_KEY)
             .withCommand("server", "/data")
