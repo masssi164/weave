@@ -16,10 +16,12 @@ final class GeneratedUserApiTest {
   @Test
   void usesGeneratedUserRouteAndDecodesTypedIdentity() throws Exception {
     AtomicReference<String> authorization = new AtomicReference<>();
+    AtomicReference<String> requestPath = new AtomicReference<>();
     HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     server.createContext(
         "/api/me",
         request -> {
+          requestPath.set(request.getRequestURI().getRawPath());
           authorization.set(request.getRequestHeaders().getFirst("Authorization"));
           byte[] response =
               "{\"identityIssuer\":\"https://auth.example.test\",\"subject\":\"member-1\",\"organizationId\":\"org-1\"}"
@@ -32,9 +34,10 @@ final class GeneratedUserApiTest {
         });
     server.start();
     try {
-      URI origin = URI.create("http://127.0.0.1:" + server.getAddress().getPort());
+      URI origin = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/");
       AuthenticatedUserResponse user =
           new GeneratedUserApi(origin, HttpClient.newBuilder()).authenticatedUser("test-token");
+      assertThat(requestPath.get()).isEqualTo("/api/me");
       assertThat(authorization.get()).isEqualTo("Bearer test-token");
       assertThat(user.getIdentityIssuer()).isEqualTo("https://auth.example.test");
       assertThat(user.getSubject()).isEqualTo("member-1");
