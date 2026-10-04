@@ -10,6 +10,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import java.io.Serial;
 import java.io.Serializable;
@@ -25,7 +26,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 @Entity
-@Table(name = "weave_provider_bindings")
+@Table(
+        name = "weave_provider_bindings",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_weave_provider_bindings_active_slot",
+                columnNames = {"organization_ref", "domain_key", "active_slot"}))
 class ProviderBindingJpaEntity {
 
     @EmbeddedId
@@ -167,6 +172,15 @@ interface ProviderBindingJpaRepository
             @Param("organizationRef") String organizationRef,
             @Param("domain") String domain,
             @Param("state") ProviderBinding.State state);
+
+    @Query("""
+            select max(binding.id.bindingRevision) from ProviderBindingJpaEntity binding
+            where binding.id.organizationRef = :organizationRef
+              and binding.id.domain = :domain
+            """)
+    Long maxRevision(
+            @Param("organizationRef") String organizationRef,
+            @Param("domain") String domain);
 }
 
 @Entity
