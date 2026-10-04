@@ -602,6 +602,10 @@ void main() {
         await tester.tap(find.text('Chat'));
         await tester.pumpAndSettle();
 
+        expect(chatRepository.connectCalls, 0);
+        await tester.tap(find.text('Connect chat'));
+        await tester.pumpAndSettle();
+
         expect(chatRepository.connectCalls, 1);
         expect(find.text('Weave Core'), findsWidgets);
         expect(find.text('Golden path looks healthy.'), findsOneWidget);

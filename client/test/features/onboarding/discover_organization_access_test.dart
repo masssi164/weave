@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
+import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
@@ -360,39 +361,40 @@ void main() {
 
   // Byte-for-byte copies of the examples in the pinned weave-specs corpus.
   test('accepts the pinned OrgManifest v2 valid example', () async {
-    final repository = _RecordingServerConfigurationRepository();
     final fixture = await File(
       'test/fixtures/org_manifest_v2_valid.json',
     ).readAsString();
     final httpClient = MockClient((_) async => http.Response(fixture, 200));
 
-    await DiscoverOrganizationAccess(
-      repository: repository,
-      discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
-    ).call(Uri.parse('https://weave.local/join'));
-
-    expect(
-      repository.saved?.serviceEndpoints.backendApiBaseUrl.toString(),
-      'https://api.weave.local/api',
+    final config = await AppStartDiscoveryClient(httpClient: httpClient).fetch(
+      OrganizationAccess(
+        organizationOrigin: Uri.parse('https://weave.local/'),
+        platformConfigUrl: Uri.parse('https://weave.local/api/platform/config'),
+      ),
     );
+
+    expect(config.userApiBaseUrl.toString(), 'https://api.weave.local/api');
     expect(
-      repository.saved?.serviceEndpoints.matrixHomeserverUrl.toString(),
+      config.matrixClientServerBaseUrl.toString(),
       'https://matrix.weave.local',
     );
   });
 
   test('rejects the pinned OrgManifest v2 invalid DAV example', () async {
-    final repository = _RecordingServerConfigurationRepository();
     final fixture = await File(
       'test/fixtures/org_manifest_v2_invalid.json',
     ).readAsString();
     final httpClient = MockClient((_) async => http.Response(fixture, 200));
 
     await expectLater(
-      DiscoverOrganizationAccess(
-        repository: repository,
-        discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
-      ).call(Uri.parse('https://weave.local/join')),
+      AppStartDiscoveryClient(httpClient: httpClient).fetch(
+        OrganizationAccess(
+          organizationOrigin: Uri.parse('https://weave.local/'),
+          platformConfigUrl: Uri.parse(
+            'https://weave.local/api/platform/config',
+          ),
+        ),
+      ),
       throwsA(
         isA<AppFailure>().having(
           (failure) => failure.message,
@@ -401,7 +403,6 @@ void main() {
         ),
       ),
     );
-    expect(repository.saved, isNull);
   });
 
   test(
@@ -424,7 +425,7 @@ void main() {
         DiscoverOrganizationAccess(
           repository: repository,
           discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
-        ).call(Uri.parse('https://join.weave.example/join')),
+        ).call(Uri.parse('https://join.weave.example')),
         throwsA(
           isA<AppFailure>().having(
             (failure) => failure.message,
