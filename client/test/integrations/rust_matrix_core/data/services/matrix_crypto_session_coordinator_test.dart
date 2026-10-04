@@ -4,8 +4,6 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
@@ -14,6 +12,7 @@ import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/matrix_oauth_browser.dart';
 
 import '../../../../helpers/auth_test_data.dart';
 import '../../../../helpers/fake_matrix_crypto.dart';
@@ -39,6 +38,7 @@ class _ConfigurationRepository implements ServerConfigurationRepository {
 
 class _AuthRepository implements AuthSessionRepository {
   AuthState state = AuthState.authenticated(buildTestAuthSession());
+  bool failRestore = false;
 
   @override
   Future<void> clearLocalSession() async {}
@@ -48,8 +48,10 @@ class _AuthRepository implements AuthSessionRepository {
       state;
 
   @override
-  Future<AuthState> restoreSession(AuthConfiguration configuration) async =>
-      state;
+  Future<AuthState> restoreSession(AuthConfiguration configuration) async {
+    if (failRestore) throw StateError('Weave API unavailable');
+    return state;
+  }
 
   @override
   Future<AuthState> signIn(AuthConfiguration configuration) async => state;
@@ -63,29 +65,49 @@ class _ControlledInitializationBridge extends FakeRustMatrixCoreBridge {
   final allowInitialization = Completer<void>();
 
   @override
-  Future<void> initializeClient({
+  Future<void> activateOAuth({
+    required String loginKey,
     required String profileKey,
-    required String homeserverUrl,
-    required String userId,
-    required String deviceId,
-    required String accessToken,
     required String storePath,
     required String storePassphrase,
-    String? extraRootCertificatePem,
   }) async {
     initializationStarted.complete();
     await allowInitialization.future;
-    await super.initializeClient(
+    await super.activateOAuth(
+      loginKey: loginKey,
       profileKey: profileKey,
-      homeserverUrl: homeserverUrl,
-      userId: userId,
-      deviceId: deviceId,
-      accessToken: accessToken,
       storePath: storePath,
       storePassphrase: storePassphrase,
-      extraRootCertificatePem: extraRootCertificatePem,
     );
   }
+}
+
+class _FakeMatrixOAuthBrowser implements MatrixOAuthBrowser {
+  final List<Uri> opened = <Uri>[];
+  bool cancelled = false;
+
+  @override
+  Future<Uri> authorize(
+    Uri authorizationUrl, {
+    required String state,
+    required bool allowInsecureAuthorization,
+  }) async {
+    opened.add(authorizationUrl);
+    if (cancelled) {
+      throw const ChatFailure.cancelled('Matrix sign-in cancelled.');
+    }
+    return Uri.parse('$matrixOAuthRedirectUri?code=matrix-code&state=$state');
+  }
+}
+
+String _idToken({
+  String issuer = 'https://auth.home.internal',
+  String audience = 'weave-app',
+  String subject = 'person-1',
+}) {
+  String part(Map<String, Object> claims) =>
+      base64UrlEncode(utf8.encode(jsonEncode(claims))).replaceAll('=', '');
+  return '${part(<String, Object>{'alg': 'RS256'})}.${part(<String, Object>{'iss': issuer, 'aud': audience, 'sub': subject})}.signature';
 }
 
 void main() {
@@ -94,11 +116,9 @@ void main() {
   late _ConfigurationRepository configurationRepository;
   late _AuthRepository authRepository;
   late FakeRustMatrixCoreBridge bridge;
+  late _FakeMatrixOAuthBrowser browser;
 
-  MatrixCryptoSessionCoordinator buildCoordinator({
-    required http.Client httpClient,
-    required int randomSeed,
-  }) {
+  MatrixCryptoSessionCoordinator buildCoordinator({required int randomSeed}) {
     return MatrixCryptoSessionCoordinator(
       serverConfigurationRepository: configurationRepository,
       authSessionRepository: authRepository,
@@ -107,26 +127,11 @@ void main() {
         random: Random(randomSeed),
       ),
       secureStore: secureStore,
-      httpClient: httpClient,
       rustMatrixCoreBridge: bridge,
+      oauthBrowser: browser,
       storeRootLoader: () async => storeRoot,
       random: Random(randomSeed),
     );
-  }
-
-  http.Client whoamiClient() {
-    return MockClient((request) async {
-      expect(request.url.path, '/_matrix/client/v3/account/whoami');
-      expect(request.headers['authorization'], startsWith('Bearer '));
-      final deviceId = request.headers['x-weave-matrix-device-id'];
-      return http.Response(
-        jsonEncode(<String, String>{
-          'user_id': '@user:api.weave.test',
-          'device_id': deviceId!,
-        }),
-        200,
-      );
-    });
   }
 
   setUp(() async {
@@ -136,7 +141,11 @@ void main() {
       buildTestConfiguration(matrixHomeserverUrl: 'https://api.weave.test'),
     );
     authRepository = _AuthRepository();
+    authRepository.state = AuthState.authenticated(
+      buildTestAuthSession(idToken: _idToken()),
+    );
     bridge = FakeRustMatrixCoreBridge();
+    browser = _FakeMatrixOAuthBrowser();
   });
 
   tearDown(() async {
@@ -146,18 +155,38 @@ void main() {
   });
 
   test(
+    'ordinary Matrix reads never launch a browser without a session',
+    () async {
+      final coordinator = buildCoordinator(randomSeed: 1);
+
+      await expectLater(
+        coordinator.open(),
+        throwsA(
+          isA<ChatFailure>().having(
+            (failure) => failure.type,
+            'type',
+            ChatFailureType.sessionRequired,
+          ),
+        ),
+      );
+
+      expect(bridge.oauthStarts, isEmpty);
+      expect(browser.opened, isEmpty);
+    },
+  );
+
+  test(
     'app relaunch restores the same profile, device, and crypto store',
     () async {
       // MATRIX_E2EE_IPHONE_RELAUNCH
-      final httpClient = whoamiClient();
-      final first = buildCoordinator(httpClient: httpClient, randomSeed: 1);
+      final first = buildCoordinator(randomSeed: 1);
 
-      final firstSession = await first.open();
-      final firstInitialization = bridge.initializations.single;
+      final firstSession = await first.open(allowInteractiveSignIn: true);
+      final firstInitialization = bridge.oauthActivations.single;
       await first.disposePreservingCryptoState();
-      final second = buildCoordinator(httpClient: httpClient, randomSeed: 999);
+      final second = buildCoordinator(randomSeed: 999);
       final secondSession = await second.open();
-      final secondInitialization = bridge.initializations.last;
+      final secondInitialization = bridge.oauthRestores.single;
 
       expect(secondSession.profileKey, firstSession.profileKey);
       expect(secondSession.deviceId, firstSession.deviceId);
@@ -174,33 +203,313 @@ void main() {
         isTrue,
       );
       expect(bridge.disposedProfiles, <String>[firstSession.profileKey]);
+      expect(bridge.oauthStarts, hasLength(1));
+      expect(browser.opened, hasLength(1));
     },
   );
 
   test(
-    'OIDC token refresh rebinds Rust without changing crypto identity',
+    'Weave OIDC token refresh never rebinds Matrix with a Weave bearer',
     () async {
-      final coordinator = buildCoordinator(
-        httpClient: whoamiClient(),
-        randomSeed: 1,
-      );
+      final coordinator = buildCoordinator(randomSeed: 1);
 
-      final first = await coordinator.open(synchronize: false);
+      final first = await coordinator.open(
+        synchronize: false,
+        allowInteractiveSignIn: true,
+      );
       authRepository.state = AuthState.authenticated(
-        buildTestAuthSession(accessToken: 'refreshed-access-token'),
+        buildTestAuthSession(
+          accessToken: 'refreshed-access-token',
+          idToken: _idToken(),
+        ),
       );
       final second = await coordinator.open(synchronize: false);
 
       expect(second.profileKey, first.profileKey);
-      expect(bridge.initializations, hasLength(2));
+      expect(bridge.oauthActivations, hasLength(1));
+      expect(bridge.oauthRestores, isEmpty);
+    },
+  );
+
+  test(
+    'expired Matrix grant requires deliberate same-account reconnect',
+    () async {
+      final coordinator = buildCoordinator(randomSeed: 1);
+      final first = await coordinator.open(allowInteractiveSignIn: true);
+      final bindingKey = await secureStore.read(matrixOAuthCurrentBindingKey);
+      final passphrase = await secureStore.read(
+        '$matrixCryptoStorePassphraseKeyPrefix${first.profileKey}',
+      );
+      final storePath = bridge.oauthActivations.single['storePath']!;
+      final tokenFile = File('$storePath/weave-matrix-oauth-session.v1');
+      await tokenFile.writeAsString('encrypted Matrix session test fixture');
+
+      bridge.expiredSyncsRemaining = 3;
+      await expectLater(
+        coordinator.open(),
+        throwsA(
+          isA<ChatFailure>().having(
+            (failure) => failure.type,
+            'type',
+            ChatFailureType.sessionRequired,
+          ),
+        ),
+      );
+      expect(browser.opened, hasLength(1));
+      expect(await tokenFile.readAsString(), isNotEmpty);
+
+      final reconnected = await coordinator.open(allowInteractiveSignIn: true);
+      expect(reconnected.profileKey, first.profileKey);
+      expect(bridge.oauthStarts, hasLength(2));
+      expect(browser.opened, hasLength(2));
+      expect(bridge.oauthActivations, hasLength(2));
+      expect(bridge.oauthRestores, hasLength(1));
+      expect(bridge.disposedProfiles, contains(first.profileKey));
+      expect(bridge.oauthActivations.last['storePassphrase'], passphrase);
+      expect(await secureStore.read(matrixOAuthCurrentBindingKey), bindingKey);
+      expect(await tokenFile.readAsString(), isNotEmpty);
+    },
+  );
+
+  test(
+    'reconnect rejects a different Matrix account without replacing keys',
+    () async {
+      final coordinator = buildCoordinator(randomSeed: 1);
+      final first = await coordinator.open(allowInteractiveSignIn: true);
+      final bindingKey = await secureStore.read(matrixOAuthCurrentBindingKey);
+      final passphrase = await secureStore.read(
+        '$matrixCryptoStorePassphraseKeyPrefix${first.profileKey}',
+      );
+      bridge.expiredSyncsRemaining = 2;
+      bridge.oauthUserId = '@different:matrix.test';
+
+      await expectLater(
+        coordinator.open(allowInteractiveSignIn: true),
+        throwsA(
+          isA<ChatFailure>().having(
+            (failure) => failure.type,
+            'type',
+            ChatFailureType.protocol,
+          ),
+        ),
+      );
+
+      expect(bridge.oauthActivations, hasLength(1));
+      expect(bridge.oauthAborts, hasLength(1));
+      expect(await secureStore.read(matrixOAuthCurrentBindingKey), bindingKey);
       expect(
-        bridge.initializations.map((value) => value['accessToken']),
-        <String?>['access-token', 'refreshed-access-token'],
+        await secureStore.read(
+          '$matrixCryptoStorePassphraseKeyPrefix${first.profileKey}',
+        ),
+        passphrase,
       );
       expect(
-        bridge.initializations.map((value) => value['storePassphrase']).toSet(),
-        hasLength(1),
+        await Directory(bridge.oauthActivations.single['storePath']!).exists(),
+        isTrue,
       );
+    },
+  );
+
+  test(
+    'Weave API outage and rejected refresh leave Matrix OAuth and E2EE intact',
+    () async {
+      final first = buildCoordinator(randomSeed: 1);
+      final session = await first.open(
+        synchronize: false,
+        allowInteractiveSignIn: true,
+      );
+      final bindingKey = await secureStore.read(matrixOAuthCurrentBindingKey);
+      final passphraseKey =
+          '$matrixCryptoStorePassphraseKeyPrefix${session.profileKey}';
+      final passphrase = await secureStore.read(passphraseKey);
+      final storePath = bridge.oauthActivations.single['storePath']!;
+      final tokenFile = File('$storePath/weave-matrix-oauth-session.v1');
+      await tokenFile.writeAsString('encrypted Matrix session test fixture');
+      await first.disposePreservingCryptoState();
+
+      authRepository.failRestore = true;
+      await expectLater(
+        buildCoordinator(randomSeed: 2).open(synchronize: false),
+        throwsStateError,
+      );
+      authRepository.failRestore = false;
+      authRepository.state = const AuthState.signedOut();
+      await expectLater(
+        buildCoordinator(randomSeed: 3).open(synchronize: false),
+        throwsA(
+          isA<ChatFailure>().having(
+            (failure) => failure.type,
+            'type',
+            ChatFailureType.sessionRequired,
+          ),
+        ),
+      );
+
+      expect(await secureStore.read(matrixOAuthCurrentBindingKey), bindingKey);
+      expect(await secureStore.read(passphraseKey), passphrase);
+      expect(await Directory(storePath).exists(), isTrue);
+      expect(
+        await tokenFile.readAsString(),
+        'encrypted Matrix session test fixture',
+      );
+      expect(bridge.oauthEnds, isEmpty);
+      expect(bridge.oauthRestores, isEmpty);
+
+      authRepository.state = AuthState.authenticated(
+        buildTestAuthSession(idToken: _idToken()),
+      );
+      final restored = await buildCoordinator(
+        randomSeed: 4,
+      ).open(synchronize: false);
+      expect(restored.profileKey, session.profileKey);
+      expect(bridge.oauthRestores, hasLength(1));
+      expect(browser.opened, hasLength(1));
+    },
+  );
+
+  test(
+    'workspace sign-out revokes Matrix OAuth but retains E2EE material',
+    () async {
+      final coordinator = buildCoordinator(randomSeed: 1);
+      final session = await coordinator.open(
+        synchronize: false,
+        allowInteractiveSignIn: true,
+      );
+      final storePath = bridge.oauthActivations.single['storePath']!;
+      final passphraseKey =
+          '$matrixCryptoStorePassphraseKeyPrefix${session.profileKey}';
+      final tokenFile = File('$storePath/weave-matrix-oauth-session.v1');
+      await tokenFile.writeAsString('encrypted Matrix session test fixture');
+
+      await coordinator.endSession();
+
+      expect(bridge.oauthEnds.single['profileKey'], session.profileKey);
+      expect(await secureStore.read(matrixOAuthCurrentBindingKey), isNull);
+      expect(await secureStore.read(passphraseKey), isNotNull);
+      expect(await tokenFile.exists(), isFalse);
+      expect(await Directory(storePath).exists(), isTrue);
+      expect(await secureStore.read(matrixDeviceIdentityStorageKey), isNotNull);
+    },
+  );
+
+  test(
+    'unconfirmed remote revocation is reported after local Matrix clear',
+    () async {
+      final coordinator = buildCoordinator(randomSeed: 1);
+      final session = await coordinator.open(
+        synchronize: false,
+        allowInteractiveSignIn: true,
+      );
+      final storePath = bridge.oauthActivations.single['storePath']!;
+      final tokenFile = File('$storePath/weave-matrix-oauth-session.v1');
+      await tokenFile.writeAsString('encrypted Matrix session test fixture');
+      bridge.remoteRevocationConfirmed = false;
+
+      await expectLater(
+        coordinator.endSession(),
+        throwsA(
+          isA<ChatFailure>().having(
+            (failure) => failure.type,
+            'type',
+            ChatFailureType.protocol,
+          ),
+        ),
+      );
+
+      expect(await tokenFile.exists(), isFalse);
+      expect(await secureStore.read(matrixOAuthCurrentBindingKey), isNull);
+      expect(
+        await secureStore.read(
+          '$matrixCryptoStorePassphraseKeyPrefix${session.profileKey}',
+        ),
+        isNotNull,
+      );
+    },
+  );
+
+  test(
+    'native Matrix logout error still removes only local OAuth access',
+    () async {
+      final coordinator = buildCoordinator(randomSeed: 1);
+      final session = await coordinator.open(
+        synchronize: false,
+        allowInteractiveSignIn: true,
+      );
+      final storePath = bridge.oauthActivations.single['storePath']!;
+      final tokenFile = File('$storePath/weave-matrix-oauth-session.v1');
+      await tokenFile.writeAsString('encrypted Matrix session test fixture');
+      bridge.failOAuthEnd = true;
+
+      await expectLater(coordinator.endSession(), throwsA(isA<ChatFailure>()));
+
+      expect(bridge.disposedProfiles, contains(session.profileKey));
+      expect(await tokenFile.exists(), isFalse);
+      expect(await secureStore.read(matrixOAuthCurrentBindingKey), isNull);
+      expect(await Directory(storePath).exists(), isTrue);
+    },
+  );
+
+  test('a saved Matrix binding for another account fails closed', () async {
+    final first = buildCoordinator(randomSeed: 1);
+    await first.open(synchronize: false, allowInteractiveSignIn: true);
+    await first.disposePreservingCryptoState();
+    final bindingKey = await secureStore.read(matrixOAuthCurrentBindingKey);
+    final saved =
+        jsonDecode((await secureStore.read(bindingKey!))!)
+            as Map<String, dynamic>;
+    await secureStore.write(
+      bindingKey,
+      jsonEncode(<String, dynamic>{...saved, 'userId': '@other:matrix.test'}),
+    );
+
+    await expectLater(
+      buildCoordinator(
+        randomSeed: 2,
+      ).open(synchronize: false, allowInteractiveSignIn: true),
+      throwsA(
+        isA<ChatFailure>().having(
+          (failure) => failure.type,
+          'type',
+          ChatFailureType.storage,
+        ),
+      ),
+    );
+    expect(bridge.oauthRestores, isEmpty);
+    expect(browser.opened, hasLength(1));
+  });
+
+  test(
+    'a second Weave account cannot reuse the first Matrix account store',
+    () async {
+      final coordinator = buildCoordinator(randomSeed: 1);
+      final first = await coordinator.open(
+        synchronize: false,
+        allowInteractiveSignIn: true,
+      );
+      final firstStorePath = bridge.oauthActivations.single['storePath']!;
+      final firstOwnerKey =
+          '$matrixOAuthProfileOwnerKeyPrefix${first.profileKey}';
+      final firstOwner = await secureStore.read(firstOwnerKey);
+      authRepository.state = AuthState.authenticated(
+        buildTestAuthSession(idToken: _idToken(subject: 'person-2')),
+      );
+
+      await expectLater(
+        coordinator.open(synchronize: false, allowInteractiveSignIn: true),
+        throwsA(
+          isA<ChatFailure>().having(
+            (failure) => failure.type,
+            'type',
+            ChatFailureType.storage,
+          ),
+        ),
+      );
+
+      expect(bridge.disposedProfiles, contains(first.profileKey));
+      expect(bridge.oauthActivations, hasLength(1));
+      expect(bridge.oauthAborts, hasLength(1));
+      expect(await secureStore.read(firstOwnerKey), firstOwner);
+      expect(await Directory(firstStorePath).exists(), isTrue);
     },
   );
 
@@ -209,12 +518,12 @@ void main() {
     () async {
       final controlledBridge = _ControlledInitializationBridge();
       bridge = controlledBridge;
-      final coordinator = buildCoordinator(
-        httpClient: whoamiClient(),
-        randomSeed: 1,
-      );
+      final coordinator = buildCoordinator(randomSeed: 1);
 
-      final opening = coordinator.open(synchronize: false);
+      final opening = coordinator.open(
+        synchronize: false,
+        allowInteractiveSignIn: true,
+      );
       await controlledBridge.initializationStarted.future;
       var disposed = false;
       final disposing = coordinator.disposePreservingCryptoState().then((_) {
@@ -236,12 +545,12 @@ void main() {
   test(
     'only explicit account removal deletes device and crypto material',
     () async {
-      final coordinator = buildCoordinator(
-        httpClient: whoamiClient(),
-        randomSeed: 1,
+      final coordinator = buildCoordinator(randomSeed: 1);
+      final session = await coordinator.open(
+        synchronize: false,
+        allowInteractiveSignIn: true,
       );
-      final session = await coordinator.open(synchronize: false);
-      final storePath = bridge.initializations.single['storePath']!;
+      final storePath = bridge.oauthActivations.single['storePath']!;
       final passphraseKey =
           '$matrixCryptoStorePassphraseKeyPrefix${session.profileKey}';
 
@@ -249,27 +558,23 @@ void main() {
 
       expect(await secureStore.read(matrixDeviceIdentityStorageKey), isNull);
       expect(await secureStore.read(passphraseKey), isNull);
+      expect(
+        await secureStore.read(
+          '$matrixOAuthProfileOwnerKeyPrefix${session.profileKey}',
+        ),
+        isNull,
+      );
       expect(await Directory(storePath).exists(), isFalse);
     },
   );
 
-  test('fails closed when the OIDC device identity does not match', () async {
+  test('fails closed when Matrix OAuth returns a different device', () async {
     // MATRIX_E2EE_CLIENT_FAILS_CLOSED
-    final coordinator = buildCoordinator(
-      httpClient: MockClient(
-        (_) async => http.Response(
-          jsonEncode(<String, String>{
-            'user_id': '@user:api.weave.test',
-            'device_id': 'WEAVEOTHERDEVICE000000000000000000000000',
-          }),
-          200,
-        ),
-      ),
-      randomSeed: 1,
-    );
+    bridge.oauthDeviceIdOverride = 'WEAVEOTHERDEVICE000000000000000000000000';
+    final coordinator = buildCoordinator(randomSeed: 1);
 
     await expectLater(
-      coordinator.open(),
+      coordinator.open(allowInteractiveSignIn: true),
       throwsA(
         isA<ChatFailure>().having(
           (failure) => failure.type,
@@ -278,6 +583,144 @@ void main() {
         ),
       ),
     );
-    expect(bridge.initializations, isEmpty);
+    expect(bridge.oauthActivations, isEmpty);
+    expect(bridge.oauthAborts, hasLength(1));
+  });
+
+  test(
+    'cancelled Matrix browser sign-in never creates a Matrix session',
+    () async {
+      browser.cancelled = true;
+      final coordinator = buildCoordinator(randomSeed: 1);
+
+      await expectLater(
+        coordinator.open(allowInteractiveSignIn: true),
+        throwsA(
+          isA<ChatFailure>().having(
+            (failure) => failure.type,
+            'type',
+            ChatFailureType.cancelled,
+          ),
+        ),
+      );
+      expect(bridge.oauthActivations, isEmpty);
+      expect(bridge.oauthAborts, hasLength(1));
+    },
+  );
+
+  test('wrong OIDC issuer or audience never starts Matrix sign-in', () async {
+    for (final idToken in <String>[
+      _idToken(issuer: 'https://other.example'),
+      _idToken(audience: 'other-client'),
+    ]) {
+      authRepository.state = AuthState.authenticated(
+        buildTestAuthSession(idToken: idToken),
+      );
+      final coordinator = buildCoordinator(randomSeed: 1);
+      await expectLater(
+        coordinator.open(allowInteractiveSignIn: true),
+        throwsA(
+          isA<ChatFailure>().having(
+            (failure) => failure.type,
+            'type',
+            ChatFailureType.sessionRequired,
+          ),
+        ),
+      );
+    }
+    expect(bridge.oauthStarts, isEmpty);
+  });
+
+  test('a mismatched Weave session never opens the Matrix browser', () async {
+    for (final session in [
+      buildTestAuthSession(
+        issuer: 'https://other.example',
+        idToken: _idToken(),
+      ),
+      buildTestAuthSession(clientId: 'other-client', idToken: _idToken()),
+    ]) {
+      authRepository.state = AuthState.authenticated(session);
+      await expectLater(
+        buildCoordinator(randomSeed: 1).open(allowInteractiveSignIn: true),
+        throwsA(isA<ChatFailure>()),
+      );
+    }
+    expect(bridge.oauthStarts, isEmpty);
+    expect(browser.opened, isEmpty);
+  });
+
+  test('Matrix OAuth callback requires its own redirect and matching state', () {
+    final valid = Uri.parse(
+      '$matrixOAuthRedirectUri?code=matrix-code&state=expected',
+    );
+    expect(validateMatrixOAuthRedirect(valid, state: 'expected'), valid);
+    for (final invalid in <Uri>[
+      Uri.parse('$matrixOAuthRedirectUri?code=matrix-code&state=wrong'),
+      Uri.parse(
+        '$matrixOAuthRedirectUri?code=matrix-code&state=expected&state=expected',
+      ),
+      Uri.parse(
+        'com.massimotter.weave:/oauthredirect?code=matrix-code&state=expected',
+      ),
+      Uri.parse(
+        'com.massimotter.weave.matrix:/other?code=matrix-code&state=expected',
+      ),
+      Uri.parse(
+        '$matrixOAuthRedirectUri?code=matrix-code&state=expected#fragment',
+      ),
+    ]) {
+      expect(
+        () => validateMatrixOAuthRedirect(invalid, state: 'expected'),
+        throwsA(isA<ChatFailure>()),
+      );
+    }
+  });
+
+  test('Matrix authorization URL permits HTTP only for an HTTP homeserver', () {
+    final secure = Uri.parse(
+      'https://mas.matrix.test/authorize?state=expected',
+    );
+    final local = Uri.parse('http://mas.matrix.test/authorize?state=expected');
+    expect(
+      validateMatrixOAuthAuthorizationUrl(
+        secure,
+        state: 'expected',
+        allowInsecureAuthorization: false,
+      ),
+      secure,
+    );
+    expect(
+      () => validateMatrixOAuthAuthorizationUrl(
+        local,
+        state: 'expected',
+        allowInsecureAuthorization: false,
+      ),
+      throwsA(isA<ChatFailure>()),
+    );
+    expect(
+      validateMatrixOAuthAuthorizationUrl(
+        local,
+        state: 'expected',
+        allowInsecureAuthorization: true,
+      ),
+      local,
+    );
+    for (final invalid in [
+      Uri.parse('https://user@mas.matrix.test/authorize?state=expected'),
+      Uri.parse(
+        'https://mas.matrix.test/authorize?state=expected&state=expected',
+      ),
+      Uri.parse('https://mas.matrix.test/authorize?state=wrong'),
+      Uri.parse('https://mas.matrix.test/authorize?state=expected#fragment'),
+    ]) {
+      expect(
+        () => validateMatrixOAuthAuthorizationUrl(
+          invalid,
+          state: 'expected',
+          allowInsecureAuthorization: false,
+        ),
+        throwsA(isA<ChatFailure>()),
+      );
+    }
   });
 }

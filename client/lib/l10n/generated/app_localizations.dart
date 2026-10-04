@@ -609,7 +609,7 @@ abstract class AppLocalizations {
   /// Provider-neutral guidance when a chat session is required
   ///
   /// In en, this message translates to:
-  /// **'Chat is not connected for this workspace session. Connect chat to continue.'**
+  /// **'Connect chat to sign in to Matrix in your system browser. Your Matrix session is separate from your Weave sign-in.'**
   String get chatErrorSessionRequiredGuidance;
 
   /// Provider-neutral guidance when chat cannot run on the current platform
@@ -4106,7 +4106,7 @@ abstract class AppLocalizations {
   /// Helper text for the service endpoints section
   ///
   /// In en, this message translates to:
-  /// **'The Matrix facade is fixed to the backend API origin. Files and backend product endpoints are derived from the issuer host.'**
+  /// **'Matrix, Files, and backend defaults are derived from the issuer host. Set the real Matrix homeserver origin if it differs; Matrix sign-in uses a separate browser session.'**
   String get serverConfigurationServicesHelper;
 
   /// Helper text for backend API-only member handoff/recovery configuration
@@ -4127,10 +4127,10 @@ abstract class AppLocalizations {
   /// **'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.'**
   String get serverConfigurationIdentityEndpointHelper;
 
-  /// Label for the Weave-owned Matrix facade URL field
+  /// Label for the real Matrix homeserver URL field
   ///
   /// In en, this message translates to:
-  /// **'Weave Matrix Facade URL'**
+  /// **'Matrix homeserver URL'**
   String get serverConfigurationMatrixLabel;
 
   /// Label for the Nextcloud base URL field

@@ -1,61 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
-import 'package:weave/features/auth/domain/entities/auth_state.dart';
-import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
-import 'package:weave/features/chat/data/repositories/weave_matrix_facade_chat_repository.dart';
+import 'package:weave/features/chat/data/repositories/native_matrix_chat_repository.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
-import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
-import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
-import '../../../../helpers/auth_test_data.dart';
 import '../../../../helpers/fake_matrix_crypto.dart';
-import '../../../../helpers/server_config_test_data.dart';
-
-class _FakeServerConfigurationRepository
-    implements ServerConfigurationRepository {
-  _FakeServerConfigurationRepository(this.configuration);
-
-  ServerConfiguration? configuration;
-
-  @override
-  Future<void> clearConfiguration() async => configuration = null;
-
-  @override
-  Future<ServerConfiguration?> loadConfiguration() async => configuration;
-
-  @override
-  Future<void> saveConfiguration(ServerConfiguration configuration) async {
-    this.configuration = configuration;
-  }
-}
-
-class _FakeAuthSessionRepository implements AuthSessionRepository {
-  AuthState state = AuthState.authenticated(buildTestAuthSession());
-  AuthConfiguration? signOutConfiguration;
-  int clearCalls = 0;
-
-  @override
-  Future<void> clearLocalSession() async => clearCalls += 1;
-
-  @override
-  Future<AuthState> refreshSession(AuthConfiguration configuration) async =>
-      state;
-
-  @override
-  Future<AuthState> restoreSession(AuthConfiguration configuration) async =>
-      state;
-
-  @override
-  Future<AuthState> signIn(AuthConfiguration configuration) async => state;
-
-  @override
-  Future<void> signOut(AuthConfiguration configuration) async {
-    signOutConfiguration = configuration;
-  }
-}
 
 class _FailingRoomBridge extends FakeRustMatrixCoreBridge {
   @override
@@ -66,11 +17,30 @@ class _FailingRoomBridge extends FakeRustMatrixCoreBridge {
   }
 }
 
+class _ExpiredRoomBridge extends FakeRustMatrixCoreBridge {
+  @override
+  Future<List<RustMatrixEncryptedRoom>> loadEncryptedRooms({
+    required String profileKey,
+  }) {
+    throw const RustMatrixCoreBridgeException('M_UNKNOWN_TOKEN');
+  }
+}
+
 class _FailingDescriptorBridge extends FakeRustMatrixCoreBridge {
   @override
   Future<RustMatrixCoreBridgeDescriptor> descriptor({
     String serverName = 'api.weave.test',
   }) {
+    throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_SYNC');
+  }
+}
+
+class _FailingMatrixSessionPort extends FakeMatrixCryptoSessionPort {
+  @override
+  Future<MatrixCryptoSession> open({
+    bool synchronize = true,
+    bool allowInteractiveSignIn = false,
+  }) async {
     throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_SYNC');
   }
 }
@@ -121,41 +91,40 @@ class _FailingCreateBridge extends FakeRustMatrixCoreBridge {
 }
 
 void main() {
-  late _FakeServerConfigurationRepository configurationRepository;
-  late _FakeAuthSessionRepository authSessionRepository;
   late FakeMatrixCryptoSessionPort cryptoSession;
   late FakeRustMatrixCoreBridge bridge;
 
-  WeaveMatrixFacadeChatRepository repository({
+  NativeMatrixChatRepository repository({
     FakeRustMatrixCoreBridge? rustBridge,
   }) {
-    return WeaveMatrixFacadeChatRepository(
-      serverConfigurationRepository: configurationRepository,
-      authSessionRepository: authSessionRepository,
+    return NativeMatrixChatRepository(
       matrixCryptoSessionCoordinator: cryptoSession,
       rustMatrixCoreBridge: rustBridge ?? bridge,
     );
   }
 
   setUp(() {
-    configurationRepository = _FakeServerConfigurationRepository(
-      buildTestConfiguration(matrixHomeserverUrl: 'https://api.weave.test'),
-    );
-    authSessionRepository = _FakeAuthSessionRepository();
     cryptoSession = FakeMatrixCryptoSessionPort();
     bridge = FakeRustMatrixCoreBridge();
   });
 
-  test('connect opens the OIDC-gated encrypted Rust session', () async {
+  test('connect opens the native encrypted Matrix session', () async {
     // MATRIX_CONNECT_CONTRACT
     await repository().connect();
 
     expect(cryptoSession.synchronizeValues, <bool>[true]);
+    expect(cryptoSession.interactiveValues, <bool>[true]);
+  });
+
+  test('connect does not depend on the old server facade descriptor', () async {
+    await repository(rustBridge: _FailingDescriptorBridge()).connect();
+    expect(cryptoSession.synchronizeValues, <bool>[true]);
   });
 
   test('connect retains only the support-safe Rust failure code', () async {
+    cryptoSession = _FailingMatrixSessionPort();
     await expectLater(
-      repository(rustBridge: _FailingDescriptorBridge()).connect(),
+      repository().connect(),
       throwsA(
         isA<ChatFailure>()
             .having(
@@ -172,6 +141,19 @@ void main() {
                 'M_WEAVE_E2EE_SYNC',
               ),
             ),
+      ),
+    );
+  });
+
+  test('expired Matrix transport grant offers explicit reconnect', () async {
+    await expectLater(
+      repository(rustBridge: _ExpiredRoomBridge()).loadConversations(),
+      throwsA(
+        isA<ChatFailure>().having(
+          (failure) => failure.type,
+          'type',
+          ChatFailureType.sessionRequired,
+        ),
       ),
     );
   });
@@ -205,22 +187,26 @@ void main() {
     );
     expect(conversations.first.previewText, isNull);
     expect(conversations.first.unreadCount, 2);
+    expect(cryptoSession.interactiveValues, <bool>[false]);
   });
 
-  test('creates an encrypted conversation through the Rust facade', () async {
-    final conversation = await repository().createConversation(
-      title: '  Release planning  ',
-    );
+  test(
+    'creates an encrypted conversation through the native Rust bridge',
+    () async {
+      final conversation = await repository().createConversation(
+        title: '  Release planning  ',
+      );
 
-    expect(cryptoSession.synchronizeValues, <bool>[false]);
-    expect(bridge.createdRooms.single, <String, String>{
-      'profileKey': 'profile-key',
-      'title': 'Release planning',
-    });
-    expect(conversation.id, '!created:api.weave.test');
-    expect(conversation.title, 'Release planning');
-    expect(conversation.previewType, ChatConversationPreviewType.encrypted);
-  });
+      expect(cryptoSession.synchronizeValues, <bool>[false]);
+      expect(bridge.createdRooms.single, <String, String>{
+        'profileKey': 'profile-key',
+        'title': 'Release planning',
+      });
+      expect(conversation.id, '!created:api.weave.test');
+      expect(conversation.title, 'Release planning');
+      expect(conversation.previewType, ChatConversationPreviewType.encrypted);
+    },
+  );
 
   test('conversation creation rejects empty names before transport', () async {
     await expectLater(
@@ -394,17 +380,16 @@ void main() {
   );
 
   test(
-    'normal sign-out and session clear preserve local crypto state',
+    'sign-out ends Matrix OAuth while setup clear only disposes its client',
     () async {
       final chat = repository();
 
       await chat.signOut();
       await chat.clearSession();
 
-      expect(cryptoSession.disposeCalls, 2);
+      expect(cryptoSession.endCalls, 1);
+      expect(cryptoSession.disposeCalls, 1);
       expect(cryptoSession.removeCalls, 0);
-      expect(authSessionRepository.signOutConfiguration, isNotNull);
-      expect(authSessionRepository.clearCalls, 1);
     },
   );
 

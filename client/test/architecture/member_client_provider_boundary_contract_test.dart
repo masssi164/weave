@@ -67,7 +67,7 @@ void main() {
           source,
           isNot(contains(fragment)),
           reason:
-              '${file.path} must use Weave backend facades instead of optional provider SDK imports.',
+              '${file.path} must keep optional provider SDKs outside Dart; Matrix stays in the native Rust bridge.',
         );
       }
     }
@@ -86,7 +86,7 @@ void main() {
         source,
         isNot(contains("package:matrix/")),
         reason:
-            '$normalizedPath must use the Weave Matrix facade and Rust bridge, not the Dart Matrix SDK.',
+            '$normalizedPath must use the native Rust Matrix bridge, not the Dart Matrix SDK.',
       );
       expect(
         source,

@@ -4,7 +4,7 @@ import 'package:weave/features/server_config/presentation/providers/server_confi
 
 void main() {
   group('ServerConfigurationFormController', () {
-    test('replaces stale provider endpoints with Weave facade endpoints', () {
+    test('derives a separate Matrix homeserver from the issuer host', () {
       final container = ProviderContainer.test();
       addTearDown(container.dispose);
 
@@ -23,12 +23,12 @@ void main() {
 
       final state = container.read(serverConfigurationFormControllerProvider);
 
-      expect(state.derivedMatrixHomeserverUrl, 'https://api.example.com');
+      expect(state.derivedMatrixHomeserverUrl, 'https://matrix.example.com');
       expect(
         state.derivedNextcloudBaseUrl,
         'https://api.example.com/dav/files',
       );
-      expect(state.matrixHomeserverUrl, 'https://api.example.com');
+      expect(state.matrixHomeserverUrl, 'https://matrix.example.com');
       expect(state.nextcloudBaseUrl, 'https://api.example.com/dav/files');
       expect(state.matrixError, isNull);
       expect(state.nextcloudError, isNull);

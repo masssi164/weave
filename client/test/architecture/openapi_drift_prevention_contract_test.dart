@@ -323,10 +323,10 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
   ),
   LegacyFence(
     path:
-        'lib/features/chat/data/repositories/weave_matrix_facade_chat_repository.dart',
+        'lib/features/chat/data/repositories/native_matrix_chat_repository.dart',
     issue: '#908',
     reason:
-        'Matrix facade repository failure text is fenced until member-visible '
+        'Native Matrix repository failure text is fenced until member-visible '
         'recovery copy is localized from typed failure codes.',
   ),
   LegacyFence(

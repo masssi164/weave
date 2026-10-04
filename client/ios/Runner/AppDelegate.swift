@@ -17,7 +17,9 @@ import UIKit
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
-    UserDefaults.standard.set(url.absoluteString, forKey: pendingDeepLinkKey)
+    if url.scheme != "com.massimotter.weave.matrix" {
+      UserDefaults.standard.set(url.absoluteString, forKey: pendingDeepLinkKey)
+    }
     return super.application(app, open: url, options: options)
   }
 
