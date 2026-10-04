@@ -86,7 +86,7 @@ export type GeneratedChatProviderMappingRecord = {
   "downstreamErrorsReturned"?: boolean;
   "failClosed"?: boolean;
   "lossyMappingWarnings"?: string[];
-  "readinessState"?: "available" | "coming_later" | "degraded" | "disabled_by_policy" | "not_configured" | "unavailable";
+  "readinessState"?: "available" | "degraded" | "disabled_by_policy" | "unavailable" | "not_configured" | "coming_later";
   "secretsReturned"?: boolean;
   "selectedByAdmin"?: boolean;
   "selectedProviderKey"?: string;
@@ -129,7 +129,7 @@ export type GeneratedChatReadiness = {
   "failClosed"?: boolean;
   "memberClientMayConfigureProvider"?: boolean;
   "memberImpact"?: string;
-  "memberState"?: "available" | "coming_later" | "degraded" | "disabled_by_policy" | "not_configured" | "unavailable";
+  "memberState"?: "available" | "degraded" | "disabled_by_policy" | "unavailable" | "not_configured" | "coming_later";
   "migrationDryRunRequired"?: boolean;
   "providerMapping"?: GeneratedChatProviderMappingRecord;
   "supportSafe"?: boolean;
@@ -279,7 +279,7 @@ export type GeneratedProviderAdapterReadinessEvidenceResponse = {
   "evidenceTimestamp"?: string;
   "failClosed"?: boolean;
   "health"?: string;
-  "providerRealityLevel"?: "configured" | "contract_only" | "live_read" | "live_write" | "migration_apply_ready" | "migration_dry_run" | "release_ready" | "rollback_ready";
+  "providerRealityLevel"?: "contract_only" | "configured" | "live_read" | "live_write" | "migration_dry_run" | "migration_apply_ready" | "rollback_ready" | "release_ready";
   "reachable"?: boolean;
   "supportSafeDiagnostics"?: Record<string, unknown>;
 };
@@ -313,10 +313,10 @@ export type GeneratedProviderCategoryStatusResponse = {
   "memberCapabilityState"?: string;
   "memberImpact"?: string;
   "modules"?: string[];
-  "policyState"?: "allowed" | "disabled" | "policy_blocked" | "unavailable";
+  "policyState"?: "allowed" | "policy_blocked" | "disabled" | "unavailable";
   "providerCandidates"?: string[];
-  "providerRealityLevel"?: "configured" | "contract_only" | "live_read" | "live_write" | "migration_apply_ready" | "migration_dry_run" | "release_ready" | "rollback_ready";
-  "readiness"?: "degraded" | "disabled" | "misconfigured" | "policy_blocked" | "ready";
+  "providerRealityLevel"?: "contract_only" | "configured" | "live_read" | "live_write" | "migration_dry_run" | "migration_apply_ready" | "rollback_ready" | "release_ready";
+  "readiness"?: "ready" | "disabled" | "degraded" | "policy_blocked" | "misconfigured";
   "realityLevelRemediation"?: string;
   "selectedByAdmin"?: boolean;
   "selectedProviderKey"?: string;
