@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.matrix;
 import jakarta.annotation.PostConstruct;
 import java.util.List;
 import java.util.Map;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -11,6 +12,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 @Service
+@ConditionalOnProperty(name = "weave.matrix.facade.enabled", havingValue = "true")
 public class MatrixProtocolCoreService implements MatrixProtocolCodec {
 
     public static final String PROTOCOL_SURFACE = "matrix-client-server-facade";

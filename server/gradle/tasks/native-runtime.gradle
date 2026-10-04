@@ -7,7 +7,7 @@ ext.matrixProtocolLibrary = rootProject.file("target/debug/${nativeLibraryFileNa
 
 tasks.register('buildMatrixRustCoreJni', Exec) {
     group = 'build'
-    description = 'Build the required Rust/Ruma server protocol JNI library for the permanent Matrix northbound facade.'
+    description = 'Build the optional retired Matrix projection JNI library for isolated legacy tests.'
     workingDir rootProject.projectDir
     commandLine 'cargo', 'build', '-p', 'weave-matrix-protocol', '--features', 'jni'
     inputs.file(rootProject.file('Cargo.toml'))

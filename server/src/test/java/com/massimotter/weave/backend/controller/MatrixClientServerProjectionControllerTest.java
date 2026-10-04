@@ -73,6 +73,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(
         controllers = MatrixClientServerProjectionController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
+@org.junit.jupiter.api.Tag("legacy-matrix-facade")
 @Import({
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
@@ -88,6 +89,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
+        "weave.matrix.facade.enabled=true",
         "weave.matrix.facade.server-name=api.weave.test",
         "weave.matrix.facade.base-url=https://api.weave.test"
 })

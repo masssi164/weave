@@ -265,14 +265,14 @@ public class OrganizationManifestService {
                 "Chat domain",
                 List.of(
                         surface("openapi", "Weave Chat control and context API", "/api/chat", "control_plane_available",
-                                "Generated contract for readiness, decisions, meeting capsules, Weaver context, and migration review; conversation/message data-plane operations belong to the Matrix Client-Server facade."),
-                        surface("standard-protocol", "Weave Matrix Client-Server projection", "/_matrix/client", "encrypted_data_plane_available",
-                                "OIDC-gated room sync, encrypted timelines, sends, receipts, verification, and recovery project the canonical Chat domain through the client-owned Rust crypto core; federation stays disabled by default."),
+                                "Generated contract for readiness and Weave-owned room associations; Matrix carries conversation and message traffic."),
+                        surface("standard-protocol", "Native Matrix Client-Server", "/api/platform/config", "matrix_provider_configured",
+                                "The platform configuration supplies a separate Matrix homeserver URL. The Flutter Rust/Matrix SDK uses its own OAuth session for sync and E2EE; federation stays disabled by default."),
                         surface("mcp", "Governed Chat MCP tools", null, "planned_allowlist",
                                 "MCP receives semantic Weave chat operations, consented summaries, and decision references rather than raw Matrix access.")),
                 credentialLifecycle(
-                        "session_bound_no_raw_matrix_credentials",
-                        List.of("/api/chat/readiness"),
+                        "native_matrix_oauth_session_separate_from_weave_api",
+                        List.of("/api/platform/config", "/api/chat/readiness"),
                         List.of("decrypted-content consent gates", "retention and moderation policy proof", "federation isolation evidence")),
                 true,
                 false);

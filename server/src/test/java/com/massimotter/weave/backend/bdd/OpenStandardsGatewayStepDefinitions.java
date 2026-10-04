@@ -135,9 +135,9 @@ public class OpenStandardsGatewayStepDefinitions {
     @Then("Chat advertises a Matrix Client-Server endpoint")
     public void chatAdvertisesAMatrixClientServerEndpoint() {
         assertThat(lastJson.at("/clientAccessDiscovery/chat/surfaces").toString())
-                .contains("Weave Matrix Client-Server projection")
-                .contains("encrypted_data_plane_available")
-                .contains("/_matrix/client");
+                .contains("Native Matrix Client-Server")
+                .contains("matrix_provider_configured")
+                .contains("/api/platform/config");
     }
 
     @Then("Calls advertises MatrixRTC Profile 0 without a member Calls API")

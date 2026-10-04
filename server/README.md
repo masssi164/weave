@@ -1,10 +1,10 @@
 # Weave Backend
 
-[![CI](https://github.com/masssi164/weave-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/masssi164/weave-backend/actions/workflows/ci.yml)
+[![CI](https://github.com/masssi164/weave/actions/workflows/ci.yml/badge.svg)](https://github.com/masssi164/weave/actions/workflows/ci.yml)
 
 **Product API/BFF for safe Weave collaboration surfaces.**
 
-`weave-backend` is the Spring Boot product boundary between Weave clients and the self-hosted provider stack. It validates Weave access tokens, exposes stable product APIs, normalizes readiness/errors, keeps backend-owned credentials server-side, and refuses unsafe provider paths by default.
+`weave/server` is the Spring Boot product boundary between Weave clients and provider adapters. It validates Weave API access tokens, exposes stable product APIs, normalizes readiness/errors, keeps backend-owned credentials server-side, and refuses unsafe provider paths by default. Server code produces separate User and Admin OpenAPI artifacts for generated consumers.
 
 It is intentionally not a generic proxy for Matrix, Nextcloud, Keycloak, OpenProject, GitLab, ONLYOFFICE, Collabora, or future connectors. Flutter may use native OIDC and Matrix flows where those are the correct client protocols; everything that needs product orchestration, provider secrets, support-safe diagnostics, or fail-closed behavior belongs here.
 
@@ -34,8 +34,8 @@ Currently implemented or contract-backed surfaces:
 - `GET /api/me` caller snapshot.
 - `GET /api/profile`, `PATCH /api/profile`, and `GET /api/profile/sync-status`.
 - `GET /api/workspace/capabilities` and `GET /api/workspace/release-readiness`.
-- OIDC-gated Matrix Client-Server facade at `/_matrix/client/**`: member room sync, encrypted timeline/send, receipts, typing, reactions, redaction, room lifecycle, device keys, cross-signing, to-device traffic, room-key backup, recovery, and identity operations project the canonical Chat domain through the shared Rust/Ruma JNI core. Spring authorization and `chat.read`/`chat.send` capability checks run before the replaceable southbound `ChatProviderPort`; writes are audited without exposing provider payloads. This is a Weave protocol facade, not a northbound Synapse or other homeserver.
-- Matrix private keys, Olm/Megolm sessions, decrypted bodies, verification state machines, and recovery secrets belong to the Flutter-side Apache-2.0 Matrix Rust SDK. The backend persists public keys and opaque protocol envelopes only and rejects plaintext writes to encrypted rooms.
+- Weave-owned Chat readiness and Space/room associations. Flutter's `rust/matrix-client` Matrix SDK and Weaver/OpenClaw use the separately configured Matrix homeserver with their own supported OAuth sessions. The server does not proxy the current message path or own Matrix private crypto state.
+- The old `/_matrix/client/**` server projection is disabled by default and excluded from the normal build and image. Its isolated regression lane is `./gradlew :server:legacyMatrixFacadeTest`; that lane builds the old JNI library on demand. It is not a supported current member endpoint.
 - Chat control and context APIs at `/api/chat/readiness`, `/api/v1/chat/**`, `/api/admin/chat/**`, and `/api/v1/admin/chat/**`: member routes retain support-safe readiness, decisions, and meeting capsules; admin routes retain selected Chat mapping and audited migration dry-run/preflight reports. Deprecated REST conversation/message data-plane and Weaver Scout routes are unavailable.
 - Admin/operator Chat provider replacement dry-run at `/api/admin/chat/provider-replacements/dry-run` with lossy-mapping warnings, conflict evidence, and redacted provider diagnostics.
 - Canonical domain registry v1 in `/api/providers/status` from `src/main/resources/canonical-domain-registry-v1.json`, copied deterministically from `specs/0004-domain-registry/canonical-domain-registry-v1.json` and guarded by `./gradlew domainRegistryCheck`, covering identity, people, spaces, chat, files, documents, calendar, boards, calls, decisions, notifications, health, and Weaver with member/admin states, compatibility aliases, portability metadata, and no-unaccounted-data-loss migration primitives.
@@ -59,7 +59,7 @@ The provider stack is backend-owned by design:
 - Chat and canonical non-Chat domain responses use stable product states (`ready`, `disabled`, `degraded`, `policy_blocked`, `unavailable`, `misconfigured`, `unsupported`) and never ask members to configure raw providers, endpoints, credentials, downstream payloads, or migration diagnostics.
 - DevOps provider modules expose no linked projects, repositories, issues, merge requests, pipelines, or releases while disabled.
 - Documents/collaboration launch paths refuse unsafe states with stable error codes instead of leaking downstream details, and are lower priority than the shared domain-facade/provider-swap foundation.
-- Matrix/MAS status stays support-safe: Flutter calls the Weave-owned Matrix facade, never a raw southbound homeserver; encrypted message bodies are not server-readable, and video-call/meeting support is deferred/fail-closed.
+- Matrix/MAS status stays support-safe. Flutter's native SDK calls the configured Matrix homeserver with a Matrix-scoped session; a Weave API bearer token is not a Matrix token. E2EE verification and recovery still need independent live evidence. Calls remain deferred.
 - Boards user writes stay backend-facade-owned, explicit, authorized, and auditable; OpenProject provider writes stay disabled until promotion gates pass.
 
 ## Runtime and operations docs

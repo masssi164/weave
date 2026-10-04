@@ -103,7 +103,7 @@ public class WorkspaceReleaseReadinessService {
                     "Matrix chat route",
                     readiness,
                     "Chat is enabled but no Matrix route is configured yet.",
-                    "Set WEAVE_MATRIX_BASE_URL to the southbound Matrix provider URL; clients receive the Weave facade from the API origin.");
+                    "Set WEAVE_MATRIX_BASE_URL to the Matrix provider URL; clients receive the separate Matrix homeserver URL from platform configuration.");
             case BLOCKED -> new WorkspaceReleaseReadinessCheckResponse(
                     "chat",
                     "Matrix chat route",

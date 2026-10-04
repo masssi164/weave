@@ -34,6 +34,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -47,6 +48,7 @@ import org.springframework.web.util.UriUtils;
 
 @RestController
 @Hidden
+@ConditionalOnProperty(name = "weave.matrix.facade.enabled", havingValue = "true")
 public class MatrixClientServerProjectionController {
 
     private static final String MATRIX_ALLOW = "OPTIONS, GET, POST, PUT, DELETE";

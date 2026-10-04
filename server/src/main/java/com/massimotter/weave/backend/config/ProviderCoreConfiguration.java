@@ -32,11 +32,11 @@ public class ProviderCoreConfiguration {
         return StaticProviderPort.pending(
                 ProviderModule.MATRIX,
                 "weave-native",
-                "No Chat runtime adapter is bound; the canonical Chat and Matrix protocol facades remain fail-closed.",
+                "No Chat runtime adapter is bound; native Matrix handoff and Weave-owned room associations remain fail-closed.",
                 Set.of("workspace-room-readiness", "message-sync-readiness", "e2ee-status-readiness", "homeserver-discovery"),
                 Set.of("room-key-export", "raw-homeserver-errors", "direct-flutter-admin-api", "credential-exposure"),
                 List.of("weave-native", "matrix-synapse", "synapse-homeserver", "slack", "microsoft-teams"),
-                Map.of("canonicalDomain", "chat", "facade", "/_matrix/client", "mediaCallsCovered", false));
+                Map.of("canonicalDomain", "chat", "protocol", "matrix-client-server", "mediaCallsCovered", false));
     }
 
     ProviderPort chatProviderRegistrySeamFor(ChatProviderPort runtime) {

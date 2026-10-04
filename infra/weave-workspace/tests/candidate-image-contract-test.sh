@@ -45,13 +45,8 @@ for image in "${SERVER_IMAGE}" "${MCP_IMAGE}" "${KEYCLOAK_RUNTIME_IMAGE}"; do
 done
 
 contains "${SERVER_IMAGE}" 'USER 10001:10001'
-contains "${SERVER_IMAGE}" 'COPY rust/matrix-protocol/Cargo.toml rust/matrix-protocol/Cargo.toml'
-contains "${SERVER_IMAGE}" 'COPY rust/matrix-protocol/src rust/matrix-protocol/src'
-contains "${SERVER_IMAGE}" 'COPY rust/matrix-client/Cargo.toml rust/matrix-client/Cargo.toml'
-contains "${SERVER_IMAGE}" 'COPY rust/matrix-client/src rust/matrix-client/src'
-contains "${SERVER_IMAGE}" 'cargo build --release -p weave-matrix-protocol --features jni'
-contains "${SERVER_IMAGE}" 'libweave_matrix_protocol.so'
-contains "${SERVER_IMAGE}" 'WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH'
+reject "${SERVER_IMAGE}" 'cargo build --release -p weave-matrix-protocol --features jni'
+reject "${SERVER_IMAGE}" 'WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH'
 reject "${SERVER_IMAGE}" 'weave-matrix-core'
 reject "${SERVER_IMAGE}" 'libweave_matrix_core.so'
 contains "${MCP_IMAGE}" 'USER 10001:10001'
@@ -123,12 +118,13 @@ contains "${REALM_EVIDENCE}" 'manifest.get("schemaVersion") != "weave.compose-re
 contains "${REALM_EVIDENCE}" 'manifest.get("deploymentArtifacts")'
 contains "${REALM_EVIDENCE}" '"realmArtifacts" in manifest'
 
-contains "${CI_WORKFLOW}" 'group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}'
-contains "${CI_WORKFLOW}" "cancel-in-progress: \${{ github.event_name == 'pull_request' }}"
-contains "${CI_WORKFLOW}" 'timeout-minutes: 60'
+contains "${CI_WORKFLOW}" 'group: core-ci-${{ github.event.pull_request.number || github.ref }}-'
+contains "${CI_WORKFLOW}" "'labels' || 'core'"
+contains "${CI_WORKFLOW}" 'cancel-in-progress: true'
+contains "${CI_WORKFLOW}" 'timeout-minutes: 20'
 contains "${CI_WORKFLOW}" "github.event.action != 'labeled'"
 contains "${CI_WORKFLOW}" "github.event.action != 'unlabeled'"
-reject "${CI_WORKFLOW}" '- ready_for_review'
+contains "${CI_WORKFLOW}" '- ready_for_review'
 
 if [[ -f "${WORKFLOW}" ]]; then
   reject "${WORKFLOW}" 'opentofu/setup-opentofu'

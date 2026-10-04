@@ -292,21 +292,15 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
-    void matrixClientServerProjectionUsesCanonicalChatAndNativeCoreNotRestDtos() throws IOException {
+    void retiredMatrixProjectionIsOptInAndDoesNotIntroduceChatRestDtos() throws IOException {
         JavaSource matrixProjection = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("controller", "MatrixClientServerProjectionController.java")))
                 .findFirst()
                 .orElseThrow();
 
         assertThat(matrixProjection.text())
+                .contains("@ConditionalOnProperty(name = \"weave.matrix.facade.enabled\", havingValue = \"true\")")
                 .contains("\"/_matrix/client/**\"")
-                .contains("matrixProtocolCoreService.versions()")
-                .contains("matrixProtocolCoreService.sync(")
-                .contains("matrixProtocolCoreService.parseEvent(")
-                .contains("matrixProtocolCoreService.parseObject(")
-                .contains("chatDomainFacadeService.conversations(jwt)")
-                .contains("chatDomainFacadeService.timeline(")
-                .contains("chatDomainFacadeService.sendEvent(")
                 .doesNotContain("/api/chat/conversations")
                 .doesNotContain("ChatFacadeService")
                 .doesNotContain("ChatConversationResponse")
@@ -550,7 +544,7 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
-    void matrixProtocolCoreBoundaryDefinesRustJniAndFlutterBridgeTarget() throws IOException {
+    void retiredMatrixProtocolCoreRequiresExplicitOptIn() throws IOException {
         JavaSource matrixCore = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("matrix", "MatrixProtocolCoreService.java")))
                 .findFirst()
@@ -561,13 +555,9 @@ class ServerArchitectureBoundaryTest {
                 .orElseThrow();
 
         assertThat(matrixCore.text())
-                .contains("spring-boot-resource-server")
-                .contains("ruma-serde-serde_json-thiserror-tracing")
-                .contains("server-jni-wrapper")
-                .contains("flutter-rust-bridge")
+                .contains("@ConditionalOnProperty(name = \"weave.matrix.facade.enabled\", havingValue = \"true\")")
                 .contains("NativeMatrixCore.ensureLoaded()")
                 .contains("NativeMatrixCore.projectJson(")
-                .doesNotContain("Synapse")
                 .doesNotContain("RestClient");
         assertThat(nativeCore.text())
                 .contains("public static native String projectJson")

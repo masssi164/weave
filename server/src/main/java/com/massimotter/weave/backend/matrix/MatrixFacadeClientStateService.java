@@ -18,10 +18,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.time.Instant;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
 @Service
+@ConditionalOnProperty(name = "weave.matrix.facade.enabled", havingValue = "true")
 public class MatrixFacadeClientStateService {
 
     public static final String DEVICE_ID_HEADER = "X-Weave-Matrix-Device-Id";

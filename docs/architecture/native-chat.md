@@ -1,55 +1,15 @@
-# Native Chat provider
+# Native Chat boundary
 
-## Boundary
+The accepted #1470 release profile is the pinned corpus file `steering/release-2026-10-product-consolidation.md`. Matrix is the current Chat protocol. Flutter's `rust/matrix-client` Matrix SDK owns sync, message transport, and E2EE; Weaver/OpenClaw keeps its established Matrix channel. Weave Server owns authorized product handoff and stable Space/room associations. It does not replace Matrix with a proprietary message API or maintain a second message ledger.
 
-Chat is a provider-neutral canonical domain. Matrix Client-Server is a permanent northbound Weave Server protocol surface; it is not a provider and cannot be disabled as a provider-selection mechanism.
+The public platform configuration supplies a Matrix Client-Server homeserver URL separate from the Weave User API origin. Native sign-in uses supported OAuth with a Matrix session and audience distinct from the human Weave API, admin, and Weaver workload sessions. A Weave API bearer token is never treated as a Matrix token. Keycloak remains the default identity backbone, with MAS as the Matrix authorization layer where configured. Federation is disabled by default.
 
-```text
-Matrix Client-Server
-  -> MatrixProtocolCodec                    (Infrastructure Port)
-    -> Ruma/JNI protocol adapter            (Infrastructure Adapter)
-      -> canonical Chat application/domain
-        -> ChatProviderPort                 (Provider Port)
-          -> weave-native                   (Provider Adapter, selected default)
-          -> optional Synapse/Matrix-backed or future providers
-```
+## Client cryptography and recovery
 
-The project-wide provider/infrastructure terminology is defined in [`provider-and-infrastructure-boundaries.md`](provider-and-infrastructure-boundaries.md).
+`rust/matrix-client` and the Flutter Rust bridge retain private identity keys, Olm/Megolm state, verification and recovery state, and encrypted local crypto storage. Weave Server must not receive decrypted room bodies or private client keys. Encrypted-room behavior, device verification/recovery, accessible interaction, restart, and restore need live evidence before E2EE can be called complete.
 
-Changing the selected provider must not change canonical conversation/event IDs, authorization semantics, Matrix URLs, application contracts or member-facing protocol behavior.
+## Retired server projection
 
-## Native persistence
+The former `/_matrix/client/**` Weave Server projection is disabled by default. Normal server startup, OpenAPI export, tests, and image construction do not build or load its Rust/Ruma JNI library. The isolated `:server:legacyMatrixFacadeTest` task builds that library solely for historical regression checks. Its code and persistence fixtures are retained until their substantive security, integrity, and recovery requirements have been mapped to independent native Matrix tests. This projection is not the current member endpoint.
 
-`weave-native` owns canonical rooms/conversations, memberships, immutable events, relations, redactions, receipts, idempotency, logical sync revisions, provider mappings and outbox state in Weave PostgreSQL/JPA persistence.
-
-Repository interfaces are persistence Infrastructure Ports. JPA/Hibernate/PostgreSQL implementations are Infrastructure Adapters below the native Provider Adapter.
-
-Matrix routing/public-or-encrypted-key metadata is normalized separately from canonical Chat state. Tenant-wide serialized snapshots are not an authority. Process-local structures may only be bounded derived caches or support-safe counters.
-
-## Matrix protocol boundary
-
-`MatrixProtocolCodec` is the server-side Matrix Infrastructure Port. `rust/matrix-protocol` provides its Infrastructure Adapter using Ruma for Matrix protocol types/validation/serialization and jni-rs for the Java boundary.
-
-Ruma is a protocol infrastructure library, not a Chat provider. The Ruma/JNI adapter does not own authorization, canonical Chat state, persistence, provider selection or client cryptography.
-
-The Ruma/JNI native library is a required server artifact because the Matrix facade is permanent. Missing/incompatible native artifacts fail closed with actionable diagnostics.
-
-## Client cryptography
-
-`rust/matrix-client` owns Matrix SDK / matrix-sdk-crypto and Flutter Rust Bridge integration. The client owns private identity keys, Olm/Megolm state, verification, recovery and encrypted local crypto storage.
-
-The server stores/routes only public or opaque encrypted protocol metadata and ciphertext. It never decrypts room events or stores private client keys.
-
-## Idempotency and sync
-
-Transaction-bearing operations bind idempotency to tenant, authenticated user/device, normalized endpoint, transaction ID and provider-binding revision. Exact committed responses are replayed for the same key and digest; a different digest fails without mutation.
-
-Canonical Chat and Matrix routing streams use explicit logical high-waters rather than incidental generated IDs. Stream heads are advanced transactionally so concurrent commits and pagination cannot permanently skip committed state.
-
-## Security boundary
-
-Access control remains a canonical Weave concern. Ruma/JNI parses, validates and projects Matrix wire data but does not decide tenant scope, membership, authorization, visibility or provider selection.
-
-## Fresh-start policy
-
-No Synapse/MAS history import, database compatibility, dual write or hidden provider-data adoption is introduced. Optional provider adapters remain southbound behind `ChatProviderPort`.
+Weave's current Chat control and association APIs still enforce server-side organization, membership, and resource authorization. Matrix itself enforces room membership and device access on the message path. Provider status and diagnostics must stay support-safe, and no provider credential or Matrix session may be substituted for current Weave resource authorization.
