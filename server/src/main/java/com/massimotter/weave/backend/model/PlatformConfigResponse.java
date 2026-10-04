@@ -8,7 +8,7 @@ import java.util.List;
 public record PlatformConfigResponse(
         int schemaVersion,
         String organizationOrigin,
-        String controlPlaneBaseUrl,
+        String userApiBaseUrl,
         Oidc oidc,
         Protocols protocols,
         String releasePosture,
@@ -18,10 +18,7 @@ public record PlatformConfigResponse(
     public record Oidc(String issuer, String clientId) {
     }
 
-    public record Protocols(
-            String matrixClientServerBaseUrl,
-            String filesWebDavBaseUrl,
-            String calendarCalDavBaseUrl) {
+    public record Protocols(String matrixClientServerBaseUrl) {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
