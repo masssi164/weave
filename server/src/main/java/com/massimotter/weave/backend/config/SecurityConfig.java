@@ -27,16 +27,12 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.core.annotation.Order;
-import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 import org.springframework.security.web.firewall.HttpFirewall;
 import org.springframework.security.web.firewall.StrictHttpFirewall;
 
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
-
-    private static final WebExpressionAuthorizationManager MIGRATION_CONTROL_PLANE_ACCESS =
-            new WebExpressionAuthorizationManager("hasAuthority('SCOPE_weave:workspace') and (hasRole('OWNER') or hasRole('ADMIN') or hasRole('OPERATOR'))");
 
     private final ApiAuthenticationEntryPoint authenticationEntryPoint;
     private final ApiAccessDeniedHandler accessDeniedHandler;
@@ -76,7 +72,6 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
                         .requestMatchers(BootstrapOwnerInvitationController.PATH).permitAll()
                         .requestMatchers(HttpMethod.POST, IdentitySessionController.PATH).authenticated()
-                        .requestMatchers("/api/migration/**").access(MIGRATION_CONTROL_PLANE_ACCESS)
                         .requestMatchers("/dav/**", "/caldav/**", "/_matrix/client/**")
                                 .access(workspaceAccessAuthorizationManager)
                         .requestMatchers("/api/**").access(workspaceAccessAuthorizationManager)

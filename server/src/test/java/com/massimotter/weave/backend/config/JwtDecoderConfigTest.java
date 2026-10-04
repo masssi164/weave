@@ -60,6 +60,20 @@ class JwtDecoderConfigTest {
     }
 
     @Test
+    void nativeUserDecoderRejectsExtraAudienceAndAdminClient() throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey)) {
+            JwtDecoder decoder = jwtDecoder(jwksServer.jwkSetUri());
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
+                    signingKey, ISSUER_URI,
+                    List.of("https://api.weave.test/api", "account"), "weave-app")));
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
+                    signingKey, ISSUER_URI,
+                    List.of("https://api.weave.test/api"), "weave-admin-console")));
+        }
+    }
+
+    @Test
     void failsClosedWhenIssuerIsMissing() {
         OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
 
@@ -180,6 +194,30 @@ class JwtDecoderConfigTest {
                     ISSUER_URI,
                     List.of("https://api.weave.test/api", "account"),
                     AgentRuntimeAdminSecurityConfiguration.CLIENT_ID)));
+        }
+    }
+
+    @Test
+    void productAdminApiDecoderSeparatesBrowserAdminFromNativeUserTokens() throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey)) {
+            OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+            properties.getJwt().setIssuerUri(ISSUER_URI);
+            properties.getJwt().setJwkSetUri(jwksServer.jwkSetUri());
+            JwtDecoder decoder = new JwtDecoderConfig().adminApiJwtDecoder(
+                    properties, new WeaveSecurityProperties("https://api.weave.test/api", "weave-app"));
+
+            assertThat(decoder.decode(signedToken(
+                    signingKey, ISSUER_URI, List.of("https://api.weave.test/api"), "weave-admin-console"))
+                    .getSubject()).isEqualTo("user-123");
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
+                    signingKey, ISSUER_URI, List.of("https://api.weave.test/api"), "weave-app")));
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
+                    signingKey, ISSUER_URI, List.of("https://api.weave.test/api", "account"),
+                    "weave-admin-console")));
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
+                    signingKey, "https://wrong.example.invalid/realms/weave",
+                    List.of("https://api.weave.test/api"), "weave-admin-console")));
         }
     }
 

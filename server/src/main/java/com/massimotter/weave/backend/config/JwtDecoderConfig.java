@@ -41,13 +41,28 @@ public class JwtDecoderConfig {
         if (weaveSecurityProperties.hasRequiredAudience()) {
             validator = new DelegatingOAuth2TokenValidator<>(
                     validator,
-                    requiredAudienceValidator(weaveSecurityProperties.requiredAudience()));
+                    exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())));
         }
         if (weaveSecurityProperties.hasRequiredAuthorizedParty()) {
             validator = new DelegatingOAuth2TokenValidator<>(
                     validator,
                     requiredAuthorizedPartyValidator(weaveSecurityProperties.requiredAuthorizedParty()));
         }
+        return configuredDecoder(resourceServerProperties, validator);
+    }
+
+    @Bean("adminApiJwtDecoder")
+    JwtDecoder adminApiJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties) {
+        String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
+        if (!StringUtils.hasText(issuerUri)) {
+            return configuredDecoder(resourceServerProperties, jwt -> OAuth2TokenValidatorResult.success());
+        }
+        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(issuerUri),
+                exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
+                requiredAuthorizedPartyValidator("weave-admin-console"));
         return configuredDecoder(resourceServerProperties, validator);
     }
 
