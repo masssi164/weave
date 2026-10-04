@@ -362,6 +362,48 @@ void main() {
     );
 
     test(
+      'unavailable Files readiness never starts a directory request',
+      () async {
+        var listCalls = 0;
+        final unavailable = FilesConnectionState.unavailable(
+          baseUrl: Uri.parse('https://api.home.internal/api'),
+          message: 'Files access is blocked by workspace policy.',
+        );
+        final repository = _FakeFilesRepository(
+          restoreConnectionHandler: () async => unavailable,
+          connectHandler: () async => unavailable,
+          disconnectHandler: () async {},
+          listDirectoryHandler: (_) async {
+            listCalls++;
+            return const DirectoryListing(path: '/', entries: []);
+          },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        expect(
+          (await container.read(filesProvider.future)).connectionState.status,
+          FilesConnectionStatus.unavailable,
+        );
+        await container.read(filesProvider.notifier).connect();
+
+        expect(listCalls, 0);
+        expect(
+          container.read(filesProvider).requireValue.connectionState.status,
+          FilesConnectionStatus.unavailable,
+        );
+      },
+    );
+
+    test(
       'uploads a picked file, reports completion, and refreshes the folder',
       () async {
         var uploadedDirectoryPath = '';

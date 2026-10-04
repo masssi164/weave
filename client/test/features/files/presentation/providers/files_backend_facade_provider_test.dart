@@ -22,6 +22,20 @@ import 'package:weave/features/server_config/presentation/providers/server_confi
 import '../../../../helpers/auth_test_data.dart';
 import '../../../../helpers/server_config_test_data.dart';
 
+String _filesReadiness({
+  bool enabled = true,
+  String policyState = 'allowed',
+  String readiness = 'ready',
+  List<String> grants = const ['files.read', 'files.upload'],
+  String? memberImpact,
+}) => jsonEncode({
+  'enabled': enabled,
+  'policyState': policyState,
+  'readiness': readiness,
+  'grantedCapabilities': grants,
+  if (memberImpact != null) 'memberImpact': memberImpact,
+});
+
 class _FakeServerConfigurationRepository
     implements ServerConfigurationRepository {
   _FakeServerConfigurationRepository(this.configuration);
@@ -117,17 +131,98 @@ void main() {
     });
 
     test(
-      'restores as connected when Weave auth and backend URL are present',
+      'uses generated Files readiness before exposing a connected browser',
       () async {
+        late http.Request readinessRequest;
         final state = await repository(
-          MockClient((_) async => http.Response('', 500)),
+          MockClient((request) async {
+            readinessRequest = request;
+            return http.Response(_filesReadiness(), 200);
+          }),
         ).restoreConnection();
 
         expect(state.status, FilesConnectionStatus.connected);
         expect(state.baseUrl, Uri.parse('https://api.home.internal/api'));
         expect(state.accountLabel, BackendFilesRepository.accountLabel);
+        expect(readinessRequest.method, 'GET');
+        expect(
+          readinessRequest.url.toString(),
+          'https://api.home.internal/api/files/readiness',
+        );
+        expect(readinessRequest.headers['Authorization'], 'Bearer files-token');
       },
     );
+
+    test('denied Files capability never reports a connected browser', () async {
+      final requests = <http.Request>[];
+      final state = await repository(
+        MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            _filesReadiness(
+              policyState: 'policy_blocked',
+              grants: const [],
+              memberImpact: 'Files access is blocked by workspace policy.',
+            ),
+            200,
+          );
+        }),
+      ).restoreConnection();
+
+      expect(state.status, FilesConnectionStatus.unavailable);
+      expect(state.message, 'Files access is blocked by workspace policy.');
+      expect(requests.map((request) => request.url.path), [
+        '/api/files/readiness',
+      ]);
+    });
+
+    test('unknown readiness and missing grant fail closed', () async {
+      for (final body in [
+        _filesReadiness(readiness: 'future_state'),
+        _filesReadiness(grants: const []),
+        '{}',
+      ]) {
+        final state = await repository(
+          MockClient((_) async => http.Response(body, 200)),
+        ).restoreConnection();
+        expect(state.status, FilesConnectionStatus.unavailable);
+      }
+    });
+
+    test(
+      'retries generated Files readiness once after Weave refresh',
+      () async {
+        final tokens = <String?>[];
+        authSessionRepository.refreshedState = AuthState.authenticated(
+          buildTestAuthSession(accessToken: 'refreshed-files-token'),
+        );
+        final state = await repository(
+          MockClient((request) async {
+            tokens.add(request.headers['Authorization']);
+            return request.headers['Authorization'] ==
+                    'Bearer refreshed-files-token'
+                ? http.Response(_filesReadiness(), 200)
+                : http.Response('', 401);
+          }),
+        ).restoreConnection();
+
+        expect(state.status, FilesConnectionStatus.connected);
+        expect(authSessionRepository.refreshCalls, 1);
+        expect(tokens, ['Bearer files-token', 'Bearer refreshed-files-token']);
+      },
+    );
+
+    test('rejected Files readiness remains unavailable or invalid', () async {
+      final invalid = await repository(
+        MockClient((_) async => http.Response('', 403)),
+      ).restoreConnection();
+      final unavailable = await repository(
+        MockClient((_) async => http.Response('', 503)),
+      ).restoreConnection();
+
+      expect(invalid.status, FilesConnectionStatus.invalid);
+      expect(unavailable.status, FilesConnectionStatus.unavailable);
+    });
 
     test(
       'lists files through the Weave WebDAV data plane with the Weave token',

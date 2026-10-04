@@ -1242,6 +1242,12 @@ abstract class AppLocalizations {
   /// **'The Weave Files session needs attention.'**
   String get filesConnectionInvalid;
 
+  /// Status message shown when Files readiness or authorization cannot be confirmed
+  ///
+  /// In en, this message translates to:
+  /// **'Files access is unavailable for this Weave session.'**
+  String get filesConnectionUnavailable;
+
   /// Status message shown when Weave Files server setup is incomplete
   ///
   /// In en, this message translates to:
@@ -4000,6 +4006,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Files need to reconnect'**
   String get filesSessionExpiredTitle;
+
+  /// Title shown when Files readiness or authorization cannot be confirmed
+  ///
+  /// In en, this message translates to:
+  /// **'Files are unavailable'**
+  String get filesUnavailableTitle;
+
+  /// Recovery guidance when Files readiness or authorization is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Retry when Files access is available, or ask a workspace admin to review your access.'**
+  String get filesUnavailableGuidance;
 
   /// Friendly error-state title shown when files fail to load
   ///

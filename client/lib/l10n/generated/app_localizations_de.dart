@@ -738,6 +738,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Weave-Dateisitzung braucht Aufmerksamkeit.';
 
   @override
+  String get filesConnectionUnavailable =>
+      'Der Zugriff auf Dateien ist für diese Weave-Sitzung nicht verfügbar.';
+
+  @override
   String get filesConnectionMisconfigured =>
       'Die Server-Einrichtung für Weave-Dateien ist unvollständig.';
 
@@ -2419,6 +2423,13 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesSessionExpiredTitle => 'Dateien müssen neu verbunden werden';
+
+  @override
+  String get filesUnavailableTitle => 'Dateien sind nicht verfügbar';
+
+  @override
+  String get filesUnavailableGuidance =>
+      'Versuche es erneut, sobald der Zugriff verfügbar ist, oder bitte die Arbeitsbereichsadministration, deine Berechtigung zu prüfen.';
 
   @override
   String get filesLoadErrorTitle => 'Dateien konnten nicht geladen werden';

@@ -14,6 +14,8 @@ import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
+import 'package:weave/generated/user_api/api.dart' as user_api;
+import 'package:weave/integrations/weave_api/data/services/weave_user_api_client.dart';
 import 'package:xml/xml.dart';
 
 /// Files repository backed by the Weave backend product facade.
@@ -63,19 +65,19 @@ class BackendFilesRepository
       );
     }
 
-    return FilesConnectionState.connected(
-      baseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
-      accountLabel: accountLabel,
+    return _connectionForReadiness(
+      _BackendFilesContext(
+        baseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
+        accessToken: authState.session!.accessToken,
+        authConfiguration: _authConfiguration(configuration),
+      ),
     );
   }
 
   @override
   Future<FilesConnectionState> connect() async {
     final context = await _requireContext();
-    return FilesConnectionState.connected(
-      baseUrl: context.baseUrl,
-      accountLabel: accountLabel,
-    );
+    return _connectionForReadiness(context);
   }
 
   @override
@@ -319,6 +321,113 @@ class BackendFilesRepository
       baseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
       accessToken: session.accessToken,
       authConfiguration: authConfiguration,
+    );
+  }
+
+  Future<FilesConnectionState> _connectionForReadiness(
+    _BackendFilesContext context,
+  ) async {
+    try {
+      final readiness = await _filesReadiness(context);
+      final isReady =
+          readiness?.enabled == true &&
+          readiness?.policyState ==
+              user_api
+                  .WorkspaceCapabilityStatusResponsePolicyStateEnum
+                  .allowed &&
+          (readiness?.readiness ==
+                  user_api
+                      .WorkspaceCapabilityStatusResponseReadinessEnum
+                      .ready ||
+              readiness?.readiness ==
+                  user_api
+                      .WorkspaceCapabilityStatusResponseReadinessEnum
+                      .degraded) &&
+          readiness!.grantedCapabilities.contains('files.read');
+      if (isReady) {
+        return FilesConnectionState.connected(
+          baseUrl: context.baseUrl,
+          accountLabel: accountLabel,
+        );
+      }
+      final memberImpact = readiness?.memberImpact?.trim();
+      return FilesConnectionState.unavailable(
+        baseUrl: context.baseUrl,
+        message: memberImpact == null || memberImpact.isEmpty
+            ? 'Files access is not available for this Weave account.'
+            : memberImpact,
+      );
+    } on FilesFailure catch (failure) {
+      if (failure.type == FilesFailureType.invalidCredentials) {
+        return FilesConnectionState.invalid(
+          baseUrl: context.baseUrl,
+          accountLabel: accountLabel,
+          message: failure.message,
+        );
+      }
+      return FilesConnectionState.unavailable(
+        baseUrl: context.baseUrl,
+        message: failure.message,
+      );
+    }
+  }
+
+  Future<user_api.WorkspaceCapabilityStatusResponse?> _filesReadiness(
+    _BackendFilesContext context,
+  ) async {
+    Future<user_api.WorkspaceCapabilityStatusResponse?> request(
+      String accessToken,
+    ) => user_api.FilesApi(
+      weaveUserApiClient(
+        apiBaseUrl: context.baseUrl,
+        accessToken: accessToken,
+        httpClient: _httpClient,
+      ),
+    ).getFilesReadiness().timeout(const Duration(seconds: 20));
+
+    try {
+      return await request(context.accessToken);
+    } on user_api.ApiException catch (error) {
+      if (error.code == 401) {
+        final refreshed = await _refreshContext(context);
+        if (refreshed != null && refreshed.accessToken != context.accessToken) {
+          try {
+            return await request(refreshed.accessToken);
+          } on user_api.ApiException catch (retryError) {
+            throw _filesReadinessFailure(retryError);
+          } catch (retryError) {
+            throw FilesFailure.unknown(
+              'Files readiness could not be confirmed right now.',
+              cause: retryError,
+            );
+          }
+        }
+      }
+      throw _filesReadinessFailure(error);
+    } catch (error) {
+      throw FilesFailure.unknown(
+        'Files readiness could not be confirmed right now.',
+        cause: error,
+      );
+    }
+  }
+
+  FilesFailure _filesReadinessFailure(user_api.ApiException error) {
+    if (error.code == 401 || error.code == 403) {
+      return FilesFailure.invalidCredentials(
+        'Files access is not allowed for this Weave session.',
+        cause: error.code,
+      );
+    }
+    if (error.code == 503) {
+      return FilesFailure.configuration(
+        'Files need admin attention before members can use them.',
+        cause: error.code,
+      );
+    }
+    return FilesFailure.unknown(
+      'Files readiness could not be confirmed right now.',
+      cause: error.code,
     );
   }
 

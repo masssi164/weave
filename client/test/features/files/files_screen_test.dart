@@ -174,6 +174,39 @@ void main() {
       );
     });
 
+    testWidgets('explains unavailable Files access without browsing', (
+      tester,
+    ) async {
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.unavailable(
+          baseUrl: Uri.parse('https://api.home.internal/api'),
+          message: 'Files access is blocked by workspace policy.',
+        ),
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Files are unavailable'), findsOneWidget);
+      expect(
+        find.text('Files access is blocked by workspace policy.'),
+        findsOneWidget,
+      );
+      expect(find.text('Retry'), findsAtLeastNWidgets(1));
+      expect(repository.requestedPaths, isEmpty);
+    });
+
     testWidgets('shows shared guidance when a connected folder is empty', (
       tester,
     ) async {

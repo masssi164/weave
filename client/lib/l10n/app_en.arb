@@ -852,6 +852,10 @@
   "@filesConnectionInvalid": {
     "description": "Status message shown when the Files session is invalid"
   },
+  "filesConnectionUnavailable": "Files access is unavailable for this Weave session.",
+  "@filesConnectionUnavailable": {
+    "description": "Status message shown when Files readiness or authorization cannot be confirmed"
+  },
   "filesConnectionMisconfigured": "Server setup is incomplete for Weave Files.",
   "@filesConnectionMisconfigured": {
     "description": "Status message shown when Weave Files server setup is incomplete"
@@ -2899,6 +2903,14 @@
   "filesSessionExpiredTitle": "Files need to reconnect",
   "@filesSessionExpiredTitle": {
     "description": "Friendly error-state title shown when the files session is invalid"
+  },
+  "filesUnavailableTitle": "Files are unavailable",
+  "@filesUnavailableTitle": {
+    "description": "Title shown when Files readiness or authorization cannot be confirmed"
+  },
+  "filesUnavailableGuidance": "Retry when Files access is available, or ask a workspace admin to review your access.",
+  "@filesUnavailableGuidance": {
+    "description": "Recovery guidance when Files readiness or authorization is unavailable"
   },
   "filesLoadErrorTitle": "Files could not be loaded",
   "@filesLoadErrorTitle": {

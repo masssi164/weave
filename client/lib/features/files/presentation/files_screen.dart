@@ -201,6 +201,19 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                   },
           ),
         );
+      case FilesConnectionStatus.unavailable:
+        return _fillStateSliver(
+          child: ErrorState(
+            message: l10n.filesUnavailableTitle,
+            guidance: connectionState.message ?? l10n.filesUnavailableGuidance,
+            retryLabel: l10n.retryButton,
+            onRetry: state.isBusy
+                ? null
+                : () {
+                    ref.read(filesProvider.notifier).connect();
+                  },
+          ),
+        );
       case FilesConnectionStatus.connected:
         if (state.isBusy && state.directoryListing == null) {
           return _fillStateSliver(
@@ -727,6 +740,7 @@ class _ConnectionCard extends ConsumerWidget {
         connectionState.accountLabel ?? l10n.filesProductTitle,
       ),
       FilesConnectionStatus.invalid => l10n.filesConnectionInvalid,
+      FilesConnectionStatus.unavailable => l10n.filesConnectionUnavailable,
       FilesConnectionStatus.disconnected => l10n.filesConnectionDisconnected,
       FilesConnectionStatus.misconfigured => l10n.filesConnectionMisconfigured,
     };
@@ -759,15 +773,18 @@ class _ConnectionCard extends ConsumerWidget {
                         : () {
                             ref.read(filesProvider.notifier).connect();
                           },
-                    semanticLabel:
-                        connectionState.status == FilesConnectionStatus.invalid
-                        ? l10n.filesReconnectButton
-                        : l10n.filesConnectButton,
-                    child: Text(
-                      connectionState.status == FilesConnectionStatus.invalid
-                          ? l10n.filesReconnectButton
-                          : l10n.filesConnectButton,
-                    ),
+                    semanticLabel: switch (connectionState.status) {
+                      FilesConnectionStatus.invalid =>
+                        l10n.filesReconnectButton,
+                      FilesConnectionStatus.unavailable => l10n.retryButton,
+                      _ => l10n.filesConnectButton,
+                    },
+                    child: Text(switch (connectionState.status) {
+                      FilesConnectionStatus.invalid =>
+                        l10n.filesReconnectButton,
+                      FilesConnectionStatus.unavailable => l10n.retryButton,
+                      _ => l10n.filesConnectButton,
+                    }),
                   ),
                 if (connectionState.status == FilesConnectionStatus.connected ||
                     connectionState.status == FilesConnectionStatus.invalid)

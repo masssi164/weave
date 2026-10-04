@@ -732,6 +732,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The Weave Files session needs attention.';
 
   @override
+  String get filesConnectionUnavailable =>
+      'Files access is unavailable for this Weave session.';
+
+  @override
   String get filesConnectionMisconfigured =>
       'Server setup is incomplete for Weave Files.';
 
@@ -2384,6 +2388,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filesSessionExpiredTitle => 'Files need to reconnect';
+
+  @override
+  String get filesUnavailableTitle => 'Files are unavailable';
+
+  @override
+  String get filesUnavailableGuidance =>
+      'Retry when Files access is available, or ask a workspace admin to review your access.';
 
   @override
   String get filesLoadErrorTitle => 'Files could not be loaded';
