@@ -73,9 +73,14 @@ final class GeneratedCalendarJourney {
         input.setTitle(input.getTitle() + " updated");
         expectStatus(Set.of(409), "changed create replay", () ->
             calendar.createCalendarEvent(calendarId, key, input, bearer(author)));
-        stage = "shared-update-" + index;
+        stage = "member-denied-update-" + index;
+        expectStatus(Set.of(403), "member Calendar write", () ->
+            calendar.updateCalendarEvent(calendarId, created.getId(), created.getVersion(),
+                input, bearer(collaborator)));
+        requireSame(created, calendar.getCalendarEvent(calendarId, created.getId(), bearer(author)));
+        stage = "owner-update-" + index;
         CalendarUserEvent updated = calendar.updateCalendarEvent(
-            calendarId, created.getId(), created.getVersion(), input, bearer(collaborator));
+            calendarId, created.getId(), created.getVersion(), input, bearer(author));
         requireContent(input, updated);
         if (created.getVersion().equals(updated.getVersion())
             || !created.getId().equals(updated.getId())
@@ -85,7 +90,7 @@ final class GeneratedCalendarJourney {
         }
         expectStatus(Set.of(412), "stale identical update", () ->
             calendar.updateCalendarEvent(calendarId, updated.getId(), created.getVersion(),
-                input, bearer(collaborator)));
+                input, bearer(author)));
         events.add(new EventProof(updated, expectedOccurrences(index)));
       }
       Proof proof = new Proof(calendarId, List.copyOf(events));
@@ -103,7 +108,8 @@ final class GeneratedCalendarJourney {
         for (String token : List.of(author, collaborator)) {
           var response = calendar.getCalendarEventWithHttpInfo(
               proof.calendarId(), event.getId(), bearer(token));
-          requireSame(event, response.getData());
+          if (token.equals(author)) requireSame(event, response.getData());
+          else requireSharedRead(event, response.getData());
           String etag = response.getHeaders().entrySet().stream()
               .filter(header -> header.getKey().equalsIgnoreCase("ETag"))
               .flatMap(header -> header.getValue().stream()).findFirst().orElse("");
@@ -125,7 +131,7 @@ final class GeneratedCalendarJourney {
         var event = agenda.getEvents().stream()
             .filter(value -> expected.event().getId().equals(value.getId())).findFirst()
             .orElseThrow(() -> failure("agenda omitted a persisted event"));
-        requireSame(expected.event(), event);
+        requireSharedRead(expected.event(), event);
         List<String> occurrences = agenda.getOccurrences().stream()
             .filter(value -> event.getId().equals(value.getEventId()))
             .map(value -> value.getStartsAt().toInstant() + "/" + value.getEndsAt().toInstant())
@@ -258,6 +264,22 @@ final class GeneratedCalendarJourney {
 
   private static void requireSame(CalendarUserEvent expected, CalendarUserEvent actual) {
     if (!expected.equals(actual)) throw failure("stable identity, version, scope, thread or content changed");
+  }
+
+  private static void requireSharedRead(CalendarUserEvent owner, CalendarUserEvent member) {
+    if (member == null
+        || !owner.getId().equals(member.getId())
+        || !owner.getCalendarId().equals(member.getCalendarId())
+        || !owner.getScope().equals(member.getScope())
+        || !owner.getMeetingThreadRef().equals(member.getMeetingThreadRef())
+        || !owner.getVersion().equals(member.getVersion())
+        || !sameContent(owner.getContent(), member.getContent())
+        || member.getAllowedActions() == null
+        || !member.getAllowedActions().equals(List.of("read"))
+        || owner.getAllowedActions() == null
+        || !owner.getAllowedActions().containsAll(List.of("read", "create", "update", "delete"))) {
+      throw failure("member Calendar read changed content or exposed write actions");
+    }
   }
 
   private static void expectStatus(Set<Integer> statuses, String stage, Request request) {
