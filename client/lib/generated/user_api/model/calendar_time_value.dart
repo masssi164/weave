@@ -22,7 +22,7 @@ class CalendarTimeValue {
 
   DateTime? date;
 
-  /// Second-precision UTC instant ending in Z.
+  /// Second-precision UTC instant ending in Z; an optional all-zero fractional suffix is accepted and normalized.
   DateTime? instant;
 
   CalendarTimeValueKindEnum kind;
@@ -63,10 +63,10 @@ class CalendarTimeValue {
       json[r'date'] = null;
     }
     if (this.instant != null) {
-      json[r'instant'] =
-          _isEpochMarker(r'/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/')
-              ? this.instant!.millisecondsSinceEpoch
-              : this.instant!.toUtc().toIso8601String();
+      json[r'instant'] = _isEpochMarker(
+              r'/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.0{1,9})?Z$/')
+          ? this.instant!.millisecondsSinceEpoch
+          : this.instant!.toUtc().toIso8601String();
     } else {
       json[r'instant'] = null;
     }
@@ -107,7 +107,7 @@ class CalendarTimeValue {
       return CalendarTimeValue(
         date: mapDateTime(json, r'date', r''),
         instant: mapDateTime(json, r'instant',
-            r'/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/'),
+            r'/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.0{1,9})?Z$/'),
         kind: CalendarTimeValueKindEnum.fromJson(json[r'kind'])!,
         localDateTime: mapValueOfType<String>(json, r'localDateTime'),
         timeZone: mapValueOfType<String>(json, r'timeZone'),

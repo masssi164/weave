@@ -1360,9 +1360,9 @@
             ]
           },
           "instant": {
-            "description": "Second-precision UTC instant ending in Z.",
+            "description": "Second-precision UTC instant ending in Z; an optional all-zero fractional suffix is accepted and normalized.",
             "format": "date-time",
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.0{1,9})?Z$",
             "type": [
               "string",
               "null"
@@ -9703,6 +9703,16 @@
             },
             "description": "The create identity is already bound to another payload."
           },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Content-Type must be application/json."
+          },
           "503": {
             "content": {
               "application/json": {
@@ -10047,6 +10057,16 @@
               }
             },
             "description": "The current event version differs."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Content-Type must be application/json."
           },
           "428": {
             "content": {
