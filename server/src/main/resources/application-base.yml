@@ -145,6 +145,10 @@ weave:
     # JWT aud names the backend resource; azp/client_id binds the direct first-party app.
     required-audience: ${WEAVE_OIDC_REQUIRED_AUDIENCE:https://api.weave.test/api}
     client-id: ${WEAVE_CLIENT_ID:weave-app}
+    primary-organization:
+      # Explicit native coordinate; missing configuration denies human product access.
+      keycloak-id: ${WEAVE_PRIMARY_ORGANIZATION_ID:}
+      keycloak-alias: ${WEAVE_PRIMARY_ORGANIZATION_ALIAS:}
     device-credentials:
       enabled: true
   nextcloud:

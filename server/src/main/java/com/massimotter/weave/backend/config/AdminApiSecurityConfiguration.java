@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.security.AdminApiAuthorizationManager;
+import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,7 +26,8 @@ public class AdminApiSecurityConfiguration {
             @Qualifier("adminApiJwtDecoder") JwtDecoder adminJwtDecoder,
             @Qualifier("jwtAuthenticationConverter") Converter<Jwt, ? extends AbstractAuthenticationToken> converter,
             ApiAuthenticationEntryPoint authenticationEntryPoint,
-            ApiAccessDeniedHandler accessDeniedHandler) throws Exception {
+            ApiAccessDeniedHandler accessDeniedHandler,
+            DeploymentOrganizationAdmission organizationAdmission) throws Exception {
         return http
                 .securityMatcher("/api/admin/**", "/api/migration/**")
                 .csrf(AbstractHttpConfigurer::disable)
@@ -34,7 +36,7 @@ public class AdminApiSecurityConfiguration {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeHttpRequests(authorize -> authorize
-                        .anyRequest().access(new AdminApiAuthorizationManager()))
+                        .anyRequest().access(new AdminApiAuthorizationManager(organizationAdmission)))
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler)

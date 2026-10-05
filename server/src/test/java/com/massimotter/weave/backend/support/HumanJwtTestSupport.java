@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.support;
 
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.config.DeploymentOrganizationProperties;
+import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -11,11 +14,18 @@ import java.util.Map;
  * selected-organization claim boundary as production.
  */
 public final class HumanJwtTestSupport {
+    public static final String ORGANIZATION_ID = "test-primary-organization";
 
     private static final String CLIENT_ID = "weave-app";
-    private static final String ORGANIZATION_ALIAS = "weave-dogfood";
+    public static final String ORGANIZATION_ALIAS = "weave-dogfood";
 
     private HumanJwtTestSupport() {}
+
+    public static DeploymentOrganizationAdmission organizationAdmission() {
+        return new DeploymentOrganizationAdmission(
+                new DeploymentOrganizationProperties(ORGANIZATION_ID, ORGANIZATION_ALIAS),
+                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null));
+    }
 
     public static Map<String, Object> organizationWithRole(String role) {
         return organizationWithRoles(List.of(role));
@@ -35,6 +45,7 @@ public final class HumanJwtTestSupport {
         return Map.of(
                 ORGANIZATION_ALIAS,
                 Map.of(
+                        "id", ORGANIZATION_ID,
                         "groups", normalized(groups),
                         "resource_access",
                         Map.of(CLIENT_ID, Map.of("roles", normalized(roles)))));

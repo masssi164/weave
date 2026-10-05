@@ -69,6 +69,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         OAuth2ResourceServerProperties.class
 })
 @org.springframework.test.context.TestPropertySource(properties = {
+        "weave.context.authorization.default-tenant-id=weave-dogfood",
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
         "weave.workspace.chat.dependency-url=https://matrix.weave.test",
         "weave.workspace.files.dependency-url=https://files.weave.test",
@@ -228,7 +229,7 @@ class WorkspaceControllerTest {
                                 .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.organizationId").value("tenant-default"));
+                .andExpect(jsonPath("$.organizationId").value("weave-dogfood"));
     }
 
     @Test
@@ -263,7 +264,7 @@ class WorkspaceControllerTest {
     void homeProjectsOnlyContextAuthorizedSupportSafeActivityFromTheJwtCaller() throws Exception {
         when(auditEventPublisher.events()).thenReturn(List.of(
                 new AuditEvent(
-                        "tenant-a",
+                        "weave-dogfood",
                         "workspace-shared",
                         "user:author-sub",
                         "files:webdav",
@@ -275,7 +276,7 @@ class WorkspaceControllerTest {
                                 "productPath", "/private/quarterly-plan.pdf",
                                 "providerId", "provider-resource-42")),
                 new AuditEvent(
-                        "tenant-a",
+                        "weave-dogfood",
                         "workspace-private",
                         "user:private-author",
                         "files:webdav",
@@ -295,7 +296,7 @@ class WorkspaceControllerTest {
                         .jwt(token -> token
                                 .subject("author-sub")
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("weave_tenant_id", "tenant-a")
+                                .claim("weave_tenant_id", "weave-dogfood")
                                 .claim("organization", HumanJwtTestSupport.organizationWithRole("member")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())

@@ -2,6 +2,8 @@ package com.massimotter.weave.backend.provider;
 
 import com.massimotter.weave.backend.domainregistry.CanonicalDomainRegistry;
 import com.massimotter.weave.backend.domainregistry.CanonicalDomainRegistryResponse;
+import com.massimotter.weave.backend.model.admin.FilesBindingStatusResponse;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
 
@@ -16,9 +18,14 @@ public record ProviderRegistryResponse(
         Instant generatedAt,
         CanonicalDomainRegistryResponse canonicalDomainRegistry,
         DomainAdapterRegistryResponse domainAdapterRegistry,
+        @Schema(description = "Legacy deployment configuration selections; not evidence of active organization runtime bindings.")
         List<ProviderSelection> selectedProviderMappings,
         List<ProviderCategoryStatusResponse> categories,
-        List<ProviderStatusResponse> providers) {
+        List<ProviderStatusResponse> providers,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Configured canonical deployment organization.")
+        String organizationId,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        FilesBindingStatusResponse filesBinding) {
 
     public ProviderRegistryResponse {
         canonicalDomainRegistry = canonicalDomainRegistry == null

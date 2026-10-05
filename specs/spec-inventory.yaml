@@ -42,6 +42,13 @@ artifacts:
     corpusCandidates:
       - steering/release-2026-10-product-consolidation.md
     notes: Defines exact-candidate generation, consumer checks, isolated export and failure evidence for #1472/#1473/#1480; no independent API ownership.
+  - path: specs/admin-provider-organization-boundary.md
+    status: implementation-evidence
+    action: keep-as-scoped-admin-api-and-organization-admission-evidence
+    corpusCandidates:
+      - steering/release-2026-10-product-consolidation.md
+      - platform/identity-security/spec.md
+      - domains/admin-health-ops/spec.md
   - path: specs/0000-weave-spec-framework
     status: transitional-conformance
     action: keep-until-migrated-or-replaced-by-corpus-manifest
