@@ -1,6 +1,6 @@
 tasks.named('bootRun') {
     dependsOn tasks.named('buildMatrixRustCoreJni')
-    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
+    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
 }
 
 tasks.register('runtimeProfileSigningKeys', JavaExec) {
