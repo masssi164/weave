@@ -30,6 +30,10 @@ Generate User/Admin artifacts and affected JVM, Dart and TypeScript consumers fr
 Server controllers and DTOs. No transport schema or generated file is hand edited.
 Calendar payload DTOs preserve DATE/FLOATING/UTC/ZONED and typed recurrence without
 provider UIDs, ETags or collection paths becoming public references.
+Closed write objects declare `additionalProperties: false` from their server
+annotations, matching runtime rejection of unknown fields. Recurrence interval is
+explicitly required because an omitted primitive defaults to zero and is rejected
+by server validation; generation must not advertise that invalid omission as valid.
 
 Product E2E replaces its handwritten northbound CalDAV event journey with the
 generated JVM User client. Existing iCalendar projection fixtures remain reusable
@@ -75,3 +79,31 @@ wire round trips must preserve a civil date even when the host zone skipped that
 date (Pacific/Apia, 2011-12-30). Date-time values still preserve their instant. The
 generator fails if its pinned upstream template shape changes, and consumer wire
 tests run in UTC, Europe/Berlin and Pacific/Apia to expose host-zone dependence.
+`clientGeneratedCalendarTemporalWire` enforces these three zones as a required
+dependency of `clientCi` and therefore `generatedApiCi`.
+
+## Integrated local qualification
+
+The integrated Calendar slice passes `generatedApiCi`, `acceptanceContract`,
+`specCorpusConformance`, `docsStructureCheck`, `gradleStructureCheck` and
+`specContract`. The code-first export has 64 User and 29 Admin operations, including
+six new Calendar User operations. The separate Admin contract is unchanged by this
+Calendar increment. Freshness checks regenerate in temporary locations and leave
+the checked-in sources unchanged.
+
+- Server suite: 1,117 tests, no failures/errors; four normalized Calendar cases are
+  deliberately assigned to the PostgreSQL task.
+- PostgreSQL Calendar task: eight Calendar cases plus twelve existing Cucumber
+  cases, no failures/errors/skips.
+- Full Flutter suite: 570 passed, one existing offline-contract-only skip. Analysis
+  passes. The additional seven generated temporal wire tests pass independently in
+  each of UTC, Europe/Berlin and Pacific/Apia.
+- Admin Console: build and 37 tests pass. JVM product E2E: 49 fixture tests pass;
+  MCP: 20 tests pass; generated JVM clients compile and the User client contract
+  fixture passes. These results do not claim a generated MCP Calendar tool.
+- Independent Flutter review findings on host DST normalization, stale mutation
+  rollback and overlapping events were fixed with regressions. Generator DATE
+  correction received a separate scoped review without a material finding.
+
+The live Compose Calendar journey and real Flutter single-sign-in/recovery proof
+remain required. A passing source/fixture gate does not establish either outcome.

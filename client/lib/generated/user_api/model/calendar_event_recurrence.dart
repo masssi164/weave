@@ -21,7 +21,7 @@ class CalendarEventRecurrence {
     this.count,
     this.excludedDates = const [],
     required this.frequency,
-    this.interval,
+    required this.interval,
     this.until,
     this.weekStart,
   });
@@ -46,13 +46,7 @@ class CalendarEventRecurrence {
 
   /// Minimum value: 1
   /// Maximum value: 1000
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  int? interval;
+  int interval;
 
   /// Exclusive with count. DATE/FLOATING match start kind; UTC and ZONED use a UTC instant.
   ///
@@ -92,7 +86,7 @@ class CalendarEventRecurrence {
       (count == null ? 0 : count!.hashCode) +
       (excludedDates.hashCode) +
       (frequency.hashCode) +
-      (interval == null ? 0 : interval!.hashCode) +
+      (interval.hashCode) +
       (until == null ? 0 : until!.hashCode) +
       (weekStart == null ? 0 : weekStart!.hashCode);
 
@@ -114,11 +108,7 @@ class CalendarEventRecurrence {
     }
     json[r'excludedDates'] = this.excludedDates;
     json[r'frequency'] = this.frequency;
-    if (this.interval != null) {
-      json[r'interval'] = this.interval;
-    } else {
-      json[r'interval'] = null;
-    }
+    json[r'interval'] = this.interval;
     if (this.until != null) {
       json[r'until'] = this.until;
     } else {
@@ -177,7 +167,7 @@ class CalendarEventRecurrence {
         excludedDates: CalendarTimeValue.listFromJson(json[r'excludedDates']),
         frequency:
             CalendarEventRecurrenceFrequencyEnum.fromJson(json[r'frequency'])!,
-        interval: mapValueOfType<int>(json, r'interval'),
+        interval: mapValueOfType<int>(json, r'interval')!,
         until: CalendarTimeValue.fromJson(json[r'until']),
         weekStart: mapValueOfType<String>(json, r'weekStart'),
       );
@@ -243,6 +233,7 @@ class CalendarEventRecurrence {
     'bySetPos',
     'excludedDates',
     'frequency',
+    'interval',
   };
 }
 

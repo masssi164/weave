@@ -763,7 +763,7 @@ class CalendarEventRecurrence {
     this.count,
     required this.excludedDates,
     required this.frequency,
-    this.interval,
+    required this.interval,
     this.until,
     this.weekStart,
   });
@@ -790,7 +790,7 @@ class CalendarEventRecurrence {
             .map((e) => CalendarTimeValue.fromJson(e as Map<String, dynamic>))
             .toList(),
         frequency: json["frequency"] as String,
-        interval: (json["interval"] as num?)?.toInt(),
+        interval: (json["interval"] as num).toInt(),
         until: json["until"] == null
             ? null
             : CalendarTimeValue.fromJson(json["until"] as Map<String, dynamic>),
@@ -805,7 +805,7 @@ class CalendarEventRecurrence {
   final int? count;
   final List<CalendarTimeValue> excludedDates;
   final String frequency;
-  final int? interval;
+  final int interval;
   final CalendarTimeValue? until;
   final String? weekStart;
 
