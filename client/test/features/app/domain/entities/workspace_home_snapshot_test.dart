@@ -6,7 +6,7 @@ void main() {
   test('keeps degraded Home navigable without accepting blocked states', () {
     WorkspaceHomeSnapshot snapshot(WorkspaceCapabilityReadiness readiness) {
       return WorkspaceHomeSnapshot(
-        version: 2,
+        version: 3,
         readiness: readiness,
         summary: 'Support-safe Home summary.',
         sections: const [],

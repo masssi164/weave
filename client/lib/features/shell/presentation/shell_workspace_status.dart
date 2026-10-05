@@ -87,72 +87,77 @@ class _WorkspaceSummary extends StatelessWidget {
         ? l10n.settingsWorkspaceSummaryDegraded
         : l10n.settingsWorkspaceSummaryNeedsSignIn;
 
-    return Semantics(
-      container: true,
-      label: '${l10n.settingsWorkspaceReadinessTitle}. $summary',
-      child: ExcludeSemantics(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Semantics(
+          container: true,
+          label: '${l10n.settingsWorkspaceReadinessTitle}. $summary',
+          child: ExcludeSemantics(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  isReady ? Icons.check_circle_outline : Icons.info_outline,
-                  color: isReady
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.tertiary,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.settingsWorkspaceReadinessTitle,
-                        style: theme.textTheme.titleMedium,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      isReady ? Icons.check_circle_outline : Icons.info_outline,
+                      color: isReady
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.tertiary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.settingsWorkspaceReadinessTitle,
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(summary, style: theme.textTheme.bodyMedium),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(summary, style: theme.textTheme.bodyMedium),
-                    ],
-                  ),
+                    ),
+                    TextButton(
+                      onPressed: () => context.go(AppRoutes.settings),
+                      child: Text(l10n.navSettings),
+                    ),
+                  ],
                 ),
-                TextButton(
-                  onPressed: () => context.go(AppRoutes.settings),
-                  child: Text(l10n.navSettings),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _CapabilityChip(
-                  label: l10n.settingsWorkspaceChatLabel,
-                  capability: capabilities.chat,
-                ),
-                _CapabilityChip(
-                  label: l10n.settingsWorkspaceFilesLabel,
-                  capability: capabilities.files,
-                ),
-                _CapabilityChip(
-                  label: l10n.settingsWorkspaceCalendarLabel,
-                  capability: capabilities.calendar,
-                ),
-                _CapabilityChip(
-                  label: l10n.settingsWorkspaceBoardsLabel,
-                  capability: capabilities.boards,
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _CapabilityChip(
+                      label: l10n.settingsWorkspaceChatLabel,
+                      capability: capabilities.chat,
+                    ),
+                    _CapabilityChip(
+                      label: l10n.settingsWorkspaceFilesLabel,
+                      capability: capabilities.files,
+                    ),
+                    _CapabilityChip(
+                      label: l10n.settingsWorkspaceCalendarLabel,
+                      capability: capabilities.calendar,
+                    ),
+                    _CapabilityChip(
+                      label: l10n.settingsWorkspaceBoardsLabel,
+                      capability: capabilities.boards,
+                    ),
+                  ],
                 ),
               ],
             ),
-            if (home case final homeSnapshot?) ...[
-              const SizedBox(height: 12),
-              _HomeDailyLoopSummary(home: homeSnapshot),
-            ],
-          ],
+          ),
         ),
-      ),
+        if (home case final homeSnapshot?) ...[
+          const SizedBox(height: 12),
+          _HomeDailyLoopSummary(home: homeSnapshot),
+        ],
+      ],
     );
   }
 }
@@ -168,7 +173,12 @@ class _HomeDailyLoopSummary extends StatelessWidget {
     final visibleSections = home.sections.take(5).toList(growable: false);
     final visibleActions = home.actions.take(2).toList(growable: false);
     final semanticSections = visibleSections
-        .map((section) => '${section.title}: ${section.summary}')
+        .map((section) {
+          final title = section.itemCount == null
+              ? section.title
+              : '${section.title} (${section.itemCount})';
+          return '$title: ${section.summary}';
+        })
         .join('. ');
     final homeTitle = AppLocalizations.of(context).chatOverviewTitle;
 
@@ -189,7 +199,9 @@ class _HomeDailyLoopSummary extends StatelessWidget {
               children: visibleSections
                   .map(
                     (section) => _CapabilityChip(
-                      label: '${section.title} (${section.itemCount})',
+                      label: section.itemCount == null
+                          ? section.title
+                          : '${section.title} (${section.itemCount})',
                       capability: WorkspaceCapabilityState(
                         capability: WorkspaceCapability.shellAccess,
                         readiness: section.readiness,
