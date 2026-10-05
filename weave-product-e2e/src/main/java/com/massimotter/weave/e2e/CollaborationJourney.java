@@ -583,34 +583,44 @@ final class CollaborationJourney {
   }
 
   private void proveHomeProjection(Identity author, Identity collaborator, Identity outsider) {
-    for (Identity identity : List.of(author, collaborator)) {
-      JsonNode home =
-          http.json(
-              "read shared Home activity as " + identity.role(),
-              "GET",
-              environment.api("/api/workspace/home"),
-              bearer(identity.token(), Map.of()),
-              null,
-              Set.of(200));
-      if (!home.path("supportSafe").asBoolean(false)
-          || !home.path("recentActivity").isArray()
-          || home.path("recentActivity").isEmpty()) {
-        throw new ProductFlowException("shared Home activity did not converge");
+    JsonNode authorHome = home(author);
+    String privateActivityRef = null;
+    for (int index = 0; index < authorHome.path("recentActivity").size(); index++) {
+      JsonNode activity = authorHome.path("recentActivity").get(index);
+      if ("files.user_write.completed".equals(activity.path("action").asString())
+          && "private".equals(activity.path("visibility").asString())
+          && activity.path("actorIsCurrentUser").asBoolean(false)) {
+        privateActivityRef = activity.path("activityRef").asString();
+        break;
       }
     }
-    JsonNode outsiderHome =
-        http.json(
-            "filter outsider Home projection",
-            "GET",
-            environment.api("/api/workspace/home"),
-            bearer(outsider.token(), Map.of()),
-            null,
-            Set.of(200));
-    if (!outsiderHome.path("supportSafe").asBoolean(false)
-        || !outsiderHome.path("recentActivity").isArray()
-        || !outsiderHome.path("recentActivity").isEmpty()) {
-      throw new ProductFlowException("outsider Home activity was not filtered");
+    if (privateActivityRef == null || privateActivityRef.isBlank()) {
+      throw new ProductFlowException("completed User Files activity did not reach owner Home");
     }
+    for (Identity identity : List.of(collaborator, outsider)) {
+      JsonNode otherHome = home(identity);
+      for (int index = 0; index < otherHome.path("recentActivity").size(); index++) {
+        if (privateActivityRef.equals(otherHome.path("recentActivity").get(index)
+            .path("activityRef").asString())) {
+          throw new ProductFlowException("private User Files activity leaked to " + identity.role());
+        }
+      }
+    }
+  }
+
+  private JsonNode home(Identity identity) {
+    JsonNode response = http.json(
+        "read authorized Home activity as " + identity.role(),
+        "GET",
+        environment.api("/api/workspace/home"),
+        bearer(identity.token(), Map.of()),
+        null,
+        Set.of(200));
+    if (!response.path("supportSafe").asBoolean(false)
+        || !response.path("recentActivity").isArray()) {
+      throw new ProductFlowException(identity.role() + " Home activity response is invalid");
+    }
+    return response;
   }
 
   private JsonNode replayCapturedCallback() {

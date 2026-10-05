@@ -25,7 +25,9 @@ public class WorkspaceHomeRecentActivityService {
     private static final int MAX_RECENT_ACTIVITIES = 20;
     private static final Map<AuditAction, CanonicalActivity> COMPLETED_ACTIVITIES = Map.of(
             AuditAction.FILES_WEBDAV_WRITE_COMPLETED,
-            new CanonicalActivity("files", AuditAction.FILES_WEBDAV_WRITE_COMPLETED.wireName(), "workspace"));
+            new CanonicalActivity("files", AuditAction.FILES_WEBDAV_WRITE_COMPLETED.wireName(), "workspace"),
+            AuditAction.FILES_OPERATION_INTENT_RECORDED,
+            new CanonicalActivity("files", "files.user_write.completed", "private"));
 
     private final AuditEventPublisher auditEvents;
     private final ContextAuthorizationPort contextAuthorization;
@@ -71,7 +73,11 @@ public class WorkspaceHomeRecentActivityService {
                 && event.contextId() != null
                 && event.tenantId().equals(caller.tenantId)
                 && event.redactionLevel() == AuditRedactionLevel.SUPPORT_SAFE
-                && COMPLETED_ACTIVITIES.containsKey(event.action());
+                && COMPLETED_ACTIVITIES.containsKey(event.action())
+                && (event.action() != AuditAction.FILES_OPERATION_INTENT_RECORDED
+                        || ("files:user-http".equals(event.sourceRef())
+                                && "completed".equals(event.payload().get("result"))
+                                && event.actorRef().equals(caller.principalRef)));
     }
 
     private boolean mayView(AuditEvent event, CallerContext caller) {

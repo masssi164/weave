@@ -97,6 +97,13 @@ surface. Public WebDAV/CalDAV probes may remain in separately named compatibilit
 regressions, but the current-scope Full Compose product flow must not require them or
 report them as its product northbound contract. Matrix remains the explicit protocol
 exception and has its own independent-client qualification gate.
+Member Home may project a completed User Files write from the support-safe audit
+envelope only for its actor while User Files objects have owner-only access. It must
+not expose that object's activity to an ungranted member of the same organization.
+The activity projection requires a completed result from the User HTTP source; an
+attempted, ambiguous or generic intent record is not proof of a completed write.
+The Full Compose journey asserts the author's activity and the absence of that
+activity from the collaborator and outsider Home views.
 
 ## Member diagnostic boundary
 
