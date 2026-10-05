@@ -1,7 +1,7 @@
 # Generated OpenAPI models
 
 `openapi_models.dart` is generated from the server-owned artifact at
-`contracts/openapi/weave-openapi.json`.
+`contracts/openapi/weave-user-openapi.json`.
 
 Regenerate it from the repository root:
 

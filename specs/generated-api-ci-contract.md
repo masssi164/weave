@@ -78,3 +78,8 @@ Existing provider-coverage widget expectations are superseded by this release bo
 replacement tests assert visible capability states and absence of provider configuration
 for both members and administrators using the member app. Server/Admin tests retain
 provider redaction and administrative authorization evidence.
+
+The transitional Dart model projection also reads only the User artifact. The combined
+documentation export must not reintroduce Admin transport models into Flutter. Remove
+unused provider-registry mappers with that projection; preserve domain mappers still
+used by current User operations. Generator tests assert each consumer's artifact owner.

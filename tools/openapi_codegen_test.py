@@ -17,6 +17,14 @@ import generate_client_openapi_models as client
 
 
 class OpenApi31TypeProjectionTest(unittest.TestCase):
+    def test_consumer_projections_use_only_their_owned_artifacts(self) -> None:
+        self.assertEqual("weave-user-openapi.json", client.OPENAPI.name)
+        self.assertEqual("weave-admin-openapi.json", admin.OPENAPI.name)
+        user_models = client.render()
+        self.assertNotIn("class AdminControlPlaneResponse", user_models)
+        self.assertNotIn("class ProviderRegistryResponse", user_models)
+        self.assertIn("class WorkspaceCapabilitiesResponse", user_models)
+
     def test_required_nullable_string_remains_required_and_nullable_in_dart(self) -> None:
         schema = {"type": ["null", "string"]}
 
