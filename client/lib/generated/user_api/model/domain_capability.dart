@@ -14,28 +14,16 @@ class DomainCapability {
   /// Returns a new [DomainCapability] instance.
   DomainCapability({
     this.capabilities = const [],
-    this.domain,
-    this.state,
+    required this.domain,
+    required this.state,
     this.supportReference,
   });
 
   List<String> capabilities;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? domain;
+  String domain;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? state;
+  String state;
 
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
@@ -58,8 +46,8 @@ class DomainCapability {
   int get hashCode =>
       // ignore: unnecessary_parenthesis
       (capabilities.hashCode) +
-      (domain == null ? 0 : domain!.hashCode) +
-      (state == null ? 0 : state!.hashCode) +
+      (domain.hashCode) +
+      (state.hashCode) +
       (supportReference == null ? 0 : supportReference!.hashCode);
 
   @override
@@ -69,16 +57,8 @@ class DomainCapability {
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'capabilities'] = this.capabilities;
-    if (this.domain != null) {
-      json[r'domain'] = this.domain;
-    } else {
-      json[r'domain'] = null;
-    }
-    if (this.state != null) {
-      json[r'state'] = this.state;
-    } else {
-      json[r'state'] = null;
-    }
+    json[r'domain'] = this.domain;
+    json[r'state'] = this.state;
     if (this.supportReference != null) {
       json[r'supportReference'] = this.supportReference;
     } else {
@@ -113,8 +93,8 @@ class DomainCapability {
                 .cast<String>()
                 .toList(growable: false)
             : const [],
-        domain: mapValueOfType<String>(json, r'domain'),
-        state: mapValueOfType<String>(json, r'state'),
+        domain: mapValueOfType<String>(json, r'domain')!,
+        state: mapValueOfType<String>(json, r'state')!,
         supportReference: mapValueOfType<String>(json, r'supportReference'),
       );
     }
@@ -171,5 +151,9 @@ class DomainCapability {
   }
 
   /// The list of required keys that must be present in a JSON.
-  static const requiredKeys = <String>{};
+  static const requiredKeys = <String>{
+    'capabilities',
+    'domain',
+    'state',
+  };
 }

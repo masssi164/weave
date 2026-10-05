@@ -180,12 +180,16 @@ class AppStartConfiguration {
     required this.oidcClientId,
     required this.userApiBaseUrl,
     required this.matrixClientServerBaseUrl,
+    required this.matrixOAuthIssuer,
+    required this.matrixOAuthClientId,
   });
 
   final Uri oidcIssuerUrl;
   final String oidcClientId;
   final Uri userApiBaseUrl;
   final Uri matrixClientServerBaseUrl;
+  final Uri matrixOAuthIssuer;
+  final String matrixOAuthClientId;
 }
 
 class AppStartDiscoveryClient {
@@ -364,7 +368,11 @@ class AppStartDiscoveryClient {
     final oidc = _object(json['oidc'], fieldName: 'oidc');
     _requireExactKeys(oidc, const {'issuer', 'clientId'});
     final protocols = _object(json['protocols'], fieldName: 'protocols');
-    _requireExactKeys(protocols, const {'matrixClientServerBaseUrl'});
+    _requireExactKeys(protocols, const {
+      'matrixClientServerBaseUrl',
+      'matrixOAuthIssuer',
+      'matrixOAuthClientId',
+    });
     _uri(oidc['issuer'], fieldName: 'oidc.issuer');
     _clientId(oidc['clientId']);
     final userApiBaseUrl = _uri(
@@ -389,14 +397,27 @@ class AppStartDiscoveryClient {
         'WEAVE-APP-START-DISCOVERY-INVALID: protocols.matrixClientServerBaseUrl must be a homeserver origin.',
       );
     }
+    _uri(
+      protocols['matrixOAuthIssuer'],
+      fieldName: 'protocols.matrixOAuthIssuer',
+    );
+    final matrixOAuthClientId = _clientId(
+      protocols['matrixOAuthClientId'],
+      fieldName: 'protocols.matrixOAuthClientId',
+    );
+    if (matrixOAuthClientId == _clientId(oidc['clientId'])) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: Matrix OAuth must use a separate client ID.',
+      );
+    }
     _validateDomains(json['domains']);
 
     // Exact field validation above rejects unknown public protocol surfaces;
     // the generated transport model then supplies the values consumed by the
     // client configuration. Its decoder alone tolerates unknown JSON fields.
     final transport = user_api.PlatformConfigResponse.fromJson(json)!;
-    final transportOidc = transport.oidc!;
-    final transportProtocols = transport.protocols!;
+    final transportOidc = transport.oidc;
+    final transportProtocols = transport.protocols;
 
     return AppStartConfiguration(
       oidcIssuerUrl: _uri(transportOidc.issuer, fieldName: 'oidc.issuer'),
@@ -409,6 +430,14 @@ class AppStartDiscoveryClient {
         transportProtocols.matrixClientServerBaseUrl,
         fieldName: 'protocols.matrixClientServerBaseUrl',
       ).replace(path: ''),
+      matrixOAuthIssuer: _uri(
+        transportProtocols.matrixOAuthIssuer,
+        fieldName: 'protocols.matrixOAuthIssuer',
+      ),
+      matrixOAuthClientId: _clientId(
+        transportProtocols.matrixOAuthClientId,
+        fieldName: 'protocols.matrixOAuthClientId',
+      ),
     );
   }
 
@@ -565,16 +594,16 @@ class AppStartDiscoveryClient {
     return uri;
   }
 
-  String _clientId(Object? rawValue) {
+  String _clientId(Object? rawValue, {String fieldName = 'oidc.clientId'}) {
     if (rawValue is! String || rawValue.trim().isEmpty) {
-      throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: oidc.clientId is required.',
+      throw AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: $fieldName is required.',
       );
     }
     final value = rawValue.trim();
     if (!RegExp(r'^[A-Za-z0-9._:-]{3,80}$').hasMatch(value)) {
-      throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: oidc.clientId is not support-safe.',
+      throw AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: $fieldName is not support-safe.',
       );
     }
     return value;

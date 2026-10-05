@@ -6,26 +6,31 @@ import java.util.List;
 
 @Schema(description = "Provider-neutral organization manifest consumed by Weave clients.")
 public record PlatformConfigResponse(
-        int schemaVersion,
-        String organizationOrigin,
-        String userApiBaseUrl,
-        Oidc oidc,
-        Protocols protocols,
-        String releasePosture,
-        List<DomainCapability> domains,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int schemaVersion,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, format = "uri") String organizationOrigin,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, format = "uri") String userApiBaseUrl,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Oidc oidc,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Protocols protocols,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String releasePosture,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<DomainCapability> domains,
         List<RecoveryAction> recoveryActions) {
 
-    public record Oidc(String issuer, String clientId) {
+    public record Oidc(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, format = "uri") String issuer,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String clientId) {
     }
 
-    public record Protocols(String matrixClientServerBaseUrl) {
+    public record Protocols(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, format = "uri") String matrixClientServerBaseUrl,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, format = "uri") String matrixOAuthIssuer,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String matrixOAuthClientId) {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record DomainCapability(
-            String domain,
-            String state,
-            List<String> capabilities,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String domain,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String state,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> capabilities,
             String supportReference) {
     }
 
